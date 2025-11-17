@@ -27,19 +27,33 @@ router.post('/', async (req, res) => {
     const { firstName, lastName, dateOfBirth, phone, email, address, branchId } = req.body;
 
     // Basic validation
-    if (!firstName || !lastName || !branchId) {
-      return res.status(400).json({ error: 'firstName, lastName, and branchId are required' });
+    if (!firstName?.trim() || !lastName?.trim() || !branchId?.trim()) {
+      return res.status(400).json({ 
+        error: 'firstName, lastName, and branchId are required and must not be empty' 
+      });
+    }
+
+    // Parse and validate dateOfBirth if provided
+    let parsedDateOfBirth = null;
+    if (dateOfBirth) {
+      const date = new Date(dateOfBirth);
+      if (isNaN(date.getTime())) {
+        return res.status(400).json({ 
+          error: 'dateOfBirth must be a valid date string (ISO 8601 format)' 
+        });
+      }
+      parsedDateOfBirth = date;
     }
 
     const patient = await prisma.patient.create({
       data: {
-        firstName,
-        lastName,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-        phone,
-        email,
-        address,
-        branchId,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        dateOfBirth: parsedDateOfBirth,
+        phone: phone?.trim() || null,
+        email: email?.trim() || null,
+        address: address?.trim() || null,
+        branchId: branchId.trim(),
       },
       include: {
         branch: {
@@ -51,6 +65,12 @@ router.post('/', async (req, res) => {
     res.status(201).json(patient);
   } catch (error) {
     req.log?.error({ error }, 'Failed to create patient');
+    
+    // Handle specific Prisma errors
+    if (error.code === 'P2003') {
+      return res.status(400).json({ error: 'Invalid branchId: branch does not exist' });
+    }
+    
     res.status(500).json({ error: 'Failed to create patient' });
   }
 });

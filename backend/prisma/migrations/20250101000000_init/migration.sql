@@ -1,3 +1,6 @@
+-- CreateEnum
+CREATE TYPE "UserRole" AS ENUM ('admin', 'doctor', 'staff', 'receptionist');
+
 -- CreateTable
 CREATE TABLE "Branch" (
     "id" TEXT NOT NULL,
@@ -15,7 +18,7 @@ CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "passwordHash" TEXT NOT NULL,
-    "role" TEXT NOT NULL DEFAULT 'staff',
+    "role" "UserRole" NOT NULL DEFAULT 'staff',
     "firstName" TEXT,
     "lastName" TEXT,
     "branchId" TEXT NOT NULL,
@@ -68,6 +71,9 @@ CREATE TABLE "Encounter" (
 
     CONSTRAINT "Encounter_pkey" PRIMARY KEY ("id")
 );
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Branch_name_key" ON "Branch"("name");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");

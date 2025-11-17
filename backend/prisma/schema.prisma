@@ -8,10 +8,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// User role enum
+enum UserRole {
+  admin
+  doctor
+  staff
+  receptionist
+}
+
 // Branch/Clinic model
 model Branch {
   id        String   @id @default(uuid())
-  name      String
+  name      String   @unique
   address   String?
   phone     String?
   createdAt DateTime @default(now())
@@ -27,7 +35,7 @@ model User {
   id           String   @id @default(uuid())
   email        String   @unique
   passwordHash String
-  role         String   @default("staff") // e.g., "admin", "staff", "doctor"
+  role         UserRole @default(staff)
   firstName    String?
   lastName     String?
   branchId     String

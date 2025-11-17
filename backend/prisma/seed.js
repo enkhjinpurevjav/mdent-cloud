@@ -15,10 +15,9 @@ async function main() {
 
   // Create or update the default branch
   const branch = await prisma.branch.upsert({
-    where: { id: 'default-branch-id' },
+    where: { name: 'Main Clinic' },
     update: {},
     create: {
-      id: 'default-branch-id',
       name: 'Main Clinic',
       address: 'Ulaanbaatar, Mongolia',
       phone: '+976-99999999',
