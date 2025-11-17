@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import pino from "pino";
-import prisma from "./db.ts";
+import prisma from "./db.js";
 import branchesRouter from "./routes/branches.js";
 import patientsRouter from "./routes/patients.js";
 
