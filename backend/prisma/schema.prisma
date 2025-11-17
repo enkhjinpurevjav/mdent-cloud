@@ -23,7 +23,7 @@ model User {
   email     String   @unique
   password  String
   role      String
-  branchId  Int?     
+  branchId  Int?
   createdAt DateTime @default(now())
 
   branch    Branch?  @relation(fields: [branchId], references: [id])
@@ -31,7 +31,7 @@ model User {
 
 model Patient {
   id         Int        @id @default(autoincrement())
-  regNo      String?    
+  regNo      String?
   name       String
   phone      String?
   branchId   Int
@@ -39,22 +39,24 @@ model Patient {
 
   branch     Branch     @relation(fields: [branchId], references: [id])
   book       PatientBook?
-  encounters Encounter[]
+  // Removed: encounters Encounter[]  (Encounters belong to PatientBook, not Patient)
 }
 
 model PatientBook {
-  id         Int     @id @default(autoincrement())
-  bookNumber String  @unique
-  patientId  Int     @unique
+  id         Int      @id @default(autoincrement())
+  bookNumber String   @unique
+  patientId  Int      @unique
 
-  patient    Patient @relation(fields: [patientId], references: [id])
+  patient    Patient  @relation(fields: [patientId], references: [id])
+  // Add the opposite side of Encounter.patientBook
+  encounters Encounter[]
 }
 
 model Encounter {
-  id            Int      @id @default(autoincrement())
+  id            Int         @id @default(autoincrement())
   patientBookId Int
   doctorId      Int?
-  visitDate     DateTime @default(now())
+  visitDate     DateTime    @default(now())
   notes         String?
 
   patientBook   PatientBook @relation(fields: [patientBookId], references: [id])
