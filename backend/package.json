@@ -1,20 +1,22 @@
- url=https://github.com/enkhjinpurevjav/mdent-cloud/blob/main/backend/package.json
-// backend/package.json (excerpt - merge into your existing file)
 {
   "name": "mdent-backend",
   "version": "1.0.0",
-  // keep other fields as-is
-  "dependencies": {
-    // keep existing deps and add:
-    "@prisma/client": "^5.11.0",
-    "bcryptjs": "^2.4.3",
-    "prisma": "^5.11.0"
-  },
+  "private": true,
+  "type": "module",
   "scripts": {
-    // keep existing scripts, and add these:
+    "start": "node src/index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "seed": "node prisma/seed.js",
     "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.18.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.21.1",
+    "helmet": "^7.1.0",
+    "pino": "^9.3.2",
+    "prisma": "^5.18.0"
   }
 }
