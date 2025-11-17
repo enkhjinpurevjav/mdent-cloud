@@ -1,0 +1,87 @@
+// Prisma schema for MDent Cloud
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Branch/Clinic model
+model Branch {
+  id        String   @id @default(uuid())
+  name      String
+  address   String?
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users      User[]
+  patients   Patient[]
+  encounters Encounter[]
+}
+
+// User model (staff/admin)
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         String   @default("staff") // e.g., "admin", "staff", "doctor"
+  firstName    String?
+  lastName     String?
+  branchId     String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  branch     Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  encounters Encounter[]
+}
+
+// Patient model
+model Patient {
+  id          String   @id @default(uuid())
+  firstName   String
+  lastName    String
+  dateOfBirth DateTime?
+  phone       String?
+  email       String?
+  address     String?
+  branchId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branch       Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  patientBooks PatientBook[]
+  encounters   Encounter[]
+}
+
+// Patient record/book model
+model PatientBook {
+  id        String   @id @default(uuid())
+  patientId String
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+// Encounter/Visit model
+model Encounter {
+  id           String    @id @default(uuid())
+  patientId    String
+  branchId     String
+  userId       String?
+  date         DateTime  @default(now())
+  chiefComplaint String?
+  diagnosis    String?
+  treatment    String?
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  branch  Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
