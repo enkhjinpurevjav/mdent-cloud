@@ -1,0 +1,61 @@
+// backend/prisma/schema.prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Branch {
+  id        Int      @id @default(autoincrement())
+  name      String
+  address   String?
+  createdAt DateTime @default(now())
+
+  patients  Patient[]
+  users     User[]
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  role      String
+  branchId  Int?     
+  createdAt DateTime @default(now())
+
+  branch    Branch?  @relation(fields: [branchId], references: [id])
+}
+
+model Patient {
+  id         Int        @id @default(autoincrement())
+  regNo      String?    
+  name       String
+  phone      String?
+  branchId   Int
+  createdAt  DateTime   @default(now())
+
+  branch     Branch     @relation(fields: [branchId], references: [id])
+  book       PatientBook?
+  encounters Encounter[]
+}
+
+model PatientBook {
+  id         Int     @id @default(autoincrement())
+  bookNumber String  @unique
+  patientId  Int     @unique
+
+  patient    Patient @relation(fields: [patientId], references: [id])
+}
+
+model Encounter {
+  id            Int      @id @default(autoincrement())
+  patientBookId Int
+  doctorId      Int?
+  visitDate     DateTime @default(now())
+  notes         String?
+
+  patientBook   PatientBook @relation(fields: [patientBookId], references: [id])
+}
