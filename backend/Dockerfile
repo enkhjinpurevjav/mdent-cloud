@@ -4,14 +4,11 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install --omit=dev
-
-# Copy prisma schema
+# Copy prisma schema before install so postinstall hook can run
 COPY prisma ./prisma
 
-# Generate Prisma client
-RUN npx prisma generate
+# Install dependencies (postinstall will run prisma generate)
+RUN npm install --omit=dev
 
 # Copy application files
 COPY . .
