@@ -7,8 +7,8 @@ RUN apk add --no-cache bash python3 make g++
 
 # install packages first to leverage cache
 COPY package*.json ./
-# keep prisma and @prisma/client in dependencies (not dev) so they’re installed
-RUN npm ci --omit=dev
+# use install (not ci) since there is no package-lock.json yet
+RUN npm install --omit=dev
 
 # include prisma client in the image
 COPY prisma ./prisma
