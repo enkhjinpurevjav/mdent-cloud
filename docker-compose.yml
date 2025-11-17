@@ -61,7 +61,7 @@ services:
   caddy:
     image: caddy:2
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile   # file-to-file bind (explicit)
+      - /opt/mdent-caddy:/etc/caddy
       - caddy_data:/data
       - caddy_config:/config
     networks:
