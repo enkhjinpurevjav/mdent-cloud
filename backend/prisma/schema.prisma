@@ -40,7 +40,7 @@ model User {
 
 // Patient model
 model Patient {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   firstName   String
   lastName    String
   dateOfBirth DateTime?
@@ -48,8 +48,8 @@ model Patient {
   email       String?
   address     String?
   branchId    String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   branch       Branch        @relation(fields: [branchId], references: [id], onDelete: Cascade)
   patientBooks PatientBook[]
@@ -69,17 +69,17 @@ model PatientBook {
 
 // Encounter/Visit model
 model Encounter {
-  id           String    @id @default(uuid())
-  patientId    String
-  branchId     String
-  userId       String?
-  date         DateTime  @default(now())
+  id             String   @id @default(uuid())
+  patientId      String
+  branchId       String
+  userId         String?
+  date           DateTime @default(now())
   chiefComplaint String?
-  diagnosis    String?
-  treatment    String?
-  notes        String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  diagnosis      String?
+  treatment      String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
   branch  Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
