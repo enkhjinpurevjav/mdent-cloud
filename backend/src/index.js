@@ -14,7 +14,7 @@ app.use(express.json());
 app.use(
   cors({
     origin: process.env.ALLOWED_ORIGIN || "https://book.mdent.cloud",
-    credentials: true,
+    credentials: true
   })
 );
 
@@ -30,7 +30,7 @@ app.get("/health", async (_req, res) => {
     ok: true,
     service: "mdent-backend",
     time: new Date().toISOString(),
-    db: dbOk,
+    db: dbOk
   });
 });
 
