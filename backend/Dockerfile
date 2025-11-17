@@ -1,28 +1,26 @@
- url=https://github.com/enkhjinpurevjav/mdent-cloud/blob/main/backend/Dockerfile
-# backend/Dockerfile (updated)
 FROM node:20-alpine
 
 WORKDIR /app
 
-# install build deps
-RUN apk add --no-cache python3 make g++ bash
+# tools for native builds (safe even if not strictly needed)
+RUN apk add --no-cache bash python3 make g++
 
-# copy package and install first to leverage cache
+# install packages first to leverage cache
 COPY package*.json ./
-RUN npm ci --production
+# keep prisma and @prisma/client in dependencies (not dev) so they’re installed
+RUN npm ci --omit=dev
 
-# copy prisma schema and run prisma generate to include client in image
+# include prisma client in the image
 COPY prisma ./prisma
 RUN npx prisma generate
 
-# copy rest of app
+# copy app code
 COPY . .
 
-# ensure entrypoint is executable
+# entrypoint that runs migrations then starts the app
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 8080
-
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["node", "src/index.js"]
+CMD ["node","src/index.js"]
