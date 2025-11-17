@@ -1,6 +1,9 @@
 #!/usr/bin/env sh
 set -e
 
+echo "[entrypoint] prisma generate"
+npx prisma generate
+
 echo "[entrypoint] prisma migrate deploy (if any migrations)"
 npx prisma migrate deploy || true
 
