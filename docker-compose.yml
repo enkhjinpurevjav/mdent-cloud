@@ -3,7 +3,6 @@ version: "3.9"
 services:
   postgres:
     image: postgres:16
-    container_name: postgres
     environment:
       POSTGRES_USER: mdent
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -18,21 +17,21 @@ services:
     build:
       context: ./backend
       args:
-        BUILD_TS: "${BUILD_TS:-initial}"   # bump to force rebuild
+        BUILD_TS: "${BUILD_TS:-initial}"   # bump this value to force rebuild if needed
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: "8080"
 
-      # DB
+      # Database
       DATABASE_URL: postgresql://mdent:${DB_PASSWORD}@postgres:5432/mdent?schema=public
 
-      # Auth/seed
+      # Auth / seed
       JWT_SECRET: ${JWT_SECRET}
       RUN_SEED: ${RUN_SEED:-false}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
 
-      # Limits/integrations
+      # Limits / integrations
       RATE_LIMIT_PUBLIC: ${RATE_LIMIT_PUBLIC:-100}
       RATE_LIMIT_INTERNAL: ${RATE_LIMIT_INTERNAL:-1000}
       QPAY_CLIENT_ID: ${QPAY_CLIENT_ID:-}
@@ -41,13 +40,13 @@ services:
       OTP_PROVIDER_KEY: ${OTP_PROVIDER_KEY:-}
       ACCESS_TOKEN_EXPIRY: ${ACCESS_TOKEN_EXPIRY:-1h}
       REFRESH_TOKEN_EXPIRY: ${REFRESH_TOKEN_EXPIRY:-30d}
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-https://book.mdent.cloud}
     depends_on:
       - postgres
     networks:
       - mdent-net
-    # Expose temporarily so you can test API before DNS/SSL is ready
     ports:
-      - "8080:8080"
+      - "8080:8080"   # remove after Caddy confirmed working
     restart: unless-stopped
 
   frontend:
@@ -66,9 +65,8 @@ services:
 
   caddy:
     image: caddy:2
-    container_name: caddy
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./Caddyfile:/etc/caddy/Caddyfile     # make sure Caddyfile is a regular file
       - caddy_data:/data
       - caddy_config:/config
     networks:
