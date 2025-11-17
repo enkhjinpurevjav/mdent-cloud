@@ -7,6 +7,7 @@ services:
     environment:
       - RUN_SEED=false
       - DATABASE_URL=${DATABASE_URL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
     networks:
       mdent-net:
         aliases: [backend]
