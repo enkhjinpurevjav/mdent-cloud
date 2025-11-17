@@ -1,0 +1,14 @@
+api.mdent.cloud {
+    encode gzip
+    reverse_proxy backend:8080
+    header {
+        Access-Control-Allow-Origin https://book.mdent.cloud
+        Access-Control-Allow-Methods GET,POST,PUT,PATCH,DELETE,OPTIONS
+        Access-Control-Allow-Headers Authorization,Content-Type
+    }
+}
+
+book.mdent.cloud {
+    encode gzip
+    reverse_proxy frontend:3000
+}
