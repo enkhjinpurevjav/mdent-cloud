@@ -2,16 +2,14 @@ version: "3.9"
 
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    # image or build (unchanged)
+    image: mdent-cloud-backend
     environment:
       - RUN_SEED=false
-      # keep your other env via Portainer or .env
+      - DATABASE_URL=${DATABASE_URL}
     networks:
       mdent-net:
-        aliases:
-          - backend
+        aliases: [backend]
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health >/dev/null || exit 1"]
@@ -21,18 +19,11 @@ services:
       start_period: 20s
 
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.mdent.cloud}
-        NEXT_PUBLIC_PORTAL_URL: ${NEXT_PUBLIC_PORTAL_URL:-https://book.mdent.cloud}
-        NEXT_PUBLIC_CAPTCHA_KEY: ${NEXT_PUBLIC_CAPTCHA_KEY:-}
-        NEXT_PUBLIC_BOOKING_FLOW_VERSION: ${NEXT_PUBLIC_BOOKING_FLOW_VERSION:-v1}
+    # image or build (unchanged)
+    image: mdent-cloud-frontend
     networks:
       mdent-net:
-        aliases:
-          - frontend
+        aliases: [frontend]
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:3000 || exit 1"]
@@ -43,6 +34,12 @@ services:
 
   postgres:
     image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB || exit 1"]
@@ -62,8 +59,7 @@ services:
       - caddy_config:/config
     networks:
       mdent-net:
-        aliases:
-          - caddy
+        aliases: [caddy]
     restart: unless-stopped
 
 networks:
@@ -72,3 +68,4 @@ networks:
 volumes:
   caddy_data:
   caddy_config:
+  pg_data:
