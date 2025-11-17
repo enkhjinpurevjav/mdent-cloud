@@ -1,17 +1,16 @@
 #!/usr/bin/env sh
 set -e
 
-echo "--- prisma migrate deploy ---"
-# Run migrations if present; don’t fail if none exist
+echo "[entrypoint] prisma migrate deploy (if any migrations)"
 npx prisma migrate deploy || true
 
-echo "--- prisma db push (ensure schema is applied) ---"
+echo "[entrypoint] prisma db push (ensure tables exist)"
 npx prisma db push
 
 if [ "${RUN_SEED:-false}" = "true" ]; then
-  echo "--- seeding ---"
-  node prisma/seed.js || true
+  echo "[entrypoint] running seed"
+  node prisma/seed.js || echo "[entrypoint] seed failed (continuing)"
 fi
 
-echo "--- starting app ---"
+echo "[entrypoint] starting app"
 exec "$@"
