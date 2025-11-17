@@ -26,8 +26,8 @@ router.post('/', async (req, res) => {
   try {
     const { firstName, lastName, dateOfBirth, phone, email, address, branchId } = req.body;
 
-    // Basic validation
-    if (!firstName?.trim() || !lastName?.trim() || !branchId?.trim()) {
+    // Basic validation - check if values exist and are not just whitespace
+    if (!firstName || !firstName.trim() || !lastName || !lastName.trim() || !branchId || !branchId.trim()) {
       return res.status(400).json({ 
         error: 'firstName, lastName, and branchId are required and must not be empty' 
       });
@@ -50,9 +50,9 @@ router.post('/', async (req, res) => {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         dateOfBirth: parsedDateOfBirth,
-        phone: phone?.trim() || null,
-        email: email?.trim() || null,
-        address: address?.trim() || null,
+        phone: phone ? phone.trim() : null,
+        email: email ? email.trim() : null,
+        address: address ? address.trim() : null,
         branchId: branchId.trim(),
       },
       include: {
