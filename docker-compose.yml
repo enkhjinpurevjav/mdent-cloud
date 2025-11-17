@@ -17,21 +17,15 @@ services:
     build:
       context: ./backend
       args:
-        BUILD_TS: "${BUILD_TS:-initial}"   # bump this value to force rebuild if needed
+        BUILD_TS: "${BUILD_TS:-initial}"
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: "8080"
-
-      # Database
       DATABASE_URL: postgresql://mdent:${DB_PASSWORD}@postgres:5432/mdent?schema=public
-
-      # Auth / seed
       JWT_SECRET: ${JWT_SECRET}
       RUN_SEED: ${RUN_SEED:-false}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-
-      # Limits / integrations
       RATE_LIMIT_PUBLIC: ${RATE_LIMIT_PUBLIC:-100}
       RATE_LIMIT_INTERNAL: ${RATE_LIMIT_INTERNAL:-1000}
       QPAY_CLIENT_ID: ${QPAY_CLIENT_ID:-}
@@ -46,7 +40,7 @@ services:
     networks:
       - mdent-net
     ports:
-      - "8080:8080"   # remove after Caddy confirmed working
+      - "8080:8080"
     restart: unless-stopped
 
   frontend:
@@ -66,7 +60,7 @@ services:
   caddy:
     image: caddy:2
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile     # make sure Caddyfile is a regular file
+      - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
     networks:
