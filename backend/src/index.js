@@ -1,5 +1,3 @@
- url=https://github.com/enkhjinpurevjav/mdent-cloud/blob/main/backend/src/index.js
-// backend/src/index.js
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -23,17 +21,19 @@ app.use(
 app.get("/health", async (_req, res) => {
   let dbOk = false;
   try {
-    // simple DB check
     await prisma.$queryRaw`SELECT 1`;
     dbOk = true;
-  } catch (err) {
+  } catch {
     dbOk = false;
   }
-
-  res.json({ ok: true, service: "mdent-backend", time: new Date().toISOString(), db: dbOk });
+  res.json({
+    ok: true,
+    service: "mdent-backend",
+    time: new Date().toISOString(),
+    db: dbOk,
+  });
 });
 
-// mount API routes
 app.use("/api/branches", branchesRouter);
 app.use("/api/patients", patientsRouter);
 
