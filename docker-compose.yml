@@ -1,0 +1,90 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    environment:
+      POSTGRES_USER: mdent
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: mdent
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - mdent-net
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      args:
+        BUILD_TS: "${BUILD_TS:-initial}"   # bump to force rebuild
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PORT: "8080"
+
+      # DB
+      DATABASE_URL: postgresql://mdent:${DB_PASSWORD}@postgres:5432/mdent?schema=public
+
+      # Auth/seed
+      JWT_SECRET: ${JWT_SECRET}
+      RUN_SEED: ${RUN_SEED:-false}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+
+      # Limits/integrations
+      RATE_LIMIT_PUBLIC: ${RATE_LIMIT_PUBLIC:-100}
+      RATE_LIMIT_INTERNAL: ${RATE_LIMIT_INTERNAL:-1000}
+      QPAY_CLIENT_ID: ${QPAY_CLIENT_ID:-}
+      QPAY_SECRET: ${QPAY_SECRET:-}
+      EBARIMT_API_KEY: ${EBARIMT_API_KEY:-}
+      OTP_PROVIDER_KEY: ${OTP_PROVIDER_KEY:-}
+      ACCESS_TOKEN_EXPIRY: ${ACCESS_TOKEN_EXPIRY:-1h}
+      REFRESH_TOKEN_EXPIRY: ${REFRESH_TOKEN_EXPIRY:-30d}
+    depends_on:
+      - postgres
+    networks:
+      - mdent-net
+    # Expose temporarily so you can test API before DNS/SSL is ready
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_PORTAL_URL: ${NEXT_PUBLIC_PORTAL_URL}
+        NEXT_PUBLIC_CAPTCHA_KEY: ${NEXT_PUBLIC_CAPTCHA_KEY}
+        NEXT_PUBLIC_BOOKING_FLOW_VERSION: ${NEXT_PUBLIC_BOOKING_FLOW_VERSION:-1}
+    environment:
+      NODE_ENV: production
+    networks:
+      - mdent-net
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2
+    container_name: caddy
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - mdent-net
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+
+networks:
+  mdent-net:
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
