@@ -1,66 +1,83 @@
 version: "3.9"
 
 services:
-  backend:
-    image: mdent-cloud-backend:latest
-    # environment (add or ensure RUN_SEED is false in prod)
-    environment:
-      - RUN_SEED=false
-      # ... keep your other env vars here (DB, JWT, etc.)
-    # IMPORTANT: remove host port exposure; let Caddy be the only public entry
-    # ports:            # delete any "8080:8080" mapping
-    #   - "8080:8080"
-    networks:
-      mdent-net:
-        aliases:
-          - backend
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health >/dev/null || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-
-  frontend:
-    image: mdent-cloud-frontend
-    networks:
-      mdent-net:
-        aliases:
-          - frontend
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000 || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-
   postgres:
     image: postgres:16
-    # ... keep your db config as-is
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+    environment:
+      POSTGRES_USER: mdent
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: mdent
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - mdent-net
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      args:
+        BUILD_TS: "${BUILD_TS:-initial}"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PORT: "8080"
+      DATABASE_URL: postgresql://mdent:${DB_PASSWORD}@postgres:5432/mdent?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      RUN_SEED: ${RUN_SEED:-false}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      RATE_LIMIT_PUBLIC: ${RATE_LIMIT_PUBLIC:-100}
+      RATE_LIMIT_INTERNAL: ${RATE_LIMIT_INTERNAL:-1000}
+      QPAY_CLIENT_ID: ${QPAY_CLIENT_ID:-}
+      QPAY_SECRET: ${QPAY_SECRET:-}
+      EBARIMT_API_KEY: ${EBARIMT_API_KEY:-}
+      OTP_PROVIDER_KEY: ${OTP_PROVIDER_KEY:-}
+      ACCESS_TOKEN_EXPIRY: ${ACCESS_TOKEN_EXPIRY:-1h}
+      REFRESH_TOKEN_EXPIRY: ${REFRESH_TOKEN_EXPIRY:-30d}
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-https://book.mdent.cloud}
+    depends_on:
+      - postgres
+    networks:
+      - mdent-net
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    # args elided for brevity (keep yours)
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_PORTAL_URL: ${NEXT_PUBLIC_PORTAL_URL}
+        NEXT_PUBLIC_CAPTCHA_KEY: ${NEXT_PUBLIC_CAPTCHA_KEY}
+        NEXT_PUBLIC_BOOKING_FLOW_VERSION: ${NEXT_PUBLIC_BOOKING_FLOW_VERSION:-1}
+    environment:
+      NODE_ENV: production
+    networks:
+      - mdent-net
+    restart: unless-stopped
 
   caddy:
     image: caddy:2
-    ports:
-      - "80:80"
-      - "443:443"
     volumes:
       - /opt/mdent-caddy:/etc/caddy
       - caddy_data:/data
       - caddy_config:/config
     networks:
-      mdent-net:
-        aliases:
-          - caddy
+      - mdent-net
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
 
 networks:
   mdent-net:
 
 volumes:
+  pgdata:
   caddy_data:
   caddy_config:
