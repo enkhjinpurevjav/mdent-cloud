@@ -14,17 +14,13 @@ app.use(cors({
 }));
 
 app.get("/health", (_req, res) => {
-  res.json({
-    ok: true,
-    service: "mdent-backend",
-    time: new Date().toISOString()
-  });
+  res.json({ ok: true, service: "mdent-backend", time: new Date().toISOString() });
 });
 
 const port = Number(process.env.PORT || 8080);
 app.listen(port, () => {
   log.info({ port }, "Backend listening");
   if (process.env.RUN_SEED === "true") {
-    log.warn("RUN_SEED=true – seed placeholder (add admin creation here).");
+    log.warn("RUN_SEED=true – seed placeholder.");
   }
 });
