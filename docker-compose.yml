@@ -46,6 +46,7 @@ services:
   frontend:
     build:
       context: ./frontend
+    # args elided for brevity (keep yours)
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
         NEXT_PUBLIC_PORTAL_URL: ${NEXT_PUBLIC_PORTAL_URL}
@@ -60,7 +61,7 @@ services:
   caddy:
     image: caddy:2
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile   # file-to-file bind (explicit)
       - caddy_data:/data
       - caddy_config:/config
     networks:
