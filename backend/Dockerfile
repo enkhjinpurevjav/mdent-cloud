@@ -1,21 +1,17 @@
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /app
 
-# System libs required by Prisma on Alpine
-RUN apk add --no-cache bash python3 make g++ openssl libc6-compat
+# Install build tools (only if needed for native modules)
+RUN apt-get update && apt-get install -y --no-install-recommends bash python3 build-essential openssl \
+  && rm -rf /var/lib/apt/lists/*
 
-# Copy package manifests & install deps
 COPY package*.json ./
 RUN npm install --omit=dev
 
-# Copy entire app (schema + source)
 COPY . .
-
-# (Re)generate Prisma client with debug logs
 RUN npx prisma generate --log-level debug
 
-# Entrypoint: apply migrations/schema, optional seed, start server
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
