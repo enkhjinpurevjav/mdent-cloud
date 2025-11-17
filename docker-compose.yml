@@ -2,15 +2,18 @@ version: "3.9"
 
 services:
   backend:
-    # image or build (unchanged)
+    build: ./backend
     image: mdent-cloud-backend
     environment:
       - RUN_SEED=false
       - DATABASE_URL=${DATABASE_URL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
     networks:
       mdent-net:
         aliases: [backend]
     restart: unless-stopped
+    depends_on:
+      - postgres
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health >/dev/null || exit 1"]
       interval: 30s
@@ -40,6 +43,9 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pg_data:/var/lib/postgresql/data
+    networks:
+      mdent-net:
+        aliases: [postgres]
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB || exit 1"]

@@ -1,0 +1,68 @@
+// Prisma schema for MDent Cloud
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Branch {
+  id        Int      @id @default(autoincrement())
+  name      String
+  address   String?
+  createdAt DateTime @default(now())
+  users     User[]
+  patients  Patient[]
+
+  @@map("branches")
+}
+
+model User {
+  id         Int        @id @default(autoincrement())
+  email      String     @unique
+  password   String
+  role       String
+  branchId   Int?
+  createdAt  DateTime   @default(now())
+  branch     Branch?    @relation(fields: [branchId], references: [id])
+  encounters Encounter[] @relation("DoctorEncounters")
+
+  @@map("users")
+}
+
+model Patient {
+  id          Int          @id @default(autoincrement())
+  regNo       String?
+  name        String
+  phone       String?
+  branchId    Int
+  createdAt   DateTime     @default(now())
+  branch      Branch       @relation(fields: [branchId], references: [id])
+  patientBook PatientBook?
+
+  @@map("patients")
+}
+
+model PatientBook {
+  id         Int         @id @default(autoincrement())
+  bookNumber String      @unique
+  patientId  Int         @unique
+  patient    Patient     @relation(fields: [patientId], references: [id])
+  encounters Encounter[]
+
+  @@map("patient_books")
+}
+
+model Encounter {
+  id            Int          @id @default(autoincrement())
+  patientBookId Int
+  doctorId      Int?
+  visitDate     DateTime
+  notes         String?
+  patientBook   PatientBook  @relation(fields: [patientBookId], references: [id])
+  doctor        User?        @relation("DoctorEncounters", fields: [doctorId], references: [id])
+
+  @@map("encounters")
+}

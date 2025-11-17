@@ -2,6 +2,9 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import pino from "pino";
+import db from "./db.js";
+import branchesRouter from "./routes/branches.js";
+import patientsRouter from "./routes/patients.js";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const app = express();
@@ -13,9 +16,25 @@ app.use(cors({
   credentials: true
 }));
 
-app.get("/health", (_req, res) => {
-  res.json({ ok: true, service: "mdent-backend", time: new Date().toISOString() });
+app.get("/health", async (_req, res) => {
+  let dbOk = false;
+  try {
+    await db.$queryRaw`SELECT 1`;
+    dbOk = true;
+  } catch (err) {
+    log.error({ err }, "Database health check failed");
+  }
+  res.json({ 
+    ok: true, 
+    service: "mdent-backend", 
+    time: new Date().toISOString(),
+    db: dbOk
+  });
 });
+
+// API routes
+app.use("/api/branches", branchesRouter);
+app.use("/api/patients", patientsRouter);
 
 const port = Number(process.env.PORT || 8080);
 app.listen(port, () => {
