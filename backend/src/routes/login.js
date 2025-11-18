@@ -1,30 +1,31 @@
-const express = require('express');
-const router = express.Router();
-const bcrypt = require('bcrypt');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+import { Router } from "express";
+import bcrypt from "bcrypt";
+import { PrismaClient } from "@prisma/client";
 
-router.post('/', async (req, res) => {
+const prisma = new PrismaClient();
+const router = Router();
+
+router.post("/", async (req, res) => {
   const { username, password } = req.body;
 
   // Basic validation
   if (!username || !password) {
-    return res.status(400).json({ error: 'Username and password required.' });
+    return res.status(400).json({ error: "Username and password required." });
   }
 
   // Find user by email
   const user = await prisma.user.findUnique({
-    where: { email: username }
+    where: { email: username },
   });
 
   if (!user) {
-    return res.status(401).json({ error: 'Invalid credentials.' });
+    return res.status(401).json({ error: "Invalid credentials." });
   }
 
   // Check password
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) {
-    return res.status(401).json({ error: 'Invalid credentials.' });
+    return res.status(401).json({ error: "Invalid credentials." });
   }
 
   // Respond with user info (never send password/hash in response!)
@@ -33,9 +34,9 @@ router.post('/', async (req, res) => {
     email: user.email,
     name: user.name,
     role: user.role,
-    branchId: user.branchId
+    branchId: user.branchId,
     // Optionally: issue JWT token here
   });
 });
 
-module.exports = router;
+export default router;
