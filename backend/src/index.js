@@ -44,3 +44,15 @@ app.listen(port, () => {
     log.warn("RUN_SEED=true – seed placeholder.");
   }
 });
+
+const express = require('express');
+const app = express();
+
+// ... other imports and middleware
+
+app.use(express.json());
+
+// Register login route
+app.use('/api/login', require('./routes/login'));
+
+// ... other routes
