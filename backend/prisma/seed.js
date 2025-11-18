@@ -1,4 +1,3 @@
-// backend/prisma/seed.js
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
@@ -22,17 +21,30 @@ async function main() {
     });
   }
 
-  // Admin user: email is unique, so upsert is fine
-  await prisma.user.upsert({
-    where: { email: "admin@mdent.local" },
-    update: { password: hashed, role: "admin", branchId: branch.id },
-    create: {
-      email: "admin@mdent.local",
-      password: hashed,
-      role: "admin",
-      branchId: branch.id,
-    },
-  });
+  // Seed one user for each role (admin, doctor, receptionist, accountant, nurse, manager)
+  const roles = [
+    { email: "admin@mdent.local", role: "admin", password: adminPassword },           // admin password from ENV
+    { email: "doctor@mdent.local", role: "doctor", password: "doctor123" },
+    { email: "receptionist@mdent.local", role: "receptionist", password: "reception123" },
+    { email: "accountant@mdent.local", role: "accountant", password: "accountant123" },
+    { email: "nurse@mdent.local", role: "nurse", password: "nurse123" },
+    { email: "manager@mdent.local", role: "manager", password: "manager123" },
+  ];
+
+  for (const user of roles) {
+    const passwordHash = await bcrypt.hash(user.password, 10);
+    await prisma.user.upsert({
+      where: { email: user.email },
+      update: { password: passwordHash, role: user.role, branchId: branch.id },
+      create: {
+        email: user.email,
+        password: passwordHash,
+        role: user.role,
+        name: user.role.charAt(0).toUpperCase() + user.role.slice(1),
+        branchId: branch.id,
+      },
+    });
+  }
 
   // Seed Patient: name is not unique, so findFirst + create/update
   const seedPatientName = "Seed Patient";
@@ -54,7 +66,7 @@ async function main() {
   } else {
     // Ensure the patient has a book
     const existingBook = await prisma.patientBook.findUnique({
-      where: { patientId: existingPatient.id }, // patientId is unique in schema
+      where: { patientId: existingPatient.id },
     });
     if (!existingBook) {
       await prisma.patientBook.create({
@@ -69,7 +81,7 @@ async function main() {
 
   console.log("Seed completed:", {
     branch: branch.name,
-    admin: "admin@mdent.local",
+    users: roles.map(u => u.email),
     patient: patient.name,
   });
 }
