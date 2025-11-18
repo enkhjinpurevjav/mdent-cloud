@@ -5,6 +5,7 @@ import pino from "pino";
 import prisma from "./db.js";
 import branchesRouter from "./routes/branches.js";
 import patientsRouter from "./routes/patients.js";
+import loginRouter from "./routes/login.js"; // <-- Add this line!
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const app = express();
@@ -34,6 +35,7 @@ app.get("/health", async (_req, res) => {
   });
 });
 
+app.use("/api/login", loginRouter);        // <-- Register your login route!
 app.use("/api/branches", branchesRouter);
 app.use("/api/patients", patientsRouter);
 
@@ -44,15 +46,3 @@ app.listen(port, () => {
     log.warn("RUN_SEED=true – seed placeholder.");
   }
 });
-
-const express = require('express');
-const app = express();
-
-// ... other imports and middleware
-
-app.use(express.json());
-
-// Register login route
-app.use('/api/login', require('./routes/login'));
-
-// ... other routes
