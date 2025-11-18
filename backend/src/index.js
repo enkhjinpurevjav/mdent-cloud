@@ -1,4 +1,5 @@
-import { authenticateJWT } from "./middleware/auth.js";
+app.use("/api/branches", authenticateJWT, branchesRouter); // Protect branches routes
+app.use("/api/patients", authenticateJWT, patientsRouter); // Protect patients routesimport { authenticateJWT } from "./middleware/auth.js";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
