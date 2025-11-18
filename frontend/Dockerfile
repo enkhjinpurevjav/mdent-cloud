@@ -16,6 +16,8 @@ RUN npm run build
 
 FROM node:20-alpine AS run
 WORKDIR /app
+# 👇 ADD THIS LINE TO INSTALL CURL!
+RUN apk add --no-cache curl
 ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm install --omit=dev
