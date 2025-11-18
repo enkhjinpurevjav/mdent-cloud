@@ -5,6 +5,12 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 const router = Router();
 
+router.get("/", (req, res) => {
+  res.json({
+    message: "Login endpoint: Use POST with {username, password} in the body."
+  });
+});
+
 router.post("/", async (req, res) => {
   const { username, password } = req.body;
 
