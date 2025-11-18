@@ -18,15 +18,24 @@ model Branch {
   users     User[]
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
-  role      String
-  branchId  Int?
-  createdAt DateTime @default(now())
+enum UserRole {
+  admin
+  doctor
+  receptionist
+  accountant
+  nurse
+  manager
+}
 
-  branch    Branch?  @relation(fields: [branchId], references: [id])
+model User {
+  id         Int      @id @default(autoincrement())
+  email      String   @unique
+  password   String
+  name       String?
+  role       UserRole @default(receptionist)
+  branchId   Int?
+  createdAt  DateTime @default(now())
+  branch     Branch?  @relation(fields: [branchId], references: [id])
 }
 
 model Patient {
