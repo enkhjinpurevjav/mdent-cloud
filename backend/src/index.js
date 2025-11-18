@@ -1,5 +1,4 @@
-app.use("/api/branches", authenticateJWT, branchesRouter); // Protect branches routes
-app.use("/api/patients", authenticateJWT, patientsRouter); // Protect patients routesimport { authenticateJWT } from "./middleware/auth.js";
+import { authenticateJWT } from "./middleware/auth.js";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -7,7 +6,7 @@ import pino from "pino";
 import prisma from "./db.js";
 import branchesRouter from "./routes/branches.js";
 import patientsRouter from "./routes/patients.js";
-import loginRouter from "./routes/login.js"; // <-- Add this line!
+import loginRouter from "./routes/login.js";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const app = express();
@@ -37,9 +36,9 @@ app.get("/health", async (_req, res) => {
   });
 });
 
-app.use("/api/login", loginRouter);        // <-- Register your login route!
-app.use("/api/branches", branchesRouter);
-app.use("/api/patients", patientsRouter);
+app.use("/api/login", loginRouter);                                // Public route
+app.use("/api/branches", authenticateJWT, branchesRouter);         // ✅ Protected route
+app.use("/api/patients", authenticateJWT, patientsRouter);         // ✅ Protected route
 
 const port = Number(process.env.PORT || 8080);
 app.listen(port, () => {
