@@ -1,5 +1,3 @@
-app.use("/api/patients", authenticateJWT, patientsRouter);
-
 // backend/src/routes/patients.js
 import express from "express";
 import prisma from "../db.js";
