@@ -1,5 +1,3 @@
-app.use("/api/branches", authenticateJWT, branchesRouter);
-
 // backend/src/routes/branches.js
 import express from "express";
 import prisma from "../db.js";
