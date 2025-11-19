@@ -37,6 +37,8 @@ services:
 
   postgres:
     image: postgres:16
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -73,6 +75,3 @@ volumes:
   caddy_data:
   caddy_config:
   pg_data:
-
-ports:
-  - "5432:5432"
