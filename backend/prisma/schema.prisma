@@ -40,41 +40,37 @@ model User {
 
 model Patient {
   id              Int          @id @default(autoincrement())
-  regNo           String       @unique // Citizenship ID: 2 Cyrillic letters + 8 digits
-  ovog            String                // Last name
-  name            String                // First name
+  regNo           String       @unique
+  ovog            String
+  name            String
   gender          String
   birthDate       DateTime
   phone           String?
   address         String?
   bloodType       String?
-  citizenship     String?       @default("Mongolian")
+  citizenship     String?      @default("Mongolian")
   emergencyPhone  String?
   notes           String?
   branchId        Int
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
 
-  // Relations
-  branch          Branch        @relation(fields: [branchId], references: [id])
-  patientBook     PatientBook?  @relation(fields: [id], references: [patientId]) // 1:1 digital history book
+  branch          Branch       @relation(fields: [branchId], references: [id])
+  patientBook     PatientBook?
 }
 
 model PatientBook {
   id         Int      @id @default(autoincrement())
-  bookNumber String   @unique // Unique digital history book number
-  patientId  Int      @unique // Each patient has one digital book
+  bookNumber String   @unique
+  patientId  Int      @unique
   patient    Patient  @relation(fields: [patientId], references: [id])
-  
-  // You can add further relations here (e.g., encounters, media, etc.)
+  encounters Encounter[]
 }
 
 model Encounter {
-  id            Int         @id @default(autoincrement())
-  patientBookId Int
-  doctorId      Int?
-  visitDate     DateTime    @default(now())
-  notes         String?
-
-  patientBook   PatientBook @relation(fields: [patientBookId], references: [id])
+  id             Int           @id @default(autoincrement())
+  patientBookId  Int
+  patientBook    PatientBook   @relation(fields: [patientBookId], references: [id])
+  visitDate      DateTime
+  notes          String?
 }
