@@ -12,7 +12,10 @@ import loginRouter from "./routes/login.js";
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const app = express();
 
-app.get('/api/patients', authenticateJWT, (req, res) => { ... });
+app.get('/api/patients', authenticateJWT, (req, res) => {
+  // TODO: Replace with your real patient fetch logic
+  res.json({ message: "Protected patient data", user: req.user });
+});
 app.use(helmet());
 app.use(express.json());
 app.use(
