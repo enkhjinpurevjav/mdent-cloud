@@ -39,26 +39,34 @@ model User {
 }
 
 model Patient {
-  id         Int        @id @default(autoincrement())
-  regNo      String?
-  name       String
-  phone      String?
-  branchId   Int
-  createdAt  DateTime   @default(now())
+  id              Int          @id @default(autoincrement())
+  regNo           String       @unique // Citizenship ID: 2 Cyrillic letters + 8 digits
+  ovog            String                // Last name
+  name            String                // First name
+  gender          String
+  birthDate       DateTime
+  phone           String?
+  address         String?
+  bloodType       String?
+  citizenship     String?       @default("Mongolian")
+  emergencyPhone  String?
+  notes           String?
+  branchId        Int
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
-  branch     Branch     @relation(fields: [branchId], references: [id])
-  book       PatientBook?
-  // Removed: encounters Encounter[]  (Encounters belong to PatientBook, not Patient)
+  // Relations
+  branch          Branch        @relation(fields: [branchId], references: [id])
+  patientBook     PatientBook?  @relation(fields: [id], references: [patientId]) // 1:1 digital history book
 }
 
 model PatientBook {
   id         Int      @id @default(autoincrement())
-  bookNumber String   @unique
-  patientId  Int      @unique
-
+  bookNumber String   @unique // Unique digital history book number
+  patientId  Int      @unique // Each patient has one digital book
   patient    Patient  @relation(fields: [patientId], references: [id])
-  // Add the opposite side of Encounter.patientBook
-  encounters Encounter[]
+  
+  // You can add further relations here (e.g., encounters, media, etc.)
 }
 
 model Encounter {
