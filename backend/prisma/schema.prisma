@@ -1,4 +1,3 @@
-// backend/prisma/schema.prisma
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -7,6 +6,18 @@ datasource db {
 generator client {
   provider = "prisma-client-js"
 }
+
+// ENUMS
+enum UserRole {
+  admin
+  doctor
+  receptionist
+  accountant
+  nurse
+  manager
+}
+
+// MODELS
 
 model Branch {
   id        Int      @id @default(autoincrement())
@@ -18,15 +29,6 @@ model Branch {
   users     User[]
 }
 
-enum UserRole {
-  admin
-  doctor
-  receptionist
-  accountant
-  nurse
-  manager
-}
-
 model User {
   id         Int      @id @default(autoincrement())
   email      String   @unique
@@ -36,6 +38,7 @@ model User {
   branchId   Int?
   createdAt  DateTime @default(now())
   branch     Branch?  @relation(fields: [branchId], references: [id])
+  encounters Encounter[] @relation("DoctorEncounters") // Doctor visits
 }
 
 model Patient {
@@ -70,7 +73,99 @@ model PatientBook {
 model Encounter {
   id             Int           @id @default(autoincrement())
   patientBookId  Int
-  patientBook    PatientBook   @relation(fields: [patientBookId], references: [id])
+  doctorId       Int
   visitDate      DateTime
   notes          String?
+  
+  patientBook    PatientBook   @relation(fields: [patientBookId], references: [id])
+  doctor         User          @relation("DoctorEncounters", fields: [doctorId], references: [id])
+  chartTeeth     ChartTooth[]
+  invoice        Invoice?
+  media          Media[]
+}
+
+model ChartTooth {
+  id          Int        @id @default(autoincrement())
+  toothCode   String     // FDI code
+  status      String?
+  notes       String?
+  encounterId Int
+
+  encounter   Encounter  @relation(fields: [encounterId], references: [id])
+  chartNotes  ChartNote[]
+}
+
+model ChartNote {
+  id          Int       @id @default(autoincrement())
+  chartToothId Int
+  description String
+  createdAt   DateTime  @default(now())
+
+  chartTooth  ChartTooth @relation(fields: [chartToothId], references: [id])
+}
+
+model Procedure {
+  code   String   @id
+  name   String
+  price  Float
+  invoiceItems InvoiceItem[]
+}
+
+model Diagnosis {
+  code        String   @id
+  description String
+}
+
+model Invoice {
+  id           Int           @id @default(autoincrement())
+  encounterId  Int           @unique
+  totalAmount  Float
+  status       String
+  createdAt    DateTime      @default(now())
+
+  encounter    Encounter     @relation(fields: [encounterId], references: [id])
+  invoiceItems InvoiceItem[]
+  payment      Payment?
+  eBarimtReceipt  EBarimtReceipt?
+}
+
+model InvoiceItem {
+  id          Int         @id @default(autoincrement())
+  invoiceId   Int
+  procedureId String
+  price       Float
+  quantity    Int
+
+  invoice     Invoice     @relation(fields: [invoiceId], references: [id])
+  procedure   Procedure   @relation(fields: [procedureId], references: [code])
+}
+
+model Payment {
+  id         Int      @id @default(autoincrement())
+  invoiceId  Int      @unique
+  amount     Float
+  method     String
+  qpayTxnId  String?
+  timestamp  DateTime @default(now())
+
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id])
+}
+
+model EBarimtReceipt {
+  id           Int      @id @default(autoincrement())
+  invoiceId    Int      @unique
+  receiptNumber String  @unique
+  timestamp    DateTime @default(now())
+
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id])
+}
+
+model Media {
+  id           Int      @id @default(autoincrement())
+  encounterId  Int
+  filePath     String
+  toothCode    String?
+  type         String
+
+  encounter    Encounter @relation(fields: [encounterId], references: [id])
 }
