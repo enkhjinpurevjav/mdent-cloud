@@ -8,9 +8,11 @@ import branchesRouter from "./routes/branches.js";
 import patientsRouter from "./routes/patients.js";
 import loginRouter from "./routes/login.js";
 
+
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const app = express();
 
+app.get('/api/patients', authenticateJWT, (req, res) => { ... });
 app.use(helmet());
 app.use(express.json());
 app.use(
