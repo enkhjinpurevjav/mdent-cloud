@@ -54,3 +54,9 @@ router.post("/", async (req, res) => {
 });
 
 export default router;
+
+// In login.js, inside your router.post handler:
+const user = await prisma.user.findUnique({
+  where: { email: username },
+});
+console.log("Fetched user:", user);
