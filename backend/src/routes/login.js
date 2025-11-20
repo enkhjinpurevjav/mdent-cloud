@@ -6,28 +6,47 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 const router = Router();
 
+// POST /api/login
 router.post("/", async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password) {
-    return res.status(400).json({ error: "Username and password required." });
+  // Accept both 'username' and 'email' for login flexibility
+  const { username, email, password } = req.body;
+  const loginEmail = username || email;
+  console.log("Login request body:", req.body);
+
+  if (!loginEmail || !password) {
+    return res.status(400).json({ error: "Username (email) and password required." });
   }
 
-  // Look up user by email
-  const user = await prisma.user.findUnique({
-    where: { email: username }, // database uses 'email' as the login name
-  });
+  // Find user by email
+  let user;
+  try {
+    user = await prisma.user.findUnique({
+      where: { email: loginEmail }
+    });
+    console.log("Fetched user:", user);
+  } catch (err) {
+    console.error("DB error during user lookup:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
 
+  // User not found or missing password
   if (!user || !user.password) {
     return res.status(401).json({ error: "Invalid credentials." });
   }
 
-  // Validate password with bcrypt
-  const valid = await bcrypt.compare(password, user.password);
+  // Password check (bcrypt)
+  let valid = false;
+  try {
+    valid = await bcrypt.compare(password, user.password);
+  } catch (err) {
+    console.error("Error comparing password:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
   if (!valid) {
     return res.status(401).json({ error: "Invalid credentials." });
   }
 
-  // Prepare JWT payload
+  // JWT payload and signing
   const token = jwt.sign(
     {
       id: user.id,
@@ -36,11 +55,11 @@ router.post("/", async (req, res) => {
       role: user.role,
       branchId: user.branchId,
     },
-    process.env.JWT_SECRET || "testsecret", // Use env variable for production
+    process.env.JWT_SECRET || "testsecret",
     { expiresIn: "8h" }
   );
 
-  // Respond with token + user info
+  // Response payload
   res.json({
     token,
     user: {
@@ -54,9 +73,3 @@ router.post("/", async (req, res) => {
 });
 
 export default router;
-
-// In login.js, inside your router.post handler:
-const user = await prisma.user.findUnique({
-  where: { email: username },
-});
-console.log("Fetched user:", user);
