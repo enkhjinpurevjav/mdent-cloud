@@ -58,40 +58,40 @@ model User {
 
 // PATIENTS
 model Patient {
-  id              Int          @id @default(autoincrement())
-  regNo           String       @unique
-  ovog            String
-  name            String
-  gender          String
-  birthDate       DateTime
-  phone           String?
-  address         String?
-  bloodType       String?
-  citizenship     String?      @default("Mongolian")
-  emergencyPhone  String?
-  notes           String?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  patientBook     PatientBook?
+  id             Int          @id @default(autoincrement())
+  regNo          String       @unique
+  ovog           String
+  name           String
+  gender         String
+  birthDate      DateTime
+  phone          String?
+  address        String?
+  bloodType      String?
+  citizenship    String?      @default("Mongolian")
+  emergencyPhone String?
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  patientBook    PatientBook?
+  // REMOVE: encounters Encounter[]
 }
 
-// PATIENT BOOK
 model PatientBook {
-  id         Int      @id @default(autoincrement())
-  bookNumber String   @unique
-  patientId  Int      @unique
-  patient    Patient  @relation(fields: [patientId], references: [id])
-  encounters Encounter[]
+  id         Int         @id @default(autoincrement())
+  bookNumber String      @unique
+  patientId  Int         @unique
+  patient    Patient     @relation(fields: [patientId], references: [id])
+  encounters Encounter[] // This is the correct place for encounters
 }
 
-// ENCOUNTERS (Visits)
 model Encounter {
   id             Int           @id @default(autoincrement())
   patientBookId  Int
   doctorId       Int
   visitDate      DateTime
   notes          String?
-  
+
   patientBook    PatientBook   @relation(fields: [patientBookId], references: [id])
   doctor         User          @relation("DoctorEncounters", fields: [doctorId], references: [id])
   chartTeeth     ChartTooth[]
