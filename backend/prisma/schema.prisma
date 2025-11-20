@@ -1,3 +1,4 @@
+// Existing datasource and generator remain unchanged
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -15,6 +16,14 @@ enum UserRole {
   accountant
   nurse
   manager
+}
+
+enum ServiceCategory {
+  GENERAL_DENTISTRY
+  IMPLANTS
+  ORTHODONTICS
+  COSMETIC_DENTISTRY
+  CHILDRENS
 }
 
 // MODELS
@@ -38,7 +47,7 @@ model User {
   branchId   Int?
   createdAt  DateTime @default(now())
   branch     Branch?  @relation(fields: [branchId], references: [id])
-  encounters Encounter[] @relation("DoctorEncounters") // Doctor visits
+  encounters Encounter[] @relation("DoctorEncounters")
 }
 
 model Patient {
@@ -82,6 +91,7 @@ model Encounter {
   chartTeeth     ChartTooth[]
   invoice        Invoice?
   media          Media[]
+  encounterServices EncounterService[]
 }
 
 model ChartTooth {
@@ -103,6 +113,32 @@ model ChartNote {
 
   chartTooth  ChartTooth @relation(fields: [chartToothId], references: [id])
 }
+
+// ------ SERVICES (NEW TABLES) ------
+
+model Service {
+  id          Int             @id @default(autoincrement())
+  code        String          @unique // e.g., GD01, IMP002
+  category    ServiceCategory
+  name        String
+  price       Float
+  status      Boolean         @default(true) // true = active, false = inactive
+  description String?
+  encounterServices EncounterService[]
+}
+
+// Links services to encounters (assigned by doctor)
+model EncounterService {
+  id          Int      @id @default(autoincrement())
+  encounter   Encounter @relation(fields: [encounterId], references: [id])
+  encounterId Int
+  service     Service   @relation(fields: [serviceId], references: [id])
+  serviceId   Int
+  quantity    Int       @default(1)
+  price       Float     // snapshot price for this encounter
+}
+
+// ------ PROCEDURE/INVOICE (existing models, untouched) ------
 
 model Procedure {
   code   String   @id
