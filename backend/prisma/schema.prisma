@@ -37,15 +37,21 @@ model Branch {
 }
 
 model User {
-  id         Int      @id @default(autoincrement())
-  email      String   @unique
-  password   String
-  name       String?
-  role       UserRole @default(receptionist)
-  branchId   Int?
-  createdAt  DateTime @default(now())
-  branch     Branch?  @relation(fields: [branchId], references: [id])
-  encounters Encounter[] @relation("DoctorEncounters")
+  id                 Int      @id @default(autoincrement())
+  email              String   @unique
+  password           String
+  name               String?
+  role               UserRole @default(receptionist)
+  branchId           Int?
+  createdAt          DateTime @default(now())
+  branch             Branch?  @relation(fields: [branchId], references: [id])
+  encounters         Encounter[] @relation("DoctorEncounters")
+  regNo              String?  @unique // Mongolian registration number
+  licenseNumber      String?  @unique
+  licenseExpiryDate  DateTime?
+  signatureImagePath String?  // File path or URL
+  stampImagePath     String?  // File path or URL
+  idPhotoPath        String?  // File path or URL
 }
 
 model Patient {
