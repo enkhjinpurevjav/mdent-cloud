@@ -16,7 +16,7 @@ export default function LoginForm() {
       });
       const data = await res.json();
       if (res.ok) {
-        // Your login logic here, likely store token, redirect, etc.
+        // Your login logic here, store token, redirect, etc.
         alert("Login successful!");
       } else {
         setError(data.error || "Login failed");
