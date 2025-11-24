@@ -15,11 +15,12 @@ book.mdent.cloud {
 api.mdent.cloud {
   encode gzip
 
-  # Explicitly handle CORS preflight OPTIONS
+  # Handle CORS preflight OPTIONS requests directly
   @cors_preflight {
     method OPTIONS
     path /api/*
   }
+
   handle @cors_preflight {
     header {
       Access-Control-Allow-Origin https://mdent.cloud
@@ -31,10 +32,10 @@ api.mdent.cloud {
     respond "" 204
   }
 
-  # Proxy actual API requests to backend
+  # Proxy actual requests to the backend
   reverse_proxy mdent-cloud-backend-1:8080
 
-  # Set CORS headers for actual requests
+  # Inject CORS headers into all proxied responses (for non-OPTIONS requests)
   header {
     Access-Control-Allow-Origin https://mdent.cloud
     Access-Control-Allow-Methods GET,POST,PUT,PATCH,DELETE,OPTIONS
