@@ -66,6 +66,7 @@ services:
       - /opt/mdent-caddy:/etc/caddy
       - caddy_data:/data
       - caddy_config:/config
+      - /opt/mdent-caddy/Caddyfile:/etc/caddy/Caddyfile
     networks:
       - mdent-net
     restart: unless-stopped
