@@ -20,11 +20,10 @@ app.use(helmet());
 app.use(express.json());
 app.use(
   cors({
-    origin: process.env.ALLOWED_ORIGIN || "https://book.mdent.cloud",
+    origin: "https://mdent.cloud", // The URL of your frontend app!
     credentials: true
   })
 );
-
 app.get("/health", async (_req, res) => {
   let dbOk = false;
   try {
