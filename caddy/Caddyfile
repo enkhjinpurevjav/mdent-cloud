@@ -1,5 +1,5 @@
 {
-  email enkhjinp@gmail.com
+  email youremail@domain.com
 }
 
 mdent.cloud, www.mdent.cloud, app.mdent.cloud {
@@ -14,7 +14,7 @@ book.mdent.cloud {
 
 api.mdent.cloud {
   encode gzip
-  reverse_proxy mdent-cloud-backend-1:8080
+  reverse_proxy mdent-cloud-backend-1:8081
   header {
     Access-Control-Allow-Origin https://book.mdent.cloud
     Access-Control-Allow-Methods GET,POST,PUT,PATCH,DELETE,OPTIONS
