@@ -20,7 +20,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 25s
-      ports:
+    ports:
        - "8081:8080"
 
   frontend:
