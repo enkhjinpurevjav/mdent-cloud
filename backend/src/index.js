@@ -20,8 +20,10 @@ app.use(helmet());
 app.use(express.json());
 app.use(
   cors({
-    origin: "https://mdent.cloud", // The URL of your frontend app!
-    credentials: true
+    origin: "https://mdent.cloud", // <-- Update this to your frontend domain
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Authorization", "Content-Type"],
+    credentials: true,
   })
 );
 app.get("/health", async (_req, res) => {
