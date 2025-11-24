@@ -1,20 +1,16 @@
-{
-  email ops@mdent.cloud
-}
-
 mdent.cloud, www.mdent.cloud, app.mdent.cloud {
   encode gzip
-  reverse_proxy frontend:3000
+  reverse_proxy mdent-cloud-frontend-1:3000
 }
 
 book.mdent.cloud {
   encode gzip
-  reverse_proxy frontend:3000
+  reverse_proxy mdent-cloud-frontend-1:3000
 }
 
 api.mdent.cloud {
   encode gzip
-  reverse_proxy backend:8080
+  reverse_proxy mdent-cloud-backend-1:8080
   header {
     Access-Control-Allow-Origin https://book.mdent.cloud
     Access-Control-Allow-Methods GET,POST,PUT,PATCH,DELETE,OPTIONS
