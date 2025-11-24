@@ -14,15 +14,21 @@ export default function LoginForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        setError("Server response was not JSON.");
+        return;
+      }
       if (res.ok) {
-        // Your login logic here, store token, redirect, etc.
+        // Do token set, redirect etc
         alert("Login successful!");
       } else {
-        setError(data.error || "Login failed");
+        setError(data.error || `Login failed (HTTP ${res.status})`);
       }
-    } catch (err) {
-      setError("Network error");
+    } catch (err: any) {
+      setError("Network error: " + (err?.message || ""));
     }
   };
 
