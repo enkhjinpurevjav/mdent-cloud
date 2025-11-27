@@ -63,7 +63,7 @@ model Patient {
   ovog           String?
   name           String
   gender         String?
-  birthDate      DateTime
+  birthDate      DateTime?
   phone          String?
   address        String?
   bloodType      String?
