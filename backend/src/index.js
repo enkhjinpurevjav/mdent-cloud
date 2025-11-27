@@ -12,9 +12,9 @@ import loginRouter from "./routes/login.js";
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const app = express();
 
-app.get('/api/patients', authenticateJWT, (req, res) => {
+app.get('/api/patients', (req, res) => {
   // TODO: Replace with your real patient fetch logic
-  res.json({ message: "Protected patient data", user: req.user });
+  res.json({ message: "Open patient data (no auth)", user: "dev-mode" });
 });
 app.use(helmet());
 app.use(express.json());
@@ -43,8 +43,8 @@ app.get("/health", async (_req, res) => {
 });
 
 app.use("/api/login", loginRouter);                                // Public route
-app.use("/api/branches", authenticateJWT, branchesRouter);         // ✅ Protected route
-app.use("/api/patients", authenticateJWT, patientsRouter);         // ✅ Protected route
+app.use("/api/branches", branchesRouter);         // 🚨 Now open
+app.use("/api/patients", patientsRouter);         // 🚨 Now open
 
 const port = Number(process.env.PORT || 8080);
 app.listen(port, () => {
