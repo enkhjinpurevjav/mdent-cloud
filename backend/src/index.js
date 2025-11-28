@@ -1,4 +1,3 @@
-import { authenticateJWT } from "./middleware/auth.js";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -8,24 +7,25 @@ import branchesRouter from "./routes/branches.js";
 import patientsRouter from "./routes/patients.js";
 import loginRouter from "./routes/login.js";
 
-
+// Logging setup
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
+
+// App init
 const app = express();
 
-app.get('/api/patients', (req, res) => {
-  // TODO: Replace with your real patient fetch logic
-  res.json({ message: "Open patient data (no auth)", user: "dev-mode" });
-});
+// Middleware stack (no auth, no JWT, no RBAC)
 app.use(helmet());
 app.use(express.json());
 app.use(
   cors({
-    origin: "https://mdent.cloud", // <-- Update this to your frontend domain
+    origin: "*", // <-- Open CORS for all origins (remove restrictions)
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Authorization", "Content-Type"],
     credentials: true,
   })
 );
+
+// Health check endpoint
 app.get("/health", async (_req, res) => {
   let dbOk = false;
   try {
@@ -38,17 +38,23 @@ app.get("/health", async (_req, res) => {
     ok: true,
     service: "mdent-backend",
     time: new Date().toISOString(),
-    db: dbOk
+    db: dbOk,
   });
 });
 
-app.use("/api/login", loginRouter);                                // Public route
-app.use("/api/branches", branchesRouter);         // 🚨 Now open
-app.use("/api/patients", patientsRouter);         // 🚨 Now open
+// Example open endpoint (patients GET)
+app.get("/api/patients", (req, res) => {
+  res.json({ message: "Open patient data (no auth)", user: "dev-mode" });
+});
+
+// Routes (all open, no JWT/auth)
+app.use("/api/login", loginRouter);      // public route
+app.use("/api/branches", branchesRouter); // open
+app.use("/api/patients", patientsRouter); // open
 
 const port = Number(process.env.PORT || 8080);
 app.listen(port, () => {
-  log.info({ port }, "Backend listening");
+  log.info({ port }, "Backend listening (no security)");
   if (process.env.RUN_SEED === "true") {
     log.warn("RUN_SEED=true – seed placeholder.");
   }
