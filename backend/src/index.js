@@ -14,22 +14,19 @@ import billingRouter from './routes/billing.js';
 // Logging setup
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 
-// App init
 const app = express();
 
-// Middleware stack (no auth, no JWT, no RBAC)
 app.use(helmet());
 app.use(express.json());
 app.use(
   cors({
-    origin: "*", // <-- Open CORS for all origins (remove restrictions)
+    origin: "*",
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Authorization", "Content-Type"],
     credentials: true,
   })
 );
 
-// Health check endpoint
 app.get("/health", async (_req, res) => {
   let dbOk = false;
   try {
@@ -46,12 +43,12 @@ app.get("/health", async (_req, res) => {
   });
 });
 
-// Example open endpoint (patients GET)
+// Important: DO NOT define any /api/patients GET/POST here!
 
-// Routes (all open, no JWT/auth)
-app.use("/api/login", loginRouter);      // public route
-app.use("/api/branches", branchesRouter); // open
-app.use("/api/patients", patientsRouter); // open
+// Use routers
+app.use("/api/login", loginRouter);
+app.use("/api/branches", branchesRouter);
+app.use("/api/patients", patientsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/employees', employeesRouter);
 app.use('/api/encounters', encountersRouter);
@@ -64,29 +61,3 @@ app.listen(port, () => {
     log.warn("RUN_SEED=true – seed placeholder.");
   }
 });
-
-
-
-const router = express.Router();
-
-// ... your POST route as provided above
-
-// ADD THIS GET ROUTE:
-router.get("/", async (req, res) => {
-  try {
-    // Fetch all patients (and their digital book numbers)
-    const patients = await prisma.patient.findMany({
-      include: { patientBook: true }
-    });
-    res.json(patients);
-  } catch (err) {
-    console.error("GET /api/patients error:", err);
-    res.status(500).json({ error: "failed to fetch patients" });
-  }
-});
-
-export default router;
-
-
-
-
