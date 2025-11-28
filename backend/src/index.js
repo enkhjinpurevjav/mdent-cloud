@@ -47,9 +47,6 @@ app.get("/health", async (_req, res) => {
 });
 
 // Example open endpoint (patients GET)
-app.get("/api/patients", (req, res) => {
-  res.json({ message: "Open patient data (no auth)", user: "dev-mode" });
-});
 
 // Routes (all open, no JWT/auth)
 app.use("/api/login", loginRouter);      // public route
