@@ -42,4 +42,18 @@ router.post("/", async (req, res) => {
   }
 });
 
+// GET /api/patients - List all patients
+router.get("/", async (req, res) => {
+  try {
+    // You may want to include related data like patientBook
+    const patients = await prisma.patient.findMany({
+      include: { patientBook: true }
+    });
+    res.json(patients);
+  } catch (err) {
+    console.error("GET /api/patients error:", err);
+    res.status(500).json({ error: "failed to fetch patients" });
+  }
+});
+
 export default router;
