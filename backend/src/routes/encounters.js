@@ -28,9 +28,12 @@ router.post("/", async (req, res) => {
     });
     res.status(201).json(encounter);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to create encounter" });
+    console.error("POST /api/encounters error:", err); // Already logs server-side
+    // CHANGE: Give full error details in output for debugging
+    res.status(500).json({ error: err.message, details: err });
   }
 });
 
 export default router;
+
+
