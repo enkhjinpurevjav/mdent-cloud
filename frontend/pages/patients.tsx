@@ -49,7 +49,7 @@ function PatientRegisterForm({ onSuccess }) {
       <input name="regNo" placeholder="Регистрийн дугаар" value={form.regNo} onChange={handleChange} required />
       <input name="phone" placeholder="Утасны дугаар" value={form.phone} onChange={handleChange} required />
       <input name="branchId" placeholder="Салбарын ID" value={form.branchId} onChange={handleChange} required />
-      <input name="bookNumber" placeholder="Номын дугаар" value={form.bookNumber} onChange={handleChange} required />
+      <input name="bookNumber" placeholder="Картын дугаар" value={form.bookNumber} onChange={handleChange} required />
       <button type="submit">Бүртгэх</button>
       {error && <div style={{ color: "red" }}>{error}</div>}
     </form>
