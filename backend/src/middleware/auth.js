@@ -1,17 +1,18 @@
 import jwt from "jsonwebtoken";
 
-// JWT Authentication Middleware (production-ready)
+// JWT Authentication Middleware (with improved error handling and safe logging)
 export function authenticateJWT(req, res, next) {
   const authHeader = req.headers.authorization;
-  // Expect header: Authorization: Bearer <token>
+
+  // Expect: Authorization: Bearer <token>
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Missing or invalid token." });
   }
 
   const token = authHeader.slice(7).trim();
 
-  // Debug logs only in development!
-  if (process.env.NODE_ENV === 'development') {
+  // Only log secret/token in development
+  if (process.env.NODE_ENV === "development") {
     console.log("JWT_SECRET:", process.env.JWT_SECRET);
     console.log("Token received:", token);
   }
