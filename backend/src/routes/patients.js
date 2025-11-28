@@ -1,22 +1,18 @@
 import express from "express";
 import prisma from "../db.js";
+
 const router = express.Router();
 
-// GET /api/patients - returns all patients
 router.get("/", async (req, res) => {
+  // This runs when GET /api/patients is called
   try {
     const patients = await prisma.patient.findMany({
       include: { patientBook: true }
     });
-    res.json(patients);
+    res.json(patients); // Send all patients as JSON
   } catch (err) {
     res.status(500).json({ error: "failed to fetch patients" });
   }
-});
-
-// POST /api/patients - create new patient
-router.post("/", async (req, res) => {
-  // ... validation & creation logic
 });
 
 export default router;
