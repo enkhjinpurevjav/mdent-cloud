@@ -6,6 +6,10 @@ import prisma from "./db.js";
 import branchesRouter from "./routes/branches.js";
 import patientsRouter from "./routes/patients.js";
 import loginRouter from "./routes/login.js";
+import usersRouter from './routes/users.js';
+import employeesRouter from './routes/employees.js';
+import encountersRouter from './routes/encounters.js';
+import billingRouter from './routes/billing.js';
 
 // Logging setup
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
@@ -51,6 +55,10 @@ app.get("/api/patients", (req, res) => {
 app.use("/api/login", loginRouter);      // public route
 app.use("/api/branches", branchesRouter); // open
 app.use("/api/patients", patientsRouter); // open
+app.use('/api/users', usersRouter);
+app.use('/api/employees', employeesRouter);
+app.use('/api/encounters', encountersRouter);
+app.use('/api/billing', billingRouter);
 
 const port = Number(process.env.PORT || 8080);
 app.listen(port, () => {
@@ -59,3 +67,11 @@ app.listen(port, () => {
     log.warn("RUN_SEED=true – seed placeholder.");
   }
 });
+
+
+
+
+
+
+
+
