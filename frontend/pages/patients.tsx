@@ -17,7 +17,7 @@ function PatientRegisterForm({ onSuccess }) {
     e.preventDefault();
     setError("");
     try {
-      const res = await fetch("/api/patients", {
+      const res = await fetch("https://api.mdent.cloud/api/patients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
