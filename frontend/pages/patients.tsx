@@ -59,7 +59,7 @@ function PatientRegisterForm({ onSuccess }) {
 export default function PatientsPage() {
   const [patients, setPatients] = useState([]);
   useEffect(() => {
-    fetch("/api/patients")
+    fetch("https://api.mdent.cloud/api/patients")
       .then(res => res.json())
       .then(setPatients)
       .catch(() => {});
