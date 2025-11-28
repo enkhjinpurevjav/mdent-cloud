@@ -70,7 +70,25 @@ app.listen(port, () => {
 
 
 
+const router = express.Router();
 
+// ... your POST route as provided above
+
+// ADD THIS GET ROUTE:
+router.get("/", async (req, res) => {
+  try {
+    // Fetch all patients (and their digital book numbers)
+    const patients = await prisma.patient.findMany({
+      include: { patientBook: true }
+    });
+    res.json(patients);
+  } catch (err) {
+    console.error("GET /api/patients error:", err);
+    res.status(500).json({ error: "failed to fetch patients" });
+  }
+});
+
+export default router;
 
 
 
