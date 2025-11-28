@@ -9,43 +9,13 @@ function isValidRegNo(regNo) {
 }
 
 // POST /api/patients
-// body: { name, regNo, phone, branchId, bookNumber, ... }
 router.post("/", async (req, res) => {
-  const { name, regNo, phone, branchId, bookNumber } = req.body;
-  if (!name || !branchId || !regNo || !bookNumber) {
-    return res.status(400).json({ error: "name, branchId, regNo and bookNumber are required" });
-  }
-  if (!isValidRegNo(regNo)) {
-    return res.status(400).json({ error: "regNo must be 2 Cyrillic uppercase letters followed by 8 digits (e.g. ХА85060772)" });
-  }
-  // Ensure regNo uniqueness
-  const existing = await prisma.patient.findUnique({ where: { regNo } });
-  if (existing) {
-    return res.status(409).json({ error: "regNo already exists" });
-  }
-
-  try {
-    const patient = await prisma.patient.create({
-      data: {
-        name,
-        regNo,
-        phone,
-        branchId,
-        patientBook: { create: { bookNumber } }, // <-- Correct relation name
-      },
-      include: { patientBook: true }, // <-- Must match relation
-    });
-    res.status(201).json(patient);
-  } catch (err) {
-    console.error("POST /api/patients error:", err);
-    res.status(500).json({ error: "failed to create patient" });
-  }
+  // your registration logic...
 });
 
-// GET /api/patients - List all patients
+// GET /api/patients - list all patients
 router.get("/", async (req, res) => {
   try {
-    // You may want to include related data like patientBook
     const patients = await prisma.patient.findMany({
       include: { patientBook: true }
     });
