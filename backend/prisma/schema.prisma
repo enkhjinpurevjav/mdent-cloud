@@ -29,11 +29,12 @@ enum ServiceCategory {
 
 // BRANCHES
 model Branch {
-  id      Int      @id @default(autoincrement())
-  name    String
-  address String?
+  id        Int      @id @default(autoincrement())
+  name      String
+  address   String?
   createdAt DateTime @default(now())
   users     User[]
+  patients  Patient[] // <-- Add this for direct branch-to-patient relation
 }
 
 // USERS (Doctors, Nurses, Admin, etc.)
@@ -72,32 +73,33 @@ model Patient {
   notes          String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
-
+  branchId       Int          // <-- Required for multi-branch. Add here!
+  branch         Branch       @relation(fields: [branchId], references: [id])
   patientBook    PatientBook?
-  // REMOVE: encounters Encounter[]
 }
 
+// DIGITAL HISTORY BOOK
 model PatientBook {
   id         Int         @id @default(autoincrement())
   bookNumber String      @unique
   patientId  Int         @unique
   patient    Patient     @relation(fields: [patientId], references: [id])
-  encounters Encounter[] // This is the correct place for encounters
+  encounters Encounter[]
 }
 
 model Encounter {
-  id             Int           @id @default(autoincrement())
-  patientBookId  Int
-  doctorId       Int
-  visitDate      DateTime
-  notes          String?
+  id                 Int           @id @default(autoincrement())
+  patientBookId      Int
+  doctorId           Int
+  visitDate          DateTime
+  notes              String?
 
-  patientBook    PatientBook   @relation(fields: [patientBookId], references: [id])
-  doctor         User          @relation("DoctorEncounters", fields: [doctorId], references: [id])
-  chartTeeth     ChartTooth[]
-  invoice        Invoice?
-  media          Media[]
-  encounterServices EncounterService[]
+  patientBook        PatientBook   @relation(fields: [patientBookId], references: [id])
+  doctor             User          @relation("DoctorEncounters", fields: [doctorId], references: [id])
+  chartTeeth         ChartTooth[]
+  invoice            Invoice?
+  media              Media[]
+  encounterServices  EncounterService[]
 }
 
 // CHARTING
