@@ -21,6 +21,7 @@ function AppointmentForm({ onCreated }: { onCreated: (a: Appointment) => void })
     notes: "",
   });
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -28,6 +29,7 @@ function AppointmentForm({ onCreated }: { onCreated: (a: Appointment) => void })
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSubmitting(true);
     try {
       const res = await fetch("/api/appointments", {
         method: "POST",
@@ -36,17 +38,13 @@ function AppointmentForm({ onCreated }: { onCreated: (a: Appointment) => void })
           patientId: Number(form.patientId),
           doctorId: form.doctorId ? Number(form.doctorId) : null,
           branchId: Number(form.branchId),
-          scheduledAt: form.scheduledAt, // e.g. 2025-12-04T10:00
+          scheduledAt: form.scheduledAt, // e.g., 2025-12-04T10:00:00Z
           status: form.status,
           notes: form.notes || null,
         }),
       });
-      let data: Appointment | { error?: string };
-      try {
-        data = await res.json();
-      } catch {
-        data = { error: "Unknown error" };
-      }
+      let data: any = null;
+      try { data = await res.json(); } catch {}
       if (res.ok) {
         onCreated(data as Appointment);
         setForm({
@@ -58,10 +56,12 @@ function AppointmentForm({ onCreated }: { onCreated: (a: Appointment) => void })
           notes: "",
         });
       } else {
-        setError((data as any).error || "Алдаа гарлаа");
+        setError((data && data.error) || "Бүртгэл амжилтгүй боллоо");
       }
     } catch {
       setError("Сүлжээгээ шалгана уу");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -70,7 +70,7 @@ function AppointmentForm({ onCreated }: { onCreated: (a: Appointment) => void })
       <input name="patientId" placeholder="Patient ID" value={form.patientId} onChange={handleChange} required />
       <input name="doctorId" placeholder="Doctor ID (optional)" value={form.doctorId} onChange={handleChange} />
       <input name="branchId" placeholder="Branch ID" value={form.branchId} onChange={handleChange} required />
-      <input name="scheduledAt" placeholder="2025-12-04T10:00" value={form.scheduledAt} onChange={handleChange} required />
+      <input name="scheduledAt" placeholder="2025-12-04T10:00:00Z" value={form.scheduledAt} onChange={handleChange} required />
       <select name="status" value={form.status} onChange={handleChange}>
         <option value="booked">Захиалсан</option>
         <option value="ongoing">Явагдаж байна</option>
@@ -78,7 +78,13 @@ function AppointmentForm({ onCreated }: { onCreated: (a: Appointment) => void })
         <option value="cancelled">Цуцлагдсан</option>
       </select>
       <input name="notes" placeholder="Тэмдэглэл" value={form.notes} onChange={handleChange} />
-      <button type="submit" style={{ gridColumn: "span 6" }}>Цаг захиалах</button>
+
+      {/* Visible submit button */}
+      <button type="submit" disabled={submitting} style={{ gridColumn: "span 6" }}>
+        {submitting ? "Хадгалж байна..." : "Цаг захиалах"}
+      </button>
+
+      {error && <div style={{ color: "red", gridColumn: "span 6" }}>{error}</div>}
     </form>
   );
 }
@@ -88,16 +94,24 @@ export default function AppointmentsPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetch("/api/appointments")
-      .then((res) => res.json())
-      .then(setAppointments)
-      .catch(() => setError("Сүлжээгээ шалгана уу"));
+    (async () => {
+      try {
+        const res = await fetch("/api/appointments");
+        let data: any = null;
+        try { data = await res.json(); } catch {}
+        if (res.ok) setAppointments(data as Appointment[]);
+        else setError((data && data.error) || "Цагийн жагсаалтыг ачааллаж чадсангүй");
+      } catch {
+        setError("Сүлжээгээ шалгана уу");
+      }
+    })();
   }, []);
 
   return (
     <div style={{ padding: 24 }}>
       <h1>Цаг захиалга</h1>
       {error && <div style={{ color: "red" }}>{error}</div>}
+
       <AppointmentForm onCreated={(a) => setAppointments((as) => [a, ...as])} />
 
       <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}>
@@ -124,6 +138,11 @@ export default function AppointmentsPage() {
               <td>{a.notes || "-"}</td>
             </tr>
           ))}
+          {appointments.length === 0 && (
+            <tr>
+              <td colSpan={7} style={{ textAlign: "center", color: "#888" }}>Одоогоор цаг захиалга алга</td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
