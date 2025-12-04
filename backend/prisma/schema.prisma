@@ -57,7 +57,7 @@ model User {
   idPhotoPath        String?  // Path for ID photo
 }
 
-// PATIENTS
+// PATIENTS (single, original model; add back relation here)
 model Patient {
   id             Int          @id @default(autoincrement())
   regNo          String       @unique
@@ -73,10 +73,28 @@ model Patient {
   notes          String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
-  branchId       Int          // <-- Required for multi-branch. Add here!
+  branchId       Int
   branch         Branch       @relation(fields: [branchId], references: [id])
+
   patientBook    PatientBook?
+  appointments   Appointment[] // back-relation
 }
+
+// Appointment model (define once, ensure clean ASCII text)
+model Appointment {
+  id          Int       @id @default(autoincrement())
+  patientId   Int
+  doctorId    Int?
+  branchId    Int
+  scheduledAt DateTime
+  status      String    @default("booked")
+  notes       String?
+
+  patient     Patient   @relation(fields: [patientId], references: [id])
+
+  @@index([branchId, scheduledAt])
+}
+
 
 // DIGITAL HISTORY BOOK
 model PatientBook {
@@ -221,40 +239,3 @@ model Patient {
   appointments Appointment[]
 }
 
-// PATIENTS (single, original model; add back relation here)
-model Patient {
-  id             Int          @id @default(autoincrement())
-  regNo          String       @unique
-  ovog           String?
-  name           String
-  gender         String?
-  birthDate      DateTime?
-  phone          String?
-  address        String?
-  bloodType      String?
-  citizenship    String?      @default("Mongolian")
-  emergencyPhone String?
-  notes          String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  branchId       Int
-  branch         Branch       @relation(fields: [branchId], references: [id])
-
-  patientBook    PatientBook?
-  appointments   Appointment[] // back-relation
-}
-
-// Appointment model (define once, ensure clean ASCII text)
-model Appointment {
-  id          Int       @id @default(autoincrement())
-  patientId   Int
-  doctorId    Int?
-  branchId    Int
-  scheduledAt DateTime
-  status      String    @default("booked")
-  notes       String?
-
-  patient     Patient   @relation(fields: [patientId], references: [id])
-
-  @@index([branchId, scheduledAt])
-}
