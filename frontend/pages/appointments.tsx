@@ -36,7 +36,7 @@ function AppointmentForm({ onCreated }: { onCreated: (a: Appointment) => void })
           patientId: Number(form.patientId),
           doctorId: form.doctorId ? Number(form.doctorId) : null,
           branchId: Number(form.branchId),
-          scheduledAt: form.scheduledAt, // Expect ISO date-time: e.g. 2025-12-04T10:00
+          scheduledAt: form.scheduledAt, // e.g. 2025-12-04T10:00
           status: form.status,
           notes: form.notes || null,
         }),
