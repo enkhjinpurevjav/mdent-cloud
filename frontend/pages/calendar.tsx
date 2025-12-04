@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 
-// FullCalendar must be dynamically imported to avoid SSR issues
 const FullCalendar = dynamic(() => import("@fullcalendar/react"), { ssr: false }) as any;
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -12,7 +11,7 @@ type Appointment = {
   patientId: number;
   doctorId: number | null;
   branchId: number;
-  scheduledAt: string; // ISO
+  scheduledAt: string;
   status: string;
   notes: string | null;
   patient?: { id: number; name: string; regNo: string };
@@ -32,11 +31,9 @@ export default function CalendarPage() {
   const [events, setEvents] = useState<EventInput[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [branchId, setBranchId] = useState<string>("1"); // default branch
-  const [doctorId, setDoctorId] = useState<string>(""); // optional filter (future)
+  const [branchId, setBranchId] = useState<string>("1");
   const [view, setView] = useState<"timeGridWeek" | "timeGridDay">("timeGridWeek");
 
-  // Inline create form state
   const [creating, setCreating] = useState(false);
   const [createSlot, setCreateSlot] = useState<{ start: string; end: string } | null>(null);
   const [createForm, setCreateForm] = useState({
@@ -62,7 +59,6 @@ export default function CalendarPage() {
     setLoading(true);
     setError("");
     try {
-      // Use date filter for the currently visible date (server will return the day range)
       const date = currentDateISO;
       const qs = new URLSearchParams();
       if (branchId) qs.set("branchId", branchId);
@@ -70,9 +66,7 @@ export default function CalendarPage() {
 
       const res = await fetch(`/api/appointments?${qs.toString()}`);
       let data: any = null;
-      try {
-        data = await res.json();
-      } catch {}
+      try { data = await res.json(); } catch {}
       if (!res.ok) {
         setError((data && data.error) || "Failed to load appointments");
         setEvents([]);
@@ -83,19 +77,14 @@ export default function CalendarPage() {
         id: String(a.id),
         title: a.patient ? `${a.patient.name} • ${a.status}` : `Patient ${a.patientId} • ${a.status}`,
         start: a.scheduledAt,
-        // Optional: infer end time as +30m for display
         end: new Date(new Date(a.scheduledAt).getTime() + 30 * 60 * 1000).toISOString(),
         extendedProps: { appointment: a },
         color:
-          a.status === "booked"
-            ? "#1976d2"
-            : a.status === "ongoing"
-            ? "#f57c00"
-            : a.status === "completed"
-            ? "#2e7d32"
-            : a.status === "cancelled"
-            ? "#9e9e9e"
-            : undefined,
+          a.status === "booked" ? "#1976d2" :
+          a.status === "ongoing" ? "#f57c00" :
+          a.status === "completed" ? "#2e7d32" :
+          a.status === "cancelled" ? "#9e9e9e" :
+          undefined,
       }));
       setEvents(evs);
     } catch {
@@ -112,12 +101,10 @@ export default function CalendarPage() {
   }, [branchId, view]);
 
   const handleDatesSet = () => {
-    // Whenever the calendar navigates, reload for that date
     fetchAppointments();
   };
 
   const handleSelect = (info: { startStr: string; endStr: string }) => {
-    // Open inline create form using selected slot
     setCreating(true);
     setCreateSlot({ start: info.startStr, end: info.endStr });
     setCreateForm((f) => ({ ...f, notes: "", status: "booked" }));
@@ -128,18 +115,18 @@ export default function CalendarPage() {
     if (!appt) return;
     alert(
       `Appointment #${appt.id}\n` +
-        `Branch: ${appt.branchId}\n` +
-        `Patient: ${appt.patient?.name ?? appt.patientId}\n` +
-        `Doctor: ${appt.doctorId ?? "-"}\n` +
-        `Scheduled: ${new Date(appt.scheduledAt).toLocaleString()}\n` +
-        `Status: ${appt.status}\n` +
-        `Notes: ${appt.notes ?? "-"}`
+      `Branch: ${appt.branchId}\n` +
+      `Patient: ${appt.patient?.name ?? appt.patientId}\n` +
+      `Doctor: ${appt.doctorId ?? "-"}\n` +
+      `Scheduled: ${new Date(appt.scheduledAt).toLocaleString()}\n` +
+      `Status: ${appt.status}\n` +
+      `Notes: ${appt.notes ?? "-"}`
     );
   };
 
   const submitCreate = async () => {
     if (!createSlot) return;
-    const scheduledAt = createSlot.start; // start of selection
+    const scheduledAt = createSlot.start;
     const payload = {
       patientId: Number(createForm.patientId),
       doctorId: createForm.doctorId ? Number(createForm.doctorId) : null,
@@ -161,19 +148,16 @@ export default function CalendarPage() {
         body: JSON.stringify(payload),
       });
       let data: any = null;
-      try {
-        data = await res.json();
-      } catch {}
+      try { data = await res.json(); } catch {}
       if (!res.ok) {
         alert((data && data.error) || "Failed to create appointment");
         return;
       }
-      // Close and refresh
       setCreating(false);
       setCreateSlot(null);
       setCreateForm({ patientId: "", doctorId: "", status: "booked", notes: "" });
       await fetchAppointments();
-    } catch (e) {
+    } catch {
       alert("Network error");
     }
   };
@@ -186,18 +170,8 @@ export default function CalendarPage() {
           <option value="1">Branch 1</option>
           <option value="2">Branch 2</option>
         </select>
-        <input
-          placeholder="Doctor ID filter (optional)"
-          value={doctorId}
-          onChange={(e) => setDoctorId(e.target.value)}
-          style={{ width: 180 }}
-        />
-        <button onClick={() => changeView("timeGridWeek")} disabled={view === "timeGridWeek"}>
-          Week
-        </button>
-        <button onClick={() => changeView("timeGridDay")} disabled={view === "timeGridDay"}>
-          Day
-        </button>
+        <button onClick={() => changeView("timeGridWeek")} disabled={view === "timeGridWeek"}>Week</button>
+        <button onClick={() => changeView("timeGridDay")} disabled={view === "timeGridDay"}>Day</button>
         {loading && <span style={{ color: "#555" }}>Loading...</span>}
         {error && <span style={{ color: "red" }}>{error}</span>}
       </div>
@@ -206,11 +180,7 @@ export default function CalendarPage() {
         ref={calendarRef}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
         initialView={view}
-        headerToolbar={{
-          left: "prev,next today",
-          center: "title",
-          right: "",
-        }}
+        headerToolbar={{ left: "prev,next today", center: "title", right: "" }}
         slotMinTime="08:00:00"
         slotMaxTime="20:00:00"
         allDaySlot={false}
@@ -223,7 +193,6 @@ export default function CalendarPage() {
         height="auto"
       />
 
-      {/* Inline create panel */}
       {creating && createSlot && (
         <div style={{ marginTop: 16, padding: 12, border: "1px solid #ddd", borderRadius: 6 }}>
           <div style={{ marginBottom: 8 }}>
