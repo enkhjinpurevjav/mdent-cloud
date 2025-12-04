@@ -221,7 +221,7 @@ model Patient {
   appointments Appointment[]
 }
 
-// PATIENTS (keep this single model; add appointments inside it)
+// PATIENTS (single, original model; add back relation here)
 model Patient {
   id             Int          @id @default(autoincrement())
   regNo          String       @unique
@@ -241,12 +241,10 @@ model Patient {
   branch         Branch       @relation(fields: [branchId], references: [id])
 
   patientBook    PatientBook?
-
-  // Add this line (back relation). Do NOT create a second Patient model.
-  appointments   Appointment[]
+  appointments   Appointment[] // back-relation
 }
 
-// NEW Appointment model (define once)
+// Appointment model (define once, ensure clean ASCII text)
 model Appointment {
   id          Int       @id @default(autoincrement())
   patientId   Int
@@ -254,5 +252,9 @@ model Appointment {
   branchId    Int
   scheduledAt DateTime
   status      String    @default("booked")
-  notes       String
-
+  notes       String?
+
+  patient     Patient   @relation(fields: [patientId], references: [id])
+
+  @@index([branchId, scheduledAt])
+}
