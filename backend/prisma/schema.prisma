@@ -34,7 +34,7 @@ model Branch {
   address   String?
   createdAt DateTime @default(now())
   users     User[]
-  patients  Patient[] // <-- Add this for direct branch-to-patient relation
+  patients  Patient[] // direct branch-to-patient relation
 }
 
 // USERS (Doctors, Nurses, Admin, etc.)
@@ -49,15 +49,15 @@ model User {
   branch             Branch?  @relation(fields: [branchId], references: [id])
   encounters         Encounter[] @relation("DoctorEncounters")
   // Advanced Doctor/Nurse Info
-  regNo              String?  @unique // Mongolian registration number
+  regNo              String?  @unique
   licenseNumber      String?  @unique
   licenseExpiryDate  DateTime?
-  signatureImagePath String?  // Path for signature image
-  stampImagePath     String?  // Path for stamp/seal image
-  idPhotoPath        String?  // Path for ID photo
+  signatureImagePath String?
+  stampImagePath     String?
+  idPhotoPath        String?
 }
 
-// PATIENTS (single, original model; add back relation here)
+// PATIENTS (single, original model; back relation added)
 model Patient {
   id             Int          @id @default(autoincrement())
   regNo          String       @unique
@@ -77,10 +77,12 @@ model Patient {
   branch         Branch       @relation(fields: [branchId], references: [id])
 
   patientBook    PatientBook?
-  appointments   Appointment[] // back-relation
+
+  // Back-relation to appointments
+  appointments   Appointment[]
 }
 
-// Appointment model (define once, ensure clean ASCII text)
+// Appointment model (define once)
 model Appointment {
   id          Int       @id @default(autoincrement())
   patientId   Int
@@ -94,7 +96,6 @@ model Appointment {
 
   @@index([branchId, scheduledAt])
 }
-
 
 // DIGITAL HISTORY BOOK
 model PatientBook {
@@ -123,7 +124,7 @@ model Encounter {
 // CHARTING
 model ChartTooth {
   id          Int        @id @default(autoincrement())
-  toothCode   String     // FDI code
+  toothCode   String
   status      String?
   notes       String?
   encounterId Int
@@ -132,110 +133,94 @@ model ChartTooth {
 }
 
 model ChartNote {
-  id          Int       @id @default(autoincrement())
+  id           Int        @id @default(autoincrement())
   chartToothId Int
-  description String
-  createdAt   DateTime  @default(now())
-  chartTooth  ChartTooth @relation(fields: [chartToothId], references: [id])
+  description  String
+  createdAt    DateTime   @default(now())
+  chartTooth   ChartTooth @relation(fields: [chartToothId], references: [id])
 }
 
 // SERVICES, PROCEDURES, DIAGNOSES
 model Service {
-  id          Int             @id @default(autoincrement())
-  code        String          @unique // e.g., GD01, IMP002
-  category    ServiceCategory
-  name        String
-  price       Float
-  status      Boolean         @default(true)
-  description String?
+  id                Int              @id @default(autoincrement())
+  code              String           @unique
+  category          ServiceCategory
+  name              String
+  price             Float
+  status            Boolean          @default(true)
+  description       String?
   encounterServices EncounterService[]
 }
 
 model EncounterService {
-  id          Int      @id @default(autoincrement())
-  encounter   Encounter @relation(fields: [encounterId], references: [id])
-  encounterId Int
-  service     Service   @relation(fields: [serviceId], references: [id])
-  serviceId   Int
-  quantity    Int       @default(1)
-  price       Float     // snapshot price for this encounter
+  id           Int       @id @default(autoincrement())
+  encounter    Encounter @relation(fields: [encounterId], references: [id])
+  encounterId  Int
+  service      Service   @relation(fields: [serviceId], references: [id])
+  serviceId    Int
+  quantity     Int       @default(1)
+  price        Float
 }
 
 model Procedure {
-  code   String   @id
-  name   String
-  price  Float
+  code         String       @id
+  name         String
+  price        Float
   invoiceItems InvoiceItem[]
 }
 
 model Diagnosis {
-  code        String   @id
+  code        String @id
   description String
 }
 
 // INVOICES & PAYMENTS
 model Invoice {
-  id           Int           @id @default(autoincrement())
-  encounterId  Int           @unique
-  totalAmount  Float
-  status       String
-  createdAt    DateTime      @default(now())
-  encounter    Encounter     @relation(fields: [encounterId], references: [id])
-  invoiceItems InvoiceItem[]
-  payment      Payment?
-  eBarimtReceipt  EBarimtReceipt?
+  id             Int           @id @default(autoincrement())
+  encounterId    Int           @unique
+  totalAmount    Float
+  status         String
+  createdAt      DateTime      @default(now())
+  encounter      Encounter     @relation(fields: [encounterId], references: [id])
+  invoiceItems   InvoiceItem[]
+  payment        Payment?
+  eBarimtReceipt EBarimtReceipt?
 }
 
 model InvoiceItem {
-  id          Int         @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   invoiceId   Int
   procedureId String
   price       Float
   quantity    Int
-  invoice     Invoice     @relation(fields: [invoiceId], references: [id])
-  procedure   Procedure   @relation(fields: [procedureId], references: [code])
+  invoice     Invoice   @relation(fields: [invoiceId], references: [id])
+  procedure   Procedure @relation(fields: [procedureId], references: [code])
 }
 
 model Payment {
-  id         Int      @id @default(autoincrement())
-  invoiceId  Int      @unique
-  amount     Float
-  method     String
-  qpayTxnId  String?
-  timestamp  DateTime @default(now())
-  invoice    Invoice  @relation(fields: [invoiceId], references: [id])
+  id        Int      @id @default(autoincrement())
+  invoiceId Int      @unique
+  amount    Float
+  method    String
+  qpayTxnId String?
+  timestamp DateTime @default(now())
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
 }
 
 model EBarimtReceipt {
-  id           Int      @id @default(autoincrement())
-  invoiceId    Int      @unique
-  receiptNumber String  @unique
-  timestamp    DateTime @default(now())
-  invoice      Invoice  @relation(fields: [invoiceId], references: [id])
+  id            Int      @id @default(autoincrement())
+  invoiceId     Int      @unique
+  receiptNumber String   @unique
+  timestamp     DateTime @default(now())
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
 }
 
 // MEDIA (photos, files, etc.)
 model Media {
-  id           Int      @id @default(autoincrement())
-  encounterId  Int
-  filePath     String
-  toothCode    String?
-  type         String
-  encounter    Encounter @relation(fields: [encounterId], references: [id])
+  id          Int      @id @default(autoincrement())
+  encounterId Int
+  filePath    String
+  toothCode   String?
+  type        String
+  encounter   Encounter @relation(fields: [encounterId], references: [id])
 }
-
-// Ensure this Patient model has a back relation to Appointment
-model Patient {
-  id           Int           @id @default(autoincrement())
-  regNo        String        @unique
-  name         String
-  phone        String
-  branchId     Int
-
-  // Existing relation
-  patientBook  PatientBook?
-
-  // NEW back-relation for appointments
-  appointments Appointment[]
-}
-
