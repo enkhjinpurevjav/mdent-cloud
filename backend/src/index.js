@@ -10,6 +10,15 @@ import usersRouter from './routes/users.js';
 import employeesRouter from './routes/employees.js';
 import encountersRouter from './routes/encounters.js';
 import billingRouter from './routes/billing.js';
+import appointmentsRouter from "./routes/appointments.js";
+
+
+
+
+
+
+export default app;
+
 
 // Logging setup
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
@@ -53,7 +62,7 @@ app.use('/api/users', usersRouter);
 app.use('/api/employees', employeesRouter);
 app.use('/api/encounters', encountersRouter);
 app.use('/api/billing', billingRouter);
-
+app.use("/api/appointments", appointmentsRouter);
 const port = Number(process.env.PORT || 8080);
 app.listen(port, () => {
   log.info({ port }, "Backend listening (no security)");
@@ -78,3 +87,5 @@ router.get("/", async (req, res) => {
 });
 
 export default router;
+
+
