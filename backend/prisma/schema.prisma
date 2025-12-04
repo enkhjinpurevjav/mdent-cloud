@@ -205,3 +205,18 @@ model Media {
   type         String
   encounter    Encounter @relation(fields: [encounterId], references: [id])
 }
+model Appointment {
+  id          Int       @id @default(autoincrement())
+  patientId   Int
+  doctorId    Int?
+  branchId    Int
+  scheduledAt DateTime
+  status      String    @default("booked")
+  notes       String?
+
+  patient     Patient   @relation(fields: [patientId], references: [id])
+  // doctor    Employee? @relation(fields: [doctorId], references: [id]) // if you have Employee as doctors
+  // branch    Branch    @relation(fields: [branchId], references: [id])
+
+  @@index([branchId, scheduledAt])
+}
