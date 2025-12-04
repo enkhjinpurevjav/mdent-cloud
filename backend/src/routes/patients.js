@@ -8,6 +8,7 @@ router.get("/", async (_req, res) => {
   try {
     const patients = await prisma.patient.findMany({
       include: { patientBook: true },
+      orderBy: { id: "desc" },
     });
     res.json(patients);
   } catch (err) {
@@ -20,7 +21,6 @@ router.post("/", async (req, res) => {
   try {
     const { ovog, name, regNo, phone, branchId, bookNumber } = req.body;
 
-    // Basic validation
     if (!name || !regNo || !phone || !branchId || !bookNumber) {
       return res.status(400).json({ error: "missing required fields" });
     }
@@ -28,22 +28,18 @@ router.post("/", async (req, res) => {
     const patient = await prisma.patient.create({
       data: {
         ovog: (ovog ?? "").trim() || null,
-        name: name.trim(),
-        regNo: regNo.trim(),
-        phone: phone.trim(),
-        branchId: Number(branchId), // ensure number
-        patientBook: {
-          create: { bookNumber: bookNumber.trim() },
-        },
+        name: String(name).trim(),
+        regNo: String(regNo).trim(),
+        phone: String(phone).trim(),
+        branchId: Number(branchId),
+        patientBook: { create: { bookNumber: String(bookNumber).trim() } },
       },
       include: { patientBook: true },
     });
 
-    return res.status(201).json(patient);
+    res.status(201).json(patient);
   } catch (err) {
-    // Unique constraint or other DB errors can land here
-    console.error("POST /api/patients error:", err);
-    return res.status(500).json({ error: "failed to create patient" });
+    res.status(500).json({ error: "failed to create patient" });
   }
 });
 
