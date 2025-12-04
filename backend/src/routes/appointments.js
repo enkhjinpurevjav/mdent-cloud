@@ -21,14 +21,11 @@ router.get("/", async (req, res) => {
       orderBy: { scheduledAt: "asc" },
       include: {
         patient: true,
-        // doctor: true,  // uncomment after you have a Doctor model
-        // branch: true,  // uncomment if you have a Branch relation
       },
     });
 
     res.json(appointments);
   } catch (err) {
-    console.error("GET /api/appointments error:", err);
     res.status(500).json({ error: "failed to fetch appointments" });
   }
 });
@@ -47,7 +44,7 @@ router.post("/", async (req, res) => {
         patientId: Number(patientId),
         doctorId: doctorId ? Number(doctorId) : null,
         branchId: Number(branchId),
-        scheduledAt: new Date(scheduledAt), // expect ISO string
+        scheduledAt: new Date(scheduledAt),
         status: status || "booked",
         notes: notes || null,
       },
@@ -58,7 +55,6 @@ router.post("/", async (req, res) => {
 
     res.status(201).json(appt);
   } catch (err) {
-    console.error("POST /api/appointments error:", err);
     res.status(500).json({ error: "failed to create appointment" });
   }
 });
