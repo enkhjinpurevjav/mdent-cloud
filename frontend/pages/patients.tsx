@@ -20,9 +20,12 @@ function PatientRegisterForm({ onSuccess }) {
       const res = await fetch("/api/patients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, branchId: Number(form.branchId) }), // convert to number
       });
-      const data = await res.json();
+
+      let data = null;
+      try { data = await res.json(); } catch { /* HTML 404 or empty */ }
+
       if (res.ok) {
         onSuccess && onSuccess(data);
         setForm({
@@ -34,7 +37,7 @@ function PatientRegisterForm({ onSuccess }) {
           bookNumber: "",
         });
       } else {
-        setError(data.error || "Алдаа гарлаа");
+        setError((data && data.error) || "Алдаа гарлаа");
       }
     } catch {
       setError("Сүлжээгээ шалгана уу");
