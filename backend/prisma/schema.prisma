@@ -206,3 +206,33 @@ model Media {
   encounter    Encounter @relation(fields: [encounterId], references: [id])
 }
 
+// Ensure this Patient model has a back relation to Appointment
+model Patient {
+  id           Int           @id @default(autoincrement())
+  regNo        String        @unique
+  name         String
+  phone        String
+  branchId     Int
+
+  // Existing relation
+  patientBook  PatientBook?
+
+  // NEW back-relation for appointments
+  appointments Appointment[]
+}
+
+// NEW Appointment model
+model Appointment {
+  id          Int       @id @default(autoincrement())
+  patientId   Int
+  doctorId    Int?
+  branchId    Int
+  scheduledAt DateTime
+  status      String    @default("booked")
+  notes       String?
+
+  // forward relation to Patient
+  patient     Patient   @relation(fields: [patientId], references: [id])
+
+  @@index([branchId, scheduledAt])
+}
