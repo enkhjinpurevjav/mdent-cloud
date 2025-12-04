@@ -10,28 +10,21 @@ function PatientRegisterForm({ onSuccess }) {
     bookNumber: "",
   });
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async e => {
     e.preventDefault();
     setError("");
-    setSubmitting(true);
     try {
       const res = await fetch("/api/patients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, branchId: Number(form.branchId) }),
+        body: JSON.stringify({ ...form, branchId: Number(form.branchId) }), // convert to number
       });
 
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null; // non-JSON (e.g., HTML 404)
-      }
+      let data = null;
+      try { data = await res.json(); } catch { /* HTML 404 or empty */ }
 
       if (res.ok) {
         onSuccess && onSuccess(data);
@@ -44,12 +37,10 @@ function PatientRegisterForm({ onSuccess }) {
           bookNumber: "",
         });
       } else {
-        setError((data && data.error) || "Алдаа гарлаа"); // generic message
+        setError((data && data.error) || "Алдаа гарлаа");
       }
     } catch {
       setError("Сүлжээгээ шалгана уу");
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -62,95 +53,51 @@ function PatientRegisterForm({ onSuccess }) {
       <input name="phone" placeholder="Утасны дугаар" value={form.phone} onChange={handleChange} required />
       <input name="branchId" placeholder="Салбарын ID" value={form.branchId} onChange={handleChange} required />
       <input name="bookNumber" placeholder="Картын дугаар" value={form.bookNumber} onChange={handleChange} required />
-      <button type="submit" disabled={submitting}>{submitting ? "Бүртгэж байна..." : "Бүртгэх"}</button>
-      {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
+      <button type="submit">Бүртгэх</button>
+      {error && <div style={{ color: "red" }}>{error}</div>}
     </form>
   );
 }
 
 export default function PatientsPage() {
-  const [patients, setPatients] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const loadPatients = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch("/api/patients");
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-      if (res.ok && Array.isArray(data)) {
-        setPatients(data);
-      } else {
-        setError((data && data.error) || "Пациентын жагсаалтыг ачааллаж чадсангүй");
-      }
-    } catch {
-      setError("Сүлжээгээ шалгана уу");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  const [patients, setPatients] = useState([]);
   useEffect(() => {
-    loadPatients();
+    fetch("/api/patients")
+      .then(res => res.json())
+      .then(setPatients)
+      .catch(() => {});
   }, []);
 
   return (
     <div style={{ padding: 24 }}>
       <h1>Үйлчлүүлэгчийн бүртгэл</h1>
-
-      <PatientRegisterForm
-        onSuccess={(p) => {
-          // Optimistically add; also refetch to stay in sync if needed
-          setPatients((ps) => [p, ...ps]);
-          // Optionally re-fetch from server:
-          // loadPatients();
-        }}
-      />
-
-      {loading && <div>Ачааллаж байна...</div>}
-      {!loading && error && <div style={{ color: "red" }}>{error}</div>}
-
-      {!loading && !error && (
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Овог</th>
-              <th>Нэр</th>
-              <th>Регистрийн дугаар</th>
-              <th>Утас</th>
-              <th>Картын дугаар</th>
-              <th>Салбар</th>
+      <PatientRegisterForm onSuccess={p => setPatients(ps => [p, ...ps])} />
+      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Овог</th>
+            <th>Нэр</th>
+            <th>Регистрийн дугаар</th>
+            <th>Утас</th>
+            <th>Картын дугаар</th>
+            <th>Салбар</th>
+          </tr>
+        </thead>
+        <tbody>
+          {patients.map(p => (
+            <tr key={p.id}>
+              <td>{p.id}</td>
+              <td>{p.ovog}</td>
+              <td>{p.name}</td>
+              <td>{p.regNo}</td>
+              <td>{p.phone}</td>
+              <td>{p.patientBook?.bookNumber}</td>
+              <td>{p.branchId}</td>
             </tr>
-          </thead>
-          <tbody>
-            {patients.map((p) => (
-              <tr key={p.id}>
-                <td>{p.id}</td>
-                <td>{p.ovog}</td>
-                <td>{p.name}</td>
-                <td>{p.regNo}</td>
-                <td>{p.phone}</td>
-                <td>{p.patientBook?.bookNumber}</td>
-                <td>{p.branchId}</td>
-              </tr>
-            ))}
-            {patients.length === 0 && (
-              <tr>
-                <td colSpan={7} style={{ textAlign: "center", color: "#888" }}>
-                  Өгөгдөл алга
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      )}
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
