@@ -2,23 +2,19 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Tools incl. pg_isready and curl for healthchecks
+# Install build tools and curl (for healthcheck)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  bash python3 build-essential openssl curl postgresql-client \
+  bash python3 build-essential openssl curl \
   && rm -rf /var/lib/apt/lists/*
 
-# Prod deps
+# Install dependencies
 COPY package*.json ./
 RUN npm install --omit=dev
 
-# App code (must include prisma/schema.prisma)
+# Copy app (includes prisma schema and seed)
 COPY . .
 
-# Generate Prisma client at build-time (optional but safe if schema is present)
-# Remove unsupported flag; point to schema explicitly.
-RUN npx prisma generate --schema=./prisma/schema.prisma
-
-# Entrypoint still runs DB wait + migrations at runtime
+# Entrypoint (prisma generate now happens at runtime)
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
