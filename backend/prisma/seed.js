@@ -7,6 +7,7 @@ async function main() {
   const adminPassword = process.env.ADMIN_PASSWORD || "admin";
   const hashed = await bcrypt.hash(adminPassword, 10);
 
+  // Branch: find by name (not unique), create if missing, or update address
   const branchName = "Main Branch";
   let branch = await prisma.branch.findFirst({ where: { name: branchName } });
   if (!branch) {
@@ -20,6 +21,7 @@ async function main() {
     });
   }
 
+  // Seed one user for each role
   const roles = [
     { email: "admin@mdent.local", role: "admin", password: adminPassword },
     { email: "doctor@mdent.local", role: "doctor", password: "doctor123" },
@@ -44,6 +46,7 @@ async function main() {
     });
   }
 
+  // Seed Patient: ensure relation field matches schema (patientBook)
   const seedPatientName = "Seed Patient";
   const existingPatient = await prisma.patient.findFirst({
     where: { name: seedPatientName, branchId: branch.id },
@@ -57,7 +60,6 @@ async function main() {
         name: seedPatientName,
         phone: "70000000",
         branchId: branch.id,
-        // FIX: use the correct relation field name from the schema
         patientBook: { create: { bookNumber: `BOOK-${Date.now()}` } },
       },
     });
