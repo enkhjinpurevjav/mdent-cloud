@@ -1,10 +1,10 @@
 import express from "express";
 import prisma from "../db.js";
+import bcrypt from "bcryptjs";
 
 const router = express.Router();
 
-// GET /api/users - list all users/staff
-router.get("/", async (req, res) => {
+router.get("/", async (_req, res) => {
   try {
     const users = await prisma.user.findMany({
       orderBy: { id: "asc" },
@@ -17,15 +17,15 @@ router.get("/", async (req, res) => {
   }
 });
 
-// POST /api/users - create new user/staff
 router.post("/", async (req, res) => {
   const { email, password, name, role, branchId } = req.body;
   if (!email || !password || !role || !branchId) {
     return res.status(400).json({ error: "Missing required fields" });
   }
   try {
+    const passwordHash = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
-      data: { email, password, name, role, branchId }
+      data: { email, password: passwordHash, name, role, branchId: Number(branchId) }
     });
     res.status(201).json(user);
   } catch (err) {
@@ -34,14 +34,17 @@ router.post("/", async (req, res) => {
   }
 });
 
-// PUT /api/users/:id - update user
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
   const { email, name, role, branchId, password } = req.body;
   try {
+    const data = { email, name, role, branchId: branchId ? Number(branchId) : undefined };
+    if (password) {
+      data.password = await bcrypt.hash(password, 10);
+    }
     const user = await prisma.user.update({
       where: { id: Number(id) },
-      data: { email, name, role, branchId, password }
+      data
     });
     res.json(user);
   } catch (err) {
@@ -50,7 +53,6 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// DELETE /api/users/:id - remove user
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
   try {
