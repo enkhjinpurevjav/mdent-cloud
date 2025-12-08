@@ -1,15 +1,23 @@
 import jwt from "jsonwebtoken";
 
+// JWT Authentication Middleware (with improved error handling and safe logging)
 export function authenticateJWT(req, res, next) {
   const authHeader = req.headers.authorization;
+
+  // Expect: Authorization: Bearer <token>
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Missing or invalid token." });
   }
+
   const token = authHeader.slice(7).trim();
 
-  const secret = process.env.JWT_SECRET || "testsecret";
+  // Only log secret/token in development
+  if (process.env.NODE_ENV === "development") {
+    console.log("JWT_SECRET:", process.env.JWT_SECRET);
+    console.log("Token received:", token);
+  }
 
-  jwt.verify(token, secret, (err, user) => {
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
     if (err) {
       if (err.name === "TokenExpiredError") {
         return res.status(401).json({ error: "Token expired." });
