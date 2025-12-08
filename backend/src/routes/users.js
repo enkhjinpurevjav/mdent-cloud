@@ -1,10 +1,109 @@
 import { Router } from "express";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, UserRole } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 const router = Router();
 
-// GET /api/users/:id
+/**
+ * GET /api/users?role=doctor
+ */
+router.get("/", async (req, res) => {
+  const { role } = req.query;
+
+  try {
+    const where = {};
+
+    if (role) {
+      if (!Object.values(UserRole).includes(role)) {
+        return res.status(400).json({ error: "Invalid role filter" });
+      }
+      where.role = role;
+    }
+
+    const users = await prisma.user.findMany({
+      where,
+      include: { branch: true },
+      orderBy: { id: "desc" },
+    });
+
+    const result = users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      role: u.role,
+      branchId: u.branchId,
+      branch: u.branch ? { id: u.branch.id, name: u.branch.name } : null,
+      regNo: u.regNo,
+      licenseNumber: u.licenseNumber,
+      licenseExpiryDate: u.licenseExpiryDate
+        ? u.licenseExpiryDate.toISOString()
+        : null,
+      createdAt: u.createdAt.toISOString(),
+    }));
+
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error("GET /api/users error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/users
+ */
+router.post("/", async (req, res) => {
+  try {
+    const { email, password, name, role, branchId } = req.body || {};
+
+    if (!email || !password || !role) {
+      return res
+        .status(400)
+        .json({ error: "email, password, role are required" });
+    }
+
+    if (!Object.values(UserRole).includes(role)) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      return res.status(400).json({ error: "Email already in use" });
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+
+    const created = await prisma.user.create({
+      data: {
+        email,
+        password: hashed,
+        name: name || null,
+        role,
+        branchId: branchId ? Number(branchId) : null,
+      },
+      include: { branch: true },
+    });
+
+    return res.status(201).json({
+      id: created.id,
+      email: created.email,
+      name: created.name,
+      role: created.role,
+      branchId: created.branchId,
+      branch: created.branch
+        ? { id: created.branch.id, name: created.branch.name }
+        : null,
+      createdAt: created.createdAt.toISOString(),
+    });
+  } catch (err) {
+    console.error("POST /api/users error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * GET /api/users/:id
+ */
 router.get("/:id", async (req, res) => {
   const id = Number(req.params.id);
   if (!id || Number.isNaN(id)) {
@@ -18,7 +117,7 @@ router.get("/:id", async (req, res) => {
     });
 
     if (!user) {
-      return res.status(404).json({ error: "Хэрэглэгч олдсонгүй" });
+      return res.status(404).json({ error: "User not found" });
     }
 
     return res.status(200).json({
@@ -46,7 +145,9 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// PUT /api/users/:id
+/**
+ * PUT /api/users/:id
+ */
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
   if (!id || Number.isNaN(id)) {
@@ -63,7 +164,7 @@ router.put("/:id", async (req, res) => {
       licenseExpiryDate,
     } = req.body || {};
 
-    const data = {}; // <-- fixed
+    const data = {};
 
     if (name !== undefined) data.name = name || null;
     if (email !== undefined) data.email = email || null;
