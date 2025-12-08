@@ -9,9 +9,10 @@ export default function Dashboard() {
           <li><Link href="/appointments">Цаг захиалга</Link></li>
           <li><Link href="/patients">Үйлчлүүлэгчийн бүртгэл</Link></li>
           <li><Link href="/branches">Эмнэлэг/Салбар</Link></li>
+           <li><Link href="/users">Ажилтнууд</Link></li>
           <li><Link href="/encounters">Үзлэг</Link></li>
           <li><Link href="/billing">Төлбөр</Link></li>
-          <li><Link href="/users">Ажилтнууд</Link></li>
+         
           
         </ul>
       </nav>
