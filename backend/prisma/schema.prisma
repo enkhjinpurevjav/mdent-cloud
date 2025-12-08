@@ -224,3 +224,13 @@ model Media {
   type        String
   encounter   Encounter @relation(fields: [encounterId], references: [id])
 }
+model DoctorSchedule {
+  id        Int      @id @default(autoincrement())
+  doctorId  Int
+  branchId  Int
+  weekday   Int      // 1=Mon ... 7=Sun
+  startTime String   // "09:00"
+  endTime   String   // "17:00"
+  doctor    User     @relation(fields: [doctorId], references: [id])
+  branch    Branch   @relation(fields: [branchId], references: [id])
+}
