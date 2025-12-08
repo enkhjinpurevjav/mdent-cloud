@@ -1,42 +1,6 @@
 version: "3.9"
 
 services:
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    environment:
-      - RUN_SEED=false
-      - DATABASE_URL=${DATABASE_URL}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-    depends_on:
-      - postgres
-    networks:
-      - mdent-net
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 25s
-    ports:
-       - "8081:8080"
-
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    networks:
-      - mdent-net
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:3000 >/dev/null || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 25s
-
   postgres:
     image: postgres:16
     ports:
@@ -51,11 +15,60 @@ services:
       - mdent-net
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB || exit 1"]
-      interval: 30s
+      # Use single-dollar env expansion, not $$
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} || exit 1"]
+      interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
       start_period: 30s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      # App/config
+      RUN_SEED: ${RUN_SEED:-false}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      # Prisma connection (used by app)
+      DATABASE_URL: ${DATABASE_URL}
+      # DB wait + prisma runtime ops need these
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      DB_HOST: postgres
+      DB_PORT: 5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mdent-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    ports:
+      - "8081:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    networks:
+      - mdent-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    # Optional for diagnostics; Caddy proxies via container network anyway
+    # ports:
+    #   - "3000:3000"
 
   caddy:
     image: caddy:2
@@ -70,6 +83,11 @@ services:
     networks:
       - mdent-net
     restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+      frontend:
+        condition: service_started
 
 networks:
   mdent-net: {}
