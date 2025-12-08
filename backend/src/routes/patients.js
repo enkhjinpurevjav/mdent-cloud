@@ -18,29 +18,5 @@ router.get("/", async (_req, res) => {
 
 // POST /api/patients
 router.post("/", async (req, res) => {
-  try {
-    const { ovog, name, regNo, phone, branchId, bookNumber } = req.body;
-
-    if (!name || !regNo || !phone || !branchId || !bookNumber) {
-      return res.status(400).json({ error: "missing required fields" });
-    }
-
-    const patient = await prisma.patient.create({
-      data: {
-        ovog: (ovog ?? "").trim() || null,
-        name: String(name).trim(),
-        regNo: String(regNo).trim(),
-        phone: String(phone).trim(),
-        branchId: Number(branchId),
-        patientBook: { create: { bookNumber: String(bookNumber).trim() } },
-      },
-      include: { patientBook: true },
-    });
-
-    res.status(201).json(patient);
-  } catch (err) {
-    res.status(500).json({ error: "failed to create patient" });
-  }
-});
 
 export default router;

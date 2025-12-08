@@ -1,7 +1,7 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN npm ci --no-audit --progress=false
 COPY . .
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_PORTAL_URL
@@ -16,11 +16,10 @@ RUN npm run build
 
 FROM node:20-alpine AS run
 WORKDIR /app
-# 👇 ADD THIS LINE TO INSTALL CURL!
 RUN apk add --no-cache curl
 ENV NODE_ENV=production
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev --no-audit --progress=false
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
 EXPOSE 3000
