@@ -218,10 +218,8 @@ export default function DoctorsPage() {
                     : ""}
                 </td>
                 <td>
-                  {/* Placeholder for profile page we’ll build later */}
-                  {/* <Link href={`/users/doctors/${d.id}`}>Профайл</Link> */}
-                  Профайл (удалгүй)
-                </td>
+  <a href={`/users/doctors/${d.id}`}>Профайл</a>
+</td>
               </tr>
             ))}
             {doctors.length === 0 && (
