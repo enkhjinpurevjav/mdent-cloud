@@ -19,9 +19,8 @@ export default function UsersIndexPage() {
           <li>
             <Link href="/users/nurses">Сувилагч</Link>
           </li>
-          <li>
-            <Link href="/users/staff">Бусад ажилтан</Link>
-          </li>
+         <li><a href="/users/accountants">Нягтлан / Нярав</a></li>
+  <li><a href="/users/managers">Менежерүүд</a></li>
         </ul>
       </nav>
     </main>
