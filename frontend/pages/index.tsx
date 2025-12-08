@@ -11,7 +11,7 @@ export default function Dashboard() {
           <li><Link href="/branches">Эмнэлэг/Салбар</Link></li>
           <li><Link href="/encounters">Үзлэг</Link></li>
           <li><Link href="/billing">Төлбөр</Link></li>
-          <li><Link href="/users">Ажилтан</Link></li>
+          <li><Link href="/users">Ажилтнууд</Link></li>
           
         </ul>
       </nav>
