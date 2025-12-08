@@ -63,7 +63,7 @@ router.put("/:id", async (req, res) => {
       licenseExpiryDate,
     } = req.body || {};
 
-    const data any = {};
+    const data = {}; // <-- fixed
 
     if (name !== undefined) data.name = name || null;
     if (email !== undefined) data.email = email || null;
