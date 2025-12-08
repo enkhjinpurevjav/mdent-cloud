@@ -8,7 +8,7 @@ export default function Dashboard() {
         <ul>
           <li><Link href="/appointments">Цаг захиалга</Link></li>
           <li><Link href="/patients">Үйлчлүүлэгчийн бүртгэл</Link></li>
-          <li><Link href="/branches">Салбарууд</Link></li>
+          <li><Link href="/branches">Эмнэлэг/Салбар</Link></li>
           <li><Link href="/encounters">Үзлэг</Link></li>
           <li><Link href="/billing">Төлбөр</Link></li>
           <li><Link href="/users">Ажилтан</Link></li>
