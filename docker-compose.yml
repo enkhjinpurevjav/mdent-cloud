@@ -15,6 +15,7 @@ services:
       - mdent-net
     restart: unless-stopped
     healthcheck:
+      # Use single-dollar env expansion, not $$
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} || exit 1"]
       interval: 10s
       timeout: 5s
@@ -26,9 +27,12 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
+      # App/config
       RUN_SEED: ${RUN_SEED:-false}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      # Prisma connection (used by app)
       DATABASE_URL: ${DATABASE_URL}
+      # DB wait + prisma runtime ops need these
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
@@ -47,7 +51,7 @@ services:
       retries: 10
       start_period: 30s
     ports:
-       - "8081:8080"
+      - "8081:8080"
 
   frontend:
     build:
@@ -62,6 +66,9 @@ services:
       timeout: 5s
       retries: 10
       start_period: 30s
+    # Optional for diagnostics; Caddy proxies via container network anyway
+    # ports:
+    #   - "3000:3000"
 
   caddy:
     image: caddy:2
@@ -76,6 +83,11 @@ services:
     networks:
       - mdent-net
     restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+      frontend:
+        condition: service_started
 
 networks:
   mdent-net: {}
