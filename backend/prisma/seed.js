@@ -21,9 +21,9 @@ async function main() {
     });
   }
 
-  // Seed one user for each role
+  // Seed one user for each role (admin, doctor, receptionist, accountant, nurse, manager)
   const roles = [
-    { email: "admin@mdent.local", role: "admin", password: adminPassword },
+    { email: "admin@mdent.local", role: "admin", password: adminPassword },           // admin password from ENV
     { email: "doctor@mdent.local", role: "doctor", password: "doctor123" },
     { email: "receptionist@mdent.local", role: "receptionist", password: "reception123" },
     { email: "accountant@mdent.local", role: "accountant", password: "accountant123" },
@@ -46,7 +46,7 @@ async function main() {
     });
   }
 
-  // Seed Patient: ensure relation field matches schema (patientBook)
+  // Seed Patient: name is not unique, so findFirst + create/update
   const seedPatientName = "Seed Patient";
   const existingPatient = await prisma.patient.findFirst({
     where: { name: seedPatientName, branchId: branch.id },
@@ -60,10 +60,11 @@ async function main() {
         name: seedPatientName,
         phone: "70000000",
         branchId: branch.id,
-        patientBook: { create: { bookNumber: `BOOK-${Date.now()}` } },
+        book: { create: { bookNumber: `BOOK-${Date.now()}` } },
       },
     });
   } else {
+    // Ensure the patient has a book
     const existingBook = await prisma.patientBook.findUnique({
       where: { patientId: existingPatient.id },
     });
