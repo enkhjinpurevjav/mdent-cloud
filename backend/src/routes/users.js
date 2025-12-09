@@ -13,11 +13,11 @@ router.get("/", async (req, res) => {
 
   try {
     // plain JS object
-    const where: any = {};
+    const where = {};
 
     if (role) {
       // role is a string at runtime
-      if (!Object.values(UserRole).includes(role as any)) {
+      if (!Object.values(UserRole).includes(role)) {
         return res.status(400).json({ error: "Invalid role filter" });
       }
       where.role = role;
@@ -170,7 +170,7 @@ router.put("/:id", async (req, res) => {
       licenseExpiryDate,
     } = req.body || {};
 
-    const data: any = {};
+    const data = {};
 
     if (name !== undefined) data.name = name || null;
     if (ovog !== undefined) data.ovog = ovog || null;
