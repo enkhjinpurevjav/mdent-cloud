@@ -6,28 +6,25 @@ const prisma = new PrismaClient();
 const router = Router();
 
 /**
- * GET /api/users?role=doctor
- * GET /api/users?role=RECEPTIONIST
- *
- * Optional query:
- *   - role: any value from UserRole enum
+ * GET /api/users?role=DOCTOR
  */
 router.get("/", async (req, res) => {
   const { role } = req.query;
 
   try {
-    const where: { role?: UserRole } = {};
+    // IMPORTANT: no TypeScript syntax here; plain JS object
+    const where = {};
 
     if (role) {
-      // req.query.role is string; make sure it's a valid UserRole
-      if (!Object.values(UserRole).includes(role as UserRole)) {
+      if (!Object.values(UserRole).includes(role as any)) {
         return res.status(400).json({ error: "Invalid role filter" });
       }
-      where.role = role as UserRole;
+      // cast to any here; TS-only type checking, at runtime it's just a string
+      (where as any).role = role;
     }
 
     const users = await prisma.user.findMany({
-      where,
+      where: where as any,
       include: { branch: true },
       orderBy: { id: "desc" },
     });
@@ -36,7 +33,7 @@ router.get("/", async (req, res) => {
       id: u.id,
       email: u.email,
       name: u.name,
-      ovog: u.ovog, // NEW: father's name for all users
+      ovog: u.ovog,
       role: u.role,
       branchId: u.branchId,
       branch: u.branch ? { id: u.branch.id, name: u.branch.name } : null,
@@ -57,14 +54,6 @@ router.get("/", async (req, res) => {
 
 /**
  * POST /api/users
- *
- * Body:
- *  - email (required)
- *  - password (required)
- *  - role (required, UserRole)
- *  - name (optional)
- *  - ovog (optional)
- *  - branchId (optional, number or string)
  */
 router.post("/", async (req, res) => {
   try {
@@ -92,7 +81,7 @@ router.post("/", async (req, res) => {
         email,
         password: hashed,
         name: name || null,
-        ovog: ovog || null, // NEW
+        ovog: ovog || null,
         role,
         branchId: branchId ? Number(branchId) : null,
       },
@@ -103,7 +92,7 @@ router.post("/", async (req, res) => {
       id: created.id,
       email: created.email,
       name: created.name,
-      ovog: created.ovog, // NEW
+      ovog: created.ovog,
       role: created.role,
       branchId: created.branchId,
       branch: created.branch
@@ -140,7 +129,7 @@ router.get("/:id", async (req, res) => {
       id: user.id,
       email: user.email,
       name: user.name,
-      ovog: user.ovog, // NEW
+      ovog: user.ovog,
       role: user.role,
       branchId: user.branchId,
       branch: user.branch
@@ -164,15 +153,6 @@ router.get("/:id", async (req, res) => {
 
 /**
  * PUT /api/users/:id
- *
- * Body (all optional):
- *  - name
- *  - ovog
- *  - email
- *  - branchId
- *  - regNo
- *  - licenseNumber
- *  - licenseExpiryDate (ISO string)
  */
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
@@ -194,7 +174,7 @@ router.put("/:id", async (req, res) => {
     const data: any = {};
 
     if (name !== undefined) data.name = name || null;
-    if (ovog !== undefined) data.ovog = ovog || null; // NEW
+    if (ovog !== undefined) data.ovog = ovog || null;
     if (email !== undefined) data.email = email || null;
     if (branchId !== undefined)
       data.branchId = branchId ? Number(branchId) : null;
@@ -216,7 +196,7 @@ router.put("/:id", async (req, res) => {
       id: updated.id,
       email: updated.email,
       name: updated.name,
-      ovog: updated.ovog, // NEW
+      ovog: updated.ovog,
       role: updated.role,
       branchId: updated.branchId,
       branch: updated.branch
