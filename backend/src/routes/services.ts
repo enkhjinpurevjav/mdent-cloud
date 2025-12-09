@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { ServiceCategory } from "@prisma/client";
 import prisma from "../db.js";
-import { generateNextServiceCode } from "../utils/serviceCode";
+import { generateNextServiceCode } from "../utils/serviceCode.js";
 
 const router = Router();
 
