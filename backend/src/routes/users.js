@@ -12,18 +12,20 @@ router.get("/", async (req, res) => {
   const { role } = req.query;
 
   try {
-    // PLAIN JS OBJECT – no TS type annotation
-    const where: any = {};
+    // PLAIN JS OBJECT – no TS-only syntax in the compiled JS
+    const where = {};
 
     if (role) {
       // role is a string at runtime
-      if (!Object.values(UserRole).includes(role as any)) {
+      if (!Object.values(UserRole).includes(role)) {
         return res.status(400).json({ error: "Invalid role filter" });
       }
+      // @ts-ignore – for TypeScript only; removed in JS build
       where.role = role;
     }
 
     const users = await prisma.user.findMany({
+      // @ts-ignore – TS will accept this; JS sees a plain object
       where,
       include: { branch: true },
       orderBy: { id: "desc" },
