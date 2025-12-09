@@ -239,4 +239,8 @@ export default function StaffPage() {
               </tr>
             )}
           </tbody>
-
+        </table>
+      )}
+    </div>
+  );
+}
