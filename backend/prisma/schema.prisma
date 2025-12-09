@@ -45,7 +45,7 @@ model User {
   id                 Int              @id @default(autoincrement())
   email              String           @unique
   password           String
-  ovog      String?      // NEW: father’s name for all users
+  ovog               String?      // NEW: father’s name for all users
   name               String?
   role               UserRole         @default(receptionist)
   branchId           Int?
