@@ -1,4 +1,3 @@
-// frontend/pages/users/doctors.tsx
 import React, { useEffect, useState } from "react";
 
 type Branch = {
@@ -9,7 +8,8 @@ type Branch = {
 type Doctor = {
   id: number;
   email: string;
-  name?: string;
+  name?: string | null;
+  ovog?: string | null;
   role: string;
   branchId?: number | null;
   branch?: Branch | null;
@@ -30,6 +30,7 @@ function DoctorForm({
     email: "",
     password: "",
     name: "",
+    ovog: "",
     branchId: "",
   });
   const [error, setError] = useState("");
@@ -49,6 +50,7 @@ function DoctorForm({
         email: form.email,
         password: form.password,
         name: form.name || undefined,
+        ovog: form.ovog || undefined,
         role: "doctor",
         branchId: form.branchId ? Number(form.branchId) : undefined,
       };
@@ -72,6 +74,7 @@ function DoctorForm({
           email: "",
           password: "",
           name: "",
+          ovog: "",
           branchId: "",
         });
       } else {
@@ -109,6 +112,12 @@ function DoctorForm({
         value={form.name}
         onChange={handleChange}
       />
+      <input
+        name="ovog"
+        placeholder="Өвөг"
+        value={form.ovog}
+        onChange={handleChange}
+      />
       <select
         name="branchId"
         value={form.branchId}
@@ -139,10 +148,14 @@ export default function DoctorsPage() {
   const [error, setError] = useState("");
 
   const loadBranches = async () => {
-    const res = await fetch("/api/branches");
-    const data = await res.json();
-    if (res.ok && Array.isArray(data)) {
-      setBranches(data);
+    try {
+      const res = await fetch("/api/branches");
+      const data = await res.json();
+      if (res.ok && Array.isArray(data)) {
+        setBranches(data);
+      }
+    } catch {
+      // ignore here, main error handling is in doctors load
     }
   };
 
@@ -199,6 +212,7 @@ export default function DoctorsPage() {
             <tr>
               <th>ID</th>
               <th>Нэр</th>
+              <th>Өвөг</th>
               <th>И-мэйл</th>
               <th>Салбар</th>
               <th>Бүртгэгдсэн</th>
@@ -210,6 +224,7 @@ export default function DoctorsPage() {
               <tr key={d.id}>
                 <td>{d.id}</td>
                 <td>{d.name || "-"}</td>
+                <td>{d.ovog || "-"}</td>
                 <td>{d.email}</td>
                 <td>{d.branch ? d.branch.name : "-"}</td>
                 <td>
@@ -218,13 +233,13 @@ export default function DoctorsPage() {
                     : ""}
                 </td>
                 <td>
-  <a href={`/users/doctors/${d.id}`}>Профайл</a>
-</td>
+                  <a href={`/users/doctors/${d.id}`}>Профайл</a>
+                </td>
               </tr>
             ))}
             {doctors.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ textAlign: "center", color: "#888" }}>
+                <td colSpan={7} style={{ textAlign: "center", color: "#888" }}>
                   Өгөгдөл алга
                 </td>
               </tr>
