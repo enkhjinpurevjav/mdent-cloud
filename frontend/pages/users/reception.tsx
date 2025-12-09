@@ -48,7 +48,7 @@ function ReceptionForm({
         password: form.password,
         name: form.name || undefined,
         ovog: form.ovog || undefined,
-        role: "receptionist",           // BASIC role only
+        role: "receptionist",
         branchId: form.branchId ? Number(form.branchId) : undefined,
       };
 
@@ -218,4 +218,29 @@ export default function ReceptionPage() {
           </thead>
           <tbody>
             {users.map((u) => (
-              <tr key={
+              <tr key={u.id}>
+                <td>{u.id}</td>
+                <td>{u.name || "-"}</td>
+                <td>{u.ovog || "-"}</td>
+                <td>{u.email}</td>
+                <td>{u.branch ? u.branch.name : "-"}</td>
+                <td>
+                  {u.createdAt
+                    ? new Date(u.createdAt).toLocaleString("mn-MN")
+                    : ""}
+                </td>
+              </tr>
+            ))}
+            {users.length === 0 && (
+              <tr>
+                <td colSpan={6} style={{ textAlign: "center", color: "#888" }}>
+                  Өгөгдөл алга
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
