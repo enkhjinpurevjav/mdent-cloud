@@ -5,6 +5,7 @@ type Doctor = {
   id: number;
   email: string;
   name?: string;
+  ovog?: string | null;
   role: string;
   branchId?: number | null;
   regNo?: string | null;
@@ -32,6 +33,7 @@ export default function DoctorProfilePage() {
 
   const [form, setForm] = useState({
     name: "",
+    ovog: "",
     email: "",
     branchId: "",
     regNo: "",
@@ -75,6 +77,7 @@ export default function DoctorProfilePage() {
 
         setForm({
           name: dData.name || "",
+          ovog: dData.ovog || "",
           email: dData.email || "",
           branchId: dData.branchId ? String(dData.branchId) : "",
           regNo: dData.regNo || "",
@@ -105,6 +108,7 @@ export default function DoctorProfilePage() {
     try {
       const payload = {
         name: form.name || null,
+        ovog: form.ovog || null,
         email: form.email || null,
         branchId: form.branchId ? Number(form.branchId) : null,
         regNo: form.regNo || null,
@@ -194,6 +198,16 @@ export default function DoctorProfilePage() {
             value={form.name}
             onChange={handleChange}
             placeholder="Нэр"
+          />
+        </label>
+
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          Өвөг
+          <input
+            name="ovog"
+            value={form.ovog}
+            onChange={handleChange}
+            placeholder="Өвөг"
           />
         </label>
 
