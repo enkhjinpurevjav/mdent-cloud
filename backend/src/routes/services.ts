@@ -1,8 +1,8 @@
 import { Router } from "express";
-import { PrismaClient, ServiceCategory } from "@prisma/client";
+import { ServiceCategory } from "@prisma/client";
+import prisma from "../db.js";
 import { generateNextServiceCode } from "../utils/serviceCode";
 
-const prisma = new PrismaClient();
 const router = Router();
 
 // GET /api/services?branchId=&category=&onlyActive=true
@@ -13,7 +13,6 @@ router.get("/", async (req, res) => {
     const where: any = {};
 
     if (category && typeof category === "string") {
-      // must be a valid enum, but we don't hard-fail here
       where.category = category as ServiceCategory;
     }
 
@@ -37,10 +36,10 @@ router.get("/", async (req, res) => {
       orderBy: [{ category: "asc" }, { name: "asc" }],
     });
 
-    return res.json(services);
+    res.json(services);
   } catch (err) {
     console.error("GET /api/services error:", err);
-    return res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "internal server error" });
   }
 });
 
@@ -97,14 +96,13 @@ router.post("/", async (req, res) => {
       },
     });
 
-    return res.status(201).json(created);
+    res.status(201).json(created);
   } catch (err: any) {
     console.error("POST /api/services error:", err);
     if (err.code === "P2002") {
-      // unique constraint failed (e.g. duplicate code)
       return res.status(400).json({ error: "Service code must be unique" });
     }
-    return res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "internal server error" });
   }
 });
 
@@ -126,12 +124,12 @@ router.put("/:id", async (req, res) => {
       where: { id },
       include: { serviceBranches: true },
     });
+
     if (!existing) {
       return res.status(404).json({ error: "Service not found" });
     }
 
     const data: any = {};
-
     if (typeof name === "string") data.name = name;
     if (price !== undefined) data.price = Number(price);
     if (typeof category === "string") data.category = category;
@@ -141,7 +139,7 @@ router.put("/:id", async (req, res) => {
 
     if (Array.isArray(branchIds)) {
       data.serviceBranches = {
-        deleteMany: {}, // remove all existing mappings
+        deleteMany: {},
         create: branchIds.map((bid: any) => ({
           branchId: Number(bid),
         })),
@@ -158,13 +156,13 @@ router.put("/:id", async (req, res) => {
       },
     });
 
-    return res.json(updated);
+    res.json(updated);
   } catch (err: any) {
     console.error("PUT /api/services/:id error:", err);
     if (err.code === "P2002") {
       return res.status(400).json({ error: "Service code must be unique" });
     }
-    return res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "internal server error" });
   }
 });
 
