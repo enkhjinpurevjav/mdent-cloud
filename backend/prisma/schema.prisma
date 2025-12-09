@@ -38,6 +38,9 @@ model Branch {
 
   // NEW: back‑relation to DoctorSchedule
   schedules DoctorSchedule[]
+
+  // NEW: back‑relation to ServiceBranch (which links services to branches)
+  serviceBranches ServiceBranch[]
 }
 
 // USERS (Doctors, Nurses, Admin, etc.)
@@ -45,7 +48,7 @@ model User {
   id                 Int              @id @default(autoincrement())
   email              String           @unique
   password           String
-  ovog               String?      // NEW: father’s name for all users
+  ovog               String?          // father’s name for all users
   name               String?
   role               UserRole         @default(receptionist)
   branchId           Int?
@@ -61,7 +64,7 @@ model User {
   stampImagePath     String?
   idPhotoPath        String?
 
-  // NEW: back‑relation to DoctorSchedule
+  // back‑relation to DoctorSchedule
   schedules          DoctorSchedule[]
 }
 
@@ -151,13 +154,38 @@ model ChartNote {
 // SERVICES, PROCEDURES, DIAGNOSES
 model Service {
   id                Int              @id @default(autoincrement())
-  code              String           @unique
+
+  /// Service code / ID
+  /// - Auto-generated in backend when creating if not provided
+  /// - Must be unique, but can be edited manually
+  code              String?          @unique
+
   category          ServiceCategory
   name              String
+
+  /// Price in ₮ (integer is usually safer for money, but Float is kept
+  /// here to match your existing schema)
   price             Float
-  status            Boolean          @default(true)
+
+  /// Active/inactive flag (true = active, false = inactive)
+  isActive          Boolean          @default(true)
+
   description       String?
+
   encounterServices EncounterService[]
+
+  /// Many-to-many to Branch through ServiceBranch
+  serviceBranches   ServiceBranch[]
+}
+
+model ServiceBranch {
+  serviceId Int
+  branchId  Int
+
+  service   Service @relation(fields: [serviceId], references: [id])
+  branch    Branch  @relation(fields: [branchId], references: [id])
+
+  @@id([serviceId, branchId])
 }
 
 model EncounterService {
@@ -232,6 +260,7 @@ model Media {
   type        String
   encounter   Encounter @relation(fields: [encounterId], references: [id])
 }
+
 model DoctorSchedule {
   id        Int      @id @default(autoincrement())
   doctorId  Int
