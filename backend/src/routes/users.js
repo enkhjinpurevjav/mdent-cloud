@@ -12,15 +12,15 @@ router.get("/", async (req, res) => {
   const { role } = req.query;
 
   try {
-    // plain object, no inline TS type
-    const where: { role?: UserRole } = {};
+    // PLAIN JS OBJECT – no TS type annotation
+    const where: any = {};
 
     if (role) {
-      // role is string; check against enum values
-      if (!Object.values(UserRole).includes(role as UserRole)) {
+      // role is a string at runtime
+      if (!Object.values(UserRole).includes(role as any)) {
         return res.status(400).json({ error: "Invalid role filter" });
       }
-      where.role = role as UserRole;
+      where.role = role;
     }
 
     const users = await prisma.user.findMany({
@@ -133,8 +133,7 @@ router.get("/:id", async (req, res) => {
       role: user.role,
       branchId: user.branchId,
       branch: user.branch
-        ? { id: user.branch.id, name: user.branch.name }
-        : null,
+        ? { id: user.branch.id, name: user.branch.name } : null,
       regNo: user.regNo,
       licenseNumber: user.licenseNumber,
       licenseExpiryDate: user.licenseExpiryDate
@@ -200,8 +199,7 @@ router.put("/:id", async (req, res) => {
       role: updated.role,
       branchId: updated.branchId,
       branch: updated.branch
-        ? { id: updated.branch.id, name: updated.branch.name }
-        : null,
+        ? { id: updated.branch.id, name: updated.branch.name } : null,
       regNo: updated.regNo,
       licenseNumber: updated.licenseNumber,
       licenseExpiryDate: updated.licenseExpiryDate
