@@ -114,7 +114,7 @@ function DoctorForm({
       />
       <input
         name="ovog"
-        placeholder="Өвөг"
+        placeholder="Овог"
         value={form.ovog}
         onChange={handleChange}
       />
@@ -212,7 +212,7 @@ export default function DoctorsPage() {
             <tr>
               <th>ID</th>
               <th>Нэр</th>
-              <th>Өвөг</th>
+              <th>Овог</th>
               <th>И-мэйл</th>
               <th>Салбар</th>
               <th>Бүртгэгдсэн</th>
