@@ -202,12 +202,12 @@ export default function DoctorProfilePage() {
         </label>
 
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          Өвөг
+          Овог
           <input
             name="ovog"
             value={form.ovog}
             onChange={handleChange}
-            placeholder="Өвөг"
+            placeholder="Овог"
           />
         </label>
 
