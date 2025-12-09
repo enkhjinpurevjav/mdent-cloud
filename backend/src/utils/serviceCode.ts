@@ -1,7 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
 export async function generateNextServiceCode(prisma: PrismaClient): Promise<string> {
-  // Find last service with non-null code ordered by id
   const last = await prisma.service.findFirst({
     where: { code: { not: null } },
     orderBy: { id: "desc" },
@@ -16,5 +15,5 @@ export async function generateNextServiceCode(prisma: PrismaClient): Promise<str
     }
   }
 
-  return `S${String(nextNumber).padStart(4, "0")}`; // S0001, S0002, ...
+  return `S${String(nextNumber).padStart(4, "0")}`;
 }
