@@ -14,7 +14,7 @@ export default function UsersIndexPage() {
             <Link href="/users/doctors">Эмч</Link>
           </li>
           <li>
-            <Link href="/users/receptionists">Ресепшн</Link>
+            <Link href="/users/reception">Ресепшн</Link>
           </li>
           <li>
             <Link href="/users/nurses">Сувилагч</Link>
