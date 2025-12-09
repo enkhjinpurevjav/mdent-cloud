@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { ServiceCategory } from "@prisma/client";
 import prisma from "../db.js";
 import { generateNextServiceCode } from "../utils/serviceCode.js";
 
@@ -10,10 +9,10 @@ router.get("/", async (req, res) => {
   try {
     const { branchId, category, onlyActive } = req.query;
 
-    const where: any = {};
+    const where = {};
 
     if (category && typeof category === "string") {
-      where.category = category as ServiceCategory;
+      where.category = category; // must match enum ServiceCategory
     }
 
     if (onlyActive === "true") {
@@ -68,11 +67,11 @@ router.post("/", async (req, res) => {
         .json({ error: "branchIds must be an array of branch ids" });
     }
 
-    let serviceCode: string | null = null;
+    let serviceCode = null;
     if (typeof code === "string" && code.trim()) {
       serviceCode = code.trim();
     } else {
-      serviceCode = await generateNextServiceCode(prisma);
+      serviceCode = await generateNextServiceCode();
     }
 
     const created = await prisma.service.create({
@@ -84,7 +83,7 @@ router.post("/", async (req, res) => {
         code: serviceCode,
         isActive: typeof isActive === "boolean" ? isActive : true,
         serviceBranches: {
-          create: branchIds.map((bid: any) => ({
+          create: branchIds.map((bid) => ({
             branchId: Number(bid),
           })),
         },
@@ -97,7 +96,7 @@ router.post("/", async (req, res) => {
     });
 
     res.status(201).json(created);
-  } catch (err: any) {
+  } catch (err) {
     console.error("POST /api/services error:", err);
     if (err.code === "P2002") {
       return res.status(400).json({ error: "Service code must be unique" });
@@ -129,7 +128,7 @@ router.put("/:id", async (req, res) => {
       return res.status(404).json({ error: "Service not found" });
     }
 
-    const data: any = {};
+    const data = {};
     if (typeof name === "string") data.name = name;
     if (price !== undefined) data.price = Number(price);
     if (typeof category === "string") data.category = category;
@@ -140,7 +139,7 @@ router.put("/:id", async (req, res) => {
     if (Array.isArray(branchIds)) {
       data.serviceBranches = {
         deleteMany: {},
-        create: branchIds.map((bid: any) => ({
+        create: branchIds.map((bid) => ({
           branchId: Number(bid),
         })),
       };
@@ -157,7 +156,7 @@ router.put("/:id", async (req, res) => {
     });
 
     res.json(updated);
-  } catch (err: any) {
+  } catch (err) {
     console.error("PUT /api/services/:id error:", err);
     if (err.code === "P2002") {
       return res.status(400).json({ error: "Service code must be unique" });
