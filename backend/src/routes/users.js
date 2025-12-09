@@ -12,19 +12,19 @@ router.get("/", async (req, res) => {
   const { role } = req.query;
 
   try {
-    // IMPORTANT: no TypeScript syntax here; plain JS object
-    const where = {};
+    // plain object, no inline TS type
+    const where: { role?: UserRole } = {};
 
     if (role) {
-      if (!Object.values(UserRole).includes(role as any)) {
+      // role is string; check against enum values
+      if (!Object.values(UserRole).includes(role as UserRole)) {
         return res.status(400).json({ error: "Invalid role filter" });
       }
-      // cast to any here; TS-only type checking, at runtime it's just a string
-      (where as any).role = role;
+      where.role = role as UserRole;
     }
 
     const users = await prisma.user.findMany({
-      where: where as any,
+      where,
       include: { branch: true },
       orderBy: { id: "desc" },
     });
