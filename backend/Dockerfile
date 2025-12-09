@@ -12,7 +12,7 @@ COPY package*.json ./
 RUN npm install --omit=dev
 
 # Copy app (includes prisma schema and seed)
-COPY . .
+# COPY . .
 
 # Entrypoint (prisma generate happens at runtime in docker-entrypoint.sh)
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
