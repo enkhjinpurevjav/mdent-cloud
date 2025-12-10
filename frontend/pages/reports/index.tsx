@@ -47,21 +47,57 @@ type ReportSummary = {
   topServices: ServiceRevenue[];
 };
 
+type DoctorReport = {
+  doctor: Doctor;
+  from: string;
+  to: string;
+  branchId: number | null;
+  totals: {
+    encountersCount: number;
+    invoiceCount: number;
+    totalInvoiceAmount: number;
+    totalPaidAmount: number;
+    totalUnpaidAmount: number;
+    newPatientsCount: number;
+  };
+  services: {
+    serviceId: number;
+    code?: string | null;
+    name: string;
+    totalQuantity: number;
+    revenue: number;
+  }[];
+  daily: {
+    date: string;
+    encounters: number;
+    revenue: number;
+  }[];
+};
+
+type TabKey = "overview" | "doctor";
+
 export default function ReportsPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [services, setServices] = useState<Service[]>([]);
 
   const [branchId, setBranchId] = useState<string>(""); // "" = all
-  const [doctorId, setDoctorId] = useState<string>(""); // "" = all
+  const [doctorId, setDoctorId] = useState<string>(""); // "" = all / for doctor tab required
   const [serviceId, setServiceId] = useState<string>(""); // "" = all
   const [paymentMethod, setPaymentMethod] = useState<string>(""); // "" = all
 
   const [from, setFrom] = useState<string>("");
   const [to, setTo] = useState<string>("");
+
+  const [activeTab, setActiveTab] = useState<TabKey>("overview");
+
   const [summary, setSummary] = useState<ReportSummary | null>(null);
+  const [doctorReport, setDoctorReport] = useState<DoctorReport | null>(null);
+
   const [loading, setLoading] = useState(false);
+  const [doctorLoading, setDoctorLoading] = useState(false);
   const [error, setError] = useState("");
+  const [doctorError, setDoctorError] = useState("");
 
   // Load branches, doctors, services for filters
   useEffect(() => {
@@ -97,7 +133,7 @@ export default function ReportsPage() {
     setTo(lastDay.toISOString().slice(0, 10));
   }, []);
 
-  const buildQueryParams = () => {
+  const buildCommonParams = () => {
     const params = new URLSearchParams();
     params.set("from", from);
     params.set("to", to);
@@ -117,7 +153,7 @@ export default function ReportsPage() {
     setSummary(null);
 
     try {
-      const params = buildQueryParams();
+      const params = buildCommonParams();
       const res = await fetch(`/api/reports/summary?${params.toString()}`);
       const data = await res.json();
 
@@ -133,43 +169,109 @@ export default function ReportsPage() {
     }
   };
 
+  // initial load of overview
   useEffect(() => {
-    // Auto-load when default dates are set
     if (from && to) {
       loadSummary();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from, to]);
 
-  // CSV download handler (uses same filters)
+  const loadDoctorReport = async () => {
+    if (!from || !to) return;
+    if (!doctorId) {
+      setDoctorError("Эмчийг сонгоно уу");
+      setDoctorReport(null);
+      return;
+    }
+
+    setDoctorLoading(true);
+    setDoctorError("");
+    setDoctorReport(null);
+
+    try {
+      const params = buildCommonParams();
+      // For doctor report, doctorId MUST be set, but buildCommonParams already includes it.
+      const res = await fetch(`/api/reports/doctor?${params.toString()}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setDoctorError(data.error || "Эмчийн тайлан ачааллах үед алдаа гарлаа");
+      } else {
+        setDoctorReport(data);
+      }
+    } catch {
+      setDoctorError("Сүлжээгээ шалгана уу");
+    } finally {
+      setDoctorLoading(false);
+    }
+  };
+
+  // CSV download handler (uses same filters as overview)
   const downloadCsv = () => {
     if (!from || !to) {
       alert("Эхлэх ба дуусах өдрийг сонгоно уу");
       return;
     }
-    const params = buildQueryParams();
+    const params = buildCommonParams();
     const url = `/api/reports/invoices.csv?${params.toString()}`;
 
     const a = document.createElement("a");
     a.href = url;
-    a.download = ""; // filename comes from server header
+    a.download = "";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   };
 
+  const doctorLabel = (d: Doctor) =>
+    (d.ovog ? d.ovog + " " : "") + (d.name || d.email || "");
+
   return (
-    <div style={{ maxWidth: 1000, margin: "40px auto", padding: 24 }}>
+    <div style={{ maxWidth: 1100, margin: "40px auto", padding: 24 }}>
       <h1>Тайлан</h1>
 
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 12, marginTop: 16, marginBottom: 16 }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab("overview")}
+          style={{
+            padding: "8px 16px",
+            borderRadius: 4,
+            border: activeTab === "overview" ? "2px solid #1976d2" : "1px solid #ccc",
+            background: activeTab === "overview" ? "#e3f2fd" : "#f5f5f5",
+            cursor: "pointer",
+          }}
+        >
+          Ерөнхий тайлан
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("doctor")}
+          style={{
+            padding: "8px 16px",
+            borderRadius: 4,
+            border: activeTab === "doctor" ? "2px solid #1976d2" : "1px solid #ccc",
+            background: activeTab === "doctor" ? "#e3f2fd" : "#f5f5f5",
+            cursor: "pointer",
+          }}
+        >
+          Эмчийн тайлан
+        </button>
+      </div>
+
+      {/* Common filters */}
       <form
-        onSubmit={loadSummary}
+        onSubmit={activeTab === "overview" ? loadSummary : (e) => {
+          e.preventDefault();
+          loadDoctorReport();
+        }}
         style={{
           display: "flex",
           flexWrap: "wrap",
           gap: 12,
           alignItems: "center",
-          marginTop: 16,
           marginBottom: 24,
         }}
       >
@@ -211,6 +313,7 @@ export default function ReportsPage() {
           </select>
         </div>
 
+        {/* Doctor filter is common, but for doctor tab it's required */}
         <div>
           <label style={{ display: "block", fontSize: 12, color: "#555" }}>
             Эмч
@@ -219,10 +322,12 @@ export default function ReportsPage() {
             value={doctorId}
             onChange={(e) => setDoctorId(e.target.value)}
           >
-            <option value="">Бүх эмч</option>
+            <option value="">
+              {activeTab === "doctor" ? "Эмч сонгох" : "Бүх эмч"}
+            </option>
             {doctors.map((d) => (
               <option key={d.id} value={d.id}>
-                {(d.ovog ? d.ovog + " " : "") + (d.name || d.email || "")}
+                {doctorLabel(d)}
               </option>
             ))}
           </select>
@@ -257,139 +362,289 @@ export default function ReportsPage() {
             <option value="CASH">Бэлэн</option>
             <option value="CARD">Карт</option>
             <option value="QPAY">QPay</option>
-            {/* add more if you use others, e.g. BANK, POS, etc. */}
           </select>
         </div>
 
-        <button type="submit" disabled={loading}>
-          {loading ? "Ачааллаж байна..." : "Шинэчлэх"}
+        <button type="submit" disabled={activeTab === "overview" ? loading : doctorLoading}>
+          {activeTab === "overview"
+            ? loading
+              ? "Ачааллаж байна..."
+              : "Шинэчлэх"
+            : doctorLoading
+            ? "Ачааллаж байна..."
+            : "Эмчийн тайлан харах"}
         </button>
 
-        <button
-          type="button"
-          onClick={downloadCsv}
-          style={{ marginLeft: 8 }}
-        >
-          CSV татах (нэхэмжлэл)
-        </button>
+        {activeTab === "overview" && (
+          <button
+            type="button"
+            onClick={downloadCsv}
+            style={{ marginLeft: 8 }}
+          >
+            CSV татах (нэхэмжлэл)
+          </button>
+        )}
       </form>
 
-      {error && <div style={{ color: "red", marginBottom: 16 }}>{error}</div>}
-
-      {summary && (
+      {/* Overview tab */}
+      {activeTab === "overview" && (
         <>
-          <section
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-              gap: 16,
-              marginBottom: 32,
-            }}
-          >
-            <StatCard
-              label="Шинэ үйлчлүүлэгч"
-              value={summary.newPatientsCount}
-            />
-            <StatCard label="Үзлэг" value={summary.encountersCount} />
-            <StatCard
-              label="Нийт нэхэмжлэл"
-              value={summary.totalInvoicesCount}
-            />
-            <StatCard
-              label="Нэхэмжлэлийн дүн"
-              value={summary.totalInvoiceAmount}
-              money
-            />
-            <StatCard
-              label="Төлсөн дүн"
-              value={summary.totalPaidAmount}
-              money
-            />
-            <StatCard
-              label="Үлдэгдэл"
-              value={summary.totalUnpaidAmount}
-              money
-            />
-          </section>
+          {error && <div style={{ color: "red", marginBottom: 16 }}>{error}</div>}
 
-          <section style={{ marginBottom: 32 }}>
-            <h2>Үзлэгээр хамгийн их орлого олсон эмч нар</h2>
-            {summary.topDoctors.length === 0 ? (
-              <div style={{ color: "#777", marginTop: 8 }}>Мэдээлэл алга</div>
-            ) : (
-              <table
+          {summary && (
+            <>
+              <section
                 style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  marginTop: 8,
-                  fontSize: 14,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 16,
+                  marginBottom: 32,
                 }}
               >
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: "left" }}>Эмч</th>
-                    <th style={{ textAlign: "left" }}>И-мэйл</th>
-                    <th style={{ textAlign: "right" }}>Орлого (₮)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summary.topDoctors.map((d) => (
-                    <tr key={d.id}>
-                      <td>
-                        {(d.ovog || "") +
-                          (d.ovog ? " " : "") +
-                          (d.name || "") || d.email}
-                      </td>
-                      <td>{d.email || "-"}</td>
-                      <td style={{ textAlign: "right" }}>
-                        {d.revenue.toLocaleString("mn-MN")}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
+                <StatCard
+                  label="Шинэ үйлчлүүлэгч"
+                  value={summary.newPatientsCount}
+                />
+                <StatCard label="Үзлэг" value={summary.encountersCount} />
+                <StatCard
+                  label="Нийт нэхэмжлэл"
+                  value={summary.totalInvoicesCount}
+                />
+                <StatCard
+                  label="Нэхэмжлэлийн дүн"
+                  value={summary.totalInvoiceAmount}
+                  money
+                />
+                <StatCard
+                  label="Төлсөн дүн"
+                  value={summary.totalPaidAmount}
+                  money
+                />
+                <StatCard
+                  label="Үлдэгдэл"
+                  value={summary.totalUnpaidAmount}
+                  money
+                />
+              </section>
 
-          <section>
-            <h2>Хамгийн их орлого авчирсан үйлчилгээ</h2>
-            {summary.topServices.length === 0 ? (
-              <div style={{ color: "#777", marginTop: 8 }}>Мэдээлэл алга</div>
-            ) : (
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  marginTop: 8,
-                  fontSize: 14,
-                }}
-              >
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: "left" }}>Код</th>
-                    <th style={{ textAlign: "left" }}>Үйлчилгээ</th>
-                    <th style={{ textAlign: "right" }}>Орлого (₮)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {summary.topServices.map((s) => (
-                    <tr key={s.id}>
-                      <td>{s.code || "-"}</td>
-                      <td>{s.name}</td>
-                      <td style={{ textAlign: "right" }}>
-                        {s.revenue.toLocaleString("mn-MN")}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
+              <section style={{ marginBottom: 32 }}>
+                <h2>Үзлэгээр хамгийн их орлого олсон эмч нар</h2>
+                {summary.topDoctors.length === 0 ? (
+                  <div style={{ color: "#777", marginTop: 8 }}>
+                    Мэдээлэл алга
+                  </div>
+                ) : (
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      marginTop: 8,
+                      fontSize: 14,
+                    }}
+                  >
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: "left" }}>Эмч</th>
+                        <th style={{ textAlign: "left" }}>И-мэйл</th>
+                        <th style={{ textAlign: "right" }}>Орлого (₮)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {summary.topDoctors.map((d) => (
+                        <tr key={d.id}>
+                          <td>
+                            {(d.ovog || "") +
+                              (d.ovog ? " " : "") +
+                              (d.name || "") || d.email}
+                          </td>
+                          <td>{d.email || "-"}</td>
+                          <td style={{ textAlign: "right" }}>
+                            {d.revenue.toLocaleString("mn-MN")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </section>
+
+              <section>
+                <h2>Хамгийн их орлого авчирсан үйлчилгээ</h2>
+                {summary.topServices.length === 0 ? (
+                  <div style={{ color: "#777", marginTop: 8 }}>
+                    Мэдээлэл алга
+                  </div>
+                ) : (
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      marginTop: 8,
+                      fontSize: 14,
+                    }}
+                  >
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: "left" }}>Код</th>
+                        <th style={{ textAlign: "left" }}>Үйлчилгээ</th>
+                        <th style={{ textAlign: "right" }}>Орлого (₮)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {summary.topServices.map((s) => (
+                        <tr key={s.id}>
+                          <td>{s.code || "-"}</td>
+                          <td>{s.name}</td>
+                          <td style={{ textAlign: "right" }}>
+                            {s.revenue.toLocaleString("mn-MN")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </section>
+            </>
+          )}
+
+          {loading && !summary && (
+            <div style={{ marginTop: 16 }}>Ачааллаж байна...</div>
+          )}
         </>
       )}
 
-      {loading && !summary && (
-        <div style={{ marginTop: 16 }}>Ачааллаж байна...</div>
+      {/* Doctor tab */}
+      {activeTab === "doctor" && (
+        <>
+          {doctorError && (
+            <div style={{ color: "red", marginBottom: 16 }}>{doctorError}</div>
+          )}
+
+          {doctorReport && (
+            <>
+              <section
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                  gap: 16,
+                  marginBottom: 32,
+                }}
+              >
+                <StatCard
+                  label="Үзлэгийн тоо"
+                  value={doctorReport.totals.encountersCount}
+                />
+                <StatCard
+                  label="Нэхэмжлэл"
+                  value={doctorReport.totals.invoiceCount}
+                />
+                <StatCard
+                  label="Нэхэмжлэлийн дүн"
+                  value={doctorReport.totals.totalInvoiceAmount}
+                  money
+                />
+                <StatCard
+                  label="Төлсөн дүн"
+                  value={doctorReport.totals.totalPaidAmount}
+                  money
+                />
+                <StatCard
+                  label="Үлдэгдэл"
+                  value={doctorReport.totals.totalUnpaidAmount}
+                  money
+                />
+                <StatCard
+                  label="Шинэ үйлчлүүлэгч"
+                  value={doctorReport.totals.newPatientsCount}
+                />
+              </section>
+
+              <section style={{ marginBottom: 32 }}>
+                <h2>Эмчийн үйлчилгээний тайлан</h2>
+                {doctorReport.services.length === 0 ? (
+                  <div style={{ color: "#777", marginTop: 8 }}>
+                    Мэдээлэл алга
+                  </div>
+                ) : (
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      marginTop: 8,
+                      fontSize: 14,
+                    }}
+                  >
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: "left" }}>Код</th>
+                        <th style={{ textAlign: "left" }}>Үйлчилгээ</th>
+                        <th style={{ textAlign: "right" }}>Тоо</th>
+                        <th style={{ textAlign: "right" }}>Орлого (₮)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {doctorReport.services.map((s) => (
+                        <tr key={s.serviceId}>
+                          <td>{s.code || "-"}</td>
+                          <td>{s.name}</td>
+                          <td style={{ textAlign: "right" }}>
+                            {s.totalQuantity.toLocaleString("mn-MN")}
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            {s.revenue.toLocaleString("mn-MN")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </section>
+
+              <section>
+                <h2>Өдөр бүрийн тайлан</h2>
+                {doctorReport.daily.length === 0 ? (
+                  <div style={{ color: "#777", marginTop: 8 }}>
+                    Мэдээлэл алга
+                  </div>
+                ) : (
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      marginTop: 8,
+                      fontSize: 14,
+                    }}
+                  >
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: "left" }}>Огноо</th>
+                        <th style={{ textAlign: "right" }}>Үзлэг</th>
+                        <th style={{ textAlign: "right" }}>Орлого (₮)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {doctorReport.daily.map((d) => (
+                        <tr key={d.date}>
+                          <td>{d.date}</td>
+                          <td style={{ textAlign: "right" }}>
+                            {d.encounters.toLocaleString("mn-MN")}
+                          </td>
+                          <td style={{ textAlign: "right" }}>
+                            {d.revenue.toLocaleString("mn-MN")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </section>
+            </>
+          )}
+
+          {doctorLoading && !doctorReport && (
+            <div style={{ marginTop: 16 }}>Ачааллаж байна...</div>
+          )}
+        </>
       )}
     </div>
   );
