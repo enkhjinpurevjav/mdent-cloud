@@ -104,6 +104,27 @@ export default function ReportsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from, to]);
 
+  // NEW: CSV download handler
+  const downloadCsv = () => {
+    if (!from || !to) {
+      alert("Эхлэх ба дуусах өдрийг сонгоно уу");
+      return;
+    }
+    const params = new URLSearchParams();
+    params.set("from", from);
+    params.set("to", to);
+    if (branchId) params.set("branchId", branchId);
+
+    const url = `/api/reports/invoices.csv?${params.toString()}`;
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = ""; // filename comes from server header
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   return (
     <div style={{ maxWidth: 1000, margin: "40px auto", padding: 24 }}>
       <h1>Тайлан</h1>
@@ -153,6 +174,15 @@ export default function ReportsPage() {
         </div>
         <button type="submit" disabled={loading}>
           {loading ? "Ачааллаж байна..." : "Шинэчлэх"}
+        </button>
+
+        {/* NEW: CSV export button */}
+        <button
+          type="button"
+          onClick={downloadCsv}
+          style={{ marginLeft: 8 }}
+        >
+          CSV татах (нэхэмжлэл)
         </button>
       </form>
 
