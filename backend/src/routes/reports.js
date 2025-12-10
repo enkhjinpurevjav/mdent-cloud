@@ -6,10 +6,13 @@ const router = Router();
 /**
  * GET /api/reports/summary
  * Query: from, to, branchId?, doctorId?, serviceId?, paymentMethod?
+ *
+ * Returns high-level KPIs + top doctors/services.
  */
 router.get("/summary", async (req, res) => {
   try {
-    const { from, to, branchId, doctorId, serviceId, paymentMethod } = req.query;
+    const { from, to, branchId, doctorId, serviceId, paymentMethod } =
+      req.query;
 
     if (!from || !to) {
       return res
@@ -30,8 +33,8 @@ router.get("/summary", async (req, res) => {
         ? paymentMethod.trim()
         : null;
 
-    // ---- 1) New patients ----
-    const patientWhere = {
+    // ---- 1) New patients in period ----
+    const patientWhere: any = {
       createdAt: {
         gte: fromDate,
         lte: toDateEnd,
@@ -40,18 +43,19 @@ router.get("/summary", async (req, res) => {
     if (branchFilter) {
       patientWhere.branchId = branchFilter;
     }
-    // doctor/service/payment filters don't affect "new patients"
+
     const newPatientsCount = await prisma.patient.count({
       where: patientWhere,
     });
 
-    // ---- 2) Encounters ----
-    const encounterWhere = {
+    // ---- 2) Encounters in period (with filters) ----
+    const encounterWhere: any = {
       visitDate: {
         gte: fromDate,
         lte: toDateEnd,
       },
     };
+
     if (branchFilter) {
       encounterWhere.patientBook = {
         patient: {
@@ -63,7 +67,6 @@ router.get("/summary", async (req, res) => {
       encounterWhere.doctorId = doctorFilter;
     }
     if (serviceFilter) {
-      // Encounters that have at least one EncounterService with this serviceId
       encounterWhere.encounterServices = {
         some: { serviceId: serviceFilter },
       };
@@ -73,18 +76,15 @@ router.get("/summary", async (req, res) => {
       where: encounterWhere,
     });
 
-    // ---- 3) Invoices ----
-    const invoiceWhere = {
+    // ---- 3) Invoices in period (with branch/doctor/service filters) ----
+    const invoiceWhere: any = {
       createdAt: {
         gte: fromDate,
         lte: toDateEnd,
       },
     };
 
-    // branch/doctor/service use relations via encounter
-    invoiceWhere.encounter = {
-      AND: [],
-    };
+    invoiceWhere.encounter = { AND: [] as any[] };
 
     if (branchFilter) {
       invoiceWhere.encounter.AND.push({
@@ -108,7 +108,6 @@ router.get("/summary", async (req, res) => {
       });
     }
 
-    // If no relational filters were added, remove the empty AND
     if (invoiceWhere.encounter.AND.length === 0) {
       delete invoiceWhere.encounter;
     }
@@ -128,7 +127,7 @@ router.get("/summary", async (req, res) => {
       },
     });
 
-    // filter by payment method at application level if needed
+    // Optional filter by payment method
     const filteredInvoices = paymentMethodFilter
       ? invoices.filter((inv) => inv.payment?.method === paymentMethodFilter)
       : invoices;
@@ -144,8 +143,8 @@ router.get("/summary", async (req, res) => {
     );
     const totalUnpaidAmount = totalInvoiceAmount - totalPaidAmount;
 
-    // ---- 4) Top doctors (over filtered invoices) ----
-    const revenueByDoctor = {};
+    // ---- 4) Top doctors by revenue ----
+    const revenueByDoctor: Record<number, number> = {};
     for (const inv of filteredInvoices) {
       const docId = inv.encounter?.doctorId;
       if (!docId) continue;
@@ -156,7 +155,14 @@ router.get("/summary", async (req, res) => {
     }
 
     const doctorIds = Object.keys(revenueByDoctor).map((id) => Number(id));
-    let topDoctors = [];
+    let topDoctors: {
+      id: number;
+      name: string | null;
+      ovog: string | null;
+      email: string | null;
+      revenue: number;
+    }[] = [];
+
     if (doctorIds.length > 0) {
       const doctors = await prisma.user.findMany({
         where: { id: { in: doctorIds } },
@@ -175,9 +181,11 @@ router.get("/summary", async (req, res) => {
         .slice(0, 5);
     }
 
-    // ---- 5) Top services (over filtered invoices) ----
+    // ---- 5) Top services by revenue ----
     const encounterIds = filteredInvoices.map((inv) => inv.encounterId);
-    let topServices = [];
+    let topServices: { id: number; name: string; code: string | null; revenue: number }[] =
+      [];
+
     if (encounterIds.length > 0) {
       const encounterServices = await prisma.encounterService.findMany({
         where: {
@@ -187,11 +195,17 @@ router.get("/summary", async (req, res) => {
         include: { service: true },
       });
 
-      const revenueByService = {};
+      const revenueByService: Record<
+        number,
+        { id: number; name: string; code: string | null; revenue: number }
+      > = {};
+
       for (const es of encounterServices) {
         if (!es.service) continue;
         const sid = es.serviceId;
-        const lineTotal = Number(es.price || 0) * Number(es.quantity || 1);
+        const lineTotal =
+          Number(es.price || 0) * Number(es.quantity || 1);
+
         if (!revenueByService[sid]) {
           revenueByService[sid] = {
             id: sid,
@@ -230,10 +244,13 @@ router.get("/summary", async (req, res) => {
 /**
  * GET /api/reports/invoices.csv
  * Query: from, to, branchId?, doctorId?, serviceId?, paymentMethod?
+ *
+ * Returns CSV of invoices for accountants.
  */
 router.get("/invoices.csv", async (req, res) => {
   try {
-    const { from, to, branchId, doctorId, serviceId, paymentMethod } = req.query;
+    const { from, to, branchId, doctorId, serviceId, paymentMethod } =
+      req.query;
 
     if (!from || !to) {
       return res
@@ -254,16 +271,14 @@ router.get("/invoices.csv", async (req, res) => {
         ? paymentMethod.trim()
         : null;
 
-    const invoiceWhere = {
+    const invoiceWhere: any = {
       createdAt: {
         gte: fromDate,
         lte: toDateEnd,
       },
     };
 
-    invoiceWhere.encounter = {
-      AND: [],
-    };
+    invoiceWhere.encounter = { AND: [] as any[] };
 
     if (branchFilter) {
       invoiceWhere.encounter.AND.push({
@@ -308,7 +323,6 @@ router.get("/invoices.csv", async (req, res) => {
       orderBy: { createdAt: "asc" },
     });
 
-    // Filter by payment method if needed
     const filteredInvoices = paymentMethodFilter
       ? invoices.filter((inv) => inv.payment?.method === paymentMethodFilter)
       : invoices;
@@ -329,7 +343,7 @@ router.get("/invoices.csv", async (req, res) => {
       "eBarimtTime",
     ];
 
-    const escapeCsv = (value) => {
+    const escapeCsv = (value: unknown) => {
       if (value === null || value === undefined) return "";
       const str = String(value);
       if (str.includes('"') || str.includes(",") || str.includes("\n")) {
@@ -338,7 +352,7 @@ router.get("/invoices.csv", async (req, res) => {
       return str;
     };
 
-    const rows = [headers.join(",")];
+    const rows: string[] = [headers.join(",")];
 
     for (const inv of filteredInvoices) {
       const patient = inv.encounter?.patientBook?.patient;
@@ -399,6 +413,218 @@ router.get("/invoices.csv", async (req, res) => {
     return res.send(csvContent);
   } catch (err) {
     console.error("GET /api/reports/invoices.csv error:", err);
+    res.status(500).json({ error: "internal server error" });
+  }
+});
+
+/**
+ * GET /api/reports/doctor
+ * Query: from, to, doctorId (required), branchId?, serviceId?, paymentMethod?
+ *
+ * Returns per-doctor stats: encounters, revenue, services breakdown, daily stats.
+ */
+router.get("/doctor", async (req, res) => {
+  try {
+    const { from, to, doctorId, branchId, serviceId, paymentMethod } =
+      req.query;
+
+    if (!from || !to || !doctorId) {
+      return res.status(400).json({
+        error: "from, to and doctorId query parameters are required",
+      });
+    }
+
+    const fromDate = new Date(String(from));
+    const toDate = new Date(String(to));
+    const toDateEnd = new Date(toDate);
+    toDateEnd.setHours(23, 59, 59, 999);
+
+    const doctorFilter = Number(doctorId);
+    const branchFilter = branchId ? Number(branchId) : null;
+    const serviceFilter = serviceId ? Number(serviceId) : null;
+    const paymentMethodFilter =
+      typeof paymentMethod === "string" && paymentMethod.trim()
+        ? paymentMethod.trim()
+        : null;
+
+    // Load doctor info
+    const doctor = await prisma.user.findUnique({
+      where: { id: doctorFilter },
+      select: { id: true, name: true, ovog: true, email: true },
+    });
+    if (!doctor) {
+      return res.status(404).json({ error: "Doctor not found" });
+    }
+
+    // Encounters for this doctor and period
+    const encounterWhere: any = {
+      doctorId: doctorFilter,
+      visitDate: {
+        gte: fromDate,
+        lte: toDateEnd,
+      },
+    };
+    if (branchFilter) {
+      encounterWhere.patientBook = {
+        patient: {
+          branchId: branchFilter,
+        },
+      };
+    }
+    if (serviceFilter) {
+      encounterWhere.encounterServices = {
+        some: { serviceId: serviceFilter },
+      };
+    }
+
+    const encounters = await prisma.encounter.findMany({
+      where: encounterWhere,
+      include: {
+        patientBook: {
+          include: { patient: true },
+        },
+        invoice: {
+          include: {
+            payment: true,
+          },
+        },
+        encounterServices: {
+          include: { service: true },
+        },
+      },
+    });
+
+    const encountersCount = encounters.length;
+
+    // New patients for this doctor in period (based on patient.createdAt)
+    const uniquePatientIds = new Set<number>(
+      encounters
+        .map((e) => e.patientBook?.patient?.id)
+        .filter(
+          (id): id is number => id !== undefined && id !== null
+        )
+    );
+
+    const newPatientsCount = await prisma.patient.count({
+      where: {
+        id: { in: Array.from(uniquePatientIds) },
+        createdAt: { gte: fromDate, lte: toDateEnd },
+        ...(branchFilter ? { branchId: branchFilter } : {}),
+      },
+    });
+
+    // Invoices for these encounters
+    const invoices = encounters
+      .map((e) => e.invoice)
+      .filter((inv): inv is NonNullable<typeof inv> => !!inv);
+
+    const filteredInvoices = paymentMethodFilter
+      ? invoices.filter((inv) => inv.payment?.method === paymentMethodFilter)
+      : invoices;
+
+    const invoiceCount = filteredInvoices.length;
+    const totalInvoiceAmount = filteredInvoices.reduce(
+      (sum, inv) => sum + Number(inv.totalAmount || 0),
+      0
+    );
+    const totalPaidAmount = filteredInvoices.reduce(
+      (sum, inv) => sum + Number(inv.payment?.amount || 0),
+      0
+    );
+    const totalUnpaidAmount = totalInvoiceAmount - totalPaidAmount;
+
+    // Services breakdown
+    const allEncounterServices = encounters.flatMap(
+      (e) => e.encounterServices || []
+    );
+    const filteredEncounterServices = serviceFilter
+      ? allEncounterServices.filter((es) => es.serviceId === serviceFilter)
+      : allEncounterServices;
+
+    const servicesMap: Record<
+      number,
+      {
+        serviceId: number;
+        code: string | null;
+        name: string;
+        totalQuantity: number;
+        revenue: number;
+      }
+    > = {};
+
+    for (const es of filteredEncounterServices) {
+      if (!es.service) continue;
+      const sid = es.serviceId;
+      if (!servicesMap[sid]) {
+        servicesMap[sid] = {
+          serviceId: sid,
+          code: es.service.code,
+          name: es.service.name,
+          totalQuantity: 0,
+          revenue: 0,
+        };
+      }
+      const qty = Number(es.quantity || 1);
+      const lineTotal = Number(es.price || 0) * qty;
+      servicesMap[sid].totalQuantity += qty;
+      servicesMap[sid].revenue += lineTotal;
+    }
+
+    const services = Object.values(servicesMap).sort(
+      (a, b) => b.revenue - a.revenue
+    );
+
+    // Daily breakdown
+    const dailyMap: Record<
+      string,
+      { date: string; encounters: number; revenue: number }
+    > = {};
+
+    for (const e of encounters) {
+      const day = e.visitDate.toISOString().slice(0, 10);
+      if (!dailyMap[day]) {
+        dailyMap[day] = {
+          date: day,
+          encounters: 0,
+          revenue: 0,
+        };
+      }
+      dailyMap[day].encounters += 1;
+
+      const inv = e.invoice;
+      if (inv) {
+        // Only count invoice if it passes paymentMethod filter
+        if (
+          !paymentMethodFilter ||
+          inv.payment?.method === paymentMethodFilter
+        ) {
+          dailyMap[day].revenue += Number(inv.totalAmount || 0);
+        }
+      }
+    }
+
+    const daily = Object.values(dailyMap).sort((a, b) =>
+      a.date < b.date ? -1 : a.date > b.date ? 1 : 0
+    );
+
+    return res.json({
+      doctor,
+      from: fromDate.toISOString(),
+      to: toDateEnd.toISOString(),
+      branchId: branchFilter,
+      totals: {
+        encountersCount,
+        invoiceCount,
+        totalInvoiceAmount,
+        totalPaidAmount,
+        totalUnpaidAmount,
+        newPatientsCount,
+      },
+      services,
+      daily,
+    });
+  } catch (err) {
+    console.error("GET /api/reports/doctor error:", err);
     res.status(500).json({ error: "internal server error" });
   }
 });
