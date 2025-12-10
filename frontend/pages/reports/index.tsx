@@ -74,7 +74,24 @@ type DoctorReport = {
   }[];
 };
 
-type TabKey = "overview" | "doctor";
+type BranchComparisonItem = {
+  branchId: number;
+  branchName: string;
+  newPatientsCount: number;
+  encountersCount: number;
+  invoiceCount: number;
+  totalInvoiceAmount: number;
+  totalPaidAmount: number;
+  totalUnpaidAmount: number;
+};
+
+type BranchComparisonResponse = {
+  from: string;
+  to: string;
+  branches: BranchComparisonItem[];
+};
+
+type TabKey = "overview" | "doctor" | "branches";
 
 export default function ReportsPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -82,7 +99,7 @@ export default function ReportsPage() {
   const [services, setServices] = useState<Service[]>([]);
 
   const [branchId, setBranchId] = useState<string>(""); // "" = all
-  const [doctorId, setDoctorId] = useState<string>(""); // "" = all / for doctor tab required
+  const [doctorId, setDoctorId] = useState<string>(""); // "" = all / required for doctor tab
   const [serviceId, setServiceId] = useState<string>(""); // "" = all
   const [paymentMethod, setPaymentMethod] = useState<string>(""); // "" = all
 
@@ -93,13 +110,18 @@ export default function ReportsPage() {
 
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [doctorReport, setDoctorReport] = useState<DoctorReport | null>(null);
+  const [branchComparison, setBranchComparison] =
+    useState<BranchComparisonResponse | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [doctorLoading, setDoctorLoading] = useState(false);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+
   const [error, setError] = useState("");
   const [doctorError, setDoctorError] = useState("");
+  const [branchesError, setBranchesError] = useState("");
 
-  // Load branches, doctors, services for filters
+  // Load branches, doctors, services for filters + default dates
   useEffect(() => {
     const loadFilters = async () => {
       try {
@@ -119,7 +141,7 @@ export default function ReportsPage() {
         if (dRes.ok && Array.isArray(dData)) setDoctors(dData);
         if (sRes.ok && Array.isArray(sData)) setServices(sData);
       } catch {
-        // ignore load errors for filters
+        // ignore filter load errors
       }
     };
     loadFilters();
@@ -144,6 +166,7 @@ export default function ReportsPage() {
     return params;
   };
 
+  // Overview summary
   const loadSummary = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!from || !to) return;
@@ -169,7 +192,7 @@ export default function ReportsPage() {
     }
   };
 
-  // initial load of overview
+  // initial load for overview
   useEffect(() => {
     if (from && to) {
       loadSummary();
@@ -177,6 +200,7 @@ export default function ReportsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from, to]);
 
+  // Doctor report
   const loadDoctorReport = async () => {
     if (!from || !to) return;
     if (!doctorId) {
@@ -191,7 +215,6 @@ export default function ReportsPage() {
 
     try {
       const params = buildCommonParams();
-      // For doctor report, doctorId MUST be set, but buildCommonParams already includes it.
       const res = await fetch(`/api/reports/doctor?${params.toString()}`);
       const data = await res.json();
 
@@ -207,7 +230,40 @@ export default function ReportsPage() {
     }
   };
 
-  // CSV download handler (uses same filters as overview)
+  // Branch comparison
+  const loadBranchComparison = async () => {
+    if (!from || !to) return;
+
+    setBranchesLoading(true);
+    setBranchesError("");
+    setBranchComparison(null);
+
+    try {
+      // For branch comparison, we ignore the single-branch filter (branchId),
+      // but still respect doctor/service/payment filters.
+      const params = new URLSearchParams();
+      params.set("from", from);
+      params.set("to", to);
+      if (doctorId) params.set("doctorId", doctorId);
+      if (serviceId) params.set("serviceId", serviceId);
+      if (paymentMethod) params.set("paymentMethod", paymentMethod);
+
+      const res = await fetch(`/api/reports/branches?${params.toString()}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setBranchesError(data.error || "Салбарын тайлан ачааллах үед алдаа гарлаа");
+      } else {
+        setBranchComparison(data);
+      }
+    } catch {
+      setBranchesError("Сүлжээгээ шалгана уу");
+    } finally {
+      setBranchesLoading(false);
+    }
+  };
+
+  // CSV download for overview (accountant)
   const downloadCsv = () => {
     if (!from || !to) {
       alert("Эхлэх ба дуусах өдрийг сонгоно уу");
@@ -239,7 +295,8 @@ export default function ReportsPage() {
           style={{
             padding: "8px 16px",
             borderRadius: 4,
-            border: activeTab === "overview" ? "2px solid #1976d2" : "1px solid #ccc",
+            border:
+              activeTab === "overview" ? "2px solid #1976d2" : "1px solid #ccc",
             background: activeTab === "overview" ? "#e3f2fd" : "#f5f5f5",
             cursor: "pointer",
           }}
@@ -252,20 +309,44 @@ export default function ReportsPage() {
           style={{
             padding: "8px 16px",
             borderRadius: 4,
-            border: activeTab === "doctor" ? "2px solid #1976d2" : "1px solid #ccc",
+            border:
+              activeTab === "doctor" ? "2px solid #1976d2" : "1px solid #ccc",
             background: activeTab === "doctor" ? "#e3f2fd" : "#f5f5f5",
             cursor: "pointer",
           }}
         >
           Эмчийн тайлан
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("branches")}
+          style={{
+            padding: "8px 16px",
+            borderRadius: 4,
+            border:
+              activeTab === "branches"
+                ? "2px solid #1976d2"
+                : "1px solid #ccc",
+            background: activeTab === "branches" ? "#e3f2fd" : "#f5f5f5",
+            cursor: "pointer",
+          }}
+        >
+          Салбарын харьцуулалт
+        </button>
       </div>
 
-      {/* Common filters */}
+      {/* Filters (shared) */}
       <form
-        onSubmit={activeTab === "overview" ? loadSummary : (e) => {
-          e.preventDefault();
-          loadDoctorReport();
+        onSubmit={(e) => {
+          if (activeTab === "overview") {
+            loadSummary(e);
+          } else if (activeTab === "doctor") {
+            e.preventDefault();
+            loadDoctorReport();
+          } else {
+            e.preventDefault();
+            loadBranchComparison();
+          }
         }}
         style={{
           display: "flex",
@@ -296,9 +377,10 @@ export default function ReportsPage() {
           />
         </div>
 
+        {/* Branch filter is only used for overview/doctor, not for comparison */}
         <div>
           <label style={{ display: "block", fontSize: 12, color: "#555" }}>
-            Салбар
+            Салбар (Ерөнхий / Эмчийн тайлан)
           </label>
           <select
             value={branchId}
@@ -313,7 +395,7 @@ export default function ReportsPage() {
           </select>
         </div>
 
-        {/* Doctor filter is common, but for doctor tab it's required */}
+        {/* Doctor filter (for all tabs, but required for doctor tab) */}
         <div>
           <label style={{ display: "block", fontSize: 12, color: "#555" }}>
             Эмч
@@ -333,6 +415,7 @@ export default function ReportsPage() {
           </select>
         </div>
 
+        {/* Service filter */}
         <div>
           <label style={{ display: "block", fontSize: 12, color: "#555" }}>
             Үйлчилгээ
@@ -350,6 +433,7 @@ export default function ReportsPage() {
           </select>
         </div>
 
+        {/* Payment method filter */}
         <div>
           <label style={{ display: "block", fontSize: 12, color: "#555" }}>
             Төлбөрийн төрөл
@@ -365,14 +449,27 @@ export default function ReportsPage() {
           </select>
         </div>
 
-        <button type="submit" disabled={activeTab === "overview" ? loading : doctorLoading}>
+        <button
+          type="submit"
+          disabled={
+            activeTab === "overview"
+              ? loading
+              : activeTab === "doctor"
+              ? doctorLoading
+              : branchesLoading
+          }
+        >
           {activeTab === "overview"
             ? loading
               ? "Ачааллаж байна..."
               : "Шинэчлэх"
-            : doctorLoading
+            : activeTab === "doctor"
+            ? doctorLoading
+              ? "Ачааллаж байна..."
+              : "Эмчийн тайлан харах"
+            : branchesLoading
             ? "Ачааллаж байна..."
-            : "Эмчийн тайлан харах"}
+            : "Салбарын тайлан харах"}
         </button>
 
         {activeTab === "overview" && (
@@ -386,7 +483,7 @@ export default function ReportsPage() {
         )}
       </form>
 
-      {/* Overview tab */}
+      {/* OVERVIEW TAB */}
       {activeTab === "overview" && (
         <>
           {error && <div style={{ color: "red", marginBottom: 16 }}>{error}</div>}
@@ -513,7 +610,7 @@ export default function ReportsPage() {
         </>
       )}
 
-      {/* Doctor tab */}
+      {/* DOCTOR TAB */}
       {activeTab === "doctor" && (
         <>
           {doctorError && (
@@ -642,6 +739,70 @@ export default function ReportsPage() {
           )}
 
           {doctorLoading && !doctorReport && (
+            <div style={{ marginTop: 16 }}>Ачааллаж байна...</div>
+          )}
+        </>
+      )}
+
+      {/* BRANCH COMPARISON TAB */}
+      {activeTab === "branches" && (
+        <>
+          {branchesError && (
+            <div style={{ color: "red", marginBottom: 16 }}>{branchesError}</div>
+          )}
+
+          {branchComparison && (
+            <section>
+              <h2>Салбаруудын харьцуулалт</h2>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  marginTop: 12,
+                  fontSize: 14,
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left" }}>Салбар</th>
+                    <th style={{ textAlign: "right" }}>Шинэ үйлчлүүлэгч</th>
+                    <th style={{ textAlign: "right" }}>Үзлэг</th>
+                    <th style={{ textAlign: "right" }}>Нэхэмжлэл</th>
+                    <th style={{ textAlign: "right" }}>Нэхэмжлэлийн дүн</th>
+                    <th style={{ textAlign: "right" }}>Төлсөн дүн</th>
+                    <th style={{ textAlign: "right" }}>Үлдэгдэл</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {branchComparison.branches.map((b) => (
+                    <tr key={b.branchId}>
+                      <td>{b.branchName}</td>
+                      <td style={{ textAlign: "right" }}>
+                        {b.newPatientsCount.toLocaleString("mn-MN")}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {b.encountersCount.toLocaleString("mn-MN")}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {b.invoiceCount.toLocaleString("mn-MN")}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {b.totalInvoiceAmount.toLocaleString("mn-MN")} ₮
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {b.totalPaidAmount.toLocaleString("mn-MN")} ₮
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        {b.totalUnpaidAmount.toLocaleString("mn-MN")} ₮
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+
+          {branchesLoading && !branchComparison && (
             <div style={{ marginTop: 16 }}>Ачааллаж байна...</div>
           )}
         </>
