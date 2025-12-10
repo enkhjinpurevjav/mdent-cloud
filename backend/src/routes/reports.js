@@ -5,14 +5,11 @@ const router = Router();
 
 /**
  * GET /api/reports/summary
- * (already implemented earlier – keep your existing code here)
- *
- * If you already have a /summary implementation, leave it as is.
- * Below is only an example; you can keep your own.
+ * Query: from, to, branchId?, doctorId?, serviceId?, paymentMethod?
  */
 router.get("/summary", async (req, res) => {
   try {
-    const { from, to, branchId } = req.query;
+    const { from, to, branchId, doctorId, serviceId, paymentMethod } = req.query;
 
     if (!from || !to) {
       return res
@@ -26,8 +23,14 @@ router.get("/summary", async (req, res) => {
     toDateEnd.setHours(23, 59, 59, 999);
 
     const branchFilter = branchId ? Number(branchId) : null;
+    const doctorFilter = doctorId ? Number(doctorId) : null;
+    const serviceFilter = serviceId ? Number(serviceId) : null;
+    const paymentMethodFilter =
+      typeof paymentMethod === "string" && paymentMethod.trim()
+        ? paymentMethod.trim()
+        : null;
 
-    // New patients
+    // ---- 1) New patients ----
     const patientWhere = {
       createdAt: {
         gte: fromDate,
@@ -37,12 +40,12 @@ router.get("/summary", async (req, res) => {
     if (branchFilter) {
       patientWhere.branchId = branchFilter;
     }
-
+    // doctor/service/payment filters don't affect "new patients"
     const newPatientsCount = await prisma.patient.count({
       where: patientWhere,
     });
 
-    // Encounters
+    // ---- 2) Encounters ----
     const encounterWhere = {
       visitDate: {
         gte: fromDate,
@@ -56,26 +59,58 @@ router.get("/summary", async (req, res) => {
         },
       };
     }
+    if (doctorFilter) {
+      encounterWhere.doctorId = doctorFilter;
+    }
+    if (serviceFilter) {
+      // Encounters that have at least one EncounterService with this serviceId
+      encounterWhere.encounterServices = {
+        some: { serviceId: serviceFilter },
+      };
+    }
 
     const encountersCount = await prisma.encounter.count({
       where: encounterWhere,
     });
 
-    // Invoices
+    // ---- 3) Invoices ----
     const invoiceWhere = {
       createdAt: {
         gte: fromDate,
         lte: toDateEnd,
       },
     };
+
+    // branch/doctor/service use relations via encounter
+    invoiceWhere.encounter = {
+      AND: [],
+    };
+
     if (branchFilter) {
-      invoiceWhere.encounter = {
+      invoiceWhere.encounter.AND.push({
         patientBook: {
           patient: {
             branchId: branchFilter,
           },
         },
-      };
+      });
+    }
+    if (doctorFilter) {
+      invoiceWhere.encounter.AND.push({
+        doctorId: doctorFilter,
+      });
+    }
+    if (serviceFilter) {
+      invoiceWhere.encounter.AND.push({
+        encounterServices: {
+          some: { serviceId: serviceFilter },
+        },
+      });
+    }
+
+    // If no relational filters were added, remove the empty AND
+    if (invoiceWhere.encounter.AND.length === 0) {
+      delete invoiceWhere.encounter;
     }
 
     const invoices = await prisma.invoice.findMany({
@@ -93,26 +128,31 @@ router.get("/summary", async (req, res) => {
       },
     });
 
-    const totalInvoicesCount = invoices.length;
-    const totalInvoiceAmount = invoices.reduce(
+    // filter by payment method at application level if needed
+    const filteredInvoices = paymentMethodFilter
+      ? invoices.filter((inv) => inv.payment?.method === paymentMethodFilter)
+      : invoices;
+
+    const totalInvoicesCount = filteredInvoices.length;
+    const totalInvoiceAmount = filteredInvoices.reduce(
       (sum, inv) => sum + Number(inv.totalAmount || 0),
       0
     );
-    const totalPaidAmount = invoices.reduce(
+    const totalPaidAmount = filteredInvoices.reduce(
       (sum, inv) => sum + Number(inv.payment?.amount || 0),
       0
     );
     const totalUnpaidAmount = totalInvoiceAmount - totalPaidAmount;
 
-    // Doctor revenue
+    // ---- 4) Top doctors (over filtered invoices) ----
     const revenueByDoctor = {};
-    for (const inv of invoices) {
-      const doctorId = inv.encounter?.doctorId;
-      if (!doctorId) continue;
-      if (!revenueByDoctor[doctorId]) {
-        revenueByDoctor[doctorId] = 0;
+    for (const inv of filteredInvoices) {
+      const docId = inv.encounter?.doctorId;
+      if (!docId) continue;
+      if (!revenueByDoctor[docId]) {
+        revenueByDoctor[docId] = 0;
       }
-      revenueByDoctor[doctorId] += Number(inv.totalAmount || 0);
+      revenueByDoctor[docId] += Number(inv.totalAmount || 0);
     }
 
     const doctorIds = Object.keys(revenueByDoctor).map((id) => Number(id));
@@ -135,12 +175,15 @@ router.get("/summary", async (req, res) => {
         .slice(0, 5);
     }
 
-    // Top services
-    const encounterIds = invoices.map((inv) => inv.encounterId);
+    // ---- 5) Top services (over filtered invoices) ----
+    const encounterIds = filteredInvoices.map((inv) => inv.encounterId);
     let topServices = [];
     if (encounterIds.length > 0) {
       const encounterServices = await prisma.encounterService.findMany({
-        where: { encounterId: { in: encounterIds } },
+        where: {
+          encounterId: { in: encounterIds },
+          ...(serviceFilter ? { serviceId: serviceFilter } : {}),
+        },
         include: { service: true },
       });
 
@@ -186,12 +229,11 @@ router.get("/summary", async (req, res) => {
 
 /**
  * GET /api/reports/invoices.csv
- * Query: from, to, branchId?
- * Returns: CSV of invoices + payments for accountants.
+ * Query: from, to, branchId?, doctorId?, serviceId?, paymentMethod?
  */
 router.get("/invoices.csv", async (req, res) => {
   try {
-    const { from, to, branchId } = req.query;
+    const { from, to, branchId, doctorId, serviceId, paymentMethod } = req.query;
 
     if (!from || !to) {
       return res
@@ -205,6 +247,12 @@ router.get("/invoices.csv", async (req, res) => {
     toDateEnd.setHours(23, 59, 59, 999);
 
     const branchFilter = branchId ? Number(branchId) : null;
+    const doctorFilter = doctorId ? Number(doctorId) : null;
+    const serviceFilter = serviceId ? Number(serviceId) : null;
+    const paymentMethodFilter =
+      typeof paymentMethod === "string" && paymentMethod.trim()
+        ? paymentMethod.trim()
+        : null;
 
     const invoiceWhere = {
       createdAt: {
@@ -213,14 +261,34 @@ router.get("/invoices.csv", async (req, res) => {
       },
     };
 
+    invoiceWhere.encounter = {
+      AND: [],
+    };
+
     if (branchFilter) {
-      invoiceWhere.encounter = {
+      invoiceWhere.encounter.AND.push({
         patientBook: {
           patient: {
             branchId: branchFilter,
           },
         },
-      };
+      });
+    }
+    if (doctorFilter) {
+      invoiceWhere.encounter.AND.push({
+        doctorId: doctorFilter,
+      });
+    }
+    if (serviceFilter) {
+      invoiceWhere.encounter.AND.push({
+        encounterServices: {
+          some: { serviceId: serviceFilter },
+        },
+      });
+    }
+
+    if (invoiceWhere.encounter.AND.length === 0) {
+      delete invoiceWhere.encounter;
     }
 
     const invoices = await prisma.invoice.findMany({
@@ -240,7 +308,11 @@ router.get("/invoices.csv", async (req, res) => {
       orderBy: { createdAt: "asc" },
     });
 
-    // CSV header
+    // Filter by payment method if needed
+    const filteredInvoices = paymentMethodFilter
+      ? invoices.filter((inv) => inv.payment?.method === paymentMethodFilter)
+      : invoices;
+
     const headers = [
       "invoiceId",
       "invoiceDate",
@@ -268,7 +340,7 @@ router.get("/invoices.csv", async (req, res) => {
 
     const rows = [headers.join(",")];
 
-    for (const inv of invoices) {
+    for (const inv of filteredInvoices) {
       const patient = inv.encounter?.patientBook?.patient;
       const doctor = inv.encounter?.doctor;
 
@@ -283,7 +355,7 @@ router.get("/invoices.csv", async (req, res) => {
         : "";
 
       const paidAmount = inv.payment?.amount ?? "";
-      const paymentMethod = inv.payment?.method ?? "";
+      const paymentMethodVal = inv.payment?.method ?? "";
       const paymentTime = inv.payment?.timestamp
         ? inv.payment.timestamp.toISOString()
         : "";
@@ -303,7 +375,7 @@ router.get("/invoices.csv", async (req, res) => {
         Number(inv.totalAmount || 0),
         inv.status || "",
         paidAmount,
-        paymentMethod,
+        paymentMethodVal,
         paymentTime,
         eBarimtNumber,
         eBarimtTime,
@@ -314,11 +386,14 @@ router.get("/invoices.csv", async (req, res) => {
 
     const csvContent = rows.join("\n");
 
-    // Set headers for file download
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="invoices_${from}_${to}${branchFilter ? "_b" + branchFilter : ""}.csv"`
+      `attachment; filename="invoices_${from}_${to}${
+        branchFilter ? "_b" + branchFilter : ""
+      }${doctorFilter ? "_d" + doctorFilter : ""}${
+        serviceFilter ? "_s" + serviceFilter : ""
+      }.csv"`
     );
 
     return res.send(csvContent);
