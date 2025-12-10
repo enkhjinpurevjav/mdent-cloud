@@ -98,6 +98,7 @@ function AppointmentForm({ onCreated }: { onCreated: (a: Appointment) => void })
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [error, setError] = useState("");
+  const groupedAppointments = groupByDate(appointments);
 
   useEffect(() => {
     fetch("/api/appointments")
@@ -111,7 +112,72 @@ export default function AppointmentsPage() {
       <h1>Цаг захиалга</h1>
       {error && <div style={{ color: "red" }}>{error}</div>}
       <AppointmentForm onCreated={(a) => setAppointments((as) => [a, ...as])} />
-
+      <div style={{ marginTop: 24 }}>
+        <h2>Календарь (өдрөөр)</h2>
+        {groupedAppointments.length === 0 && <div>Цаг захиалга алга</div>}
+        <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
+          {groupedAppointments.map(([date, apps]) => (
+            <div
+              key={date}
+              style={{
+                minWidth: 220,
+                border: "1px solid #ccc",
+                borderRadius: 8,
+                padding: 8,
+                backgroundColor: "#fafafa",
+              }}
+            >
+              <div style={{ fontWeight: "bold", marginBottom: 8 }}>
+                {new Date(date).toLocaleDateString("mn-MN", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                  weekday: "short",
+                })}
+              </div>
+              {apps
+                .slice()
+                .sort(
+                  (a, b) =>
+                    new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+                )
+                .map((a) => (
+                  <div
+                    key={a.id}
+                    style={{
+                      marginBottom: 6,
+                      padding: 6,
+                      borderRadius: 4,
+                      backgroundColor:
+                        a.status === "completed"
+                          ? "#e0f7e9"
+                          : a.status === "ongoing"
+                          ? "#fff4e0"
+                          : a.status === "cancelled"
+                          ? "#fde0e0"
+                          : "#e6f0ff", // booked
+                      fontSize: 12,
+                    }}
+                  >
+                    <div style={{ fontWeight: 500 }}>
+                      {new Date(a.scheduledAt).toLocaleTimeString("mn-MN", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}{" "}
+                      —{" "}
+                      {a.patient ? `${a.patient.name}` : `Patient #${a.patientId}`}
+                    </div>
+                    <div>
+                      Эмч: {a.doctorId ?? "-"} | Салбар: {a.branchId}
+                    </div>
+                    <div>Тайлбар: {a.notes || "-"}</div>
+                    <div>Статус: {a.status}</div>
+                  </div>
+                ))}
+            </div>
+          ))}
+        </div>
+      </div>
       <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}>
         <thead>
           <tr>
