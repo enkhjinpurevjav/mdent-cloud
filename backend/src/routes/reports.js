@@ -6,8 +6,6 @@ const router = Router();
 /**
  * GET /api/reports/summary
  * Query: from, to, branchId?, doctorId?, serviceId?, paymentMethod?
- *
- * Returns high-level KPIs + top doctors/services.
  */
 router.get("/summary", async (req, res) => {
   try {
@@ -33,8 +31,8 @@ router.get("/summary", async (req, res) => {
         ? paymentMethod.trim()
         : null;
 
-    // ---- 1) New patients in period ----
-    const patientWhere: any = {
+    // 1) New patients
+    const patientWhere = {
       createdAt: {
         gte: fromDate,
         lte: toDateEnd,
@@ -48,14 +46,13 @@ router.get("/summary", async (req, res) => {
       where: patientWhere,
     });
 
-    // ---- 2) Encounters in period (with filters) ----
-    const encounterWhere: any = {
+    // 2) Encounters
+    const encounterWhere = {
       visitDate: {
         gte: fromDate,
         lte: toDateEnd,
       },
     };
-
     if (branchFilter) {
       encounterWhere.patientBook = {
         patient: {
@@ -76,15 +73,15 @@ router.get("/summary", async (req, res) => {
       where: encounterWhere,
     });
 
-    // ---- 3) Invoices in period (with branch/doctor/service filters) ----
-    const invoiceWhere: any = {
+    // 3) Invoices
+    const invoiceWhere = {
       createdAt: {
         gte: fromDate,
         lte: toDateEnd,
       },
     };
 
-    invoiceWhere.encounter = { AND: [] as any[] };
+    invoiceWhere.encounter = { AND: [] };
 
     if (branchFilter) {
       invoiceWhere.encounter.AND.push({
@@ -127,7 +124,6 @@ router.get("/summary", async (req, res) => {
       },
     });
 
-    // Optional filter by payment method
     const filteredInvoices = paymentMethodFilter
       ? invoices.filter((inv) => inv.payment?.method === paymentMethodFilter)
       : invoices;
@@ -143,26 +139,17 @@ router.get("/summary", async (req, res) => {
     );
     const totalUnpaidAmount = totalInvoiceAmount - totalPaidAmount;
 
-    // ---- 4) Top doctors by revenue ----
-    const revenueByDoctor: Record<number, number> = {};
+    // 4) Top doctors
+    const revenueByDoctor = {};
     for (const inv of filteredInvoices) {
       const docId = inv.encounter?.doctorId;
       if (!docId) continue;
-      if (!revenueByDoctor[docId]) {
-        revenueByDoctor[docId] = 0;
-      }
+      if (!revenueByDoctor[docId]) revenueByDoctor[docId] = 0;
       revenueByDoctor[docId] += Number(inv.totalAmount || 0);
     }
 
     const doctorIds = Object.keys(revenueByDoctor).map((id) => Number(id));
-    let topDoctors: {
-      id: number;
-      name: string | null;
-      ovog: string | null;
-      email: string | null;
-      revenue: number;
-    }[] = [];
-
+    let topDoctors = [];
     if (doctorIds.length > 0) {
       const doctors = await prisma.user.findMany({
         where: { id: { in: doctorIds } },
@@ -181,11 +168,9 @@ router.get("/summary", async (req, res) => {
         .slice(0, 5);
     }
 
-    // ---- 5) Top services by revenue ----
+    // 5) Top services
     const encounterIds = filteredInvoices.map((inv) => inv.encounterId);
-    let topServices: { id: number; name: string; code: string | null; revenue: number }[] =
-      [];
-
+    let topServices = [];
     if (encounterIds.length > 0) {
       const encounterServices = await prisma.encounterService.findMany({
         where: {
@@ -195,17 +180,12 @@ router.get("/summary", async (req, res) => {
         include: { service: true },
       });
 
-      const revenueByService: Record<
-        number,
-        { id: number; name: string; code: string | null; revenue: number }
-      > = {};
-
+      const revenueByService = {};
       for (const es of encounterServices) {
         if (!es.service) continue;
         const sid = es.serviceId;
         const lineTotal =
           Number(es.price || 0) * Number(es.quantity || 1);
-
         if (!revenueByService[sid]) {
           revenueByService[sid] = {
             id: sid,
@@ -244,8 +224,6 @@ router.get("/summary", async (req, res) => {
 /**
  * GET /api/reports/invoices.csv
  * Query: from, to, branchId?, doctorId?, serviceId?, paymentMethod?
- *
- * Returns CSV of invoices for accountants.
  */
 router.get("/invoices.csv", async (req, res) => {
   try {
@@ -271,14 +249,14 @@ router.get("/invoices.csv", async (req, res) => {
         ? paymentMethod.trim()
         : null;
 
-    const invoiceWhere: any = {
+    const invoiceWhere = {
       createdAt: {
         gte: fromDate,
         lte: toDateEnd,
       },
     };
 
-    invoiceWhere.encounter = { AND: [] as any[] };
+    invoiceWhere.encounter = { AND: [] };
 
     if (branchFilter) {
       invoiceWhere.encounter.AND.push({
@@ -343,7 +321,7 @@ router.get("/invoices.csv", async (req, res) => {
       "eBarimtTime",
     ];
 
-    const escapeCsv = (value: unknown) => {
+    const escapeCsv = (value) => {
       if (value === null || value === undefined) return "";
       const str = String(value);
       if (str.includes('"') || str.includes(",") || str.includes("\n")) {
@@ -352,7 +330,7 @@ router.get("/invoices.csv", async (req, res) => {
       return str;
     };
 
-    const rows: string[] = [headers.join(",")];
+    const rows = [headers.join(",")];
 
     for (const inv of filteredInvoices) {
       const patient = inv.encounter?.patientBook?.patient;
@@ -420,8 +398,6 @@ router.get("/invoices.csv", async (req, res) => {
 /**
  * GET /api/reports/doctor
  * Query: from, to, doctorId (required), branchId?, serviceId?, paymentMethod?
- *
- * Returns per-doctor stats: encounters, revenue, services breakdown, daily stats.
  */
 router.get("/doctor", async (req, res) => {
   try {
@@ -447,7 +423,6 @@ router.get("/doctor", async (req, res) => {
         ? paymentMethod.trim()
         : null;
 
-    // Load doctor info
     const doctor = await prisma.user.findUnique({
       where: { id: doctorFilter },
       select: { id: true, name: true, ovog: true, email: true },
@@ -456,8 +431,7 @@ router.get("/doctor", async (req, res) => {
       return res.status(404).json({ error: "Doctor not found" });
     }
 
-    // Encounters for this doctor and period
-    const encounterWhere: any = {
+    const encounterWhere = {
       doctorId: doctorFilter,
       visitDate: {
         gte: fromDate,
@@ -484,9 +458,7 @@ router.get("/doctor", async (req, res) => {
           include: { patient: true },
         },
         invoice: {
-          include: {
-            payment: true,
-          },
+          include: { payment: true },
         },
         encounterServices: {
           include: { service: true },
@@ -496,13 +468,10 @@ router.get("/doctor", async (req, res) => {
 
     const encountersCount = encounters.length;
 
-    // New patients for this doctor in period (based on patient.createdAt)
-    const uniquePatientIds = new Set<number>(
+    const uniquePatientIds = new Set(
       encounters
         .map((e) => e.patientBook?.patient?.id)
-        .filter(
-          (id): id is number => id !== undefined && id !== null
-        )
+        .filter((id) => id !== undefined && id !== null)
     );
 
     const newPatientsCount = await prisma.patient.count({
@@ -513,10 +482,9 @@ router.get("/doctor", async (req, res) => {
       },
     });
 
-    // Invoices for these encounters
     const invoices = encounters
       .map((e) => e.invoice)
-      .filter((inv): inv is NonNullable<typeof inv> => !!inv);
+      .filter((inv) => !!inv);
 
     const filteredInvoices = paymentMethodFilter
       ? invoices.filter((inv) => inv.payment?.method === paymentMethodFilter)
@@ -533,7 +501,6 @@ router.get("/doctor", async (req, res) => {
     );
     const totalUnpaidAmount = totalInvoiceAmount - totalPaidAmount;
 
-    // Services breakdown
     const allEncounterServices = encounters.flatMap(
       (e) => e.encounterServices || []
     );
@@ -541,17 +508,7 @@ router.get("/doctor", async (req, res) => {
       ? allEncounterServices.filter((es) => es.serviceId === serviceFilter)
       : allEncounterServices;
 
-    const servicesMap: Record<
-      number,
-      {
-        serviceId: number;
-        code: string | null;
-        name: string;
-        totalQuantity: number;
-        revenue: number;
-      }
-    > = {};
-
+    const servicesMap = {};
     for (const es of filteredEncounterServices) {
       if (!es.service) continue;
       const sid = es.serviceId;
@@ -574,12 +531,7 @@ router.get("/doctor", async (req, res) => {
       (a, b) => b.revenue - a.revenue
     );
 
-    // Daily breakdown
-    const dailyMap: Record<
-      string,
-      { date: string; encounters: number; revenue: number }
-    > = {};
-
+    const dailyMap = {};
     for (const e of encounters) {
       const day = e.visitDate.toISOString().slice(0, 10);
       if (!dailyMap[day]) {
@@ -593,7 +545,6 @@ router.get("/doctor", async (req, res) => {
 
       const inv = e.invoice;
       if (inv) {
-        // Only count invoice if it passes paymentMethod filter
         if (
           !paymentMethodFilter ||
           inv.payment?.method === paymentMethodFilter
