@@ -5,6 +5,19 @@ type Branch = {
   name: string;
 };
 
+type Doctor = {
+  id: number;
+  name?: string | null;
+  ovog?: string | null;
+  email?: string | null;
+};
+
+type Service = {
+  id: number;
+  name: string;
+  code?: string | null;
+};
+
 type DoctorRevenue = {
   id: number;
   name?: string | null;
@@ -36,27 +49,44 @@ type ReportSummary = {
 
 export default function ReportsPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+
   const [branchId, setBranchId] = useState<string>(""); // "" = all
+  const [doctorId, setDoctorId] = useState<string>(""); // "" = all
+  const [serviceId, setServiceId] = useState<string>(""); // "" = all
+  const [paymentMethod, setPaymentMethod] = useState<string>(""); // "" = all
+
   const [from, setFrom] = useState<string>("");
   const [to, setTo] = useState<string>("");
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Load branches for filter
+  // Load branches, doctors, services for filters
   useEffect(() => {
-    const loadBranches = async () => {
+    const loadFilters = async () => {
       try {
-        const res = await fetch("/api/branches");
-        const data = await res.json();
-        if (res.ok && Array.isArray(data)) {
-          setBranches(data);
-        }
+        const [bRes, dRes, sRes] = await Promise.all([
+          fetch("/api/branches"),
+          fetch("/api/users?role=doctor"),
+          fetch("/api/services?onlyActive=true"),
+        ]);
+
+        const [bData, dData, sData] = await Promise.all([
+          bRes.json(),
+          dRes.json(),
+          sRes.json(),
+        ]);
+
+        if (bRes.ok && Array.isArray(bData)) setBranches(bData);
+        if (dRes.ok && Array.isArray(dData)) setDoctors(dData);
+        if (sRes.ok && Array.isArray(sData)) setServices(sData);
       } catch {
-        // ignore
+        // ignore load errors for filters
       }
     };
-    loadBranches();
+    loadFilters();
 
     // Default date range: this month
     const today = new Date();
@@ -67,6 +97,17 @@ export default function ReportsPage() {
     setTo(lastDay.toISOString().slice(0, 10));
   }, []);
 
+  const buildQueryParams = () => {
+    const params = new URLSearchParams();
+    params.set("from", from);
+    params.set("to", to);
+    if (branchId) params.set("branchId", branchId);
+    if (doctorId) params.set("doctorId", doctorId);
+    if (serviceId) params.set("serviceId", serviceId);
+    if (paymentMethod) params.set("paymentMethod", paymentMethod);
+    return params;
+  };
+
   const loadSummary = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!from || !to) return;
@@ -76,11 +117,7 @@ export default function ReportsPage() {
     setSummary(null);
 
     try {
-      const params = new URLSearchParams();
-      params.set("from", from);
-      params.set("to", to);
-      if (branchId) params.set("branchId", branchId);
-
+      const params = buildQueryParams();
       const res = await fetch(`/api/reports/summary?${params.toString()}`);
       const data = await res.json();
 
@@ -104,17 +141,13 @@ export default function ReportsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [from, to]);
 
-  // NEW: CSV download handler
+  // CSV download handler (uses same filters)
   const downloadCsv = () => {
     if (!from || !to) {
       alert("Эхлэх ба дуусах өдрийг сонгоно уу");
       return;
     }
-    const params = new URLSearchParams();
-    params.set("from", from);
-    params.set("to", to);
-    if (branchId) params.set("branchId", branchId);
-
+    const params = buildQueryParams();
     const url = `/api/reports/invoices.csv?${params.toString()}`;
 
     const a = document.createElement("a");
@@ -154,8 +187,13 @@ export default function ReportsPage() {
           <label style={{ display: "block", fontSize: 12, color: "#555" }}>
             Дуусах өдөр
           </label>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
         </div>
+
         <div>
           <label style={{ display: "block", fontSize: 12, color: "#555" }}>
             Салбар
@@ -172,11 +210,61 @@ export default function ReportsPage() {
             ))}
           </select>
         </div>
+
+        <div>
+          <label style={{ display: "block", fontSize: 12, color: "#555" }}>
+            Эмч
+          </label>
+          <select
+            value={doctorId}
+            onChange={(e) => setDoctorId(e.target.value)}
+          >
+            <option value="">Бүх эмч</option>
+            {doctors.map((d) => (
+              <option key={d.id} value={d.id}>
+                {(d.ovog ? d.ovog + " " : "") + (d.name || d.email || "")}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label style={{ display: "block", fontSize: 12, color: "#555" }}>
+            Үйлчилгээ
+          </label>
+          <select
+            value={serviceId}
+            onChange={(e) => setServiceId(e.target.value)}
+          >
+            <option value="">Бүх үйлчилгээ</option>
+            {services.map((s) => (
+              <option key={s.id} value={s.id}>
+                {(s.code ? s.code + " - " : "") + s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label style={{ display: "block", fontSize: 12, color: "#555" }}>
+            Төлбөрийн төрөл
+          </label>
+          <select
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+          >
+            <option value="">Бүгд</option>
+            <option value="CASH">Бэлэн</option>
+            <option value="CARD">Карт</option>
+            <option value="QPAY">QPay</option>
+            {/* add more if you use others, e.g. BANK, POS, etc. */}
+          </select>
+        </div>
+
         <button type="submit" disabled={loading}>
           {loading ? "Ачааллаж байна..." : "Шинэчлэх"}
         </button>
 
-        {/* NEW: CSV export button */}
         <button
           type="button"
           onClick={downloadCsv}
@@ -316,9 +404,7 @@ function StatCard({
   value: number;
   money?: boolean;
 }) {
-  const formatted = money
-    ? value.toLocaleString("mn-MN")
-    : value.toLocaleString("mn-MN");
+  const formatted = value.toLocaleString("mn-MN");
   return (
     <div
       style={{
