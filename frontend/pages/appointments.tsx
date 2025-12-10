@@ -11,6 +11,18 @@ type Appointment = {
   patient?: { id: number; name: string; regNo: string };
 };
 
+function groupByDate(appointments: Appointment[]) {
+  const map: Record<string, Appointment[]> = {};
+  for (const a of appointments) {
+    const day = new Date(a.scheduledAt).toISOString().slice(0, 10); // YYYY-MM-DD
+    if (!map[day]) map[day] = [];
+    map[day].push(a);
+  }
+  // sort dates ascending
+  const entries = Object.entries(map).sort(([d1], [d2]) => (d1 < d2 ? -1 : d1 > d2 ? 1 : 0));
+  return entries;
+}
+
 function AppointmentForm({ onCreated }: { onCreated: (a: Appointment) => void }) {
   const [form, setForm] = useState({
     patientId: "",
