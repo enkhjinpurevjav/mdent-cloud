@@ -252,7 +252,9 @@ export default function ReportsPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setBranchesError(data.error || "Салбарын тайлан ачааллах үед алдаа гарлаа");
+        setBranchesError(
+          data.error || "Салбарын тайлан ачааллах үед алдаа гарлаа"
+        );
       } else {
         setBranchComparison(data);
       }
