@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node src/index.js",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate:deploy": "prisma migrate deploy",
-    "seed": "node prisma/seed.js"
-  },
+  "start": "node src/index.js",
+  "build": "prisma generate",
+  "prisma:generate": "prisma generate",
+  "prisma:migrate:deploy": "prisma migrate deploy",
+  "seed": "node prisma/seed.js"
+}
   "dependencies": {
     "@prisma/client": "^5.18.0",
     "bcryptjs": "^2.4.3",
