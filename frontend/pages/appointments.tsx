@@ -112,18 +112,27 @@ export default function AppointmentsPage() {
       <h1>Цаг захиалга</h1>
       {error && <div style={{ color: "red" }}>{error}</div>}
       <AppointmentForm onCreated={(a) => setAppointments((as) => [a, ...as])} />
-      <div style={{ marginTop: 24 }}>
+         <div style={{ marginTop: 24 }}>
         <h2>Календарь (өдрөөр)</h2>
         {groupedAppointments.length === 0 && <div>Цаг захиалга алга</div>}
-        <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 8 }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 16,
+            overflowX: "auto",
+            paddingBottom: 8,
+            justifyContent: "flex-start",
+          }}
+        >
           {groupedAppointments.map(([date, apps]) => (
             <div
               key={date}
               style={{
-                minWidth: 220,
+                minWidth: 260,        // was 220
+                maxWidth: 320,
                 border: "1px solid #ccc",
                 borderRadius: 8,
-                padding: 8,
+                padding: 10,          // was 8
                 backgroundColor: "#fafafa",
               }}
             >
