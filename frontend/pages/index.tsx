@@ -13,7 +13,9 @@ export default function Dashboard() {
           <li>
   <a href="/services">Үйлчилгээ</a>
 </li>
-          <li><Link href="/billing">Төлбөр</Link></li>
+         <li>
+  <a href="/reports">Тайлан</a>
+</li>
          
           
         </ul>
