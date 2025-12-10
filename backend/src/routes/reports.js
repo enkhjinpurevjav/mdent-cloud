@@ -580,4 +580,155 @@ router.get("/doctor", async (req, res) => {
   }
 });
 
+
+/**
+ * GET /api/reports/branches
+ * Query: from, to
+ * Optional: doctorId?, serviceId?, paymentMethod?
+ *
+ * Returns per-branch metrics for the selected period.
+ */
+router.get("/branches", async (req, res) => {
+  try {
+    const { from, to, doctorId, serviceId, paymentMethod } = req.query;
+
+    if (!from || !to) {
+      return res.status(400).json({
+        error: "from and to query parameters are required",
+      });
+    }
+
+    const fromDate = new Date(String(from));
+    const toDate = new Date(String(to));
+    const toDateEnd = new Date(toDate);
+    toDateEnd.setHours(23, 59, 59, 999);
+
+    const doctorFilter = doctorId ? Number(doctorId) : null;
+    const serviceFilter = serviceId ? Number(serviceId) : null;
+    const paymentMethodFilter =
+      typeof paymentMethod === "string" && paymentMethod.trim()
+        ? paymentMethod.trim()
+        : null;
+
+    // Load all branches
+    const branches = await prisma.branch.findMany({
+      select: { id: true, name: true },
+      orderBy: { id: "asc" },
+    });
+
+    // For each branch, compute metrics
+    const results = [];
+
+    for (const branch of branches) {
+      const branchId = branch.id;
+
+      // Patients for this branch
+      const patientWhere = {
+        createdAt: {
+          gte: fromDate,
+          lte: toDateEnd,
+        },
+        branchId: branchId,
+      };
+
+      const newPatientsCount = await prisma.patient.count({
+        where: patientWhere,
+      });
+
+      // Encounters for this branch
+      const encounterWhere = {
+        visitDate: {
+          gte: fromDate,
+          lte: toDateEnd,
+        },
+        patientBook: {
+          patient: {
+            branchId: branchId,
+          },
+        },
+      };
+
+      if (doctorFilter) {
+        encounterWhere.doctorId = doctorFilter;
+      }
+      if (serviceFilter) {
+        encounterWhere.encounterServices = {
+          some: { serviceId: serviceFilter },
+        };
+      }
+
+      const encountersCount = await prisma.encounter.count({
+        where: encounterWhere,
+      });
+
+      // Invoices via encounters for this branch
+      const invoiceWhere = {
+        createdAt: {
+          gte: fromDate,
+          lte: toDateEnd,
+        },
+        encounter: {
+          patientBook: {
+            patient: {
+              branchId: branchId,
+            },
+          },
+        },
+      };
+
+      if (doctorFilter) {
+        invoiceWhere.encounter.doctorId = doctorFilter;
+      }
+      if (serviceFilter) {
+        invoiceWhere.encounter.encounterServices = {
+          some: { serviceId: serviceFilter },
+        };
+      }
+
+      const invoices = await prisma.invoice.findMany({
+        where: invoiceWhere,
+        include: {
+          payment: true,
+        },
+      });
+
+      const filteredInvoices = paymentMethodFilter
+        ? invoices.filter((inv) => inv.payment?.method === paymentMethodFilter)
+        : invoices;
+
+      const invoiceCount = filteredInvoices.length;
+
+      const totalInvoiceAmount = filteredInvoices.reduce(
+        (sum, inv) => sum + Number(inv.totalAmount || 0),
+        0
+      );
+      const totalPaidAmount = filteredInvoices.reduce(
+        (sum, inv) => sum + Number(inv.payment?.amount || 0),
+        0
+      );
+      const totalUnpaidAmount = totalInvoiceAmount - totalPaidAmount;
+
+      results.push({
+        branchId,
+        branchName: branch.name,
+        newPatientsCount,
+        encountersCount,
+        invoiceCount,
+        totalInvoiceAmount,
+        totalPaidAmount,
+        totalUnpaidAmount,
+      });
+    }
+
+    return res.json({
+      from: fromDate.toISOString(),
+      to: toDateEnd.toISOString(),
+      branches: results,
+    });
+  } catch (err) {
+    console.error("GET /api/reports/branches error:", err);
+    res.status(500).json({ error: "internal server error" });
+  }
+});
+
 export default router;
