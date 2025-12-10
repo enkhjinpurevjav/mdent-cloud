@@ -94,3 +94,15 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
+// ...
+patient = await prisma.patient.create({
+  data: {
+    regNo: "0000000000",
+    name: seedPatientName,
+    phone: "70000000",
+    branchId: branch.id,
+    patientBook: { create: { bookNumber: `BOOK-${Date.now()}` } },
+  },
+});
+// ...
