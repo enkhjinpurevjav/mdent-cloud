@@ -4,21 +4,15 @@ import prisma from "../db.js";
 const router = express.Router();
 
 // GET /api/appointments?date=YYYY-MM-DD&branchId=1
-// or /api/appointments?from=YYYY-MM-DD&to=YYYY-MM-DD&branchId=1
 router.get("/", async (req, res) => {
   try {
-    const { date, from, to, branchId } = req.query;
+    const { date, branchId } = req.query;
     const where = {};
 
     if (branchId) where.branchId = Number(branchId);
-
     if (date) {
       const start = new Date(`${date}T00:00:00.000Z`);
       const end = new Date(`${date}T23:59:59.999Z`);
-      where.scheduledAt = { gte: start, lte: end };
-    } else if (from && to) {
-      const start = new Date(`${from}T00:00:00.000Z`);
-      const end = new Date(`${to}T23:59:59.999Z`);
       where.scheduledAt = { gte: start, lte: end };
     }
 
@@ -27,14 +21,11 @@ router.get("/", async (req, res) => {
       orderBy: { scheduledAt: "asc" },
       include: {
         patient: true,
-        // optional: include doctor if you want
-        // doctor: true,
       },
     });
 
     res.json(appointments);
   } catch (err) {
-    console.error("GET /api/appointments error:", err);
     res.status(500).json({ error: "failed to fetch appointments" });
   }
 });
@@ -45,9 +36,7 @@ router.post("/", async (req, res) => {
     const { patientId, doctorId, branchId, scheduledAt, status, notes } = req.body;
 
     if (!patientId || !branchId || !scheduledAt) {
-      return res
-        .status(400)
-        .json({ error: "patientId, branchId, scheduledAt are required" });
+      return res.status(400).json({ error: "patientId, branchId, scheduledAt are required" });
     }
 
     const appt = await prisma.appointment.create({
@@ -66,7 +55,6 @@ router.post("/", async (req, res) => {
 
     res.status(201).json(appt);
   } catch (err) {
-    console.error("POST /api/appointments error:", err);
     res.status(500).json({ error: "failed to create appointment" });
   }
 });
