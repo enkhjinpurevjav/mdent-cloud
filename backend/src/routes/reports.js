@@ -3,7 +3,13 @@ import prisma from "../db.js";
 
 const router = Router();
 
-// GET /api/reports/summary?from=YYYY-MM-DD&to=YYYY-MM-DD&branchId=?
+/**
+ * GET /api/reports/summary
+ * (already implemented earlier – keep your existing code here)
+ *
+ * If you already have a /summary implementation, leave it as is.
+ * Below is only an example; you can keep your own.
+ */
 router.get("/summary", async (req, res) => {
   try {
     const { from, to, branchId } = req.query;
@@ -16,13 +22,12 @@ router.get("/summary", async (req, res) => {
 
     const fromDate = new Date(String(from));
     const toDate = new Date(String(to));
-    // include entire "to" day
     const toDateEnd = new Date(toDate);
     toDateEnd.setHours(23, 59, 59, 999);
 
     const branchFilter = branchId ? Number(branchId) : null;
 
-    // 1) Patients created in period
+    // New patients
     const patientWhere = {
       createdAt: {
         gte: fromDate,
@@ -37,7 +42,7 @@ router.get("/summary", async (req, res) => {
       where: patientWhere,
     });
 
-    // 2) Encounters in period
+    // Encounters
     const encounterWhere = {
       visitDate: {
         gte: fromDate,
@@ -45,8 +50,6 @@ router.get("/summary", async (req, res) => {
       },
     };
     if (branchFilter) {
-      // Encounter doesn't have branchId directly, but Patient does.
-      // So join via PatientBook->Patient
       encounterWhere.patientBook = {
         patient: {
           branchId: branchFilter,
@@ -58,7 +61,7 @@ router.get("/summary", async (req, res) => {
       where: encounterWhere,
     });
 
-    // 3) Invoices in period
+    // Invoices
     const invoiceWhere = {
       createdAt: {
         gte: fromDate,
@@ -66,7 +69,6 @@ router.get("/summary", async (req, res) => {
       },
     };
     if (branchFilter) {
-      // Join via Encounter -> PatientBook -> Patient
       invoiceWhere.encounter = {
         patientBook: {
           patient: {
@@ -85,6 +87,7 @@ router.get("/summary", async (req, res) => {
             patientBook: {
               include: { patient: true },
             },
+            doctor: true,
           },
         },
       },
@@ -101,7 +104,7 @@ router.get("/summary", async (req, res) => {
     );
     const totalUnpaidAmount = totalInvoiceAmount - totalPaidAmount;
 
-    // 4) Top doctors by revenue (using invoice totals grouped by encounter.doctorId)
+    // Doctor revenue
     const revenueByDoctor = {};
     for (const inv of invoices) {
       const doctorId = inv.encounter?.doctorId;
@@ -132,7 +135,7 @@ router.get("/summary", async (req, res) => {
         .slice(0, 5);
     }
 
-    // 5) Top services by revenue (sum EncounterService.price * quantity)
+    // Top services
     const encounterIds = invoices.map((inv) => inv.encounterId);
     let topServices = [];
     if (encounterIds.length > 0) {
@@ -177,6 +180,150 @@ router.get("/summary", async (req, res) => {
     });
   } catch (err) {
     console.error("GET /api/reports/summary error:", err);
+    res.status(500).json({ error: "internal server error" });
+  }
+});
+
+/**
+ * GET /api/reports/invoices.csv
+ * Query: from, to, branchId?
+ * Returns: CSV of invoices + payments for accountants.
+ */
+router.get("/invoices.csv", async (req, res) => {
+  try {
+    const { from, to, branchId } = req.query;
+
+    if (!from || !to) {
+      return res
+        .status(400)
+        .json({ error: "from and to query parameters are required" });
+    }
+
+    const fromDate = new Date(String(from));
+    const toDate = new Date(String(to));
+    const toDateEnd = new Date(toDate);
+    toDateEnd.setHours(23, 59, 59, 999);
+
+    const branchFilter = branchId ? Number(branchId) : null;
+
+    const invoiceWhere = {
+      createdAt: {
+        gte: fromDate,
+        lte: toDateEnd,
+      },
+    };
+
+    if (branchFilter) {
+      invoiceWhere.encounter = {
+        patientBook: {
+          patient: {
+            branchId: branchFilter,
+          },
+        },
+      };
+    }
+
+    const invoices = await prisma.invoice.findMany({
+      where: invoiceWhere,
+      include: {
+        payment: true,
+        eBarimtReceipt: true,
+        encounter: {
+          include: {
+            patientBook: {
+              include: { patient: true },
+            },
+            doctor: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    // CSV header
+    const headers = [
+      "invoiceId",
+      "invoiceDate",
+      "branchId",
+      "patientRegNo",
+      "patientName",
+      "doctorName",
+      "totalAmount",
+      "status",
+      "paidAmount",
+      "paymentMethod",
+      "paymentTime",
+      "eBarimtReceiptNumber",
+      "eBarimtTime",
+    ];
+
+    const escapeCsv = (value) => {
+      if (value === null || value === undefined) return "";
+      const str = String(value);
+      if (str.includes('"') || str.includes(",") || str.includes("\n")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const rows = [headers.join(",")];
+
+    for (const inv of invoices) {
+      const patient = inv.encounter?.patientBook?.patient;
+      const doctor = inv.encounter?.doctor;
+
+      const branchIdVal = patient?.branchId ?? "";
+      const patientRegNo = patient?.regNo ?? "";
+      const patientName = patient
+        ? `${patient.ovog ? patient.ovog + " " : ""}${patient.name ?? ""}`
+        : "";
+
+      const doctorName = doctor
+        ? `${doctor.ovog ? doctor.ovog + " " : ""}${doctor.name ?? ""}`
+        : "";
+
+      const paidAmount = inv.payment?.amount ?? "";
+      const paymentMethod = inv.payment?.method ?? "";
+      const paymentTime = inv.payment?.timestamp
+        ? inv.payment.timestamp.toISOString()
+        : "";
+
+      const eBarimtNumber = inv.eBarimtReceipt?.receiptNumber ?? "";
+      const eBarimtTime = inv.eBarimtReceipt?.timestamp
+        ? inv.eBarimtReceipt.timestamp.toISOString()
+        : "";
+
+      const row = [
+        inv.id,
+        inv.createdAt.toISOString(),
+        branchIdVal,
+        patientRegNo,
+        patientName,
+        doctorName,
+        Number(inv.totalAmount || 0),
+        inv.status || "",
+        paidAmount,
+        paymentMethod,
+        paymentTime,
+        eBarimtNumber,
+        eBarimtTime,
+      ].map(escapeCsv);
+
+      rows.push(row.join(","));
+    }
+
+    const csvContent = rows.join("\n");
+
+    // Set headers for file download
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="invoices_${from}_${to}${branchFilter ? "_b" + branchFilter : ""}.csv"`
+    );
+
+    return res.send(csvContent);
+  } catch (err) {
+    console.error("GET /api/reports/invoices.csv error:", err);
     res.status(500).json({ error: "internal server error" });
   }
 });
