@@ -216,4 +216,28 @@ router.put("/:id", async (req, res) => {
   }
 });
 
+// backend/src/routes/users.js
+router.get("/", async (req, res) => {
+  const { role, branchId } = req.query;
+  const where = {};
+
+  if (role) {
+    if (!Object.values(UserRole).includes(role)) {
+      return res.status(400).json({ error: "Invalid role filter" });
+    }
+    where.role = role;
+  }
+
+  if (branchId) {
+    where.branchId = Number(branchId);
+  }
+
+  const users = await prisma.user.findMany({
+    where,
+    include: { branch: true },
+    orderBy: { id: "desc" },
+  });
+  // ...
+});
+
 export default router;
