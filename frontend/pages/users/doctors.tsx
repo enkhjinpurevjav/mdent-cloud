@@ -32,6 +32,7 @@ function DoctorForm({
     password: "",
     name: "",
     ovog: "",
+    regNo: "",
     branchId: "",
   });
   const [error, setError] = useState("");
@@ -47,7 +48,7 @@ function DoctorForm({
     setSubmitting(true);
 
     try {
-      const payload = {
+      const payload: any = {
         email: form.email,
         password: form.password,
         name: form.name || undefined,
@@ -55,6 +56,11 @@ function DoctorForm({
         role: "doctor",
         branchId: form.branchId ? Number(form.branchId) : undefined,
       };
+
+      // only send regNo if filled in
+      if (form.regNo.trim()) {
+        payload.regNo = form.regNo.trim();
+      }
 
       const res = await fetch("/api/users", {
         method: "POST",
@@ -76,6 +82,7 @@ function DoctorForm({
           password: "",
           name: "",
           ovog: "",
+          regNo: "",
           branchId: "",
         });
       } else {
@@ -115,7 +122,14 @@ function DoctorForm({
           onChange={handleChange}
           required
         />
-        {/* 3. И-мэйл */}
+        {/* 3. РД */}
+        <input
+          name="regNo"
+          placeholder="РД"
+          value={form.regNo}
+          onChange={handleChange}
+        />
+        {/* 4. И-мэйл */}
         <input
           name="email"
           type="email"
@@ -124,7 +138,7 @@ function DoctorForm({
           onChange={handleChange}
           required
         />
-        {/* 4. Нууц үг */}
+        {/* 5. Нууц үг */}
         <input
           name="password"
           type="password"
@@ -133,7 +147,7 @@ function DoctorForm({
           onChange={handleChange}
           required
         />
-        {/* 5. Салбар сонгох */}
+        {/* 6. Салбар сонгох */}
         <select
           name="branchId"
           value={form.branchId}
