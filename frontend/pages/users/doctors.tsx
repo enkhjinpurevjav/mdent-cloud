@@ -1,33 +1,5 @@
 import React, { useEffect, useState } from "react";
-import UsersTabs from "../../components/UsersTabs"; // adjust if path differs
-
-// ... existing types & DoctorForm
-
-export default function DoctorsPage() {
-  // existing state & logic...
-
-  useEffect(() => {
-    loadBranches();
-    loadDoctors();
-  }, []);
-
-  return (
-    <div style={{ padding: 24 }}>
-      <h1>Эмч нар</h1>
-
-      <UsersTabs />
-
-      <DoctorForm
-        branches={branches}
-        onSuccess={(d) => {
-          setDoctors((ds) => [d, ...ds]);
-        }}
-      />
-
-      {/* existing table and loading/error handling */}
-    </div>
-  );
-}
+import UsersTabs from "../../components/UsersTabs";
 
 type Branch = {
   id: number;
@@ -222,6 +194,8 @@ export default function DoctorsPage() {
   return (
     <div style={{ padding: 24 }}>
       <h1>Эмч нар</h1>
+
+      <UsersTabs />
 
       <DoctorForm
         branches={branches}
