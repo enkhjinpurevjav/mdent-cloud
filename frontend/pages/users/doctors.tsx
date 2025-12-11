@@ -14,6 +14,7 @@ type Doctor = {
   role: string;
   branchId?: number | null;
   branch?: Branch | null;
+  branches?: Branch[]; // NEW: all assigned branches
   regNo?: string | null;
   licenseNumber?: string | null;
   licenseExpiryDate?: string | null;
