@@ -238,7 +238,7 @@ export default function DoctorProfilePage() {
         &larr; Буцах
       </button>
 
-      <h1>Эмчийн профайл: {doctor.name || doctor.email}</h1>
+      <h1>Эмч: {doctor.name || doctor.email}</h1>
 
       {/* Basic info form (unchanged logic) */}
       <form
@@ -284,7 +284,7 @@ export default function DoctorProfilePage() {
 
         {/* Legacy single branch select (optional, you can remove later) */}
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          Гол салбар (legacy)
+          Үндсэн салбар
           <select
             name="branchId"
             value={form.branchId}
@@ -320,7 +320,7 @@ export default function DoctorProfilePage() {
         </label>
 
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          Лиценз дуусах өдөр
+          Лиценз дуусах хугацаа
           <input
             name="licenseExpiryDate"
             type="date"
