@@ -14,32 +14,241 @@ type Doctor = {
   role: string;
   branchId?: number | null;
   branch?: Branch | null;
-  branches?: Branch[]; // NEW: all assigned branches
+  branches?: Branch[]; // all assigned branches (via DoctorBranch)
   regNo?: string | null;
   licenseNumber?: string | null;
   licenseExpiryDate?: string | null;
   createdAt?: string;
 };
 
-type Branch = {
-  id: number;
-  name: string;
-};
+function DoctorForm({
+  branches,
+  onSuccess,
+}: {
+  branches: Branch[];
+  onSuccess: (d: Doctor) => void;
+}) {
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+    name: "",
+    ovog: "",
+    regNo: "",
+    branchIds: [] as number[],
+  });
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-type Doctor = {
-  id: number;
-  email: string;
-  name?: string | null;
-  ovog?: string | null;
-  role: string;
-  branchId?: number | null;
-  branch?: Branch | null;
-  branches?: Branch[]; // NEW: all assigned branches
-  regNo?: string | null;
-  licenseNumber?: string | null;
-  licenseExpiryDate?: string | null;
-  createdAt?: string;
-};
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleBranchToggle = (branchId: number) => {
+    setForm((prev) => {
+      const exists = prev.branchIds.includes(branchId);
+      if (exists) {
+        return {
+          ...prev,
+          branchIds: prev.branchIds.filter((id) => id !== branchId),
+        };
+      }
+      return {
+        ...prev,
+        branchIds: [...prev.branchIds, branchId],
+      };
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+
+    try {
+      const primaryBranchId =
+        form.branchIds.length > 0 ? form.branchIds[0] : undefined;
+
+      const payload: any = {
+        email: form.email,
+        password: form.password,
+        name: form.name || undefined,
+        ovog: form.ovog || undefined,
+        role: "doctor",
+        branchId: primaryBranchId,
+      };
+
+      if (form.regNo.trim()) {
+        payload.regNo = form.regNo.trim();
+      }
+
+      // 1) create doctor
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok || !data || !data.id) {
+        setError((data && data.error) || "Алдаа гарлаа");
+        setSubmitting(false);
+        return;
+      }
+
+      const createdDoctor = data as Doctor;
+
+      // 2) assign multiple branches via /api/users/:id/branches
+      if (form.branchIds.length > 0) {
+        try {
+          const resBranches = await fetch(
+            `/api/users/${createdDoctor.id}/branches`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ branchIds: form.branchIds }),
+            }
+          );
+          let branchesData: any = null;
+          try {
+            branchesData = await resBranches.json();
+          } catch {
+            branchesData = null;
+          }
+
+          if (
+            resBranches.ok &&
+            branchesData &&
+            Array.isArray(branchesData.branches)
+          ) {
+            createdDoctor.branches = branchesData.branches;
+          }
+        } catch (e) {
+          console.error("Failed to assign multiple branches", e);
+        }
+      }
+
+      onSuccess(createdDoctor);
+
+      setForm({
+        email: "",
+        password: "",
+        name: "",
+        ovog: "",
+        regNo: "",
+        branchIds: [],
+      });
+    } catch {
+      setError("Сүлжээгээ шалгана уу");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
+      <h2>Шинэ эмч бүртгэх</h2>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 8,
+          marginBottom: 8,
+        }}
+      >
+        {/* Овог */}
+        <input
+          name="ovog"
+          placeholder="Овог"
+          value={form.ovog}
+          onChange={handleChange}
+          required
+        />
+        {/* Нэр */}
+        <input
+          name="name"
+          placeholder="Нэр"
+          value={form.name}
+          onChange={handleChange}
+          required
+        />
+        {/* РД */}
+        <input
+          name="regNo"
+          placeholder="РД"
+          value={form.regNo}
+          onChange={handleChange}
+        />
+        {/* И-мэйл */}
+        <input
+          name="email"
+          type="email"
+          placeholder="И-мэйл"
+          value={form.email}
+          onChange={handleChange}
+          required
+        />
+        {/* Нууц үг */}
+        <input
+          name="password"
+          type="password"
+          placeholder="Нууц үг"
+          value={form.password}
+          onChange={handleChange}
+          required
+        />
+      </div>
+
+      {/* Multi-branch selection */}
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ marginBottom: 4, fontWeight: 500 }}>Салбар сонгох</div>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
+          {branches.map((b) => (
+            <label
+              key={b.id}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                border: "1px solid #ddd",
+                borderRadius: 4,
+                padding: "4px 8px",
+                fontSize: 13,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={form.branchIds.includes(b.id)}
+                onChange={() => handleBranchToggle(b.id)}
+              />
+              {b.name}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <button type="submit" disabled={submitting}>
+        {submitting ? "Бүртгэж байна..." : "Бүртгэх"}
+      </button>
+
+      {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
+    </form>
+  );
+}
 
 export default function DoctorsPage() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
