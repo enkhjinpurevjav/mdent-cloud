@@ -282,7 +282,16 @@ export default function DoctorProfilePage() {
             />
           </div>
         )}
-
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          Овог
+          <input
+            name="ovog"
+            value={form.ovog}
+            onChange={handleChange}
+            placeholder="Овог"
+          />
+        </label>
+        
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           Нэр
           <input
@@ -293,15 +302,7 @@ export default function DoctorProfilePage() {
           />
         </label>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          Овог
-          <input
-            name="ovog"
-            value={form.ovog}
-            onChange={handleChange}
-            placeholder="Овог"
-          />
-        </label>
+        
 
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           И-мэйл
