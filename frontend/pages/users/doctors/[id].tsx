@@ -29,7 +29,7 @@ type DoctorScheduleDay = {
   date: string; // "YYYY-MM-DD"
   branch: Branch;
   startTime: string; // "HH:MM"
-  endTime: string;   // "HH:MM"
+  endTime: string; // "HH:MM"
   note?: string | null;
 };
 
@@ -103,7 +103,10 @@ export default function DoctorProfilePage() {
   };
 
   const handleScheduleFormChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+    e:
+      | React.ChangeEvent<HTMLInputElement>
+      | React.ChangeEvent<HTMLSelectElement>
+      | React.ChangeEvent<HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
 
@@ -115,30 +118,36 @@ export default function DoctorProfilePage() {
         const shift = value as ShiftType;
 
         // Determine if chosen date is weekend; fallback to generic defaults if no date yet
-        let isWeekend = false;
         if (prev.date) {
           const d = new Date(prev.date);
           const day = d.getDay(); // 0=Sun, 6=Sat
-          isWeekend = day === 0 || day === 6;
-        }
+          const isWeekend = day === 0 || day === 6;
 
-        if (shift === "AM") {
-          updated.startTime = "09:00";
-          updated.endTime = "15:00";
-        } else if (shift === "PM") {
-          updated.startTime = "15:00";
-          updated.endTime = "21:00";
-        } else if (shift === "WEEKEND_FULL") {
-          // Weekend full-day template
-          updated.startTime = "10:00";
-          updated.endTime = "19:00";
+          if (shift === "AM") {
+            updated.startTime = isWeekend ? "10:00" : "09:00";
+            updated.endTime = isWeekend ? "14:00" : "15:00";
+          } else if (shift === "PM") {
+            updated.startTime = isWeekend ? "14:00" : "15:00";
+            updated.endTime = isWeekend ? "19:00" : "21:00";
+          } else if (shift === "WEEKEND_FULL") {
+            updated.startTime = "10:00";
+            updated.endTime = "19:00";
+          }
+        } else {
+          // No date yet; use default weekday templates
+          if (shift === "AM") {
+            updated.startTime = "09:00";
+            updated.endTime = "15:00";
+          } else if (shift === "PM") {
+            updated.startTime = "15:00";
+            updated.endTime = "21:00";
+          } else if (shift === "WEEKEND_FULL") {
+            updated.startTime = "10:00";
+            updated.endTime = "19:00";
+          }
         }
-
-        // If date is weekend but user picked AM/PM, still allow; backend will enforce clinic hours anyway.
       }
 
-      // If date changes and shiftType is WEEKEND_FULL, we might adjust to weekend defaults;
-      // but to keep simple and predictable, we don't auto-change on date change.
       return updated;
     });
   };
@@ -494,9 +503,7 @@ export default function DoctorProfilePage() {
               gap: 4,
             }}
           >
-            <span style={{ fontWeight: 500 }}>
-              Иргэний үнэмлэхийн зураг
-            </span>
+            <span style={{ fontWeight: 500 }}>Иргэний үнэмлэхийн зураг</span>
             <img
               src={doctor.idPhotoPath}
               alt="Эмчийн ID зураг"
@@ -604,9 +611,7 @@ export default function DoctorProfilePage() {
           {saving ? "Хадгалж байна..." : "Хадгалах"}
         </button>
 
-        {error && (
-          <div style={{ color: "red", marginTop: 8 }}>{error}</div>
-        )}
+        {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
       </form>
 
       {/* Multi-branch assignment section */}
@@ -714,11 +719,9 @@ export default function DoctorProfilePage() {
               value={scheduleForm.shiftType}
               onChange={handleScheduleFormChange}
             >
-              <option value="AM">Өглөөний ээлж (09:00–15:00)</option>
-              <option value="PM">Оройн ээлж (15:00–21:00)</option>
-              <option value="WEEKEND_FULL">
-                Амралтын өдөр бүтэн (10:00–19:00)
-              </option>
+              <option value="AM">Өглөөний ээлж</option>
+              <option value="PM">Оройн ээлж</option>
+              <option value="WEEKEND_FULL">Амралтын өдөр бүтэн</option>
             </select>
           </label>
 
@@ -856,7 +859,7 @@ export default function DoctorProfilePage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid "#ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 8,
                   }}
                 >
