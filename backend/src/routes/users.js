@@ -13,17 +13,15 @@ const router = Router();
  * - returns branches[] (many-to-many DoctorBranch) for all users
  */
 router.get("/", async (req, res) => {
-  const { role, branchId } = req.query as {
-    role?: string;
-    branchId?: string;
-  };
+  const { role, branchId } = req.query;
+  console.log("GET /api/users query:", req.query);
 
   try {
-    const where: any = {};
+    const where = {};
 
     if (role) {
-      // role is a string at runtime
-      if (!Object.values(UserRole).includes(role as UserRole)) {
+      // role is string at runtime, must match UserRole enum value
+      if (!Object.values(UserRole).includes(role)) {
         return res.status(400).json({ error: "Invalid role filter" });
       }
       where.role = role;
@@ -56,14 +54,11 @@ router.get("/", async (req, res) => {
       role: u.role,
       branchId: u.branchId,
       branch: u.branch ? { id: u.branch.id, name: u.branch.name } : null,
-
-      // all branches this user is assigned to via DoctorBranch
       branches:
         u.doctorBranches?.map((db) => ({
           id: db.branch.id,
           name: db.branch.name,
         })) ?? [],
-
       regNo: u.regNo,
       phone: u.phone || null,
       licenseNumber: u.licenseNumber,
@@ -97,7 +92,7 @@ router.post("/", async (req, res) => {
         .json({ error: "email, password, role are required" });
     }
 
-    if (!Object.values(UserRole).includes(role as UserRole)) {
+    if (!Object.values(UserRole).includes(role)) {
       return res.status(400).json({ error: "Invalid role" });
     }
 
@@ -229,7 +224,7 @@ router.put("/:id", async (req, res) => {
       licenseExpiryDate,
     } = req.body || {};
 
-    const data: any = {};
+    const data = {};
 
     if (name !== undefined) data.name = name || null;
     if (ovog !== undefined) data.ovog = ovog || null;
@@ -328,7 +323,6 @@ router.put("/:id/branches", async (req, res) => {
         .json({ error: "Only doctors can have multiple branches" });
     }
 
-    // validate branches
     if (uniqueBranchIds.length > 0) {
       const existingBranches = await prisma.branch.findMany({
         where: { id: { in: uniqueBranchIds } },
@@ -369,10 +363,10 @@ router.put("/:id/branches", async (req, res) => {
     });
 
     return res.json({
-      id: updated!.id,
-      role: updated!.role,
+      id: updated.id,
+      role: updated.role,
       branches:
-        updated!.doctorBranches?.map((db) => ({
+        updated.doctorBranches?.map((db) => ({
           id: db.branch.id,
           name: db.branch.name,
         })) ?? [],
