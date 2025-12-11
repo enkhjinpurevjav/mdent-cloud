@@ -29,21 +29,25 @@ router.get("/", async (req, res) => {
       orderBy: { id: "desc" },
     });
 
-    const result = users.map((u) => ({
-      id: u.id,
-      email: u.email,
-      name: u.name,
-      ovog: u.ovog,
-      role: u.role,
-      branchId: u.branchId,
-      branch: u.branch ? { id: u.branch.id, name: u.branch.name } : null,
-      regNo: u.regNo,
-      licenseNumber: u.licenseNumber,
-      licenseExpiryDate: u.licenseExpiryDate
-        ? u.licenseExpiryDate.toISOString()
-        : null,
-      createdAt: u.createdAt.toISOString(),
-    }));
+    // inside router.get("/", async (req, res) => { ... })
+const result = users.map((u) => ({
+  id: u.id,
+  email: u.email,
+  name: u.name,
+  ovog: u.ovog,
+  role: u.role,
+  branchId: u.branchId,
+  branch: u.branch ? { id: u.branch.id, name: u.branch.name } : null,
+  // contact + identifiers
+  regNo: u.regNo,
+  phone: u.phone || null,
+  // doctor info
+  licenseNumber: u.licenseNumber,
+  licenseExpiryDate: u.licenseExpiryDate
+    ? u.licenseExpiryDate.toISOString()
+    : null,
+  createdAt: u.createdAt.toISOString(),
+}));
 
     return res.status(200).json(result);
   } catch (err) {
