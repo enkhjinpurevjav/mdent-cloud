@@ -99,6 +99,23 @@ function DoctorForm({
           marginBottom: 8,
         }}
       >
+        {/* 1. Овог */}
+        <input
+          name="ovog"
+          placeholder="Овог"
+          value={form.ovog}
+          onChange={handleChange}
+          required
+        />
+        {/* 2. Нэр */}
+        <input
+          name="name"
+          placeholder="Нэр"
+          value={form.name}
+          onChange={handleChange}
+          required
+        />
+        {/* 3. И-мэйл */}
         <input
           name="email"
           type="email"
@@ -107,6 +124,7 @@ function DoctorForm({
           onChange={handleChange}
           required
         />
+        {/* 4. Нууц үг */}
         <input
           name="password"
           type="password"
@@ -115,18 +133,7 @@ function DoctorForm({
           onChange={handleChange}
           required
         />
-        <input
-          name="name"
-          placeholder="Нэр"
-          value={form.name}
-          onChange={handleChange}
-        />
-        <input
-          name="ovog"
-          placeholder="Овог"
-          value={form.ovog}
-          onChange={handleChange}
-        />
+        {/* 5. Салбар сонгох */}
         <select
           name="branchId"
           value={form.branchId}
