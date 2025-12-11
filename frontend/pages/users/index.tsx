@@ -40,8 +40,14 @@ export default function UsersIndexPage() {
           throw new Error((data && data.error) || "Алдаа гарлаа");
         }
 
-        setUsers(data);
-      } catch (err: any) {
+        // sort by id ascending
+setUsers(
+  [...data].sort((a, b) => {
+    if (a.id < b.id) return -1;
+    if (a.id > b.id) return 1;
+    return 0;
+  })
+); catch (err: any) {
         console.error(err);
         setError(err.message || "Сүлжээгээ шалгана уу");
         setUsers([]);
