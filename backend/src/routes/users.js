@@ -6,59 +6,72 @@ const prisma = new PrismaClient();
 const router = Router();
 
 /**
- * GET /api/users?role=DOCTOR
+ * GET /api/users?role=doctor&branchId=1
+ * Supports:
+ * - optional role filter
+ * - optional branchId filter (legacy, on user.branchId)
+ * - returns branches[] (many-to-many DoctorBranch) for all users
  */
 router.get("/", async (req, res) => {
-  const { role } = req.query;
+  const { role, branchId } = req.query as {
+    role?: string;
+    branchId?: string;
+  };
 
   try {
-    // plain JS object
-    const where = {};
+    const where: any = {};
 
     if (role) {
       // role is a string at runtime
-      if (!Object.values(UserRole).includes(role)) {
+      if (!Object.values(UserRole).includes(role as UserRole)) {
         return res.status(400).json({ error: "Invalid role filter" });
       }
       where.role = role;
     }
 
+    if (branchId) {
+      const bidNum = Number(branchId);
+      if (Number.isNaN(bidNum)) {
+        return res.status(400).json({ error: "Invalid branchId filter" });
+      }
+      where.branchId = bidNum;
+    }
+
     const users = await prisma.user.findMany({
-  where,
-  include: {
-    branch: true,
-    doctorBranches: {
-      include: { branch: true },
-    },
-  },
-  orderBy: { id: "asc" },
-});
+      where,
+      include: {
+        branch: true,
+        doctorBranches: {
+          include: { branch: true },
+        },
+      },
+      orderBy: { id: "asc" },
+    });
 
-    // inside router.get("/", async (req, res) => { ... })
-const result = users.map((u) => ({
-  id: u.id,
-  email: u.email,
-  name: u.name,
-  ovog: u.ovog,
-  role: u.role,
-  branchId: u.branchId,
-  branch: u.branch ? { id: u.branch.id, name: u.branch.name } : null,
+    const result = users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      ovog: u.ovog,
+      role: u.role,
+      branchId: u.branchId,
+      branch: u.branch ? { id: u.branch.id, name: u.branch.name } : null,
 
-  // NEW: all branches this doctor is assigned to
-  branches:
-    u.doctorBranches?.map((db) => ({
-      id: db.branch.id,
-      name: db.branch.name,
-    })) ?? [],
+      // all branches this user is assigned to via DoctorBranch
+      branches:
+        u.doctorBranches?.map((db) => ({
+          id: db.branch.id,
+          name: db.branch.name,
+        })) ?? [],
 
-  regNo: u.regNo,
-  phone: u.phone || null,
-  licenseNumber: u.licenseNumber,
-  licenseExpiryDate: u.licenseExpiryDate
-    ? u.licenseExpiryDate.toISOString()
-    : null,
-  createdAt: u.createdAt.toISOString(),
-}));
+      regNo: u.regNo,
+      phone: u.phone || null,
+      licenseNumber: u.licenseNumber,
+      licenseExpiryDate: u.licenseExpiryDate
+        ? u.licenseExpiryDate.toISOString()
+        : null,
+      createdAt: u.createdAt.toISOString(),
+    }));
 
     return res.status(200).json(result);
   } catch (err) {
@@ -69,10 +82,14 @@ const result = users.map((u) => ({
 
 /**
  * POST /api/users
+ * Creates any type of user; still uses legacy single branchId.
+ * For doctors, you can later call PUT /api/users/:id/branches
+ * to assign multiple branches.
  */
 router.post("/", async (req, res) => {
   try {
-    const { email, password, name, ovog, role, branchId } = req.body || {};
+    const { email, password, name, ovog, role, branchId, regNo } =
+      req.body || {};
 
     if (!email || !password || !role) {
       return res
@@ -80,7 +97,7 @@ router.post("/", async (req, res) => {
         .json({ error: "email, password, role are required" });
     }
 
-    if (!Object.values(UserRole).includes(role)) {
+    if (!Object.values(UserRole).includes(role as UserRole)) {
       return res.status(400).json({ error: "Invalid role" });
     }
 
@@ -99,8 +116,14 @@ router.post("/", async (req, res) => {
         ovog: ovog || null,
         role,
         branchId: branchId ? Number(branchId) : null,
+        regNo: regNo || null,
       },
-      include: { branch: true },
+      include: {
+        branch: true,
+        doctorBranches: {
+          include: { branch: true },
+        },
+      },
     });
 
     return res.status(201).json({
@@ -113,7 +136,13 @@ router.post("/", async (req, res) => {
       branch: created.branch
         ? { id: created.branch.id, name: created.branch.name }
         : null,
+      regNo: created.regNo,
       createdAt: created.createdAt.toISOString(),
+      branches:
+        created.doctorBranches?.map((db) => ({
+          id: db.branch.id,
+          name: db.branch.name,
+        })) ?? [],
     });
   } catch (err) {
     console.error("POST /api/users error:", err);
@@ -123,6 +152,9 @@ router.post("/", async (req, res) => {
 
 /**
  * GET /api/users/:id
+ * Returns a single user with:
+ * - legacy branch
+ * - branches[] via DoctorBranch
  */
 router.get("/:id", async (req, res) => {
   const id = Number(req.params.id);
@@ -133,7 +165,12 @@ router.get("/:id", async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id },
-      include: { branch: true },
+      include: {
+        branch: true,
+        doctorBranches: {
+          include: { branch: true },
+        },
+      },
     });
 
     if (!user) {
@@ -148,7 +185,8 @@ router.get("/:id", async (req, res) => {
       role: user.role,
       branchId: user.branchId,
       branch: user.branch
-        ? { id: user.branch.id, name: user.branch.name } : null,
+        ? { id: user.branch.id, name: user.branch.name }
+        : null,
       regNo: user.regNo,
       licenseNumber: user.licenseNumber,
       licenseExpiryDate: user.licenseExpiryDate
@@ -158,6 +196,11 @@ router.get("/:id", async (req, res) => {
       stampImagePath: user.stampImagePath,
       idPhotoPath: user.idPhotoPath,
       createdAt: user.createdAt.toISOString(),
+      branches:
+        user.doctorBranches?.map((db) => ({
+          id: db.branch.id,
+          name: db.branch.name,
+        })) ?? [],
     });
   } catch (err) {
     console.error("GET /api/users/:id error:", err);
@@ -167,6 +210,7 @@ router.get("/:id", async (req, res) => {
 
 /**
  * PUT /api/users/:id
+ * Updates basic fields, still including legacy branchId.
  */
 router.put("/:id", async (req, res) => {
   const id = Number(req.params.id);
@@ -185,7 +229,7 @@ router.put("/:id", async (req, res) => {
       licenseExpiryDate,
     } = req.body || {};
 
-    const data = {};
+    const data: any = {};
 
     if (name !== undefined) data.name = name || null;
     if (ovog !== undefined) data.ovog = ovog || null;
@@ -203,7 +247,12 @@ router.put("/:id", async (req, res) => {
     const updated = await prisma.user.update({
       where: { id },
       data,
-      include: { branch: true },
+      include: {
+        branch: true,
+        doctorBranches: {
+          include: { branch: true },
+        },
+      },
     });
 
     return res.status(200).json({
@@ -214,7 +263,8 @@ router.put("/:id", async (req, res) => {
       role: updated.role,
       branchId: updated.branchId,
       branch: updated.branch
-        ? { id: updated.branch.id, name: updated.branch.name } : null,
+        ? { id: updated.branch.id, name: updated.branch.name }
+        : null,
       regNo: updated.regNo,
       licenseNumber: updated.licenseNumber,
       licenseExpiryDate: updated.licenseExpiryDate
@@ -224,6 +274,11 @@ router.put("/:id", async (req, res) => {
       stampImagePath: updated.stampImagePath,
       idPhotoPath: updated.idPhotoPath,
       createdAt: updated.createdAt.toISOString(),
+      branches:
+        updated.doctorBranches?.map((db) => ({
+          id: db.branch.id,
+          name: db.branch.name,
+        })) ?? [],
     });
   } catch (err) {
     console.error("PUT /api/users/:id error:", err);
@@ -231,28 +286,101 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// backend/src/routes/users.js
-router.get("/", async (req, res) => {
-  const { role, branchId } = req.query;
-  const where = {};
+/**
+ * PUT /api/users/:id/branches
+ * Sets all branches for a doctor via DoctorBranch join table.
+ */
+router.put("/:id/branches", async (req, res) => {
+  const userId = Number(req.params.id);
+  if (!userId || Number.isNaN(userId)) {
+    return res.status(400).json({ error: "Invalid user id" });
+  }
 
-  if (role) {
-    if (!Object.values(UserRole).includes(role)) {
-      return res.status(400).json({ error: "Invalid role filter" });
+  const { branchIds } = req.body || {};
+
+  if (!Array.isArray(branchIds)) {
+    return res
+      .status(400)
+      .json({ error: "branchIds must be an array of numbers" });
+  }
+
+  const uniqueBranchIds = [
+    ...new Set(
+      branchIds
+        .map((b) => Number(b))
+        .filter((b) => !Number.isNaN(b))
+    ),
+  ];
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
     }
-    where.role = role;
-  }
 
-  if (branchId) {
-    where.branchId = Number(branchId);
-  }
+    if (user.role !== UserRole.doctor) {
+      return res
+        .status(400)
+        .json({ error: "Only doctors can have multiple branches" });
+    }
 
-  const users = await prisma.user.findMany({
-    where,
-    include: { branch: true },
-    orderBy: { id: "desc" },
-  });
-  // ...
+    // validate branches
+    if (uniqueBranchIds.length > 0) {
+      const existingBranches = await prisma.branch.findMany({
+        where: { id: { in: uniqueBranchIds } },
+        select: { id: true },
+      });
+      const existingIds = new Set(existingBranches.map((b) => b.id));
+      const invalidIds = uniqueBranchIds.filter((id) => !existingIds.has(id));
+      if (invalidIds.length > 0) {
+        return res.status(400).json({
+          error: `Invalid branchIds: ${invalidIds.join(", ")}`,
+        });
+      }
+    }
+
+    await prisma.$transaction([
+      prisma.doctorBranch.deleteMany({
+        where: { doctorId: userId },
+      }),
+      ...(uniqueBranchIds.length
+        ? [
+            prisma.doctorBranch.createMany({
+              data: uniqueBranchIds.map((branchId) => ({
+                doctorId: userId,
+                branchId,
+              })),
+            }),
+          ]
+        : []),
+    ]);
+
+    const updated = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        doctorBranches: {
+          include: { branch: true },
+        },
+      },
+    });
+
+    return res.json({
+      id: updated!.id,
+      role: updated!.role,
+      branches:
+        updated!.doctorBranches?.map((db) => ({
+          id: db.branch.id,
+          name: db.branch.name,
+        })) ?? [],
+    });
+  } catch (err) {
+    console.error("PUT /api/users/:id/branches error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 export default router;
