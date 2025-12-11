@@ -91,47 +91,56 @@ function DoctorForm({
   return (
     <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
       <h2>Шинэ эмч бүртгэх</h2>
-      <input
-        name="email"
-        type="email"
-        placeholder="И-мэйл"
-        value={form.email}
-        onChange={handleChange}
-        required
-      />
-      <input
-        name="password"
-        type="password"
-        placeholder="Нууц үг"
-        value={form.password}
-        onChange={handleChange}
-        required
-      />
-      <input
-        name="name"
-        placeholder="Нэр"
-        value={form.name}
-        onChange={handleChange}
-      />
-      <input
-        name="ovog"
-        placeholder="Овог"
-        value={form.ovog}
-        onChange={handleChange}
-      />
-      <select
-        name="branchId"
-        value={form.branchId}
-        onChange={handleChange}
-        required
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 8,
+          marginBottom: 8,
+        }}
       >
-        <option value="">Салбар сонгох</option>
-        {branches.map((b) => (
-          <option key={b.id} value={b.id}>
-            {b.name}
-          </option>
-        ))}
-      </select>
+        <input
+          name="email"
+          type="email"
+          placeholder="И-мэйл"
+          value={form.email}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="password"
+          type="password"
+          placeholder="Нууц үг"
+          value={form.password}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="name"
+          placeholder="Нэр"
+          value={form.name}
+          onChange={handleChange}
+        />
+        <input
+          name="ovog"
+          placeholder="Овог"
+          value={form.ovog}
+          onChange={handleChange}
+        />
+        <select
+          name="branchId"
+          value={form.branchId}
+          onChange={handleChange}
+          required
+        >
+          <option value="">Салбар сонгох</option>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <button type="submit" disabled={submitting}>
         {submitting ? "Бүртгэж байна..." : "Бүртгэх"}
@@ -192,8 +201,18 @@ export default function DoctorsPage() {
   }, []);
 
   return (
-    <div style={{ padding: 24 }}>
+    <main
+      style={{
+        maxWidth: 700,
+        margin: "40px auto",
+        padding: 24,
+        fontFamily: "sans-serif",
+      }}
+    >
       <h1>Эмч нар</h1>
+      <p style={{ color: "#555", marginBottom: 16 }}>
+        Эмч нарыг бүртгэх, салбарт хуваарилах, профайлыг харах.
+      </p>
 
       <UsersTabs />
 
@@ -209,40 +228,170 @@ export default function DoctorsPage() {
 
       {!loading && !error && (
         <table
-          style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            marginTop: 20,
+            fontSize: 14,
+          }}
         >
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Нэр</th>
-              <th>Овог</th>
-              <th>И-мэйл</th>
-              <th>Салбар</th>
-              <th>Бүртгэгдсэн</th>
-              <th>Дэлгэрэнгүй</th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                ID
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Овог
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Нэр
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                РД
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                И-мэйл
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Салбар
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Бүртгэгдсэн
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Дэлгэрэнгүй
+              </th>
             </tr>
           </thead>
           <tbody>
             {doctors.map((d) => (
               <tr key={d.id}>
-                <td>{d.id}</td>
-                <td>{d.name || "-"}</td>
-                <td>{d.ovog || "-"}</td>
-                <td>{d.email}</td>
-                <td>{d.branch ? d.branch.name : "-"}</td>
-                <td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {d.id}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {d.ovog || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {d.name || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {d.regNo || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {d.email}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {d.branch ? d.branch.name : "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
                   {d.createdAt
                     ? new Date(d.createdAt).toLocaleString("mn-MN")
                     : ""}
                 </td>
-                <td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
                   <a href={`/users/doctors/${d.id}`}>Профайл</a>
                 </td>
               </tr>
             ))}
             {doctors.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ textAlign: "center", color: "#888" }}>
+                <td
+                  colSpan={8}
+                  style={{
+                    textAlign: "center",
+                    color: "#888",
+                    padding: 12,
+                  }}
+                >
                   Өгөгдөл алга
                 </td>
               </tr>
@@ -250,6 +399,6 @@ export default function DoctorsPage() {
           </tbody>
         </table>
       )}
-    </div>
+    </main>
   );
 }
