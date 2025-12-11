@@ -24,6 +24,15 @@ type Doctor = {
   branches?: Branch[];
 };
 
+type DoctorScheduleDay = {
+  id: number;
+  date: string; // "YYYY-MM-DD"
+  branch: Branch;
+  startTime: string; // "HH:MM"
+  endTime: string;   // "HH:MM"
+  note?: string | null;
+};
+
 export default function DoctorProfilePage() {
   const router = useRouter();
   const { id } = router.query;
@@ -48,6 +57,11 @@ export default function DoctorProfilePage() {
   // selected multiple branches
   const [selectedBranchIds, setSelectedBranchIds] = useState<number[]>([]);
 
+  // schedule state
+  const [schedule, setSchedule] = useState<DoctorScheduleDay[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(true);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -62,7 +76,7 @@ export default function DoctorProfilePage() {
     );
   };
 
-  // Load branches + doctor
+  // Load branches + doctor + schedule
   useEffect(() => {
     if (!id) return;
 
@@ -115,7 +129,41 @@ export default function DoctorProfilePage() {
       }
     }
 
+    async function loadSchedule() {
+      setScheduleLoading(true);
+      setScheduleError(null);
+
+      try {
+        const today = new Date();
+        const from = today.toISOString().slice(0, 10);
+        const toDate = new Date(today);
+        toDate.setDate(today.getDate() + 14);
+        const to = toDate.toISOString().slice(0, 10);
+
+        const res = await fetch(
+          `/api/users/${id}/schedule?from=${from}&to=${to}`
+        );
+        const data = await res.json();
+
+        if (res.ok && Array.isArray(data)) {
+          setSchedule(data);
+        } else {
+          setScheduleError(
+            data && data.error
+              ? data.error
+              : "Ажлын хуваарийг ачааллаж чадсангүй"
+          );
+        }
+      } catch (err) {
+        console.error(err);
+        setScheduleError("Сүлжээгээ шалгана уу");
+      } finally {
+        setScheduleLoading(false);
+      }
+    }
+
     load();
+    loadSchedule();
   }, [id]);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -291,7 +339,7 @@ export default function DoctorProfilePage() {
             placeholder="Овог"
           />
         </label>
-        
+
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           Нэр
           <input
@@ -301,8 +349,6 @@ export default function DoctorProfilePage() {
             placeholder="Нэр"
           />
         </label>
-
-        
 
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           И-мэйл
@@ -437,6 +483,119 @@ export default function DoctorProfilePage() {
         >
           {savingBranches ? "Салбар хадгалж байна..." : "Салбар хадгалах"}
         </button>
+      </section>
+
+      {/* Work schedule (next 14 days) */}
+      <section style={{ marginTop: 32, maxWidth: 800 }}>
+        <h2>Дараагийн 14 хоногийн ажлын хуваарь</h2>
+        <p style={{ color: "#555", marginBottom: 8 }}>
+          Аль салбарт, хэдэн цагаас хэдэн цаг хүртэл ажиллахыг харуулна.
+        </p>
+
+        {scheduleLoading && <div>Ажлын хуваарь ачааллаж байна...</div>}
+
+        {!scheduleLoading && scheduleError && (
+          <div style={{ color: "red" }}>{scheduleError}</div>
+        )}
+
+        {!scheduleLoading && !scheduleError && schedule.length === 0 && (
+          <div style={{ color: "#888" }}>Төлөвлөсөн ажлын хуваарь алга.</div>
+        )}
+
+        {!scheduleLoading && !scheduleError && schedule.length > 0 && (
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              marginTop: 8,
+              fontSize: 14,
+            }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 8,
+                  }}
+                >
+                  Огноо
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 8,
+                  }}
+                >
+                  Салбар
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 8,
+                  }}
+                >
+                  Цаг
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 8,
+                  }}
+                >
+                  Тэмдэглэл
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {schedule.map((s) => (
+                <tr key={s.id}>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {new Date(s.date).toLocaleDateString("mn-MN", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      weekday: "short",
+                    })}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {s.branch?.name || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {s.startTime} - {s.endTime}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {s.note || "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
     </div>
   );
