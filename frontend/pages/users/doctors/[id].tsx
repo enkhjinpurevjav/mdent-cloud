@@ -12,7 +12,7 @@ type Doctor = {
   name?: string;
   ovog?: string | null;
   role: string;
-  branchId?: number | null;      // legacy single branch
+  branchId?: number | null; // legacy single branch
   regNo?: string | null;
   licenseNumber?: string | null;
   licenseExpiryDate?: string | null; // ISO string
@@ -20,7 +20,7 @@ type Doctor = {
   stampImagePath?: string | null;
   idPhotoPath?: string | null;
 
-  // NEW: multiple branches
+  // multiple branches
   branches?: Branch[];
 };
 
@@ -45,7 +45,7 @@ export default function DoctorProfilePage() {
     licenseExpiryDate: "",
   });
 
-  // NEW: selected multiple branches
+  // selected multiple branches
   const [selectedBranchIds, setSelectedBranchIds] = useState<number[]>([]);
 
   const handleChange = (
@@ -223,6 +223,11 @@ export default function DoctorProfilePage() {
     );
   }
 
+  const headerName =
+    doctor.ovog || doctor.name
+      ? `${doctor.ovog || ""} ${doctor.name || ""}`.trim()
+      : doctor.email;
+
   return (
     <div style={{ padding: 24 }}>
       <button
@@ -238,9 +243,9 @@ export default function DoctorProfilePage() {
         &larr; Буцах
       </button>
 
-      <h1>Эмч: {doctor.name || doctor.email}</h1>
+      <h1>Эмч: {headerName}</h1>
 
-      {/* Basic info form (unchanged logic) */}
+      {/* Basic info form */}
       <form
         onSubmit={handleSave}
         style={{
@@ -251,6 +256,33 @@ export default function DoctorProfilePage() {
           maxWidth: 500,
         }}
       >
+        {/* Doctor ID photo */}
+        {doctor.idPhotoPath && (
+          <div
+            style={{
+              marginBottom: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <span style={{ fontWeight: 500 }}>
+              Иргэний үнэмлэхийн зураг
+            </span>
+            <img
+              src={doctor.idPhotoPath}
+              alt="Эмчийн ID зураг"
+              style={{
+                width: 160,
+                height: 200,
+                objectFit: "cover",
+                borderRadius: 8,
+                border: "1px solid #ddd",
+              }}
+            />
+          </div>
+        )}
+
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           Нэр
           <input
@@ -282,7 +314,7 @@ export default function DoctorProfilePage() {
           />
         </label>
 
-        {/* Legacy single branch select (optional, you can remove later) */}
+        {/* Legacy single branch select */}
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           Үндсэн салбар
           <select
