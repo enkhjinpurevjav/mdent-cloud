@@ -1,3 +1,8 @@
+// ==========================================================
+// M DENT SOFTWARE — COMPLETE OVERVIEW → PRISMA SCHEMA
+// Mon Family Dental Clinic System
+// ==========================================================
+
 // DATASOURCE
 datasource db {
   provider = "postgresql"
@@ -9,7 +14,9 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ==========================================================
 // ENUMS
+// ==========================================================
 enum UserRole {
   admin
   doctor
@@ -27,33 +34,54 @@ enum ServiceCategory {
   CHILDRENS
 }
 
-// BRANCHES
+// ==========================================================
+// BRANCHES (Multi-Branch Support)
+// ==========================================================
 model Branch {
   id        Int              @id @default(autoincrement())
   name      String
   address   String?
   createdAt DateTime         @default(now())
-  users     User[]
-  patients  Patient[]        // direct branch-to-patient relation
 
-  // NEW: back‑relation to DoctorSchedule
+  // Users directly assigned to this branch (legacy single-branch link)
+  users     User[]
+
+  // Patients registered under this branch
+  patients  Patient[]
+
+  // Doctor schedules per branch
   schedules DoctorSchedule[]
 
-  // NEW: back‑relation to ServiceBranch (which links services to branches)
+  // Services available in this branch (many-to-many via ServiceBranch)
   serviceBranches ServiceBranch[]
+
+  // NEW: Doctors assigned to this branch (many-to-many via DoctorBranch)
+  doctorBranches DoctorBranch[]
 }
 
+// ==========================================================
 // USERS (Doctors, Nurses, Admin, etc.)
+// ==========================================================
 model User {
   id                 Int              @id @default(autoincrement())
   email              String           @unique
   password           String
-  ovog               String?          // father’s name for all users
+
+  /// Father’s name for all users
+  ovog               String?
+
+  /// Given name
   name               String?
+
   role               UserRole         @default(receptionist)
+
+  /// Legacy single-branch assignment
   branchId           Int?
-  createdAt          DateTime         @default(now())
   branch             Branch?          @relation(fields: [branchId], references: [id])
+
+  createdAt          DateTime         @default(now())
+
+  // Encounters where this user is the doctor
   encounters         Encounter[]      @relation("DoctorEncounters")
 
   // Contact
@@ -67,41 +95,75 @@ model User {
   stampImagePath     String?
   idPhotoPath        String?
 
-  // back‑relation to DoctorSchedule
+  // Doctor schedules across branches
   schedules          DoctorSchedule[]
+
+  // NEW: Many-to-many doctor-to-branch assignment
+  doctorBranches     DoctorBranch[]
 }
 
-// PATIENTS (single, original model; back relation added)
+// Join table for many-to-many between Doctor (User) and Branch
+model DoctorBranch {
+  id        Int    @id @default(autoincrement())
+
+  doctorId  Int
+  branchId  Int
+
+  doctor    User   @relation(fields: [doctorId], references: [id])
+  branch    Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([doctorId, branchId])
+}
+
+// ==========================================================
+// PATIENTS & DIGITAL HISTORY BOOK
+// ==========================================================
 model Patient {
   id             Int          @id @default(autoincrement())
+
+  /// Mongolian citizen ID (РД), unique per patient
   regNo          String       @unique
+
+  /// Father’s name
   ovog           String?
+
+  /// Given name
   name           String
+
   gender         String?
   birthDate      DateTime?
+
+  /// Phone numbers are non-unique (one parent can register multiple children)
   phone          String?
+
   address        String?
   bloodType      String?
   citizenship    String?      @default("Mongolian")
   emergencyPhone String?
   notes          String?
+
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
+  /// Primary branch where the patient is registered
   branchId       Int
   branch         Branch       @relation(fields: [branchId], references: [id])
 
+  /// Each patient has exactly one digital history book
   patientBook    PatientBook?
 
   // Back-relation to appointments
   appointments   Appointment[]
 }
 
-// Appointment model (define once)
+// Appointment model
 model Appointment {
   id          Int       @id @default(autoincrement())
+
   patientId   Int
   doctorId    Int?
   branchId    Int
+
   scheduledAt DateTime
   status      String    @default("booked")
   notes       String?
@@ -114,9 +176,14 @@ model Appointment {
 // DIGITAL HISTORY BOOK
 model PatientBook {
   id         Int         @id @default(autoincrement())
+
+  /// Human-friendly book number (e.g., "MF-000123")
   bookNumber String      @unique
+
   patientId  Int         @unique
   patient    Patient     @relation(fields: [patientId], references: [id])
+
+  // All encounters (visits) recorded in this book
   encounters Encounter[]
 }
 
@@ -129,20 +196,35 @@ model Encounter {
 
   patientBook        PatientBook   @relation(fields: [patientBookId], references: [id])
   doctor             User          @relation("DoctorEncounters", fields: [doctorId], references: [id])
+
+  // Per-tooth charting for this encounter
   chartTeeth         ChartTooth[]
+
+  // Generated invoice for this encounter
   invoice            Invoice?
+
+  // Attached media (photos, X-rays, docs)
   media              Media[]
+
+  // Services performed in this encounter
   encounterServices  EncounterService[]
 }
 
-// CHARTING
+// ==========================================================
+// CHARTING (Tooth Records)
+// ==========================================================
 model ChartTooth {
   id          Int        @id @default(autoincrement())
+
+  /// FDI tooth code (e.g. "11", "26")
   toothCode   String
+
   status      String?
   notes       String?
+
   encounterId Int
   encounter   Encounter  @relation(fields: [encounterId], references: [id])
+
   chartNotes  ChartNote[]
 }
 
@@ -154,7 +236,9 @@ model ChartNote {
   chartTooth   ChartTooth @relation(fields: [chartToothId], references: [id])
 }
 
+// ==========================================================
 // SERVICES, PROCEDURES, DIAGNOSES
+// ==========================================================
 model Service {
   id                Int              @id @default(autoincrement())
 
@@ -166,8 +250,7 @@ model Service {
   category          ServiceCategory
   name              String
 
-  /// Price in ₮ (integer is usually safer for money, but Float is kept
-  /// here to match your existing schema)
+  /// Price in ₮ (integer is usually safer, but Float kept to match existing)
   price             Float
 
   /// Active/inactive flag (true = active, false = inactive)
@@ -175,12 +258,14 @@ model Service {
 
   description       String?
 
+  // Link to encounters that used this service
   encounterServices EncounterService[]
 
   /// Many-to-many to Branch through ServiceBranch
   serviceBranches   ServiceBranch[]
 }
 
+// Many-to-many link: which services are available at which branches
 model ServiceBranch {
   serviceId Int
   branchId  Int
@@ -191,16 +276,21 @@ model ServiceBranch {
   @@id([serviceId, branchId])
 }
 
+// Service usage in an encounter (line-like, but tied directly to Service)
 model EncounterService {
   id           Int       @id @default(autoincrement())
-  encounter    Encounter @relation(fields: [encounterId], references: [id])
+
   encounterId  Int
-  service      Service   @relation(fields: [serviceId], references: [id])
   serviceId    Int
+
+  encounter    Encounter @relation(fields: [encounterId], references: [id])
+  service      Service   @relation(fields: [serviceId], references: [id])
+
   quantity     Int       @default(1)
   price        Float
 }
 
+// Legacy or additional procedure catalog (if needed alongside Service)
 model Procedure {
   code         String       @id
   name         String
@@ -213,13 +303,16 @@ model Diagnosis {
   description String
 }
 
-// INVOICES & PAYMENTS
+// ==========================================================
+// INVOICES, PAYMENTS, E-BARIMT
+// ==========================================================
 model Invoice {
   id             Int           @id @default(autoincrement())
   encounterId    Int           @unique
   totalAmount    Float
   status         String
   createdAt      DateTime      @default(now())
+
   encounter      Encounter     @relation(fields: [encounterId], references: [id])
   invoiceItems   InvoiceItem[]
   payment        Payment?
@@ -232,6 +325,7 @@ model InvoiceItem {
   procedureId String
   price       Float
   quantity    Int
+
   invoice     Invoice   @relation(fields: [invoiceId], references: [id])
   procedure   Procedure @relation(fields: [procedureId], references: [code])
 }
@@ -243,6 +337,7 @@ model Payment {
   method    String
   qpayTxnId String?
   timestamp DateTime @default(now())
+
   invoice   Invoice  @relation(fields: [invoiceId], references: [id])
 }
 
@@ -251,26 +346,40 @@ model EBarimtReceipt {
   invoiceId     Int      @unique
   receiptNumber String   @unique
   timestamp     DateTime @default(now())
+
   invoice       Invoice  @relation(fields: [invoiceId], references: [id])
 }
 
-// MEDIA (photos, files, etc.)
+// ==========================================================
+// MEDIA (Photos, Files, X-rays, etc.)
+// ==========================================================
 model Media {
   id          Int      @id @default(autoincrement())
   encounterId Int
   filePath    String
   toothCode   String?
   type        String
+
   encounter   Encounter @relation(fields: [encounterId], references: [id])
 }
 
+// ==========================================================
+// DOCTOR SCHEDULES
+// ==========================================================
 model DoctorSchedule {
   id        Int      @id @default(autoincrement())
   doctorId  Int
   branchId  Int
-  weekday   Int      // 1=Mon ... 7=Sun
-  startTime String   // "09:00"
-  endTime   String   // "17:00"
+
+  /// 1 = Monday ... 7 = Sunday
+  weekday   Int
+
+  /// e.g. "09:00"
+  startTime String
+
+  /// e.g. "17:00"
+  endTime   String
+
   doctor    User     @relation(fields: [doctorId], references: [id])
   branch    Branch   @relation(fields: [branchId], references: [id])
 }
