@@ -21,157 +21,25 @@ type Doctor = {
   createdAt?: string;
 };
 
-function DoctorForm({
-  branches,
-  onSuccess,
-}: {
-  branches: Branch[];
-  onSuccess: (d: Doctor) => void;
-}) {
-  const [form, setForm] = useState({
-    email: "",
-    password: "",
-    name: "",
-    ovog: "",
-    regNo: "",
-    branchId: "",
-  });
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+type Branch = {
+  id: number;
+  name: string;
+};
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => setForm({ ...form, [e.target.name]: e.target.value });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setSubmitting(true);
-
-    try {
-      const payload: any = {
-        email: form.email,
-        password: form.password,
-        name: form.name || undefined,
-        ovog: form.ovog || undefined,
-        role: "doctor",
-        branchId: form.branchId ? Number(form.branchId) : undefined,
-      };
-
-      // only send regNo if filled in
-      if (form.regNo.trim()) {
-        payload.regNo = form.regNo.trim();
-      }
-
-      const res = await fetch("/api/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-
-      if (res.ok) {
-        onSuccess(data);
-        setForm({
-          email: "",
-          password: "",
-          name: "",
-          ovog: "",
-          regNo: "",
-          branchId: "",
-        });
-      } else {
-        setError((data && data.error) || "Алдаа гарлаа");
-      }
-    } catch {
-      setError("Сүлжээгээ шалгана уу");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
-      <h2>Шинэ эмч бүртгэх</h2>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: 8,
-          marginBottom: 8,
-        }}
-      >
-        {/* 1. Овог */}
-        <input
-          name="ovog"
-          placeholder="Овог"
-          value={form.ovog}
-          onChange={handleChange}
-          required
-        />
-        {/* 2. Нэр */}
-        <input
-          name="name"
-          placeholder="Нэр"
-          value={form.name}
-          onChange={handleChange}
-          required
-        />
-        {/* 3. РД */}
-        <input
-          name="regNo"
-          placeholder="РД"
-          value={form.regNo}
-          onChange={handleChange}
-        />
-        {/* 4. И-мэйл */}
-        <input
-          name="email"
-          type="email"
-          placeholder="И-мэйл"
-          value={form.email}
-          onChange={handleChange}
-          required
-        />
-        {/* 5. Нууц үг */}
-        <input
-          name="password"
-          type="password"
-          placeholder="Нууц үг"
-          value={form.password}
-          onChange={handleChange}
-          required
-        />
-        {/* 6. Салбар сонгох */}
-        <select
-          name="branchId"
-          value={form.branchId}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Салбар сонгох</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <button type="submit" disabled={submitting}>
-        {submitting ? "Бүртгэж байна..." : "Бүртгэх"}
-      </button>
-
-      {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
-    </form>
-  );
-}
+type Doctor = {
+  id: number;
+  email: string;
+  name?: string | null;
+  ovog?: string | null;
+  role: string;
+  branchId?: number | null;
+  branch?: Branch | null;
+  branches?: Branch[]; // NEW: all assigned branches
+  regNo?: string | null;
+  licenseNumber?: string | null;
+  licenseExpiryDate?: string | null;
+  createdAt?: string;
+};
 
 export default function DoctorsPage() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
