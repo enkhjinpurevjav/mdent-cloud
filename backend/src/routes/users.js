@@ -24,10 +24,15 @@ router.get("/", async (req, res) => {
     }
 
     const users = await prisma.user.findMany({
-      where,
+  where,
+  include: {
+    branch: true,
+    doctorBranches: {
       include: { branch: true },
-      orderBy: { id: "desc" },
-    });
+    },
+  },
+  orderBy: { id: "asc" },
+});
 
     // inside router.get("/", async (req, res) => { ... })
 const result = users.map((u) => ({
@@ -38,10 +43,16 @@ const result = users.map((u) => ({
   role: u.role,
   branchId: u.branchId,
   branch: u.branch ? { id: u.branch.id, name: u.branch.name } : null,
-  // contact + identifiers
+
+  // NEW: all branches this doctor is assigned to
+  branches:
+    u.doctorBranches?.map((db) => ({
+      id: db.branch.id,
+      name: db.branch.name,
+    })) ?? [],
+
   regNo: u.regNo,
   phone: u.phone || null,
-  // doctor info
   licenseNumber: u.licenseNumber,
   licenseExpiryDate: u.licenseExpiryDate
     ? u.licenseExpiryDate.toISOString()
