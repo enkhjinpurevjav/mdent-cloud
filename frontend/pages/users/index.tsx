@@ -8,22 +8,79 @@ export default function UsersIndexPage() {
         Ажилтнуудыг ангиллаар нь харах.
       </p>
 
-      <nav>
-        <ul style={{ listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-          <li>
-            <Link href="/users/doctors">Эмч</Link>
-          </li>
-          <li>
-            <Link href="/users/reception">Ресепшн</Link>
-          </li>
-          <li>
-            <Link href="/users/nurses">Сувилагч</Link>
-          </li>
-          <li>
-            <Link href="/users/staff">Бусад ажилтан</Link>
-          </li>
-        </ul>
-      </nav>
+   <nav>
+  <ul
+    style={{
+      listStyle: "none",
+      padding: 0,
+      margin: "0 0 16px 0",
+      display: "flex",
+      gap: 8,
+      borderBottom: "1px solid #ddd",
+    }}
+  >
+    <li>
+      <Link href="/users/doctors" legacyBehavior>
+        <a
+          style={{
+            display: "inline-block",
+            padding: "8px 16px",
+            textDecoration: "none",
+            color: "#2563eb",
+            borderBottom: "3px solid transparent",
+          }}
+        >
+          Эмч
+        </a>
+      </Link>
+    </li>
+    <li>
+      <Link href="/users/reception" legacyBehavior>
+        <a
+          style={{
+            display: "inline-block",
+            padding: "8px 16px",
+            textDecoration: "none",
+            color: "#2563eb",
+            borderBottom: "3px solid transparent",
+          }}
+        >
+          Ресепшн
+        </a>
+      </Link>
+    </li>
+    <li>
+      <Link href="/users/nurses" legacyBehavior>
+        <a
+          style={{
+            display: "inline-block",
+            padding: "8px 16px",
+            textDecoration: "none",
+            color: "#2563eb",
+            borderBottom: "3px solid transparent",
+          }}
+        >
+          Сувилагч
+        </a>
+      </Link>
+    </li>
+    <li>
+      <Link href="/users/staff" legacyBehavior>
+        <a
+          style={{
+            display: "inline-block",
+            padding: "8px 16px",
+            textDecoration: "none",
+            color: "#2563eb",
+            borderBottom: "3px solid transparent",
+          }}
+        >
+          Бусад ажилтан
+        </a>
+      </Link>
+    </li>
+  </ul>
+</nav>
     </main>
   );
 }
