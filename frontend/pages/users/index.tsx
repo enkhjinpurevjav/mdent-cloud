@@ -41,13 +41,14 @@ export default function UsersIndexPage() {
         }
 
         // sort by id ascending
-setUsers(
-  [...data].sort((a, b) => {
-    if (a.id < b.id) return -1;
-    if (a.id > b.id) return 1;
-    return 0;
-  })
-); catch (err: any) {
+        setUsers(
+          [...data].sort((a, b) => {
+            if (a.id < b.id) return -1;
+            if (a.id > b.id) return 1;
+            return 0;
+          })
+        );
+      } catch (err: any) {
         console.error(err);
         setError(err.message || "Сүлжээгээ шалгана уу");
         setUsers([]);
