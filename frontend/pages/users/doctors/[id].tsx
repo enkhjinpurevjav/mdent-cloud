@@ -1,24 +1,27 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 
+type Branch = {
+  id: number;
+  name: string;
+};
+
 type Doctor = {
   id: number;
   email: string;
   name?: string;
   ovog?: string | null;
   role: string;
-  branchId?: number | null;
+  branchId?: number | null;      // legacy single branch
   regNo?: string | null;
   licenseNumber?: string | null;
   licenseExpiryDate?: string | null; // ISO string
   signatureImagePath?: string | null;
   stampImagePath?: string | null;
   idPhotoPath?: string | null;
-};
 
-type Branch = {
-  id: number;
-  name: string;
+  // NEW: multiple branches
+  branches?: Branch[];
 };
 
 export default function DoctorProfilePage() {
@@ -29,6 +32,7 @@ export default function DoctorProfilePage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingBranches, setSavingBranches] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
@@ -41,10 +45,21 @@ export default function DoctorProfilePage() {
     licenseExpiryDate: "",
   });
 
+  // NEW: selected multiple branches
+  const [selectedBranchIds, setSelectedBranchIds] = useState<number[]>([]);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  };
+
+  const toggleBranch = (branchId: number) => {
+    setSelectedBranchIds((prev) =>
+      prev.includes(branchId)
+        ? prev.filter((id) => id !== branchId)
+        : [...prev, branchId]
+    );
   };
 
   // Load branches + doctor
@@ -73,19 +88,24 @@ export default function DoctorProfilePage() {
           return;
         }
 
-        setDoctor(dData);
+        const doc: Doctor = dData;
+        setDoctor(doc);
 
         setForm({
-          name: dData.name || "",
-          ovog: dData.ovog || "",
-          email: dData.email || "",
-          branchId: dData.branchId ? String(dData.branchId) : "",
-          regNo: dData.regNo || "",
-          licenseNumber: dData.licenseNumber || "",
-          licenseExpiryDate: dData.licenseExpiryDate
-            ? dData.licenseExpiryDate.slice(0, 10)
+          name: doc.name || "",
+          ovog: doc.ovog || "",
+          email: doc.email || "",
+          branchId: doc.branchId ? String(doc.branchId) : "",
+          regNo: doc.regNo || "",
+          licenseNumber: doc.licenseNumber || "",
+          licenseExpiryDate: doc.licenseExpiryDate
+            ? doc.licenseExpiryDate.slice(0, 10)
             : "",
         });
+
+        // initialize multi-branch selection from doctor.branches
+        const initialBranchIds = (doc.branches || []).map((b) => b.id);
+        setSelectedBranchIds(initialBranchIds);
 
         setLoading(false);
       } catch (err) {
@@ -110,7 +130,7 @@ export default function DoctorProfilePage() {
         name: form.name || null,
         ovog: form.ovog || null,
         email: form.email || null,
-        branchId: form.branchId ? Number(form.branchId) : null,
+        branchId: form.branchId ? Number(form.branchId) : null, // legacy single branch
         regNo: form.regNo || null,
         licenseNumber: form.licenseNumber || null,
         licenseExpiryDate: form.licenseExpiryDate || null, // yyyy-mm-dd
@@ -139,6 +159,45 @@ export default function DoctorProfilePage() {
     }
   };
 
+  const handleSaveBranches = async () => {
+    if (!id) return;
+    setSavingBranches(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/users/${id}/branches`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branchIds: selectedBranchIds }),
+      });
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok) {
+        setError(data?.error || "Салбар хадгалах үед алдаа гарлаа");
+        setSavingBranches(false);
+        return;
+      }
+
+      // update doctor.branches from response if provided
+      if (data && Array.isArray(data.branches)) {
+        setDoctor((prev) =>
+          prev ? { ...prev, branches: data.branches } : prev
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Сүлжээгээ шалгана уу");
+    } finally {
+      setSavingBranches(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ padding: 24 }}>
@@ -147,7 +206,7 @@ export default function DoctorProfilePage() {
     );
   }
 
-  if (error) {
+  if (error && !doctor) {
     return (
       <div style={{ padding: 24 }}>
         <h1>Эмчийн мэдээлэл</h1>
@@ -181,6 +240,7 @@ export default function DoctorProfilePage() {
 
       <h1>Эмчийн профайл: {doctor.name || doctor.email}</h1>
 
+      {/* Basic info form (unchanged logic) */}
       <form
         onSubmit={handleSave}
         style={{
@@ -222,8 +282,9 @@ export default function DoctorProfilePage() {
           />
         </label>
 
+        {/* Legacy single branch select (optional, you can remove later) */}
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          Салбар
+          Гол салбар (legacy)
           <select
             name="branchId"
             value={form.branchId}
@@ -268,8 +329,6 @@ export default function DoctorProfilePage() {
           />
         </label>
 
-        {/* Future: file upload fields for signatureImagePath, stampImagePath, idPhotoPath */}
-
         <button
           type="submit"
           disabled={saving}
@@ -287,11 +346,65 @@ export default function DoctorProfilePage() {
         </button>
 
         {error && (
-          <div style={{ color: "red", marginTop: 8 }}>
-            {error}
-          </div>
+          <div style={{ color: "red", marginTop: 8 }}>{error}</div>
         )}
       </form>
+
+      {/* Multi-branch assignment section */}
+      <section style={{ marginTop: 32, maxWidth: 500 }}>
+        <h2>Салбарын тохиргоо</h2>
+        <p style={{ color: "#555", marginBottom: 8 }}>
+          Энэ эмч аль салбаруудад ажиллахыг доороос сонгоно уу.
+        </p>
+
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            marginBottom: 8,
+          }}
+        >
+          {branches.map((b) => (
+            <label
+              key={b.id}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                border: "1px solid #ddd",
+                borderRadius: 4,
+                padding: "4px 8px",
+                fontSize: 13,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selectedBranchIds.includes(b.id)}
+                onChange={() => toggleBranch(b.id)}
+              />
+              {b.name}
+            </label>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleSaveBranches}
+          disabled={savingBranches}
+          style={{
+            marginTop: 4,
+            padding: "8px 16px",
+            borderRadius: 4,
+            border: "none",
+            background: "#059669",
+            color: "white",
+            cursor: "pointer",
+          }}
+        >
+          {savingBranches ? "Салбар хадгалж байна..." : "Салбар хадгалах"}
+        </button>
+      </section>
     </div>
   );
 }
