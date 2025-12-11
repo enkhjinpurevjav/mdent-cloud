@@ -33,6 +33,8 @@ type DoctorScheduleDay = {
   note?: string | null;
 };
 
+type ShiftType = "AM" | "PM" | "WEEKEND_FULL";
+
 export default function DoctorProfilePage() {
   const router = useRouter();
   const { id } = router.query;
@@ -62,6 +64,30 @@ export default function DoctorProfilePage() {
   const [scheduleLoading, setScheduleLoading] = useState(true);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 
+  // schedule editor form state
+  const [scheduleForm, setScheduleForm] = useState<{
+    date: string;
+    branchId: string;
+    shiftType: ShiftType;
+    startTime: string;
+    endTime: string;
+    note: string;
+  }>({
+    date: "",
+    branchId: "",
+    shiftType: "AM",
+    startTime: "09:00",
+    endTime: "15:00",
+    note: "",
+  });
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [scheduleSaveError, setScheduleSaveError] = useState<string | null>(
+    null
+  );
+  const [scheduleSaveSuccess, setScheduleSaveSuccess] = useState<
+    string | null
+  >(null);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -74,6 +100,47 @@ export default function DoctorProfilePage() {
         ? prev.filter((id) => id !== branchId)
         : [...prev, branchId]
     );
+  };
+
+  const handleScheduleFormChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+
+    setScheduleForm((prev) => {
+      const updated = { ...prev, [name]: value };
+
+      // If shiftType changes, update default times depending on weekday/weekend if date is known.
+      if (name === "shiftType") {
+        const shift = value as ShiftType;
+
+        // Determine if chosen date is weekend; fallback to generic defaults if no date yet
+        let isWeekend = false;
+        if (prev.date) {
+          const d = new Date(prev.date);
+          const day = d.getDay(); // 0=Sun, 6=Sat
+          isWeekend = day === 0 || day === 6;
+        }
+
+        if (shift === "AM") {
+          updated.startTime = "09:00";
+          updated.endTime = "15:00";
+        } else if (shift === "PM") {
+          updated.startTime = "15:00";
+          updated.endTime = "21:00";
+        } else if (shift === "WEEKEND_FULL") {
+          // Weekend full-day template
+          updated.startTime = "10:00";
+          updated.endTime = "19:00";
+        }
+
+        // If date is weekend but user picked AM/PM, still allow; backend will enforce clinic hours anyway.
+      }
+
+      // If date changes and shiftType is WEEKEND_FULL, we might adjust to weekend defaults;
+      // but to keep simple and predictable, we don't auto-change on date change.
+      return updated;
+    });
   };
 
   // Load branches + doctor + schedule
@@ -121,6 +188,14 @@ export default function DoctorProfilePage() {
         const initialBranchIds = (doc.branches || []).map((b) => b.id);
         setSelectedBranchIds(initialBranchIds);
 
+        // preselect first assigned branch in schedule form
+        setScheduleForm((prev) => ({
+          ...prev,
+          branchId: initialBranchIds[0]
+            ? String(initialBranchIds[0])
+            : prev.branchId,
+        }));
+
         setLoading(false);
       } catch (err) {
         console.error(err);
@@ -165,6 +240,40 @@ export default function DoctorProfilePage() {
     load();
     loadSchedule();
   }, [id]);
+
+  const reloadSchedule = async () => {
+    if (!id) return;
+    setScheduleLoading(true);
+    setScheduleError(null);
+
+    try {
+      const today = new Date();
+      const from = today.toISOString().slice(0, 10);
+      const toDate = new Date(today);
+      toDate.setDate(today.getDate() + 14);
+      const to = toDate.toISOString().slice(0, 10);
+
+      const res = await fetch(
+        `/api/users/${id}/schedule?from=${from}&to=${to}`
+      );
+      const data = await res.json();
+
+      if (res.ok && Array.isArray(data)) {
+        setSchedule(data);
+      } else {
+        setScheduleError(
+          data && data.error
+            ? data.error
+            : "Ажлын хуваарийг ачааллаж чадсангүй"
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      setScheduleError("Сүлжээгээ шалгана уу");
+    } finally {
+      setScheduleLoading(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -238,11 +347,76 @@ export default function DoctorProfilePage() {
           prev ? { ...prev, branches: data.branches } : prev
         );
       }
+
+      // also sync schedule form branch selector if needed
+      if (data && Array.isArray(data.branches) && data.branches.length > 0) {
+        setScheduleForm((prev) => ({
+          ...prev,
+          branchId: String(data.branches[0].id),
+        }));
+      }
     } catch (err) {
       console.error(err);
       setError("Сүлжээгээ шалгана уу");
     } finally {
       setSavingBranches(false);
+    }
+  };
+
+  const handleSaveSchedule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+
+    setScheduleSaving(true);
+    setScheduleSaveError(null);
+    setScheduleSaveSuccess(null);
+
+    try {
+      if (!scheduleForm.date) {
+        setScheduleSaveError("Огноо сонгоно уу.");
+        setScheduleSaving(false);
+        return;
+      }
+      if (!scheduleForm.branchId) {
+        setScheduleSaveError("Салбар сонгоно уу.");
+        setScheduleSaving(false);
+        return;
+      }
+
+      const payload = {
+        date: scheduleForm.date,
+        branchId: Number(scheduleForm.branchId),
+        startTime: scheduleForm.startTime,
+        endTime: scheduleForm.endTime,
+        note: scheduleForm.note || null,
+      };
+
+      const res = await fetch(`/api/users/${id}/schedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setScheduleSaveError(
+          data?.error || "Ажлын хуваарь хадгалах үед алдаа гарлаа"
+        );
+        setScheduleSaving(false);
+        return;
+      }
+
+      setScheduleSaveSuccess("Амжилттай хадгаллаа.");
+      // refresh 14-day schedule list
+      await reloadSchedule();
+    } catch (err) {
+      console.error(err);
+      setScheduleSaveError("Сүлжээгээ шалгана уу");
+    } finally {
+      setScheduleSaving(false);
+      // Clear success after short delay
+      setTimeout(() => setScheduleSaveSuccess(null), 3000);
     }
   };
 
@@ -275,6 +449,12 @@ export default function DoctorProfilePage() {
     doctor.ovog || doctor.name
       ? `${doctor.ovog || ""} ${doctor.name || ""}`.trim()
       : doctor.email;
+
+  // Only allow selecting branches that this doctor is assigned to
+  const doctorAssignedBranches: Branch[] =
+    doctor.branches && doctor.branches.length > 0
+      ? doctor.branches
+      : branches;
 
   return (
     <div style={{ padding: 24 }}>
@@ -485,6 +665,137 @@ export default function DoctorProfilePage() {
         </button>
       </section>
 
+      {/* Schedule editor form */}
+      <section style={{ marginTop: 32, maxWidth: 600 }}>
+        <h2>Ажлын хуваарь нэмэх / засах</h2>
+        <p style={{ color: "#555", marginBottom: 8 }}>
+          Сонгосон өдөр, салбар, ээлжийн дагуу ажлын хуваарь үүсгэнэ эсвэл засна.
+        </p>
+
+        <form
+          onSubmit={handleSaveSchedule}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            maxWidth: 600,
+          }}
+        >
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            Огноо
+            <input
+              type="date"
+              name="date"
+              value={scheduleForm.date}
+              onChange={handleScheduleFormChange}
+            />
+          </label>
+
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            Салбар
+            <select
+              name="branchId"
+              value={scheduleForm.branchId}
+              onChange={handleScheduleFormChange}
+            >
+              <option value="">Сонгох</option>
+              {doctorAssignedBranches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            Ээлж
+            <select
+              name="shiftType"
+              value={scheduleForm.shiftType}
+              onChange={handleScheduleFormChange}
+            >
+              <option value="AM">Өглөөний ээлж (09:00–15:00)</option>
+              <option value="PM">Оройн ээлж (15:00–21:00)</option>
+              <option value="WEEKEND_FULL">
+                Амралтын өдөр бүтэн (10:00–19:00)
+              </option>
+            </select>
+          </label>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <label
+              style={{ display: "flex", flexDirection: "column", gap: 4 }}
+            >
+              Эхлэх цаг
+              <input
+                type="time"
+                name="startTime"
+                value={scheduleForm.startTime}
+                onChange={handleScheduleFormChange}
+              />
+            </label>
+            <label
+              style={{ display: "flex", flexDirection: "column", gap: 4 }}
+            >
+              Дуусах цаг
+              <input
+                type="time"
+                name="endTime"
+                value={scheduleForm.endTime}
+                onChange={handleScheduleFormChange}
+              />
+            </label>
+          </div>
+
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            Тэмдэглэл
+            <textarea
+              name="note"
+              rows={2}
+              value={scheduleForm.note}
+              onChange={handleScheduleFormChange}
+              placeholder="Жишээ нь: 30 минут хоцорч эхэлнэ"
+            />
+          </label>
+
+          <button
+            type="submit"
+            disabled={scheduleSaving}
+            style={{
+              marginTop: 4,
+              padding: "8px 16px",
+              borderRadius: 4,
+              border: "none",
+              background: "#7c3aed",
+              color: "white",
+              cursor: "pointer",
+              alignSelf: "flex-start",
+            }}
+          >
+            {scheduleSaving
+              ? "Хуваарь хадгалж байна..."
+              : "Хуваарь хадгалах"}
+          </button>
+
+          {scheduleSaveError && (
+            <div style={{ color: "red", marginTop: 4 }}>
+              {scheduleSaveError}
+            </div>
+          )}
+          {scheduleSaveSuccess && (
+            <div style={{ color: "green", marginTop: 4 }}>
+              {scheduleSaveSuccess}
+            </div>
+          )}
+        </form>
+      </section>
+
       {/* Work schedule (next 14 days) */}
       <section style={{ marginTop: 32, maxWidth: 800 }}>
         <h2>Дараагийн 14 хоногийн ажлын хуваарь</h2>
@@ -499,7 +810,9 @@ export default function DoctorProfilePage() {
         )}
 
         {!scheduleLoading && !scheduleError && schedule.length === 0 && (
-          <div style={{ color: "#888" }}>Төлөвлөсөн ажлын хуваарь алга.</div>
+          <div style={{ color: "#888" }}>
+            Төлөвлөсөн ажлын хуваарь алга.
+          </div>
         )}
 
         {!scheduleLoading && !scheduleError && schedule.length > 0 && (
@@ -543,7 +856,7 @@ export default function DoctorProfilePage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid #ddd",
+                    borderBottom: "1px solid "#ddd",
                     padding: 8,
                   }}
                 >
