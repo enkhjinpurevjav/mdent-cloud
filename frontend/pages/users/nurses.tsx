@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import UsersTabs from "../../components/UsersTabs";
 
 type Branch = {
   id: number;
@@ -191,6 +192,8 @@ export default function NursesPage() {
   return (
     <div style={{ padding: 24 }}>
       <h1>Сувилагч</h1>
+
+      <UsersTabs />
 
       <NurseForm
         branches={branches}
