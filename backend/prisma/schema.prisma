@@ -49,14 +49,14 @@ model Branch {
   // Patients registered under this branch
   patients  Patient[]
 
-  // Doctor schedules per branch
-  schedules DoctorSchedule[]
+  // Doctor schedules per branch (per-day entries)
+  doctorSchedules DoctorSchedule[]
 
   // Services available in this branch (many-to-many via ServiceBranch)
   serviceBranches ServiceBranch[]
 
-  // NEW: Doctors assigned to this branch (many-to-many via DoctorBranch)
-  doctorBranches DoctorBranch[]
+  // Doctors assigned to this branch (many-to-many via DoctorBranch)
+  doctorBranches  DoctorBranch[]
 }
 
 // ==========================================================
@@ -95,10 +95,10 @@ model User {
   stampImagePath     String?
   idPhotoPath        String?
 
-  // Doctor schedules across branches
-  schedules          DoctorSchedule[]
+  // Per-day work schedules across branches
+  doctorSchedules    DoctorSchedule[]
 
-  // NEW: Many-to-many doctor-to-branch assignment
+  // Many-to-many doctor-to-branch assignment
   doctorBranches     DoctorBranch[]
 }
 
@@ -169,6 +169,9 @@ model Appointment {
   notes       String?
 
   patient     Patient   @relation(fields: [patientId], references: [id])
+  // NOTE: you can add relations to doctor/branch if needed:
+  // doctor  User?   @relation(fields: [doctorId], references: [id])
+  // branch  Branch  @relation(fields: [branchId], references: [id])
 
   @@index([branchId, scheduledAt])
 }
@@ -364,22 +367,36 @@ model Media {
 }
 
 // ==========================================================
-// DOCTOR SCHEDULES
+// DOCTOR SCHEDULES (Per-day, per-branch work schedule)
 // ==========================================================
+//
+// This is for actual planned working days, not just a weekly template.
+// It supports:
+// - Different branches per doctor
+// - Arbitrary days (no fixed pattern)
+// - Editable times per day (e.g. doctor starts late or works back)
+//
 model DoctorSchedule {
   id        Int      @id @default(autoincrement())
+
   doctorId  Int
   branchId  Int
 
-  /// 1 = Monday ... 7 = Sunday
-  weekday   Int
+  /// Calendar date (store as date-only; time is in startTime/endTime)
+  date      DateTime
 
-  /// e.g. "09:00"
+  /// e.g. "09:00" — 24h format
   startTime String
 
-  /// e.g. "17:00"
+  /// e.g. "15:00" — 24h format
   endTime   String
+
+  note      String?
 
   doctor    User     @relation(fields: [doctorId], references: [id])
   branch    Branch   @relation(fields: [branchId], references: [id])
+
+  @@index([doctorId, date])
+  @@index([branchId, date])
+  @@unique([doctorId, branchId, date])
 }
