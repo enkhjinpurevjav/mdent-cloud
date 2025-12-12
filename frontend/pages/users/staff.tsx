@@ -6,53 +6,116 @@ type Branch = {
   name: string;
 };
 
-type Staff = {
+type UserRole = "accountant" | "manager" | "admin";
+
+type OtherStaff = {
   id: number;
   email: string;
   name?: string | null;
   ovog?: string | null;
-  role: string;
+  role: UserRole | string;
+  regNo?: string | null;
+  phone?: string | null;
   branchId?: number | null;
   branch?: Branch | null;
+  branches?: Branch[];
   createdAt?: string;
 };
 
-function StaffForm({
+const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
+  { value: "accountant", label: "Нягтлан" },
+  { value: "manager", label: "Менежер" },
+  { value: "admin", label: "Админ" },
+];
+
+const getRoleLabel = (role: string) => {
+  switch (role) {
+    case "accountant":
+      return "Нягтлан";
+    case "manager":
+      return "Менежер";
+    case "admin":
+      return "Админ";
+    default:
+      return role;
+  }
+};
+
+function OtherStaffForm({
   branches,
   onSuccess,
 }: {
   branches: Branch[];
-  onSuccess: (u: Staff) => void;
+  onSuccess: (u: OtherStaff) => void;
 }) {
   const [form, setForm] = useState({
     email: "",
     password: "",
     name: "",
     ovog: "",
-    branchId: "",
+    regNo: "",
+    phone: "",
+    role: "" as "" | UserRole,
+    branchIds: [] as number[],
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => setForm({ ...form, [e.target.name]: e.target.value });
+  ) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({
+      ...prev,
+      [name]:
+        name === "role"
+          ? (value as UserRole | "")
+          : value,
+    }));
+  };
+
+  const handleBranchToggle = (branchId: number) => {
+    setForm((prev) => {
+      const exists = prev.branchIds.includes(branchId);
+      return {
+        ...prev,
+        branchIds: exists
+          ? prev.branchIds.filter((id) => id !== branchId)
+          : [...prev.branchIds, branchId],
+      };
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (!form.role) {
+      setError("Үүрэг сонгоно уу.");
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      const payload = {
+      const primaryBranchId =
+        form.branchIds.length > 0 ? form.branchIds[0] : undefined;
+
+      const payload: any = {
         email: form.email,
         password: form.password,
         name: form.name || undefined,
         ovog: form.ovog || undefined,
-        role: "manager", // Бусад ажилтан
-        branchId: form.branchId ? Number(form.branchId) : undefined,
+        role: form.role,
+        branchId: primaryBranchId,
+        phone: form.phone || undefined,
       };
 
+      if (form.regNo.trim()) {
+        payload.regNo = form.regNo.trim();
+      }
+
+      // 1) create user
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -66,18 +129,56 @@ function StaffForm({
         data = null;
       }
 
-      if (res.ok) {
-        onSuccess(data);
-        setForm({
-          email: "",
-          password: "",
-          name: "",
-          ovog: "",
-          branchId: "",
-        });
-      } else {
+      if (!res.ok || !data || !data.id) {
         setError((data && data.error) || "Алдаа гарлаа");
+        setSubmitting(false);
+        return;
       }
+
+      const createdUser = data as OtherStaff;
+
+      // 2) assign multiple branches via /api/users/:id/branches
+      if (form.branchIds.length > 0) {
+        try {
+          const resBranches = await fetch(
+            `/api/users/${createdUser.id}/branches`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ branchIds: form.branchIds }),
+            }
+          );
+          let branchesData: any = null;
+          try {
+            branchesData = await resBranches.json();
+          } catch {
+            branchesData = null;
+          }
+
+          if (
+            resBranches.ok &&
+            branchesData &&
+            Array.isArray(branchesData.branches)
+          ) {
+            createdUser.branches = branchesData.branches;
+          }
+        } catch (e) {
+          console.error("Failed to assign multiple branches", e);
+        }
+      }
+
+      onSuccess(createdUser);
+
+      setForm({
+        email: "",
+        password: "",
+        name: "",
+        ovog: "",
+        regNo: "",
+        phone: "",
+        role: "",
+        branchIds: [],
+      });
     } catch {
       setError("Сүлжээгээ шалгана уу");
     } finally {
@@ -87,48 +188,106 @@ function StaffForm({
 
   return (
     <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
-      <h2>Шинэ бусад ажилтан бүртгэх</h2>
-      <input
-        name="email"
-        type="email"
-        placeholder="И-мэйл"
-        value={form.email}
-        onChange={handleChange}
-        required
-      />
-      <input
-        name="password"
-        type="password"
-        placeholder="Нууц үг"
-        value={form.password}
-        onChange={handleChange}
-        required
-      />
-      <input
-        name="name"
-        placeholder="Нэр"
-        value={form.name}
-        onChange={handleChange}
-      />
-      <input
-        name="ovog"
-        placeholder="Овог"
-        value={form.ovog}
-        onChange={handleChange}
-      />
-      <select
-        name="branchId"
-        value={form.branchId}
-        onChange={handleChange}
-        required
+      <h2>Шинэ ажилтан бүртгэх</h2>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 8,
+          marginBottom: 8,
+        }}
       >
-        <option value="">Салбар сонгох</option>
-        {branches.map((b) => (
-          <option key={b.id} value={b.id}>
-            {b.name}
-          </option>
-        ))}
-      </select>
+        <input
+          name="ovog"
+          placeholder="Овог"
+          value={form.ovog}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="name"
+          placeholder="Нэр"
+          value={form.name}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="regNo"
+          placeholder="РД"
+          value={form.regNo}
+          onChange={handleChange}
+        />
+        <input
+          name="phone"
+          placeholder="Утас"
+          value={form.phone}
+          onChange={handleChange}
+        />
+        <input
+          name="email"
+          type="email"
+          placeholder="И-мэйл"
+          value={form.email}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="password"
+          type="password"
+          placeholder="Нууц үг"
+          value={form.password}
+          onChange={handleChange}
+          required
+        />
+        <select
+          name="role"
+          value={form.role}
+          onChange={handleChange}
+          style={{ minHeight: 32 }}
+          required
+        >
+          <option value="">Үүрэг сонгох</option>
+          {ROLE_OPTIONS.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ marginBottom: 4, fontWeight: 500 }}>Салбар сонгох</div>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+          }}
+        >
+          {branches.map((b) => (
+            <label
+              key={b.id}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                border: "1px solid #ddd",
+                borderRadius: 4,
+                padding: "4px 8px",
+                fontSize: 13,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={form.branchIds.includes(b.id)}
+                onChange={() => handleBranchToggle(b.id)}
+              />
+              {b.name}
+            </label>
+          ))}
+        </div>
+      </div>
 
       <button type="submit" disabled={submitting}>
         {submitting ? "Бүртгэж байна..." : "Бүртгэх"}
@@ -139,11 +298,28 @@ function StaffForm({
   );
 }
 
-export default function StaffPage() {
-  const [users, setUsers] = useState<Staff[]>([]);
+export default function OtherStaffPage() {
+  const [users, setUsers] = useState<OtherStaff[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<{
+    name: string;
+    ovog: string;
+    regNo: string;
+    phone: string;
+    branchId: number | null;
+    editBranchIds: number[];
+  }>({
+    name: "",
+    ovog: "",
+    regNo: "",
+    phone: "",
+    branchId: null,
+    editBranchIds: [],
+  });
 
   const loadBranches = async () => {
     try {
@@ -153,32 +329,44 @@ export default function StaffPage() {
         setBranches(data);
       }
     } catch {
-      // ignore here
+      // ignore
     }
   };
 
-  const loadStaff = async () => {
+  // load all "other staff" roles
+  const loadUsers = async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/users?role=manager");
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
+      // fetch each role then merge
+      const roles: UserRole[] = ["accountant", "manager", "admin"];
+      const results: OtherStaff[] = [];
+
+      for (const role of roles) {
+        const res = await fetch(`/api/users?role=${role}`);
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          data = null;
+        }
+        if (res.ok && Array.isArray(data)) {
+          results.push(...data);
+        }
       }
 
-      if (res.ok && Array.isArray(data)) {
-        setUsers(data);
-      } else {
-        setError(
-          (data && data.error) ||
-            "Бусад ажилтнуудын жагсаалтыг ачааллаж чадсангүй"
-        );
-      }
-    } catch {
-      setError("Сүлжээгээ шалгана уу");
+      // sort by name only
+      const sorted = [...results].sort((a, b) => {
+        const aName = (a.name || "").toString();
+        const bName = (b.name || "").toString();
+        return aName.localeCompare(bName, "mn");
+      });
+
+      setUsers(sorted);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Сүлжээгээ шалгана уу");
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -186,16 +374,192 @@ export default function StaffPage() {
 
   useEffect(() => {
     loadBranches();
-    loadStaff();
+    loadUsers();
   }, []);
 
+  const startEdit = (u: OtherStaff) => {
+    setEditingId(u.id);
+
+    const currentBranchIds =
+      Array.isArray(u.branches) && u.branches.length > 0
+        ? u.branches.map((b) => b.id)
+        : u.branch
+        ? [u.branch.id]
+        : [];
+
+    setEditForm({
+      name: u.name || "",
+      ovog: u.ovog || "",
+      regNo: u.regNo || "",
+      phone: u.phone || "",
+      branchId: u.branchId ?? (u.branch ? u.branch.id : null),
+      editBranchIds: currentBranchIds,
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const handleEditChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setEditForm((prev) => ({
+      ...prev,
+      [name]:
+        name === "branchId"
+          ? value
+            ? Number(value)
+            : null
+          : value,
+    }));
+  };
+
+  const handleEditBranchToggle = (branchId: number) => {
+    setEditForm((prev) => {
+      const exists = prev.editBranchIds.includes(branchId);
+      const next = exists
+        ? prev.editBranchIds.filter((id) => id !== branchId)
+        : [...prev.editBranchIds, branchId];
+
+      const nextPrimary = next.length > 0 ? next[0] : null;
+
+      return {
+        ...prev,
+        editBranchIds: next,
+        branchId: nextPrimary,
+      };
+    });
+  };
+
+  const saveEdit = async (id: number) => {
+    try {
+      const payload: any = {
+        name: editForm.name || null,
+        ovog: editForm.ovog || null,
+        regNo: editForm.regNo || null,
+        phone: editForm.phone || null,
+        branchId: editForm.branchId || null,
+      };
+
+      const res = await fetch(`/api/users/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      let userData: any = null;
+      try {
+        userData = await res.json();
+      } catch {
+        userData = null;
+      }
+
+      if (!res.ok || !userData || !userData.id) {
+        alert((userData && userData.error) || "Хадгалах үед алдаа гарлаа");
+        return;
+      }
+
+      const branchesPayload = { branchIds: editForm.editBranchIds };
+
+      const resBranches = await fetch(`/api/users/${id}/branches`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(branchesPayload),
+      });
+
+      let branchesResult: any = null;
+      try {
+        branchesResult = await resBranches.json();
+      } catch {
+        branchesResult = null;
+      }
+
+      if (!resBranches.ok) {
+        alert(
+          (branchesResult && branchesResult.error) ||
+            "Салбар хадгалах үед алдаа гарлаа"
+        );
+        return;
+      }
+
+      const updatedBranches =
+        branchesResult && Array.isArray(branchesResult.branches)
+          ? branchesResult.branches
+          : userData.branches || [];
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === id
+            ? {
+                ...u,
+                name: userData.name,
+                ovog: userData.ovog,
+                regNo: userData.regNo,
+                phone: userData.phone,
+                branchId: userData.branchId,
+                branch: userData.branch,
+                branches: updatedBranches,
+              }
+            : u
+        )
+      );
+      setEditingId(null);
+    } catch (err) {
+      console.error(err);
+      alert("Сүлжээгээ шалгана уу");
+    }
+  };
+
+  const deleteUser = async (id: number) => {
+    const ok = window.confirm(
+      "Та энэхүү ажилтныг устгахдаа итгэлтэй байна уу?"
+    );
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: "DELETE",
+      });
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok) {
+        alert((data && data.error) || "Устгах үед алдаа гарлаа");
+        return;
+      }
+
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+    } catch (err) {
+      console.error(err);
+      alert("Сүлжээгээ шалгана уу");
+    }
+  };
+
   return (
-    <div style={{ padding: 24 }}>
+    <main
+      style={{
+        maxWidth: 900,
+        margin: "40px auto",
+        padding: 24,
+        fontFamily: "sans-serif",
+      }}
+    >
       <h1>Бусад ажилтан</h1>
+      <p style={{ color: "#555", marginBottom: 16 }}>
+        Нягтлан, менежер, админ зэрэг бусад ажилчдыг бүртгэх, салбарт
+        хуваарьлах, жагсаалтаар харах.
+      </p>
 
       <UsersTabs />
 
-      <StaffForm
+      <OtherStaffForm
         branches={branches}
         onSuccess={(u) => {
           setUsers((prev) => [u, ...prev]);
@@ -207,36 +571,366 @@ export default function StaffPage() {
 
       {!loading && !error && (
         <table
-          style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            marginTop: 8,
+            fontSize: 14,
+          }}
         >
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Нэр</th>
-              <th>Овог</th>
-              <th>И-мэйл</th>
-              <th>Салбар</th>
-              <th>Бүртгэгдсэн</th>
+              {/* # constant number column */}
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                #
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Овог
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Нэр
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                И-мэйл
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                РД
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Утас
+              </th>
+              {/* New: Үүрэг column between Утас and Салбар */}
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Үүрэг
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Салбар
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Үйлдэл
+              </th>
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td>{u.id}</td>
-                <td>{u.name || "-"}</td>
-                <td>{u.ovog || "-"}</td>
-                <td>{u.email}</td>
-                <td>{u.branch ? u.branch.name : "-"}</td>
-                <td>
-                  {u.createdAt
-                    ? new Date(u.createdAt).toLocaleString("mn-MN")
-                    : ""}
-                </td>
-              </tr>
-            ))}
+            {users.map((u, index) => {
+              const isEditing = editingId === u.id;
+
+              if (isEditing) {
+                return (
+                  <tr key={u.id}>
+                    {/* # */}
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      {index + 1}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      <input
+                        name="ovog"
+                        value={editForm.ovog}
+                        onChange={handleEditChange}
+                        style={{ width: "100%" }}
+                      />
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      <input
+                        name="name"
+                        value={editForm.name}
+                        onChange={handleEditChange}
+                        style={{ width: "100%" }}
+                      />
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      {u.email}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid "#f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      <input
+                        name="regNo"
+                        value={editForm.regNo}
+                        onChange={handleEditChange}
+                        style={{ width: "100%" }}
+                      />
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      <input
+                        name="phone"
+                        value={editForm.phone}
+                        onChange={handleEditChange}
+                        style={{ width: "100%" }}
+                      />
+                    </td>
+                    {/* Үүрэг: not editable here, shown as label */}
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      {getRoleLabel(u.role)}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 4,
+                        }}
+                      >
+                        {branches.map((b) => (
+                          <label
+                            key={b.id}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              border: "1px solid #ddd",
+                              borderRadius: 4,
+                              padding: "2px 6px",
+                              fontSize: 12,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={editForm.editBranchIds.includes(b.id)}
+                              onChange={() => handleEditBranchToggle(b.id)}
+                            />
+                            {b.name}
+                          </label>
+                        ))}
+                      </div>
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => saveEdit(u.id)}
+                        style={{
+                          marginRight: 8,
+                          padding: "2px 6px",
+                          fontSize: 12,
+                        }}
+                      >
+                        Хадгалах
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        style={{ padding: "2px 6px", fontSize: 12 }}
+                      >
+                        Цуцлах
+                      </button>
+                    </td>
+                  </tr>
+                );
+              }
+
+              return (
+                <tr key={u.id}>
+                  {/* # */}
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {index + 1}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.ovog || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.name || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.email}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.regNo || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.phone || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {getRoleLabel(u.role)}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {Array.isArray(u.branches) && u.branches.length > 0
+                      ? u.branches.map((b) => b.name).join(", ")
+                      : u.branch
+                      ? u.branch.name
+                      : "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => startEdit(u)}
+                      style={{
+                        marginRight: 8,
+                        padding: "2px 6px",
+                        fontSize: 12,
+                      }}
+                    >
+                      Засах
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteUser(u.id)}
+                      style={{
+                        padding: "2px 6px",
+                        fontSize: 12,
+                        color: "#b91c1c",
+                        borderColor: "#b91c1c",
+                      }}
+                    >
+                      Устгах
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
             {users.length === 0 && (
               <tr>
-                <td colSpan={6} style={{ textAlign: "center", color: "#888" }}>
+                <td
+                  colSpan={9}
+                  style={{
+                    textAlign: "center",
+                    color: "#888",
+                    padding: 12,
+                  }}
+                >
                   Өгөгдөл алга
                 </td>
               </tr>
@@ -244,6 +938,6 @@ export default function StaffPage() {
           </tbody>
         </table>
       )}
-    </div>
+    </main>
   );
 }
