@@ -1,637 +1,647 @@
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/router";
+import { Router } from "express";
+import { PrismaClient, UserRole } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
-type Branch = {
-  id: number;
-  name: string;
-};
+const prisma = new PrismaClient();
+const router = Router();
 
-type Doctor = {
-  id: number;
-  email: string;
-  name?: string;
-  ovog?: string | null;
-  role: string;
-  branchId?: number | null; // legacy single branch
-  regNo?: string | null;
-  licenseNumber?: string | null;
-  licenseExpiryDate?: string | null; // ISO string
-  signatureImagePath?: string | null;
-  stampImagePath?: string | null;
-  idPhotoPath?: string | null;
-  branches?: Branch[];
-};
-
-type DoctorScheduleDay = {
-  id: number;
-  date: string; // "YYYY-MM-DD"
-  branch: Branch;
-  startTime: string; // "HH:MM"
-  endTime: string; // "HH:MM"
-  note?: string | null;
-};
-
-type ShiftType = "AM" | "PM" | "WEEKEND_FULL";
-
-export default function DoctorProfilePage() {
-  const router = useRouter();
-  const { id } = router.query;
-
-  const [doctor, setDoctor] = useState<Doctor | null>(null);
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [savingBranches, setSavingBranches] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [form, setForm] = useState({
-    name: "",
-    ovog: "",
-    email: "",
-    branchId: "",
-    regNo: "",
-    licenseNumber: "",
-    licenseExpiryDate: "",
+/**
+ * Helper: ensure a user exists and is a doctor, or send 404.
+ */
+async function ensureDoctorOr404(id, res) {
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, role: true },
   });
-
-  const [selectedBranchIds, setSelectedBranchIds] = useState<number[]>([]);
-
-  const [schedule, setSchedule] = useState<DoctorScheduleDay[]>([]);
-  const [scheduleLoading, setScheduleLoading] = useState(true);
-  const [scheduleError, setScheduleError] = useState<string | null>(null);
-
-  // top form = create new schedule
-  const [scheduleForm, setScheduleForm] = useState<{
-    date: string;
-    branchId: string;
-    shiftType: ShiftType;
-    startTime: string;
-    endTime: string;
-    note: string;
-  }>({
-    date: "",
-    branchId: "",
-    shiftType: "AM",
-    startTime: "09:00",
-    endTime: "15:00",
-    note: "",
-  });
-
-  const [scheduleSaving, setScheduleSaving] = useState(false);
-  const [scheduleSaveError, setScheduleSaveError] = useState<string | null>(
-    null
-  );
-  const [scheduleSaveSuccess, setScheduleSaveSuccess] = useState<
-    string | null
-  >(null);
-
-  // inline edit state
-  const [editingScheduleId, setEditingScheduleId] = useState<number | null>(
-    null
-  );
-  const [inlineForm, setInlineForm] = useState<{
-    date: string;
-    branchId: string;
-    startTime: string;
-    endTime: string;
-    note: string;
-  }>({
-    date: "",
-    branchId: "",
-    startTime: "",
-    endTime: "",
-    note: "",
-  });
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
-  };
-
-  const toggleBranch = (branchId: number) => {
-    setSelectedBranchIds((prev) =>
-      prev.includes(branchId)
-        ? prev.filter((id) => id !== branchId)
-        : [...prev, branchId]
-    );
-  };
-
-  const handleScheduleFormChange = (
-    e:
-      | React.ChangeEvent<HTMLInputElement>
-      | React.ChangeEvent<HTMLSelectElement>
-      | React.ChangeEvent<HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-
-    setScheduleForm((prev) => {
-      const updated = { ...prev, [name]: value };
-
-      if (name === "shiftType") {
-        const shift = value as ShiftType;
-
-        if (prev.date) {
-          const d = new Date(prev.date);
-          const day = d.getDay();
-          const isWeekend = day === 0 || day === 6;
-
-          if (isWeekend) {
-            if (shift === "AM") {
-              updated.startTime = "10:00";
-              updated.endTime = "14:00";
-            } else if (shift === "PM") {
-              updated.startTime = "14:00";
-              updated.endTime = "19:00";
-            } else if (shift === "WEEKEND_FULL") {
-              updated.startTime = "10:00";
-              updated.endTime = "19:00";
-            }
-          } else {
-            if (shift === "AM") {
-              updated.startTime = "09:00";
-              updated.endTime = "15:00";
-            } else if (shift === "PM") {
-              updated.startTime = "15:00";
-              updated.endTime = "21:00";
-            } else if (shift === "WEEKEND_FULL") {
-              updated.startTime = "09:00";
-              updated.endTime = "21:00";
-            }
-          }
-        } else {
-          if (shift === "AM") {
-            updated.startTime = "09:00";
-            updated.endTime = "15:00";
-          } else if (shift === "PM") {
-            updated.startTime = "15:00";
-            updated.endTime = "21:00";
-          } else if (shift === "WEEKEND_FULL") {
-            updated.startTime = "10:00";
-            updated.endTime = "19:00";
-          }
-        }
-      }
-
-      return updated;
-    });
-  };
-
-  useEffect(() => {
-    if (!id) return;
-
-    async function load() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const bRes = await fetch("/api/branches");
-        const bData = await bRes.json();
-        if (bRes.ok && Array.isArray(bData)) {
-          setBranches(bData);
-        }
-
-        const dRes = await fetch(`/api/users/${id}`);
-        const dData = await dRes.json();
-
-        if (!dRes.ok) {
-          setError(dData?.error || "Эмчийн мэдээллийг ачааллаж чадсангүй");
-          setLoading(false);
-          return;
-        }
-
-        const doc: Doctor = dData;
-        setDoctor(doc);
-
-        setForm({
-          name: doc.name || "",
-          ovog: doc.ovog || "",
-          email: doc.email || "",
-          branchId: doc.branchId ? String(doc.branchId) : "",
-          regNo: doc.regNo || "",
-          licenseNumber: doc.licenseNumber || "",
-          licenseExpiryDate: doc.licenseExpiryDate
-            ? doc.licenseExpiryDate.slice(0, 10)
-            : "",
-        });
-
-        const initialBranchIds = (doc.branches || []).map((b) => b.id);
-        setSelectedBranchIds(initialBranchIds);
-
-        setScheduleForm((prev) => ({
-          ...prev,
-          branchId: initialBranchIds[0]
-            ? String(initialBranchIds[0])
-            : prev.branchId,
-        }));
-
-        setLoading(false);
-      } catch (err) {
-        console.error(err);
-        setError("Сүлжээгээ шалгана уу");
-        setLoading(false);
-      }
-    }
-
-    async function loadSchedule() {
-      setScheduleLoading(true);
-      setScheduleError(null);
-
-      try {
-        const today = new Date();
-        const from = today.toISOString().slice(0, 10);
-        const toDate = new Date(today);
-        toDate.setDate(today.getDate() + 31);
-        const to = toDate.toISOString().slice(0, 10);
-
-        const res = await fetch(
-          `/api/users/${id}/schedule?from=${from}&to=${to}`
-        );
-        const data = await res.json();
-
-        if (res.ok && Array.isArray(data)) {
-          setSchedule(data);
-        } else {
-          setScheduleError(
-            data && data.error
-              ? data.error
-              : "Ажлын хуваарийг ачааллаж чадсангүй"
-          );
-        }
-      } catch (err) {
-        console.error(err);
-        setScheduleError("Сүлжээгээ шалгана уу");
-      } finally {
-        setScheduleLoading(false);
-      }
-    }
-
-    load();
-    loadSchedule();
-  }, [id]);
-
-  const reloadSchedule = async () => {
-    if (!id) return;
-    setScheduleLoading(true);
-    setScheduleError(null);
-
-    try {
-      const today = new Date();
-      const from = today.toISOString().slice(0, 10);
-      const toDate = new Date(today);
-      toDate.setDate(today.getDate() + 31);
-      const to = toDate.toISOString().slice(0, 10);
-
-      const res = await fetch(
-        `/api/users/${id}/schedule?from=${from}&to=${to}`
-      );
-      const data = await res.json();
-
-      if (res.ok && Array.isArray(data)) {
-        setSchedule(data);
-      } else {
-        setScheduleError(
-          data && data.error
-            ? data.error
-            : "Ажлын хуваарийг ачааллаж чадсангүй"
-        );
-      }
-    } catch (err) {
-      console.error(err);
-      setScheduleError("Сүлжээгээ шалгана уу");
-    } finally {
-      setScheduleLoading(false);
-    }
-  };
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!id) return;
-
-    setSaving(true);
-    setError(null);
-
-    try {
-      const payload = {
-        name: form.name || null,
-        ovog: form.ovog || null,
-        email: form.email || null,
-        branchId: form.branchId ? Number(form.branchId) : null,
-        regNo: form.regNo || null,
-        licenseNumber: form.licenseNumber || null,
-        licenseExpiryDate: form.licenseExpiryDate || null,
-      };
-
-      const res = await fetch(`/api/users/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data?.error || "Хадгалах үед алдаа гарлаа");
-        setSaving(false);
-        return;
-      }
-
-      setDoctor(data);
-    } catch (err) {
-      console.error(err);
-      setError("Сүлжээгээ шалгана уу");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSaveBranches = async () => {
-    if (!id) return;
-    setSavingBranches(true);
-    setError(null);
-
-    try {
-      const res = await fetch(`/api/users/${id}/branches`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branchIds: selectedBranchIds }),
-      });
-
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-
-      if (!res.ok) {
-        setError(data?.error || "Салбар хадгалах үед алдаа гарлаа");
-        setSavingBranches(false);
-        return;
-      }
-
-      if (data && Array.isArray(data.branches)) {
-        setDoctor((prev) =>
-          prev ? { ...prev, branches: data.branches } : prev
-        );
-      }
-
-      if (data && Array.isArray(data.branches) && data.branches.length > 0) {
-        setScheduleForm((prev) => ({
-          ...prev,
-          branchId: String(data.branches[0].id),
-        }));
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Сүлжээгээ шалгана уу");
-    } finally {
-      setSavingBranches(false);
-    }
-  };
-
-  const handleSaveSchedule = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!id) return;
-
-    setScheduleSaving(true);
-    setScheduleSaveError(null);
-    setScheduleSaveSuccess(null);
-
-    try {
-      if (!scheduleForm.date) {
-        setScheduleSaveError("Огноо сонгоно уу.");
-        setScheduleSaving(false);
-        return;
-      }
-      if (!scheduleForm.branchId) {
-        setScheduleSaveError("Салбар сонгоно уу.");
-        setScheduleSaving(false);
-        return;
-      }
-
-      const payload = {
-        date: scheduleForm.date,
-        branchId: Number(scheduleForm.branchId),
-        startTime: scheduleForm.startTime,
-        endTime: scheduleForm.endTime,
-        note: scheduleForm.note || null,
-      };
-
-      const res = await fetch(`/api/users/${id}/schedule`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setScheduleSaveError(
-          data?.error || "Ажлын хуваарь хадгалах үед алдаа гарлаа"
-        );
-        setScheduleSaving(false);
-        return;
-      }
-
-      setScheduleSaveSuccess("Амжилттай хадгаллаа.");
-      await reloadSchedule();
-
-      setScheduleForm((prev) => ({
-        ...prev,
-        date: "",
-        note: "",
-      }));
-    } catch (err) {
-      console.error(err);
-      setScheduleSaveError("Сүлжээгээ шалгана уу");
-    } finally {
-      setScheduleSaving(false);
-      setTimeout(() => setScheduleSaveSuccess(null), 3000);
-    }
-  };
-
-  const startEditRow = (s: DoctorScheduleDay) => {
-    setEditingScheduleId(s.id);
-    setInlineForm({
-      date: s.date,
-      branchId: String(s.branch?.id ?? ""),
-      startTime: s.startTime,
-      endTime: s.endTime,
-      note: s.note || "",
-    });
-    setScheduleSaveError(null);
-    setScheduleSaveSuccess(null);
-  };
-
-  const cancelEditRow = () => {
-    setEditingScheduleId(null);
-    setInlineForm({
-      date: "",
-      branchId: "",
-      startTime: "",
-      endTime: "",
-      note: "",
-    });
-    setScheduleSaveError(null);
-  };
-
-  const handleInlineChange = (
-    e:
-      | React.ChangeEvent<HTMLInputElement>
-      | React.ChangeEvent<HTMLSelectElement>
-      | React.ChangeEvent<HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setInlineForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleInlineSaveSchedule = async () => {
-    if (!id) return;
-
-    setScheduleSaving(true);
-    setScheduleSaveError(null);
-    setScheduleSaveSuccess(null);
-
-    try {
-      if (!inlineForm.date) {
-        setScheduleSaveError("Огноо сонгоно уу.");
-        setScheduleSaving(false);
-        return;
-      }
-      if (!inlineForm.branchId) {
-        setScheduleSaveError("Салбар сонгоно уу.");
-        setScheduleSaving(false);
-        return;
-      }
-
-      const payload = {
-        date: inlineForm.date,
-        branchId: Number(inlineForm.branchId),
-        startTime: inlineForm.startTime,
-        endTime: inlineForm.endTime,
-        note: inlineForm.note || null,
-      };
-
-      const res = await fetch(`/api/users/${id}/schedule`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setScheduleSaveError(
-          data?.error || "Ажлын хуваарь хадгалах үед алдаа гарлаа"
-        );
-        setScheduleSaving(false);
-        return;
-      }
-
-      setScheduleSaveSuccess("Амжилттай хадгаллаа.");
-      await reloadSchedule();
-      setEditingScheduleId(null);
-      setInlineForm({
-        date: "",
-        branchId: "",
-        startTime: "",
-        endTime: "",
-        note: "",
-      });
-    } catch (err) {
-      console.error(err);
-      setScheduleSaveError("Сүлжээгээ шалгана уу");
-    } finally {
-      setScheduleSaving(false);
-      setTimeout(() => setScheduleSaveSuccess(null), 3000);
-    }
-  };
-
-  const handleDeleteSchedule = async (scheduleId: number) => {
-    if (!id) return;
-
-    const ok = window.confirm(
-      "Та энэхүү хуваарийг устгахдаа итгэлтэй байна уу?"
-    );
-    if (!ok) return;
-
-    try {
-      // assumes you have DELETE /api/users/:id/schedule/:scheduleId
-      const res = await fetch(`/api/users/${id}/schedule/${scheduleId}`, {
-        method: "DELETE",
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        setScheduleSaveError(
-          (data && (data as any).error) || "Хуваарь устгах үед алдаа гарлаа"
-        );
-        return;
-      }
-
-      setSchedule((prev) => prev.filter((s) => s.id !== scheduleId));
-    } catch (err) {
-      console.error(err);
-      setScheduleSaveError("Сүлжээгээ шалгана уу");
-    }
-  };
-
-  if (loading) {
-    return (
-      <div style={{ padding: 24 }}>
-        <div>Ачааллаж байна...</div>
-      </div>
-    );
+  if (!user || user.role !== UserRole.doctor) {
+    res.status(404).json({ error: "Doctor not found" });
+    return null;
   }
-
-  if (error && !doctor) {
-    return (
-      <div style={{ padding: 24 }}>
-        <h1>Эмчийн мэдээлэл</h1>
-        <div style={{ color: "red", marginTop: 8 }}>{error}</div>
-      </div>
-    );
-  }
-
-  if (!doctor) {
-    return (
-      <div style={{ padding: 24 }}>
-        <h1>Эмч олдсонгүй</h1>
-      </div>
-    );
-  }
-
-  const headerName =
-    doctor.ovog || doctor.name
-      ? `${doctor.ovog || ""} ${doctor.name || ""}`.trim()
-      : doctor.email;
-
-  const doctorAssignedBranches: Branch[] =
-    doctor.branches && doctor.branches.length > 0
-      ? doctor.branches
-      : branches;
-
-  return (
-    <div style={{ padding: 24 }}>
-      <button
-        onClick={() => router.back()}
-        style={{
-          marginBottom: 16,
-          padding: "4px 8px",
-          borderRadius: 4,
-          border: "1px solid #ddd",
-          cursor: "pointer",
-        }}
-      >
-        &larr; Буцах
-      </button>
-
-      <h1>Эмч: {headerName}</h1>
-
-      {/* basic info, branch settings, top schedule form, and table ... */}
-      {/* (identical to the version above, omitted here only for brevity) */}
-    </div>
-  );
+  return user;
 }
+
+/**
+ * GET /api/users?role=doctor&branchId=1
+ * Supports:
+ * - optional role filter
+ * - optional branchId filter (legacy, on user.branchId)
+ * - returns branches[] (many-to-many DoctorBranch) for all users
+ */
+router.get("/", async (req, res) => {
+  const { role, branchId } = req.query;
+  console.log("GET /api/users query:", req.query);
+
+  try {
+    const where: any = {};
+
+    if (role) {
+      // role is string at runtime, must match UserRole enum value
+      if (!Object.values(UserRole).includes(role as UserRole)) {
+        return res.status(400).json({ error: "Invalid role filter" });
+      }
+      where.role = role;
+    }
+
+    if (branchId) {
+      const bidNum = Number(branchId);
+      if (Number.isNaN(bidNum)) {
+        return res.status(400).json({ error: "Invalid branchId filter" });
+      }
+      where.branchId = bidNum;
+    }
+
+    const users = await prisma.user.findMany({
+      where,
+      include: {
+        branch: true,
+        doctorBranches: {
+          include: { branch: true },
+        },
+      },
+      orderBy: { id: "asc" },
+    });
+
+    const result = users.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      ovog: u.ovog,
+      role: u.role,
+      branchId: u.branchId,
+      branch: u.branch ? { id: u.branch.id, name: u.branch.name } : null,
+      branches:
+        u.doctorBranches?.map((db) => ({
+          id: db.branch.id,
+          name: db.branch.name,
+        })) ?? [],
+      regNo: u.regNo,
+      phone: u.phone || null,
+      licenseNumber: u.licenseNumber,
+      licenseExpiryDate: u.licenseExpiryDate
+        ? u.licenseExpiryDate.toISOString()
+        : null,
+      createdAt: u.createdAt.toISOString(),
+    }));
+
+    return res.status(200).json(result);
+  } catch (err) {
+    console.error("GET /api/users error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * POST /api/users
+ * Creates any type of user; still uses legacy single branchId.
+ * For doctors, you can later call PUT /api/users/:id/branches
+ * to assign multiple branches.
+ */
+router.post("/", async (req, res) => {
+  try {
+    const { email, password, name, ovog, role, branchId, regNo } =
+      req.body || {};
+
+    if (!email || !password || !role) {
+      return res
+        .status(400)
+        .json({ error: "email, password, role are required" });
+    }
+
+    if (!Object.values(UserRole).includes(role as UserRole)) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
+
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      return res.status(400).json({ error: "Email already in use" });
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+
+    const created = await prisma.user.create({
+      data: {
+        email,
+        password: hashed,
+        name: name || null,
+        ovog: ovog || null,
+        role,
+        branchId: branchId ? Number(branchId) : null,
+        regNo: regNo || null,
+      },
+      include: {
+        branch: true,
+        doctorBranches: {
+          include: { branch: true },
+        },
+      },
+    });
+
+    return res.status(201).json({
+      id: created.id,
+      email: created.email,
+      name: created.name,
+      ovog: created.ovog,
+      role: created.role,
+      branchId: created.branchId,
+      branch: created.branch
+        ? { id: created.branch.id, name: created.branch.name }
+        : null,
+      regNo: created.regNo,
+      createdAt: created.createdAt.toISOString(),
+      branches:
+        created.doctorBranches?.map((db) => ({
+          id: db.branch.id,
+          name: db.branch.name,
+        })) ?? [],
+    });
+  } catch (err) {
+    console.error("POST /api/users error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * GET /api/users/:id
+ * Returns a single user with:
+ * - legacy branch
+ * - branches[] via DoctorBranch
+ */
+router.get("/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id || Number.isNaN(id)) {
+    return res.status(400).json({ error: "Invalid user id" });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id },
+      include: {
+        branch: true,
+        doctorBranches: {
+          include: { branch: true },
+        },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    return res.status(200).json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      ovog: user.ovog,
+      role: user.role,
+      branchId: user.branchId,
+      branch: user.branch
+        ? { id: user.branch.id, name: user.branch.name }
+        : null,
+      regNo: user.regNo,
+      licenseNumber: user.licenseNumber,
+      licenseExpiryDate: user.licenseExpiryDate
+        ? user.licenseExpiryDate.toISOString()
+        : null,
+      signatureImagePath: user.signatureImagePath,
+      stampImagePath: user.stampImagePath,
+      idPhotoPath: user.idPhotoPath,
+      createdAt: user.createdAt.toISOString(),
+      branches:
+        user.doctorBranches?.map((db) => ({
+          id: db.branch.id,
+          name: db.branch.name,
+        })) ?? [],
+    });
+  } catch (err) {
+    console.error("GET /api/users/:id error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * PUT /api/users/:id
+ * Updates basic fields, still including legacy branchId.
+ */
+router.put("/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id || Number.isNaN(id)) {
+    return res.status(400).json({ error: "Invalid user id" });
+  }
+
+  try {
+    const {
+      name,
+      ovog,
+      email,
+      branchId,
+      regNo,
+      licenseNumber,
+      licenseExpiryDate,
+    } = req.body || {};
+
+    const data: any = {};
+
+    if (name !== undefined) data.name = name || null;
+    if (ovog !== undefined) data.ovog = ovog || null;
+    if (email !== undefined) data.email = email || null;
+    if (branchId !== undefined)
+      data.branchId = branchId ? Number(branchId) : null;
+    if (regNo !== undefined) data.regNo = regNo || null;
+    if (licenseNumber !== undefined) data.licenseNumber = licenseNumber || null;
+    if (licenseExpiryDate !== undefined) {
+      data.licenseExpiryDate = licenseExpiryDate
+        ? new Date(licenseExpiryDate)
+        : null;
+    }
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data,
+      include: {
+        branch: true,
+        doctorBranches: {
+          include: { branch: true },
+        },
+      },
+    });
+
+    return res.status(200).json({
+      id: updated.id,
+      email: updated.email,
+      name: updated.name,
+      ovog: updated.ovog,
+      role: updated.role,
+      branchId: updated.branchId,
+      branch: updated.branch
+        ? { id: updated.branch.id, name: updated.branch.name }
+        : null,
+      regNo: updated.regNo,
+      licenseNumber: updated.licenseNumber,
+      licenseExpiryDate: updated.licenseExpiryDate
+        ? updated.licenseExpiryDate.toISOString()
+        : null,
+      signatureImagePath: updated.signatureImagePath,
+      stampImagePath: updated.stampImagePath,
+      idPhotoPath: updated.idPhotoPath,
+      createdAt: updated.createdAt.toISOString(),
+      branches:
+        updated.doctorBranches?.map((db) => ({
+          id: db.branch.id,
+          name: db.branch.name,
+        })) ?? [],
+    });
+  } catch (err) {
+    console.error("PUT /api/users/:id error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * PUT /api/users/:id/branches
+ * Sets all branches for a doctor via DoctorBranch join table.
+ */
+router.put("/:id/branches", async (req, res) => {
+  const userId = Number(req.params.id);
+  if (!userId || Number.isNaN(userId)) {
+    return res.status(400).json({ error: "Invalid user id" });
+  }
+
+  const { branchIds } = req.body || {};
+
+  if (!Array.isArray(branchIds)) {
+    return res
+      .status(400)
+      .json({ error: "branchIds must be an array of numbers" });
+  }
+
+  const uniqueBranchIds = [
+    ...new Set(
+      branchIds
+        .map((b) => Number(b))
+        .filter((b) => !Number.isNaN(b))
+    ),
+  ];
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (user.role !== UserRole.doctor) {
+      return res
+        .status(400)
+        .json({ error: "Only doctors can have multiple branches" });
+    }
+
+    if (uniqueBranchIds.length > 0) {
+      const existingBranches = await prisma.branch.findMany({
+        where: { id: { in: uniqueBranchIds } },
+        select: { id: true },
+      });
+      const existingIds = new Set(existingBranches.map((b) => b.id));
+      const invalidIds = uniqueBranchIds.filter((id) => !existingIds.has(id));
+      if (invalidIds.length > 0) {
+        return res.status(400).json({
+          error: `Invalid branchIds: ${invalidIds.join(", ")}`,
+        });
+      }
+    }
+
+    await prisma.$transaction([
+      prisma.doctorBranch.deleteMany({
+        where: { doctorId: userId },
+      }),
+      ...(uniqueBranchIds.length
+        ? [
+            prisma.doctorBranch.createMany({
+              data: uniqueBranchIds.map((branchId) => ({
+                doctorId: userId,
+                branchId,
+              })),
+            }),
+          ]
+        : []),
+    ]);
+
+    const updated = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        doctorBranches: {
+          include: { branch: true },
+        },
+      },
+    });
+
+    return res.json({
+      id: updated.id,
+      role: updated.role,
+      branches:
+        updated.doctorBranches?.map((db) => ({
+          id: db.branch.id,
+          name: db.branch.name,
+        })) ?? [],
+    });
+  } catch (err) {
+    console.error("PUT /api/users/:id/branches error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * GET /api/users/:id/schedule
+ * Query params:
+ *   from=YYYY-MM-DD (optional, defaults to today)
+ *   to=YYYY-MM-DD   (optional, defaults to from + 31 days)
+ *   branchId=number (optional)
+ *
+ * Returns the doctor's schedule entries in the given range.
+ */
+router.get("/:id/schedule", async (req, res) => {
+  const doctorId = Number(req.params.id);
+  if (!doctorId || Number.isNaN(doctorId)) {
+    return res.status(400).json({ error: "Invalid doctor id" });
+  }
+
+  try {
+    const doctor = await ensureDoctorOr404(doctorId, res);
+    if (!doctor) return;
+
+    const { from, to, branchId } = req.query;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const fromDate = from ? new Date(from as string) : today;
+    if (Number.isNaN(fromDate.getTime())) {
+      return res.status(400).json({ error: "Invalid from date" });
+    }
+
+    let toDate: Date;
+    if (to) {
+      toDate = new Date(to as string);
+      if (Number.isNaN(toDate.getTime())) {
+        return res.status(400).json({ error: "Invalid to date" });
+      }
+    } else {
+      toDate = new Date(fromDate);
+      toDate.setDate(fromDate.getDate() + 31);
+    }
+
+    const where: any = {
+      doctorId,
+      date: {
+        gte: fromDate,
+        lte: toDate,
+      },
+    };
+
+    if (branchId) {
+      const bid = Number(branchId);
+      if (Number.isNaN(bid)) {
+        return res.status(400).json({ error: "Invalid branchId" });
+      }
+      where.branchId = bid;
+    }
+
+    const schedules = await prisma.doctorSchedule.findMany({
+      where,
+      orderBy: [{ date: "asc" }, { startTime: "asc" }],
+      include: {
+        branch: { select: { id: true, name: true } },
+      },
+    });
+
+    return res.json(
+      schedules.map((s) => ({
+        id: s.id,
+        date: s.date.toISOString().slice(0, 10),
+        branch: s.branch,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        note: s.note,
+      }))
+    );
+  } catch (err) {
+    console.error("GET /api/users/:id/schedule error:", err);
+    return res.status(500).json({ error: "Failed to fetch doctor schedule" });
+  }
+});
+
+/**
+ * POST /api/users/:id/schedule
+ * Body:
+ * {
+ *   date: "YYYY-MM-DD",
+ *   branchId: number,
+ *   startTime: "HH:MM",
+ *   endTime: "HH:MM",
+ *   note?: string
+ * }
+ *
+ * Creates or updates a schedule entry for the given doctor/branch/date.
+ */
+router.post("/:id/schedule", async (req, res) => {
+  const doctorId = Number(req.params.id);
+  if (!doctorId || Number.isNaN(doctorId)) {
+    return res.status(400).json({ error: "Invalid doctor id" });
+  }
+
+  const { date, branchId, startTime, endTime, note } = req.body || {};
+
+  if (!date || !branchId || !startTime || !endTime) {
+    return res
+      .status(400)
+      .json({ error: "date, branchId, startTime, endTime are required" });
+  }
+
+  const day = new Date(date);
+  if (Number.isNaN(day.getTime())) {
+    return res.status(400).json({ error: "Invalid date" });
+  }
+  day.setHours(0, 0, 0, 0);
+
+  const bid = Number(branchId);
+  if (Number.isNaN(bid)) {
+    return res.status(400).json({ error: "Invalid branchId" });
+  }
+
+  const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
+    return res
+      .status(400)
+      .json({ error: "startTime and endTime must be HH:MM (24h)" });
+  }
+
+  if (startTime >= endTime) {
+    return res
+      .status(400)
+      .json({ error: "startTime must be before endTime" });
+  }
+
+  try {
+    const doctor = await ensureDoctorOr404(doctorId, res);
+    if (!doctor) return;
+
+    const branch = await prisma.branch.findUnique({
+      where: { id: bid },
+      select: { id: true, name: true },
+    });
+    if (!branch) {
+      return res.status(400).json({ error: "Branch not found" });
+    }
+
+    const doctorBranch = await prisma.doctorBranch.findFirst({
+      where: { doctorId, branchId: bid },
+    });
+    if (!doctorBranch) {
+      return res.status(400).json({
+        error: "Doctor is not assigned to this branch",
+      });
+    }
+
+    const weekday = day.getDay(); // 0=Sun .. 6=Sat
+    const isWeekend = weekday === 0 || weekday === 6;
+    const clinicOpen = isWeekend ? "10:00" : "09:00";
+    const clinicClose = isWeekend ? "19:00" : "21:00";
+
+    if (startTime < clinicOpen || endTime > clinicClose) {
+      return res.status(400).json({
+        error: "Schedule outside clinic hours",
+        clinicOpen,
+        clinicClose,
+      });
+    }
+
+    const existing = await prisma.doctorSchedule.findFirst({
+      where: { doctorId, branchId: bid, date: day },
+    });
+
+    let schedule;
+    if (existing) {
+      schedule = await prisma.doctorSchedule.update({
+        where: { id: existing.id },
+        data: {
+          startTime,
+          endTime,
+          note: note || null,
+        },
+        include: { branch: { select: { id: true, name: true } } },
+      });
+    } else {
+      schedule = await prisma.doctorSchedule.create({
+        data: {
+          doctorId,
+          branchId: bid,
+          date: day,
+          startTime,
+          endTime,
+          note: note || null,
+        },
+        include: { branch: { select: { id: true, name: true } } },
+      });
+    }
+
+    return res.status(existing ? 200 : 201).json({
+      id: schedule.id,
+      date: schedule.date.toISOString().slice(0, 10),
+      branch: schedule.branch,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      note: schedule.note,
+    });
+  } catch (err) {
+    console.error("POST /api/users/:id/schedule error:", err);
+    return res.status(500).json({ error: "Failed to save doctor schedule" });
+  }
+});
+
+/**
+ * DELETE /api/users/:id/schedule/:scheduleId
+ * Deletes a schedule entry for this doctor.
+ */
+router.delete("/:id/schedule/:scheduleId", async (req, res) => {
+  const doctorId = Number(req.params.id);
+  const scheduleId = Number(req.params.scheduleId);
+
+  if (!doctorId || Number.isNaN(doctorId)) {
+    return res.status(400).json({ error: "Invalid doctor id" });
+  }
+  if (!scheduleId || Number.isNaN(scheduleId)) {
+    return res.status(400).json({ error: "Invalid schedule id" });
+  }
+
+  try {
+    const doctor = await ensureDoctorOr404(doctorId, res);
+    if (!doctor) return;
+
+    const existing = await prisma.doctorSchedule.findUnique({
+      where: { id: scheduleId },
+      select: { id: true, doctorId: true },
+    });
+
+    if (!existing || existing.doctorId !== doctorId) {
+      return res.status(404).json({ error: "Schedule not found" });
+    }
+
+    await prisma.doctorSchedule.delete({
+      where: { id: scheduleId },
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error(
+      "DELETE /api/users/:id/schedule/:scheduleId error:",
+      err
+    );
+    return res
+      .status(500)
+      .json({ error: "Failed to delete doctor schedule" });
+  }
+});
+
+export default router;
