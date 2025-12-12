@@ -18,7 +18,7 @@ type Doctor = {
   regNo?: string | null;
   licenseNumber?: string | null;
   licenseExpiryDate?: string | null;
-  phone?: string | null;           // <-- added
+  phone?: string | null;
   createdAt?: string;
 };
 
@@ -337,6 +337,7 @@ export default function DoctorsPage() {
         >
           <thead>
             <tr>
+              {/* 1. ID */}
               <th
                 style={{
                   textAlign: "left",
@@ -346,6 +347,7 @@ export default function DoctorsPage() {
               >
                 ID
               </th>
+              {/* 2. Овог */}
               <th
                 style={{
                   textAlign: "left",
@@ -355,6 +357,7 @@ export default function DoctorsPage() {
               >
                 Овог
               </th>
+              {/* 3. Нэр */}
               <th
                 style={{
                   textAlign: "left",
@@ -364,6 +367,7 @@ export default function DoctorsPage() {
               >
                 Нэр
               </th>
+              {/* 4. РД */}
               <th
                 style={{
                   textAlign: "left",
@@ -373,25 +377,7 @@ export default function DoctorsPage() {
               >
                 РД
               </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                И-мэйл
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Салбар
-              </th>
-              {/* CHANGED: Бүртгэгдсэн -> Утас */}
+              {/* 5. Утас */}
               <th
                 style={{
                   textAlign: "left",
@@ -401,6 +387,17 @@ export default function DoctorsPage() {
               >
                 Утас
               </th>
+              {/* 6. Салбар */}
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Салбар
+              </th>
+              {/* 7. Дэлгэрэнгүй */}
               <th
                 style={{
                   textAlign: "left",
@@ -415,6 +412,7 @@ export default function DoctorsPage() {
           <tbody>
             {doctors.map((d) => (
               <tr key={d.id}>
+                {/* 1. ID */}
                 <td
                   style={{
                     borderBottom: "1px solid #f0f0f0",
@@ -423,6 +421,7 @@ export default function DoctorsPage() {
                 >
                   {d.id}
                 </td>
+                {/* 2. Овог */}
                 <td
                   style={{
                     borderBottom: "1px solid #f0f0f0",
@@ -431,6 +430,7 @@ export default function DoctorsPage() {
                 >
                   {d.ovog || "-"}
                 </td>
+                {/* 3. Нэр */}
                 <td
                   style={{
                     borderBottom: "1px solid #f0f0f0",
@@ -439,6 +439,7 @@ export default function DoctorsPage() {
                 >
                   {d.name || "-"}
                 </td>
+                {/* 4. РД */}
                 <td
                   style={{
                     borderBottom: "1px solid #f0f0f0",
@@ -447,24 +448,7 @@ export default function DoctorsPage() {
                 >
                   {d.regNo || "-"}
                 </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {d.email}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {/* main (legacy) branch */}
-                  {d.branch ? d.branch.name : "-"}
-                </td>
-                {/* CHANGED: show phone instead of createdAt */}
+                {/* 5. Утас */}
                 <td
                   style={{
                     borderBottom: "1px solid #f0f0f0",
@@ -473,6 +457,20 @@ export default function DoctorsPage() {
                 >
                   {d.phone || "-"}
                 </td>
+                {/* 6. Салбар */}
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {Array.isArray(d.branches) && d.branches.length > 0
+                    ? d.branches.map((b) => b.name).join(", ")
+                    : d.branch
+                    ? d.branch.name
+                    : "-"}
+                </td>
+                {/* 7. Дэлгэрэнгүй */}
                 <td
                   style={{
                     borderBottom: "1px solid #f0f0f0",
@@ -506,7 +504,7 @@ export default function DoctorsPage() {
             {doctors.length === 0 && (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={7}
                   style={{
                     textAlign: "center",
                     color: "#888",
