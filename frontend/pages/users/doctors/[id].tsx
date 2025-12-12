@@ -19,7 +19,7 @@ type Doctor = {
   signatureImagePath?: string | null;
   stampImagePath?: string | null;
   idPhotoPath?: string | null;
-  phone?: string | null; // <- ADD THIS
+  phone?: string | null; // phone support
 
   // multiple branches
   branches?: Branch[];
@@ -48,15 +48,15 @@ export default function DoctorProfilePage() {
   const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
-  name: "",
-  ovog: "",
-  email: "",
-  branchId: "",
-  regNo: "",
-  licenseNumber: "",
-  licenseExpiryDate: "",
-  phone: "",            // <- ADD THIS
-});
+    name: "",
+    ovog: "",
+    email: "",
+    branchId: "",
+    regNo: "",
+    licenseNumber: "",
+    licenseExpiryDate: "",
+    phone: "", // added
+  });
 
   // selected multiple branches
   const [selectedBranchIds, setSelectedBranchIds] = useState<number[]>([]);
@@ -227,6 +227,7 @@ export default function DoctorProfilePage() {
           licenseExpiryDate: doc.licenseExpiryDate
             ? doc.licenseExpiryDate.slice(0, 10)
             : "",
+          phone: doc.phone || "", // include phone here
         });
 
         // initialize multi-branch selection from doctor.branches
@@ -580,14 +581,9 @@ export default function DoctorProfilePage() {
     if (!ok) return;
 
     try {
-      // You need a DELETE endpoint like:
-      // DELETE /api/users/:doctorId/schedule/:scheduleId
-      const res = await fetch(
-        `/api/users/${id}/schedule/${scheduleId}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const res = await fetch(`/api/users/${id}/schedule/${scheduleId}`, {
+        method: "DELETE",
+      });
 
       const data = await res.json().catch(() => null);
 
@@ -599,7 +595,6 @@ export default function DoctorProfilePage() {
         return;
       }
 
-      // Optimistically remove from list OR reload
       setSchedule((prev) => prev.filter((s) => s.id !== scheduleId));
     } catch (err) {
       console.error(err);
@@ -632,9 +627,10 @@ export default function DoctorProfilePage() {
     );
   }
 
- const headerName = doctor.name && doctor.name.trim().length > 0
-  ? doctor.name
-  : doctor.email;
+  const headerName =
+    doctor.name && doctor.name.trim().length > 0
+      ? doctor.name
+      : doctor.email;
 
   // Only allow selecting branches that this doctor is assigned to
   const doctorAssignedBranches: Branch[] =
@@ -643,7 +639,9 @@ export default function DoctorProfilePage() {
       : branches;
 
   const isCreatingSchedule =
-    !!scheduleForm.date && !!scheduleForm.branchId && editingScheduleId === null;
+    !!scheduleForm.date &&
+    !!scheduleForm.branchId &&
+    editingScheduleId === null;
 
   return (
     <div style={{ padding: 24 }}>
@@ -745,25 +743,25 @@ export default function DoctorProfilePage() {
           </select>
         </label>
 
-       <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-  РД
-  <input
-    name="regNo"
-    value={form.regNo}
-    onChange={handleChange}
-    placeholder="РД"
-  />
-</label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          РД
+          <input
+            name="regNo"
+            value={form.regNo}
+            onChange={handleChange}
+            placeholder="РД"
+          />
+        </label>
 
-<label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-  Утас
-  <input
-    name="phone"
-    value={form.phone}
-    onChange={handleChange}
-    placeholder="Утас"
-  />
-</label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          Утас
+          <input
+            name="phone"
+            value={form.phone}
+            onChange={handleChange}
+            placeholder="Утас"
+          />
+        </label>
 
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           Лицензийн дугаар
@@ -1098,7 +1096,8 @@ export default function DoctorProfilePage() {
                     {/* Branch */}
                     <td
                       style={{
-                        borderBottom: "1px solid #f0f0f0",
+                        borderBottom: "1px solid " +
+                          "#f0f0f0",
                         padding: 8,
                       }}
                     >
