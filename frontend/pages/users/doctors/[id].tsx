@@ -64,7 +64,7 @@ export default function DoctorProfilePage() {
   const [scheduleLoading, setScheduleLoading] = useState(true);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 
-  // schedule editor form state (top form)
+  // schedule editor form state (top form, ONLY for creating new entries)
   const [scheduleForm, setScheduleForm] = useState<{
     date: string;
     branchId: string;
@@ -93,6 +93,19 @@ export default function DoctorProfilePage() {
   const [editingScheduleId, setEditingScheduleId] = useState<number | null>(
     null
   );
+  const [inlineForm, setInlineForm] = useState<{
+    date: string;
+    branchId: string;
+    startTime: string;
+    endTime: string;
+    note: string;
+  }>({
+    date: "",
+    branchId: "",
+    startTime: "",
+    endTime: "",
+    note: "",
+  });
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -393,6 +406,7 @@ export default function DoctorProfilePage() {
     }
   };
 
+  // Top form: create new schedule entry
   const handleSaveSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
@@ -439,6 +453,13 @@ export default function DoctorProfilePage() {
 
       setScheduleSaveSuccess("Амжилттай хадгаллаа.");
       await reloadSchedule();
+
+      // reset create form after successful save
+      setScheduleForm((prev) => ({
+        ...prev,
+        date: "",
+        note: "",
+      }));
     } catch (err) {
       console.error(err);
       setScheduleSaveError("Сүлжээгээ шалгана уу");
@@ -448,30 +469,40 @@ export default function DoctorProfilePage() {
     }
   };
 
-  // Inline edit helpers
+  // Inline edit helpers (ONLY for editing existing rows)
   const startEditRow = (s: DoctorScheduleDay) => {
     setEditingScheduleId(s.id);
-    setScheduleForm({
+    setInlineForm({
       date: s.date,
       branchId: String(s.branch?.id ?? ""),
-      shiftType: "AM", // cannot infer reliably; leave as default or compute if you want
       startTime: s.startTime,
       endTime: s.endTime,
       note: s.note || "",
     });
+    setScheduleSaveError(null);
+    setScheduleSaveSuccess(null);
   };
 
   const cancelEditRow = () => {
     setEditingScheduleId(null);
-    setScheduleForm({
+    setInlineForm({
       date: "",
       branchId: "",
-      shiftType: "AM",
-      startTime: "09:00",
-      endTime: "15:00",
+      startTime: "",
+      endTime: "",
       note: "",
     });
     setScheduleSaveError(null);
+  };
+
+  const handleInlineChange = (
+    e:
+      | React.ChangeEvent<HTMLInputElement>
+      | React.ChangeEvent<HTMLSelectElement>
+      | React.ChangeEvent<HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setInlineForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleInlineSaveSchedule = async () => {
@@ -482,23 +513,23 @@ export default function DoctorProfilePage() {
     setScheduleSaveSuccess(null);
 
     try {
-      if (!scheduleForm.date) {
+      if (!inlineForm.date) {
         setScheduleSaveError("Огноо сонгоно уу.");
         setScheduleSaving(false);
         return;
       }
-      if (!scheduleForm.branchId) {
+      if (!inlineForm.branchId) {
         setScheduleSaveError("Салбар сонгоно уу.");
         setScheduleSaving(false);
         return;
       }
 
       const payload = {
-        date: scheduleForm.date,
-        branchId: Number(scheduleForm.branchId),
-        startTime: scheduleForm.startTime,
-        endTime: scheduleForm.endTime,
-        note: scheduleForm.note || null,
+        date: inlineForm.date,
+        branchId: Number(inlineForm.branchId),
+        startTime: inlineForm.startTime,
+        endTime: inlineForm.endTime,
+        note: inlineForm.note || null,
       };
 
       const res = await fetch(`/api/users/${id}/schedule`, {
@@ -520,6 +551,13 @@ export default function DoctorProfilePage() {
       setScheduleSaveSuccess("Амжилттай хадгаллаа.");
       await reloadSchedule();
       setEditingScheduleId(null);
+      setInlineForm({
+        date: "",
+        branchId: "",
+        startTime: "",
+        endTime: "",
+        note: "",
+      });
     } catch (err) {
       console.error(err);
       setScheduleSaveError("Сүлжээгээ шалгана уу");
@@ -565,7 +603,7 @@ export default function DoctorProfilePage() {
       ? doctor.branches
       : branches;
 
-  const isEditingSchedule =
+  const isCreatingSchedule =
     !!scheduleForm.date && !!scheduleForm.branchId && editingScheduleId === null;
 
   return (
@@ -773,16 +811,11 @@ export default function DoctorProfilePage() {
         </button>
       </section>
 
-      {/* Schedule editor form (top) */}
+      {/* Schedule editor form (create only) */}
       <section style={{ marginTop: 32, maxWidth: 600 }}>
-        <h2>
-          {isEditingSchedule
-            ? "Ажлын хуваарь засах"
-            : "Ажлын хуваарь нэмэх"}
-        </h2>
+        <h2>Ажлын хуваарь шинээр нэмэх</h2>
         <p style={{ color: "#555", marginBottom: 8 }}>
-          Сонгосон өдөр, салбар, ээлжийн дагуу ажлын хуваарь үүсгэнэ эсвэл
-          засна.
+          Сонгосон өдөр, салбар, ээлжийн дагуу шинэ ажлын хуваарь үүсгэнэ.
         </p>
 
         <form
@@ -801,7 +834,6 @@ export default function DoctorProfilePage() {
               name="date"
               value={scheduleForm.date}
               onChange={handleScheduleFormChange}
-              disabled={editingScheduleId !== null}
             />
           </label>
 
@@ -811,7 +843,6 @@ export default function DoctorProfilePage() {
               name="branchId"
               value={scheduleForm.branchId}
               onChange={handleScheduleFormChange}
-              disabled={editingScheduleId !== null}
             >
               <option value="">Сонгох</option>
               {doctorAssignedBranches.map((b) => (
@@ -828,7 +859,6 @@ export default function DoctorProfilePage() {
               name="shiftType"
               value={scheduleForm.shiftType}
               onChange={handleScheduleFormChange}
-              disabled={editingScheduleId !== null}
             >
               <option value="AM">Өглөө ээлж</option>
               <option value="PM">Орой ээлж</option>
@@ -852,7 +882,6 @@ export default function DoctorProfilePage() {
                 name="startTime"
                 value={scheduleForm.startTime}
                 onChange={handleScheduleFormChange}
-                disabled={editingScheduleId !== null}
               />
             </label>
             <label
@@ -864,7 +893,6 @@ export default function DoctorProfilePage() {
                 name="endTime"
                 value={scheduleForm.endTime}
                 onChange={handleScheduleFormChange}
-                disabled={editingScheduleId !== null}
               />
             </label>
           </div>
@@ -877,13 +905,12 @@ export default function DoctorProfilePage() {
               value={scheduleForm.note}
               onChange={handleScheduleFormChange}
               placeholder="Жишээ нь: 30 минут хоцорч эхэлнэ"
-              disabled={editingScheduleId !== null}
             />
           </label>
 
           <button
             type="submit"
-            disabled={scheduleSaving || editingScheduleId !== null}
+            disabled={scheduleSaving}
             style={{
               marginTop: 4,
               padding: "8px 16px",
@@ -891,15 +918,14 @@ export default function DoctorProfilePage() {
               border: "none",
               background: "#7c3aed",
               color: "white",
-              cursor: editingScheduleId !== null ? "not-allowed" : "pointer",
+              cursor: "pointer",
               alignSelf: "flex-start",
-              opacity: editingScheduleId !== null ? 0.6 : 1,
             }}
           >
             {scheduleSaving
               ? "Хуваарь хадгалж байна..."
-              : isEditingSchedule
-              ? "Засвар хадгалах"
+              : isCreatingSchedule
+              ? "Хуваарь хадгалах"
               : "Хуваарь хадгалах"}
           </button>
 
@@ -1010,8 +1036,8 @@ export default function DoctorProfilePage() {
                         <input
                           type="date"
                           name="date"
-                          value={scheduleForm.date}
-                          onChange={handleScheduleFormChange}
+                          value={inlineForm.date}
+                          onChange={handleInlineChange}
                           style={{ fontSize: 12, padding: 4 }}
                         />
                       ) : (
@@ -1027,15 +1053,16 @@ export default function DoctorProfilePage() {
                     {/* Branch */}
                     <td
                       style={{
-                        borderBottom: "1px solid #f0f0f0",
+                        borderBottom: "1px solid " +
+                          "#f0f0f0",
                         padding: 8,
                       }}
                     >
                       {isRowEditing ? (
                         <select
                           name="branchId"
-                          value={scheduleForm.branchId}
-                          onChange={handleScheduleFormChange}
+                          value={inlineForm.branchId}
+                          onChange={handleInlineChange}
                           style={{ fontSize: 12, padding: 4 }}
                         >
                           <option value="">Сонгох</option>
@@ -1062,16 +1089,16 @@ export default function DoctorProfilePage() {
                           <input
                             type="time"
                             name="startTime"
-                            value={scheduleForm.startTime}
-                            onChange={handleScheduleFormChange}
+                            value={inlineForm.startTime}
+                            onChange={handleInlineChange}
                             style={{ fontSize: 12, padding: 4 }}
                           />
                           <span>-</span>
                           <input
                             type="time"
                             name="endTime"
-                            value={scheduleForm.endTime}
-                            onChange={handleScheduleFormChange}
+                            value={inlineForm.endTime}
+                            onChange={handleInlineChange}
                             style={{ fontSize: 12, padding: 4 }}
                           />
                         </div>
@@ -1093,8 +1120,8 @@ export default function DoctorProfilePage() {
                         <textarea
                           name="note"
                           rows={1}
-                          value={scheduleForm.note}
-                          onChange={handleScheduleFormChange}
+                          value={inlineForm.note}
+                          onChange={handleInlineChange}
                           style={{
                             fontSize: 12,
                             padding: 4,
@@ -1142,7 +1169,7 @@ export default function DoctorProfilePage() {
                               fontSize: 12,
                             }}
                           >
-                            Болих
+                            Цуцлах
                           </button>
                         </div>
                       ) : (
