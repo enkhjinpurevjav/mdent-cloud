@@ -1,6 +1,29 @@
 import React, { useState, useEffect } from "react";
 
-function PatientRegisterForm({ onSuccess }: { onSuccess: (p: any) => void }) {
+type Branch = {
+  id: number;
+  name: string;
+};
+
+type Patient = {
+  id: number;
+  ovog?: string | null;
+  name: string;
+  regNo: string;
+  phone?: string | null;
+  branchId: number;
+  branch?: Branch;
+  patientBook?: { bookNumber: string } | null;
+  createdAt?: string;
+};
+
+function PatientRegisterForm({
+  branches,
+  onSuccess,
+}: {
+  branches: Branch[];
+  onSuccess: (p: Patient) => void;
+}) {
   const [form, setForm] = useState({
     ovog: "",
     name: "",
@@ -12,25 +35,52 @@ function PatientRegisterForm({ onSuccess }: { onSuccess: (p: any) => void }) {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (!form.ovog || !form.name || !form.regNo || !form.phone) {
+      setError("Бүх шаардлагатай талбарыг бөглөнө үү.");
+      return;
+    }
+    if (!form.branchId) {
+      setError("Салбар сонгоно уу.");
+      return;
+    }
+    if (!form.bookNumber) {
+      setError("Картын дугаар оруулна уу.");
+      return;
+    }
+
     setSubmitting(true);
     try {
+      const payload = {
+        ovog: form.ovog,
+        name: form.name,
+        regNo: form.regNo,
+        phone: form.phone,
+        branchId: Number(form.branchId),
+        bookNumber: form.bookNumber,
+      };
+
       const res = await fetch("/api/patients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, branchId: Number(form.branchId) }),
+        body: JSON.stringify(payload),
       });
 
       let data: any = null;
       try {
         data = await res.json();
       } catch {
-        data = null; // non-JSON (e.g., HTML error)
+        data = null;
       }
 
       if (res.ok) {
@@ -56,92 +106,346 @@ function PatientRegisterForm({ onSuccess }: { onSuccess: (p: any) => void }) {
   return (
     <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
       <h2>Шинэ үйлчлүүлэгч бүртгэх</h2>
-      <input name="ovog" placeholder="Овог" value={form.ovog} onChange={handleChange} required />
-      <input name="name" placeholder="Нэр" value={form.name} onChange={handleChange} required />
-      <input name="regNo" placeholder="Регистрийн дугаар" value={form.regNo} onChange={handleChange} required />
-      <input name="phone" placeholder="Утасны дугаар" value={form.phone} onChange={handleChange} required />
-      <input name="branchId" placeholder="Салбарын ID" value={form.branchId} onChange={handleChange} required />
-      <input name="bookNumber" placeholder="Картын дугаар" value={form.bookNumber} onChange={handleChange} required />
-      <button type="submit" disabled={submitting}>{submitting ? "Бүртгэж байна..." : "Бүртгэх"}</button>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 8,
+          marginTop: 8,
+          marginBottom: 8,
+        }}
+      >
+        <input
+          name="ovog"
+          placeholder="Овог"
+          value={form.ovog}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="name"
+          placeholder="Нэр"
+          value={form.name}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="regNo"
+          placeholder="Регистрийн дугаар"
+          value={form.regNo}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="phone"
+          placeholder="Утасны дугаар"
+          value={form.phone}
+          onChange={handleChange}
+          required
+        />
+        <select
+          name="branchId"
+          value={form.branchId}
+          onChange={handleChange}
+          required
+        >
+          <option value="">Салбар сонгох</option>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+        <input
+          name="bookNumber"
+          placeholder="Картын дугаар"
+          value={form.bookNumber}
+          onChange={handleChange}
+          required
+        />
+      </div>
+
+      <button type="submit" disabled={submitting}>
+        {submitting ? "Бүртгэж байна..." : "Бүртгэх"}
+      </button>
+
       {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
     </form>
   );
 }
 
 export default function PatientsPage() {
-  const [patients, setPatients] = useState<any[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const loadPatients = async () => {
+  const [search, setSearch] = useState("");
+
+  const loadData = async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/patients");
-      let data: any = null;
+      const [bRes, pRes] = await Promise.all([
+        fetch("/api/branches"),
+        fetch("/api/patients"),
+      ]);
+
+      let bData: any = null;
+      let pData: any = null;
       try {
-        data = await res.json();
+        bData = await bRes.json();
       } catch {
-        data = null;
+        bData = null;
       }
-      if (res.ok && Array.isArray(data)) {
-        setPatients(data);
-      } else {
-        setError((data && data.error) || "Пациентын жагсаалтыг ачааллаж чадсангүй");
+      try {
+        pData = await pRes.json();
+      } catch {
+        pData = null;
       }
-    } catch {
-      setError("Сүлжээгээ шалгана уу");
+
+      if (!bRes.ok || !Array.isArray(bData)) {
+        throw new Error("branches load failed");
+      }
+      if (!pRes.ok || !Array.isArray(pData)) {
+        throw new Error("patients load failed");
+      }
+
+      setBranches(bData);
+
+      // sort by name (ovog + name)
+      const sortedPatients = [...pData].sort((a, b) => {
+        const aName = `${a.ovog || ""} ${a.name || ""}`.toString();
+        const bName = `${b.ovog || ""} ${b.name || ""}`.toString();
+        return aName.localeCompare(bName, "mn");
+      });
+      setPatients(sortedPatients);
+    } catch (e) {
+      console.error(e);
+      setError("Өгөгдөл ачааллах үед алдаа гарлаа");
+      setPatients([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadPatients();
+    loadData();
   }, []);
 
+  const filteredPatients = patients.filter((p) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    const name = `${p.ovog || ""} ${p.name || ""}`.toLowerCase();
+    const regNo = (p.regNo || "").toLowerCase();
+    const phone = (p.phone || "").toLowerCase();
+    return name.includes(q) || regNo.includes(q) || phone.includes(q);
+  });
+
+  const getBranchName = (branchId: number) => {
+    const b = branches.find((br) => br.id === branchId);
+    return b ? b.name : branchId;
+  };
+
   return (
-    <div style={{ padding: 24 }}>
+    <main
+      style={{
+        maxWidth: 900,
+        margin: "40px auto",
+        padding: 24,
+        fontFamily: "sans-serif",
+      }}
+    >
       <h1>Үйлчлүүлэгчийн бүртгэл</h1>
+      <p style={{ color: "#555", marginBottom: 16 }}>
+        Үйлчлүүлэгчийг бүртгэх, картын дугаар олгох, жагсаалтаар харах.
+      </p>
 
       <PatientRegisterForm
+        branches={branches}
         onSuccess={(p) => {
-          setPatients((ps) => [p, ...ps]);
-          // Optionally: loadPatients(); // to re-sync with server
+          setPatients((prev) =>
+            [...prev, p].sort((a, b) =>
+              `${a.ovog || ""} ${a.name || ""}`
+                .toString()
+                .localeCompare(
+                  `${b.ovog || ""} ${b.name || ""}`.toString(),
+                  "mn"
+                )
+            )
+          );
         }}
       />
+
+      <section
+        style={{
+          marginBottom: 16,
+          padding: 12,
+          borderRadius: 8,
+          border: "1px solid #e5e7eb",
+          background: "#f9fafb",
+        }}
+      >
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>Хайлт</h2>
+        <input
+          placeholder="Нэр, РД, утасгаар хайх"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ width: "100%", padding: 8 }}
+        />
+      </section>
 
       {loading && <div>Ачааллаж байна...</div>}
       {!loading && error && <div style={{ color: "red" }}>{error}</div>}
 
       {!loading && !error && (
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 20 }}>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            marginTop: 8,
+            fontSize: 14,
+          }}
+        >
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Овог</th>
-              <th>Нэр</th>
-              <th>Регистрийн дугаар</th>
-              <th>Утас</th>
-              <th>Картын дугаар</th>
-              <th>Салбар</th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                #
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Овог
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Нэр
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                РД
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Утас
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Картын дугаар
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Салбар
+              </th>
             </tr>
           </thead>
           <tbody>
-            {patients.map((p) => (
+            {filteredPatients.map((p, index) => (
               <tr key={p.id}>
-                <td>{p.id}</td>
-                <td>{p.ovog}</td>
-                <td>{p.name}</td>
-                <td>{p.regNo}</td>
-                <td>{p.phone}</td>
-                <td>{p.patientBook?.bookNumber}</td>
-                <td>{p.branchId}</td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {index + 1}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {p.ovog || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {p.name || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {p.regNo}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {p.phone || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {p.patientBook?.bookNumber || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid "#f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {getBranchName(p.branchId)}
+                </td>
               </tr>
             ))}
-            {patients.length === 0 && (
+            {filteredPatients.length === 0 && (
               <tr>
-                <td colSpan={7} style={{ textAlign: "center", color: "#888" }}>
+                <td
+                  colSpan={7}
+                  style={{
+                    textAlign: "center",
+                    color: "#888",
+                    padding: 12,
+                  }}
+                >
                   Өгөгдөл алга
                 </td>
               </tr>
@@ -149,6 +453,6 @@ export default function PatientsPage() {
           </tbody>
         </table>
       )}
-    </div>
+    </main>
   );
 }
