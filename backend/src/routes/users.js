@@ -32,11 +32,11 @@ router.get("/", async (req, res) => {
   console.log("GET /api/users query:", req.query);
 
   try {
-    const where = {};
+    const where: any = {};
 
     if (role) {
       // role is string at runtime, must match UserRole enum value
-      if (!Object.values(UserRole).includes(role)) {
+      if (!Object.values(UserRole).includes(role as UserRole)) {
         return res.status(400).json({ error: "Invalid role filter" });
       }
       where.role = role;
@@ -98,7 +98,7 @@ router.get("/", async (req, res) => {
  */
 router.post("/", async (req, res) => {
   try {
-    const { email, password, name, ovog, role, branchId, regNo } =
+    const { email, password, name, ovog, role, branchId, regNo, phone } =
       req.body || {};
 
     if (!email || !password || !role) {
@@ -107,7 +107,7 @@ router.post("/", async (req, res) => {
         .json({ error: "email, password, role are required" });
     }
 
-    if (!Object.values(UserRole).includes(role)) {
+    if (!Object.values(UserRole).includes(role as UserRole)) {
       return res.status(400).json({ error: "Invalid role" });
     }
 
@@ -127,6 +127,7 @@ router.post("/", async (req, res) => {
         role,
         branchId: branchId ? Number(branchId) : null,
         regNo: regNo || null,
+        phone: phone || null, // <-- save phone
       },
       include: {
         branch: true,
@@ -147,6 +148,7 @@ router.post("/", async (req, res) => {
         ? { id: created.branch.id, name: created.branch.name }
         : null,
       regNo: created.regNo,
+      phone: created.phone || null, // <-- return phone
       createdAt: created.createdAt.toISOString(),
       branches:
         created.doctorBranches?.map((db) => ({
@@ -198,6 +200,7 @@ router.get("/:id", async (req, res) => {
         ? { id: user.branch.id, name: user.branch.name }
         : null,
       regNo: user.regNo,
+      phone: user.phone || null,
       licenseNumber: user.licenseNumber,
       licenseExpiryDate: user.licenseExpiryDate
         ? user.licenseExpiryDate.toISOString()
@@ -237,9 +240,10 @@ router.put("/:id", async (req, res) => {
       regNo,
       licenseNumber,
       licenseExpiryDate,
+      phone,
     } = req.body || {};
 
-    const data = {};
+    const data: any = {};
 
     if (name !== undefined) data.name = name || null;
     if (ovog !== undefined) data.ovog = ovog || null;
@@ -247,6 +251,7 @@ router.put("/:id", async (req, res) => {
     if (branchId !== undefined)
       data.branchId = branchId ? Number(branchId) : null;
     if (regNo !== undefined) data.regNo = regNo || null;
+    if (phone !== undefined) data.phone = phone || null; // <-- allow phone update
     if (licenseNumber !== undefined) data.licenseNumber = licenseNumber || null;
     if (licenseExpiryDate !== undefined) {
       data.licenseExpiryDate = licenseExpiryDate
@@ -276,6 +281,7 @@ router.put("/:id", async (req, res) => {
         ? { id: updated.branch.id, name: updated.branch.name }
         : null,
       regNo: updated.regNo,
+      phone: updated.phone || null,
       licenseNumber: updated.licenseNumber,
       licenseExpiryDate: updated.licenseExpiryDate
         ? updated.licenseExpiryDate.toISOString()
@@ -323,7 +329,7 @@ router.delete("/:id", async (req, res) => {
 
 /**
  * PUT /api/users/:id/branches
- * Sets all branches for a doctor via DoctorBranch join table.
+ * Sets all branches for a user via DoctorBranch join table.
  */
 router.put("/:id/branches", async (req, res) => {
   const userId = Number(req.params.id);
@@ -357,11 +363,12 @@ router.put("/:id/branches", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    if (user.role !== UserRole.doctor) {
-      return res
-        .status(400)
-        .json({ error: "Only doctors can have multiple branches" });
-    }
+    // Previously: only doctors. Now: allow any role to have multiple branches
+    // if (user.role !== UserRole.doctor) {
+    //   return res
+    //     .status(400)
+    //     .json({ error: "Only doctors can have multiple branches" });
+    // }
 
     if (uniqueBranchIds.length > 0) {
       const existingBranches = await prisma.branch.findMany({
@@ -419,12 +426,7 @@ router.put("/:id/branches", async (req, res) => {
 
 /**
  * GET /api/users/:id/schedule
- * Query params:
- *   from=YYYY-MM-DD (optional, defaults to today)
- *   to=YYYY-MM-DD   (optional, defaults to from + 31 days)
- *   branchId=number (optional)
- *
- * Returns the doctor's schedule entries in the given range.
+ * ...
  */
 router.get("/:id/schedule", async (req, res) => {
   const doctorId = Number(req.params.id);
@@ -433,8 +435,7 @@ router.get("/:id/schedule", async (req, res) => {
   }
 
   try {
-    const doctor =
-      await ensureDoctorOr404(doctorId, res);
+    const doctor = await ensureDoctorOr404(doctorId, res);
     if (!doctor) return;
 
     const { from, to, branchId } = req.query;
@@ -442,14 +443,14 @@ router.get("/:id/schedule", async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const fromDate = from ? new Date(from) : today;
+    const fromDate = from ? new Date(from as string) : today;
     if (Number.isNaN(fromDate.getTime())) {
       return res.status(400).json({ error: "Invalid from date" });
     }
 
-    let toDate;
+    let toDate: Date;
     if (to) {
-      toDate = new Date(to);
+      toDate = new Date(to as string);
       if (Number.isNaN(toDate.getTime())) {
         return res.status(400).json({ error: "Invalid to date" });
       }
@@ -458,7 +459,7 @@ router.get("/:id/schedule", async (req, res) => {
       toDate.setDate(fromDate.getDate() + 31);
     }
 
-    const where = {
+    const where: any = {
       doctorId,
       date: {
         gte: fromDate,
@@ -502,16 +503,7 @@ router.get("/:id/schedule", async (req, res) => {
 
 /**
  * POST /api/users/:id/schedule
- * Body:
- * {
- *   date: "YYYY-MM-DD",
- *   branchId: number,
- *   startTime: "HH:MM",
- *   endTime: "HH:MM",
- *   note?: string
- * }
- *
- * Creates or updates a schedule entry for the given doctor/branch/date.
+ * ...
  */
 router.post("/:id/schedule", async (req, res) => {
   const doctorId = Number(req.params.id);
