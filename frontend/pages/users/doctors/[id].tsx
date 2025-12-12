@@ -743,7 +743,7 @@ export default function DoctorProfilePage() {
         </label>
 
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          РД (regNo)
+          РД 
           <input
             name="regNo"
             value={form.regNo}
