@@ -161,12 +161,11 @@ export default function DoctorProfilePage() {
             // Weekday logic
             if (shift === "AM") {
               updated.startTime = "09:00";
-              updated.endTime = "15:00"; // өглөө ээлж finishes at 15:00
+              updated.endTime = "15:00";
             } else if (shift === "PM") {
-              updated.startTime = "15:00"; // орой ээлж starts at 15:00
+              updated.startTime = "15:00";
               updated.endTime = "21:00";
             } else if (shift === "WEEKEND_FULL") {
-              // Not really used on weekdays; safe full-day default
               updated.startTime = "09:00";
               updated.endTime = "21:00";
             }
@@ -416,6 +415,40 @@ export default function DoctorProfilePage() {
     }
   };
 
+  // Delete doctor user
+  const handleDeleteUser = async () => {
+    if (!id) return;
+
+    const ok = window.confirm(
+      "Та энэхүү эмчийн аккаунтыг устгахдаа итгэлтэй байна уу?"
+    );
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: "DELETE",
+      });
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok) {
+        alert((data && data.error) || "Устгах үед алдаа гарлаа");
+        return;
+      }
+
+      // after delete, go back to doctors list
+      router.push("/users/doctors");
+    } catch (err) {
+      console.error(err);
+      alert("Сүлжээгээ шалгана уу");
+    }
+  };
+
   // Top form: create new schedule entry
   const handleSaveSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -455,7 +488,7 @@ export default function DoctorProfilePage() {
 
       if (!res.ok) {
         setScheduleSaveError(
-          data?.error || "Ажлын хуваарь хадгалах үед алдаа гарлаа"
+          data?.error || "अжлын хуваарь хадгалах үед алдаа гарлаа"
         );
         setScheduleSaving(false);
         return;
@@ -666,7 +699,7 @@ export default function DoctorProfilePage() {
 
       <h1>Эмч: {headerName}</h1>
 
-                  {/* Basic info form */}
+      {/* Basic info form */}
       <form
         onSubmit={handleSave}
         style={{
@@ -726,7 +759,6 @@ export default function DoctorProfilePage() {
             placeholder="Овог"
           />
         </label>
-        {/* ...rest of the form unchanged... */}
 
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           Нэр
@@ -878,21 +910,44 @@ export default function DoctorProfilePage() {
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={saving}
+        <div
           style={{
+            display: "flex",
+            gap: 8,
             marginTop: 8,
-            padding: "8px 16px",
-            borderRadius: 4,
-            border: "none",
-            background: "#2563eb",
-            color: "white",
-            cursor: "pointer",
+            flexWrap: "wrap",
           }}
         >
-          {saving ? "Хадгалж байна..." : "Хадгалах"}
-        </button>
+          <button
+            type="submit"
+            disabled={saving}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 4,
+              border: "none",
+              background: "#2563eb",
+              color: "white",
+              cursor: "pointer",
+            }}
+          >
+            {saving ? "Хадгалж байна..." : "Хадгалах"}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDeleteUser}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 4,
+              border: "1px solid #fecaca",
+              background: "#fee2e2",
+              color: "#b91c1c",
+              cursor: "pointer",
+            }}
+          >
+            Ажилтныг устгах
+          </button>
+        </div>
 
         {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
       </form>
