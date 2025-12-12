@@ -40,9 +40,7 @@ function DoctorForm({
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
@@ -472,27 +470,27 @@ export default function DoctorsPage() {
                 </td>
                 {/* 7. Дэлгэрэнгүй */}
                 <td
-  style={{
-    borderBottom: "1px solid "#f0f0f0",
-    padding: 8,
-    whiteSpace: "nowrap",
-  }}
->
-  <a
-    href={`/users/doctors/${d.id}`}
-    style={{
-      display: "inline-block",
-      padding: "4px 8px",
-      borderRadius: 4,
-      border: "1px solid #2563eb",
-      color: "#2563eb",
-      textDecoration: "none",
-      fontSize: 12,
-    }}
-  >
-    Профайл
-  </a>
-</td>
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <a
+                    href={`/users/doctors/${d.id}`}
+                    style={{
+                      display: "inline-block",
+                      padding: "4px 8px",
+                      borderRadius: 4,
+                      border: "1px solid #2563eb",
+                      color: "#2563eb",
+                      textDecoration: "none",
+                      fontSize: 12,
+                    }}
+                  >
+                    Профайл
+                  </a>
+                </td>
               </tr>
             ))}
             {doctors.length === 0 && (
