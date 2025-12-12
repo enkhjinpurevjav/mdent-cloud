@@ -671,7 +671,11 @@ export default function ReceptionPage() {
                       padding: 8,
                     }}
                   >
-                    {u.branch ? u.branch.name : "-"}
+                    {Array.isArray(u.branches) && u.branches.length > 0
+                      ? u.branches.map((b) => b.name).join(", ")
+                      : u.branch
+                      ? u.branch.name
+                      : "-"}
                   </td>
                   <td
                     style={{
