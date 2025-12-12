@@ -151,7 +151,7 @@ export default function UsersIndexPage() {
                   padding: 8,
                 }}
               >
-                Албан тушаал
+                Үүрэг
               </th>
               <th
                 style={{
