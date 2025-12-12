@@ -16,6 +16,7 @@ type User = {
   phone?: string | null;
   branchId?: number | null;
   branch?: Branch | null;
+  branches?: Branch[]; // NEW: multi-branch support
 };
 
 export default function UsersIndexPage() {
@@ -238,7 +239,11 @@ export default function UsersIndexPage() {
                     padding: 8,
                   }}
                 >
-                  {u.branch ? u.branch.name : "-"}
+                  {Array.isArray(u.branches) && u.branches.length > 0
+                    ? u.branches.map((b) => b.name).join(", ")
+                    : u.branch
+                    ? u.branch.name
+                    : "-"}
                 </td>
               </tr>
             ))}
