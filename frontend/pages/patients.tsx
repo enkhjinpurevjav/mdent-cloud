@@ -144,19 +144,26 @@ function PatientRegisterForm({
           onChange={handleChange}
           required
         />
-        <select
-          name="branchId"
-          value={form.branchId}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Салбар сонгох</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 13, fontWeight: 500 }}>
+            Бүртгэсэн салбар
+          </label>
+          <select
+            name="branchId"
+            value={form.branchId}
+            onChange={handleChange}
+            required
+          >
+            <option value="">Салбар сонгох</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <input
           name="bookNumber"
           placeholder="Картын дугаар"
@@ -257,8 +264,13 @@ export default function PatientsPage() {
       }}
     >
       <h1>Үйлчлүүлэгчийн бүртгэл</h1>
-      <p style={{ color: "#555", marginBottom: 16 }}>
+      <p style={{ color: "#555", marginBottom: 4 }}>
         Үйлчлүүлэгчийг бүртгэх, картын дугаар олгох, жагсаалтаар харах.
+      </p>
+      <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
+        <strong>Бүртгэсэн салбар</strong> нь тухайн үйлчлүүлэгчийн үндсэн /
+        анх бүртгэгдсэн салбар юм. Үйлчлүүлэгч бусад салбарт очсон ч
+        үзлэгийн салбар нь цаг авах үед тусад нь сонгогдоно.
       </p>
 
       <PatientRegisterForm
@@ -370,7 +382,7 @@ export default function PatientsPage() {
                   padding: 8,
                 }}
               >
-                Салбар
+                Бүртгэсэн салбар
               </th>
             </tr>
           </thead>
