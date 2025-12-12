@@ -142,14 +142,15 @@ if (form.phone.trim()) {
 
       onSuccess(createdDoctor);
 
-      setForm({
-        email: "",
-        password: "",
-        name: "",
-        ovog: "",
-        regNo: "",
-        branchIds: [],
-      });
+     setForm({
+  email: "",
+  password: "",
+  name: "",
+  ovog: "",
+  regNo: "",
+  phone: "",        // <- reset
+  branchIds: [],
+});
     } catch {
       setError("Сүлжээгээ шалгана уу");
     } finally {
