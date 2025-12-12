@@ -36,7 +36,7 @@ router.get("/", async (req, res) => {
 
     if (role) {
       // role is string at runtime, must match UserRole enum value
-      if (!Object.values(UserRole).includes(role as UserRole)) {
+      if (!Object.values(UserRole).includes(role)) {
         return res.status(400).json({ error: "Invalid role filter" });
       }
       where.role = role;
@@ -107,7 +107,7 @@ router.post("/", async (req, res) => {
         .json({ error: "email, password, role are required" });
     }
 
-    if (!Object.values(UserRole).includes(role as UserRole)) {
+    if (!Object.values(UserRole).includes(role)) {
       return res.status(400).json({ error: "Invalid role" });
     }
 
@@ -239,7 +239,7 @@ router.put("/:id", async (req, res) => {
       licenseExpiryDate,
     } = req.body || {};
 
-    const data: any = {};
+    const data = {};
 
     if (name !== undefined) data.name = name || null;
     if (ovog !== undefined) data.ovog = ovog || null;
@@ -416,14 +416,14 @@ router.get("/:id/schedule", async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const fromDate = from ? new Date(from as string) : today;
+    const fromDate = from ? new Date(from) : today;
     if (Number.isNaN(fromDate.getTime())) {
       return res.status(400).json({ error: "Invalid from date" });
     }
 
-    let toDate: Date;
+    let toDate;
     if (to) {
-      toDate = new Date(to as string);
+      toDate = new Date(to);
       if (Number.isNaN(toDate.getTime())) {
         return res.status(400).json({ error: "Invalid to date" });
       }
@@ -432,7 +432,7 @@ router.get("/:id/schedule", async (req, res) => {
       toDate.setDate(fromDate.getDate() + 31);
     }
 
-    const where: any = {
+    const where = {
       doctorId,
       date: {
         gte: fromDate,
