@@ -117,12 +117,12 @@ export default function UsersIndexPage() {
                   padding: 8,
                 }}
               >
-                ID
+                #
               </th>
               <th
                 style={{
                   textAlign: "left",
-                  borderBottom: "1px solid #ddd",
+                  borderBottom: "1px solid "#ddd",
                   padding: 8,
                 }}
               >
@@ -176,7 +176,7 @@ export default function UsersIndexPage() {
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
+            {users.map((u, index) => (
               <tr key={u.id}>
                 <td
                   style={{
@@ -184,7 +184,7 @@ export default function UsersIndexPage() {
                     padding: 8,
                   }}
                 >
-                  {u.id}
+                  {index + 1}
                 </td>
                 <td
                   style={{
