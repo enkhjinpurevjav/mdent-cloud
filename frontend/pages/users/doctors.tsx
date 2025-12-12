@@ -302,7 +302,7 @@ export default function DoctorsPage() {
   return (
     <main
       style={{
-        maxWidth: 700,
+        maxWidth: 900,
         margin: "40px auto",
         padding: 24,
         fontFamily: "sans-serif",
