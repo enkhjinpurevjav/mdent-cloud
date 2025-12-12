@@ -32,15 +32,15 @@ router.get("/", async (req, res) => {
   console.log("GET /api/users query:", req.query);
 
   try {
-    const where = {};
+    const where: any = {};
 
     if (role) {
-  // role is string at runtime, must match UserRole enum value
-  if (!Object.values(UserRole).includes(role)) {
-    return res.status(400).json({ error: "Invalid role filter" });
-  }
-  where.role = role;
-}
+      // role is string at runtime, must match UserRole enum value
+      if (!Object.values(UserRole).includes(role as UserRole)) {
+        return res.status(400).json({ error: "Invalid role filter" });
+      }
+      where.role = role;
+    }
 
     if (branchId) {
       const bidNum = Number(branchId);
@@ -107,9 +107,9 @@ router.post("/", async (req, res) => {
         .json({ error: "email, password, role are required" });
     }
 
-   if (!Object.values(UserRole).includes(role)) {
-    return res.status(400).json({ error: "Invalid role" });
-  }
+    if (!Object.values(UserRole).includes(role as UserRole)) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
