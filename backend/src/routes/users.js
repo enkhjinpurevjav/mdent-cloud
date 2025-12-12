@@ -330,6 +330,7 @@ router.delete("/:id", async (req, res) => {
 /**
  * PUT /api/users/:id/branches
  * Sets all branches for a user via DoctorBranch join table.
+ * (Used for doctors, reception, nurses, etc.)
  */
 router.put("/:id/branches", async (req, res) => {
   const userId = Number(req.params.id);
@@ -419,12 +420,7 @@ router.put("/:id/branches", async (req, res) => {
 
 /**
  * GET /api/users/:id/schedule
- * Query params:
- *   from=YYYY-MM-DD (optional, defaults to today)
- *   to=YYYY-MM-DD   (optional, defaults to from + 31 days)
- *   branchId=number (optional)
- *
- * Returns the doctor's schedule entries in the given range.
+ * ...
  */
 router.get("/:id/schedule", async (req, res) => {
   const doctorId = Number(req.params.id);
@@ -501,16 +497,7 @@ router.get("/:id/schedule", async (req, res) => {
 
 /**
  * POST /api/users/:id/schedule
- * Body:
- * {
- *   date: "YYYY-MM-DD",
- *   branchId: number,
- *   startTime: "HH:MM",
- *   endTime: "HH:MM",
- *   note?: string
- * }
- *
- * Creates or updates a schedule entry for the given doctor/branch/date.
+ * ...
  */
 router.post("/:id/schedule", async (req, res) => {
   const doctorId = Number(req.params.id);
