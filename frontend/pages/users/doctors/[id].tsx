@@ -666,7 +666,7 @@ export default function DoctorProfilePage() {
 
       <h1>Эмч: {headerName}</h1>
 
-            {/* Basic info form */}
+                  {/* Basic info form */}
       <form
         onSubmit={handleSave}
         style={{
@@ -677,36 +677,33 @@ export default function DoctorProfilePage() {
           maxWidth: 500,
         }}
       >
-        {/* Doctor ID photo */}
+        {/* Portrait photo frame (centered, always visible) */}
         <div
           style={{
             marginBottom: 12,
             display: "flex",
-            flexDirection: "column",
-            gap: 4,
+            justifyContent: "center",
           }}
         >
-          <span style={{ fontWeight: 500 }}>Цээж зураг</span>
           <div
             style={{
               width: 160,
               height: 200,
               borderRadius: 8,
-              border: "2px dashed #9ca3af", // visible dashed border
+              border: "2px dashed #9ca3af",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               background: "#f9fafb",
               color: "#6b7280",
               fontSize: 12,
-              position: "relative",
               overflow: "hidden",
             }}
           >
             {doctor.idPhotoPath ? (
               <img
                 src={doctor.idPhotoPath}
-                alt="Эмчийн цээж зураг"
+                alt="Эмчийн зураг"
                 style={{
                   width: "100%",
                   height: "100%",
@@ -729,8 +726,7 @@ export default function DoctorProfilePage() {
             placeholder="Овог"
           />
         </label>
-
-        {/* ...rest of the form remains the same ... */}
+        {/* ...rest of the form unchanged... */}
 
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           Нэр
