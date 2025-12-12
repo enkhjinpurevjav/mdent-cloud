@@ -35,12 +35,12 @@ router.get("/", async (req, res) => {
     const where = {};
 
     if (role) {
-      // role is string at runtime, must match UserRole enum value
-      if (!Object.values(UserRole).includes(role as UserRole)) {
-        return res.status(400).json({ error: "Invalid role filter" });
-      }
-      where.role = role;
-    }
+  // role is string at runtime, must match UserRole enum value
+  if (!Object.values(UserRole).includes(role)) {
+    return res.status(400).json({ error: "Invalid role filter" });
+  }
+  where.role = role;
+}
 
     if (branchId) {
       const bidNum = Number(branchId);
