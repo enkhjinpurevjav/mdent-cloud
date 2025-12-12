@@ -205,7 +205,7 @@ function ReceptionForm({
         />
       </div>
 
-      {/* Multi-branch selection (same style as doctor registration) */}
+      {/* Multi-branch selection */}
       <div style={{ marginBottom: 8 }}>
         <div style={{ marginBottom: 4, fontWeight: 500 }}>Салбар сонгох</div>
         <div
@@ -254,6 +254,22 @@ export default function ReceptionPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // editing state
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<{
+    name: string;
+    ovog: string;
+    regNo: string;
+    phone: string;
+    branchId: number | null;
+  }>({
+    name: "",
+    ovog: "",
+    regNo: "",
+    phone: "",
+    branchId: null,
+  });
+
   const loadBranches = async () => {
     try {
       const res = await fetch("/api/branches");
@@ -262,7 +278,7 @@ export default function ReceptionPage() {
         setBranches(data);
       }
     } catch {
-      // ignore; main error handling below
+      // ignore; main error handling in loadUsers
     }
   };
 
@@ -303,6 +319,116 @@ export default function ReceptionPage() {
     loadUsers();
   }, []);
 
+  const startEdit = (u: Receptionist) => {
+    setEditingId(u.id);
+    setEditForm({
+      name: u.name || "",
+      ovog: u.ovog || "",
+      regNo: u.regNo || "",
+      phone: u.phone || "",
+      branchId: u.branchId ?? (u.branch ? u.branch.id : null),
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const handleEditChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setEditForm((prev) => ({
+      ...prev,
+      [name]:
+        name === "branchId"
+          ? value
+            ? Number(value)
+            : null
+          : value,
+    }));
+  };
+
+  const saveEdit = async (id: number) => {
+    try {
+      const payload: any = {
+        name: editForm.name || null,
+        ovog: editForm.ovog || null,
+        regNo: editForm.regNo || null,
+        phone: editForm.phone || null,
+        branchId: editForm.branchId || null,
+      };
+
+      const res = await fetch(`/api/users/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok || !data || !data.id) {
+        alert((data && data.error) || "Хадгалах үед алдаа гарлаа");
+        return;
+      }
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === id
+            ? {
+                ...u,
+                name: data.name,
+                ovog: data.ovog,
+                regNo: data.regNo,
+                phone: data.phone,
+                branchId: data.branchId,
+                branch: data.branch,
+              }
+            : u
+        )
+      );
+      setEditingId(null);
+    } catch (err) {
+      console.error(err);
+      alert("Сүлжээгээ шалгана уу");
+    }
+  };
+
+  const deleteUser = async (id: number) => {
+    const ok = window.confirm(
+      "Та энэхүү ресепшн хэрэглэгчийг устгахдаа итгэлтэй байна уу?"
+    );
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: "DELETE",
+      });
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok) {
+        alert((data && data.error) || "Устгах үед алдаа гарлаа");
+        return;
+      }
+
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+    } catch (err) {
+      console.error(err);
+      alert("Сүлжээгээ шалгана уу");
+    }
+  };
+
   return (
     <main
       style={{
@@ -319,7 +445,6 @@ export default function ReceptionPage() {
 
       <UsersTabs />
 
-      {/* NEW registration header + form (like doctors) */}
       <ReceptionForm
         branches={branches}
         onSuccess={(u) => {
@@ -362,7 +487,7 @@ export default function ReceptionPage() {
               <th
                 style={{
                   textAlign: "left",
-                  borderBottom: "1px solid #ddd",
+                  borderBottom: "1px solid "#ddd",
                   padding: 8,
                 }}
               >
@@ -395,65 +520,196 @@ export default function ReceptionPage() {
               >
                 Салбар
               </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Үйлдэл
+              </th>
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {u.id}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {u.ovog || "-"}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {u.name || "-"}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {u.regNo || "-"}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {u.phone || "-"}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {u.branch ? u.branch.name : "-"}
-                </td>
-              </tr>
-            ))}
+            {users.map((u) => {
+              const isEditing = editingId === u.id;
+              if (isEditing) {
+                return (
+                  <tr key={u.id}>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      {u.id}
+                    </td>
+                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                      <input
+                        name="ovog"
+                        value={editForm.ovog}
+                        onChange={handleEditChange}
+                        style={{ width: "100%" }}
+                      />
+                    </td>
+                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                      <input
+                        name="name"
+                        value={editForm.name}
+                        onChange={handleEditChange}
+                        style={{ width: "100%" }}
+                      />
+                    </td>
+                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                      <input
+                        name="regNo"
+                        value={editForm.regNo}
+                        onChange={handleEditChange}
+                        style={{ width: "100%" }}
+                      />
+                    </td>
+                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                      <input
+                        name="phone"
+                        value={editForm.phone}
+                        onChange={handleEditChange}
+                        style={{ width: "100%" }}
+                      />
+                    </td>
+                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                      <select
+                        name="branchId"
+                        value={editForm.branchId ?? ""}
+                        onChange={handleEditChange}
+                        style={{ width: "100%" }}
+                      >
+                        <option value="">-</option>
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => saveEdit(u.id)}
+                        style={{
+                          marginRight: 8,
+                          padding: "2px 6px",
+                          fontSize: 12,
+                        }}
+                      >
+                        Хадгалах
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        style={{ padding: "2px 6px", fontSize: 12 }}
+                      >
+                        Цуцлах
+                      </button>
+                    </td>
+                  </tr>
+                );
+              }
+
+              return (
+                <tr key={u.id}>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.id}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.ovog || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.name || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.regNo || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.phone || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.branch ? u.branch.name : "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => startEdit(u)}
+                      style={{
+                        marginRight: 8,
+                        padding: "2px 6px",
+                        fontSize: 12,
+                      }}
+                    >
+                      Засах
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteUser(u.id)}
+                      style={{
+                        padding: "2px 6px",
+                        fontSize: 12,
+                        color: "#b91c1c",
+                        borderColor: "#b91c1c",
+                      }}
+                    >
+                      Устгах
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
             {users.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   style={{
                     textAlign: "center",
                     color: "#888",
