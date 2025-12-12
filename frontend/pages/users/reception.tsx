@@ -505,7 +505,7 @@ export default function ReceptionPage() {
               <th
                 style={{
                   textAlign: "left",
-                  borderBottom: "1px solid "#ddd",
+                  borderBottom: "1px solid #ddd",
                   padding: 8,
                 }}
               >
@@ -671,11 +671,7 @@ export default function ReceptionPage() {
                       padding: 8,
                     }}
                   >
-                    {Array.isArray(u.branches) && u.branches.length > 0
-                      ? u.branches.map((b) => b.name).join(", ")
-                      : u.branch
-                      ? u.branch.name
-                      : "-"}
+                    {u.branch ? u.branch.name : "-"}
                   </td>
                   <td
                     style={{
