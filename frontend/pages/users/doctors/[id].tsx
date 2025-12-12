@@ -19,7 +19,7 @@ type Doctor = {
   signatureImagePath?: string | null;
   stampImagePath?: string | null;
   idPhotoPath?: string | null;
-  phone?: string | null; // phone support
+  phone?: string | null;
 
   // multiple branches
   branches?: Branch[];
@@ -55,7 +55,9 @@ export default function DoctorProfilePage() {
     regNo: "",
     licenseNumber: "",
     licenseExpiryDate: "",
-    phone: "", // added
+    phone: "",
+    signatureImagePath: "",
+    stampImagePath: "",
   });
 
   // selected multiple branches
@@ -227,7 +229,9 @@ export default function DoctorProfilePage() {
           licenseExpiryDate: doc.licenseExpiryDate
             ? doc.licenseExpiryDate.slice(0, 10)
             : "",
-          phone: doc.phone || "", // include phone here
+          phone: doc.phone || "",
+          signatureImagePath: doc.signatureImagePath || "",
+          stampImagePath: doc.stampImagePath || "",
         });
 
         // initialize multi-branch selection from doctor.branches
@@ -338,6 +342,8 @@ export default function DoctorProfilePage() {
         licenseNumber: form.licenseNumber || null,
         licenseExpiryDate: form.licenseExpiryDate || null, // yyyy-mm-dd
         phone: form.phone || null,
+        signatureImagePath: form.signatureImagePath || null,
+        stampImagePath: form.stampImagePath || null,
       };
 
       const res = await fetch(`/api/users/${id}`, {
@@ -783,6 +789,78 @@ export default function DoctorProfilePage() {
           />
         </label>
 
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          Гарын үсгийн зураг (URL)
+          <input
+            name="signatureImagePath"
+            value={form.signatureImagePath}
+            onChange={handleChange}
+            placeholder="Жишээ: /uploads/signatures/doctor1.png"
+          />
+        </label>
+
+        {doctor.signatureImagePath && (
+          <div
+            style={{
+              marginBottom: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <span style={{ fontSize: 12, color: "#555" }}>
+              Одоогийн гарын үсэг
+            </span>
+            <img
+              src={doctor.signatureImagePath}
+              alt="Эмчийн гарын үсэг"
+              style={{
+                maxWidth: 200,
+                maxHeight: 80,
+                objectFit: "contain",
+                borderRadius: 4,
+                border: "1px solid #ddd",
+                background: "white",
+              }}
+            />
+          </div>
+        )}
+
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          Тамганы зураг (URL)
+          <input
+            name="stampImagePath"
+            value={form.stampImagePath}
+            onChange={handleChange}
+            placeholder="Жишээ: /uploads/stamps/doctor1.png"
+          />
+        </label>
+
+        {doctor.stampImagePath && (
+          <div
+            style={{
+              marginBottom: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <span style={{ fontSize: 12, color: "#555" }}>Одоогийн тамга</span>
+            <img
+              src={doctor.stampImagePath}
+              alt="Эмчийн тамга"
+              style={{
+                maxWidth: 160,
+                maxHeight: 160,
+                objectFit: "contain",
+                borderRadius: 4,
+                border: "1px solid #ddd",
+                background: "white",
+              }}
+            />
+          </div>
+        )}
+
         <button
           type="submit"
           disabled={saving}
@@ -957,7 +1035,7 @@ export default function DoctorProfilePage() {
 
           <button
             type="submit"
-            disabled={scheduleSaving}
+            disabled={scheduleSaving || !isCreatingSchedule}
             style={{
               marginTop: 4,
               padding: "8px 16px",
@@ -1096,8 +1174,7 @@ export default function DoctorProfilePage() {
                     {/* Branch */}
                     <td
                       style={{
-                        borderBottom: "1px solid " +
-                          "#f0f0f0",
+                        borderBottom: "1px solid #f0f0f0",
                         padding: 8,
                       }}
                     >
