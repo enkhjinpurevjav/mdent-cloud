@@ -30,13 +30,14 @@ function DoctorForm({
   onSuccess: (d: Doctor) => void;
 }) {
   const [form, setForm] = useState({
-    email: "",
-    password: "",
-    name: "",
-    ovog: "",
-    regNo: "",
-    branchIds: [] as number[],
-  });
+  email: "",
+  password: "",
+  name: "",
+  ovog: "",
+  regNo: "",
+  phone: "",         // <- add this
+  branchIds: [] as number[],
+});
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -70,18 +71,22 @@ function DoctorForm({
       const primaryBranchId =
         form.branchIds.length > 0 ? form.branchIds[0] : undefined;
 
-      const payload: any = {
-        email: form.email,
-        password: form.password,
-        name: form.name || undefined,
-        ovog: form.ovog || undefined,
-        role: "doctor",
-        branchId: primaryBranchId,
-      };
+     const payload: any = {
+  email: form.email,
+  password: form.password,
+  name: form.name || undefined,
+  ovog: form.ovog || undefined,
+  role: "doctor",
+  branchId: primaryBranchId,
+};
 
-      if (form.regNo.trim()) {
-        payload.regNo = form.regNo.trim();
-      }
+if (form.regNo.trim()) {
+  payload.regNo = form.regNo.trim();
+}
+
+if (form.phone.trim()) {
+  payload.phone = form.phone.trim();
+}
 
       // 1) create doctor
       const res = await fetch("/api/users", {
