@@ -472,33 +472,27 @@ export default function DoctorsPage() {
                 </td>
                 {/* 7. Дэлгэрэнгүй */}
                 <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  <a
-                    href={`/users/doctors/${d.id}`}
-                    style={{
-                      display: "inline-block",
-                      padding: "4px 8px",
-                      borderRadius: 4,
-                      border: "1px solid #2563eb",
-                      color: "#2563eb",
-                      textDecoration: "none",
-                      fontSize: 12,
-                      marginRight: 8,
-                    }}
-                  >
-                    Профайл
-                  </a>
-                  {Array.isArray(d.branches) && d.branches.length > 0 && (
-                    <span style={{ fontSize: 12, color: "#555" }}>
-                      {d.branches.length} салбар
-                    </span>
-                  )}
-                </td>
+  style={{
+    borderBottom: "1px solid "#f0f0f0",
+    padding: 8,
+    whiteSpace: "nowrap",
+  }}
+>
+  <a
+    href={`/users/doctors/${d.id}`}
+    style={{
+      display: "inline-block",
+      padding: "4px 8px",
+      borderRadius: 4,
+      border: "1px solid #2563eb",
+      color: "#2563eb",
+      textDecoration: "none",
+      fontSize: 12,
+    }}
+  >
+    Профайл
+  </a>
+</td>
               </tr>
             ))}
             {doctors.length === 0 && (
