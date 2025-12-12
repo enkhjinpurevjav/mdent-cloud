@@ -261,7 +261,7 @@ export default function DoctorsPage() {
     }
   };
 
-  const loadDoctors = async () => {
+    const loadDoctors = async () => {
     setLoading(true);
     setError("");
     try {
@@ -274,7 +274,14 @@ export default function DoctorsPage() {
       }
 
       if (res.ok && Array.isArray(data)) {
-        setDoctors(data);
+        // sort by name only (alphabetically)
+        const sorted = [...data].sort((a, b) => {
+          const aName = (a.name || "").toString();
+          const bName = (b.name || "").toString();
+          return aName.localeCompare(bName, "mn");
+        });
+
+        setDoctors(sorted);
       } else {
         setError(
           (data && data.error) || "Эмч нарын жагсаалтыг ачааллаж чадсангүй"
