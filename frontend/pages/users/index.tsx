@@ -122,7 +122,7 @@ export default function UsersIndexPage() {
               <th
                 style={{
                   textAlign: "left",
-                  borderBottom: "1px solid "#ddd",
+                  borderBottom: "1px solid #ddd",
                   padding: 8,
                 }}
               >
