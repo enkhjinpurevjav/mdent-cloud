@@ -64,7 +64,7 @@ export default function DoctorProfilePage() {
   const [scheduleLoading, setScheduleLoading] = useState(true);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
 
-  // schedule editor form state
+  // schedule editor form state (top form)
   const [scheduleForm, setScheduleForm] = useState<{
     date: string;
     branchId: string;
@@ -80,6 +80,7 @@ export default function DoctorProfilePage() {
     endTime: "15:00",
     note: "",
   });
+
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleSaveError, setScheduleSaveError] = useState<string | null>(
     null
@@ -87,6 +88,11 @@ export default function DoctorProfilePage() {
   const [scheduleSaveSuccess, setScheduleSaveSuccess] = useState<
     string | null
   >(null);
+
+  // inline editing state for table
+  const [editingScheduleId, setEditingScheduleId] = useState<number | null>(
+    null
+  );
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -117,21 +123,36 @@ export default function DoctorProfilePage() {
       if (name === "shiftType") {
         const shift = value as ShiftType;
 
-        // Determine if chosen date is weekend; fallback to generic defaults if no date yet
         if (prev.date) {
           const d = new Date(prev.date);
           const day = d.getDay(); // 0=Sun, 6=Sat
           const isWeekend = day === 0 || day === 6;
 
-          if (shift === "AM") {
-            updated.startTime = isWeekend ? "10:00" : "09:00";
-            updated.endTime = isWeekend ? "14:00" : "15:00";
-          } else if (shift === "PM") {
-            updated.startTime = isWeekend ? "14:00" : "15:00";
-            updated.endTime = isWeekend ? "19:00" : "21:00";
-          } else if (shift === "WEEKEND_FULL") {
-            updated.startTime = "10:00";
-            updated.endTime = "19:00";
+          if (isWeekend) {
+            // Weekend logic
+            if (shift === "AM") {
+              updated.startTime = "10:00";
+              updated.endTime = "14:00";
+            } else if (shift === "PM") {
+              updated.startTime = "14:00";
+              updated.endTime = "19:00";
+            } else if (shift === "WEEKEND_FULL") {
+              updated.startTime = "10:00";
+              updated.endTime = "19:00";
+            }
+          } else {
+            // Weekday logic
+            if (shift === "AM") {
+              updated.startTime = "09:00";
+              updated.endTime = "15:00"; // өглөө ээлж finishes at 15:00
+            } else if (shift === "PM") {
+              updated.startTime = "15:00"; // орой ээлж starts at 15:00
+              updated.endTime = "21:00";
+            } else if (shift === "WEEKEND_FULL") {
+              // Not really used on weekdays; safe full-day default
+              updated.startTime = "09:00";
+              updated.endTime = "21:00";
+            }
           }
         } else {
           // No date yet; use default weekday templates
@@ -417,14 +438,93 @@ export default function DoctorProfilePage() {
       }
 
       setScheduleSaveSuccess("Амжилттай хадгаллаа.");
-      // refresh schedule list
       await reloadSchedule();
     } catch (err) {
       console.error(err);
       setScheduleSaveError("Сүлжээгээ шалгана уу");
     } finally {
       setScheduleSaving(false);
-      // Clear success after short delay
+      setTimeout(() => setScheduleSaveSuccess(null), 3000);
+    }
+  };
+
+  // Inline edit helpers
+  const startEditRow = (s: DoctorScheduleDay) => {
+    setEditingScheduleId(s.id);
+    setScheduleForm({
+      date: s.date,
+      branchId: String(s.branch?.id ?? ""),
+      shiftType: "AM", // cannot infer reliably; leave as default or compute if you want
+      startTime: s.startTime,
+      endTime: s.endTime,
+      note: s.note || "",
+    });
+  };
+
+  const cancelEditRow = () => {
+    setEditingScheduleId(null);
+    setScheduleForm({
+      date: "",
+      branchId: "",
+      shiftType: "AM",
+      startTime: "09:00",
+      endTime: "15:00",
+      note: "",
+    });
+    setScheduleSaveError(null);
+  };
+
+  const handleInlineSaveSchedule = async () => {
+    if (!id) return;
+
+    setScheduleSaving(true);
+    setScheduleSaveError(null);
+    setScheduleSaveSuccess(null);
+
+    try {
+      if (!scheduleForm.date) {
+        setScheduleSaveError("Огноо сонгоно уу.");
+        setScheduleSaving(false);
+        return;
+      }
+      if (!scheduleForm.branchId) {
+        setScheduleSaveError("Салбар сонгоно уу.");
+        setScheduleSaving(false);
+        return;
+      }
+
+      const payload = {
+        date: scheduleForm.date,
+        branchId: Number(scheduleForm.branchId),
+        startTime: scheduleForm.startTime,
+        endTime: scheduleForm.endTime,
+        note: scheduleForm.note || null,
+      };
+
+      const res = await fetch(`/api/users/${id}/schedule`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setScheduleSaveError(
+          data?.error || "Ажлын хуваарь хадгалах үед алдаа гарлаа"
+        );
+        setScheduleSaving(false);
+        return;
+      }
+
+      setScheduleSaveSuccess("Амжилттай хадгаллаа.");
+      await reloadSchedule();
+      setEditingScheduleId(null);
+    } catch (err) {
+      console.error(err);
+      setScheduleSaveError("Сүлжээгээ шалгана уу");
+    } finally {
+      setScheduleSaving(false);
       setTimeout(() => setScheduleSaveSuccess(null), 3000);
     }
   };
@@ -466,7 +566,7 @@ export default function DoctorProfilePage() {
       : branches;
 
   const isEditingSchedule =
-    !!scheduleForm.date && !!scheduleForm.branchId;
+    !!scheduleForm.date && !!scheduleForm.branchId && editingScheduleId === null;
 
   return (
     <div style={{ padding: 24 }}>
@@ -673,7 +773,7 @@ export default function DoctorProfilePage() {
         </button>
       </section>
 
-      {/* Schedule editor form */}
+      {/* Schedule editor form (top) */}
       <section style={{ marginTop: 32, maxWidth: 600 }}>
         <h2>
           {isEditingSchedule
@@ -701,6 +801,7 @@ export default function DoctorProfilePage() {
               name="date"
               value={scheduleForm.date}
               onChange={handleScheduleFormChange}
+              disabled={editingScheduleId !== null}
             />
           </label>
 
@@ -710,6 +811,7 @@ export default function DoctorProfilePage() {
               name="branchId"
               value={scheduleForm.branchId}
               onChange={handleScheduleFormChange}
+              disabled={editingScheduleId !== null}
             >
               <option value="">Сонгох</option>
               {doctorAssignedBranches.map((b) => (
@@ -726,6 +828,7 @@ export default function DoctorProfilePage() {
               name="shiftType"
               value={scheduleForm.shiftType}
               onChange={handleScheduleFormChange}
+              disabled={editingScheduleId !== null}
             >
               <option value="AM">Өглөө ээлж</option>
               <option value="PM">Орой ээлж</option>
@@ -749,6 +852,7 @@ export default function DoctorProfilePage() {
                 name="startTime"
                 value={scheduleForm.startTime}
                 onChange={handleScheduleFormChange}
+                disabled={editingScheduleId !== null}
               />
             </label>
             <label
@@ -760,6 +864,7 @@ export default function DoctorProfilePage() {
                 name="endTime"
                 value={scheduleForm.endTime}
                 onChange={handleScheduleFormChange}
+                disabled={editingScheduleId !== null}
               />
             </label>
           </div>
@@ -772,12 +877,13 @@ export default function DoctorProfilePage() {
               value={scheduleForm.note}
               onChange={handleScheduleFormChange}
               placeholder="Жишээ нь: 30 минут хоцорч эхэлнэ"
+              disabled={editingScheduleId !== null}
             />
           </label>
 
           <button
             type="submit"
-            disabled={scheduleSaving}
+            disabled={scheduleSaving || editingScheduleId !== null}
             style={{
               marginTop: 4,
               padding: "8px 16px",
@@ -785,8 +891,9 @@ export default function DoctorProfilePage() {
               border: "none",
               background: "#7c3aed",
               color: "white",
-              cursor: "pointer",
+              cursor: editingScheduleId !== null ? "not-allowed" : "pointer",
               alignSelf: "flex-start",
+              opacity: editingScheduleId !== null ? 0.6 : 1,
             }}
           >
             {scheduleSaving
@@ -887,81 +994,177 @@ export default function DoctorProfilePage() {
               </tr>
             </thead>
             <tbody>
-              {schedule.map((s) => (
-                <tr key={s.id}>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                    }}
-                  >
-                    {new Date(s.date).toLocaleDateString("mn-MN", {
-                      year: "numeric",
-                      month: "2-digit",
-                      day: "2-digit",
-                      weekday: "short",
-                    })}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                    }}
-                  >
-                    {s.branch?.name || "-"}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                    }}
-                  >
-                    {s.startTime} - {s.endTime}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                    }}
-                  >
-                    {s.note || "-"}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        // load row into form
-                        setScheduleForm((prev) => ({
-                          ...prev,
-                          date: s.date, // "YYYY-MM-DD"
-                          branchId: String(s.branch?.id ?? ""),
-                          startTime: s.startTime,
-                          endTime: s.endTime,
-                          note: s.note || "",
-                          // keep current shiftType; or you can recompute if you want
-                        }));
-                        // optionally scroll to form
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                      }}
+              {schedule.map((s) => {
+                const isRowEditing = editingScheduleId === s.id;
+
+                return (
+                  <tr key={s.id}>
+                    {/* Date */}
+                    <td
                       style={{
-                        padding: "4px 8px",
-                        borderRadius: 4,
-                        border: "1px solid #ddd",
-                        background: "#f9fafb",
-                        cursor: "pointer",
-                        fontSize: 12,
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
                       }}
                     >
-                      Засах
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                      {isRowEditing ? (
+                        <input
+                          type="date"
+                          name="date"
+                          value={scheduleForm.date}
+                          onChange={handleScheduleFormChange}
+                          style={{ fontSize: 12, padding: 4 }}
+                        />
+                      ) : (
+                        new Date(s.date).toLocaleDateString("mn-MN", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                          weekday: "short",
+                        })
+                      )}
+                    </td>
+
+                    {/* Branch */}
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      {isRowEditing ? (
+                        <select
+                          name="branchId"
+                          value={scheduleForm.branchId}
+                          onChange={handleScheduleFormChange}
+                          style={{ fontSize: 12, padding: 4 }}
+                        >
+                          <option value="">Сонгох</option>
+                          {doctorAssignedBranches.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        s.branch?.name || "-"
+                      )}
+                    </td>
+
+                    {/* Time */}
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      {isRowEditing ? (
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <input
+                            type="time"
+                            name="startTime"
+                            value={scheduleForm.startTime}
+                            onChange={handleScheduleFormChange}
+                            style={{ fontSize: 12, padding: 4 }}
+                          />
+                          <span>-</span>
+                          <input
+                            type="time"
+                            name="endTime"
+                            value={scheduleForm.endTime}
+                            onChange={handleScheduleFormChange}
+                            style={{ fontSize: 12, padding: 4 }}
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          {s.startTime} - {s.endTime}
+                        </>
+                      )}
+                    </td>
+
+                    {/* Note */}
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      {isRowEditing ? (
+                        <textarea
+                          name="note"
+                          rows={1}
+                          value={scheduleForm.note}
+                          onChange={handleScheduleFormChange}
+                          style={{
+                            fontSize: 12,
+                            padding: 4,
+                            width: "100%",
+                          }}
+                        />
+                      ) : (
+                        s.note || "-"
+                      )}
+                    </td>
+
+                    {/* Actions */}
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      {isRowEditing ? (
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button
+                            type="button"
+                            onClick={handleInlineSaveSchedule}
+                            disabled={scheduleSaving}
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: 4,
+                              border: "1px solid #4ade80",
+                              background: "#dcfce7",
+                              cursor: "pointer",
+                              fontSize: 12,
+                            }}
+                          >
+                            {scheduleSaving ? "Хадгалж..." : "Хадгалах"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEditRow}
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: 4,
+                              border: "1px solid #ddd",
+                              background: "#f9fafb",
+                              cursor: "pointer",
+                              fontSize: 12,
+                            }}
+                          >
+                            Болих
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => startEditRow(s)}
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: 4,
+                            border: "1px solid #ddd",
+                            background: "#f9fafb",
+                            cursor: "pointer",
+                            fontSize: 12,
+                          }}
+                        >
+                          Засах
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
