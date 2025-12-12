@@ -666,7 +666,7 @@ export default function DoctorProfilePage() {
 
       <h1>Эмч: {headerName}</h1>
 
-      {/* Basic info form */}
+            {/* Basic info form */}
       <form
         onSubmit={handleSave}
         style={{
@@ -678,29 +678,48 @@ export default function DoctorProfilePage() {
         }}
       >
         {/* Doctor ID photo */}
-        {doctor.idPhotoPath && (
+        <div
+          style={{
+            marginBottom: 12,
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
+          <span style={{ fontWeight: 500 }}>Иргэний үнэмлэхийн зураг</span>
           <div
             style={{
-              marginBottom: 12,
+              width: 160,
+              height: 200,
+              borderRadius: 8,
+              border: "2px dashed #9ca3af", // visible dashed border
               display: "flex",
-              flexDirection: "column",
-              gap: 4,
+              alignItems: "center",
+              justifyContent: "center",
+              background: "#f9fafb",
+              color: "#6b7280",
+              fontSize: 12,
+              position: "relative",
+              overflow: "hidden",
             }}
           >
-            <span style={{ fontWeight: 500 }}>Иргэний үнэмлэхийн зураг</span>
-            <img
-              src={doctor.idPhotoPath}
-              alt="Эмчийн ID зураг"
-              style={{
-                width: 160,
-                height: 200,
-                objectFit: "cover",
-                borderRadius: 8,
-                border: "1px solid #ddd",
-              }}
-            />
+            {doctor.idPhotoPath ? (
+              <img
+                src={doctor.idPhotoPath}
+                alt="Эмчийн ID зураг"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                  borderRadius: 8,
+                }}
+              />
+            ) : (
+              <span>Зураг байрлах хэсэг</span>
+            )}
           </div>
-        )}
+        </div>
+
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           Овог
           <input
@@ -710,6 +729,8 @@ export default function DoctorProfilePage() {
             placeholder="Овог"
           />
         </label>
+
+        {/* ...rest of the form remains the same ... */}
 
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           Нэр
