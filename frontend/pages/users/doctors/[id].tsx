@@ -221,7 +221,7 @@ export default function DoctorProfilePage() {
         const today = new Date();
         const from = today.toISOString().slice(0, 10);
         const toDate = new Date(today);
-        toDate.setDate(today.getDate() + 14);
+        toDate.setDate(today.getDate() + 31);
         const to = toDate.toISOString().slice(0, 10);
 
         const res = await fetch(
@@ -259,7 +259,7 @@ export default function DoctorProfilePage() {
       const today = new Date();
       const from = today.toISOString().slice(0, 10);
       const toDate = new Date(today);
-      toDate.setDate(today.getDate() + 14);
+      toDate.setDate(today.getDate() + 31);
       const to = toDate.toISOString().slice(0, 10);
 
       const res = await fetch(
@@ -799,9 +799,9 @@ export default function DoctorProfilePage() {
         </form>
       </section>
 
-      {/* Work schedule (next 14 days) */}
+      {/* Work schedule (next 31 days) */}
       <section style={{ marginTop: 32, maxWidth: 800 }}>
-        <h2>Дараагийн 14 хоногийн ажлын хуваарь</h2>
+        <h2>Дараагийн 1 сарын ажлын хуваарь</h2>
         <p style={{ color: "#555", marginBottom: 8 }}>
           Аль салбарт, хэдэн цагаас хэдэн цаг хүртэл ажиллахыг харуулна.
         </p>
