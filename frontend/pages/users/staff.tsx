@@ -717,7 +717,7 @@ export default function OtherStaffPage() {
                     </td>
                     <td
                       style={{
-                        borderBottom: "1px solid "#f0f0f0",
+                        borderBottom: "1px solid #f0f0f0",
                         padding: 8,
                       }}
                     >
