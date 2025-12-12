@@ -18,6 +18,7 @@ type Doctor = {
   regNo?: string | null;
   licenseNumber?: string | null;
   licenseExpiryDate?: string | null;
+  phone?: string | null;           // <-- added
   createdAt?: string;
 };
 
@@ -390,6 +391,7 @@ export default function DoctorsPage() {
               >
                 Салбар
               </th>
+              {/* CHANGED: Бүртгэгдсэн -> Утас */}
               <th
                 style={{
                   textAlign: "left",
@@ -397,7 +399,7 @@ export default function DoctorsPage() {
                   padding: 8,
                 }}
               >
-                Бүртгэгдсэн
+                Утас
               </th>
               <th
                 style={{
@@ -411,115 +413,111 @@ export default function DoctorsPage() {
             </tr>
           </thead>
           <tbody>
-  {doctors.map((d) => (
-    <tr key={d.id}>
-      <td
-        style={{
-          borderBottom: "1px solid #f0f0f0",
-          padding: 8,
-        }}
-      >
-        {d.id}
-      </td>
-      <td
-        style={{
-          borderBottom: "1px solid #f0f0f0",
-          padding: 8,
-        }}
-      >
-        {d.ovog || "-"}
-      </td>
-      <td
-        style={{
-          borderBottom: "1px solid #f0f0f0",
-          padding: 8,
-        }}
-      >
-        {d.name || "-"}
-      </td>
-      <td
-        style={{
-          borderBottom: "1px solid #f0f0f0",
-          padding: 8,
-        }}
-      >
-        {d.regNo || "-"}
-      </td>
-      <td
-        style={{
-          borderBottom: "1px solid #f0f0f0",
-          padding: 8,
-        }}
-      >
-        {d.email}
-      </td>
-      <td
-        style={{
-          borderBottom: "1px solid #f0f0f0",
-          padding: 8,
-        }}
-      >
-        {/* main (legacy) branch */}
-        {d.branch ? d.branch.name : "-"}
-      </td>
-      <td
-        style={{
-          borderBottom: "1px solid #f0f0f0",
-          padding: 8,
-        }}
-      >
-        {d.createdAt
-          ? new Date(d.createdAt).toLocaleString("mn-MN")
-          : ""}
-      </td>
-      <td
-        style={{
-          borderBottom: "1px solid #f0f0f0",
-          padding: 8,
-          whiteSpace: "nowrap",
-        }}
-      >
-        {/* Профайл button */}
-        <a
-          href={`/users/doctors/${d.id}`}
-          style={{
-            display: "inline-block",
-            padding: "4px 8px",
-            borderRadius: 4,
-            border: "1px solid #2563eb",
-            color: "#2563eb",
-            textDecoration: "none",
-            fontSize: 12,
-            marginRight: 8,
-          }}
-        >
-          Профайл
-        </a>
-
-        {/* optional: show count of branches */}
-        {Array.isArray(d.branches) && d.branches.length > 0 && (
-          <span style={{ fontSize: 12, color: "#555" }}>
-            {d.branches.length} салбар
-          </span>
-        )}
-      </td>
-    </tr>
-  ))}
-  {doctors.length === 0 && (
-    <tr>
-      <td
-        colSpan={8}
-        style={{
-          textAlign: "center",
-          color: "#888",
-          padding: 12,
-        }}
-      >
-        Өгөгдөл алга
-      </td>
-    </tr>
-  )}
-</tbody>
+            {doctors.map((d) => (
+              <tr key={d.id}>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {d.id}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {d.ovog || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {d.name || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {d.regNo || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {d.email}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {/* main (legacy) branch */}
+                  {d.branch ? d.branch.name : "-"}
+                </td>
+                {/* CHANGED: show phone instead of createdAt */}
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {d.phone || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <a
+                    href={`/users/doctors/${d.id}`}
+                    style={{
+                      display: "inline-block",
+                      padding: "4px 8px",
+                      borderRadius: 4,
+                      border: "1px solid #2563eb",
+                      color: "#2563eb",
+                      textDecoration: "none",
+                      fontSize: 12,
+                      marginRight: 8,
+                    }}
+                  >
+                    Профайл
+                  </a>
+                  {Array.isArray(d.branches) && d.branches.length > 0 && (
+                    <span style={{ fontSize: 12, color: "#555" }}>
+                      {d.branches.length} салбар
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {doctors.length === 0 && (
+              <tr>
+                <td
+                  colSpan={8}
+                  style={{
+                    textAlign: "center",
+                    color: "#888",
+                    padding: 12,
+                  }}
+                >
+                  Өгөгдөл алга
+                </td>
+              </tr>
+            )}
+          </tbody>
         </table>
       )}
     </main>
