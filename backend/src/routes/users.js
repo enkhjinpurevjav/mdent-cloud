@@ -429,7 +429,7 @@ router.get("/:id/schedule", async (req, res) => {
       }
     } else {
       toDate = new Date(fromDate);
-      toDate.setDate(fromDate.getDate() + 14);
+      toDate.setDate(fromDate.getDate() + 31);
     }
 
     const where = {
