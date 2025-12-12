@@ -153,7 +153,7 @@ function ReceptionForm({
     <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
       <h2>Шинэ ресепшн бүртгэх</h2>
 
-      <div
+            <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
@@ -182,18 +182,18 @@ function ReceptionForm({
           onChange={handleChange}
         />
         <input
+          name="phone"
+          placeholder="Утас"
+          value={form.phone}
+          onChange={handleChange}
+        />
+        <input
           name="email"
           type="email"
           placeholder="И-мэйл"
           value={form.email}
           onChange={handleChange}
           required
-        />
-        <input
-          name="phone"
-          placeholder="Утас"
-          value={form.phone}
-          onChange={handleChange}
         />
         <input
           name="password"
@@ -498,7 +498,7 @@ export default function ReceptionPage() {
     >
       <h1>Ресепшн</h1>
       <p style={{ color: "#555", marginBottom: 16 }}>
-        Ресепшн ажилчдыг бүртгэх, салбарт хуваарилах, жагсаалтаар харах.
+        Ресепшн ажилчдыг бүртгэх, салбарт хуваарьлах, жагсаалтаар харах.
       </p>
 
       <UsersTabs />
