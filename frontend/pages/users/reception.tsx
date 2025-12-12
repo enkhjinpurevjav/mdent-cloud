@@ -261,8 +261,8 @@ export default function ReceptionPage() {
     ovog: string;
     regNo: string;
     phone: string;
-    branchId: number | null;      // primary branch (for user.branchId)
-    editBranchIds: number[];      // all branches (for user.branches via /branches)
+    branchId: number | null; // primary branch (for user.branchId)
+    editBranchIds: number[]; // all branches (for user.branches via /branches)
   }>({
     name: "",
     ovog: "",
@@ -570,6 +570,15 @@ export default function ReceptionPage() {
                   padding: 8,
                 }}
               >
+                И-мэйл
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
                 РД
               </th>
               <th
@@ -631,6 +640,15 @@ export default function ReceptionPage() {
                         onChange={handleEditChange}
                         style={{ width: "100%" }}
                       />
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      {/* email not editable here; show existing */}
+                      {u.email}
                     </td>
                     <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                       <input
@@ -719,7 +737,7 @@ export default function ReceptionPage() {
                 <tr key={u.id}>
                   <td
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
+                      borderBottom: "1px solid "#f0f0f0",
                       padding: 8,
                     }}
                   >
@@ -740,6 +758,14 @@ export default function ReceptionPage() {
                     }}
                   >
                     {u.name || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.email}
                   </td>
                   <td
                     style={{
@@ -806,7 +832,7 @@ export default function ReceptionPage() {
             {users.length === 0 && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{
                     textAlign: "center",
                     color: "#888",
