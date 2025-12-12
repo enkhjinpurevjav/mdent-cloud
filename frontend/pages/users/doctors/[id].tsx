@@ -19,6 +19,7 @@ type Doctor = {
   signatureImagePath?: string | null;
   stampImagePath?: string | null;
   idPhotoPath?: string | null;
+  phone?: string | null; // <- ADD THIS
 
   // multiple branches
   branches?: Branch[];
@@ -47,14 +48,15 @@ export default function DoctorProfilePage() {
   const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
-    name: "",
-    ovog: "",
-    email: "",
-    branchId: "",
-    regNo: "",
-    licenseNumber: "",
-    licenseExpiryDate: "",
-  });
+  name: "",
+  ovog: "",
+  email: "",
+  branchId: "",
+  regNo: "",
+  licenseNumber: "",
+  licenseExpiryDate: "",
+  phone: "",            // <- ADD THIS
+});
 
   // selected multiple branches
   const [selectedBranchIds, setSelectedBranchIds] = useState<number[]>([]);
@@ -334,6 +336,7 @@ export default function DoctorProfilePage() {
         regNo: form.regNo || null,
         licenseNumber: form.licenseNumber || null,
         licenseExpiryDate: form.licenseExpiryDate || null, // yyyy-mm-dd
+        phone: form.phone || null,
       };
 
       const res = await fetch(`/api/users/${id}`, {
@@ -742,15 +745,25 @@ export default function DoctorProfilePage() {
           </select>
         </label>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          РД 
-          <input
-            name="regNo"
-            value={form.regNo}
-            onChange={handleChange}
-            placeholder="РД"
-          />
-        </label>
+       <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+  РД
+  <input
+    name="regNo"
+    value={form.regNo}
+    onChange={handleChange}
+    placeholder="РД"
+  />
+</label>
+
+<label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+  Утас
+  <input
+    name="phone"
+    value={form.phone}
+    onChange={handleChange}
+    placeholder="Утас"
+  />
+</label>
 
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           Лицензийн дугаар
