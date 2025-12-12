@@ -629,10 +629,9 @@ export default function DoctorProfilePage() {
     );
   }
 
-  const headerName =
-    doctor.ovog || doctor.name
-      ? `${doctor.ovog || ""} ${doctor.name || ""}`.trim()
-      : doctor.email;
+ const headerName = doctor.name && doctor.name.trim().length > 0
+  ? doctor.name
+  : doctor.email;
 
   // Only allow selecting branches that this doctor is assigned to
   const doctorAssignedBranches: Branch[] =
