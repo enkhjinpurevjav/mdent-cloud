@@ -101,7 +101,7 @@ function ReceptionForm({
 
       const createdUser = data as Receptionist;
 
-      // 2) assign multiple branches via /api/users/:id/branches
+      // 2) assign multiple branches via /api/users/:id/branches (optional at create time)
       if (form.branchIds.length > 0) {
         try {
           const resBranches = await fetch(
@@ -262,14 +262,12 @@ export default function ReceptionPage() {
     regNo: string;
     phone: string;
     branchId: number | null;
-    editBranchIds: number[]; // NEW: all branches selected in edit mode
   }>({
     name: "",
     ovog: "",
     regNo: "",
     phone: "",
     branchId: null,
-    editBranchIds: [],
   });
 
   const loadBranches = async () => {
@@ -323,21 +321,12 @@ export default function ReceptionPage() {
 
   const startEdit = (u: Receptionist) => {
     setEditingId(u.id);
-
-    const currentBranchIds =
-      Array.isArray(u.branches) && u.branches.length > 0
-        ? u.branches.map((b) => b.id)
-        : u.branch
-        ? [u.branch.id]
-        : [];
-
     setEditForm({
       name: u.name || "",
       ovog: u.ovog || "",
       regNo: u.regNo || "",
       phone: u.phone || "",
       branchId: u.branchId ?? (u.branch ? u.branch.id : null),
-      editBranchIds: currentBranchIds,
     });
   };
 
@@ -360,27 +349,8 @@ export default function ReceptionPage() {
     }));
   };
 
-  const handleEditBranchToggle = (branchId: number) => {
-    setEditForm((prev) => {
-      const exists = prev.editBranchIds.includes(branchId);
-      const next = exists
-        ? prev.editBranchIds.filter((id) => id !== branchId)
-        : [...prev.editBranchIds, branchId];
-
-      // keep primary branch in sync with first selected (optional)
-      const nextPrimary = next.length > 0 ? next[0] : null;
-
-      return {
-        ...prev,
-        editBranchIds: next,
-        branchId: nextPrimary,
-      };
-    });
-  };
-
   const saveEdit = async (id: number) => {
     try {
-      // 1) update basic user fields (including primary branchId)
       const payload: any = {
         name: editForm.name || null,
         ovog: editForm.ovog || null,
@@ -395,59 +365,29 @@ export default function ReceptionPage() {
         body: JSON.stringify(payload),
       });
 
-      let userData: any = null;
+      let data: any = null;
       try {
-        userData = await res.json();
+        data = await res.json();
       } catch {
-        userData = null;
+        data = null;
       }
 
-      if (!res.ok || !userData || !userData.id) {
-        alert((userData && userData.error) || "Хадгалах үед алдаа гарлаа");
+      if (!res.ok || !data || !data.id) {
+        alert((data && data.error) || "Хадгалах үед алдаа гарлаа");
         return;
       }
-
-      // 2) update multi-branches via /branches
-      let branchesResult: any = null;
-      const branchesPayload = { branchIds: editForm.editBranchIds };
-
-      const resBranches = await fetch(`/api/users/${id}/branches`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(branchesPayload),
-      });
-
-      try {
-        branchesResult = await resBranches.json();
-      } catch {
-        branchesResult = null;
-      }
-
-      if (!resBranches.ok) {
-        alert(
-          (branchesResult && branchesResult.error) ||
-            "Салбар хадгалах үед алдаа гарлаа"
-        );
-        return;
-      }
-
-      const updatedBranches =
-        branchesResult && Array.isArray(branchesResult.branches)
-          ? branchesResult.branches
-          : userData.branches || [];
 
       setUsers((prev) =>
         prev.map((u) =>
           u.id === id
             ? {
                 ...u,
-                name: userData.name,
-                ovog: userData.ovog,
-                regNo: userData.regNo,
-                phone: userData.phone,
-                branchId: userData.branchId,
-                branch: userData.branch,
-                branches: updatedBranches,
+                name: data.name,
+                ovog: data.ovog,
+                regNo: data.regNo,
+                phone: data.phone,
+                branchId: data.branchId,
+                branch: data.branch,
               }
             : u
         )
@@ -583,7 +523,7 @@ export default function ReceptionPage() {
               <th
                 style={{
                   textAlign: "left",
-                  borderBottom: "1px solid "#ddd",
+                  borderBottom: "1px solid #ddd",
                   padding: 8,
                 }}
               >
@@ -609,7 +549,7 @@ export default function ReceptionPage() {
                   <tr key={u.id}>
                     <td
                       style={{
-                        borderBottom: "1px solid "#f0f0f0",
+                        borderBottom: "1px solid #f0f0f0",
                         padding: 8,
                       }}
                     >
@@ -634,7 +574,6 @@ export default function ReceptionPage() {
                     <td
                       style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}
                     >
-                      {/* email is not editable here; keep readonly */}
                       {u.email}
                     </td>
                     <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
@@ -653,42 +592,20 @@ export default function ReceptionPage() {
                         style={{ width: "100%" }}
                       />
                     </td>
-                    <td
-                      style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
-                      }}
-                    >
-                      {/* Multi-branch edit: checkbox list */}
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 4,
-                        }}
+                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                      <select
+                        name="branchId"
+                        value={editForm.branchId ?? ""}
+                        onChange={handleEditChange}
+                        style={{ width: "100%" }}
                       >
+                        <option value="">-</option>
                         {branches.map((b) => (
-                          <label
-                            key={b.id}
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4,
-                              border: "1px solid #ddd",
-                              borderRadius: 4,
-                              padding: "2px 6px",
-                              fontSize: 12,
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={editForm.editBranchIds.includes(b.id)}
-                              onChange={() => handleEditBranchToggle(b.id)}
-                            />
+                          <option key={b.id} value={b.id}>
                             {b.name}
-                          </label>
+                          </option>
                         ))}
-                      </div>
+                      </select>
                     </td>
                     <td
                       style={{
@@ -776,11 +693,7 @@ export default function ReceptionPage() {
                       padding: 8,
                     }}
                   >
-                    {Array.isArray(u.branches) && u.branches.length > 0
-                      ? u.branches.map((b) => b.name).join(", ")
-                      : u.branch
-                      ? u.branch.name
-                      : "-"}
+                    {u.branch ? u.branch.name : "-"}
                   </td>
                   <td
                     style={{
