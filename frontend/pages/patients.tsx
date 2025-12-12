@@ -214,7 +214,6 @@ export default function PatientsPage() {
 
       setBranches(bData);
 
-      // sort by name (ovog + name)
       const sortedPatients = [...pData].sort((a, b) => {
         const aName = `${a.ovog || ""} ${a.name || ""}`.toString();
         const bName = `${b.ovog || ""} ${b.name || ""}`.toString();
@@ -428,7 +427,7 @@ export default function PatientsPage() {
                 </td>
                 <td
                   style={{
-                    borderBottom: "1px solid "#f0f0f0",
+                    borderBottom: "1px solid #f0f0f0",
                     padding: 8,
                   }}
                 >
