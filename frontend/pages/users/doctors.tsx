@@ -161,52 +161,57 @@ if (form.phone.trim()) {
   return (
     <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
       <h2>Шинэ эмч бүртгэх</h2>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: 8,
-          marginBottom: 8,
-        }}
-      >
-        <input
-          name="ovog"
-          placeholder="Овог"
-          value={form.ovog}
-          onChange={handleChange}
-          required
-        />
-        <input
-          name="name"
-          placeholder="Нэр"
-          value={form.name}
-          onChange={handleChange}
-          required
-        />
-        <input
-          name="regNo"
-          placeholder="РД"
-          value={form.regNo}
-          onChange={handleChange}
-        />
-        <input
-          name="email"
-          type="email"
-          placeholder="И-мэйл"
-          value={form.email}
-          onChange={handleChange}
-          required
-        />
-        <input
-          name="password"
-          type="password"
-          placeholder="Нууц үг"
-          value={form.password}
-          onChange={handleChange}
-          required
-        />
-      </div>
-
+     <div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+    gap: 8,
+    marginBottom: 8,
+  }}
+>
+  <input
+    name="ovog"
+    placeholder="Овог"
+    value={form.ovog}
+    onChange={handleChange}
+    required
+  />
+  <input
+    name="name"
+    placeholder="Нэр"
+    value={form.name}
+    onChange={handleChange}
+    required
+  />
+  <input
+    name="regNo"
+    placeholder="РД"
+    value={form.regNo}
+    onChange={handleChange}
+  />
+  <input
+    name="phone"
+    placeholder="Утас"
+    value={form.phone}
+    onChange={handleChange}
+  />
+  <input
+    name="email"
+    type="email"
+    placeholder="И-мэйл"
+    value={form.email}
+    onChange={handleChange}
+    required
+  />
+  <input
+    name="password"
+    type="password"
+    placeholder="Нууц үг"
+    value={form.password}
+    onChange={handleChange}
+    required
+  />
+</div>
       <div style={{ marginBottom: 8 }}>
         <div style={{ marginBottom: 4, fontWeight: 500 }}>Салбар сонгох</div>
         <div
