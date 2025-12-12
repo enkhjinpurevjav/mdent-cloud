@@ -90,7 +90,7 @@ router.post("/", async (req, res) => {
         .json({ error: "at least one branchId is required" });
     }
 
-    let serviceCode: string | null = null;
+    let serviceCode = null;
     if (typeof code === "string" && code.trim()) {
       serviceCode = code.trim();
     } else {
@@ -106,7 +106,7 @@ router.post("/", async (req, res) => {
         code: serviceCode,
         isActive: typeof isActive === "boolean" ? isActive : true,
         serviceBranches: {
-          create: branchIds.map((bid: number | string) => ({
+          create: branchIds.map((bid) => ({
             branchId: Number(bid),
           })),
         },
@@ -119,7 +119,7 @@ router.post("/", async (req, res) => {
     });
 
     res.status(201).json(created);
-  } catch (err: any) {
+  } catch (err) {
     console.error("POST /api/services error:", err);
     if (err.code === "P2002") {
       // unique constraint, likely on code
@@ -166,7 +166,7 @@ router.put("/:id", async (req, res) => {
       return res.status(404).json({ error: "Service not found" });
     }
 
-    const data: any = {};
+    const data = {};
 
     if (typeof name === "string") data.name = name;
     if (price !== undefined) data.price = Number(price);
@@ -179,7 +179,7 @@ router.put("/:id", async (req, res) => {
       // full replace of junction table entries
       data.serviceBranches = {
         deleteMany: {},
-        create: branchIds.map((bid: number | string) => ({
+        create: branchIds.map((bid) => ({
           branchId: Number(bid),
         })),
       };
@@ -196,7 +196,7 @@ router.put("/:id", async (req, res) => {
     });
 
     res.json(updated);
-  } catch (err: any) {
+  } catch (err) {
     console.error("PUT /api/services/:id error:", err);
     if (err.code === "P2002") {
       // unique constraint, likely on code
@@ -209,9 +209,6 @@ router.put("/:id", async (req, res) => {
 /**
  * DELETE /api/services/:id
  * Deletes the service and its ServiceBranch rows.
- * (Invoices/InvoiceItems referencing this service should be handled
- * via FK constraints or application rules; this route assumes
- * it's safe to delete.)
  */
 router.delete("/:id", async (req, res) => {
   try {
