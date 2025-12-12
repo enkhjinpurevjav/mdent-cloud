@@ -182,18 +182,18 @@ function ReceptionForm({
           onChange={handleChange}
         />
         <input
-          name="phone"
-          placeholder="Утас"
-          value={form.phone}
-          onChange={handleChange}
-        />
-        <input
           name="email"
           type="email"
           placeholder="И-мэйл"
           value={form.email}
           onChange={handleChange}
           required
+        />
+        <input
+          name="phone"
+          placeholder="Утас"
+          value={form.phone}
+          onChange={handleChange}
         />
         <input
           name="password"
@@ -205,7 +205,7 @@ function ReceptionForm({
         />
       </div>
 
-      {/* Multi-branch selection (same style as doctor registration) */}
+      {/* Multi-branch selection */}
       <div style={{ marginBottom: 8 }}>
         <div style={{ marginBottom: 4, fontWeight: 500 }}>Салбар сонгох</div>
         <div
@@ -262,7 +262,7 @@ export default function ReceptionPage() {
     regNo: string;
     phone: string;
     branchId: number | null;
-    editBranchIds: number[]; // all branches selected in edit mode
+    editBranchIds: number[];
   }>({
     name: "",
     ovog: "",
@@ -300,11 +300,12 @@ export default function ReceptionPage() {
         throw new Error((data && data.error) || "Алдаа гарлаа");
       }
 
+      // sort by name only (alphabetically, Mongolian)
       setUsers(
         [...data].sort((a, b) => {
-          if (a.id < b.id) return -1;
-          if (a.id > b.id) return 1;
-          return 0;
+          const aName = (a.name || "").toString();
+          const bName = (b.name || "").toString();
+          return aName.localeCompare(bName, "mn");
         })
       );
     } catch (err: any) {
@@ -367,7 +368,6 @@ export default function ReceptionPage() {
         ? prev.editBranchIds.filter((id) => id !== branchId)
         : [...prev.editBranchIds, branchId];
 
-      // keep primary branch in sync with first selected
       const nextPrimary = next.length > 0 ? next[0] : null;
 
       return {
@@ -380,7 +380,6 @@ export default function ReceptionPage() {
 
   const saveEdit = async (id: number) => {
     try {
-      // 1) update basic user fields (including primary branchId)
       const payload: any = {
         name: editForm.name || null,
         ovog: editForm.ovog || null,
@@ -407,8 +406,6 @@ export default function ReceptionPage() {
         return;
       }
 
-      // 2) update multi-branches via /branches
-      let branchesResult: any = null;
       const branchesPayload = { branchIds: editForm.editBranchIds };
 
       const resBranches = await fetch(`/api/users/${id}/branches`, {
@@ -417,6 +414,7 @@ export default function ReceptionPage() {
         body: JSON.stringify(branchesPayload),
       });
 
+      let branchesResult: any = null;
       try {
         branchesResult = await resBranches.json();
       } catch {
@@ -526,6 +524,7 @@ export default function ReceptionPage() {
         >
           <thead>
             <tr>
+              {/* # constant number column */}
               <th
                 style={{
                   textAlign: "left",
@@ -533,7 +532,7 @@ export default function ReceptionPage() {
                   padding: 8,
                 }}
               >
-                ID
+                #
               </th>
               <th
                 style={{
@@ -601,21 +600,27 @@ export default function ReceptionPage() {
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => {
+            {users.map((u, index) => {
               const isEditing = editingId === u.id;
 
               if (isEditing) {
                 return (
                   <tr key={u.id}>
+                    {/* # */}
                     <td
                       style={{
                         borderBottom: "1px solid #f0f0f0",
                         padding: 8,
                       }}
                     >
-                      {u.id}
+                      {index + 1}
                     </td>
-                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
                       <input
                         name="ovog"
                         value={editForm.ovog}
@@ -623,7 +628,12 @@ export default function ReceptionPage() {
                         style={{ width: "100%" }}
                       />
                     </td>
-                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
                       <input
                         name="name"
                         value={editForm.name}
@@ -632,11 +642,19 @@ export default function ReceptionPage() {
                       />
                     </td>
                     <td
-                      style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
                     >
                       {u.email}
                     </td>
-                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
                       <input
                         name="regNo"
                         value={editForm.regNo}
@@ -644,7 +662,12 @@ export default function ReceptionPage() {
                         style={{ width: "100%" }}
                       />
                     </td>
-                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
                       <input
                         name="phone"
                         value={editForm.phone}
@@ -658,7 +681,6 @@ export default function ReceptionPage() {
                         padding: 8,
                       }}
                     >
-                      {/* Multi-branch edit: checkbox list */}
                       <div
                         style={{
                           display: "flex",
@@ -721,13 +743,14 @@ export default function ReceptionPage() {
 
               return (
                 <tr key={u.id}>
+                  {/* # */}
                   <td
                     style={{
                       borderBottom: "1px solid #f0f0f0",
                       padding: 8,
                     }}
                   >
-                    {u.id}
+                    {index + 1}
                   </td>
                   <td
                     style={{
