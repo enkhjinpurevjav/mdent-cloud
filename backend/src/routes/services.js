@@ -4,7 +4,13 @@ import { generateNextServiceCode } from "../utils/serviceCode.js";
 
 const router = Router();
 
-// GET /api/services?branchId=&category=&onlyActive=true
+/**
+ * GET /api/services
+ * Query params:
+ *  - branchId: number (optional)
+ *  - category: string (ServiceCategory enum, optional)
+ *  - onlyActive: "true" to filter only active services
+ */
 router.get("/", async (req, res) => {
   try {
     const { branchId, category, onlyActive } = req.query;
@@ -12,7 +18,8 @@ router.get("/", async (req, res) => {
     const where = {};
 
     if (category && typeof category === "string") {
-      where.category = category; // must match enum ServiceCategory
+      // must match enum ServiceCategory in Prisma
+      where.category = category;
     }
 
     if (onlyActive === "true") {
@@ -42,7 +49,17 @@ router.get("/", async (req, res) => {
   }
 });
 
-// POST /api/services
+/**
+ * POST /api/services
+ * Body:
+ *  - name (string, required)
+ *  - price (number, required)
+ *  - category (ServiceCategory, required)
+ *  - description (string, optional)
+ *  - branchIds (number[], required, at least one)
+ *  - code (string, optional; if empty, auto-generated)
+ *  - isActive (boolean, optional; default true)
+ */
 router.post("/", async (req, res) => {
   try {
     const {
@@ -67,7 +84,13 @@ router.post("/", async (req, res) => {
         .json({ error: "branchIds must be an array of branch ids" });
     }
 
-    let serviceCode = null;
+    if (branchIds.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "at least one branchId is required" });
+    }
+
+    let serviceCode: string | null = null;
     if (typeof code === "string" && code.trim()) {
       serviceCode = code.trim();
     } else {
@@ -83,7 +106,7 @@ router.post("/", async (req, res) => {
         code: serviceCode,
         isActive: typeof isActive === "boolean" ? isActive : true,
         serviceBranches: {
-          create: branchIds.map((bid) => ({
+          create: branchIds.map((bid: number | string) => ({
             branchId: Number(bid),
           })),
         },
@@ -96,19 +119,34 @@ router.post("/", async (req, res) => {
     });
 
     res.status(201).json(created);
-  } catch (err) {
+  } catch (err: any) {
     console.error("POST /api/services error:", err);
     if (err.code === "P2002") {
+      // unique constraint, likely on code
       return res.status(400).json({ error: "Service code must be unique" });
     }
     res.status(500).json({ error: "internal server error" });
   }
 });
 
-// PUT /api/services/:id
+/**
+ * PUT /api/services/:id
+ * Body (all fields optional; only provided ones will update):
+ *  - name (string)
+ *  - price (number)
+ *  - category (ServiceCategory)
+ *  - description (string | null)
+ *  - code (string | null)
+ *  - isActive (boolean)
+ *  - branchIds (number[])  -> replaces all ServiceBranch rows for this service
+ */
 router.put("/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid service id" });
+    }
+
     const {
       name,
       price,
@@ -128,7 +166,8 @@ router.put("/:id", async (req, res) => {
       return res.status(404).json({ error: "Service not found" });
     }
 
-    const data = {};
+    const data: any = {};
+
     if (typeof name === "string") data.name = name;
     if (price !== undefined) data.price = Number(price);
     if (typeof category === "string") data.category = category;
@@ -137,9 +176,10 @@ router.put("/:id", async (req, res) => {
     if (typeof isActive === "boolean") data.isActive = isActive;
 
     if (Array.isArray(branchIds)) {
+      // full replace of junction table entries
       data.serviceBranches = {
         deleteMany: {},
-        create: branchIds.map((bid) => ({
+        create: branchIds.map((bid: number | string) => ({
           branchId: Number(bid),
         })),
       };
@@ -156,11 +196,51 @@ router.put("/:id", async (req, res) => {
     });
 
     res.json(updated);
-  } catch (err) {
+  } catch (err: any) {
     console.error("PUT /api/services/:id error:", err);
     if (err.code === "P2002") {
+      // unique constraint, likely on code
       return res.status(400).json({ error: "Service code must be unique" });
     }
+    res.status(500).json({ error: "internal server error" });
+  }
+});
+
+/**
+ * DELETE /api/services/:id
+ * Deletes the service and its ServiceBranch rows.
+ * (Invoices/InvoiceItems referencing this service should be handled
+ * via FK constraints or application rules; this route assumes
+ * it's safe to delete.)
+ */
+router.delete("/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid service id" });
+    }
+
+    const existing = await prisma.service.findUnique({
+      where: { id },
+      include: { serviceBranches: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: "Service not found" });
+    }
+
+    // Delete junction rows first because of composite PK on ServiceBranch
+    await prisma.serviceBranch.deleteMany({
+      where: { serviceId: id },
+    });
+
+    await prisma.service.delete({
+      where: { id },
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("DELETE /api/services/:id error:", err);
     res.status(500).json({ error: "internal server error" });
   }
 });
