@@ -41,20 +41,14 @@ export default function UsersIndexPage() {
           throw new Error((data && data.error) || "Алдаа гарлаа");
         }
 
-        // sort by ovog + name (alphabetically)
-        setUsers(
-          [...data].sort((a, b) => {
-            const aOvog = (a.ovog || "").toString();
-            const bOvog = (b.ovog || "").toString();
-            const aName = (a.name || "").toString();
-            const bName = (b.name || "").toString();
-
-            const ovogCompare = aOvog.localeCompare(bOvog, "mn");
-            if (ovogCompare !== 0) return ovogCompare;
-
-            return aName.localeCompare(bName, "mn");
-          })
-        );
+        // sort by name only (alphabetically)
+setUsers(
+  [...data].sort((a, b) => {
+    const aName = (a.name || "").toString();
+    const bName = (b.name || "").toString();
+    return aName.localeCompare(bName, "mn");
+  })
+);
       } catch (err: any) {
         console.error(err);
         setError(err.message || "Сүлжээгээ шалгана уу");
