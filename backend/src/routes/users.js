@@ -32,7 +32,7 @@ router.get("/", async (req, res) => {
   console.log("GET /api/users query:", req.query);
 
   try {
-    const where any = {};
+    const where = {};
 
     if (role) {
       // role is string at runtime, must match UserRole enum value
