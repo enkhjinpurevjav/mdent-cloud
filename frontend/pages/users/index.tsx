@@ -40,12 +40,18 @@ export default function UsersIndexPage() {
           throw new Error((data && data.error) || "Алдаа гарлаа");
         }
 
-        // sort by id ascending
+        // sort by ovog + name (alphabetically)
         setUsers(
           [...data].sort((a, b) => {
-            if (a.id < b.id) return -1;
-            if (a.id > b.id) return 1;
-            return 0;
+            const aOvog = (a.ovog || "").toString();
+            const bOvog = (b.ovog || "").toString();
+            const aName = (a.name || "").toString();
+            const bName = (b.name || "").toString();
+
+            const ovogCompare = aOvog.localeCompare(bOvog, "mn");
+            if (ovogCompare !== 0) return ovogCompare;
+
+            return aName.localeCompare(bName, "mn");
           })
         );
       } catch (err: any) {
