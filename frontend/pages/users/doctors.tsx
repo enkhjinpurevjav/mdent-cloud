@@ -163,7 +163,6 @@ function DoctorForm({
           marginBottom: 8,
         }}
       >
-        {/* Овог */}
         <input
           name="ovog"
           placeholder="Овог"
@@ -171,7 +170,6 @@ function DoctorForm({
           onChange={handleChange}
           required
         />
-        {/* Нэр */}
         <input
           name="name"
           placeholder="Нэр"
@@ -179,14 +177,12 @@ function DoctorForm({
           onChange={handleChange}
           required
         />
-        {/* РД */}
         <input
           name="regNo"
           placeholder="РД"
           value={form.regNo}
           onChange={handleChange}
         />
-        {/* И-мэйл */}
         <input
           name="email"
           type="email"
@@ -195,7 +191,6 @@ function DoctorForm({
           onChange={handleChange}
           required
         />
-        {/* Нууц үг */}
         <input
           name="password"
           type="password"
@@ -206,7 +201,6 @@ function DoctorForm({
         />
       </div>
 
-      {/* Multi-branch selection */}
       <div style={{ marginBottom: 8 }}>
         <div style={{ marginBottom: 4, fontWeight: 500 }}>Салбар сонгох</div>
         <div
@@ -309,7 +303,7 @@ export default function DoctorsPage() {
     >
       <h1>Эмч нар</h1>
       <p style={{ color: "#555", marginBottom: 16 }}>
-        Эмч нарыг бүртгэх, салбарт хуваарьлах болон профайлыг харах.
+        Эмч нарыг бүртгэх, салбарт хуваарилах, профайлыг харах.
       </p>
 
       <UsersTabs />
@@ -335,7 +329,7 @@ export default function DoctorsPage() {
         >
           <thead>
             <tr>
-              {/* 1. ID */}
+              {/* 1. # (row number) */}
               <th
                 style={{
                   textAlign: "left",
@@ -343,7 +337,7 @@ export default function DoctorsPage() {
                   padding: 8,
                 }}
               >
-                ID
+                #
               </th>
               {/* 2. Овог */}
               <th
@@ -408,16 +402,16 @@ export default function DoctorsPage() {
             </tr>
           </thead>
           <tbody>
-            {doctors.map((d) => (
+            {doctors.map((d, index) => (
               <tr key={d.id}>
-                {/* 1. ID */}
+                {/* 1. # (row number) */}
                 <td
                   style={{
                     borderBottom: "1px solid #f0f0f0",
                     padding: 8,
                   }}
                 >
-                  {d.id}
+                  {index + 1}
                 </td>
                 {/* 2. Овог */}
                 <td
