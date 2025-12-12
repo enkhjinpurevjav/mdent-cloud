@@ -417,7 +417,7 @@ export default function DoctorProfilePage() {
       }
 
       setScheduleSaveSuccess("Амжилттай хадгаллаа.");
-      // refresh 14-day schedule list
+      // refresh schedule list
       await reloadSchedule();
     } catch (err) {
       console.error(err);
@@ -464,6 +464,9 @@ export default function DoctorProfilePage() {
     doctor.branches && doctor.branches.length > 0
       ? doctor.branches
       : branches;
+
+  const isEditingSchedule =
+    !!scheduleForm.date && !!scheduleForm.branchId;
 
   return (
     <div style={{ padding: 24 }}>
@@ -672,9 +675,14 @@ export default function DoctorProfilePage() {
 
       {/* Schedule editor form */}
       <section style={{ marginTop: 32, maxWidth: 600 }}>
-        <h2>Ажлын хуваарь нэмэх / засах</h2>
+        <h2>
+          {isEditingSchedule
+            ? "Ажлын хуваарь засах"
+            : "Ажлын хуваарь нэмэх / засах"}
+        </h2>
         <p style={{ color: "#555", marginBottom: 8 }}>
-          Сонгосон өдөр, салбар, ээлжийн дагуу ажлын хуваарь үүсгэнэ эсвэл засна.
+          Сонгосон өдөр, салбар, ээлжийн дагуу ажлын хуваарь үүсгэнэ эсвэл
+          засна.
         </p>
 
         <form
@@ -783,6 +791,8 @@ export default function DoctorProfilePage() {
           >
             {scheduleSaving
               ? "Хуваарь хадгалж байна..."
+              : isEditingSchedule
+              ? "Засвар хадгалах"
               : "Хуваарь хадгалах"}
           </button>
 
@@ -865,6 +875,15 @@ export default function DoctorProfilePage() {
                 >
                   Тэмдэглэл
                 </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 8,
+                  }}
+                >
+                  Үйлдэл
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -906,6 +925,40 @@ export default function DoctorProfilePage() {
                     }}
                   >
                     {s.note || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // load row into form
+                        setScheduleForm((prev) => ({
+                          ...prev,
+                          date: s.date, // "YYYY-MM-DD"
+                          branchId: String(s.branch?.id ?? ""),
+                          startTime: s.startTime,
+                          endTime: s.endTime,
+                          note: s.note || "",
+                          // keep current shiftType; or you can recompute if you want
+                        }));
+                        // optionally scroll to form
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 4,
+                        border: "1px solid #ddd",
+                        background: "#f9fafb",
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                    >
+                      Засах
+                    </button>
                   </td>
                 </tr>
               ))}
