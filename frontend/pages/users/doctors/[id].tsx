@@ -678,7 +678,7 @@ export default function DoctorProfilePage() {
         <h2>
           {isEditingSchedule
             ? "Ажлын хуваарь засах"
-            : "Ажлын хуваарь нэмэх / засах"}
+            : "Ажлын хуваарь нэмэх"}
         </h2>
         <p style={{ color: "#555", marginBottom: 8 }}>
           Сонгосон өдөр, салбар, ээлжийн дагуу ажлын хуваарь үүсгэнэ эсвэл
@@ -727,9 +727,9 @@ export default function DoctorProfilePage() {
               value={scheduleForm.shiftType}
               onChange={handleScheduleFormChange}
             >
-              <option value="AM">Өглөөний ээлж</option>
-              <option value="PM">Оройн ээлж</option>
-              <option value="WEEKEND_FULL">Амралтын өдөр бүтэн</option>
+              <option value="AM">Өглөө ээлж</option>
+              <option value="PM">Орой ээлж</option>
+              <option value="WEEKEND_FULL">Амралтын өдөр</option>
             </select>
           </label>
 
@@ -813,7 +813,7 @@ export default function DoctorProfilePage() {
       <section style={{ marginTop: 32, maxWidth: 800 }}>
         <h2>Дараагийн 1 сарын ажлын хуваарь</h2>
         <p style={{ color: "#555", marginBottom: 8 }}>
-          Аль салбарт, хэдэн цагаас хэдэн цаг хүртэл ажиллахыг харуулна.
+          Нийт төлөвлөгдсөн хуваарь
         </p>
 
         {scheduleLoading && <div>Ажлын хуваарь ачааллаж байна...</div>}
