@@ -686,7 +686,7 @@ export default function DoctorProfilePage() {
             gap: 4,
           }}
         >
-          <span style={{ fontWeight: 500 }}>Иргэний үнэмлэхийн зураг</span>
+          <span style={{ fontWeight: 500 }}>Цээж зураг</span>
           <div
             style={{
               width: 160,
@@ -706,7 +706,7 @@ export default function DoctorProfilePage() {
             {doctor.idPhotoPath ? (
               <img
                 src={doctor.idPhotoPath}
-                alt="Эмчийн ID зураг"
+                alt="Эмчийн цээж зураг"
                 style={{
                   width: "100%",
                   height: "100%",
