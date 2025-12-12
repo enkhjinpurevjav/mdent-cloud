@@ -63,7 +63,7 @@ export default function DoctorProfilePage() {
   // selected multiple branches
   const [selectedBranchIds, setSelectedBranchIds] = useState<number[]>([]);
 
-  // schedule state
+  // schedule state (next 31 days)
   const [schedule, setSchedule] = useState<DoctorScheduleDay[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(true);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
@@ -110,6 +110,13 @@ export default function DoctorProfilePage() {
     endTime: "",
     note: "",
   });
+
+  // History (Хуваарийн түүх) state
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyItems, setHistoryItems] = useState<DoctorScheduleDay[]>([]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -488,7 +495,7 @@ export default function DoctorProfilePage() {
 
       if (!res.ok) {
         setScheduleSaveError(
-          data?.error || "अжлын хуваарь хадгалах үед алдаа гарлаа"
+          data?.error || "Ажлын хуваарь хадгалах үед алдаа гарлаа"
         );
         setScheduleSaving(false);
         return;
@@ -638,6 +645,42 @@ export default function DoctorProfilePage() {
     } catch (err) {
       console.error(err);
       setScheduleSaveError("Сүлжээгээ шалгана уу");
+    }
+  };
+
+  // Load history between historyFrom/historyTo
+  const loadHistory = async () => {
+    if (!id) return;
+    if (!historyFrom || !historyTo) {
+      setHistoryError("Эхлэх болон дуусах огноог сонгоно уу.");
+      return;
+    }
+
+    setHistoryLoading(true);
+    setHistoryError(null);
+
+    try {
+      const res = await fetch(
+        `/api/users/${id}/schedule?from=${historyFrom}&to=${historyTo}`
+      );
+      const data = await res.json();
+
+      if (!res.ok || !Array.isArray(data)) {
+        setHistoryError(
+          (data && data.error) ||
+            "Хуваарийн түүхийг ачааллаж чадсангүй."
+        );
+        setHistoryItems([]);
+        return;
+      }
+
+      setHistoryItems(data);
+    } catch (err) {
+      console.error(err);
+      setHistoryError("Сүлжээгээ шалгана уу");
+      setHistoryItems([]);
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
@@ -1401,6 +1444,168 @@ export default function DoctorProfilePage() {
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* Schedule history (Хуваарийн түүх) */}
+      <section style={{ marginTop: 32, maxWidth: 800 }}>
+        <h2>Хуваарийн түүх</h2>
+        <p style={{ color: "#555", marginBottom: 8 }}>
+          Өнгөрсөн (эсвэл ирээдүйн) тодорхой хугацааны ажлын хуваарийг харах.
+        </p>
+
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 12,
+            alignItems: "flex-end",
+            marginBottom: 12,
+          }}
+        >
+          <label
+            style={{ display: "flex", flexDirection: "column", gap: 4 }}
+          >
+            Эхлэх огноо
+            <input
+              type="date"
+              value={historyFrom}
+              onChange={(e) => setHistoryFrom(e.target.value)}
+            />
+          </label>
+
+          <label
+            style={{ display: "flex", flexDirection: "column", gap: 4 }}
+          >
+            Дуусах огноо
+            <input
+              type="date"
+              value={historyTo}
+              onChange={(e) => setHistoryTo(e.target.value)}
+            />
+          </label>
+
+          <button
+            type="button"
+            onClick={loadHistory}
+            disabled={historyLoading}
+            style={{
+              padding: "8px 16px",
+              borderRadius: 4,
+              border: "none",
+              background: "#0f766e",
+              color: "white",
+              cursor: "pointer",
+              height: 38,
+            }}
+          >
+            {historyLoading ? "Ачааллаж байна..." : "Харах"}
+          </button>
+        </div>
+
+        {historyError && (
+          <div style={{ color: "red", marginBottom: 8 }}>{historyError}</div>
+        )}
+
+        {!historyLoading && historyItems.length === 0 && !historyError && (
+          <div style={{ color: "#888" }}>
+            Хуваарийн түүх хараахан ачаалаагүй эсвэл өгөгдөл олдсонгүй.
+          </div>
+        )}
+
+        {historyItems.length > 0 && (
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              marginTop: 8,
+              fontSize: 14,
+            }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 8,
+                  }}
+                >
+                  Огноо
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 8,
+                  }}
+                >
+                  Салбар
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 8,
+                  }}
+                >
+                  Цаг
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 8,
+                  }}
+                >
+                  Тэмдэглэл
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {historyItems.map((s) => (
+                <tr key={s.id}>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {new Date(s.date).toLocaleDateString("mn-MN", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      weekday: "short",
+                    })}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {s.branch?.name || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {s.startTime} - {s.endTime}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {s.note || "-"}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         )}
