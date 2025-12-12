@@ -567,6 +567,43 @@ export default function DoctorProfilePage() {
     }
   };
 
+  // Delete a schedule row with confirmation
+  const handleDeleteSchedule = async (scheduleId: number) => {
+    if (!id) return;
+
+    const ok = window.confirm(
+      "Та энэхүү хуваарийг устгахдаа итгэлтэй байна уу?"
+    );
+    if (!ok) return;
+
+    try {
+      // You need a DELETE endpoint like:
+      // DELETE /api/users/:doctorId/schedule/:scheduleId
+      const res = await fetch(
+        `/api/users/${id}/schedule/${scheduleId}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setScheduleSaveError(
+          (data && (data as any).error) ||
+            "Хуваарь устгах үед алдаа гарлаа"
+        );
+        return;
+      }
+
+      // Optimistically remove from list OR reload
+      setSchedule((prev) => prev.filter((s) => s.id !== scheduleId));
+    } catch (err) {
+      console.error(err);
+      setScheduleSaveError("Сүлжээгээ шалгана уу");
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ padding: 24 }}>
@@ -922,11 +959,7 @@ export default function DoctorProfilePage() {
               alignSelf: "flex-start",
             }}
           >
-            {scheduleSaving
-              ? "Хуваарь хадгалж байна..."
-              : isCreatingSchedule
-              ? "Хуваарь хадгалах"
-              : "Хуваарь хадгалах"}
+            {scheduleSaving ? "Хуваарь хадгалж байна..." : "Хуваарь хадгалах"}
           </button>
 
           {scheduleSaveError && (
@@ -1053,8 +1086,7 @@ export default function DoctorProfilePage() {
                     {/* Branch */}
                     <td
                       style={{
-                        borderBottom: "1px solid " +
-                          "#f0f0f0",
+                        borderBottom: "1px solid #f0f0f0",
                         padding: 8,
                       }}
                     >
@@ -1173,20 +1205,37 @@ export default function DoctorProfilePage() {
                           </button>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => startEditRow(s)}
-                          style={{
-                            padding: "4px 8px",
-                            borderRadius: 4,
-                            border: "1px solid #ddd",
-                            background: "#f9fafb",
-                            cursor: "pointer",
-                            fontSize: 12,
-                          }}
-                        >
-                          Засах
-                        </button>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button
+                            type="button"
+                            onClick={() => startEditRow(s)}
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: 4,
+                              border: "1px solid #ddd",
+                              background: "#f9fafb",
+                              cursor: "pointer",
+                              fontSize: 12,
+                            }}
+                          >
+                            Засах
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSchedule(s.id)}
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: 4,
+                              border: "1px solid #fecaca",
+                              background: "#fee2e2",
+                              color: "#b91c1c",
+                              cursor: "pointer",
+                              fontSize: 12,
+                            }}
+                          >
+                            Устгах
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
