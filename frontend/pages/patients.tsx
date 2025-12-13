@@ -31,15 +31,24 @@ function PatientRegisterForm({
     phone: "",
     branchId: "",
     bookNumber: "",
+    gender: "", // "" | "эр" | "эм"
+    citizenship: "Монгол",
+    emergencyPhone: "",
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
   ) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleGenderChange = (value: "" | "эр" | "эм") => {
+    setForm((prev) => ({ ...prev, gender: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,6 +71,12 @@ function PatientRegisterForm({
       return;
     }
 
+    // Gender is optional but if present must be "эр" or "эм"
+    if (form.gender && form.gender !== "эр" && form.gender !== "эм") {
+      setError("Хүйс талбарт зөвхөн 'эр' эсвэл 'эм' утга сонгох боломжтой.");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const payload = {
@@ -71,6 +86,9 @@ function PatientRegisterForm({
         phone: form.phone,
         branchId: Number(form.branchId),
         bookNumber: form.bookNumber || "",
+        gender: form.gender || null, // optional, null when empty
+        citizenship: form.citizenship?.trim() || null,
+        emergencyPhone: form.emergencyPhone?.trim() || null,
       };
 
       const res = await fetch("/api/patients", {
@@ -95,6 +113,9 @@ function PatientRegisterForm({
           phone: "",
           branchId: "",
           bookNumber: "",
+          gender: "",
+          citizenship: "Монгол",
+          emergencyPhone: "",
         });
       } else {
         setError((data && data.error) || "Алдаа гарлаа");
@@ -113,7 +134,7 @@ function PatientRegisterForm({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
           gap: 8,
           marginTop: 8,
           marginBottom: 8,
@@ -145,6 +166,81 @@ function PatientRegisterForm({
           onChange={handleChange}
           required
         />
+
+        {/* Gender: optional radio, but only эр/эм when set */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 13, fontWeight: 500 }}>Хүйс</label>
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              fontSize: 13,
+            }}
+          >
+            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <input
+                type="radio"
+                name="gender"
+                value="эр"
+                checked={form.gender === "эр"}
+                onChange={() => handleGenderChange("эр")}
+              />
+              <span>Эр</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <input
+                type="radio"
+                name="gender"
+                value="эм"
+                checked={form.gender === "эм"}
+                onChange={() => handleGenderChange("эм")}
+              />
+              <span>Эм</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <input
+                type="radio"
+                name="gender"
+                value=""
+                checked={form.gender === ""}
+                onChange={() => handleGenderChange("")}
+              />
+              <span>Хоосон</span>
+            </label>
+          </div>
+          <span style={{ fontSize: 11, color: "#6b7280" }}>
+            Хүйсийг дараа нь профайлаас өөрчилж болно. Хоосон орхиж бас болно.
+          </span>
+        </div>
+
+        {/* Citizenship: default Монгол but editable */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 13, fontWeight: 500 }}>Иргэншил</label>
+          <input
+            name="citizenship"
+            placeholder="Монгол"
+            value={form.citizenship}
+            onChange={handleChange}
+          />
+          <span style={{ fontSize: 11, color: "#6b7280" }}>
+            Анхдагч утга нь &quot;Монгол&quot;. Шаардлагатай бол өөр улсын нэрийг
+            оруулж болно.
+          </span>
+        </div>
+
+        {/* Emergency phone */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 13, fontWeight: 500 }}>
+            Яаралтай үед холбоо барих утас
+          </label>
+          <input
+            name="emergencyPhone"
+            placeholder="Ж: 99112233"
+            value={form.emergencyPhone}
+            onChange={handleChange}
+          />
+        </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ fontSize: 13, fontWeight: 500 }}>
@@ -388,7 +484,7 @@ export default function PatientsPage() {
               <th
                 style={{
                   textAlign: "left",
-                  borderBottom: "1px solid #ddd",
+                  borderBottom: "1px solid "#ddd",
                   padding: 8,
                 }}
               >
