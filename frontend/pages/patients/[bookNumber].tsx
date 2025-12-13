@@ -188,10 +188,11 @@ export default function PatientProfilePage() {
                 background: "white",
               }}
             >
-              {/* Name / identity (no photo, no explicit овог line) */}
+              {/* Name / identity (no photo) */}
               <div style={{ marginBottom: 4, fontSize: 18, fontWeight: 600 }}>
                 {formatDisplayName(patient)}
               </div>
+             
               <div style={{ fontSize: 13, color: "#6b7280" }}>
                 Картын дугаар: {pb.bookNumber}
               </div>
@@ -504,7 +505,7 @@ export default function PatientProfilePage() {
                     <th
                       style={{
                         textAlign: "left",
-                        borderBottom: "1px solid "#e5e7eb",
+                        borderBottom: "1px solid #e5e7eb",
                         padding: 6,
                       }}
                     >
