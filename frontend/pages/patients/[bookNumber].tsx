@@ -21,6 +21,12 @@ type Patient = {
   gender?: string | null;
   birthDate?: string | null;
   bloodType?: string | null;
+
+  // New optional fields
+  email?: string | null;
+  city?: string | null;
+  country?: string | null;
+  emergencyContact?: string | null;
 };
 
 type PatientBook = {
@@ -188,11 +194,10 @@ export default function PatientProfilePage() {
                 background: "white",
               }}
             >
-              {/* Name / identity (no photo) */}
+              {/* Name / identity (no photo, no explicit овог line) */}
               <div style={{ marginBottom: 4, fontSize: 18, fontWeight: 600 }}>
                 {formatDisplayName(patient)}
               </div>
-             
               <div style={{ fontSize: 13, color: "#6b7280" }}>
                 Картын дугаар: {pb.bookNumber}
               </div>
@@ -419,37 +424,98 @@ export default function PatientProfilePage() {
                   style={{
                     display: "grid",
                     gridTemplateColumns:
-                      "repeat(auto-fit, minmax(200px, 1fr))",
+                      "repeat(auto-fit, minmax(220px, 1fr))",
                     gap: 12,
                     fontSize: 13,
                   }}
                 >
+                  {/* Book number and branch */}
                   <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Нэр
+                    <div
+                      style={{ color: "#6b7280", marginBottom: 2 }}
+                    >
+                      Картын дугаар
                     </div>
-                    <div>{formatDisplayName(patient)}</div>
+                    <div>{pb.bookNumber}</div>
                   </div>
                   <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                    <div
+                      style={{ color: "#6b7280", marginBottom: 2 }}
+                    >
+                      Бүртгэсэн салбар
+                    </div>
+                    <div>{patient.branch?.name || patient.branchId}</div>
+                  </div>
+
+                  {/* Personal info */}
+                  <div>
+                    <div
+                      style={{ color: "#6b7280", marginBottom: 2 }}
+                    >
+                      Нэр
+                    </div>
+                    <div>{patient.name}</div>
+                  </div>
+                  <div>
+                    <div
+                      style={{ color: "#6b7280", marginBottom: 2 }}
+                    >
+                      Овог
+                    </div>
+                    <div>{patient.ovog || "-"}</div>
+                  </div>
+                  <div>
+                    <div
+                      style={{ color: "#6b7280", marginBottom: 2 }}
+                    >
                       РД
                     </div>
                     <div>{patient.regNo || "-"}</div>
                   </div>
+
+                  {/* Contact info */}
                   <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                    <div
+                      style={{ color: "#6b7280", marginBottom: 2 }}
+                    >
                       Утас
                     </div>
                     <div>{patient.phone || "-"}</div>
                   </div>
                   <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                    <div
+                      style={{ color: "#6b7280", marginBottom: 2 }}
+                    >
+                      Имэйл
+                    </div>
+                    <div>{patient.email || "-"}</div>
+                  </div>
+
+                  {/* Dates & demographics */}
+                  <div>
+                    <div
+                      style={{ color: "#6b7280", marginBottom: 2 }}
+                    >
+                      Бүртгэсэн огноо
+                    </div>
+                    <div>
+                      {patient.createdAt
+                        ? formatDate(patient.createdAt)
+                        : "-"}
+                    </div>
+                  </div>
+                  <div>
+                    <div
+                      style={{ color: "#6b7280", marginBottom: 2 }}
+                    >
                       Хүйс
                     </div>
                     <div>{patient.gender || "-"}</div>
                   </div>
                   <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                    <div
+                      style={{ color: "#6b7280", marginBottom: 2 }}
+                    >
                       Төрсөн огноо
                     </div>
                     <div>
@@ -458,21 +524,49 @@ export default function PatientProfilePage() {
                         : "-"}
                     </div>
                   </div>
-                  <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Цусны бүлэг
-                    </div>
-                    <div>{patient.bloodType || "-"}</div>
-                  </div>
+
+                  {/* Address & location */}
                   <div style={{ gridColumn: "1 / -1" }}>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                    <div
+                      style={{ color: "#6b7280", marginBottom: 2 }}
+                    >
                       Хаяг
                     </div>
                     <div>{patient.address || "-"}</div>
                   </div>
+                  <div>
+                    <div
+                      style={{ color: "#6b7280", marginBottom: 2 }}
+                    >
+                      Хот / Аймаг
+                    </div>
+                    <div>{patient.city || "-"}</div>
+                  </div>
+                  <div>
+                    <div
+                      style={{ color: "#6b7280", marginBottom: 2 }}
+                    >
+                      Улс
+                    </div>
+                    <div>{patient.country || "-"}</div>
+                  </div>
+
+                  {/* Emergency contact */}
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <div
+                      style={{ color: "#6b7280", marginBottom: 2 }}
+                    >
+                      Яаралтай үед холбоо барих
+                    </div>
+                    <div>{patient.emergencyContact || "-"}</div>
+                  </div>
+
+                  {/* Notes */}
                   {patient.notes && (
                     <div style={{ gridColumn: "1 / -1" }}>
-                      <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                      <div
+                        style={{ color: "#6b7280", marginBottom: 2 }}
+                      >
                         Тэмдэглэл
                       </div>
                       <div>{patient.notes}</div>
