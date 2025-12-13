@@ -36,7 +36,7 @@ router.get("/", async (_req, res) => {
       include: { patientBook: true },
       orderBy: { id: "desc" },
     });
-  res.json(patients);
+    res.json(patients);
   } catch (err) {
     console.error("Error fetching patients:", err);
     res.status(500).json({ error: "failed to fetch patients" });
@@ -138,7 +138,6 @@ router.post("/", async (req, res) => {
     res.status(500).json({ error: "failed to create patient" });
   }
 });
-// ...
 
 // GET /api/patients/profile/by-book/:bookNumber
 router.get("/profile/by-book/:bookNumber", async (req, res) => {
@@ -197,16 +196,24 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
 
     const media = encounters.flatMap((e) => e.media || []);
 
+    // Load all appointments for this patient (across branches)
+    const appointments = await prisma.appointment.findMany({
+      where: { patientId: patient.id },
+      orderBy: { scheduledAt: "desc" },
+    });
+
     res.json({
       patient,
       patientBook: { id: pb.id, bookNumber: pb.bookNumber },
       encounters,
       invoices,
       media,
+      appointments,
     });
   } catch (err) {
     console.error("GET /api/patients/profile/by-book/:bookNumber error:", err);
     res.status(500).json({ error: "failed to load patient profile" });
   }
 });
+
 export default router;
