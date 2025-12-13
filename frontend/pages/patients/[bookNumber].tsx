@@ -78,7 +78,7 @@ function formatDate(iso?: string) {
   });
 }
 
-// Build display name as: first letter of ovog + "." + name (e.g. "E.Margad")
+// Short display name (header) stays: first letter of ovog + "." + name (E.Margad)
 function formatDisplayName(patient: Patient) {
   const name = patient.name || "";
   const ovog = (patient.ovog || "").trim();
@@ -191,7 +191,7 @@ export default function PatientProfilePage() {
                 background: "white",
               }}
             >
-              {/* Name / identity (no photo) */}
+              {/* Header name (unchanged) */}
               <div style={{ marginBottom: 4, fontSize: 18, fontWeight: 600 }}>
                 {formatDisplayName(patient)}
               </div>
@@ -440,18 +440,28 @@ export default function PatientProfilePage() {
                     <div>{patient.branch?.name || patient.branchId}</div>
                   </div>
 
-                  {/* Personal info */}
+                  {/* Personal info with Ovog/Name order switched */}
                   <div>
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Нэр
+                      Овог, нэр (бүтэн)
                     </div>
-                    <div>{patient.name}</div>
+                    <div>
+                      {patient.ovog
+                        ? `${patient.ovog} ${patient.name}`
+                        : patient.name}
+                    </div>
                   </div>
                   <div>
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
                       Овог
                     </div>
                     <div>{patient.ovog || "-"}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                      Нэр
+                    </div>
+                    <div>{patient.name}</div>
                   </div>
                   <div>
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
