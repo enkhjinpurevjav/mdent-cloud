@@ -55,7 +55,7 @@ function PatientRegisterForm({
       return;
     }
 
-    // Optional client-side validation: if filled, must be 1–6 digits
+    // If user entered a card number, enforce 1–6 digits
     if (form.bookNumber && !/^\d{1,6}$/.test(form.bookNumber)) {
       setError("Картын дугаар нь 1-6 оронтой зөвхөн тоо байх ёстой.");
       return;
@@ -69,7 +69,7 @@ function PatientRegisterForm({
         regNo: form.regNo,
         phone: form.phone,
         branchId: Number(form.branchId),
-        // if empty string, backend will auto-generate next number
+        // If empty string, backend will auto-generate next number
         bookNumber: form.bookNumber || "",
       };
 
@@ -335,7 +335,7 @@ export default function PatientsPage() {
               <th
                 style={{
                   textAlign: "left",
-                  borderBottom: "1px solid "#ddd",
+                  borderBottom: "1px solid #ddd",
                   padding: 8,
                 }}
               >
