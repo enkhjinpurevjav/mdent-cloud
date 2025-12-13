@@ -78,6 +78,14 @@ function formatDate(iso?: string) {
   });
 }
 
+// Normalize possibly-null / "null" / empty strings for display
+function displayOrDash(value?: string | null) {
+  if (value === undefined || value === null) return "-";
+  const trimmed = String(value).trim();
+  if (!trimmed || trimmed.toLowerCase() === "null") return "-";
+  return trimmed;
+}
+
 // Short display name in header: first letter of ovog + "." + name (E.Margad)
 function formatDisplayName(patient: Patient) {
   const name = patient.name || "";
@@ -158,9 +166,7 @@ export default function PatientProfilePage() {
       regNo: patient.regNo || "",
       phone: patient.phone || "",
       gender: patient.gender || "",
-      birthDate: patient.birthDate
-        ? patient.birthDate.slice(0, 10)
-        : "", // YYYY-MM-DD for <input type="date">
+      birthDate: patient.birthDate ? patient.birthDate.slice(0, 10) : "",
       address: patient.address || "",
       bloodType: patient.bloodType || "",
       citizenship: patient.citizenship || "Монгол",
@@ -233,7 +239,9 @@ export default function PatientProfilePage() {
 
       const json = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error((json && json.error) || "Өгөгдөл хадгалах үед алдаа гарлаа");
+        throw new Error(
+          (json && json.error) || "Өгөгдөл хадгалах үед алдаа гарлаа"
+        );
       }
 
       // Update local state with returned patient
@@ -321,7 +329,7 @@ export default function PatientProfilePage() {
                 </div>
               )}
               <div style={{ fontSize: 13, color: "#6b7280" }}>
-                Утас: {patient.phone || "-"}
+                Утас: {displayOrDash(patient.phone)}
               </div>
               <div style={{ fontSize: 13, color: "#6b7280" }}>
                 Бүртгэсэн салбар: {patient.branch?.name || patient.branchId}
@@ -607,12 +615,12 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid #d1d5db",
+                          border: "1px solid "#d1d5db",
                           padding: "4px 6px",
                         }}
                       />
                     ) : (
-                      <div>{patient.ovog || "-"}</div>
+                      <div>{displayOrDash(patient.ovog)}</div>
                     )}
                   </div>
                   <div>
@@ -627,7 +635,7 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid #d1d5db",
+                          border: "1px solid "#d1d5db",
                           padding: "4px 6px",
                         }}
                       />
@@ -647,12 +655,12 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid #d1d5db",
+                          border: "1px solid "#d1d5db",
                           padding: "4px 6px",
                         }}
                       />
                     ) : (
-                      <div>{patient.regNo || "-"}</div>
+                      <div>{displayOrDash(patient.regNo)}</div>
                     )}
                   </div>
 
@@ -669,12 +677,12 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid #d1d5db",
+                          border: "1px solid "#d1d5db",
                           padding: "4px 6px",
                         }}
                       />
                     ) : (
-                      <div>{patient.phone || "-"}</div>
+                      <div>{displayOrDash(patient.phone)}</div>
                     )}
                   </div>
                   <div>
@@ -689,12 +697,12 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid #d1d5db",
+                          border: "1px solid "#d1d5db",
                           padding: "4px 6px",
                         }}
                       />
                     ) : (
-                      <div>{patient.emergencyPhone || "-"}</div>
+                      <div>{displayOrDash(patient.emergencyPhone)}</div>
                     )}
                   </div>
 
@@ -772,7 +780,7 @@ export default function PatientProfilePage() {
                         </label>
                       </div>
                     ) : (
-                      <div>{patient.gender || "-"}</div>
+                      <div>{displayOrDash(patient.gender)}</div>
                     )}
                   </div>
                   <div>
@@ -788,7 +796,7 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid #d1d5db",
+                          border: "1px solid "#d1d5db",
                           padding: "4px 6px",
                         }}
                       />
@@ -812,12 +820,12 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid #d1d5db",
+                          border: "1px solid "#d1d5db",
                           padding: "4px 6px",
                         }}
                       />
                     ) : (
-                      <div>{patient.bloodType || "-"}</div>
+                      <div>{displayOrDash(patient.bloodType)}</div>
                     )}
                   </div>
                   <div>
@@ -832,12 +840,12 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid #d1d5db",
+                          border: "1px solid "#d1d5db",
                           padding: "4px 6px",
                         }}
                       />
                     ) : (
-                      <div>{patient.citizenship || "-"}</div>
+                      <div>{displayOrDash(patient.citizenship)}</div>
                     )}
                   </div>
 
@@ -854,12 +862,12 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid #d1d5db",
+                          border: "1px solid "#d1d5db",
                           padding: "4px 6px",
                         }}
                       />
                     ) : (
-                      <div>{patient.address || "-"}</div>
+                      <div>{displayOrDash(patient.address)}</div>
                     )}
                   </div>
 
@@ -877,13 +885,13 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid #d1d5db",
+                          border: "1px solid "#d1d5db",
                           padding: "4px 6px",
                           resize: "vertical",
                         }}
                       />
                     ) : (
-                      <div>{patient.notes || "-"}</div>
+                      <div>{displayOrDash(patient.notes)}</div>
                     )}
                   </div>
                 </div>
@@ -991,7 +999,7 @@ export default function PatientProfilePage() {
                           padding: 6,
                         }}
                       >
-                        {e.notes || "-"}
+                        {displayOrDash(e.notes ?? null)}
                       </td>
                     </tr>
                   ))}
@@ -1112,7 +1120,7 @@ export default function PatientProfilePage() {
                             padding: 6,
                           }}
                         >
-                          {a.notes || "-"}
+                          {displayOrDash(a.notes ?? null)}
                         </td>
                       </tr>
                     ))}
