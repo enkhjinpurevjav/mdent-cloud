@@ -34,10 +34,21 @@ type Encounter = {
   notes?: string | null;
 };
 
+type Appointment = {
+  id: number;
+  patientId: number;
+  doctorId?: number | null;
+  branchId: number;
+  scheduledAt: string;
+  status: string;
+  notes?: string | null;
+};
+
 type PatientProfileResponse = {
   patient: Patient;
   patientBook: PatientBook;
   encounters: Encounter[];
+  appointments: Appointment[];
 };
 
 function formatDateTime(iso?: string) {
@@ -104,9 +115,18 @@ export default function PatientProfilePage() {
   const patient = data?.patient;
   const pb = data?.patientBook;
   const encounters = data?.encounters || [];
+  const appointments = data?.appointments || [];
 
   const totalEncounters = encounters.length;
   const lastEncounter = encounters[0];
+
+  const now = new Date();
+  const totalAppointments = appointments.length;
+  const upcomingAppointments = appointments.filter((a) => {
+    const d = new Date(a.scheduledAt);
+    if (Number.isNaN(d.getTime())) return false;
+    return d > now && a.status === "booked";
+  });
 
   return (
     <main
@@ -201,7 +221,7 @@ export default function PatientProfilePage() {
                 </div>
               )}
 
-              {/* Simple side menu (not functional yet, just visual) */}
+              {/* Simple side menu (visual only for now) */}
               <div style={{ marginTop: 16 }}>
                 <div
                   style={{
@@ -236,7 +256,6 @@ export default function PatientProfilePage() {
                     style={{
                       padding: "6px 10px",
                       borderRadius: 6,
-                      cursor: "default",
                       color: "#6b7280",
                     }}
                   >
@@ -246,7 +265,6 @@ export default function PatientProfilePage() {
                     style={{
                       padding: "6px 10px",
                       borderRadius: 6,
-                      cursor: "default",
                       color: "#6b7280",
                     }}
                   >
@@ -256,7 +274,6 @@ export default function PatientProfilePage() {
                     style={{
                       padding: "6px 10px",
                       borderRadius: 6,
-                      cursor: "default",
                       color: "#6b7280",
                     }}
                   >
@@ -277,6 +294,7 @@ export default function PatientProfilePage() {
                   gap: 12,
                 }}
               >
+                {/* Encounters summary */}
                 <div
                   style={{
                     borderRadius: 12,
@@ -309,6 +327,7 @@ export default function PatientProfilePage() {
                   </div>
                 </div>
 
+                {/* Last encounter */}
                 <div
                   style={{
                     borderRadius: 12,
@@ -342,9 +361,51 @@ export default function PatientProfilePage() {
                     Хамгийн сүүлд ирсэн огноо
                   </div>
                 </div>
+
+                {/* Appointments summary */}
+                <div
+                  style={{
+                    borderRadius: 12,
+                    border: "1px solid #e5e7eb",
+                    padding: 12,
+                    background: "#f9fafb",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      textTransform: "uppercase",
+                      color: "#6b7280",
+                      marginBottom: 4,
+                    }}
+                  >
+                    Цаг захиалгууд
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 24,
+                      fontWeight: 600,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {totalAppointments}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>
+                    Нийт бүртгэлтэй цаг
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "#16a34a",
+                      marginTop: 4,
+                    }}
+                  >
+                    Ирэх цаг: {upcomingAppointments.length}
+                  </div>
+                </div>
               </div>
 
-              {/* Basic information section (read-only for now) */}
+              {/* Basic information section (read-only) */}
               <div
                 style={{
                   borderRadius: 12,
@@ -432,8 +493,8 @@ export default function PatientProfilePage() {
             </div>
           </section>
 
-          {/* Encounter history table (kept from previous version) */}
-          <section>
+          {/* Encounter history table */}
+          <section style={{ marginBottom: 24 }}>
             <h2 style={{ fontSize: 16, marginBottom: 8 }}>
               Үзлэгийн түүх (Encounters)
             </h2>
@@ -492,6 +553,127 @@ export default function PatientProfilePage() {
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+
+          {/* Appointments list (simple) */}
+          <section>
+            <h2 style={{ fontSize: 16, marginBottom: 8 }}>
+              Цаг захиалгууд (Appointments)
+            </h2>
+            {appointments.length === 0 ? (
+              <div style={{ color: "#6b7280", fontSize: 13 }}>
+                Цаг захиалгын бүртгэл алга.
+              </div>
+            ) : (
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: 13,
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th
+                      style={{
+                        textAlign: "left",
+                        borderBottom: "1px solid #e5e7eb",
+                        padding: 6,
+                      }}
+                    >
+                      Огноо / цаг
+                    </th>
+                    <th
+                      style={{
+                        textAlign: "left",
+                        borderBottom: "1px solid #e5e7eb",
+                        padding: 6,
+                      }}
+                    >
+                      Салбар ID
+                    </th>
+                    <th
+                      style={{
+                        textAlign: "left",
+                        borderBottom: "1px solid #e5e7eb",
+                        padding: 6,
+                      }}
+                    >
+                      Эмч ID
+                    </th>
+                    <th
+                      style={{
+                        textAlign: "left",
+                        borderBottom: "1px solid #e5e7eb",
+                        padding: 6,
+                      }}
+                    >
+                      Төлөв
+                    </th>
+                    <th
+                      style={{
+                        textAlign: "left",
+                        borderBottom: "1px solid #e5e7eb",
+                        padding: 6,
+                      }}
+                    >
+                      Тэмдэглэл
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {appointments
+                    .slice()
+                    .sort((a, b) =>
+                      a.scheduledAt.localeCompare(b.scheduledAt)
+                    )
+                    .map((a) => (
+                      <tr key={a.id}>
+                        <td
+                          style={{
+                            borderBottom: "1px solid #f3f4f6",
+                            padding: 6,
+                          }}
+                        >
+                          {formatDateTime(a.scheduledAt)}
+                        </td>
+                        <td
+                          style={{
+                            borderBottom: "1px solid #f3f4f6",
+                            padding: 6,
+                          }}
+                        >
+                          {a.branchId}
+                        </td>
+                        <td
+                          style={{
+                            borderBottom: "1px solid #f3f4f6",
+                            padding: 6,
+                          }}
+                        >
+                          {a.doctorId ?? "-"}
+                        </td>
+                        <td
+                          style={{
+                            borderBottom: "1px solid #f3f4f6",
+                            padding: 6,
+                          }}
+                        >
+                          {a.status}
+                        </td>
+                        <td
+                          style={{
+                            borderBottom: "1px solid #f3f4f6",
+                            padding: 6,
+                          }}
+                        >
+                          {a.notes || "-"}
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             )}
