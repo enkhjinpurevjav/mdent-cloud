@@ -9,7 +9,7 @@ type Patient = {
   id: number;
   ovog?: string | null;
   name: string;
-  regNo: string;
+  regNo?: string | null;
   phone?: string | null;
   branchId: number;
   branch?: Branch;
@@ -46,8 +46,9 @@ function PatientRegisterForm({
     e.preventDefault();
     setError("");
 
-    if (!form.ovog || !form.name || !form.regNo || !form.phone) {
-      setError("Бүх шаардлагатай талбарыг бөглөнө үү.");
+    // Minimal required: name, phone, branchId
+    if (!form.name || !form.phone) {
+      setError("Нэр болон утас заавал бөглөнө үү.");
       return;
     }
     if (!form.branchId) {
@@ -55,7 +56,7 @@ function PatientRegisterForm({
       return;
     }
 
-    // If user entered a card number, enforce 1–6 digits
+    // Optional client-side validation: card number if filled
     if (form.bookNumber && !/^\d{1,6}$/.test(form.bookNumber)) {
       setError("Картын дугаар нь 1-6 оронтой зөвхөн тоо байх ёстой.");
       return;
@@ -64,12 +65,11 @@ function PatientRegisterForm({
     setSubmitting(true);
     try {
       const payload = {
-        ovog: form.ovog,
+        ovog: form.ovog || null,
         name: form.name,
-        regNo: form.regNo,
+        regNo: form.regNo || null,
         phone: form.phone,
         branchId: Number(form.branchId),
-        // If empty string, backend will auto-generate next number
         bookNumber: form.bookNumber || "",
       };
 
@@ -121,28 +121,26 @@ function PatientRegisterForm({
       >
         <input
           name="ovog"
-          placeholder="Овог"
+          placeholder="Овог (сонголттой)"
           value={form.ovog}
           onChange={handleChange}
-          required
         />
         <input
           name="name"
-          placeholder="Нэр"
+          placeholder="Нэр (заавал)"
           value={form.name}
           onChange={handleChange}
           required
         />
         <input
           name="regNo"
-          placeholder="Регистрийн дугаар"
+          placeholder="Регистрийн дугаар (сонголттой)"
           value={form.regNo}
           onChange={handleChange}
-          required
         />
         <input
           name="phone"
-          placeholder="Утасны дугаар"
+          placeholder="Утасны дугаар (заавал)"
           value={form.phone}
           onChange={handleChange}
           required
@@ -150,7 +148,7 @@ function PatientRegisterForm({
 
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ fontSize: 13, fontWeight: 500 }}>
-            Бүртгэсэн салбар
+            Бүртгэсэн салбар (заавал)
           </label>
           <select
             name="branchId"
@@ -276,12 +274,13 @@ export default function PatientsPage() {
     >
       <h1>Үйлчлүүлэгчийн бүртгэл</h1>
       <p style={{ color: "#555", marginBottom: 4 }}>
-        Үйлчлүүлэгчийг бүртгэх, картын дугаар олгох, жагсаалтаар харах.
+        Хурдан бүртгэх — зөвхөн нэр, утас, салбар заавал. Бусад мэдээллийг
+        дараа нь нөхөж бөглөж болно.
       </p>
       <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
         <strong>Бүртгэсэн салбар</strong> нь тухайн үйлчлүүлэгчийн үндсэн /
-        анх бүртгэгдсэн салбар юм. Үйлчлүүлэгч бусад салбарт очсон ч
-        үзлэгийн салбар нь цаг авах үед тусад нь сонгогдоно.
+        анх бүртгэгдсэн салбар юм. Үйлчлүүлэгч бусад салбарт очсон ч үзлэгийн
+        салбар нь цаг авах үед тусад нь сонгогдоно.
       </p>
 
       <PatientRegisterForm
@@ -430,7 +429,7 @@ export default function PatientsPage() {
                     padding: 8,
                   }}
                 >
-                  {p.regNo}
+                  {p.regNo || "-"}
                 </td>
                 <td
                   style={{
