@@ -5,15 +5,11 @@ const router = express.Router();
 
 // Helper: get next available numeric bookNumber as string
 async function generateNextBookNumber() {
-  // Find the PatientBook with the largest numeric bookNumber
   const last = await prisma.patientBook.findFirst({
     where: {
-      // only consider all-digit bookNumbers
       bookNumber: { not: "" },
     },
     orderBy: {
-      // order by cast(bookNumber as integer) is not portable via Prisma,
-      // so we just sort by id desc and parse, assuming newest has highest number.
       id: "desc",
     },
   });
@@ -30,7 +26,6 @@ async function generateNextBookNumber() {
     }
   }
 
-  // Return as plain string; caller can still validate length if needed
   return String(next);
 }
 
@@ -41,7 +36,7 @@ router.get("/", async (_req, res) => {
       include: { patientBook: true },
       orderBy: { id: "desc" },
     });
-    res.json(patients);
+  res.json(patients);
   } catch (err) {
     console.error("Error fetching patients:", err);
     res.status(500).json({ error: "failed to fetch patients" });
@@ -51,32 +46,39 @@ router.get("/", async (_req, res) => {
 // POST /api/patients
 router.post("/", async (req, res) => {
   try {
-    const { ovog, name, regNo, phone, branchId, bookNumber } = req.body;
+    const { ovog, name, regNo, phone, branchId, bookNumber } = req.body || {};
 
-    // Basic validation
-    if (!ovog || !name || !regNo || !phone || !branchId) {
-      return res.status(400).json({ error: "Missing required fields" });
+    // Minimal required fields: name, phone, branchId
+    if (!name || !phone || !branchId) {
+      return res.status(400).json({
+        error: "name, phone, branchId are required",
+      });
     }
 
-    // Validate regNo uniqueness at application level (DB will also enforce)
-    const existingByRegNo = await prisma.patient.findUnique({
-      where: { regNo },
-    });
-    if (existingByRegNo) {
-      return res.status(400).json({ error: "This regNo is already registered" });
+    // Optional regNo: only enforce unique if provided
+    let finalRegNo = regNo ? String(regNo).trim() : null;
+    if (finalRegNo) {
+      const existingByRegNo = await prisma.patient.findUnique({
+        where: { regNo: finalRegNo },
+      });
+      if (existingByRegNo) {
+        return res
+          .status(400)
+          .json({ error: "This regNo is already registered" });
+      }
     }
 
+    // Handle bookNumber (optional, auto-generate if blank)
     let finalBookNumber = bookNumber ? String(bookNumber).trim() : "";
 
     if (finalBookNumber) {
-      // Manual entry: must be 1–6 digits, numeric only
+      // Manual: must be 1–6 digits
       if (!/^\d{1,6}$/.test(finalBookNumber)) {
         return res.status(400).json({
           error: "Картын дугаар нь 1-6 оронтой зөвхөн тоо байх ёстой",
         });
       }
 
-      // Check uniqueness
       const existingBook = await prisma.patientBook.findUnique({
         where: { bookNumber: finalBookNumber },
       });
@@ -86,7 +88,6 @@ router.post("/", async (req, res) => {
         });
       }
     } else {
-      // Auto-generate bookNumber if empty
       const candidate = await generateNextBookNumber();
 
       if (!/^\d{1,6}$/.test(candidate)) {
@@ -101,10 +102,10 @@ router.post("/", async (req, res) => {
 
     const patient = await prisma.patient.create({
       data: {
-        ovog,
-        name,
-        regNo,
-        phone,
+        ovog: ovog ? String(ovog).trim() : null,
+        name: String(name).trim(),
+        regNo: finalRegNo, // may be null
+        phone: String(phone).trim(),
         branchId: Number(branchId),
         patientBook: {
           create: {
@@ -119,13 +120,12 @@ router.post("/", async (req, res) => {
   } catch (err) {
     console.error("Error creating patient:", err);
 
-    // Handle unique constraint errors from Prisma
     if (err.code === "P2002") {
       if (err.meta && err.meta.target && Array.isArray(err.meta.target)) {
         if (err.meta.target.includes("regNo")) {
-          return res.status(400).json({
-            error: "This regNo is already registered",
-          });
+          return res
+            .status(400)
+            .json({ error: "This regNo is already registered" });
         }
         if (err.meta.target.includes("bookNumber")) {
           return res.status(400).json({
