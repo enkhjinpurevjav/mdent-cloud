@@ -615,7 +615,7 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid "#d1d5db",
+                          border: "1px solid #d1d5db",
                           padding: "4px 6px",
                         }}
                       />
@@ -635,7 +635,7 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid "#d1d5db",
+                          border: "1px solid #d1d5db",
                           padding: "4px 6px",
                         }}
                       />
@@ -655,7 +655,7 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid "#d1d5db",
+                          border: "1px solid #d1d5db",
                           padding: "4px 6px",
                         }}
                       />
@@ -677,7 +677,7 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid "#d1d5db",
+                          border: "1px solid #d1d5db",
                           padding: "4px 6px",
                         }}
                       />
@@ -697,7 +697,7 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid "#d1d5db",
+                          border: "1px solid #d1d5db",
                           padding: "4px 6px",
                         }}
                       />
@@ -796,7 +796,7 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid "#d1d5db",
+                          border: "1px solid #d1d5db",
                           padding: "4px 6px",
                         }}
                       />
@@ -820,7 +820,7 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid "#d1d5db",
+                          border: "1px solid #d1d5db",
                           padding: "4px 6px",
                         }}
                       />
@@ -840,7 +840,7 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid "#d1d5db",
+                          border: "1px solid #d1d5db",
                           padding: "4px 6px",
                         }}
                       />
@@ -862,7 +862,7 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid "#d1d5db",
+                          border: "1px solid #d1d5db",
                           padding: "4px 6px",
                         }}
                       />
@@ -885,7 +885,7 @@ export default function PatientProfilePage() {
                         style={{
                           width: "100%",
                           borderRadius: 6,
-                          border: "1px solid "#d1d5db",
+                          border: "1px solid #d1d5db",
                           padding: "4px 6px",
                           resize: "vertical",
                         }}
