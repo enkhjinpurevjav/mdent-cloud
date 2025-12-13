@@ -97,6 +97,13 @@ export default function PatientProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Edit state for Үндсэн мэдээлэл
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<Patient>>({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState("");
+
   useEffect(() => {
     if (!bookNumber || typeof bookNumber !== "string") return;
 
@@ -141,6 +148,117 @@ export default function PatientProfilePage() {
     if (Number.isNaN(d.getTime())) return false;
     return d > now && a.status === "booked";
   });
+
+  // Initialize edit form from loaded patient when entering edit mode
+  const startEdit = () => {
+    if (!patient) return;
+    setEditForm({
+      ovog: patient.ovog || "",
+      name: patient.name || "",
+      regNo: patient.regNo || "",
+      phone: patient.phone || "",
+      gender: patient.gender || "",
+      birthDate: patient.birthDate
+        ? patient.birthDate.slice(0, 10)
+        : "", // YYYY-MM-DD for <input type="date">
+      address: patient.address || "",
+      bloodType: patient.bloodType || "",
+      citizenship: patient.citizenship || "Монгол",
+      emergencyPhone: patient.emergencyPhone || "",
+      notes: patient.notes || "",
+    });
+    setSaveError("");
+    setSaveSuccess("");
+    setEditMode(true);
+  };
+
+  const cancelEdit = () => {
+    setEditMode(false);
+    setEditForm({});
+    setSaveError("");
+    setSaveSuccess("");
+  };
+
+  const handleEditChange = (
+    e:
+      | React.ChangeEvent<HTMLInputElement>
+      | React.ChangeEvent<HTMLTextAreaElement>
+      | React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setEditForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleGenderChange = (value: "" | "эр" | "эм") => {
+    setEditForm((prev) => ({ ...prev, gender: value }));
+  };
+
+  const handleSave = async () => {
+    if (!patient) return;
+    setSaving(true);
+    setSaveError("");
+    setSaveSuccess("");
+
+    // Optional front validation for gender
+    if (
+      editForm.gender &&
+      editForm.gender !== "эр" &&
+      editForm.gender !== "эм"
+    ) {
+      setSaveError("Хүйс талбарт зөвхөн 'эр' эсвэл 'эм' утга сонгох боломжтой.");
+      setSaving(false);
+      return;
+    }
+
+    try {
+      const payload: any = {
+        ovog: (editForm.ovog || "").trim() || null,
+        name: (editForm.name || "").trim(),
+        regNo: (editForm.regNo || "").trim() || null,
+        phone: (editForm.phone || "").trim() || null,
+        gender: editForm.gender || null,
+        birthDate: editForm.birthDate || null,
+        address: (editForm.address || "").trim() || null,
+        bloodType: (editForm.bloodType || "").trim() || null,
+        citizenship: (editForm.citizenship || "").trim() || null,
+        emergencyPhone: (editForm.emergencyPhone || "").trim() || null,
+        notes: (editForm.notes || "").trim() || null,
+      };
+
+      const res = await fetch(`/api/patients/${patient.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error((json && json.error) || "Өгөгдөл хадгалах үед алдаа гарлаа");
+      }
+
+      // Update local state with returned patient
+      const updatedPatient = (json && json.patient) || json || patient;
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              patient: {
+                ...prev.patient,
+                ...updatedPatient,
+              },
+            }
+          : prev
+      );
+
+      setSaveSuccess("Мэдээлэл амжилттай хадгалагдлаа.");
+      setEditMode(false);
+    } catch (err: any) {
+      console.error(err);
+      setSaveError(err?.message || "Өгөгдөл хадгалах үед алдаа гарлаа.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <main
@@ -398,7 +516,7 @@ export default function PatientProfilePage() {
                 </div>
               </div>
 
-              {/* Basic information section (read-only) */}
+              {/* Basic information section (now editable) */}
               <div
                 style={{
                   borderRadius: 12,
@@ -407,15 +525,52 @@ export default function PatientProfilePage() {
                   background: "white",
                 }}
               >
-                <h2
+                <div
                   style={{
-                    fontSize: 16,
-                    marginTop: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
                     marginBottom: 12,
                   }}
                 >
-                  Үндсэн мэдээлэл
-                </h2>
+                  <h2
+                    style={{
+                      fontSize: 16,
+                      marginTop: 0,
+                      marginBottom: 0,
+                    }}
+                  >
+                    Үндсэн мэдээлэл
+                  </h2>
+                  {!editMode ? (
+                    <button
+                      type="button"
+                      onClick={startEdit}
+                      style={{
+                        fontSize: 12,
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        background: "#f9fafb",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Засах
+                    </button>
+                  ) : null}
+                </div>
+
+                {saveError && (
+                  <div style={{ color: "#b91c1c", fontSize: 12, marginBottom: 8 }}>
+                    {saveError}
+                  </div>
+                )}
+                {saveSuccess && (
+                  <div style={{ color: "#16a34a", fontSize: 12, marginBottom: 8 }}>
+                    {saveSuccess}
+                  </div>
+                )}
+
                 <div
                   style={{
                     display: "grid",
@@ -425,7 +580,7 @@ export default function PatientProfilePage() {
                     fontSize: 13,
                   }}
                 >
-                  {/* Book number and branch */}
+                  {/* Book number and branch (read-only) */}
                   <div>
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
                       Картын дугаар
@@ -439,24 +594,66 @@ export default function PatientProfilePage() {
                     <div>{patient.branch?.name || patient.branchId}</div>
                   </div>
 
-                  {/* Personal info (without combined full name row) */}
+                  {/* Ovog, Name, regNo */}
                   <div>
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
                       Овог
                     </div>
-                    <div>{patient.ovog || "-"}</div>
+                    {editMode ? (
+                      <input
+                        name="ovog"
+                        value={editForm.ovog ?? ""}
+                        onChange={handleEditChange}
+                        style={{
+                          width: "100%",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
+                        }}
+                      />
+                    ) : (
+                      <div>{patient.ovog || "-"}</div>
+                    )}
                   </div>
                   <div>
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
                       Нэр
                     </div>
-                    <div>{patient.name}</div>
+                    {editMode ? (
+                      <input
+                        name="name"
+                        value={editForm.name ?? ""}
+                        onChange={handleEditChange}
+                        style={{
+                          width: "100%",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
+                        }}
+                      />
+                    ) : (
+                      <div>{patient.name}</div>
+                    )}
                   </div>
                   <div>
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
                       РД
                     </div>
-                    <div>{patient.regNo || "-"}</div>
+                    {editMode ? (
+                      <input
+                        name="regNo"
+                        value={editForm.regNo ?? ""}
+                        onChange={handleEditChange}
+                        style={{
+                          width: "100%",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
+                        }}
+                      />
+                    ) : (
+                      <div>{patient.regNo || "-"}</div>
+                    )}
                   </div>
 
                   {/* Contact info */}
@@ -464,13 +661,41 @@ export default function PatientProfilePage() {
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
                       Утас
                     </div>
-                    <div>{patient.phone || "-"}</div>
+                    {editMode ? (
+                      <input
+                        name="phone"
+                        value={editForm.phone ?? ""}
+                        onChange={handleEditChange}
+                        style={{
+                          width: "100%",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
+                        }}
+                      />
+                    ) : (
+                      <div>{patient.phone || "-"}</div>
+                    )}
                   </div>
                   <div>
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
                       Яаралтай үед холбоо барих утас
                     </div>
-                    <div>{patient.emergencyPhone || "-"}</div>
+                    {editMode ? (
+                      <input
+                        name="emergencyPhone"
+                        value={editForm.emergencyPhone ?? ""}
+                        onChange={handleEditChange}
+                        style={{
+                          width: "100%",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
+                        }}
+                      />
+                    ) : (
+                      <div>{patient.emergencyPhone || "-"}</div>
+                    )}
                   </div>
 
                   {/* Dates & demographics */}
@@ -488,29 +713,132 @@ export default function PatientProfilePage() {
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
                       Хүйс
                     </div>
-                    <div>{patient.gender || "-"}</div>
+                    {editMode ? (
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          alignItems: "center",
+                          paddingTop: 2,
+                        }}
+                      >
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="gender"
+                            value="эр"
+                            checked={editForm.gender === "эр"}
+                            onChange={() => handleGenderChange("эр")}
+                          />
+                          <span>Эр</span>
+                        </label>
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="gender"
+                            value="эм"
+                            checked={editForm.gender === "эм"}
+                            onChange={() => handleGenderChange("эм")}
+                          />
+                          <span>Эм</span>
+                        </label>
+                        <label
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="gender"
+                            value=""
+                            checked={!editForm.gender}
+                            onChange={() => handleGenderChange("")}
+                          />
+                          <span>Хоосон</span>
+                        </label>
+                      </div>
+                    ) : (
+                      <div>{patient.gender || "-"}</div>
+                    )}
                   </div>
                   <div>
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
                       Төрсөн огноо
                     </div>
-                    <div>
-                      {patient.birthDate
-                        ? formatDate(patient.birthDate)
-                        : "-"}
-                    </div>
+                    {editMode ? (
+                      <input
+                        type="date"
+                        name="birthDate"
+                        value={editForm.birthDate ?? ""}
+                        onChange={handleEditChange}
+                        style={{
+                          width: "100%",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
+                        }}
+                      />
+                    ) : (
+                      <div>
+                        {patient.birthDate
+                          ? formatDate(patient.birthDate)
+                          : "-"}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
                       Цусны бүлэг
                     </div>
-                    <div>{patient.bloodType || "-"}</div>
+                    {editMode ? (
+                      <input
+                        name="bloodType"
+                        value={editForm.bloodType ?? ""}
+                        onChange={handleEditChange}
+                        style={{
+                          width: "100%",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
+                        }}
+                      />
+                    ) : (
+                      <div>{patient.bloodType || "-"}</div>
+                    )}
                   </div>
                   <div>
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
                       Иргэншил
                     </div>
-                    <div>{patient.citizenship || "-"}</div>
+                    {editMode ? (
+                      <input
+                        name="citizenship"
+                        value={editForm.citizenship ?? "Монгол"}
+                        onChange={handleEditChange}
+                        style={{
+                          width: "100%",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
+                        }}
+                      />
+                    ) : (
+                      <div>{patient.citizenship || "-"}</div>
+                    )}
                   </div>
 
                   {/* Address */}
@@ -518,19 +846,91 @@ export default function PatientProfilePage() {
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
                       Хаяг
                     </div>
-                    <div>{patient.address || "-"}</div>
+                    {editMode ? (
+                      <input
+                        name="address"
+                        value={editForm.address ?? ""}
+                        onChange={handleEditChange}
+                        style={{
+                          width: "100%",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
+                        }}
+                      />
+                    ) : (
+                      <div>{patient.address || "-"}</div>
+                    )}
                   </div>
 
                   {/* Notes */}
-                  {patient.notes && (
-                    <div style={{ gridColumn: "1 / -1" }}>
-                      <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                        Тэмдэглэл
-                      </div>
-                      <div>{patient.notes}</div>
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                      Тэмдэглэл
                     </div>
-                  )}
+                    {editMode ? (
+                      <textarea
+                        name="notes"
+                        value={editForm.notes ?? ""}
+                        onChange={handleEditChange}
+                        rows={3}
+                        style={{
+                          width: "100%",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
+                          resize: "vertical",
+                        }}
+                      />
+                    ) : (
+                      <div>{patient.notes || "-"}</div>
+                    )}
+                  </div>
                 </div>
+
+                {/* Save / Cancel buttons at bottom when in editMode */}
+                {editMode && (
+                  <div
+                    style={{
+                      marginTop: 16,
+                      display: "flex",
+                      gap: 8,
+                      justifyContent: "flex-end",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      disabled={saving}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        background: "#f9fafb",
+                        fontSize: 13,
+                        cursor: saving ? "default" : "pointer",
+                      }}
+                    >
+                      Болих
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saving}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 6,
+                        border: "none",
+                        background: saving ? "#9ca3af" : "#2563eb",
+                        color: "white",
+                        fontSize: 13,
+                        cursor: saving ? "default" : "pointer",
+                      }}
+                    >
+                      {saving ? "Хадгалж байна..." : "Хадгалах"}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </section>
