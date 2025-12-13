@@ -240,8 +240,7 @@ export default function PatientsPage() {
           : 0;
 
         if (!Number.isNaN(aNum) && !Number.isNaN(bNum) && aNum !== bNum) {
-          // DESC by card number
-          return bNum - aNum;
+          return bNum - aNum; // DESC by card number
         }
 
         const aName = `${a.ovog || ""} ${a.name || ""}`.toString();
@@ -398,7 +397,7 @@ export default function PatientsPage() {
               <th
                 style={{
                   textAlign: "left",
-                  borderBottom: "1px solid #ddd",
+                  borderBottom: "1px solid "#ddd",
                   padding: 8,
                 }}
               >
@@ -430,6 +429,15 @@ export default function PatientsPage() {
                 }}
               >
                 Бүртгэсэн салбар
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Үйлдэл
               </th>
             </tr>
           </thead>
@@ -492,12 +500,39 @@ export default function PatientsPage() {
                 >
                   {getBranchName(p.branchId)}
                 </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {p.patientBook?.bookNumber ? (
+                    <a
+                      href={`/patients/${encodeURIComponent(
+                        p.patientBook.bookNumber
+                      )}`}
+                      style={{
+                        fontSize: 12,
+                        padding: "4px 8px",
+                        borderRadius: 4,
+                        border: "1px solid #d1d5db",
+                        textDecoration: "none",
+                        color: "#111827",
+                        background: "#f9fafb",
+                      }}
+                    >
+                      Дэлгэрэнгүй
+                    </a>
+                  ) : (
+                    "-"
+                  )}
+                </td>
               </tr>
             ))}
             {filteredPatients.length === 0 && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{
                     textAlign: "center",
                     color: "#888",
@@ -507,85 +542,7 @@ export default function PatientsPage() {
                   Өгөгдөл алга
                 </td>
               </tr>
-            )}// inside <thead>
-<thead>
-  <tr>
-    <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
-      #
-    </th>
-    <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
-      Овог
-    </th>
-    <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
-      Нэр
-    </th>
-    <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
-      РД
-    </th>
-    <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
-      Утас
-    </th>
-    <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
-      Үүсгэсэн
-    </th>
-    <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
-      Бүртгэсэн салбар
-    </th>
-    <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
-      Үйлдэл
-    </th>
-  </tr>
-</thead>
-<tbody>
-  {filteredPatients.map((p) => (
-    <tr key={p.id}>
-      <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
-        {p.patientBook?.bookNumber || "-"}
-      </td>
-      <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
-        {p.ovog || "-"}
-      </td>
-      <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
-        {p.name || "-"}
-      </td>
-      <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
-        {p.regNo || "-"}
-      </td>
-      <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
-        {p.phone || "-"}
-      </td>
-      <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
-        {formatDate(p.createdAt)}
-      </td>
-      <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
-        {getBranchName(p.branchId)}
-      </td>
-      <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
-        {p.patientBook?.bookNumber ? (
-          <a
-            href={`/patients/${encodeURIComponent(
-              p.patientBook.bookNumber
-            )}`}
-            style={{
-              fontSize: 12,
-              padding: "4px 8px",
-              borderRadius: 4,
-              border: "1px solid #d1d5db",
-              textDecoration: "none",
-              color: "#111827",
-              background: "#f9fafb",
-            }}
-          >
-            Дэлгэрэнгүй
-          </a>
-        ) : (
-          "-"
-        )}
-      </td>
-    </tr>
-  ))}
-  {/* ... no-data row ... */}
-</tbody>
+            )}
           </tbody>
         </table>
       )}
