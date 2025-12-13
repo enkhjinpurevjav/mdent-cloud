@@ -14,12 +14,13 @@ type Patient = {
   regNo?: string | null;
   phone?: string | null;
   address?: string | null;
-  birthDate?: string | null;
-  gender?: string | null;
-  notes?: string | null;
   branchId: number;
   branch?: Branch;
   createdAt?: string;
+  notes?: string | null;
+  gender?: string | null;
+  birthDate?: string | null;
+  bloodType?: string | null;
 };
 
 type PatientBook = {
@@ -27,89 +28,16 @@ type PatientBook = {
   bookNumber: string;
 };
 
-type ChartNote = {
-  id: number;
-  description: string;
-  createdAt: string;
-};
-
-type ChartTooth = {
-  id: number;
-  toothCode: string;
-  status?: string | null;
-  notes?: string | null;
-  chartNotes: ChartNote[];
-};
-
-type Procedure = {
-  code: string;
-  name: string;
-  price: number;
-};
-
-type InvoiceItem = {
-  id: number;
-  price: number;
-  quantity: number;
-  procedure?: Procedure;
-};
-
-type Payment = {
-  id: number;
-  amount: number;
-  method: string;
-  qpayTxnId?: string | null;
-  timestamp: string;
-};
-
-type EBarimtReceipt = {
-  id: number;
-  receiptNumber: string;
-  timestamp: string;
-};
-
-type Invoice = {
-  id: number;
-  totalAmount: number;
-  status: string;
-  createdAt: string;
-  payment?: Payment | null;
-  eBarimtReceipt?: EBarimtReceipt | null;
-  invoiceItems: InvoiceItem[];
-};
-
-type Media = {
-  id: number;
-  encounterId: number;
-  filePath: string;
-  toothCode?: string | null;
-  type: string;
-};
-
-type Doctor = {
-  id: number;
-  ovog?: string | null;
-  name?: string | null;
-  email: string;
-};
-
 type Encounter = {
   id: number;
   visitDate: string;
   notes?: string | null;
-  doctorId: number;
-  doctor: Doctor;
-  invoice?: Invoice | null;
-  chartTeeth: ChartTooth[];
-  media: Media[];
 };
 
 type PatientProfileResponse = {
   patient: Patient;
   patientBook: PatientBook;
   encounters: Encounter[];
-  invoices: Invoice[];
-  media: Media[];
 };
 
 function formatDateTime(iso?: string) {
@@ -134,11 +62,6 @@ function formatDate(iso?: string) {
     month: "2-digit",
     day: "2-digit",
   });
-}
-
-function formatMoney(amount?: number) {
-  if (amount == null) return "-";
-  return amount.toLocaleString("mn-MN") + " ₮";
 }
 
 export default function PatientProfilePage() {
@@ -180,6 +103,10 @@ export default function PatientProfilePage() {
 
   const patient = data?.patient;
   const pb = data?.patientBook;
+  const encounters = data?.encounters || [];
+
+  const totalEncounters = encounters.length;
+  const lastEncounter = encounters[0];
 
   return (
     <main
@@ -203,7 +130,7 @@ export default function PatientProfilePage() {
           fontSize: 13,
         }}
       >
-        ← Буцах (Жагсаалт руу)
+        ← Буцах (жагсаалт руу)
       </button>
 
       {loading && <div>Ачааллаж байна...</div>}
@@ -211,41 +138,306 @@ export default function PatientProfilePage() {
 
       {!loading && !error && patient && pb && (
         <>
-          {/* Header / basic info */}
-          <section style={{ marginBottom: 24 }}>
-            <h1 style={{ marginBottom: 4 }}>
-              {patient.ovog || ""} {patient.name}
-            </h1>
-            <div style={{ color: "#4b5563", fontSize: 14, marginBottom: 8 }}>
-              Картын дугаар:{" "}
-              <strong>{pb.bookNumber}</strong>{" "}
-              {patient.regNo ? <> · РД: {patient.regNo}</> : null}
-            </div>
-            <div style={{ fontSize: 13, color: "#6b7280" }}>
-              Утас: {patient.phone || "-"} · Салбар:{" "}
-              {patient.branch?.name || patient.branchId}
-              {patient.createdAt
-                ? ` · Бүртгэсэн: ${formatDate(patient.createdAt)}`
-                : ""}
-            </div>
-            {patient.address && (
-              <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-                Хаяг: {patient.address}
+          {/* Top layout: left profile panel + right summary cards */}
+          <section
+            style={{
+              display: "grid",
+              gridTemplateColumns: "260px 1fr",
+              gap: 16,
+              alignItems: "stretch",
+              marginBottom: 24,
+            }}
+          >
+            {/* Left: profile card + mini menu */}
+            <div
+              style={{
+                border: "1px solid #e5e7eb",
+                borderRadius: 12,
+                padding: 16,
+                background: "white",
+              }}
+            >
+              {/* Avatar placeholder */}
+              <div
+                style={{
+                  width: 96,
+                  height: 96,
+                  borderRadius: "9999px",
+                  background:
+                    "linear-gradient(135deg, #e5e7eb, #f3f4f6)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 32,
+                  fontWeight: 600,
+                  color: "#4b5563",
+                  marginBottom: 12,
+                }}
+              >
+                {patient.name ? patient.name.charAt(0).toUpperCase() : "P"}
               </div>
-            )}
-            {patient.notes && (
-              <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>
-                Тэмдэглэл: {patient.notes}
+              <div style={{ marginBottom: 4 }}>
+                <strong>
+                  {patient.ovog || ""} {patient.name}
+                </strong>
               </div>
-            )}
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                Картын дугаар: {pb.bookNumber}
+              </div>
+              {patient.regNo && (
+                <div style={{ fontSize: 13, color: "#6b7280" }}>
+                  РД: {patient.regNo}
+                </div>
+              )}
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                Утас: {patient.phone || "-"}
+              </div>
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                Салбар: {patient.branch?.name || patient.branchId}
+              </div>
+              {patient.createdAt && (
+                <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 4 }}>
+                  Бүртгэсэн: {formatDate(patient.createdAt)}
+                </div>
+              )}
+
+              {/* Simple side menu (not functional yet, just visual) */}
+              <div style={{ marginTop: 16 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    textTransform: "uppercase",
+                    color: "#9ca3af",
+                    marginBottom: 4,
+                  }}
+                >
+                  Цэс
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                    fontSize: 13,
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      background: "#eff6ff",
+                      color: "#1d4ed8",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Профайл
+                  </div>
+                  <div
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      cursor: "default",
+                      color: "#6b7280",
+                    }}
+                  >
+                    Үзлэгийн түүх
+                  </div>
+                  <div
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      cursor: "default",
+                      color: "#6b7280",
+                    }}
+                  >
+                    Нэхэмжлэх
+                  </div>
+                  <div
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      cursor: "default",
+                      color: "#6b7280",
+                    }}
+                  >
+                    Цагууд
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: summary cards + basic info grid */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Summary cards row */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    borderRadius: 12,
+                    border: "1px solid #e5e7eb",
+                    padding: 12,
+                    background: "#f9fafb",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      textTransform: "uppercase",
+                      color: "#6b7280",
+                      marginBottom: 4,
+                    }}
+                  >
+                    Үзлэгүүд
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 24,
+                      fontWeight: 600,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {totalEncounters}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>
+                    Нийт бүртгэлтэй үзлэг
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    borderRadius: 12,
+                    border: "1px solid #e5e7eb",
+                    padding: 12,
+                    background: "#f9fafb",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      textTransform: "uppercase",
+                      color: "#6b7280",
+                      marginBottom: 4,
+                    }}
+                  >
+                    Сүүлийн үзлэг
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 500,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {lastEncounter
+                      ? formatDateTime(lastEncounter.visitDate)
+                      : "-"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>
+                    Хамгийн сүүлд ирсэн огноо
+                  </div>
+                </div>
+              </div>
+
+              {/* Basic information section (read-only for now) */}
+              <div
+                style={{
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  padding: 16,
+                  background: "white",
+                }}
+              >
+                <h2
+                  style={{
+                    fontSize: 16,
+                    marginTop: 0,
+                    marginBottom: 12,
+                  }}
+                >
+                  Үндсэн мэдээлэл
+                </h2>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fit, minmax(200px, 1fr))",
+                    gap: 12,
+                    fontSize: 13,
+                  }}
+                >
+                  <div>
+                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                      Нэр
+                    </div>
+                    <div>
+                      {patient.ovog || ""} {patient.name}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                      РД
+                    </div>
+                    <div>{patient.regNo || "-"}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                      Утас
+                    </div>
+                    <div>{patient.phone || "-"}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                      Хүйс
+                    </div>
+                    <div>{patient.gender || "-"}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                      Төрсөн огноо
+                    </div>
+                    <div>
+                      {patient.birthDate
+                        ? formatDate(patient.birthDate)
+                        : "-"}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                      Цусны бүлэг
+                    </div>
+                    <div>{patient.bloodType || "-"}</div>
+                  </div>
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                      Хаяг
+                    </div>
+                    <div>{patient.address || "-"}</div>
+                  </div>
+                  {patient.notes && (
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                        Тэмдэглэл
+                      </div>
+                      <div>{patient.notes}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </section>
 
-          {/* Encounter / treatment history */}
-          <section style={{ marginBottom: 24 }}>
+          {/* Encounter history table (kept from previous version) */}
+          <section>
             <h2 style={{ fontSize: 16, marginBottom: 8 }}>
-              Үзлэг, эмчилгээний түүх
+              Үзлэгийн түүх (Encounters)
             </h2>
-            {data!.encounters.length === 0 ? (
+            {encounters.length === 0 ? (
               <div style={{ color: "#6b7280", fontSize: 13 }}>
                 Одоогоор бүртгэлтэй үзлэг алга.
               </div>
@@ -275,30 +467,12 @@ export default function PatientProfilePage() {
                         padding: 6,
                       }}
                     >
-                      Эмч
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
                       Тэмдэглэл
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Нэхэмжлэх
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {data!.encounters.map((e) => (
+                  {encounters.map((e) => (
                     <tr key={e.id}>
                       <td
                         style={{
@@ -314,281 +488,7 @@ export default function PatientProfilePage() {
                           padding: 6,
                         }}
                       >
-                        {`${e.doctor.ovog || ""} ${
-                          e.doctor.name || ""
-                        }`.trim() || e.doctor.email}
-                      </td>
-                      <td
-                        style={{
-                          borderBottom: "1px solid #f3f4f6",
-                          padding: 6,
-                        }}
-                      >
                         {e.notes || "-"}
-                      </td>
-                      <td
-                        style={{
-                          borderBottom: "1px solid #f3f4f6",
-                          padding: 6,
-                        }}
-                      >
-                        {e.invoice ? (
-                          <>
-                            <div>
-                              Дүн:{" "}
-                              <strong>
-                                {formatMoney(e.invoice.totalAmount)}
-                              </strong>{" "}
-                              ({e.invoice.status})
-                            </div>
-                            {e.invoice.payment && (
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  color: "#6b7280",
-                                }}
-                              >
-                                Төлбөр:{" "}
-                                {formatMoney(e.invoice.payment.amount)} ·{" "}
-                                {e.invoice.payment.method} ·{" "}
-                                {formatDateTime(e.invoice.payment.timestamp)}
-                              </div>
-                            )}
-                            {e.invoice.eBarimtReceipt && (
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  color: "#6b7280",
-                                }}
-                              >
-                                E-Barimt:{" "}
-                                {e.invoice.eBarimtReceipt.receiptNumber}
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-
-          {/* Payment / invoice summary */}
-          <section style={{ marginBottom: 24 }}>
-            <h2 style={{ fontSize: 16, marginBottom: 8 }}>
-              Нэхэмжлэх, төлбөрийн түүх
-            </h2>
-            {data!.invoices.length === 0 ? (
-              <div style={{ color: "#6b7280", fontSize: 13 }}>
-                Нэхэмжлэхийн бүртгэл алга.
-              </div>
-            ) : (
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: 13,
-                }}
-              >
-                <thead>
-                  <tr>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Огноо
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Дүн
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Төлөв
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Төлбөр
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data!.invoices
-                    .slice()
-                    .sort((a, b) =>
-                      a.createdAt.localeCompare(b.createdAt)
-                    )
-                    .map((inv) => (
-                      <tr key={inv.id}>
-                        <td
-                          style={{
-                            borderBottom: "1px solid #f3f4f6",
-                            padding: 6,
-                          }}
-                        >
-                          {formatDateTime(inv.createdAt)}
-                        </td>
-                        <td
-                          style={{
-                            borderBottom: "1px solid #f3f4f6",
-                            padding: 6,
-                          }}
-                        >
-                          {formatMoney(inv.totalAmount)}
-                        </td>
-                        <td
-                          style={{
-                            borderBottom: "1px solid #f3f4f6",
-                            padding: 6,
-                          }}
-                        >
-                          {inv.status}
-                        </td>
-                        <td
-                          style={{
-                            borderBottom: "1px solid #f3f4f6",
-                            padding: 6,
-                          }}
-                        >
-                          {inv.payment ? (
-                            <>
-                              <div>
-                                {formatMoney(inv.payment.amount)} ·{" "}
-                                {inv.payment.method}
-                              </div>
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  color: "#6b7280",
-                                }}
-                              >
-                                {formatDateTime(inv.payment.timestamp)}
-                              </div>
-                            </>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-
-          {/* Media attachments */}
-          <section style={{ marginBottom: 24 }}>
-            <h2 style={{ fontSize: 16, marginBottom: 8 }}>
-              Хавсралт зураг, файл (Media)
-            </h2>
-            {data!.media.length === 0 ? (
-              <div style={{ color: "#6b7280", fontSize: 13 }}>
-                Одоогоор хавсралт алга.
-              </div>
-            ) : (
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: 13,
-                }}
-              >
-                <thead>
-                  <tr>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Encounter ID
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Төрөл
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Шүдний код
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Файл
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data!.media.map((m) => (
-                    <tr key={m.id}>
-                      <td
-                        style={{
-                          borderBottom: "1px solid #f3f4f6",
-                          padding: 6,
-                        }}
-                      >
-                        {m.encounterId}
-                      </td>
-                      <td
-                        style={{
-                          borderBottom: "1px solid #f3f4f6",
-                          padding: 6,
-                        }}
-                      >
-                        {m.type}
-                      </td>
-                      <td
-                        style={{
-                          borderBottom: "1px solid #f3f4f6",
-                          padding: 6,
-                        }}
-                      >
-                        {m.toothCode || "-"}
-                      </td>
-                      <td
-                        style={{
-                          borderBottom: "1px solid #f3f4f6",
-                          padding: 6,
-                        }}
-                      >
-                        {m.filePath}
                       </td>
                     </tr>
                   ))}
