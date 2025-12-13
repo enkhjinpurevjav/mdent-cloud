@@ -75,6 +75,17 @@ function formatDate(iso?: string) {
   });
 }
 
+// Build display name as: first letter of ovog + "." + name (e.g. "E.Margad")
+function formatDisplayName(patient: Patient) {
+  const name = patient.name || "";
+  const ovog = (patient.ovog || "").trim();
+  if (ovog) {
+    const first = ovog.charAt(0).toUpperCase();
+    return `${first}.${name}`;
+  }
+  return name;
+}
+
 export default function PatientProfilePage() {
   const router = useRouter();
   const { bookNumber } = router.query;
@@ -150,7 +161,7 @@ export default function PatientProfilePage() {
           fontSize: 13,
         }}
       >
-        ← Буцах (жагсаалт руу)
+        ← Буцах
       </button>
 
       {loading && <div>Ачааллаж байна...</div>}
@@ -177,30 +188,15 @@ export default function PatientProfilePage() {
                 background: "white",
               }}
             >
-              {/* Avatar placeholder */}
-              <div
-                style={{
-                  width: 96,
-                  height: 96,
-                  borderRadius: "9999px",
-                  background:
-                    "linear-gradient(135deg, #e5e7eb, #f3f4f6)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 32,
-                  fontWeight: 600,
-                  color: "#4b5563",
-                  marginBottom: 12,
-                }}
-              >
-                {patient.name ? patient.name.charAt(0).toUpperCase() : "P"}
+              {/* Name / identity (no photo) */}
+              <div style={{ marginBottom: 4, fontSize: 18, fontWeight: 600 }}>
+                {formatDisplayName(patient)}
               </div>
-              <div style={{ marginBottom: 4 }}>
-                <strong>
-                  {patient.ovog || ""} {patient.name}
-                </strong>
-              </div>
+              {patient.ovog && (
+                <div style={{ fontSize: 12, color: "#9ca3af", marginBottom: 4 }}>
+                  Овог: {patient.ovog}
+                </div>
+              )}
               <div style={{ fontSize: 13, color: "#6b7280" }}>
                 Картын дугаар: {pb.bookNumber}
               </div>
@@ -213,7 +209,7 @@ export default function PatientProfilePage() {
                 Утас: {patient.phone || "-"}
               </div>
               <div style={{ fontSize: 13, color: "#6b7280" }}>
-                Салбар: {patient.branch?.name || patient.branchId}
+                Бүртгэсэн салбар: {patient.branch?.name || patient.branchId}
               </div>
               {patient.createdAt && (
                 <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 4 }}>
@@ -436,9 +432,7 @@ export default function PatientProfilePage() {
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
                       Нэр
                     </div>
-                    <div>
-                      {patient.ovog || ""} {patient.name}
-                    </div>
+                    <div>{formatDisplayName(patient)}</div>
                   </div>
                   <div>
                     <div style={{ color: "#6b7280", marginBottom: 2 }}>
@@ -558,7 +552,7 @@ export default function PatientProfilePage() {
             )}
           </section>
 
-          {/* Appointments list (simple) */}
+          {/* Appointments list */}
           <section>
             <h2 style={{ fontSize: 16, marginBottom: 8 }}>
               Цаг захиалгууд (Appointments)
