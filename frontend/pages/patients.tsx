@@ -242,6 +242,7 @@ function PatientRegisterForm({
           />
         </div>
 
+        {/* Branch selection (required) */}
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ fontSize: 13, fontWeight: 500 }}>
             Бүртгэсэн салбар (заавал)
@@ -261,6 +262,7 @@ function PatientRegisterForm({
           </select>
         </div>
 
+        {/* Optional manual book number */}
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <label style={{ fontSize: 13, fontWeight: 500 }}>
             Картын дугаар (сонголттой)
@@ -484,7 +486,7 @@ export default function PatientsPage() {
               <th
                 style={{
                   textAlign: "left",
-                  borderBottom: "1px solid "#ddd",
+                  borderBottom: "1px solid #ddd",
                   padding: 8,
                 }}
               >
