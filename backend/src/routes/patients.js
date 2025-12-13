@@ -138,5 +138,75 @@ router.post("/", async (req, res) => {
     res.status(500).json({ error: "failed to create patient" });
   }
 });
+// ...
 
+// GET /api/patients/profile/by-book/:bookNumber
+router.get("/profile/by-book/:bookNumber", async (req, res) => {
+  try {
+    const { bookNumber } = req.params;
+
+    if (!bookNumber) {
+      return res.status(400).json({ error: "bookNumber is required" });
+    }
+
+    const pb = await prisma.patientBook.findUnique({
+      where: { bookNumber },
+      include: {
+        patient: {
+          include: {
+            branch: true,
+          },
+        },
+      },
+    });
+
+    if (!pb || !pb.patient) {
+      return res.status(404).json({ error: "Patient not found" });
+    }
+
+    const patient = pb.patient;
+
+    // Load encounters for this patientBook
+    const encounters = await prisma.encounter.findMany({
+      where: { patientBookId: pb.id },
+      orderBy: { visitDate: "desc" },
+      include: {
+        doctor: true,
+        invoice: {
+          include: {
+            payment: true,
+            eBarimtReceipt: true,
+            invoiceItems: {
+              include: { procedure: true },
+            },
+          },
+        },
+        chartTeeth: {
+          include: {
+            chartNotes: true,
+          },
+        },
+        media: true,
+      },
+    });
+
+    // Optional: aggregate invoices/payment history
+    const invoices = encounters
+      .map((e) => e.invoice)
+      .filter((inv) => !!inv);
+
+    const media = encounters.flatMap((e) => e.media || []);
+
+    res.json({
+      patient,
+      patientBook: { id: pb.id, bookNumber: pb.bookNumber },
+      encounters,
+      invoices,
+      media,
+    });
+  } catch (err) {
+    console.error("GET /api/patients/profile/by-book/:bookNumber error:", err);
+    res.status(500).json({ error: "failed to load patient profile" });
+  }
+});
 export default router;
