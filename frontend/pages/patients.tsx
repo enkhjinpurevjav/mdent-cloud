@@ -230,11 +230,25 @@ export default function PatientsPage() {
 
       setBranches(bData);
 
-      const sortedPatients = [...pData].sort((a, b) => {
+      // Sort by card number descending (numeric), fallback by name
+      const sortedPatients = [...pData].sort((a: Patient, b: Patient) => {
+        const aNum = a.patientBook?.bookNumber
+          ? parseInt(a.patientBook.bookNumber, 10)
+          : 0;
+        const bNum = b.patientBook?.bookNumber
+          ? parseInt(b.patientBook.bookNumber, 10)
+          : 0;
+
+        if (!Number.isNaN(aNum) && !Number.isNaN(bNum) && aNum !== bNum) {
+          // DESC by card number
+          return bNum - aNum;
+        }
+
         const aName = `${a.ovog || ""} ${a.name || ""}`.toString();
         const bName = `${b.ovog || ""} ${b.name || ""}`.toString();
         return aName.localeCompare(bName, "mn");
       });
+
       setPatients(sortedPatients);
     } catch (e) {
       console.error(e);
@@ -263,6 +277,17 @@ export default function PatientsPage() {
     return b ? b.name : branchId;
   };
 
+  const formatDate = (iso?: string) => {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "-";
+    return d.toLocaleDateString("mn-MN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+  };
+
   return (
     <main
       style={{
@@ -287,14 +312,26 @@ export default function PatientsPage() {
         branches={branches}
         onSuccess={(p) => {
           setPatients((prev) =>
-            [...prev, p].sort((a, b) =>
-              `${a.ovog || ""} ${a.name || ""}`
-                .toString()
-                .localeCompare(
-                  `${b.ovog || ""} ${b.name || ""}`.toString(),
-                  "mn"
-                )
-            )
+            [...prev, p].sort((a: Patient, b: Patient) => {
+              const aNum = a.patientBook?.bookNumber
+                ? parseInt(a.patientBook.bookNumber, 10)
+                : 0;
+              const bNum = b.patientBook?.bookNumber
+                ? parseInt(b.patientBook.bookNumber, 10)
+                : 0;
+
+              if (
+                !Number.isNaN(aNum) &&
+                !Number.isNaN(bNum) &&
+                aNum !== bNum
+              ) {
+                return bNum - aNum;
+              }
+
+              const aName = `${a.ovog || ""} ${a.name || ""}`.toString();
+              const bName = `${b.ovog || ""} ${b.name || ""}`.toString();
+              return aName.localeCompare(bName, "mn");
+            })
           );
         }}
       />
@@ -383,7 +420,7 @@ export default function PatientsPage() {
                   padding: 8,
                 }}
               >
-                Картын дугаар
+                Үүсгэсэн
               </th>
               <th
                 style={{
@@ -397,7 +434,7 @@ export default function PatientsPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredPatients.map((p, index) => (
+            {filteredPatients.map((p) => (
               <tr key={p.id}>
                 <td
                   style={{
@@ -405,7 +442,7 @@ export default function PatientsPage() {
                     padding: 8,
                   }}
                 >
-                  {index + 1}
+                  {p.patientBook?.bookNumber || "-"}
                 </td>
                 <td
                   style={{
@@ -445,7 +482,7 @@ export default function PatientsPage() {
                     padding: 8,
                   }}
                 >
-                  {p.patientBook?.bookNumber || "-"}
+                  {formatDate(p.createdAt)}
                 </td>
                 <td
                   style={{
