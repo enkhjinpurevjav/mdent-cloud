@@ -46,7 +46,17 @@ router.get("/", async (_req, res) => {
 // POST /api/patients
 router.post("/", async (req, res) => {
   try {
-    const { ovog, name, regNo, phone, branchId, bookNumber } = req.body || {};
+    const {
+      ovog,
+      name,
+      regNo,
+      phone,
+      branchId,
+      bookNumber,
+      gender,
+      citizenship,
+      emergencyPhone,
+    } = req.body || {};
 
     // Minimal required fields: name, phone, branchId
     if (!name || !phone || !branchId) {
@@ -66,6 +76,18 @@ router.post("/", async (req, res) => {
           .status(400)
           .json({ error: "This regNo is already registered" });
       }
+    }
+
+    // Gender is optional, but if present must be "эр" or "эм"
+    let finalGender = null;
+    if (typeof gender === "string" && gender.trim() !== "") {
+      const g = gender.trim();
+      if (g !== "эр" && g !== "эм") {
+        return res
+          .status(400)
+          .json({ error: "gender must be 'эр' or 'эм' if provided" });
+      }
+      finalGender = g;
     }
 
     // Handle bookNumber (optional, auto-generate if blank)
@@ -107,6 +129,16 @@ router.post("/", async (req, res) => {
         regNo: finalRegNo, // may be null
         phone: String(phone).trim(),
         branchId: Number(branchId),
+
+        // New optional fields
+        gender: finalGender,
+        citizenship: citizenship
+          ? String(citizenship).trim()
+          : undefined, // let Prisma default("Mongolian") apply when undefined
+        emergencyPhone: emergencyPhone
+          ? String(emergencyPhone).trim()
+          : null,
+
         patientBook: {
           create: {
             bookNumber: finalBookNumber,
@@ -136,6 +168,111 @@ router.post("/", async (req, res) => {
     }
 
     res.status(500).json({ error: "failed to create patient" });
+  }
+});
+
+// PATCH /api/patients/:id
+router.patch("/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid patient id" });
+    }
+
+    const {
+      ovog,
+      name,
+      regNo,
+      phone,
+      gender,
+      birthDate,
+      address,
+      bloodType,
+      citizenship,
+      emergencyPhone,
+      notes,
+    } = req.body || {};
+
+    const data = {};
+
+    if (ovog !== undefined) {
+      data.ovog = ovog === "" ? null : String(ovog).trim();
+    }
+    if (name !== undefined) {
+      data.name = String(name).trim();
+    }
+    if (regNo !== undefined) {
+      data.regNo = regNo === "" ? null : String(regNo).trim();
+    }
+    if (phone !== undefined) {
+      data.phone = phone === "" ? null : String(phone).trim();
+    }
+
+    // gender: optional, must be "эр" or "эм" if provided
+    if (gender !== undefined) {
+      if (!gender) {
+        data.gender = null;
+      } else if (gender === "эр" || gender === "эм") {
+        data.gender = gender;
+      } else {
+        return res.status(400).json({
+          error: "gender must be 'эр' or 'эм' if provided",
+        });
+      }
+    }
+
+    // birthDate comes as "YYYY-MM-DD" or null/empty
+    if (birthDate !== undefined) {
+      if (!birthDate) {
+        data.birthDate = null;
+      } else {
+        const d = new Date(birthDate);
+        if (Number.isNaN(d.getTime())) {
+          return res.status(400).json({
+            error: "Invalid birthDate format (expected YYYY-MM-DD)",
+          });
+        }
+        data.birthDate = d;
+      }
+    }
+
+    if (address !== undefined) {
+      data.address = address === "" ? null : String(address).trim();
+    }
+    if (bloodType !== undefined) {
+      data.bloodType = bloodType === "" ? null : String(bloodType).trim();
+    }
+    if (citizenship !== undefined) {
+      data.citizenship =
+        citizenship === "" ? null : String(citizenship).trim();
+    }
+    if (emergencyPhone !== undefined) {
+      data.emergencyPhone =
+        emergencyPhone === "" ? null : String(emergencyPhone).trim();
+    }
+    if (notes !== undefined) {
+      data.notes = notes === "" ? null : String(notes).trim();
+    }
+
+    const updated = await prisma.patient.update({
+      where: { id },
+      data,
+    });
+
+    return res.json({ patient: updated });
+  } catch (err) {
+    console.error("Error updating patient:", err);
+    if (err.code === "P2025") {
+      // Prisma "record not found"
+      return res.status(404).json({ error: "Patient not found" });
+    }
+    // Handle unique regNo violation if you keep regNo unique
+    if (err.code === "P2002" && err.meta?.target?.includes("regNo")) {
+      return res
+        .status(400)
+        .json({ error: "This regNo is already registered" });
+    }
+    return res.status(500).json({ error: "failed to update patient" });
   }
 });
 
