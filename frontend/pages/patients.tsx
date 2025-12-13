@@ -54,8 +54,10 @@ function PatientRegisterForm({
       setError("Салбар сонгоно уу.");
       return;
     }
-    if (!form.bookNumber) {
-      setError("Картын дугаар оруулна уу.");
+
+    // Optional client-side validation: if filled, must be 1–6 digits
+    if (form.bookNumber && !/^\d{1,6}$/.test(form.bookNumber)) {
+      setError("Картын дугаар нь 1-6 оронтой зөвхөн тоо байх ёстой.");
       return;
     }
 
@@ -67,7 +69,8 @@ function PatientRegisterForm({
         regNo: form.regNo,
         phone: form.phone,
         branchId: Number(form.branchId),
-        bookNumber: form.bookNumber,
+        // if empty string, backend will auto-generate next number
+        bookNumber: form.bookNumber || "",
       };
 
       const res = await fetch("/api/patients", {
@@ -164,13 +167,21 @@ function PatientRegisterForm({
           </select>
         </div>
 
-        <input
-          name="bookNumber"
-          placeholder="Картын дугаар"
-          value={form.bookNumber}
-          onChange={handleChange}
-          required
-        />
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 13, fontWeight: 500 }}>
+            Картын дугаар (сонголттой)
+          </label>
+          <input
+            name="bookNumber"
+            placeholder="Ж: 123456"
+            value={form.bookNumber}
+            onChange={handleChange}
+          />
+          <span style={{ fontSize: 11, color: "#6b7280" }}>
+            Хоосон орхивол систем хамгийн сүүлийн дугаараас +1 автоматаар
+            үүсгэнэ. 1-6 оронтой зөвхөн тоо байх ёстой.
+          </span>
+        </div>
       </div>
 
       <button type="submit" disabled={submitting}>
@@ -324,7 +335,7 @@ export default function PatientsPage() {
               <th
                 style={{
                   textAlign: "left",
-                  borderBottom: "1px solid #ddd",
+                  borderBottom: "1px solid "#ddd",
                   padding: 8,
                 }}
               >
