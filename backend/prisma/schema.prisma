@@ -169,9 +169,10 @@ model Appointment {
   notes       String?
 
   patient     Patient   @relation(fields: [patientId], references: [id])
-  // NOTE: you can add relations to doctor/branch if needed:
-  // doctor  User?   @relation(fields: [doctorId], references: [id])
-  // branch  Branch  @relation(fields: [branchId], references: [id])
+
+  // NEW: add relations so we can include doctor & branch
+  doctor      User?     @relation(fields: [doctorId], references: [id])
+  branch      Branch    @relation(fields: [branchId], references: [id])
 
   @@index([branchId, scheduledAt])
 }
