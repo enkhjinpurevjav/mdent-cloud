@@ -105,6 +105,11 @@ export default function PatientProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Tabs: "profile" (default) or "appointments"
+  const [activeTab, setActiveTab] = useState<"profile" | "appointments">(
+    "profile"
+  );
+
   // Edit state for Үндсэн мэдээлэл
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Patient>>({});
@@ -268,6 +273,11 @@ export default function PatientProfilePage() {
     }
   };
 
+  // Derived sorted appointments (for the list tab)
+  const sortedAppointments = [...appointments].sort((a, b) =>
+    b.scheduledAt.localeCompare(a.scheduledAt)
+  );
+
   return (
     <main
       style={{
@@ -298,7 +308,7 @@ export default function PatientProfilePage() {
 
       {!loading && !error && patient && pb && (
         <>
-          {/* Top layout: left profile panel + right summary cards */}
+          {/* Top layout: left profile panel + right content */}
           <section
             style={{
               display: "grid",
@@ -308,7 +318,7 @@ export default function PatientProfilePage() {
               marginBottom: 24,
             }}
           >
-            {/* Left: profile card + mini menu */}
+            {/* Left: profile card + side menu */}
             <div
               style={{
                 border: "1px solid #e5e7eb",
@@ -340,7 +350,7 @@ export default function PatientProfilePage() {
                 </div>
               )}
 
-              {/* Simple side menu (visual only for now) */}
+              {/* Side menu */}
               <div style={{ marginTop: 16 }}>
                 <div
                   style={{
@@ -360,17 +370,62 @@ export default function PatientProfilePage() {
                     fontSize: 13,
                   }}
                 >
-                  <div
+                  {/* Профайл tab */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("profile");
+                      setEditMode(false);
+                      setSaveError("");
+                      setSaveSuccess("");
+                    }}
                     style={{
+                      textAlign: "left",
                       padding: "6px 10px",
                       borderRadius: 6,
-                      background: "#eff6ff",
-                      color: "#1d4ed8",
-                      fontWeight: 500,
+                      border: "none",
+                      background:
+                        activeTab === "profile" ? "#eff6ff" : "transparent",
+                      color:
+                        activeTab === "profile" ? "#1d4ed8" : "#6b7280",
+                      fontWeight: activeTab === "profile" ? 500 : 400,
+                      cursor: "pointer",
                     }}
                   >
                     Профайл
-                  </div>
+                  </button>
+
+                  {/* Цагууд tab – moved directly under Профайл and clickable */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("appointments");
+                      setEditMode(false);
+                      setSaveError("");
+                      setSaveSuccess("");
+                    }}
+                    style={{
+                      textAlign: "left",
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background:
+                        activeTab === "appointments"
+                          ? "#eff6ff"
+                          : "transparent",
+                      color:
+                        activeTab === "appointments"
+                          ? "#1d4ed8"
+                          : "#6b7280",
+                      fontWeight:
+                        activeTab === "appointments" ? 500 : 400,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Цагууд
+                  </button>
+
+                  {/* Future tabs – still non-functional placeholders */}
                   <div
                     style={{
                       padding: "6px 10px",
@@ -389,745 +444,887 @@ export default function PatientProfilePage() {
                   >
                     Нэхэмжлэх
                   </div>
-                  <div
-                    style={{
-                      padding: "6px 10px",
-                      borderRadius: 6,
-                      color: "#6b7280",
-                    }}
-                  >
-                    Цагууд
-                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Right: summary cards + basic info grid */}
+            {/* Right content area: depends on activeTab */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {/* Summary cards row */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "repeat(auto-fit, minmax(180px, 1fr))",
-                  gap: 12,
-                }}
-              >
-                {/* Encounters summary */}
+              {activeTab === "profile" && (
+                <>
+                  {/* Summary cards row */}
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(180px, 1fr))",
+                      gap: 12,
+                    }}
+                  >
+                    {/* Encounters summary */}
+                    <div
+                      style={{
+                        borderRadius: 12,
+                        border: "1px solid #e5e7eb",
+                        padding: 12,
+                        background: "#f9fafb",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          textTransform: "uppercase",
+                          color: "#6b7280",
+                          marginBottom: 4,
+                        }}
+                      >
+                        Үзлэгүүд
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 24,
+                          fontWeight: 600,
+                          marginBottom: 4,
+                        }}
+                      >
+                        {totalEncounters}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#6b7280" }}>
+                        Нийт бүртгэлтэй үзлэг
+                      </div>
+                    </div>
+
+                    {/* Last encounter */}
+                    <div
+                      style={{
+                        borderRadius: 12,
+                        border: "1px solid #e5e7eb",
+                        padding: 12,
+                        background: "#f9fafb",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          textTransform: "uppercase",
+                          color: "#6b7280",
+                          marginBottom: 4,
+                        }}
+                      >
+                        Сүүлийн үзлэг
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 500,
+                          marginBottom: 4,
+                        }}
+                      >
+                        {lastEncounter
+                          ? formatDateTime(lastEncounter.visitDate)
+                          : "-"}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#6b7280" }}>
+                        Хамгийн сүүлд ирсэн огноо
+                      </div>
+                    </div>
+
+                    {/* Appointments summary */}
+                    <div
+                      style={{
+                        borderRadius: 12,
+                        border: "1px solid #e5e7eb",
+                        padding: 12,
+                        background: "#f9fafb",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          textTransform: "uppercase",
+                          color: "#6b7280",
+                          marginBottom: 4,
+                        }}
+                      >
+                        Цаг захиалгууд
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 24,
+                          fontWeight: 600,
+                          marginBottom: 4,
+                        }}
+                      >
+                        {totalAppointments}
+                      </div>
+                      <div style={{ fontSize: 12, color: "#6b7280" }}>
+                        Нийт бүртгэлтэй цаг
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#16a34a",
+                          marginTop: 4,
+                        }}
+                      >
+                        Ирэх цаг: {upcomingAppointments.length}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Basic information section (editable) */}
+                  <div
+                    style={{
+                      borderRadius: 12,
+                      border: "1px solid #e5e7eb",
+                      padding: 16,
+                      background: "white",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginBottom: 12,
+                      }}
+                    >
+                      <h2
+                        style={{
+                          fontSize: 16,
+                          marginTop: 0,
+                          marginBottom: 0,
+                        }}
+                      >
+                        Үндсэн мэдээлэл
+                      </h2>
+                      {!editMode ? (
+                        <button
+                          type="button"
+                          onClick={startEdit}
+                          style={{
+                            fontSize: 12,
+                            padding: "4px 8px",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            background: "#f9fafb",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Засах
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {saveError && (
+                      <div
+                        style={{
+                          color: "#b91c1c",
+                          fontSize: 12,
+                          marginBottom: 8,
+                        }}
+                      >
+                        {saveError}
+                      </div>
+                    )}
+                    {saveSuccess && (
+                      <div
+                        style={{
+                          color: "#16a34a",
+                          fontSize: 12,
+                          marginBottom: 8,
+                        }}
+                      >
+                        {saveSuccess}
+                      </div>
+                    )}
+
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns:
+                          "repeat(auto-fit, minmax(220px, 1fr))",
+                        gap: 12,
+                        fontSize: 13,
+                      }}
+                    >
+                      {/* Book number and branch (read-only) */}
+                      <div>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          Картын дугаар
+                        </div>
+                        <div>{pb.bookNumber}</div>
+                      </div>
+                      <div>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          Бүртгэсэн салбар
+                        </div>
+                        <div>{patient.branch?.name || patient.branchId}</div>
+                      </div>
+
+                      {/* Ovog, Name, regNo */}
+                      <div>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          Овог
+                        </div>
+                        {editMode ? (
+                          <input
+                            name="ovog"
+                            value={editForm.ovog ?? ""}
+                            onChange={handleEditChange}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                            }}
+                          />
+                        ) : (
+                          <div>{displayOrDash(patient.ovog)}</div>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          Нэр
+                        </div>
+                        {editMode ? (
+                          <input
+                            name="name"
+                            value={editForm.name ?? ""}
+                            onChange={handleEditChange}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                            }}
+                          />
+                        ) : (
+                          <div>{patient.name}</div>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          РД
+                        </div>
+                        {editMode ? (
+                          <input
+                            name="regNo"
+                            value={editForm.regNo ?? ""}
+                            onChange={handleEditChange}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                            }}
+                          />
+                        ) : (
+                          <div>{displayOrDash(patient.regNo)}</div>
+                        )}
+                      </div>
+
+                      {/* Contact info */}
+                      <div>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          Утас
+                        </div>
+                        {editMode ? (
+                          <input
+                            name="phone"
+                            value={editForm.phone ?? ""}
+                            onChange={handleEditChange}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                            }}
+                          />
+                        ) : (
+                          <div>{displayOrDash(patient.phone)}</div>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          Яаралтай үед холбоо барих утас
+                        </div>
+                        {editMode ? (
+                          <input
+                            name="emergencyPhone"
+                            value={editForm.emergencyPhone ?? ""}
+                            onChange={handleEditChange}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                            }}
+                          />
+                        ) : (
+                          <div>{displayOrDash(patient.emergencyPhone)}</div>
+                        )}
+                      </div>
+
+                      {/* Dates & demographics */}
+                      <div>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          Бүртгэсэн огноо
+                        </div>
+                        <div>
+                          {patient.createdAt
+                            ? formatDate(patient.createdAt)
+                            : "-"}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          Хүйс
+                        </div>
+                        {editMode ? (
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: 8,
+                              alignItems: "center",
+                              paddingTop: 2,
+                            }}
+                          >
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                            >
+                              <input
+                                type="radio"
+                                name="gender"
+                                value="эр"
+                                checked={editForm.gender === "эр"}
+                                onChange={() => handleGenderChange("эр")}
+                              />
+                              <span>Эр</span>
+                            </label>
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                            >
+                              <input
+                                type="radio"
+                                name="gender"
+                                value="эм"
+                                checked={editForm.gender === "эм"}
+                                onChange={() => handleGenderChange("эм")}
+                              />
+                              <span>Эм</span>
+                            </label>
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                            >
+                              <input
+                                type="radio"
+                                name="gender"
+                                value=""
+                                checked={!editForm.gender}
+                                onChange={() => handleGenderChange("")}
+                              />
+                              <span>Хоосон</span>
+                            </label>
+                          </div>
+                        ) : (
+                          <div>{displayOrDash(patient.gender)}</div>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          Төрсөн огноо
+                        </div>
+                        {editMode ? (
+                          <input
+                            type="date"
+                            name="birthDate"
+                            value={editForm.birthDate ?? ""}
+                            onChange={handleEditChange}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                            }}
+                          />
+                        ) : (
+                          <div>
+                            {patient.birthDate
+                              ? formatDate(patient.birthDate)
+                              : "-"}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          Цусны бүлэг
+                        </div>
+                        {editMode ? (
+                          <input
+                            name="bloodType"
+                            value={editForm.bloodType ?? ""}
+                            onChange={handleEditChange}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                            }}
+                          />
+                        ) : (
+                          <div>{displayOrDash(patient.bloodType)}</div>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          Иргэншил
+                        </div>
+                        {editMode ? (
+                          <input
+                            name="citizenship"
+                            value={editForm.citizenship ?? "Монгол"}
+                            onChange={handleEditChange}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                            }}
+                          />
+                        ) : (
+                          <div>{displayOrDash(patient.citizenship)}</div>
+                        )}
+                      </div>
+
+                      {/* Address */}
+                      <div style={{ gridColumn: "1 / -1" }}>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          Хаяг
+                        </div>
+                        {editMode ? (
+                          <input
+                            name="address"
+                            value={editForm.address ?? ""}
+                            onChange={handleEditChange}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                            }}
+                          />
+                        ) : (
+                          <div>{displayOrDash(patient.address)}</div>
+                        )}
+                      </div>
+
+                      {/* Notes */}
+                      <div style={{ gridColumn: "1 / -1" }}>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          Тэмдэглэл
+                        </div>
+                        {editMode ? (
+                          <textarea
+                            name="notes"
+                            value={editForm.notes ?? ""}
+                            onChange={handleEditChange}
+                            rows={3}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                              resize: "vertical",
+                            }}
+                          />
+                        ) : (
+                          <div>{displayOrDash(patient.notes)}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Save / Cancel buttons at bottom when in editMode */}
+                    {editMode && (
+                      <div
+                        style={{
+                          marginTop: 16,
+                          display: "flex",
+                          gap: 8,
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={cancelEdit}
+                          disabled={saving}
+                          style={{
+                            padding: "6px 12px",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            background: "#f9fafb",
+                            fontSize: 13,
+                            cursor: saving ? "default" : "pointer",
+                          }}
+                        >
+                          Болих
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSave}
+                          disabled={saving}
+                          style={{
+                            padding: "6px 12px",
+                            borderRadius: 6,
+                            border: "none",
+                            background: saving ? "#9ca3af" : "#2563eb",
+                            color: "white",
+                            fontSize: 13,
+                            cursor: saving ? "default" : "pointer",
+                          }}
+                        >
+                          {saving ? "Хадгалж байна..." : "Хадгалах"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {activeTab === "appointments" && (
                 <div
                   style={{
                     borderRadius: 12,
                     border: "1px solid #e5e7eb",
-                    padding: 12,
-                    background: "#f9fafb",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 12,
-                      textTransform: "uppercase",
-                      color: "#6b7280",
-                      marginBottom: 4,
-                    }}
-                  >
-                    Үзлэгүүд
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 24,
-                      fontWeight: 600,
-                      marginBottom: 4,
-                    }}
-                  >
-                    {totalEncounters}
-                  </div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>
-                    Нийт бүртгэлтэй үзлэг
-                  </div>
-                </div>
-
-                {/* Last encounter */}
-                <div
-                  style={{
-                    borderRadius: 12,
-                    border: "1px solid #e5e7eb",
-                    padding: 12,
-                    background: "#f9fafb",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 12,
-                      textTransform: "uppercase",
-                      color: "#6b7280",
-                      marginBottom: 4,
-                    }}
-                  >
-                    Сүүлийн үзлэг
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 500,
-                      marginBottom: 4,
-                    }}
-                  >
-                    {lastEncounter
-                      ? formatDateTime(lastEncounter.visitDate)
-                      : "-"}
-                  </div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>
-                    Хамгийн сүүлд ирсэн огноо
-                  </div>
-                </div>
-
-                {/* Appointments summary */}
-                <div
-                  style={{
-                    borderRadius: 12,
-                    border: "1px solid #e5e7eb",
-                    padding: 12,
-                    background: "#f9fafb",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 12,
-                      textTransform: "uppercase",
-                      color: "#6b7280",
-                      marginBottom: 4,
-                    }}
-                  >
-                    Цаг захиалгууд
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 24,
-                      fontWeight: 600,
-                      marginBottom: 4,
-                    }}
-                  >
-                    {totalAppointments}
-                  </div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>
-                    Нийт бүртгэлтэй цаг
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "#16a34a",
-                      marginTop: 4,
-                    }}
-                  >
-                    Ирэх цаг: {upcomingAppointments.length}
-                  </div>
-                </div>
-              </div>
-
-              {/* Basic information section (now editable) */}
-              <div
-                style={{
-                  borderRadius: 12,
-                  border: "1px solid #e5e7eb",
-                  padding: 16,
-                  background: "white",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: 12,
+                    padding: 16,
+                    background: "white",
                   }}
                 >
                   <h2
                     style={{
                       fontSize: 16,
                       marginTop: 0,
-                      marginBottom: 0,
+                      marginBottom: 12,
                     }}
                   >
-                    Үндсэн мэдээлэл
+                    Цагууд (бүх бүртгэлтэй цагууд)
                   </h2>
-                  {!editMode ? (
-                    <button
-                      type="button"
-                      onClick={startEdit}
+                  {sortedAppointments.length === 0 ? (
+                    <div style={{ color: "#6b7280", fontSize: 13 }}>
+                      Цаг захиалгын бүртгэл алга.
+                    </div>
+                  ) : (
+                    <table
                       style={{
-                        fontSize: 12,
-                        padding: "4px 8px",
-                        borderRadius: 6,
-                        border: "1px solid #d1d5db",
-                        background: "#f9fafb",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Засах
-                    </button>
-                  ) : null}
-                </div>
-
-                {saveError && (
-                  <div style={{ color: "#b91c1c", fontSize: 12, marginBottom: 8 }}>
-                    {saveError}
-                  </div>
-                )}
-                {saveSuccess && (
-                  <div style={{ color: "#16a34a", fontSize: 12, marginBottom: 8 }}>
-                    {saveSuccess}
-                  </div>
-                )}
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "repeat(auto-fit, minmax(220px, 1fr))",
-                    gap: 12,
-                    fontSize: 13,
-                  }}
-                >
-                  {/* Book number and branch (read-only) */}
-                  <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Картын дугаар
-                    </div>
-                    <div>{pb.bookNumber}</div>
-                  </div>
-                  <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Бүртгэсэн салбар
-                    </div>
-                    <div>{patient.branch?.name || patient.branchId}</div>
-                  </div>
-
-                  {/* Ovog, Name, regNo */}
-                  <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Овог
-                    </div>
-                    {editMode ? (
-                      <input
-                        name="ovog"
-                        value={editForm.ovog ?? ""}
-                        onChange={handleEditChange}
-                        style={{
-                          width: "100%",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "4px 6px",
-                        }}
-                      />
-                    ) : (
-                      <div>{displayOrDash(patient.ovog)}</div>
-                    )}
-                  </div>
-                  <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Нэр
-                    </div>
-                    {editMode ? (
-                      <input
-                        name="name"
-                        value={editForm.name ?? ""}
-                        onChange={handleEditChange}
-                        style={{
-                          width: "100%",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "4px 6px",
-                        }}
-                      />
-                    ) : (
-                      <div>{patient.name}</div>
-                    )}
-                  </div>
-                  <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      РД
-                    </div>
-                    {editMode ? (
-                      <input
-                        name="regNo"
-                        value={editForm.regNo ?? ""}
-                        onChange={handleEditChange}
-                        style={{
-                          width: "100%",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "4px 6px",
-                        }}
-                      />
-                    ) : (
-                      <div>{displayOrDash(patient.regNo)}</div>
-                    )}
-                  </div>
-
-                  {/* Contact info */}
-                  <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Утас
-                    </div>
-                    {editMode ? (
-                      <input
-                        name="phone"
-                        value={editForm.phone ?? ""}
-                        onChange={handleEditChange}
-                        style={{
-                          width: "100%",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "4px 6px",
-                        }}
-                      />
-                    ) : (
-                      <div>{displayOrDash(patient.phone)}</div>
-                    )}
-                  </div>
-                  <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Яаралтай үед холбоо барих утас
-                    </div>
-                    {editMode ? (
-                      <input
-                        name="emergencyPhone"
-                        value={editForm.emergencyPhone ?? ""}
-                        onChange={handleEditChange}
-                        style={{
-                          width: "100%",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "4px 6px",
-                        }}
-                      />
-                    ) : (
-                      <div>{displayOrDash(patient.emergencyPhone)}</div>
-                    )}
-                  </div>
-
-                  {/* Dates & demographics */}
-                  <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Бүртгэсэн огноо
-                    </div>
-                    <div>
-                      {patient.createdAt
-                        ? formatDate(patient.createdAt)
-                        : "-"}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Хүйс
-                    </div>
-                    {editMode ? (
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 8,
-                          alignItems: "center",
-                          paddingTop: 2,
-                        }}
-                      >
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          <input
-                            type="radio"
-                            name="gender"
-                            value="эр"
-                            checked={editForm.gender === "эр"}
-                            onChange={() => handleGenderChange("эр")}
-                          />
-                          <span>Эр</span>
-                        </label>
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          <input
-                            type="radio"
-                            name="gender"
-                            value="эм"
-                            checked={editForm.gender === "эм"}
-                            onChange={() => handleGenderChange("эм")}
-                          />
-                          <span>Эм</span>
-                        </label>
-                        <label
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          <input
-                            type="radio"
-                            name="gender"
-                            value=""
-                            checked={!editForm.gender}
-                            onChange={() => handleGenderChange("")}
-                          />
-                          <span>Хоосон</span>
-                        </label>
-                      </div>
-                    ) : (
-                      <div>{displayOrDash(patient.gender)}</div>
-                    )}
-                  </div>
-                  <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Төрсөн огноо
-                    </div>
-                    {editMode ? (
-                      <input
-                        type="date"
-                        name="birthDate"
-                        value={editForm.birthDate ?? ""}
-                        onChange={handleEditChange}
-                        style={{
-                          width: "100%",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "4px 6px",
-                        }}
-                      />
-                    ) : (
-                      <div>
-                        {patient.birthDate
-                          ? formatDate(patient.birthDate)
-                          : "-"}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Цусны бүлэг
-                    </div>
-                    {editMode ? (
-                      <input
-                        name="bloodType"
-                        value={editForm.bloodType ?? ""}
-                        onChange={handleEditChange}
-                        style={{
-                          width: "100%",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "4px 6px",
-                        }}
-                      />
-                    ) : (
-                      <div>{displayOrDash(patient.bloodType)}</div>
-                    )}
-                  </div>
-                  <div>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Иргэншил
-                    </div>
-                    {editMode ? (
-                      <input
-                        name="citizenship"
-                        value={editForm.citizenship ?? "Монгол"}
-                        onChange={handleEditChange}
-                        style={{
-                          width: "100%",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "4px 6px",
-                        }}
-                      />
-                    ) : (
-                      <div>{displayOrDash(patient.citizenship)}</div>
-                    )}
-                  </div>
-
-                  {/* Address */}
-                  <div style={{ gridColumn: "1 / -1" }}>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Хаяг
-                    </div>
-                    {editMode ? (
-                      <input
-                        name="address"
-                        value={editForm.address ?? ""}
-                        onChange={handleEditChange}
-                        style={{
-                          width: "100%",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "4px 6px",
-                        }}
-                      />
-                    ) : (
-                      <div>{displayOrDash(patient.address)}</div>
-                    )}
-                  </div>
-
-                  {/* Notes */}
-                  <div style={{ gridColumn: "1 / -1" }}>
-                    <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                      Тэмдэглэл
-                    </div>
-                    {editMode ? (
-                      <textarea
-                        name="notes"
-                        value={editForm.notes ?? ""}
-                        onChange={handleEditChange}
-                        rows={3}
-                        style={{
-                          width: "100%",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "4px 6px",
-                          resize: "vertical",
-                        }}
-                      />
-                    ) : (
-                      <div>{displayOrDash(patient.notes)}</div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Save / Cancel buttons at bottom when in editMode */}
-                {editMode && (
-                  <div
-                    style={{
-                      marginTop: 16,
-                      display: "flex",
-                      gap: 8,
-                      justifyContent: "flex-end",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={cancelEdit}
-                      disabled={saving}
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: 6,
-                        border: "1px solid #d1d5db",
-                        background: "#f9fafb",
+                        width: "100%",
+                        borderCollapse: "collapse",
                         fontSize: 13,
-                        cursor: saving ? "default" : "pointer",
                       }}
                     >
-                      Болих
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSave}
-                      disabled={saving}
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: 6,
-                        border: "none",
-                        background: saving ? "#9ca3af" : "#2563eb",
-                        color: "white",
-                        fontSize: 13,
-                        cursor: saving ? "default" : "pointer",
-                      }}
-                    >
-                      {saving ? "Хадгалж байна..." : "Хадгалах"}
-                    </button>
-                  </div>
-                )}
-              </div>
+                      <thead>
+                        <tr>
+                          <th
+                            style={{
+                              textAlign: "left",
+                              borderBottom: "1px solid #e5e7eb",
+                              padding: 6,
+                            }}
+                          >
+                            Огноо / цаг
+                          </th>
+                          <th
+                            style={{
+                              textAlign: "left",
+                              borderBottom: "1px solid #e5e7eb",
+                              padding: 6,
+                            }}
+                          >
+                            Салбар ID
+                          </th>
+                          <th
+                            style={{
+                              textAlign: "left",
+                              borderBottom: "1px solid #e5e7eb",
+                              padding: 6,
+                            }}
+                          >
+                            Эмч ID
+                          </th>
+                          <th
+                            style={{
+                              textAlign: "left",
+                              borderBottom: "1px solid #e5e7eb",
+                              padding: 6,
+                            }}
+                          >
+                            Төлөв
+                          </th>
+                          <th
+                            style={{
+                              textAlign: "left",
+                              borderBottom: "1px solid #e5e7eb",
+                              padding: 6,
+                            }}
+                          >
+                            Тэмдэглэл
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortedAppointments.map((a) => (
+                          <tr key={a.id}>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {formatDateTime(a.scheduledAt)}
+                            </td>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {a.branchId}
+                            </td>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {a.doctorId ?? "-"}
+                            </td>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {a.status}
+                            </td>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {displayOrDash(a.notes ?? null)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
             </div>
           </section>
 
-          {/* Encounter history table */}
-          <section style={{ marginBottom: 24 }}>
-            <h2 style={{ fontSize: 16, marginBottom: 8 }}>
-              Үзлэгийн түүх (Encounters)
-            </h2>
-            {encounters.length === 0 ? (
-              <div style={{ color: "#6b7280", fontSize: 13 }}>
-                Одоогоор бүртгэлтэй үзлэг алга.
-              </div>
-            ) : (
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: 13,
-                }}
-              >
-                <thead>
-                  <tr>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Огноо
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Тэмдэглэл
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {encounters.map((e) => (
-                    <tr key={e.id}>
-                      <td
-                        style={{
-                          borderBottom: "1px solid #f3f4f6",
-                          padding: 6,
-                        }}
-                      >
-                        {formatDateTime(e.visitDate)}
-                      </td>
-                      <td
-                        style={{
-                          borderBottom: "1px solid #f3f4f6",
-                          padding: 6,
-                        }}
-                      >
-                        {displayOrDash(e.notes ?? null)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-
-          {/* Appointments list */}
-          <section>
-            <h2 style={{ fontSize: 16, marginBottom: 8 }}>
-              Цаг захиалгууд (Appointments)
-            </h2>
-            {appointments.length === 0 ? (
-              <div style={{ color: "#6b7280", fontSize: 13 }}>
-                Цаг захиалгын бүртгэл алга.
-              </div>
-            ) : (
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: 13,
-                }}
-              >
-                <thead>
-                  <tr>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Огноо / цаг
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Салбар ID
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Эмч ID
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Төлөв
-                    </th>
-                    <th
-                      style={{
-                        textAlign: "left",
-                        borderBottom: "1px solid #e5e7eb",
-                        padding: 6,
-                      }}
-                    >
-                      Тэмдэглэл
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {appointments
-                    .slice()
-                    .sort((a, b) =>
-                      a.scheduledAt.localeCompare(b.scheduledAt)
-                    )
-                    .map((a) => (
-                      <tr key={a.id}>
-                        <td
+          {/* Encounter history and inline appointments table below are still shown only in profile tab */}
+          {activeTab === "profile" && (
+            <>
+              {/* Encounter history table */}
+              <section style={{ marginBottom: 24 }}>
+                <h2 style={{ fontSize: 16, marginBottom: 8 }}>
+                  Үзлэгийн түүх (Encounters)
+                </h2>
+                {encounters.length === 0 ? (
+                  <div style={{ color: "#6b7280", fontSize: 13 }}>
+                    Одоогоор бүртгэлтэй үзлэг алга.
+                  </div>
+                ) : (
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      fontSize: 13,
+                    }}
+                  >
+                    <thead>
+                      <tr>
+                        <th
                           style={{
-                            borderBottom: "1px solid #f3f4f6",
+                            textAlign: "left",
+                            borderBottom: "1px solid #e5e7eb",
                             padding: 6,
                           }}
                         >
-                          {formatDateTime(a.scheduledAt)}
-                        </td>
-                        <td
+                          Огноо
+                        </th>
+                        <th
                           style={{
-                            borderBottom: "1px solid #f3f4f6",
+                            textAlign: "left",
+                            borderBottom: "1px solid #e5e7eb",
                             padding: 6,
                           }}
                         >
-                          {a.branchId}
-                        </td>
-                        <td
-                          style={{
-                            borderBottom: "1px solid #f3f4f6",
-                            padding: 6,
-                          }}
-                        >
-                          {a.doctorId ?? "-"}
-                        </td>
-                        <td
-                          style={{
-                            borderBottom: "1px solid #f3f4f6",
-                            padding: 6,
-                          }}
-                        >
-                          {a.status}
-                        </td>
-                        <td
-                          style={{
-                            borderBottom: "1px solid #f3f4f6",
-                            padding: 6,
-                          }}
-                        >
-                          {displayOrDash(a.notes ?? null)}
-                        </td>
+                          Тэмдэглэл
+                        </th>
                       </tr>
-                    ))}
-                </tbody>
-              </table>
-            )}
-          </section>
+                    </thead>
+                    <tbody>
+                      {encounters.map((e) => (
+                        <tr key={e.id}>
+                          <td
+                            style={{
+                              borderBottom: "1px solid #f3f4f6",
+                              padding: 6,
+                            }}
+                          >
+                            {formatDateTime(e.visitDate)}
+                          </td>
+                          <td
+                            style={{
+                              borderBottom: "1px solid #f3f4f6",
+                              padding: 6,
+                            }}
+                          >
+                            {displayOrDash(e.notes ?? null)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </section>
+
+              {/* Original appointments list (can be removed later if redundant) */}
+              <section>
+                <h2 style={{ fontSize: 16, marginBottom: 8 }}>
+                  Цаг захиалгууд (Appointments)
+                </h2>
+                {appointments.length === 0 ? (
+                  <div style={{ color: "#6b7280", fontSize: 13 }}>
+                    Цаг захиалгын бүртгэл алга.
+                  </div>
+                ) : (
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      fontSize: 13,
+                    }}
+                  >
+                    <thead>
+                      <tr>
+                        <th
+                          style={{
+                            textAlign: "left",
+                            borderBottom: "1px solid #e5e7eb",
+                            padding: 6,
+                          }}
+                        >
+                          Огноо / цаг
+                        </th>
+                        <th
+                          style={{
+                            textAlign: "left",
+                            borderBottom: "1px solid #e5e7eb",
+                            padding: 6,
+                          }}
+                        >
+                          Салбар ID
+                        </th>
+                        <th
+                          style={{
+                            textAlign: "left",
+                            borderBottom: "1px solid #e5e7eb",
+                            padding: 6,
+                          }}
+                        >
+                          Эмч ID
+                        </th>
+                        <th
+                          style={{
+                            textAlign: "left",
+                            borderBottom: "1px solid #e5e7eb",
+                            padding: 6,
+                          }}
+                        >
+                          Төлөв
+                        </th>
+                        <th
+                          style={{
+                            textAlign: "left",
+                            borderBottom: "1px solid #e5e7eb",
+                            padding: 6,
+                          }}
+                        >
+                          Тэмдэглэл
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {appointments
+                        .slice()
+                        .sort((a, b) =>
+                          a.scheduledAt.localeCompare(b.scheduledAt)
+                        )
+                        .map((a) => (
+                          <tr key={a.id}>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {formatDateTime(a.scheduledAt)}
+                            </td>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {a.branchId}
+                            </td>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {a.doctorId ?? "-"}
+                            </td>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {a.status}
+                            </td>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {displayOrDash(a.notes ?? null)}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                )}
+              </section>
+            </>
+          )}
         </>
       )}
     </main>
