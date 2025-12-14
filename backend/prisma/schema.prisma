@@ -57,6 +57,9 @@ model Branch {
 
   // Doctors assigned to this branch (many-to-many via DoctorBranch)
   doctorBranches  DoctorBranch[]
+
+  // Appointments booked in this branch
+  appointments    Appointment[]
 }
 
 // ==========================================================
@@ -100,6 +103,9 @@ model User {
 
   // Many-to-many doctor-to-branch assignment
   doctorBranches     DoctorBranch[]
+
+  // Appointments where this user is the doctor
+  appointments       Appointment[]
 }
 
 // Join table for many-to-many between Doctor (User) and Branch
@@ -169,8 +175,6 @@ model Appointment {
   notes       String?
 
   patient     Patient   @relation(fields: [patientId], references: [id])
-
-  // NEW: add relations so we can include doctor & branch
   doctor      User?     @relation(fields: [doctorId], references: [id])
   branch      Branch    @relation(fields: [branchId], references: [id])
 
@@ -181,7 +185,7 @@ model Appointment {
 model PatientBook {
   id         Int         @id @default(autoincrement())
 
-  /// Human-friendly book number (e.g., "MF-000123")
+  /// Human-friendly book number (e.g., "6", "000123")
   bookNumber String      @unique
 
   patientId  Int         @unique
@@ -370,13 +374,6 @@ model Media {
 // ==========================================================
 // DOCTOR SCHEDULES (Per-day, per-branch work schedule)
 // ==========================================================
-//
-// This is for actual planned working days, not just a weekly template.
-// It supports:
-// - Different branches per doctor
-// - Arbitrary days (no fixed pattern)
-// - Editable times per day (e.g. doctor starts late or works back)
-//
 model DoctorSchedule {
   id        Int      @id @default(autoincrement())
 
