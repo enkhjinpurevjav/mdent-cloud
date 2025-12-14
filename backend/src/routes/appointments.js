@@ -11,9 +11,6 @@ const router = express.Router();
  *  - branchId=number       → filter by branch
  *  - doctorId=number       → filter by doctor
  *  - patientId=number      → filter by patient
- *
- * Example:
- *  /api/appointments?date=2025-12-13&branchId=1&doctorId=5
  */
 router.get("/", async (req, res) => {
   try {
@@ -55,9 +52,8 @@ router.get("/", async (req, res) => {
             patientBook: true,
           },
         },
-        // You can uncomment later if you add relations in Prisma:
-        // doctor: true,
-        // branch: true,
+        doctor: true,
+        branch: true,
       },
     });
 
@@ -99,7 +95,7 @@ router.post("/", async (req, res) => {
     const parsedPatientId = Number(patientId);
     const parsedBranchId = Number(branchId);
     const parsedDoctorId =
-      doctorId !== undefined && doctorId !== null
+      doctorId !== undefined && doctorId !== null && doctorId !== ""
         ? Number(doctorId)
         : null;
 
@@ -124,9 +120,10 @@ router.post("/", async (req, res) => {
         doctorId: parsedDoctorId,
         branchId: parsedBranchId,
         scheduledAt: scheduledDate,
-        status: typeof status === "string" && status.trim()
-          ? status.trim()
-          : "booked",
+        status:
+          typeof status === "string" && status.trim()
+            ? status.trim()
+            : "booked",
         notes: notes || null,
       },
       include: {
@@ -135,6 +132,8 @@ router.post("/", async (req, res) => {
             patientBook: true,
           },
         },
+        doctor: true,
+        branch: true,
       },
     });
 
