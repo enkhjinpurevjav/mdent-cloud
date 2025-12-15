@@ -128,7 +128,7 @@ model Patient {
   id             Int          @id @default(autoincrement())
 
   /// Mongolian citizen ID (РД), unique per patient
-  regNo          String       @unique
+  regNo          String?       @unique
 
   /// Father’s name
   ovog           String?
