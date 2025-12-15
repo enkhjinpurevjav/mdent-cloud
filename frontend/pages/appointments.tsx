@@ -256,21 +256,34 @@ function AppointmentForm({
       try {
         setPatientSearchLoading(true);
         // unified search by regNo / name / ovog / phone
-        const res = await fetch(
-          `/api/patients/search?query=${encodeURIComponent(query)}`
-        );
+        // NOTE: backend route is /api/patients?query=..., not /search
+        const url = `/api/patients?query=${encodeURIComponent(query)}`;
+        console.log("patient search →", url);
+        const res = await fetch(url);
         const data = await res.json().catch(() => []);
-        if (res.ok && Array.isArray(data)) {
-          setPatientResults(
-            data.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              ovog: p.ovog ?? null,
-              regNo: p.regNo,
-              phone: p.phone,
-              patientBook: p.patientBook || null,
-            }))
-          );
+        console.log("patient search response", { ok: res.ok, data });
+
+        if (res.ok) {
+          const list = Array.isArray(data)
+            ? data
+            : Array.isArray((data as any).patients)
+            ? (data as any).patients
+            : [];
+
+          if (list.length > 0) {
+            setPatientResults(
+              list.map((p: any) => ({
+                id: p.id,
+                name: p.name,
+                ovog: p.ovog ?? null,
+                regNo: p.regNo ?? p.regno ?? "",
+                phone: p.phone,
+                patientBook: p.patientBook || null,
+              }))
+            );
+          } else {
+            setPatientResults([]);
+          }
         } else {
           setPatientResults([]);
         }
@@ -793,7 +806,7 @@ function AppointmentForm({
                   placeholder="Ж: Батболд"
                   style={{
                     borderRadius: 6,
-                    border: "1px solid #d1d5db",
+                    border: "1px solid "#d1d5db",
                     padding: "6px 8px",
                   }}
                 />
@@ -813,7 +826,7 @@ function AppointmentForm({
                   placeholder="Ж: 99112233"
                   style={{
                     borderRadius: 6,
-                    border: "1px solid #d1d5db",
+                    border: "1px solid "#d1d5db",
                     padding: "6px 8px",
                   }}
                 />
@@ -1120,7 +1133,7 @@ export default function AppointmentsPage() {
               onChange={(e) => setFilterDoctorId(e.target.value)}
               style={{
                 borderRadius: 6,
-                border: "1px solid #d1d5db",
+                border: "1px солид #d1d5db",
                 padding: "6px 8px",
               }}
             >
@@ -1188,7 +1201,7 @@ export default function AppointmentsPage() {
               style={{
                 minWidth: 260,
                 maxWidth: 320,
-                border: "1px solid #e5e7eb",
+                border: "1px солид #e5e7eb",
                 borderRadius: 8,
                 padding: 10,
                 backgroundColor: "#ffffff",
@@ -1275,7 +1288,7 @@ export default function AppointmentsPage() {
         {gridDoctors.length > 0 && (
           <div
             style={{
-              border: "1px solid #ddd",
+              border: "1px солид #ddd",
               borderRadius: 8,
               overflow: "hidden",
               fontSize: 12,
@@ -1287,7 +1300,7 @@ export default function AppointmentsPage() {
                 display: "grid",
                 gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
                 backgroundColor: "#f5f5f5",
-                borderBottom: "1px solid #ddd",
+                borderBottom: "1px солид #ddd",
               }}
             >
               <div style={{ padding: 8, fontWeight: "bold" }}>Цаг</div>
@@ -1302,7 +1315,7 @@ export default function AppointmentsPage() {
                       padding: 8,
                       fontWeight: "bold",
                       textAlign: "center",
-                      borderLeft: "1px solid #ddd",
+                      borderLeft: "1px солид #ddd",
                     }}
                   >
                     <div>{formatDoctorName(doc)}</div>
@@ -1328,14 +1341,14 @@ export default function AppointmentsPage() {
                   style={{
                     display: "grid",
                     gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
-                    borderBottom: "1px solid #f0f0f0",
+                    borderBottom: "1px солид #f0f0f0",
                   }}
                 >
                   {/* Time label */}
                   <div
                     style={{
                       padding: 6,
-                      borderRight: "1px solid #ddd",
+                      borderRight: "1px солид #ddd",
                       backgroundColor:
                         rowIndex % 2 === 0 ? "#fafafa" : "#ffffff",
                     }}
@@ -1398,7 +1411,7 @@ export default function AppointmentsPage() {
                         key={doc.id}
                         style={{
                           padding: 4,
-                          borderLeft: "1px solid #f0f0f0",
+                          borderLeft: "1px солид #f0f0f0",
                           backgroundColor: bg,
                           minHeight: 28,
                         }}
@@ -1442,7 +1455,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid #ddd",
+                    borderBottom: "1px солид #ddd",
                     padding: 6,
                   }}
                 >
@@ -1451,7 +1464,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid #ddd",
+                    borderBottom: "1px солид #ddd",
                     padding: 6,
                   }}
                 >
@@ -1460,7 +1473,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid #ddd",
+                    borderBottom: "1px солид #ddd",
                     padding: 6,
                   }}
                 >
@@ -1469,7 +1482,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid #ddd",
+                    borderBottom: "1px солид #ddd",
                     padding: 6,
                   }}
                 >
@@ -1478,7 +1491,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid #ddd",
+                    borderBottom: "1px солид #ddd",
                     padding: 6,
                   }}
                 >
@@ -1487,7 +1500,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid #ddd",
+                    borderBottom: "1px солид #ddd",
                     padding: 6,
                   }}
                 >
@@ -1509,7 +1522,7 @@ export default function AppointmentsPage() {
                 <tr key={a.id}>
                   <td
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
+                      borderBottom: "1px солид #f0f0f0",
                       padding: 6,
                     }}
                   >
@@ -1517,7 +1530,7 @@ export default function AppointmentsPage() {
                   </td>
                   <td
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
+                      borderBottom: "1px солид #f0f0f0",
                       padding: 6,
                     }}
                   >
@@ -1525,7 +1538,7 @@ export default function AppointmentsPage() {
                   </td>
                   <td
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
+                      borderBottom: "1px солид #f0f0f0",
                       padding: 6,
                     }}
                   >
@@ -1533,7 +1546,7 @@ export default function AppointmentsPage() {
                   </td>
                   <td
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
+                      borderBottom: "1px солид #f0f0f0",
                       padding: 6,
                     }}
                   >
@@ -1541,7 +1554,7 @@ export default function AppointmentsPage() {
                   </td>
                   <td
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
+                      borderBottom: "1px солид #f0f0f0",
                       padding: 6,
                     }}
                   >
@@ -1549,7 +1562,7 @@ export default function AppointmentsPage() {
                   </td>
                   <td
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
+                      borderBottom: "1px солид #f0f0f0",
                       padding: 6,
                     }}
                   >
@@ -1557,7 +1570,7 @@ export default function AppointmentsPage() {
                   </td>
                   <td
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
+                      borderBottom: "1px солид #f0f0f0",
                       padding: 6,
                     }}
                   >
