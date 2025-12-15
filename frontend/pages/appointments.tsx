@@ -243,61 +243,88 @@ function AppointmentForm({
   // ---- patient search (visible list) ----
 
   const triggerPatientSearch = (rawQuery: string) => {
-    const query = rawQuery.trim();
-    if (searchDebounceTimer) {
-      clearTimeout(searchDebounceTimer);
-    }
-    if (!query) {
-      setPatientResults([]);
-      return;
-    }
+  const query = rawQuery.trim();
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer);
+  }
+  if (!query) {
+    setPatientResults([]);
+    return;
+  }
 
-    const t = setTimeout(async () => {
-      try {
-        setPatientSearchLoading(true);
-        // unified search by regNo / name / ovog / phone
-        // backend route is /api/patients?query=...
-        const url = `/api/patients?query=${encodeURIComponent(query)}`;
-        console.log("patient search →", url);
-        const res = await fetch(url);
-        const data = await res.json().catch(() => []);
-        console.log("patient search response", { ok: res.ok, data });
+  const t = setTimeout(async () => {
+    try {
+      setPatientSearchLoading(true);
 
-        if (res.ok) {
-          const list = Array.isArray(data)
-            ? data
-            : Array.isArray((data as any).patients)
-            ? (data as any).patients
-            : [];
+      // backend route is /api/patients?query=...
+      const url = `/api/patients?query=${encodeURIComponent(query)}`;
+      console.log("patient search →", url);
+      const res = await fetch(url);
+      const data = await res.json().catch(() => []);
+      console.log("patient search response", { ok: res.ok, data });
 
-          if (list.length > 0) {
-            setPatientResults(
-              list.map((p: any) => ({
-                id: p.id,
-                name: p.name,
-                ovog: p.ovog ?? null,
-                regNo: p.regNo ?? p.regno ?? "",
-                phone: p.phone,
-                patientBook: p.patientBook || null,
-              }))
+      if (res.ok) {
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray((data as any).patients)
+          ? (data as any).patients
+          : [];
+
+        // Frontend filter to enforce our matching rules
+        const q = query.toLowerCase();
+        const filtered = list.filter((p: any) => {
+          const regNo = (p.regNo ?? p.regno ?? "").toString().toLowerCase();
+          const phone = (p.phone ?? "").toString().toLowerCase();
+          const name = (p.name ?? "").toString().toLowerCase();
+          const ovog = (p.ovog ?? "").toString().toLowerCase();
+          const bookNumber = (p.patientBook?.bookNumber ?? "")
+            .toString()
+            .toLowerCase();
+
+          // If query is all digits, prioritize regNo/phone/bookNumber,
+          // otherwise allow match in name/ovog too.
+          const isNumeric = /^[0-9]+$/.test(q);
+
+          if (isNumeric) {
+            return (
+              regNo.includes(q) ||
+              phone.includes(q) ||
+              bookNumber.includes(q)
             );
-          } else {
-            setPatientResults([]);
           }
-        } else {
-          setPatientResults([]);
-        }
-      } catch (e) {
-        console.error("patient search failed", e);
+
+          return (
+            regNo.includes(q) ||
+            phone.includes(q) ||
+            name.includes(q) ||
+            ovog.includes(q) ||
+            bookNumber.includes(q)
+          );
+        });
+
+        setPatientResults(
+          filtered.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            ovog: p.ovog ?? null,
+            regNo: p.regNo ?? p.regno ?? "",
+            phone: p.phone,
+            patientBook: p.patientBook || null,
+          }))
+        );
+      } else {
         setPatientResults([]);
-      } finally {
-        setPatientSearchLoading(false);
       }
-    }, 300); // 300ms debounce
+    } catch (e) {
+      console.error("patient search failed", e);
+      setPatientResults([]);
+    } finally {
+      setPatientSearchLoading(false);
+    }
+  }, 300);
 
-    setSearchDebounceTimer(t);
-  };
-
+  setSearchDebounceTimer(t);
+};
   const handleSelectPatient = (p: PatientLite) => {
     setSelectedPatientId(p.id);
     setForm((prev) => ({
