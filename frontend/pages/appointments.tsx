@@ -177,14 +177,8 @@ function formatStatus(status: string): string {
   }
 }
 
-// Context for quick create from time grid
-type QuickCreateContext = {
-  doctorId: number;
-  date: string; // YYYY-MM-DD
-  time: string; // HH:MM
-} | null;
+// ==== Appointment Details Modal (existing) ====
 
-// Props for appointment details modal
 type AppointmentDetailsModalProps = {
   open: boolean;
   onClose: () => void;
@@ -357,6 +351,535 @@ function AppointmentDetailsModal({
   );
 }
 
+// ==== Quick Appointment Modal (new) ====
+
+type QuickAppointmentModalProps = {
+  open: boolean;
+  onClose: () => void;
+  defaultDoctorId?: number;
+  defaultDate: string; // YYYY-MM-DD
+  defaultTime: string; // HH:MM
+  branches: Branch[];
+  doctors: Doctor[];
+  appointments: Appointment[];
+  onCreated: (a: Appointment) => void;
+};
+
+function QuickAppointmentModal({
+  open,
+  onClose,
+  defaultDoctorId,
+  defaultDate,
+  defaultTime,
+  branches,
+  doctors,
+  appointments,
+  onCreated,
+}: QuickAppointmentModalProps) {
+  const [form, setForm] = useState({
+    patientQuery: "",
+    patientId: null as number | null,
+    doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
+    branchId: branches.length ? String(branches[0].id) : "",
+    date: defaultDate,
+    time: defaultTime,
+    status: "booked",
+    notes: "",
+  });
+  const [error, setError] = useState("");
+  const [patientResults, setPatientResults] = useState<PatientLite[]>([]);
+  const [patientSearchLoading, setPatientSearchLoading] = useState(false);
+  const [searchDebounceTimer, setSearchDebounceTimer] =
+    useState<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setForm((prev) => ({
+      ...prev,
+      doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
+      date: defaultDate,
+      time: defaultTime,
+    }));
+    setError("");
+    setPatientResults([]);
+  }, [open, defaultDoctorId, defaultDate, defaultTime]);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+
+    if (name === "patientQuery") {
+      setForm((prev) => ({ ...prev, patientId: null }));
+      triggerPatientSearch(value);
+    }
+  };
+
+  const triggerPatientSearch = (rawQuery: string) => {
+    const query = rawQuery.trim();
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    if (!query) {
+      setPatientResults([]);
+      return;
+    }
+
+    const lower = query.toLowerCase();
+
+    const t = setTimeout(async () => {
+      try {
+        setPatientSearchLoading(true);
+        const url = `/api/patients?query=${encodeURIComponent(query)}`;
+        const res = await fetch(url);
+        const data = await res.json().catch(() => []);
+
+        if (!res.ok) {
+          setPatientResults([]);
+          return;
+        }
+
+        const rawList = Array.isArray(data)
+          ? data
+          : Array.isArray((data as any).patients)
+          ? (data as any).patients
+          : [];
+
+        const isNumeric = /^[0-9]+$/.test(lower);
+
+        const filtered = rawList.filter((p: any) => {
+          const regNo = (p.regNo ?? p.regno ?? "").toString().toLowerCase();
+          const phone = (p.phone ?? "").toString().toLowerCase();
+          const name = (p.name ?? "").toString().toLowerCase();
+          const ovog = (p.ovog ?? "").toString().toLowerCase();
+          const bookNumber = (p.patientBook?.bookNumber ?? "")
+            .toString()
+            .toLowerCase();
+
+          if (isNumeric) {
+            return (
+              regNo.includes(lower) ||
+              phone.includes(lower) ||
+              bookNumber.includes(lower)
+            );
+          }
+
+          return (
+            regNo.includes(lower) ||
+            phone.includes(lower) ||
+            name.includes(lower) ||
+            ovog.includes(lower) ||
+            bookNumber.includes(lower)
+          );
+        });
+
+        setPatientResults(
+          filtered.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            ovog: p.ovog ?? null,
+            regNo: p.regNo ?? p.regno ?? "",
+            phone: p.phone,
+            patientBook: p.patientBook || null,
+          }))
+        );
+      } catch (e) {
+        console.error("patient search failed", e);
+        setPatientResults([]);
+      } finally {
+        setPatientSearchLoading(false);
+      }
+    }, 300);
+
+    setSearchDebounceTimer(t);
+  };
+
+  const handleSelectPatient = (p: PatientLite) => {
+    setForm((prev) => ({
+      ...prev,
+      patientId: p.id,
+      patientQuery: formatPatientSearchLabel(p),
+    }));
+    setPatientResults([]);
+    setError("");
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (!form.branchId || !form.date || !form.time) {
+      setError("Салбар, огноо, цаг талбаруудыг бөглөнө үү.");
+      return;
+    }
+
+    if (!form.patientId) {
+      setError("Үйлчлүүлэгчийг жагсаалтаас сонгоно уу.");
+      return;
+    }
+
+    if (!form.doctorId) {
+      setError("Цаг захиалахын өмнө эмчийг заавал сонгоно уу.");
+      return;
+    }
+
+    const [year, month, day] = form.date.split("-").map(Number);
+    const [hour, minute] = form.time.split(":").map(Number);
+
+    const local = new Date(
+      year,
+      (month || 1) - 1,
+      day || 1,
+      hour || 0,
+      minute || 0,
+      0,
+      0
+    );
+    if (Number.isNaN(local.getTime())) {
+      setError("Огноо/цаг буруу байна.");
+      return;
+    }
+    const scheduledAtStr = local.toISOString();
+
+    try {
+      const res = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientId: form.patientId,
+          doctorId: Number(form.doctorId),
+          branchId: Number(form.branchId),
+          scheduledAt: scheduledAtStr,
+          status: form.status,
+          notes: form.notes || null,
+        }),
+      });
+      let data: Appointment | { error?: string };
+      try {
+        data = await res.json();
+      } catch {
+        data = { error: "Unknown error" };
+      }
+
+      if (!res.ok) {
+        setError((data as any).error || "Алдаа гарлаа");
+        return;
+      }
+
+      onCreated(data as Appointment);
+      onClose();
+    } catch {
+      setError("Сүлжээгээ шалгана уу");
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.35)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 55,
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 520,
+          maxWidth: "95vw",
+          maxHeight: "90vh",
+          overflowY: "auto",
+          background: "#ffffff",
+          borderRadius: 8,
+          boxShadow: "0 14px 40px rgba(0,0,0,0.25)",
+          padding: 16,
+          fontSize: 13,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: 15 }}>Шинэ цаг захиалах</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              fontSize: 18,
+              lineHeight: 1,
+            }}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        <form
+          onSubmit={handleSubmit}
+          style={{
+            display: "grid",
+            gap: 10,
+            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          }}
+        >
+          {/* Patient */}
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <label>Үйлчлүүлэгч</label>
+            <input
+              name="patientQuery"
+              placeholder="РД, овог, нэр эсвэл утас..."
+              value={form.patientQuery}
+              onChange={handleChange}
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            />
+            {patientSearchLoading && (
+              <span
+                style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}
+              >
+                Үйлчлүүлэгч хайж байна...
+              </span>
+            )}
+          </div>
+
+          {patientResults.length > 0 && (
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                borderRadius: 6,
+                border: "1px solid #e5e7eb",
+                background: "#ffffff",
+                maxHeight: 200,
+                overflowY: "auto",
+              }}
+            >
+              {patientResults.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => handleSelectPatient(p)}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "6px 8px",
+                    border: "none",
+                    borderBottom: "1px solid #f3f4f6",
+                    background: "white",
+                    cursor: "pointer",
+                    fontSize: 12,
+                  }}
+                >
+                  {formatPatientSearchLabel(p)}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Doctor */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Эмч</label>
+            <select
+              name="doctorId"
+              value={form.doctorId}
+              onChange={handleChange}
+              required
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            >
+              <option value="">Эмч сонгох</option>
+              {doctors.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {formatDoctorName(d)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Branch */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Салбар</label>
+            <select
+              name="branchId"
+              value={form.branchId}
+              onChange={handleChange}
+              required
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            >
+              <option value="">Салбар сонгох</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Огноо</label>
+            <input
+              type="date"
+              name="date"
+              value={form.date}
+              onChange={handleChange}
+              required
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            />
+          </div>
+
+          {/* Time */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Цаг</label>
+            <input
+              type="time"
+              name="time"
+              value={form.time}
+              onChange={handleChange}
+              required
+              step={SLOT_MINUTES * 60}
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            />
+          </div>
+
+          {/* Status */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Төлөв</label>
+            <select
+              name="status"
+              value={form.status}
+              onChange={handleChange}
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            >
+              <option value="booked">Захиалсан</option>
+              <option value="confirmed">Баталгаажсан</option>
+              <option value="ongoing">Явагдаж байна</option>
+              <option value="completed">Дууссан</option>
+              <option value="cancelled">Цуцалсан</option>
+            </select>
+          </div>
+
+          {/* Notes */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              gridColumn: "1 / -1",
+            }}
+          >
+            <label>Тэмдэглэл</label>
+            <input
+              name="notes"
+              value={form.notes}
+              onChange={handleChange}
+              placeholder="Ж: Эмчилгээний товч тэмдэглэл"
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            />
+          </div>
+
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 8,
+              marginTop: 4,
+            }}
+          >
+            {error && (
+              <div
+                style={{
+                  color: "#b91c1c",
+                  fontSize: 12,
+                  alignSelf: "center",
+                  marginRight: "auto",
+                }}
+              >
+                {error}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                background: "#f9fafb",
+                cursor: "pointer",
+              }}
+            >
+              Болих
+            </button>
+            <button
+              type="submit"
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "none",
+                background: "#2563eb",
+                color: "white",
+                cursor: "pointer",
+              }}
+            >
+              Хадгалах
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ===== Main AppointmentForm (page section) stays the same as previous version =====
+// (I’ll keep it, unchanged, so you can still use the inline form.)
+
 type AppointmentFormProps = {
   branches: Branch[];
   doctors: Doctor[];
@@ -365,8 +888,6 @@ type AppointmentFormProps = {
   selectedDate: string;
   selectedBranchId: string;
   onCreated: (a: Appointment) => void;
-  quickCreateContext: QuickCreateContext;
-  onQuickCreateConsumed: () => void;
 };
 
 function AppointmentForm({
@@ -377,8 +898,6 @@ function AppointmentForm({
   selectedDate,
   selectedBranchId,
   onCreated,
-  quickCreateContext,
-  onQuickCreateConsumed,
 }: AppointmentFormProps) {
   const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
@@ -420,21 +939,6 @@ function AppointmentForm({
   const [daySlots, setDaySlots] = useState<{ label: string; value: string }[]>(
     []
   );
-
-  // Apply quickCreateContext when it changes
-  useEffect(() => {
-    if (!quickCreateContext) return;
-    const { doctorId, date, time } = quickCreateContext;
-
-    setForm((prev) => ({
-      ...prev,
-      doctorId: String(doctorId),
-      date,
-      time,
-    }));
-    setError("");
-    onQuickCreateConsumed();
-  }, [quickCreateContext, onQuickCreateConsumed]);
 
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
@@ -1091,7 +1595,7 @@ function AppointmentForm({
         )}
       </div>
 
-      {/* Quick new patient modal */}
+      {/* Quick new patient modal (unchanged) */}
       {showQuickPatientModal && (
         <div
           style={{
@@ -1280,9 +1784,6 @@ export default function AppointmentsPage() {
   const selectedDay = getDateFromYMD(filterDate);
   const timeSlots = generateTimeSlotsForDay(selectedDay);
 
-  const [quickCreateContext, setQuickCreateContext] =
-    useState<QuickCreateContext>(null);
-
   const [detailsModalState, setDetailsModalState] = useState<{
     open: boolean;
     doctor?: Doctor | null;
@@ -1293,6 +1794,17 @@ export default function AppointmentsPage() {
   }>({
     open: false,
     appointments: [],
+  });
+
+  const [quickModalState, setQuickModalState] = useState<{
+    open: boolean;
+    doctorId?: number;
+    date: string;
+    time: string;
+  }>({
+    open: false,
+    date: todayStr,
+    time: "09:00",
   });
 
   const formSectionRef = useRef<HTMLElement | null>(null);
@@ -1379,14 +1891,6 @@ export default function AppointmentsPage() {
   };
 
   const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
-
-  // Scroll to form when quick-create context is set
-  useEffect(() => {
-    if (!quickCreateContext) return;
-    if (formSectionRef.current) {
-      formSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [quickCreateContext]);
 
   return (
     <main
@@ -1533,7 +2037,7 @@ export default function AppointmentsPage() {
         </div>
       </section>
 
-      {/* Create form card */}
+      {/* Create form card (normal section) */}
       <section
         ref={formSectionRef}
         style={{
@@ -1555,8 +2059,6 @@ export default function AppointmentsPage() {
           selectedDate={filterDate}
           selectedBranchId={filterBranchId}
           onCreated={(a) => setAppointments((prev) => [a, ...prev])}
-          quickCreateContext={quickCreateContext}
-          onQuickCreateConsumed={() => setQuickCreateContext(null)}
         />
       </section>
 
@@ -1699,8 +2201,9 @@ export default function AppointmentsPage() {
 
                     const handleCellClick = () => {
                       if (appsForCell.length === 0) {
-                        // Empty cell → quick-create
-                        setQuickCreateContext({
+                        // Empty cell → open quick modal
+                        setQuickModalState({
+                          open: true,
                           doctorId: doc.id,
                           date: filterDate,
                           time: slotTimeStr,
@@ -1986,6 +2489,7 @@ export default function AppointmentsPage() {
         )}
       </section>
 
+      {/* Modals */}
       <AppointmentDetailsModal
         open={detailsModalState.open}
         onClose={() =>
@@ -1996,6 +2500,20 @@ export default function AppointmentsPage() {
         slotTime={detailsModalState.slotTime}
         date={detailsModalState.date}
         appointments={detailsModalState.appointments}
+      />
+
+      <QuickAppointmentModal
+        open={quickModalState.open}
+        onClose={() =>
+          setQuickModalState((prev) => ({ ...prev, open: false }))
+        }
+        defaultDoctorId={quickModalState.doctorId}
+        defaultDate={quickModalState.date}
+        defaultTime={quickModalState.time}
+        branches={branches}
+        doctors={doctors}
+        appointments={appointments}
+        onCreated={(a) => setAppointments((prev) => [a, ...prev])}
       />
     </main>
   );
