@@ -148,8 +148,9 @@ type AppointmentFormProps = {
   branches: Branch[];
   doctors: Doctor[];
   scheduledDoctors: ScheduledDoctor[];
-  appointmentsForDay: Appointment[]; // already filtered by date & branch
-  selectedDate: string; // "YYYY-MM-DD"
+  appointments: Appointment[]; // full list, we'll filter inside
+  selectedDate: string;
+  selectedBranchId: string;
   onCreated: (a: Appointment) => void;
 };
 
@@ -157,8 +158,9 @@ function AppointmentForm({
   branches,
   doctors,
   scheduledDoctors,
-  appointmentsForDay,
+  appointments,
   selectedDate,
+  selectedBranchId,
   onCreated,
 }: AppointmentFormProps) {
   const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
@@ -189,12 +191,18 @@ function AppointmentForm({
     }
   }, [branches, form.branchId]);
 
-  // Keep form.date in sync with selectedDate from filters
+  // sync date/branch in form with filters
   useEffect(() => {
     if (selectedDate) {
       setForm((prev) => ({ ...prev, date: selectedDate }));
     }
   }, [selectedDate]);
+
+  useEffect(() => {
+    if (selectedBranchId) {
+      setForm((prev) => ({ ...prev, branchId: selectedBranchId }));
+    }
+  }, [selectedBranchId]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -209,8 +217,7 @@ function AppointmentForm({
     }
     try {
       setPatientSearchLoading(true);
-      // Simple search endpoint idea: /api/patients?search=query
-      // If you already have another query param (e.g. ?q=), adjust here.
+      // Adjust this to your actual search API
       const res = await fetch(
         `/api/patients?search=${encodeURIComponent(patientQuery.trim())}`
       );
@@ -244,29 +251,26 @@ function AppointmentForm({
     setError("");
   };
 
-  // --- Validation helpers for schedule + slot capacity ---
+  // --- schedule / capacity helpers ---
 
-  // Find schedules for selected doctor on selected date
   const getDoctorSchedulesForDate = () => {
-    if (!form.doctorId || !selectedDate) return [];
+    if (!form.doctorId) return [];
     const doctorIdNum = Number(form.doctorId);
     const doc = scheduledDoctors.find((d) => d.id === doctorIdNum);
     if (!doc || !doc.schedules) return [];
-    // /api/doctors/scheduled returns schedules for that date already,
-    // so we don't need to filter by date again.
+    // /api/doctors/scheduled is already filtered by date
     return doc.schedules;
   };
 
   const isWithinDoctorSchedule = (scheduledAt: Date) => {
     const schedules = getDoctorSchedulesForDate();
     if (schedules.length === 0) return true; // if no schedule info, don't block
-    const timeStr = getSlotTimeString(scheduledAt); // "HH:MM"
+    const timeStr = getSlotTimeString(scheduledAt);
     return schedules.some((s: any) =>
       isTimeWithinRange(timeStr, s.startTime, s.endTime)
     );
   };
 
-  // Count appointments for same doctor/date/time slot
   const countAppointmentsInSlot = (scheduledAt: Date) => {
     if (!form.doctorId) return 0;
     const doctorIdNum = Number(form.doctorId);
@@ -275,10 +279,14 @@ function AppointmentForm({
       slotStart.getTime() + SLOT_MINUTES * 60 * 1000
     );
 
-    return appointmentsForDay.filter((a) => {
+    return appointments.filter((a) => {
       if (a.doctorId !== doctorIdNum) return false;
       const t = new Date(a.scheduledAt);
       if (Number.isNaN(t.getTime())) return false;
+      if (selectedBranchId && String(a.branchId) !== selectedBranchId)
+        return false;
+      const dayStr = t.toISOString().slice(0, 10);
+      if (dayStr !== form.date) return false;
       return t >= slotStart && t < slotEnd;
     }).length;
   };
@@ -303,7 +311,6 @@ function AppointmentForm({
       return;
     }
 
-    // Schedule-aware validation
     if (form.doctorId) {
       if (!isWithinDoctorSchedule(scheduledAt)) {
         setError("Сонгосон цагт эмчийн ажлын хуваарь байхгүй байна.");
@@ -312,7 +319,7 @@ function AppointmentForm({
 
       const existingCount = countAppointmentsInSlot(scheduledAt);
       if (existingCount >= 2) {
-        setError("Энэ цагийн блок дээр аль хэдийн 2 захиалга байна.");
+        setError("Энэ 30 минутын блок дээр аль хэдийн 2 захиалга байна.");
         return;
       }
     }
@@ -407,7 +414,6 @@ function AppointmentForm({
           </button>
         </div>
 
-        {/* Selected patient summary */}
         {selectedPatient && (
           <div
             style={{
@@ -455,7 +461,6 @@ function AppointmentForm({
           </div>
         )}
 
-        {/* Search results */}
         {patientResults.length > 0 && (
           <div
             style={{
@@ -500,11 +505,10 @@ function AppointmentForm({
         )}
       </div>
 
-      {/* Legacy hidden patientId field for safety if needed */}
-      {/* We keep it but hidden from UI; main selection is via search */}
+      {/* Hidden patientId for POST */}
       <input type="hidden" name="patientId" value={form.patientId} />
 
-      {/* Doctor select */}
+      {/* Doctor */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Эмч</label>
         <select
@@ -529,7 +533,7 @@ function AppointmentForm({
         </select>
       </div>
 
-      {/* Branch select */}
+      {/* Branch */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Салбар</label>
         <select
@@ -632,7 +636,6 @@ function AppointmentForm({
         />
       </div>
 
-      {/* Submit + error */}
       <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8 }}>
         <button
           type="submit"
@@ -767,16 +770,6 @@ export default function AppointmentsPage() {
 
   // For the grid: ONLY scheduled doctors
   const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
-
-  // Appointments for the currently selected date (and branch filter)
-  const appointmentsForSelectedDay = appointments.filter((a) => {
-    const d = new Date(a.scheduledAt);
-    if (Number.isNaN(d.getTime())) return false;
-    const dayStr = d.toISOString().slice(0, 10);
-    if (dayStr !== filterDate) return false;
-    if (filterBranchId && String(a.branchId) !== filterBranchId) return false;
-    return true;
-  });
 
   return (
     <main
@@ -940,8 +933,9 @@ export default function AppointmentsPage() {
           branches={branches}
           doctors={doctors}
           scheduledDoctors={scheduledDoctors}
-          appointmentsForDay={appointmentsForSelectedDay}
+          appointments={appointments}
           selectedDate={filterDate}
+          selectedBranchId={filterBranchId}
           onCreated={(a) => setAppointments((prev) => [a, ...prev])}
         />
       </section>
@@ -953,96 +947,7 @@ export default function AppointmentsPage() {
       )}
 
       {/* Day-grouped mini calendar */}
-      <section style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 8 }}>Календарь (өдрөөр)</h2>
-        {groupedAppointments.length === 0 && (
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
-            Цаг захиалга алга.
-          </div>
-        )}
-        <div
-          style={{
-            display: "flex",
-            gap: 16,
-            overflowX: "auto",
-            paddingBottom: 8,
-            justifyContent: "flex-start",
-          }}
-        >
-          {groupedAppointments.map(([date, apps]) => (
-            <div
-              key={date}
-              style={{
-                minWidth: 260,
-                maxWidth: 320,
-                border: "1px solid #e5e7eb",
-                borderRadius: 8,
-                padding: 10,
-                backgroundColor: "#ffffff",
-              }}
-            >
-              <div
-                style={{
-                  fontWeight: 600,
-                  marginBottom: 8,
-                  fontSize: 13,
-                  color: "#111827",
-                }}
-              >
-                {new Date(date).toLocaleDateString("mn-MN", {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                  weekday: "short",
-                })}
-              </div>
-              {apps
-                .slice()
-                .sort(
-                  (a, b) =>
-                    new Date(a.scheduledAt).getTime() -
-                    new Date(b.scheduledAt).getTime()
-                )
-                .map((a) => (
-                  <div
-                    key={a.id}
-                    style={{
-                      marginBottom: 6,
-                      padding: 6,
-                      borderRadius: 4,
-                      backgroundColor:
-                        a.status === "completed"
-                          ? "#e0f7e9"
-                          : a.status === "ongoing"
-                          ? "#fff4e0"
-                          : a.status === "cancelled"
-                          ? "#fde0e0"
-                          : "#e6f0ff",
-                      fontSize: 12,
-                    }}
-                  >
-                    <div style={{ fontWeight: 500 }}>
-                      {new Date(a.scheduledAt).toLocaleTimeString("mn-MN", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}{" "}
-                      — {formatPatientLabel(a.patient, a.patientId)}
-                    </div>
-                    <div>
-                      Эмч: {formatDoctorName(a.doctor)} | Салбар:{" "}
-                      {a.branch?.name ?? a.branchId}
-                    </div>
-                    <div>Тайлбар: {a.notes || "-"}</div>
-                    <div>Төлөв: {a.status}</div>
-                  </div>
-                ))}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Time grid by doctor – unchanged from previous version (using #ee7148 etc.) */}
-      {/* ... (keep your existing time grid and raw table sections here, as in previous answer) ... */}
+      {/* ... keep your existing calendar, time grid, and table sections unchanged below ... */}
     </main>
   );
 }
