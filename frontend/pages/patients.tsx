@@ -1,366 +1,649 @@
-import express from "express";
-import prisma from "../db.js";
+import React, { useState, useEffect } from "react";
 
-const router = express.Router();
+type Branch = {
+  id: number;
+  name: string;
+};
 
-// Helper: get next available numeric bookNumber as string
-async function generateNextBookNumber() {
-  const last = await prisma.patientBook.findFirst({
-    where: {
-      bookNumber: { not: "" },
-    },
-    orderBy: {
-      id: "desc",
-    },
+type Patient = {
+  id: number;
+  ovog?: string | null;
+  name: string;
+  regNo?: string | null;
+  phone?: string | null;
+  branchId: number;
+  branch?: Branch;
+  patientBook?: { bookNumber: string } | null;
+  createdAt?: string;
+};
+
+function PatientRegisterForm({
+  branches,
+  onSuccess,
+}: {
+  branches: Branch[];
+  onSuccess: (p: Patient) => void;
+}) {
+  const [form, setForm] = useState({
+    ovog: "",
+    name: "",
+    regNo: "",
+    phone: "",
+    branchId: "",
+    bookNumber: "",
+    gender: "", // "" | "эр" | "эм"
+    citizenship: "Монгол",
+    emergencyPhone: "",
   });
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  let next = 1;
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
+  ) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
 
-  if (last && last.bookNumber) {
-    const match = last.bookNumber.match(/^\d+$/);
-    if (match) {
-      const current = parseInt(last.bookNumber, 10);
-      if (!Number.isNaN(current) && current >= 1) {
-        next = current + 1;
-      }
+  const handleGenderChange = (value: "" | "эр" | "эм") => {
+    setForm((prev) => ({ ...prev, gender: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    // Minimal required: name, phone, branchId
+    if (!form.name || !form.phone) {
+      setError("Нэр болон утас заавал бөглөнө үү.");
+      return;
     }
-  }
+    if (!form.branchId) {
+      setError("Салбар сонгоно уу.");
+      return;
+    }
 
-  return String(next);
+    // Optional client-side validation: card number if filled
+    if (form.bookNumber && !/^\d{1,6}$/.test(form.bookNumber)) {
+      setError("Картын дугаар нь 1-6 оронтой зөвхөн тоо байх ёстой.");
+      return;
+    }
+
+    // Gender is optional but if present must be "эр" or "эм"
+    if (form.gender && form.gender !== "эр" && form.gender !== "эм") {
+      setError("Хүйс талбарт зөвхөн 'эр' эсвэл 'эм' утга сонгох боломжтой.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload = {
+        ovog: form.ovog || null,
+        name: form.name,
+        regNo: form.regNo || null,
+        phone: form.phone,
+        branchId: Number(form.branchId),
+        bookNumber: form.bookNumber || "",
+        gender: form.gender || null, // optional, null when empty
+        citizenship: form.citizenship?.trim() || null,
+        emergencyPhone: form.emergencyPhone?.trim() || null,
+      };
+
+      const res = await fetch("/api/patients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (res.ok) {
+        onSuccess(data);
+        setForm({
+          ovog: "",
+          name: "",
+          regNo: "",
+          phone: "",
+          branchId: "",
+          bookNumber: "",
+          gender: "",
+          citizenship: "Монгол",
+          emergencyPhone: "",
+        });
+      } else {
+        setError((data && data.error) || "Алдаа гарлаа");
+      }
+    } catch {
+      setError("Сүлжээгээ шалгана уу");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
+      <h2>Шинэ үйлчлүүлэгч бүртгэх</h2>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 8,
+          marginTop: 8,
+          marginBottom: 8,
+        }}
+      >
+        <input
+          name="ovog"
+          placeholder="Овог (сонголттой)"
+          value={form.ovog}
+          onChange={handleChange}
+        />
+        <input
+          name="name"
+          placeholder="Нэр (заавал)"
+          value={form.name}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="regNo"
+          placeholder="Регистрийн дугаар (сонголттой)"
+          value={form.regNo}
+          onChange={handleChange}
+        />
+        <input
+          name="phone"
+          placeholder="Утасны дугаар (заавал)"
+          value={form.phone}
+          onChange={handleChange}
+          required
+        />
+
+        {/* Gender: optional radio, but only эр/эм when set */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 13, fontWeight: 500 }}>Хүйс</label>
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              fontSize: 13,
+            }}
+          >
+            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <input
+                type="radio"
+                name="gender"
+                value="эр"
+                checked={form.gender === "эр"}
+                onChange={() => handleGenderChange("эр")}
+              />
+              <span>Эр</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <input
+                type="radio"
+                name="gender"
+                value="эм"
+                checked={form.gender === "эм"}
+                onChange={() => handleGenderChange("эм")}
+              />
+              <span>Эм</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <input
+                type="radio"
+                name="gender"
+                value=""
+                checked={form.gender === ""}
+                onChange={() => handleGenderChange("")}
+              />
+              <span>Хоосон</span>
+            </label>
+          </div>
+          <span style={{ fontSize: 11, color: "#6b7280" }}>
+            Хүйсийг дараа нь профайлаас өөрчилж болно. Хоосон орхиж бас болно.
+          </span>
+        </div>
+
+        {/* Citizenship: default Монгол but editable */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 13, fontWeight: 500 }}>Иргэншил</label>
+          <input
+            name="citizenship"
+            placeholder="Монгол"
+            value={form.citizenship}
+            onChange={handleChange}
+          />
+          <span style={{ fontSize: 11, color: "#6b7280" }}>
+            Анхдагч утга нь &quot;Монгол&quot;. Шаардлагатай бол өөр улсын нэрийг
+            оруулж болно.
+          </span>
+        </div>
+
+        {/* Emergency phone */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 13, fontWeight: 500 }}>
+            Яаралтай үед холбоо барих утас
+          </label>
+          <input
+            name="emergencyPhone"
+            placeholder="Ж: 99112233"
+            value={form.emergencyPhone}
+            onChange={handleChange}
+          />
+        </div>
+
+        {/* Branch selection (required) */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 13, fontWeight: 500 }}>
+            Бүртгэсэн салбар (заавал)
+          </label>
+          <select
+            name="branchId"
+            value={form.branchId}
+            onChange={handleChange}
+            required
+          >
+            <option value="">Салбар сонгох</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Optional manual book number */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontSize: 13, fontWeight: 500 }}>
+            Картын дугаар (сонголттой)
+          </label>
+          <input
+            name="bookNumber"
+            placeholder="Ж: 123456"
+            value={form.bookNumber}
+            onChange={handleChange}
+          />
+          <span style={{ fontSize: 11, color: "#6b7280" }}>
+            Хоосон орхивол систем хамгийн сүүлийн дугаараас +1 автоматаар
+            үүсгэнэ. 1-6 оронтой зөвхөн тоо байх ёстой.
+          </span>
+        </div>
+      </div>
+
+      <button type="submit" disabled={submitting}>
+        {submitting ? "Бүртгэж байна..." : "Бүртгэх"}
+      </button>
+
+      {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
+    </form>
+  );
 }
 
-// GET /api/patients
-router.get("/", async (_req, res) => {
-  try {
-    const patients = await prisma.patient.findMany({
-      include: { patientBook: true },
-      orderBy: { id: "desc" },
-    });
-    res.json(patients);
-  } catch (err) {
-    console.error("Error fetching patients:", err);
-    res.status(500).json({ error: "failed to fetch patients" });
-  }
-});
+export default function PatientsPage() {
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-// POST /api/patients
-router.post("/", async (req, res) => {
-  try {
-    const {
-      ovog,
-      name,
-      regNo,
-      phone,
-      branchId,
-      bookNumber,
-      gender,
-      citizenship,
-      emergencyPhone,
-    } = req.body || {};
+  const [search, setSearch] = useState("");
 
-    // Minimal required fields: name, phone, branchId
-    if (!name || !phone || !branchId) {
-      return res.status(400).json({
-        error: "name, phone, branchId are required",
-      });
-    }
+  const loadData = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [bRes, pRes] = await Promise.all([
+        fetch("/api/branches"),
+        fetch("/api/patients"),
+      ]);
 
-    const parsedBranchId = Number(branchId);
-    if (Number.isNaN(parsedBranchId)) {
-      return res
-        .status(400)
-        .json({ error: "branchId must be a valid number" });
-    }
-
-    // Optional regNo: only enforce unique if provided
-    let finalRegNo = regNo ? String(regNo).trim() : null;
-    if (finalRegNo) {
-      const existingByRegNo = await prisma.patient.findUnique({
-        where: { regNo: finalRegNo },
-      });
-      if (existingByRegNo) {
-        return res
-          .status(400)
-          .json({ error: "This regNo is already registered" });
+      let bData: any = null;
+      let pData: any = null;
+      try {
+        bData = await bRes.json();
+      } catch {
+        bData = null;
       }
-    }
-
-    // Gender is optional, but if present must be "эр" or "эм"
-    let finalGender = null;
-    if (typeof gender === "string" && gender.trim() !== "") {
-      const g = gender.trim();
-      if (g !== "эр" && g !== "эм") {
-        return res
-          .status(400)
-          .json({ error: "gender must be 'эр' or 'эм' if provided" });
-      }
-      finalGender = g;
-    }
-
-    // Handle bookNumber (optional, auto-generate if blank)
-    let finalBookNumber = bookNumber ? String(bookNumber).trim() : "";
-
-    if (finalBookNumber) {
-      // Manual: must be 1–6 digits
-      if (!/^\d{1,6}$/.test(finalBookNumber)) {
-        return res.status(400).json({
-          error: "Картын дугаар нь 1-6 оронтой зөвхөн тоо байх ёстой",
-        });
+      try {
+        pData = await pRes.json();
+      } catch {
+        pData = null;
       }
 
-      const existingBook = await prisma.patientBook.findUnique({
-        where: { bookNumber: finalBookNumber },
-      });
-      if (existingBook) {
-        return res.status(400).json({
-          error: "Энэ картын дугаар аль хэдийн бүртгэгдсэн байна",
-        });
+      if (!bRes.ok || !Array.isArray(bData)) {
+        throw new Error("branches load failed");
       }
-    } else {
-      const candidate = await generateNextBookNumber();
-
-      if (!/^\d{1,6}$/.test(candidate)) {
-        return res.status(500).json({
-          error:
-            "Автомат картын дугаар үүсгэхэд алдаа гарлаа (тоо 6 орноос хэтэрсэн)",
-        });
+      if (!pRes.ok || !Array.isArray(pData)) {
+        throw new Error("patients load failed");
       }
 
-      finalBookNumber = candidate;
-    }
+      setBranches(bData);
 
-    const patient = await prisma.patient.create({
-      data: {
-        ovog: ovog ? String(ovog).trim() : null,
-        name: String(name).trim(),
-        regNo: finalRegNo, // may be null
-        phone: String(phone).trim(),
+      // Sort by card number descending (numeric), fallback by name
+      const sortedPatients = [...pData].sort((a: Patient, b: Patient) => {
+        const aNum = a.patientBook?.bookNumber
+          ? parseInt(a.patientBook.bookNumber, 10)
+          : 0;
+        const bNum = b.patientBook?.bookNumber
+          ? parseInt(b.patientBook.bookNumber, 10)
+          : 0;
 
-        // relation to Branch: explicitly connect required branch
-        branch: {
-          connect: { id: parsedBranchId },
-        },
-
-        // New optional fields
-        gender: finalGender,
-        citizenship: citizenship
-          ? String(citizenship).trim()
-          : undefined, // let Prisma default("Mongolian") apply when undefined
-        emergencyPhone: emergencyPhone
-          ? String(emergencyPhone).trim()
-          : null,
-
-        patientBook: {
-          create: {
-            bookNumber: finalBookNumber,
-          },
-        },
-      },
-      include: { patientBook: true },
-    });
-
-    res.status(201).json(patient);
-  } catch (err) {
-    console.error("Error creating patient:", err);
-
-    if (err.code === "P2002") {
-      if (err.meta && err.meta.target && Array.isArray(err.meta.target)) {
-        if (err.meta.target.includes("regNo")) {
-          return res
-            .status(400)
-            .json({ error: "This regNo is already registered" });
+        if (!Number.isNaN(aNum) && !Number.isNaN(bNum) && aNum !== bNum) {
+          return bNum - aNum; // DESC by card number
         }
-        if (err.meta.target.includes("bookNumber")) {
-          return res.status(400).json({
-            error: "Энэ картын дугаар аль хэдийн бүртгэгдсэн байна",
-          });
-        }
-      }
-    }
 
-    res.status(500).json({ error: "failed to create patient" });
-  }
-});
+        const aName = `${a.ovog || ""} ${a.name || ""}`.toString();
+        const bName = `${b.ovog || ""} ${b.name || ""}`.toString();
+        return aName.localeCompare(bName, "mn");
+      });
 
-// PATCH /api/patients/:id
-router.patch("/:id", async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    if (!id || Number.isNaN(id)) {
-      return res.status(400).json({ error: "Invalid patient id" });
+      setPatients(sortedPatients);
+    } catch (e) {
+      console.error(e);
+      setError("Өгөгдөл ачааллах үед алдаа гарлаа");
+      setPatients([]);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const {
-      ovog,
-      name,
-      regNo,
-      phone,
-      gender,
-      birthDate,
-      address,
-      bloodType,
-      citizenship,
-      emergencyPhone,
-      notes,
-    } = req.body || {};
+  useEffect(() => {
+    loadData();
+  }, []);
 
-    const data = {};
+  const filteredPatients = patients.filter((p) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    const name = `${p.ovog || ""} ${p.name || ""}`.toLowerCase();
+    const regNo = (p.regNo || "").toLowerCase();
+    const phone = (p.phone || "").toLowerCase();
+    return name.includes(q) || regNo.includes(q) || phone.includes(q);
+  });
 
-    if (ovog !== undefined) {
-      data.ovog = ovog === "" ? null : String(ovog).trim();
-    }
-    if (name !== undefined) {
-      data.name = String(name).trim();
-    }
-    if (regNo !== undefined) {
-      data.regNo = regNo === "" ? null : String(regNo).trim();
-    }
-    if (phone !== undefined) {
-      data.phone = phone === "" ? null : String(phone).trim();
-    }
+  const getBranchName = (branchId: number) => {
+    const b = branches.find((br) => br.id === branchId);
+    return b ? b.name : branchId;
+  };
 
-    // gender: optional, must be "эр" or "эм" if provided
-    if (gender !== undefined) {
-      if (!gender) {
-        data.gender = null;
-      } else if (gender === "эр" || gender === "эм") {
-        data.gender = gender;
-      } else {
-        return res.status(400).json({
-          error: "gender must be 'эр' or 'эм' if provided",
-        });
-      }
-    }
-
-    // birthDate comes as "YYYY-MM-DD" or null/empty
-    if (birthDate !== undefined) {
-      if (!birthDate) {
-        data.birthDate = null;
-      } else {
-        const d = new Date(birthDate);
-        if (Number.isNaN(d.getTime())) {
-          return res.status(400).json({
-            error: "Invalid birthDate format (expected YYYY-MM-DD)",
-          });
-        }
-        data.birthDate = d;
-      }
-    }
-
-    if (address !== undefined) {
-      data.address = address === "" ? null : String(address).trim();
-    }
-    if (bloodType !== undefined) {
-      data.bloodType = bloodType === "" ? null : String(bloodType).trim();
-    }
-    if (citizenship !== undefined) {
-      data.citizenship =
-        citizenship === "" ? null : String(citizenship).trim();
-    }
-    if (emergencyPhone !== undefined) {
-      data.emergencyPhone =
-        emergencyPhone === "" ? null : String(emergencyPhone).trim();
-    }
-    if (notes !== undefined) {
-      data.notes = notes === "" ? null : String(notes).trim();
-    }
-
-    const updated = await prisma.patient.update({
-      where: { id },
-      data,
+  const formatDate = (iso?: string) => {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "-";
+    return d.toLocaleDateString("mn-MN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
     });
+  };
 
-    return res.json({ patient: updated });
-  } catch (err) {
-    console.error("Error updating patient:", err);
-    if (err.code === "P2025") {
-      // Prisma "record not found"
-      return res.status(404).json({ error: "Patient not found" });
-    }
-    // Handle unique regNo violation if you keep regNo unique
-    if (err.code === "P2002" && err.meta?.target?.includes("regNo")) {
-      return res
-        .status(400)
-        .json({ error: "This regNo is already registered" });
-    }
-    return res.status(500).json({ error: "failed to update patient" });
-  }
-});
+  return (
+    <main
+      style={{
+        maxWidth: 900,
+        margin: "40px auto",
+        padding: 24,
+        fontFamily: "sans-serif",
+      }}
+    >
+      <h1>Үйлчлүүлэгчийн бүртгэл</h1>
+      <p style={{ color: "#555", marginBottom: 4 }}>
+        Хурдан бүртгэх — зөвхөн нэр, утас, салбар заавал. Бусад мэдээллийг
+        дараа нь нөхөж бөглөж болно.
+      </p>
+      <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
+        <strong>Бүртгэсэн салбар</strong> нь тухайн үйлчлүүлэгчийн үндсэн /
+        анх бүртгэгдсэн салбар юм. Үйлчлүүлэгч бусад салбарт очсон ч үзлэгийн
+        салбар нь цаг авах үед тусад нь сонгогдоно.
+      </p>
 
-// GET /api/patients/profile/by-book/:bookNumber
-router.get("/profile/by-book/:bookNumber", async (req, res) => {
-  try {
-    const { bookNumber } = req.params;
+      <PatientRegisterForm
+        branches={branches}
+        onSuccess={(p) => {
+          setPatients((prev) =>
+            [...prev, p].sort((a: Patient, b: Patient) => {
+              const aNum = a.patientBook?.bookNumber
+                ? parseInt(a.patientBook.bookNumber, 10)
+                : 0;
+              const bNum = b.patientBook?.bookNumber
+                ? parseInt(b.patientBook.bookNumber, 10)
+                : 0;
 
-    if (!bookNumber) {
-      return res.status(400).json({ error: "bookNumber is required" });
-    }
+              if (
+                !Number.isNaN(aNum) &&
+                !Number.isNaN(bNum) &&
+                aNum !== bNum
+              ) {
+                return bNum - aNum;
+              }
 
-    const pb = await prisma.patientBook.findUnique({
-      where: { bookNumber },
-      include: {
-        patient: {
-          include: {
-            branch: true,
-          },
-        },
-      },
-    });
+              const aName = `${a.ovog || ""} ${a.name || ""}`.toString();
+              const bName = `${b.ovog || ""} ${b.name || ""}`.toString();
+              return aName.localeCompare(bName, "mn");
+            })
+          );
+        }}
+      />
 
-    if (!pb || !pb.patient) {
-      return res.status(404).json({ error: "Patient not found" });
-    }
+      <section
+        style={{
+          marginBottom: 16,
+          padding: 12,
+          borderRadius: 8,
+          border: "1px solid #e5e7eb",
+          background: "#f9fafb",
+        }}
+      >
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>Хайлт</h2>
+        <input
+          placeholder="Нэр, РД, утасгаар хайх"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ width: "100%", padding: 8 }}
+        />
+      </section>
 
-    const patient = pb.patient;
+      {loading && <div>Ачааллаж байна...</div>}
+      {!loading && error && <div style={{ color: "red" }}>{error}</div>}
 
-    // Load encounters for this patientBook
-    const encounters = await prisma.encounter.findMany({
-      where: { patientBookId: pb.id },
-      orderBy: { visitDate: "desc" },
-      include: {
-        doctor: true,
-        invoice: {
-          include: {
-            payment: true,
-            eBarimtReceipt: true,
-            invoiceItems: {
-              include: { procedure: true },
-            },
-          },
-        },
-        chartTeeth: {
-          include: {
-            chartNotes: true,
-          },
-        },
-        media: true,
-      },
-    });
-
-    const invoices = encounters
-      .map((e) => e.invoice)
-      .filter((inv) => !!inv);
-
-    const media = encounters.flatMap((e) => e.media || []);
-
-    // Load all appointments for this patient (across branches)
-    const appointments = await prisma.appointment.findMany({
-      where: { patientId: patient.id },
-      orderBy: { scheduledAt: "desc" },
-    });
-
-    res.json({
-      patient,
-      patientBook: { id: pb.id, bookNumber: pb.bookNumber },
-      encounters,
-      invoices,
-      media,
-      appointments,
-    });
-  } catch (err) {
-    console.error("GET /api/patients/profile/by-book/:bookNumber error:", err);
-    res.status(500).json({ error: "failed to load patient profile" });
-  }
-});
-
-export default router;
+      {!loading && !error && (
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            marginTop: 8,
+            fontSize: 14,
+          }}
+        >
+          <thead>
+            <tr>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                #
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Овог
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Нэр
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                РД
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Утас
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Үүсгэсэн
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Бүртгэсэн салбар
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Үйлдэл
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredPatients.map((p) => (
+              <tr key={p.id}>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {p.patientBook?.bookNumber || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {p.ovog || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {p.name || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {p.regNo || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {p.phone || "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {formatDate(p.createdAt)}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {getBranchName(p.branchId)}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  {p.patientBook?.bookNumber ? (
+                    <a
+                      href={`/patients/${encodeURIComponent(
+                        p.patientBook.bookNumber
+                      )}`}
+                      style={{
+                        fontSize: 12,
+                        padding: "4px 8px",
+                        borderRadius: 4,
+                        border: "1px solid #d1d5db",
+                        textDecoration: "none",
+                        color: "#111827",
+                        background: "#f9fafb",
+                      }}
+                    >
+                      Дэлгэрэнгүй
+                    </a>
+                  ) : (
+                    "-"
+                  )}
+                </td>
+              </tr>
+            ))}
+            {filteredPatients.length === 0 && (
+              <tr>
+                <td
+                  colSpan={8}
+                  style={{
+                    textAlign: "center",
+                    color: "#888",
+                    padding: 12,
+                  }}
+                >
+                  Өгөгдөл алга
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+    </main>
+  );
+}
