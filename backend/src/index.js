@@ -12,8 +12,10 @@ import employeesRouter from "./routes/employees.js";
 import encountersRouter from "./routes/encounters.js";
 import billingRouter from "./routes/billing.js";
 import appointmentsRouter from "./routes/appointments.js";
-import servicesRouter from "./routes/services.js"; // <-- NEW
+import servicesRouter from "./routes/services.js";
 import reportsRouter from "./routes/reports.js";
+// NEW: scheduled doctors
+import doctorsRouter from "./routes/doctors.js";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const app = express();
@@ -55,8 +57,10 @@ app.use("/api/employees", employeesRouter);
 app.use("/api/encounters", encountersRouter);
 app.use("/api/billing", billingRouter);
 app.use("/api/appointments", appointmentsRouter);
-app.use("/api/services", servicesRouter); // <-- NEW
+app.use("/api/services", servicesRouter);
 app.use("/api/reports", reportsRouter);
+// NEW
+app.use("/api/doctors", doctorsRouter);
 
 // Optional central error handler
 app.use((err, _req, res, _next) => {
