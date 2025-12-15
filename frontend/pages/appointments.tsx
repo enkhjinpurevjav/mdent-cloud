@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 type Branch = {
   id: number;
@@ -177,6 +177,186 @@ function formatStatus(status: string): string {
   }
 }
 
+// Context for quick create from time grid
+type QuickCreateContext = {
+  doctorId: number;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
+} | null;
+
+// Props for appointment details modal
+type AppointmentDetailsModalProps = {
+  open: boolean;
+  onClose: () => void;
+  doctor?: Doctor | null;
+  slotLabel?: string;
+  slotTime?: string; // HH:MM
+  date?: string; // YYYY-MM-DD
+  appointments: Appointment[];
+};
+
+function AppointmentDetailsModal({
+  open,
+  onClose,
+  doctor,
+  slotLabel,
+  slotTime,
+  date,
+  appointments,
+}: AppointmentDetailsModalProps) {
+  if (!open) return null;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.35)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 60,
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 420,
+          maxWidth: "90vw",
+          maxHeight: "80vh",
+          overflowY: "auto",
+          background: "#ffffff",
+          borderRadius: 8,
+          boxShadow: "0 14px 40px rgba(0,0,0,0.25)",
+          padding: 16,
+          fontSize: 13,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <h3
+            style={{
+              margin: 0,
+              fontSize: 15,
+            }}
+          >
+            Цагийн дэлгэрэнгүй
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              fontSize: 18,
+              lineHeight: 1,
+            }}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        <div style={{ marginBottom: 8, color: "#4b5563" }}>
+          <div>
+            <strong>Огноо:</strong>{" "}
+            {date
+              ? new Date(date).toLocaleDateString("mn-MN", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                  weekday: "short",
+                })
+              : "-"}
+          </div>
+          <div>
+            <strong>Цаг:</strong> {slotLabel || slotTime || "-"}
+          </div>
+          <div>
+            <strong>Эмч:</strong> {formatDoctorName(doctor ?? null)}
+          </div>
+        </div>
+
+        {appointments.length === 0 ? (
+          <div style={{ color: "#6b7280" }}>Энэ цагт захиалга алга.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {appointments.map((a) => (
+              <div
+                key={a.id}
+                style={{
+                  borderRadius: 6,
+                  border: "1px solid #e5e7eb",
+                  padding: 8,
+                  background: "#f9fafb",
+                }}
+              >
+                <div style={{ fontWeight: 500, marginBottom: 2 }}>
+                  {formatPatientLabel(a.patient, a.patientId)}
+                </div>
+                <div style={{ color: "#4b5563" }}>
+                  <strong>Төлөв:</strong> {formatStatus(a.status)}
+                </div>
+                <div style={{ color: "#4b5563" }}>
+                  <strong>Салбар:</strong> {a.branch?.name ?? a.branchId}
+                </div>
+                <div style={{ color: "#4b5563" }}>
+                  <strong>Цаг (нарийвчилсан):</strong>{" "}
+                  {new Date(a.scheduledAt).toLocaleString("mn-MN", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    year: "numeric",
+                    month: "2-digit",
+                    day: "2-digit",
+                  })}
+                </div>
+                <div style={{ color: "#4b5563" }}>
+                  <strong>Тэмдэглэл:</strong> {a.notes || "-"}
+                </div>
+                <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 2 }}>
+                  ID: {a.id}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div
+          style={{
+            marginTop: 12,
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+          }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              background: "#f9fafb",
+              cursor: "pointer",
+              fontSize: 13,
+            }}
+          >
+            Хаах
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 type AppointmentFormProps = {
   branches: Branch[];
   doctors: Doctor[];
@@ -185,6 +365,8 @@ type AppointmentFormProps = {
   selectedDate: string;
   selectedBranchId: string;
   onCreated: (a: Appointment) => void;
+  quickCreateContext: QuickCreateContext;
+  onQuickCreateConsumed: () => void;
 };
 
 function AppointmentForm({
@@ -195,6 +377,8 @@ function AppointmentForm({
   selectedDate,
   selectedBranchId,
   onCreated,
+  quickCreateContext,
+  onQuickCreateConsumed,
 }: AppointmentFormProps) {
   const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
@@ -236,6 +420,21 @@ function AppointmentForm({
   const [daySlots, setDaySlots] = useState<{ label: string; value: string }[]>(
     []
   );
+
+  // Apply quickCreateContext when it changes
+  useEffect(() => {
+    if (!quickCreateContext) return;
+    const { doctorId, date, time } = quickCreateContext;
+
+    setForm((prev) => ({
+      ...prev,
+      doctorId: String(doctorId),
+      date,
+      time,
+    }));
+    setError("");
+    onQuickCreateConsumed();
+  }, [quickCreateContext, onQuickCreateConsumed]);
 
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
@@ -1081,6 +1280,23 @@ export default function AppointmentsPage() {
   const selectedDay = getDateFromYMD(filterDate);
   const timeSlots = generateTimeSlotsForDay(selectedDay);
 
+  const [quickCreateContext, setQuickCreateContext] =
+    useState<QuickCreateContext>(null);
+
+  const [detailsModalState, setDetailsModalState] = useState<{
+    open: boolean;
+    doctor?: Doctor | null;
+    slotLabel?: string;
+    slotTime?: string;
+    date?: string;
+    appointments: Appointment[];
+  }>({
+    open: false,
+    appointments: [],
+  });
+
+  const formSectionRef = useRef<HTMLElement | null>(null);
+
   const loadAppointments = async () => {
     try {
       setError("");
@@ -1163,6 +1379,14 @@ export default function AppointmentsPage() {
   };
 
   const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
+
+  // Scroll to form when quick-create context is set
+  useEffect(() => {
+    if (!quickCreateContext) return;
+    if (formSectionRef.current) {
+      formSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [quickCreateContext]);
 
   return (
     <main
@@ -1311,6 +1535,7 @@ export default function AppointmentsPage() {
 
       {/* Create form card */}
       <section
+        ref={formSectionRef}
         style={{
           marginBottom: 24,
           padding: 16,
@@ -1330,6 +1555,8 @@ export default function AppointmentsPage() {
           selectedDate={filterDate}
           selectedBranchId={filterBranchId}
           onCreated={(a) => setAppointments((prev) => [a, ...prev])}
+          quickCreateContext={quickCreateContext}
+          onQuickCreateConsumed={() => setQuickCreateContext(null)}
         />
       </section>
 
@@ -1470,14 +1697,37 @@ export default function AppointmentsPage() {
                           : "#e6f0ff";
                     }
 
+                    const handleCellClick = () => {
+                      if (appsForCell.length === 0) {
+                        // Empty cell → quick-create
+                        setQuickCreateContext({
+                          doctorId: doc.id,
+                          date: filterDate,
+                          time: slotTimeStr,
+                        });
+                      } else {
+                        // Has appointments → open details modal
+                        setDetailsModalState({
+                          open: true,
+                          doctor: doc,
+                          slotLabel: slot.label,
+                          slotTime: slotTimeStr,
+                          date: filterDate,
+                          appointments: appsForCell,
+                        });
+                      }
+                    };
+
                     return (
                       <div
                         key={doc.id}
+                        onClick={handleCellClick}
                         style={{
                           padding: 4,
                           borderLeft: "1px solid #f0f0f0",
                           backgroundColor: bg,
                           minHeight: 28,
+                          cursor: "pointer",
                         }}
                       >
                         {appsForCell.map((a) => (
@@ -1735,6 +1985,18 @@ export default function AppointmentsPage() {
           </table>
         )}
       </section>
+
+      <AppointmentDetailsModal
+        open={detailsModalState.open}
+        onClose={() =>
+          setDetailsModalState((prev) => ({ ...prev, open: false }))
+        }
+        doctor={detailsModalState.doctor}
+        slotLabel={detailsModalState.slotLabel}
+        slotTime={detailsModalState.slotTime}
+        date={detailsModalState.date}
+        appointments={detailsModalState.appointments}
+      />
     </main>
   );
 }
