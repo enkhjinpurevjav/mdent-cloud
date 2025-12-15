@@ -361,7 +361,6 @@ type QuickAppointmentModalProps = {
   defaultTime: string; // HH:MM
   branches: Branch[];
   doctors: Doctor[];
-  appointments: Appointment[];
   onCreated: (a: Appointment) => void;
   defaultPatient?: PatientLite | null;
 };
@@ -374,7 +373,6 @@ function QuickAppointmentModal({
   defaultTime,
   branches,
   doctors,
-  appointments,
   onCreated,
   defaultPatient,
 }: QuickAppointmentModalProps) {
@@ -879,7 +877,7 @@ function QuickAppointmentModal({
   );
 }
 
-// ==== Main AppointmentForm (inline section, now shares selectedPatient) ====
+// ==== Main AppointmentForm (inline section, shares selectedPatient) ====
 
 type AppointmentFormProps = {
   branches: Branch[];
@@ -904,7 +902,7 @@ function AppointmentForm({
   selectedPatient,
   onSelectedPatientChange,
 }: AppointmentFormProps) {
-  const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   const [form, setForm] = useState({
     patientQuery: "",
@@ -916,8 +914,6 @@ function AppointmentForm({
     notes: "",
   });
   const [error, setError] = useState("");
-
-  // visible patient search results
   const [patientResults, setPatientResults] = useState<PatientLite[]>([]);
   const [patientSearchLoading, setPatientSearchLoading] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(
@@ -926,7 +922,6 @@ function AppointmentForm({
   const [searchDebounceTimer, setSearchDebounceTimer] =
     useState<NodeJS.Timeout | null>(null);
 
-  // quick new patient modal
   const [showQuickPatientModal, setShowQuickPatientModal] = useState(false);
   const [quickPatientForm, setQuickPatientForm] = useState<{
     name: string;
@@ -940,10 +935,20 @@ function AppointmentForm({
   const [quickPatientError, setQuickPatientError] = useState("");
   const [quickPatientSaving, setQuickPatientSaving] = useState(false);
 
-  // 30-minute time slots for the currently selected date (filtered by doctor)
   const [daySlots, setDaySlots] = useState<{ label: string; value: string }[]>(
     []
   );
+
+  // Initialize from shared selectedPatient when it changes
+  useEffect(() => {
+    if (selectedPatient) {
+      setSelectedPatientId(selectedPatient.id);
+      setForm((prev) => ({
+        ...prev,
+        patientQuery: formatPatientSearchLabel(selectedPatient),
+      }));
+    }
+  }, [selectedPatient]);
 
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
@@ -963,7 +968,6 @@ function AppointmentForm({
     }
   }, [selectedBranchId]);
 
-  // recompute slots whenever date OR selected doctor changes
   useEffect(() => {
     if (!form.date) {
       setDaySlots([]);
@@ -981,7 +985,6 @@ function AppointmentForm({
       start: s.start,
     }));
 
-    // If doctor selected and we have schedule, filter by schedule
     if (form.doctorId) {
       const doctorIdNum = Number(form.doctorId);
       const doc = scheduledDoctors.find((sd) => sd.id === doctorIdNum);
@@ -998,7 +1001,6 @@ function AppointmentForm({
 
     setDaySlots(slots.map(({ label, value }) => ({ label, value })));
 
-    // if current selected time is no longer valid, clear it
     if (form.time && !slots.some((s) => s.value === form.time)) {
       setForm((prev) => ({ ...prev, time: "" }));
     }
@@ -1011,13 +1013,17 @@ function AppointmentForm({
     setForm((prev) => ({ ...prev, [name]: value }));
 
     if (name === "patientQuery") {
-      setSelectedPatientId(null);
-      onSelectedPatientChange(null);
+      // Only clear selection if the text no longer matches the current selected patient label
+      if (
+        selectedPatient &&
+        value !== formatPatientSearchLabel(selectedPatient)
+      ) {
+        setSelectedPatientId(null);
+        onSelectedPatientChange(null);
+      }
       triggerPatientSearch(value);
     }
   };
-
-  // ---- patient search (visible list) ----
 
   const triggerPatientSearch = (rawQuery: string) => {
     const query = rawQuery.trim();
@@ -1112,8 +1118,6 @@ function AppointmentForm({
     onSelectedPatientChange(p);
   };
 
-  // ---- schedule-aware validation ----
-
   const getDoctorSchedulesForDate = () => {
     if (!form.doctorId) return [];
     const doctorIdNum = Number(form.doctorId);
@@ -1151,8 +1155,6 @@ function AppointmentForm({
       return t >= slotStart && t < slotEnd;
     }).length;
   };
-
-  // ---- quick new patient (modal) ----
 
   const handleQuickPatientChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -1196,7 +1198,7 @@ function AppointmentForm({
         name: quickPatientForm.name.trim(),
         phone: quickPatientForm.phone.trim(),
         branchId: branchIdForPatient,
-        bookNumber: "", // auto-generate
+        bookNumber: "",
       };
 
       const res = await fetch("/api/patients", {
@@ -1600,7 +1602,7 @@ function AppointmentForm({
         )}
       </div>
 
-      {/* Quick new patient modal (unchanged) */}
+      {/* Quick new patient modal */}
       {showQuickPatientModal && (
         <div
           style={{
@@ -1814,7 +1816,6 @@ export default function AppointmentsPage() {
     time: "09:00",
   });
 
-  // shared selected patient for inline form + quick modal
   const [selectedPatient, setSelectedPatient] = useState<PatientLite | null>(
     null
   );
@@ -2049,7 +2050,7 @@ export default function AppointmentsPage() {
         </div>
       </section>
 
-      {/* Create form card (normal section) */}
+      {/* Create form card */}
       <section
         ref={formSectionRef}
         style={{
@@ -2215,7 +2216,6 @@ export default function AppointmentsPage() {
 
                     const handleCellClick = () => {
                       if (appsForCell.length === 0) {
-                        // Empty cell → open quick modal, using selectedPatient if any
                         setQuickModalState({
                           open: true,
                           doctorId: doc.id,
@@ -2223,7 +2223,6 @@ export default function AppointmentsPage() {
                           time: slotTimeStr,
                         });
                       } else {
-                        // Has appointments → open details modal
                         setDetailsModalState({
                           open: true,
                           doctor: doc,
@@ -2450,7 +2449,7 @@ export default function AppointmentsPage() {
                   </td>
                   <td
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
+                      borderBottom: "1px солид #f0f0f0",
                       padding: 6,
                     }}
                   >
@@ -2458,7 +2457,7 @@ export default function AppointmentsPage() {
                   </td>
                   <td
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
+                      borderBottom: "1px солид #f0f0f0",
                       padding: 6,
                     }}
                   >
@@ -2466,7 +2465,7 @@ export default function AppointmentsPage() {
                   </td>
                   <td
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
+                      borderBottom: "1px солид #f0f0f0",
                       padding: 6,
                     }}
                   >
@@ -2474,7 +2473,7 @@ export default function AppointmentsPage() {
                   </td>
                   <td
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
+                      borderBottom: "1px солид #f0f0f0",
                       padding: 6,
                     }}
                   >
@@ -2482,7 +2481,7 @@ export default function AppointmentsPage() {
                   </td>
                   <td
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
+                      borderBottom: "1px солид #f0f0f0",
                       padding: 6,
                     }}
                   >
@@ -2490,7 +2489,7 @@ export default function AppointmentsPage() {
                   </td>
                   <td
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
+                      borderBottom: "1px солид #f0f0f0",
                       padding: 6,
                     }}
                   >
@@ -2526,7 +2525,6 @@ export default function AppointmentsPage() {
         defaultTime={quickModalState.time}
         branches={branches}
         doctors={doctors}
-        appointments={appointments}
         onCreated={(a) => setAppointments((prev) => [a, ...prev])}
         defaultPatient={selectedPatient}
       />
