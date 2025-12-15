@@ -358,6 +358,10 @@ export default function AppointmentsPage() {
   const [filterBranchId, setFilterBranchId] = useState<string>("");
   const [filterDoctorId, setFilterDoctorId] = useState<string>("");
 
+  // NEW: Active branch tab
+  // "" means "all branches" tab is selected.
+  const [activeBranchTab, setActiveBranchTab] = useState<string>("");
+
   const groupedAppointments = groupByDate(appointments);
   const today = new Date();
   const timeSlots = generateTimeSlotsForDay(today);
@@ -410,6 +414,14 @@ export default function AppointmentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterDate, filterBranchId, filterDoctorId]);
 
+  // When user clicks a branch tab, we:
+  // - set activeBranchTab for UI
+  // - set filterBranchId so backend query filters by that branch
+  const handleBranchTabClick = (branchId: string) => {
+    setActiveBranchTab(branchId);
+    setFilterBranchId(branchId);
+  };
+
   return (
     <main
       style={{
@@ -423,6 +435,56 @@ export default function AppointmentsPage() {
       <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
         Өвчтөн, эмч, салбарын цаг захиалгуудыг харах, нэмэх, удирдах.
       </p>
+
+      {/* Branch view tabs */}
+      <section
+        style={{
+          marginBottom: 12,
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          borderBottom: "1px solid #e5e7eb",
+          paddingBottom: 8,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => handleBranchTabClick("")}
+          style={{
+            padding: "6px 12px",
+            borderRadius: 999,
+            border: "1px solid transparent",
+            backgroundColor: activeBranchTab === "" ? "#2563eb" : "transparent",
+            color: activeBranchTab === "" ? "#ffffff" : "#374151",
+            fontSize: 13,
+            cursor: "pointer",
+          }}
+        >
+          Бүх салбар
+        </button>
+        {branches.map((b) => {
+          const idStr = String(b.id);
+          const isActive = activeBranchTab === idStr;
+          return (
+            <button
+              key={b.id}
+              type="button"
+              onClick={() => handleBranchTabClick(idStr)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 999,
+                border: isActive ? "1px solid #2563eb" : "1px solid #d1d5db",
+                backgroundColor: isActive ? "#eff6ff" : "#ffffff",
+                color: isActive ? "#1d4ed8" : "#374151",
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              {b.name}
+            </button>
+          );
+        })}
+      </section>
 
       {/* Filters card */}
       <section
@@ -463,7 +525,11 @@ export default function AppointmentsPage() {
             <label>Салбар</label>
             <select
               value={filterBranchId}
-              onChange={(e) => setFilterBranchId(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setFilterBranchId(value);
+                setActiveBranchTab(value); // keep tabs in sync with dropdown
+              }}
               style={{
                 borderRadius: 6,
                 border: "1px solid #d1d5db",
