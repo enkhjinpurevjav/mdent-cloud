@@ -168,6 +168,15 @@ function AppointmentForm({
   });
   const [error, setError] = useState("");
 
+  // visible patient search results
+  const [patientResults, setPatientResults] = useState<PatientLite[]>([]);
+  const [patientSearchLoading, setPatientSearchLoading] = useState(false);
+  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(
+    null
+  );
+  const [searchDebounceTimer, setSearchDebounceTimer] =
+    useState<NodeJS.Timeout | null>(null);
+
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
       setForm((prev) => ({ ...prev, branchId: String(branches[0].id) }));
@@ -189,7 +198,76 @@ function AppointmentForm({
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => setForm({ ...form, [e.target.name]: e.target.value });
+  ) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+
+    if (name === "patientName" || name === "patientPhone") {
+      setSelectedPatientId(null); // changing text cancels prior selection
+      triggerPatientSearch(
+        name === "patientPhone" && value.trim()
+          ? value
+          : name === "patientName"
+          ? value
+          : ""
+      );
+    }
+  };
+
+  // ---- patient search (visible list) ----
+
+  const triggerPatientSearch = (rawQuery: string) => {
+    const query = rawQuery.trim();
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+    if (!query) {
+      setPatientResults([]);
+      return;
+    }
+
+    const t = setTimeout(async () => {
+      try {
+        setPatientSearchLoading(true);
+        // unified search by name / phone / regNo
+        const res = await fetch(
+          `/api/patients/search?query=${encodeURIComponent(query)}`
+        );
+        const data = await res.json().catch(() => []);
+        if (res.ok && Array.isArray(data)) {
+          setPatientResults(
+            data.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              regNo: p.regNo,
+              phone: p.phone,
+              patientBook: p.patientBook || null,
+            }))
+          );
+        } else {
+          setPatientResults([]);
+        }
+      } catch (e) {
+        console.error("patient search failed", e);
+        setPatientResults([]);
+      } finally {
+        setPatientSearchLoading(false);
+      }
+    }, 300); // 300ms debounce
+
+    setSearchDebounceTimer(t);
+  };
+
+  const handleSelectPatient = (p: PatientLite) => {
+    setSelectedPatientId(p.id);
+    setForm((prev) => ({
+      ...prev,
+      patientName: p.name,
+      patientPhone: p.phone || prev.patientPhone,
+    }));
+    setPatientResults([]);
+    setError("");
+  };
 
   // ---- schedule-aware validation ----
 
@@ -232,7 +310,7 @@ function AppointmentForm({
     }).length;
   };
 
-  // ---- helper: find or create patient by name + phone ----
+  // ---- helper: find or create patient by name + phone, using visible selection if available ----
   const findOrCreatePatient = async (): Promise<number | null> => {
     const name = form.patientName.trim();
     const phone = form.patientPhone.trim();
@@ -242,15 +320,18 @@ function AppointmentForm({
       return null;
     }
 
+    // if user already clicked a search result, trust that id
+    if (selectedPatientId) {
+      return selectedPatientId;
+    }
+
     try {
-      // 1) Try to find by phone
+      // 1) Try to find by phone (exact)
       const searchRes = await fetch(
         `/api/patients?phone=${encodeURIComponent(phone)}`
       );
       const searchData = await searchRes.json().catch(() => []);
-
       if (searchRes.ok && Array.isArray(searchData) && searchData.length > 0) {
-        // Assume first match
         const existing = searchData[0];
         return existing.id;
       }
@@ -354,6 +435,8 @@ function AppointmentForm({
           notes: "",
           status: "booked",
         }));
+        setSelectedPatientId(null);
+        setPatientResults([]);
       } else {
         setError((data as any).error || "Алдаа гарлаа");
       }
@@ -405,7 +488,56 @@ function AppointmentForm({
             padding: "6px 8px",
           }}
         />
+        {patientSearchLoading && (
+          <span style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+            Өвчтөн хайж байна...
+          </span>
+        )}
       </div>
+
+      {/* Visible patient search results (below name+phone, across full width) */}
+      {patientResults.length > 0 && (
+        <div
+          style={{
+            gridColumn: "1 / -1",
+            borderRadius: 6,
+            border: "1px solid #e5e7eb",
+            background: "#ffffff",
+            maxHeight: 220,
+            overflowY: "auto",
+          }}
+        >
+          {patientResults.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => handleSelectPatient(p)}
+              style={{
+                display: "block",
+                width: "100%",
+                textAlign: "left",
+                padding: "6px 8px",
+                border: "none",
+                borderBottom: "1px solid #f3f4f6",
+                background: "white",
+                cursor: "pointer",
+                fontSize: 12,
+              }}
+            >
+              <div style={{ fontWeight: 500 }}>
+                {p.name}{" "}
+                <span style={{ color: "#6b7280" }}>({p.regNo})</span>
+              </div>
+              <div style={{ color: "#6b7280" }}>
+                Утас: {p.phone || "—"}{" "}
+                {p.patientBook?.bookNumber && (
+                  <> • Карт #{p.patientBook.bookNumber}</>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Doctor */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
