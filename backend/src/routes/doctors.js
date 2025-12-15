@@ -29,7 +29,7 @@ router.get("/scheduled", async (req, res) => {
       return res.status(400).json({ error: "Invalid date format" });
     }
 
-    const where: any = {
+    const where = {
       date: {
         gte: start,
         lte: end,
@@ -55,22 +55,7 @@ router.get("/scheduled", async (req, res) => {
     });
 
     // Group by doctor
-    const byDoctor = new Map<
-      number,
-      {
-        id: number;
-        name: string | null;
-        ovog: string | null;
-        schedules: {
-          id: number;
-          branchId: number;
-          date: Date;
-          startTime: string;
-          endTime: string;
-          note: string | null;
-        }[];
-      }
-    >();
+    const byDoctor = new Map();
 
     for (const s of schedules) {
       if (!s.doctor) continue;
