@@ -586,21 +586,23 @@ function AppointmentForm({
       } catch {
         data = { error: "Unknown error" };
       }
-      if (res.ok) {
-        onCreated(data as Appointment);
-        setForm((prev) => ({
-          ...prev,
-          patientQuery: "",
-          time: "",
-          notes: "",
-          status: "booked",
-          doctorId: "",
-        }));
-        setSelectedPatientId(null);
-        setPatientResults([]);
-      } else {
-        setError((data as any).error || "Алдаа гарлаа");
-      }
+    // inside AppointmentForm, in handleSubmit, replace the success block:
+
+if (res.ok) {
+  onCreated(data as Appointment);
+  setForm((prev) => ({
+    ...prev,
+    patientQuery: "",   // clear visible text so user sees they must reselect
+    time: "",
+    notes: "",
+    status: "booked",
+    doctorId: "",
+  }));
+  setSelectedPatientId(null);  // keep resetting the selection
+  setPatientResults([]);       // clear dropdown results
+} else {
+  setError((data as any).error || "Алдаа гарлаа");
+}
     } catch {
       setError("Сүлжээгээ шалгана уу");
     }
