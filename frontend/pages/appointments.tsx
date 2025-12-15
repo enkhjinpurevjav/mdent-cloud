@@ -214,7 +214,7 @@ function AppointmentForm({
   const [quickPatientError, setQuickPatientError] = useState("");
   const [quickPatientSaving, setQuickPatientSaving] = useState(false);
 
-  // 30-minute time slots for the currently selected date
+  // 30-minute time slots for the currently selected date (filtered by doctor)
   const [daySlots, setDaySlots] = useState<{ label: string; value: string }[]>(
     []
   );
@@ -237,18 +237,46 @@ function AppointmentForm({
     }
   }, [selectedBranchId]);
 
-  // recompute daySlots whenever date changes
+  // recompute slots whenever date OR selected doctor changes
   useEffect(() => {
-    if (!form.date) return;
+    if (!form.date) {
+      setDaySlots([]);
+      return;
+    }
     const [year, month, day] = form.date.split("-").map(Number);
-    if (!year || !month || !day) return;
+    if (!year || !month || !day) {
+      setDaySlots([]);
+      return;
+    }
     const d = new Date(year, (month || 1) - 1, day || 1);
-    const slots = generateTimeSlotsForDay(d).map((s) => ({
+    let slots = generateTimeSlotsForDay(d).map((s) => ({
       label: s.label,
       value: getSlotTimeString(s.start),
+      start: s.start,
     }));
-    setDaySlots(slots);
-  }, [form.date]);
+
+    // If doctor selected and we have schedule, filter by schedule
+    if (form.doctorId) {
+      const doctorIdNum = Number(form.doctorId);
+      const doc = scheduledDoctors.find((sd) => sd.id === doctorIdNum);
+      const schedules = doc?.schedules || [];
+      if (schedules.length > 0) {
+        slots = slots.filter((slot) => {
+          const tStr = getSlotTimeString(slot.start);
+          return schedules.some((s: any) =>
+            isTimeWithinRange(tStr, s.startTime, s.endTime)
+          );
+        });
+      }
+    }
+
+    setDaySlots(slots.map(({ label, value }) => ({ label, value })));
+
+    // if current selected time is no longer valid, clear it
+    if (form.time && !slots.some((s) => s.value === form.time)) {
+      setForm((prev) => ({ ...prev, time: "" }));
+    }
+  }, [form.date, form.doctorId, scheduledDoctors]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -528,7 +556,6 @@ function AppointmentForm({
 
     const patientId = selectedPatientId;
 
-    // since doctor is required, always validate schedule & capacity
     if (!isWithinDoctorSchedule(scheduledAt)) {
       setError("Сонгосон цагт эмчийн ажлын хуваарь байхгүй байна.");
       return;
@@ -631,7 +658,7 @@ function AppointmentForm({
             style={{
               padding: "0 10px",
               borderRadius: 6,
-              border: "1px солид #16a34a",
+              border: "1px solid #16a34a",
               background: "#dcfce7",
               color: "#166534",
               fontWeight: 600,
@@ -1038,7 +1065,7 @@ export default function AppointmentsPage() {
   const loadAppointments = async () => {
     try {
       setError("");
-      const params = new URLSearchParams();
+    const params = new URLSearchParams();
       if (filterDate) params.set("date", filterDate);
       if (filterBranchId) params.set("branchId", filterBranchId);
       if (filterDoctorId) params.set("doctorId", filterDoctorId);
@@ -1566,7 +1593,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid #ddd",
+                    borderBottom: "1px солид #ddd",
                     padding: 6,
                   }}
                 >
@@ -1575,7 +1602,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid #ddd",
+                    borderBottom: "1px солид #ddd",
                     padding: 6,
                   }}
                 >
@@ -1584,7 +1611,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid #ddd",
+                    borderBottom: "1px солид #ddd",
                     padding: 6,
                   }}
                 >
@@ -1593,7 +1620,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid #ddd",
+                    borderBottom: "1px солид #ddd",
                     padding: 6,
                   }}
                 >
@@ -1602,7 +1629,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid #ddd",
+                    borderBottom: "1px солид #ddd",
                     padding: 6,
                   }}
                 >
@@ -1611,7 +1638,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid #ddd",
+                    borderBottom: "1px солид #ddd",
                     padding: 6,
                   }}
                 >
@@ -1620,7 +1647,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid #ddd",
+                    borderBottom: "1px солид #ddd",
                     padding: 6,
                   }}
                 >
