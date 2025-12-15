@@ -243,37 +243,42 @@ function AppointmentForm({
   // ---- patient search (visible list) ----
 
   const triggerPatientSearch = (rawQuery: string) => {
-  const query = rawQuery.trim();
-  if (searchDebounceTimer) {
-    clearTimeout(searchDebounceTimer);
-  }
-  if (!query) {
-    setPatientResults([]);
-    return;
-  }
+    const query = rawQuery.trim();
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+    if (!query) {
+      setPatientResults([]);
+      return;
+    }
 
-  const t = setTimeout(async () => {
-    try {
-      setPatientSearchLoading(true);
+    const qAtSchedule = query.toLowerCase();
 
-      // backend route is /api/patients?query=...
-      const url = `/api/patients?query=${encodeURIComponent(query)}`;
-      console.log("patient search →", url);
-      const res = await fetch(url);
-      const data = await res.json().catch(() => []);
-      console.log("patient search response", { ok: res.ok, data });
+    const t = setTimeout(async () => {
+      try {
+        setPatientSearchLoading(true);
 
-      if (res.ok) {
-        const list = Array.isArray(data)
+        const url = `/api/patients?query=${encodeURIComponent(query)}`;
+        const res = await fetch(url);
+        const data = await res.json().catch(() => []);
+
+        if (!res.ok) {
+          setPatientResults([]);
+          return;
+        }
+
+        const rawList = Array.isArray(data)
           ? data
           : Array.isArray((data as any).patients)
           ? (data as any).patients
           : [];
 
-        // Frontend filter to enforce our matching rules
-        const q = query.toLowerCase();
-        const filtered = list.filter((p: any) => {
-          const regNo = (p.regNo ?? p.regno ?? "").toString().toLowerCase();
+        const isNumeric = /^[0-9]+$/.test(qAtSchedule);
+
+        const filtered = rawList.filter((p: any) => {
+          const regNo = (p.regNo ?? p.regno ?? "")
+            .toString()
+            .toLowerCase();
           const phone = (p.phone ?? "").toString().toLowerCase();
           const name = (p.name ?? "").toString().toLowerCase();
           const ovog = (p.ovog ?? "").toString().toLowerCase();
@@ -281,24 +286,22 @@ function AppointmentForm({
             .toString()
             .toLowerCase();
 
-          // If query is all digits, prioritize regNo/phone/bookNumber,
-          // otherwise allow match in name/ovog too.
-          const isNumeric = /^[0-9]+$/.test(q);
-
           if (isNumeric) {
+            // digits: only match regNo / phone / book number
             return (
-              regNo.includes(q) ||
-              phone.includes(q) ||
-              bookNumber.includes(q)
+              regNo.includes(qAtSchedule) ||
+              phone.includes(qAtSchedule) ||
+              bookNumber.includes(qAtSchedule)
             );
           }
 
+          // text: allow all main fields
           return (
-            regNo.includes(q) ||
-            phone.includes(q) ||
-            name.includes(q) ||
-            ovog.includes(q) ||
-            bookNumber.includes(q)
+            regNo.includes(qAtSchedule) ||
+            phone.includes(qAtSchedule) ||
+            name.includes(qAtSchedule) ||
+            ovog.includes(qAtSchedule) ||
+            bookNumber.includes(qAtSchedule)
           );
         });
 
@@ -312,19 +315,17 @@ function AppointmentForm({
             patientBook: p.patientBook || null,
           }))
         );
-      } else {
+      } catch (e) {
+        console.error("patient search failed", e);
         setPatientResults([]);
+      } finally {
+        setPatientSearchLoading(false);
       }
-    } catch (e) {
-      console.error("patient search failed", e);
-      setPatientResults([]);
-    } finally {
-      setPatientSearchLoading(false);
-    }
-  }, 300);
+    }, 300);
 
-  setSearchDebounceTimer(t);
-};
+    setSearchDebounceTimer(t);
+  };
+
   const handleSelectPatient = (p: PatientLite) => {
     setSelectedPatientId(p.id);
     setForm((prev) => ({
@@ -586,7 +587,7 @@ function AppointmentForm({
         )}
       </div>
 
-      {/* Visible patient search results (below Үйлчлэгч, across full width) */}
+      {/* Visible patient search results */}
       {patientResults.length > 0 && (
         <div
           style={{
@@ -1294,7 +1295,7 @@ export default function AppointmentsPage() {
         </div>
       </section>
 
-      {/* Time grid by doctor – using scheduled doctors and coloring non-working hours + weekend lunch */}
+      {/* Time grid by doctor */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
@@ -1321,7 +1322,7 @@ export default function AppointmentsPage() {
               fontSize: 12,
             }}
           >
-            {/* Header row: doctor names + appointment counts */}
+            {/* Header row */}
             <div
               style={{
                 display: "grid",
@@ -1415,13 +1416,10 @@ export default function AppointmentsPage() {
                     let bg: string;
 
                     if (!isWorkingHour || isWeekendLunch) {
-                      // Non-working OR weekend lunch → clinic orange
                       bg = "#ee7148";
                     } else if (appsForCell.length === 0) {
-                      // Working hour, free
                       bg = "#ffffff";
                     } else {
-                      // Working hour, booked → status color
                       const status = appsForCell[0].status;
                       bg =
                         status === "completed"
@@ -1527,7 +1525,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px солид #ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 6,
                   }}
                 >
