@@ -450,57 +450,73 @@ function AppointmentForm({
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
+  e.preventDefault();
+  setError("");
 
-    if (!form.branchId || !form.date || !form.time) {
-      setError("Салбар, огноо, цаг талбаруудыг бөглөнө үү.");
+  if (!form.branchId || !form.date || !form.time) {
+    setError("Салбар, огноо, цаг талбаруудыг бөглөнө үү.");
+    return;
+  }
+
+  if (!selectedPatientId) {
+    setError(
+      "Үйлчлүүлэгчийг жагсаалтаас сонгох эсвэл + товчоор шинээр бүртгэнэ үү."
+    );
+    return;
+  }
+
+  // Build local Date correctly and send full ISO string (with offset)
+  const [year, month, day] = form.date.split("-").map(Number);
+  const [hour, minute] = form.time.split(":").map(Number);
+
+  const local = new Date(
+    year,
+    (month || 1) - 1,
+    day || 1,
+    hour || 0,
+    minute || 0,
+    0,
+    0
+  );
+
+  if (Number.isNaN(local.getTime())) {
+    setError("Огноо/цаг буруу байна.");
+    return;
+  }
+
+  const scheduledAtStr = local.toISOString(); // includes timezone -> unambiguous
+  const scheduledAt = local; // used for schedule checks below
+
+  const patientId = selectedPatientId;
+
+  // schedule + capacity validation only if doctor selected
+  if (form.doctorId) {
+    if (!isWithinDoctorSchedule(scheduledAt)) {
+      setError("Сонгосон цагт эмчийн ажлын хуваарь байхгүй байна.");
       return;
     }
 
-    if (!selectedPatientId) {
-      setError(
-        "Үйлчлүүлэгчийг жагсаалтаас сонгох эсвэл + товчоор шинээр бүртгэнэ үү."
-      );
+    const existingCount = countAppointmentsInSlot(scheduledAt);
+    if (existingCount >= 2) {
+      setError("Энэ 30 минутын блок дээр аль хэдийн 2 захиалга байна.");
       return;
     }
+  }
 
-    const scheduledAtStr = `${form.date}T${form.time}`;
-    const scheduledAt = new Date(scheduledAtStr);
-    if (Number.isNaN(scheduledAt.getTime())) {
-      setError("Огноо/цаг буруу байна.");
-      return;
-    }
-
-    const patientId = selectedPatientId;
-
-    // schedule + capacity validation only if doctor selected
-    if (form.doctorId) {
-      if (!isWithinDoctorSchedule(scheduledAt)) {
-        setError("Сонгосон цагт эмчийн ажлын хуваарь байхгүй байна.");
-        return;
-      }
-
-      const existingCount = countAppointmentsInSlot(scheduledAt);
-      if (existingCount >= 2) {
-        setError("Энэ 30 минутын блок дээр аль хэдийн 2 захиалга байна.");
-        return;
-      }
-    }
-
-    try {
-      const res = await fetch("/api/appointments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          patientId,
-          doctorId: form.doctorId ? Number(form.doctorId) : null,
-          branchId: Number(form.branchId),
-          scheduledAt: scheduledAtStr,
-          status: form.status,
-          notes: form.notes || null,
-        }),
-      });
+  try {
+    const res = await fetch("/api/appointments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        patientId,
+        doctorId: form.doctorId ? Number(form.doctorId) : null,
+        branchId: Number(form.branchId),
+        scheduledAt: scheduledAtStr,
+        status: form.status,
+        notes: form.notes || null,
+      }),
+    });
+    // ... rest stays the same
       let data: Appointment | { error?: string };
       try {
         data = await res.json();
