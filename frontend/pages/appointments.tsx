@@ -214,7 +214,7 @@ function AppointmentForm({
   const [quickPatientError, setQuickPatientError] = useState("");
   const [quickPatientSaving, setQuickPatientSaving] = useState(false);
 
-  // 30-minute time slots for the currently selected date (for time picker)
+  // 30-minute time slots for the currently selected date
   const [daySlots, setDaySlots] = useState<{ label: string; value: string }[]>(
     []
   );
@@ -225,7 +225,6 @@ function AppointmentForm({
     }
   }, [branches, form.branchId]);
 
-  // keep date/branch in sync with filters
   useEffect(() => {
     if (selectedDate) {
       setForm((prev) => ({ ...prev, date: selectedDate }));
@@ -238,15 +237,15 @@ function AppointmentForm({
     }
   }, [selectedBranchId]);
 
-  // recompute time slots when date changes
+  // recompute daySlots whenever date changes
   useEffect(() => {
     if (!form.date) return;
     const [year, month, day] = form.date.split("-").map(Number);
     if (!year || !month || !day) return;
     const d = new Date(year, (month || 1) - 1, day || 1);
     const slots = generateTimeSlotsForDay(d).map((s) => ({
-      label: s.label, // localized "09:00"
-      value: getSlotTimeString(s.start), // "09:00"
+      label: s.label,
+      value: getSlotTimeString(s.start),
     }));
     setDaySlots(slots);
   }, [form.date]);
@@ -258,7 +257,7 @@ function AppointmentForm({
     setForm((prev) => ({ ...prev, [name]: value }));
 
     if (name === "patientQuery") {
-      setSelectedPatientId(null); // changing text cancels prior selection
+      setSelectedPatientId(null);
       triggerPatientSearch(value);
     }
   };
@@ -310,7 +309,6 @@ function AppointmentForm({
             .toLowerCase();
 
           if (isNumeric) {
-            // digits: only match regNo / phone / book number
             return (
               regNo.includes(qAtSchedule) ||
               phone.includes(qAtSchedule) ||
@@ -318,7 +316,6 @@ function AppointmentForm({
             );
           }
 
-          // text: allow all main fields
           return (
             regNo.includes(qAtSchedule) ||
             phone.includes(qAtSchedule) ||
@@ -366,13 +363,12 @@ function AppointmentForm({
     const doctorIdNum = Number(form.doctorId);
     const doc = scheduledDoctors.find((d) => d.id === doctorIdNum);
     if (!doc || !doc.schedules) return [];
-    // /api/doctors/scheduled is already filtered by date
     return doc.schedules;
   };
 
   const isWithinDoctorSchedule = (scheduledAt: Date) => {
     const schedules = getDoctorSchedulesForDate();
-    if (schedules.length === 0) return true; // no schedule info: don't block
+    if (schedules.length === 0) return true;
     const timeStr = getSlotTimeString(scheduledAt);
     return schedules.some((s: any) =>
       isTimeWithinRange(timeStr, s.startTime, s.endTime)
@@ -503,7 +499,12 @@ function AppointmentForm({
       return;
     }
 
-    // build local Date (no timezone shift) and send ISO
+    // doctor is REQUIRED now
+    if (!form.doctorId) {
+      setError("Цаг захиалахын өмнө эмчийг заавал сонгоно уу.");
+      return;
+    }
+
     const [year, month, day] = form.date.split("-").map(Number);
     const [hour, minute] = form.time.split(":").map(Number);
 
@@ -527,18 +528,16 @@ function AppointmentForm({
 
     const patientId = selectedPatientId;
 
-    // schedule + capacity validation only if doctor selected
-    if (form.doctorId) {
-      if (!isWithinDoctorSchedule(scheduledAt)) {
-        setError("Сонгосон цагт эмчийн ажлын хуваарь байхгүй байна.");
-        return;
-      }
+    // since doctor is required, always validate schedule & capacity
+    if (!isWithinDoctorSchedule(scheduledAt)) {
+      setError("Сонгосон цагт эмчийн ажлын хуваарь байхгүй байна.");
+      return;
+    }
 
-      const existingCount = countAppointmentsInSlot(scheduledAt);
-      if (existingCount >= 2) {
-        setError("Энэ 30 минутын блок дээр аль хэдийн 2 захиалга байна.");
-        return;
-      }
+    const existingCount = countAppointmentsInSlot(scheduledAt);
+    if (existingCount >= 2) {
+      setError("Энэ 30 минутын блок дээр аль хэдийн 2 захиалга байна.");
+      return;
     }
 
     try {
@@ -547,7 +546,7 @@ function AppointmentForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           patientId,
-          doctorId: form.doctorId ? Number(form.doctorId) : null,
+          doctorId: Number(form.doctorId),
           branchId: Number(form.branchId),
           scheduledAt: scheduledAtStr,
           status: form.status,
@@ -568,6 +567,7 @@ function AppointmentForm({
           time: "",
           notes: "",
           status: "booked",
+          doctorId: "",
         }));
         setSelectedPatientId(null);
         setPatientResults([]);
@@ -578,6 +578,11 @@ function AppointmentForm({
       setError("Сүлжээгээ шалгана уу");
     }
   };
+
+  // only show doctors who are scheduled for this date/branch
+  const availableDoctors = scheduledDoctors.length
+    ? doctors.filter((d) => scheduledDoctors.some((s) => s.id === d.id))
+    : doctors;
 
   return (
     <form
@@ -590,7 +595,7 @@ function AppointmentForm({
         fontSize: 13,
       }}
     >
-      {/* Patient (Үйлчлүүлэгч) field + quick create button */}
+      {/* Үйлчлүүлэгч */}
       <div
         style={{
           display: "flex",
@@ -618,7 +623,6 @@ function AppointmentForm({
             onClick={() => {
               setShowQuickPatientModal(true);
               setQuickPatientError("");
-              // preselect branch in modal from main form if empty
               setQuickPatientForm((prev) => ({
                 ...prev,
                 branchId: prev.branchId || form.branchId || selectedBranchId,
@@ -627,7 +631,7 @@ function AppointmentForm({
             style={{
               padding: "0 10px",
               borderRadius: 6,
-              border: "1px solid #16a34a",
+              border: "1px солид #16a34a",
               background: "#dcfce7",
               color: "#166534",
               fontWeight: 600,
@@ -645,7 +649,6 @@ function AppointmentForm({
         )}
       </div>
 
-      {/* Visible patient search results */}
       {patientResults.length > 0 && (
         <div
           style={{
@@ -680,9 +683,9 @@ function AppointmentForm({
         </div>
       )}
 
-      {/* Doctor */}
+      {/* Doctor – only scheduled doctors */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Эмч</label>
+        <label>Эмч (заавал)</label>
         <select
           name="doctorId"
           value={form.doctorId}
@@ -690,19 +693,25 @@ function AppointmentForm({
             handleChange(e);
             setError("");
           }}
+          required
           style={{
             borderRadius: 6,
             border: "1px solid #d1d5db",
             padding: "6px 8px",
           }}
         >
-          <option value="">Эмч сонгоогүй</option>
-          {doctors.map((d) => (
+          <option value="">Ажиллах эмч сонгох</option>
+          {availableDoctors.map((d) => (
             <option key={d.id} value={d.id}>
               {formatDoctorName(d)}
             </option>
           ))}
         </select>
+        {scheduledDoctors.length === 0 && (
+          <span style={{ fontSize: 11, color: "#b91c1c", marginTop: 2 }}>
+            Энэ өдөр сонгосон салбарт эмчийн ажлын хуваарь олдсонгүй.
+          </span>
+        )}
       </div>
 
       {/* Branch */}
@@ -745,7 +754,7 @@ function AppointmentForm({
         />
       </div>
 
-      {/* Time – 30 минутын слот сонгогч */}
+      {/* Time – 30 минутын слот */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Цаг</label>
         <select
@@ -1015,13 +1024,11 @@ export default function AppointmentsPage() {
   );
   const [error, setError] = useState("");
 
-  // Filters
   const todayStr = new Date().toISOString().slice(0, 10);
   const [filterDate, setFilterDate] = useState<string>(todayStr);
   const [filterBranchId, setFilterBranchId] = useState<string>("");
   const [filterDoctorId, setFilterDoctorId] = useState<string>("");
 
-  // Branch tab ("" = all branches)
   const [activeBranchTab, setActiveBranchTab] = useState<string>("");
 
   const groupedAppointments = groupByDate(appointments);
@@ -1055,10 +1062,6 @@ export default function AppointmentsPage() {
 
       const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
       const data = await res.json();
-      console.log("scheduled doctors response", {
-        params: params.toString(),
-        data,
-      });
 
       if (!res.ok || !Array.isArray(data)) {
         throw new Error("failed");
@@ -1113,7 +1116,6 @@ export default function AppointmentsPage() {
     setFilterBranchId(branchId);
   };
 
-  // For the grid: ONLY scheduled doctors
   const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
 
   return (
