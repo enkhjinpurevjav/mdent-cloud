@@ -6,9 +6,9 @@ type Branch = {
 };
 
 type Doctor = {
-  id: number;
-  name: string | null;
-  ovog: string | null;
+    id: number;
+    name: string | null;
+    ovog: string | null;
 };
 
 type ScheduledDoctor = Doctor & {
@@ -464,10 +464,11 @@ function AppointmentForm({
     setQuickPatientSaving(true);
 
     try {
-      const payload: any = {
+      const payload = {
         name: quickPatientForm.name.trim(),
         phone: quickPatientForm.phone.trim(),
         branchId: branchIdForPatient,
+        bookNumber: "", // force backend to auto-generate card number
       };
 
       const res = await fetch("/api/patients", {
@@ -586,23 +587,22 @@ function AppointmentForm({
       } catch {
         data = { error: "Unknown error" };
       }
-    // inside AppointmentForm, in handleSubmit, replace the success block:
 
-if (res.ok) {
-  onCreated(data as Appointment);
-  setForm((prev) => ({
-    ...prev,
-    patientQuery: "",   // clear visible text so user sees they must reselect
-    time: "",
-    notes: "",
-    status: "booked",
-    doctorId: "",
-  }));
-  setSelectedPatientId(null);  // keep resetting the selection
-  setPatientResults([]);       // clear dropdown results
-} else {
-  setError((data as any).error || "Алдаа гарлаа");
-}
+      if (res.ok) {
+        onCreated(data as Appointment);
+        setForm((prev) => ({
+          ...prev,
+          patientQuery: "", // clear so user sees they must select again
+          time: "",
+          notes: "",
+          status: "booked",
+          doctorId: "",
+        }));
+        setSelectedPatientId(null);
+        setPatientResults([]);
+      } else {
+        setError((data as any).error || "Алдаа гарлаа");
+      }
     } catch {
       setError("Сүлжээгээ шалгана уу");
     }
@@ -1067,7 +1067,7 @@ export default function AppointmentsPage() {
   const loadAppointments = async () => {
     try {
       setError("");
-    const params = new URLSearchParams();
+      const params = new URLSearchParams();
       if (filterDate) params.set("date", filterDate);
       if (filterBranchId) params.set("branchId", filterBranchId);
       if (filterDoctorId) params.set("doctorId", filterDoctorId);
