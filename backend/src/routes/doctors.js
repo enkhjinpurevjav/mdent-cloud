@@ -10,7 +10,7 @@ const router = express.Router();
  *  - date=YYYY-MM-DD      (required) → which calendar day
  *  - branchId=number      (optional) → limit to one branch
  *
- * Returns: list of doctors who have a DoctorSchedule entry on that date
+ * Returns: list of doctors (User) who have a DoctorSchedule entry on that date
  * plus their schedules for that day.
  */
 router.get("/scheduled", async (req, res) => {
@@ -21,7 +21,7 @@ router.get("/scheduled", async (req, res) => {
       return res.status(400).json({ error: "date is required (YYYY-MM-DD)" });
     }
 
-    // Build the calendar day range in UTC for the DoctorSchedule.date
+    // Build the calendar day range in UTC for DoctorSchedule.date
     const start = new Date(`${date}T00:00:00.000Z`);
     const end = new Date(`${date}T23:59:59.999Z`);
 
@@ -29,7 +29,7 @@ router.get("/scheduled", async (req, res) => {
       return res.status(400).json({ error: "Invalid date format" });
     }
 
-    const where = {
+    const where: any = {
       date: {
         gte: start,
         lte: end,
@@ -55,16 +55,32 @@ router.get("/scheduled", async (req, res) => {
     });
 
     // Group by doctor
-    const byDoctor = new Map();
+    const byDoctor = new Map<
+      number,
+      {
+        id: number;
+        name: string | null;
+        ovog: string | null;
+        schedules: {
+          id: number;
+          branchId: number;
+          date: Date;
+          startTime: string;
+          endTime: string;
+          note: string | null;
+        }[];
+      }
+    >();
+
     for (const s of schedules) {
       if (!s.doctor) continue;
-      const existing = byDoctor.get(s.doctorId) || {
-        id: s.doctor.id,
-        name: s.doctor.name,
-        ovog: s.doctor.ovog,
-        // optional: role, branchId, etc., if you need later
-        schedules: [],
-      };
+      const existing =
+        byDoctor.get(s.doctorId) || {
+          id: s.doctor.id,
+          name: s.doctor.name,
+          ovog: s.doctor.ovog,
+          schedules: [],
+        };
       existing.schedules.push({
         id: s.id,
         branchId: s.branchId,
