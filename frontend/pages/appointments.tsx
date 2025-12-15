@@ -395,16 +395,25 @@ function QuickAppointmentModal({
   }, [open, defaultDoctorId, defaultDate, defaultTime]);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+  e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+) => {
+  const { name, value } = e.target;
+  setForm((prev) => ({ ...prev, [name]: value }));
 
-    if (name === "patientQuery") {
-      setForm((prev) => ({ ...prev, patientId: null }));
-      triggerPatientSearch(value);
+  if (name === "patientQuery") {
+    // If the field is cleared, clear selection
+    if (!value.trim()) {
+      setSelectedPatientId(null);
+      setPatientResults([]);
+      return;
     }
-  };
+
+    // If user types something different after selecting,
+    // don't immediately clear the selectedPatientId.
+    // Only search and let them pick again.
+    triggerPatientSearch(value);
+  }
+};
 
   const triggerPatientSearch = (rawQuery: string) => {
     const query = rawQuery.trim();
@@ -484,14 +493,14 @@ function QuickAppointmentModal({
   };
 
   const handleSelectPatient = (p: PatientLite) => {
-    setForm((prev) => ({
-      ...prev,
-      patientId: p.id,
-      patientQuery: formatPatientSearchLabel(p),
-    }));
-    setPatientResults([]);
-    setError("");
-  };
+  setSelectedPatientId(p.id);
+  setForm((prev) => ({
+    ...prev,
+    patientQuery: formatPatientSearchLabel(p),
+  }));
+  setPatientResults([]);
+  setError("");
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
