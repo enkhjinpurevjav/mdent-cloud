@@ -468,7 +468,7 @@ function AppointmentForm({
         name: quickPatientForm.name.trim(),
         phone: quickPatientForm.phone.trim(),
         branchId: branchIdForPatient,
-        bookNumber: "", // force backend to auto-generate card number
+        bookNumber: "", // auto-generate
       };
 
       const res = await fetch("/api/patients", {
@@ -528,7 +528,6 @@ function AppointmentForm({
       return;
     }
 
-    // doctor is REQUIRED now
     if (!form.doctorId) {
       setError("Цаг захиалахын өмнө эмчийг заавал сонгоно уу.");
       return;
@@ -592,7 +591,7 @@ function AppointmentForm({
         onCreated(data as Appointment);
         setForm((prev) => ({
           ...prev,
-          patientQuery: "", // clear so user sees they must select again
+          patientQuery: "",
           time: "",
           notes: "",
           status: "booked",
@@ -608,7 +607,6 @@ function AppointmentForm({
     }
   };
 
-  // only show doctors who are scheduled for this date/branch
   const availableDoctors = scheduledDoctors.length
     ? doctors.filter((d) => scheduledDoctors.some((s) => s.id === d.id))
     : doctors;
@@ -624,9 +622,422 @@ function AppointmentForm({
         fontSize: 13,
       }}
     >
-      {/* form content unchanged */}
-      {/* Үйлчлүүлэгч, Doctor, Branch, Date, Time, Status, Notes, Quick modal */}
-      {/* ... */}
+      {/* Patient */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          gridColumn: "1 / -1",
+        }}
+      >
+        <label>Үйлчлүүлэгч</label>
+        <div style={{ display: "flex", gap: 6 }}>
+          <input
+            name="patientQuery"
+            placeholder="РД, овог, нэр эсвэл утас..."
+            value={form.patientQuery}
+            onChange={handleChange}
+            style={{
+              flex: 1,
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setShowQuickPatientModal(true);
+              setQuickPatientError("");
+              setQuickPatientForm((prev) => ({
+                ...prev,
+                branchId: prev.branchId || form.branchId || selectedBranchId,
+              }));
+            }}
+            style={{
+              padding: "0 10px",
+              borderRadius: 6,
+              border: "1px solid #16a34a",
+              background: "#dcfce7",
+              color: "#166534",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+            title="Шинэ үйлчлүүлэгч хурдан бүртгэх"
+          >
+            +
+          </button>
+        </div>
+        {patientSearchLoading && (
+          <span style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+            Үйлчлүүлэгч хайж байна...
+          </span>
+        )}
+      </div>
+
+      {patientResults.length > 0 && (
+        <div
+          style={{
+            gridColumn: "1 / -1",
+            borderRadius: 6,
+            border: "1px solid #e5e7eb",
+            background: "#ffffff",
+            maxHeight: 220,
+            overflowY: "auto",
+          }}
+        >
+          {patientResults.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => handleSelectPatient(p)}
+              style={{
+                display: "block",
+                width: "100%",
+                textAlign: "left",
+                padding: "6px 8px",
+                border: "none",
+                borderBottom: "1px solid #f3f4f6",
+                background: "white",
+                cursor: "pointer",
+                fontSize: 12,
+              }}
+            >
+              {formatPatientSearchLabel(p)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Doctor */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Эмч (заавал)</label>
+        <select
+          name="doctorId"
+          value={form.doctorId}
+          onChange={(e) => {
+            handleChange(e);
+            setError("");
+          }}
+          required
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Ажиллах эмч сонгох</option>
+          {availableDoctors.map((d) => (
+            <option key={d.id} value={d.id}>
+              {formatDoctorName(d)}
+            </option>
+          ))}
+        </select>
+        {scheduledDoctors.length === 0 && (
+          <span style={{ fontSize: 11, color: "#b91c1c", marginTop: 2 }}>
+            Энэ өдөр сонгосон салбарт эмчийн ажлын хуваарь олдсонгүй.
+          </span>
+        )}
+      </div>
+
+      {/* Branch */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Салбар</label>
+        <select
+          name="branchId"
+          value={form.branchId}
+          onChange={handleChange}
+          required
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Салбар сонгох</option>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Date */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Огноо</label>
+        <input
+          type="date"
+          name="date"
+          value={form.date}
+          onChange={handleChange}
+          required
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      {/* Time */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Цаг</label>
+        <select
+          name="time"
+          value={form.time}
+          onChange={(e) => {
+            handleChange(e);
+            setError("");
+          }}
+          required
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Цаг сонгох</option>
+          {daySlots.map((slot) => (
+            <option key={slot.value} value={slot.value}>
+              {slot.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Status */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Төлөв</label>
+        <select
+          name="status"
+          value={form.status}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="booked">Захиалсан</option>
+          <option value="ongoing">Явагдаж байна</option>
+          <option value="completed">Дууссан</option>
+          <option value="cancelled">Цуцлагдсан</option>
+        </select>
+      </div>
+
+      {/* Notes */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          gridColumn: "1 / -1",
+        }}
+      >
+        <label>Тэмдэглэл</label>
+        <input
+          name="notes"
+          placeholder="Ж: Эмчилгээний товч тэмдэглэл"
+          value={form.notes}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      {/* Submit + error */}
+      <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8 }}>
+        <button
+          type="submit"
+          style={{
+            padding: "8px 16px",
+            borderRadius: 6,
+            border: "none",
+            background: "#2563eb",
+            color: "white",
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          Цаг захиалах
+        </button>
+        {error && (
+          <div style={{ color: "#b91c1c", fontSize: 12, alignSelf: "center" }}>
+            {error}
+          </div>
+        )}
+      </div>
+
+      {/* Quick new patient modal */}
+      {showQuickPatientModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: 8,
+              padding: 16,
+              width: 340,
+              boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+              fontSize: 13,
+            }}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 15 }}>
+              Шинэ үйлчлүүлэгч хурдан бүртгэх
+            </h3>
+            <p
+              style={{
+                marginTop: 0,
+                marginBottom: 12,
+                color: "#6b7280",
+              }}
+            >
+              Зөвхөн нэр, утас болон салбарыг бүртгэнэ. Дэлгэрэнгүй мэдээллийг
+              дараа нь &quot;Үйлчлүүлэгчийн бүртгэл&quot; хэсгээс засварлана.
+            </p>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              <label
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                }}
+              >
+                Нэр
+                <input
+                  name="name"
+                  value={quickPatientForm.name}
+                  onChange={handleQuickPatientChange}
+                  placeholder="Ж: Батболд"
+                  style={{
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "6px 8px",
+                  }}
+                />
+              </label>
+              <label
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                }}
+              >
+                Утас
+                <input
+                  name="phone"
+                  value={quickPatientForm.phone}
+                  onChange={handleQuickPatientChange}
+                  placeholder="Ж: 99112233"
+                  style={{
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "6px 8px",
+                  }}
+                />
+              </label>
+              <label
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                }}
+              >
+                Салбар
+                <select
+                  name="branchId"
+                  value={quickPatientForm.branchId}
+                  onChange={handleQuickPatientChange}
+                  style={{
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "6px 8px",
+                  }}
+                >
+                  <option value="">Сонгох</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {quickPatientError && (
+                <div
+                  style={{
+                    color: "#b91c1c",
+                    fontSize: 12,
+                  }}
+                >
+                  {quickPatientError}
+                </div>
+              )}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 8,
+                  marginTop: 8,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!quickPatientSaving) {
+                      setShowQuickPatientModal(false);
+                      setQuickPatientError("");
+                    }
+                  }}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#f9fafb",
+                    cursor: quickPatientSaving ? "default" : "pointer",
+                  }}
+                >
+                  Болих
+                </button>
+                <button
+                  type="button"
+                  onClick={handleQuickPatientSave}
+                  disabled={quickPatientSaving}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: "#16a34a",
+                    color: "white",
+                    cursor: quickPatientSaving ? "default" : "pointer",
+                  }}
+                >
+                  {quickPatientSaving ? "Хадгалж байна..." : "Хадгалах"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }
@@ -909,7 +1320,7 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Time grid by doctor – moved ABOVE calendar */}
+      {/* Time grid by doctor */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
@@ -936,7 +1347,6 @@ export default function AppointmentsPage() {
               fontSize: 12,
             }}
           >
-            {/* Header row */}
             <div
               style={{
                 display: "grid",
@@ -975,7 +1385,6 @@ export default function AppointmentsPage() {
               })}
             </div>
 
-            {/* Time rows */}
             <div>
               {timeSlots.map((slot, rowIndex) => (
                 <div
@@ -986,7 +1395,6 @@ export default function AppointmentsPage() {
                     borderBottom: "1px solid #f0f0f0",
                   }}
                 >
-                  {/* Time label */}
                   <div
                     style={{
                       padding: 6,
@@ -998,7 +1406,6 @@ export default function AppointmentsPage() {
                     {slot.label}
                   </div>
 
-                  {/* Cell per doctor */}
                   {gridDoctors.map((doc) => {
                     const appsForCell = appointments.filter((a) => {
                       if (a.doctorId !== doc.id) return false;
@@ -1070,7 +1477,7 @@ export default function AppointmentsPage() {
         )}
       </section>
 
-      {/* Day-grouped mini calendar – now AFTER grid */}
+      {/* Day-grouped calendar */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 8 }}>Календарь (өдрөөр)</h2>
         {groupedAppointments.length === 0 && (
