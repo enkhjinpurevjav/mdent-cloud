@@ -1242,12 +1242,13 @@ function AppointmentForm({
       return;
     }
 
-    if (!selectedPatientId) {
-      setError(
-        "Үйлчлүүлэгчийг жагсаалтаас сонгох эсвэл + товчоор шинээр бүртгэнэ үү."
-      );
-      return;
-    }
+   console.log("DEBUG inline selectedPatientId =", selectedPatientId);
+if (!selectedPatientId) {
+  setError(
+    "Үйлчлүүлэгчийг жагсаалтаас сонгох эсвэл + товчоор шинээр бүртгэнэ үү."
+  );
+  return;
+}
 
     if (!form.doctorId) {
       setError("Цаг захиалахын өмнө эмчийг заавал сонгоно уу.");
