@@ -65,6 +65,13 @@ router.post("/", async (req, res) => {
       });
     }
 
+    const parsedBranchId = Number(branchId);
+    if (Number.isNaN(parsedBranchId)) {
+      return res
+        .status(400)
+        .json({ error: "branchId must be a valid number" });
+    }
+
     // Optional regNo: only enforce unique if provided
     let finalRegNo = regNo ? String(regNo).trim() : null;
     if (finalRegNo) {
@@ -128,7 +135,11 @@ router.post("/", async (req, res) => {
         name: String(name).trim(),
         regNo: finalRegNo, // may be null
         phone: String(phone).trim(),
-        branchId: Number(branchId),
+
+        // relation to Branch: explicitly connect required branch
+        branch: {
+          connect: { id: parsedBranchId },
+        },
 
         // New optional fields
         gender: finalGender,
@@ -326,7 +337,6 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
       },
     });
 
-    // Optional: aggregate invoices/payment history
     const invoices = encounters
       .map((e) => e.invoice)
       .filter((inv) => !!inv);
