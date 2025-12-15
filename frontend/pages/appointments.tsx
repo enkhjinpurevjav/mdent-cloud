@@ -57,9 +57,14 @@ function groupByDate(appointments: Appointment[]) {
   return entries;
 }
 
+// Default weekday hours
 const START_HOUR = 9; // 09:00
 const END_HOUR = 21; // 21:00
 const SLOT_MINUTES = 30;
+
+// Weekend clinic hours
+const WEEKEND_START_HOUR = 10; // 10:00
+const WEEKEND_END_HOUR = 19; // 19:00
 
 type TimeSlot = {
   label: string; // "09:00"
@@ -69,7 +74,14 @@ type TimeSlot = {
 
 function generateTimeSlotsForDay(day: Date): TimeSlot[] {
   const slots: TimeSlot[] = [];
-  for (let hour = START_HOUR; hour < END_HOUR; hour++) {
+
+  const weekdayIndex = day.getDay(); // 0=Sun, 6=Sat
+  const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
+
+  const startHour = isWeekend ? WEEKEND_START_HOUR : START_HOUR;
+  const endHour = isWeekend ? WEEKEND_END_HOUR : END_HOUR;
+
+  for (let hour = startHour; hour < endHour; hour++) {
     for (let m = 0; m < 60; m += SLOT_MINUTES) {
       const start = new Date(day);
       start.setHours(hour, m, 0, 0);
@@ -89,12 +101,12 @@ function pad2(n: number) {
 }
 
 function getSlotTimeString(date: Date): string {
-  // "HH:MM" (24h) in local time
+  // "HH:MM" in local time
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
-// Returns true if "time" is within [startTime, endTime)
 function isTimeWithinRange(time: string, startTime: string, endTime: string) {
+  // inclusive of start, exclusive of end
   return time >= startTime && time < endTime;
 }
 
@@ -474,7 +486,7 @@ export default function AppointmentsPage() {
     setFilterBranchId(branchId);
   };
 
-  // For the grid: ONLY show scheduled doctors
+  // For the grid: ONLY scheduled doctors
   const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
 
   return (
@@ -737,7 +749,7 @@ export default function AppointmentsPage() {
         </div>
       </section>
 
-      {/* Time grid by doctor – using scheduled doctors and coloring non-working hours */}
+      {/* Time grid by doctor – using scheduled doctors and coloring non-working hours + weekend lunch */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
@@ -838,7 +850,7 @@ export default function AppointmentsPage() {
                     const slotTimeStr = getSlotTimeString(slot.start); // "HH:MM"
                     const schedules = (doc as any).schedules || [];
 
-                    // Working hour = inside any DoctorSchedule for this doctor
+                    // Working hour = inside any DoctorSchedule for this doc
                     const isWorkingHour = schedules.some((s: any) =>
                       isTimeWithinRange(
                         slotTimeStr,
@@ -847,16 +859,24 @@ export default function AppointmentsPage() {
                       )
                     );
 
+                    const weekdayIndex = slot.start.getDay(); // 0=Sun, 6=Sat
+                    const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
+
+                    // Weekend lunch 14:00–15:00
+                    const isWeekendLunch =
+                      isWeekend &&
+                      isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+
                     let bg: string;
 
-                    if (!isWorkingHour) {
-                      // Non-working hour → orange
+                    if (!isWorkingHour || isWeekendLunch) {
+                      // Non-working OR weekend lunch → clinic orange
                       bg = "#ee7148";
                     } else if (appsForCell.length === 0) {
                       // Working hour, free
                       bg = "#ffffff";
                     } else {
-                      // Working hour, booked: status-based color
+                      // Working hour, booked → status color
                       const status = appsForCell[0].status;
                       bg =
                         status === "completed"
