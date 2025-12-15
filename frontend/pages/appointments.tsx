@@ -405,16 +405,23 @@ function QuickAppointmentModal({
   }, [open, defaultDoctorId, defaultDate, defaultTime]);
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+  e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+) => {
+  const { name, value } = e.target;
+  setForm((prev) => ({ ...prev, [name]: value }));
 
-    if (name === "patientQuery") {
-      setForm((prev) => ({ ...prev, patientId: null }));
-      triggerPatientSearch(value);
+  if (name === "patientQuery") {
+    const trimmed = value.trim();
+    // If the user cleared the field, clear selection and results
+    if (!trimmed) {
+      setSelectedPatientId(null);
+      setPatientResults([]);
+      return;
     }
-  };
+    // Otherwise, only search – keep selectedPatientId as-is
+    triggerPatientSearch(value);
+  }
+};
 
   const triggerPatientSearch = (rawQuery: string) => {
     const query = rawQuery.trim();
@@ -503,19 +510,25 @@ function QuickAppointmentModal({
     setError("");
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError("");
 
-    if (!form.branchId || !form.date || !form.time) {
-      setError("Салбар, огноо, цаг талбаруудыг бөглөнө үү.");
-      return;
-    }
+  console.log("DEBUG selectedPatientId =", selectedPatientId);
 
-    if (!form.patientId) {
-      setError("Үйлчлүүлэгчийг жагсаалтаас сонгоно уу.");
-      return;
-    }
+  if (!form.branchId || !form.date || !form.time) {
+    setError("Салбар, огноо, цаг талбаруудыг бөглөнө үү.");
+    return;
+  }
+
+  if (!selectedPatientId) {
+    setError(
+      "Үйлчлүүлэгчийг жагсаалтаас сонгох эсвэл + товчоор шинээр бүртгэнэ үү."
+    );
+    return;
+  }
+  // ...
+};
 
     if (!form.doctorId) {
       setError("Цаг захиалахын өмнө эмчийг заавал сонгоно уу.");
