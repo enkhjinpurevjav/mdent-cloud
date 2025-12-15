@@ -1,3 +1,6 @@
+// Clean, stable version: inline form works like before, quick popup always requires choosing patient inside the popup.
+// No shared patient state between inline form and popup → avoids "Үйлчлүүлэгчийг жагсаалтаас сонгоно уу." bugs.
+
 import React, { useEffect, useRef, useState } from "react";
 
 type Branch = {
@@ -16,8 +19,8 @@ type ScheduledDoctor = Doctor & {
     id: number;
     branchId: number;
     date: string;
-    startTime: string; // "HH:MM"
-    endTime: string; // "HH:MM"
+    startTime: string;
+    endTime: string;
     note: string | null;
   }[];
 };
@@ -49,7 +52,7 @@ function groupByDate(appointments: Appointment[]) {
   for (const a of appointments) {
     const d = new Date(a.scheduledAt);
     if (Number.isNaN(d.getTime())) continue;
-    const day = d.toISOString().slice(0, 10); // YYYY-MM-DD
+    const day = d.toISOString().slice(0, 10);
     if (!map[day]) map[day] = [];
     map[day].push(a);
   }
@@ -59,17 +62,15 @@ function groupByDate(appointments: Appointment[]) {
   return entries;
 }
 
-// Default weekday hours
-const START_HOUR = 9; // 09:00
-const END_HOUR = 21; // 21:00
+const START_HOUR = 9;
+const END_HOUR = 21;
 const SLOT_MINUTES = 30;
 
-// Weekend clinic hours
-const WEEKEND_START_HOUR = 10; // 10:00
-const WEEKEND_END_HOUR = 19; // 19:00
+const WEEKEND_START_HOUR = 10;
+const WEEKEND_END_HOUR = 19;
 
 type TimeSlot = {
-  label: string; // "09:00"
+  label: string;
   start: Date;
   end: Date;
 };
@@ -77,7 +78,7 @@ type TimeSlot = {
 function generateTimeSlotsForDay(day: Date): TimeSlot[] {
   const slots: TimeSlot[] = [];
 
-  const weekdayIndex = day.getDay(); // 0=Sun, 6=Sat
+  const weekdayIndex = day.getDay();
   const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
 
   const startHour = isWeekend ? WEEKEND_START_HOUR : START_HOUR;
@@ -103,12 +104,10 @@ function pad2(n: number) {
 }
 
 function getSlotTimeString(date: Date): string {
-  // "HH:MM" in local time
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
 function isTimeWithinRange(time: string, startTime: string, endTime: string) {
-  // inclusive of start, exclusive of end
   return time >= startTime && time < endTime;
 }
 
@@ -159,7 +158,6 @@ function getDateFromYMD(ymd: string): Date {
   return new Date(year, month - 1, day);
 }
 
-// Map internal status codes to Mongolian labels
 function formatStatus(status: string): string {
   switch (status) {
     case "booked":
@@ -184,8 +182,8 @@ type AppointmentDetailsModalProps = {
   onClose: () => void;
   doctor?: Doctor | null;
   slotLabel?: string;
-  slotTime?: string; // HH:MM
-  date?: string; // YYYY-MM-DD
+  slotTime?: string;
+  date?: string;
   appointments: Appointment[];
 };
 
@@ -235,14 +233,7 @@ function AppointmentDetailsModal({
             marginBottom: 8,
           }}
         >
-          <h3
-            style={{
-              margin: 0,
-              fontSize: 15,
-            }}
-          >
-            Цагийн дэлгэрэнгүй
-          </h3>
+          <h3 style={{ margin: 0, fontSize: 15 }}>Цагийн дэлгэрэнгүй</h3>
           <button
             type="button"
             onClick={onClose}
@@ -253,7 +244,6 @@ function AppointmentDetailsModal({
               fontSize: 18,
               lineHeight: 1,
             }}
-            aria-label="Close"
           >
             ×
           </button>
@@ -351,18 +341,17 @@ function AppointmentDetailsModal({
   );
 }
 
-// ==== Quick Appointment Modal (with defaultPatient) ====
+// ==== Quick Appointment Modal (independent patient selection) ====
 
 type QuickAppointmentModalProps = {
   open: boolean;
   onClose: () => void;
   defaultDoctorId?: number;
-  defaultDate: string; // YYYY-MM-DD
-  defaultTime: string; // HH:MM
+  defaultDate: string;
+  defaultTime: string;
   branches: Branch[];
   doctors: Doctor[];
   onCreated: (a: Appointment) => void;
-  defaultPatient?: PatientLite | null;
 };
 
 function QuickAppointmentModal({
@@ -374,7 +363,6 @@ function QuickAppointmentModal({
   branches,
   doctors,
   onCreated,
-  defaultPatient,
 }: QuickAppointmentModalProps) {
   const [form, setForm] = useState({
     patientQuery: "",
@@ -399,12 +387,12 @@ function QuickAppointmentModal({
       doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
       date: defaultDate,
       time: defaultTime,
-      patientId: defaultPatient ? defaultPatient.id : null,
-      patientQuery: defaultPatient ? formatPatientSearchLabel(defaultPatient) : "",
+      patientId: null,
+      patientQuery: "",
     }));
     setError("");
     setPatientResults([]);
-  }, [open, defaultDoctorId, defaultDate, defaultTime, defaultPatient]);
+  }, [open, defaultDoctorId, defaultDate, defaultTime]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -620,7 +608,6 @@ function QuickAppointmentModal({
               fontSize: 18,
               lineHeight: 1,
             }}
-            aria-label="Close"
           >
             ×
           </button>
@@ -817,7 +804,7 @@ function QuickAppointmentModal({
               placeholder="Ж: Эмчилгээний товч тэмдэглэл"
               style={{
                 borderRadius: 6,
-                border: "1px solid #d1d5db",
+                border: "1px солид #d1d5db",
                 padding: "6px 8px",
               }}
             />
@@ -877,7 +864,7 @@ function QuickAppointmentModal({
   );
 }
 
-// ==== Main AppointmentForm (inline section, shares selectedPatient) ====
+// ==== Inline AppointmentForm (original-style) ====
 
 type AppointmentFormProps = {
   branches: Branch[];
@@ -887,8 +874,6 @@ type AppointmentFormProps = {
   selectedDate: string;
   selectedBranchId: string;
   onCreated: (a: Appointment) => void;
-  selectedPatient: PatientLite | null;
-  onSelectedPatientChange: (p: PatientLite | null) => void;
 };
 
 function AppointmentForm({
@@ -899,8 +884,6 @@ function AppointmentForm({
   selectedDate,
   selectedBranchId,
   onCreated,
-  selectedPatient,
-  onSelectedPatientChange,
 }: AppointmentFormProps) {
   const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -914,6 +897,7 @@ function AppointmentForm({
     notes: "",
   });
   const [error, setError] = useState("");
+
   const [patientResults, setPatientResults] = useState<PatientLite[]>([]);
   const [patientSearchLoading, setPatientSearchLoading] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(
@@ -938,17 +922,6 @@ function AppointmentForm({
   const [daySlots, setDaySlots] = useState<{ label: string; value: string }[]>(
     []
   );
-
-  // Initialize from shared selectedPatient when it changes
-  useEffect(() => {
-    if (selectedPatient) {
-      setSelectedPatientId(selectedPatient.id);
-      setForm((prev) => ({
-        ...prev,
-        patientQuery: formatPatientSearchLabel(selectedPatient),
-      }));
-    }
-  }, [selectedPatient]);
 
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
@@ -1013,23 +986,14 @@ function AppointmentForm({
     setForm((prev) => ({ ...prev, [name]: value }));
 
     if (name === "patientQuery") {
-      // Only clear selection if the text no longer matches the current selected patient label
-      if (
-        selectedPatient &&
-        value !== formatPatientSearchLabel(selectedPatient)
-      ) {
-        setSelectedPatientId(null);
-        onSelectedPatientChange(null);
-      }
+      setSelectedPatientId(null);
       triggerPatientSearch(value);
     }
   };
 
   const triggerPatientSearch = (rawQuery: string) => {
     const query = rawQuery.trim();
-    if (searchDebounceTimer) {
-      clearTimeout(searchDebounceTimer);
-    }
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
     if (!query) {
       setPatientResults([]);
       return;
@@ -1115,7 +1079,6 @@ function AppointmentForm({
     }));
     setPatientResults([]);
     setError("");
-    onSelectedPatientChange(p);
   };
 
   const getDoctorSchedulesForDate = () => {
@@ -1231,7 +1194,6 @@ function AppointmentForm({
         ...prev,
         patientQuery: formatPatientSearchLabel(p),
       }));
-      onSelectedPatientChange(p);
 
       setQuickPatientForm({ name: "", phone: "", branchId: "" });
       setShowQuickPatientModal(false);
@@ -1274,7 +1236,6 @@ function AppointmentForm({
       0,
       0
     );
-
     if (Number.isNaN(local.getTime())) {
       setError("Огноо/цаг буруу байна.");
       return;
@@ -1325,7 +1286,6 @@ function AppointmentForm({
           doctorId: "",
         }));
         setSelectedPatientId(null);
-        onSelectedPatientChange(null);
         setPatientResults([]);
       } else {
         setError((data as any).error || "Алдаа гарлаа");
@@ -1386,13 +1346,12 @@ function AppointmentForm({
             style={{
               padding: "0 10px",
               borderRadius: 6,
-              border: "1px solid #16a34a",
+              border: "1px солид #16a34a",
               background: "#dcfce7",
               color: "#166534",
               fontWeight: 600,
               cursor: "pointer",
             }}
-            title="Шинэ үйлчлүүлэгч хурдан бүртгэх"
           >
             +
           </button>
@@ -1503,7 +1462,7 @@ function AppointmentForm({
           required
           style={{
             borderRadius: 6,
-            border: "1px solid #d1d5db",
+            border: "1px солид #d1d5db",
             padding: "6px 8px",
           }}
         />
@@ -1544,7 +1503,7 @@ function AppointmentForm({
           onChange={handleChange}
           style={{
             borderRadius: 6,
-            border: "1px solid #d1d5db",
+            border: "1px солид #d1d5db",
             padding: "6px 8px",
           }}
         >
@@ -1573,7 +1532,7 @@ function AppointmentForm({
           onChange={handleChange}
           style={{
             borderRadius: 6,
-            border: "1px solid #d1d5db",
+            border: "1px солид #d1d5db",
             padding: "6px 8px",
           }}
         />
@@ -1660,7 +1619,7 @@ function AppointmentForm({
                   placeholder="Ж: Батболд"
                   style={{
                     borderRadius: 6,
-                    border: "1px solid #d1d5db",
+                    border: "1px солид #d1d5db",
                     padding: "6px 8px",
                   }}
                 />
@@ -1680,7 +1639,7 @@ function AppointmentForm({
                   placeholder="Ж: 99112233"
                   style={{
                     borderRadius: 6,
-                    border: "1px solid #d1d5db",
+                    border: "1px солид #d1d5db",
                     padding: "6px 8px",
                   }}
                 />
@@ -1699,7 +1658,7 @@ function AppointmentForm({
                   onChange={handleQuickPatientChange}
                   style={{
                     borderRadius: 6,
-                    border: "1px solid #d1d5db",
+                    border: "1px солид #d1d5db",
                     padding: "6px 8px",
                   }}
                 >
@@ -1740,7 +1699,7 @@ function AppointmentForm({
                   style={{
                     padding: "6px 12px",
                     borderRadius: 6,
-                    border: "1px solid #d1d5db",
+                    border: "1px солид #d1d5db",
                     background: "#f9fafb",
                     cursor: quickPatientSaving ? "default" : "pointer",
                   }}
@@ -1815,12 +1774,6 @@ export default function AppointmentsPage() {
     date: todayStr,
     time: "09:00",
   });
-
-  const [selectedPatient, setSelectedPatient] = useState<PatientLite | null>(
-    null
-  );
-
-  const formSectionRef = useRef<HTMLElement | null>(null);
 
   const loadAppointments = async () => {
     try {
@@ -1956,7 +1909,7 @@ export default function AppointmentsPage() {
               style={{
                 padding: "6px 12px",
                 borderRadius: 999,
-                border: isActive ? "1px solid #2563eb" : "1px solid #d1d5db",
+                border: isActive ? "1px солид #2563eb" : "1px solid #d1d5db",
                 backgroundColor: isActive ? "#eff6ff" : "#ffffff",
                 color: isActive ? "#1d4ed8" : "#374151",
                 fontSize: 13,
@@ -1998,7 +1951,7 @@ export default function AppointmentsPage() {
               onChange={(e) => setFilterDate(e.target.value)}
               style={{
                 borderRadius: 6,
-                border: "1px solid #d1d5db",
+                border: "1px солид #d1d5db",
                 padding: "6px 8px",
               }}
             />
@@ -2015,7 +1968,7 @@ export default function AppointmentsPage() {
               }}
               style={{
                 borderRadius: 6,
-                border: "1px solid #d1d5db",
+                border: "1px солид #d1d5db",
                 padding: "6px 8px",
               }}
             >
@@ -2035,7 +1988,7 @@ export default function AppointmentsPage() {
               onChange={(e) => setFilterDoctorId(e.target.value)}
               style={{
                 borderRadius: 6,
-                border: "1px solid #d1d5db",
+                border: "1px солид #d1d5db",
                 padding: "6px 8px",
               }}
             >
@@ -2050,14 +2003,13 @@ export default function AppointmentsPage() {
         </div>
       </section>
 
-      {/* Create form card */}
+      {/* Inline create form */}
       <section
-        ref={formSectionRef}
         style={{
           marginBottom: 24,
           padding: 16,
           borderRadius: 8,
-          border: "1px solid #e5e7eb",
+          border: "1px солид #e5e7eb",
           background: "white",
         }}
       >
@@ -2072,8 +2024,6 @@ export default function AppointmentsPage() {
           selectedDate={filterDate}
           selectedBranchId={filterBranchId}
           onCreated={(a) => setAppointments((prev) => [a, ...prev])}
-          selectedPatient={selectedPatient}
-          onSelectedPatientChange={setSelectedPatient}
         />
       </section>
 
@@ -2130,7 +2080,7 @@ export default function AppointmentsPage() {
                       padding: 8,
                       fontWeight: "bold",
                       textAlign: "center",
-                      borderLeft: "1px solid #ddd",
+                      borderLeft: "1px солид #ddd",
                     }}
                   >
                     <div>{formatDoctorName(doc)}</div>
@@ -2161,7 +2111,7 @@ export default function AppointmentsPage() {
                   <div
                     style={{
                       padding: 6,
-                      borderRight: "1px solid #ddd",
+                      borderRight: "1px солид #ddd",
                       backgroundColor:
                         rowIndex % 2 === 0 ? "#fafafa" : "#ffffff",
                     }}
@@ -2441,7 +2391,7 @@ export default function AppointmentsPage() {
                 <tr key={a.id}>
                   <td
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
+                      borderBottom: "1px солид #f0f0f0",
                       padding: 6,
                     }}
                   >
@@ -2526,7 +2476,6 @@ export default function AppointmentsPage() {
         branches={branches}
         doctors={doctors}
         onCreated={(a) => setAppointments((prev) => [a, ...prev])}
-        defaultPatient={selectedPatient}
       />
     </main>
   );
