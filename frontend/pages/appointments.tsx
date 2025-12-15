@@ -159,6 +159,24 @@ function getDateFromYMD(ymd: string): Date {
   return new Date(year, month - 1, day);
 }
 
+// Map internal status codes to Mongolian labels
+function formatStatus(status: string): string {
+  switch (status) {
+    case "booked":
+      return "Захиалсан";
+    case "confirmed":
+      return "Баталгаажсан";
+    case "ongoing":
+      return "Явагдаж байна";
+    case "completed":
+      return "Дууссан";
+    case "cancelled":
+      return "Цуцалсан";
+    default:
+      return status || "-";
+  }
+}
+
 type AppointmentFormProps = {
   branches: Branch[];
   doctors: Doctor[];
@@ -821,9 +839,10 @@ function AppointmentForm({
           }}
         >
           <option value="booked">Захиалсан</option>
+          <option value="confirmed">Баталгаажсан</option>
           <option value="ongoing">Явагдаж байна</option>
           <option value="completed">Дууссан</option>
-          <option value="cancelled">Цуцлагдсан</option>
+          <option value="cancelled">Цуцалсан</option>
         </select>
       </div>
 
@@ -1464,7 +1483,7 @@ export default function AppointmentsPage() {
                         {appsForCell.map((a) => (
                           <div key={a.id}>
                             {formatPatientLabel(a.patient, a.patientId)} (
-                            {a.status})
+                            {formatStatus(a.status)})
                           </div>
                         ))}
                       </div>
@@ -1558,7 +1577,7 @@ export default function AppointmentsPage() {
                       {a.branch?.name ?? a.branchId}
                     </div>
                     <div>Тайлбар: {a.notes || "-"}</div>
-                    <div>Төлөв: {a.status}</div>
+                    <div>Төлөв: {formatStatus(a.status)}</div>
                   </div>
                 ))}
             </div>
@@ -1700,7 +1719,7 @@ export default function AppointmentsPage() {
                       padding: 6,
                     }}
                   >
-                    {a.status}
+                    {formatStatus(a.status)}
                   </td>
                   <td
                     style={{
