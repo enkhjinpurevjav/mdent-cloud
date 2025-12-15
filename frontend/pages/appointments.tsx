@@ -395,31 +395,31 @@ export default function AppointmentsPage() {
   };
 
   const loadScheduledDoctors = async () => {
-    try {
-      const params = new URLSearchParams();
-      if (filterDate) params.set("date", filterDate);
-      if (filterBranchId) params.set("branchId", filterBranchId);
+  try {
+    const params = new URLSearchParams();
+    if (filterDate) params.set("date", filterDate);
+    if (filterBranchId) params.set("branchId", filterBranchId);
 
-      const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
-      const data = await res.json();
-      if (!res.ok || !Array.isArray(data)) {
-        throw new Error("failed");
-      }
+    const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
+    const data = await res.json();
+    console.log("scheduled doctors response", { params: params.toString(), data }); // <--- add this
 
-      const sorted = data
-        .slice()
-        .sort((a: ScheduledDoctor, b: ScheduledDoctor) => {
-          const an = (a.name || "").toLowerCase();
-          const bn = (b.name || "").toLowerCase();
-          return an.localeCompare(bn);
-        });
-
-      setScheduledDoctors(sorted);
-    } catch (e) {
-      console.error("Failed to load scheduled doctors", e);
-      setScheduledDoctors([]);
+    if (!res.ok || !Array.isArray(data)) {
+      throw new Error("failed");
     }
-  };
+
+    const sorted = data.slice().sort((a: ScheduledDoctor, b: ScheduledDoctor) => {
+      const an = (a.name || "").toLowerCase();
+      const bn = (b.name || "").toLowerCase();
+      return an.localeCompare(bn);
+    });
+
+    setScheduledDoctors(sorted);
+  } catch (e) {
+    console.error("Failed to load scheduled doctors", e);
+    setScheduledDoctors([]);
+  }
+};
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -455,9 +455,9 @@ export default function AppointmentsPage() {
     setFilterBranchId(branchId);
   };
 
-  // For the grid: use only scheduled doctors; if none, fallback to all doctors
-  const gridDoctors: ScheduledDoctor[] =
-    scheduledDoctors.length > 0 ? scheduledDoctors : doctors;
+  
+  // AFTER: only show scheduled doctors in the grid
+const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
 
   return (
     <main
