@@ -399,29 +399,29 @@ function QuickAppointmentModal({
       doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
       date: defaultDate,
       time: defaultTime,
+      patientId: null,
+      patientQuery: "",
     }));
     setError("");
     setPatientResults([]);
   }, [open, defaultDoctorId, defaultDate, defaultTime]);
 
   const handleChange = (
-  e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-) => {
-  const { name, value } = e.target;
-  setForm((prev) => ({ ...prev, [name]: value }));
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
 
-  if (name === "patientQuery") {
-    const trimmed = value.trim();
-    // If the user cleared the field, clear selection and results
-    if (!trimmed) {
-      setSelectedPatientId(null);
-      setPatientResults([]);
-      return;
+    if (name === "patientQuery") {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        setForm((prev) => ({ ...prev, patientId: null }));
+        setPatientResults([]);
+        return;
+      }
+      triggerPatientSearch(value);
     }
-    // Otherwise, only search – keep selectedPatientId as-is
-    triggerPatientSearch(value);
-  }
-};
+  };
 
   const triggerPatientSearch = (rawQuery: string) => {
     const query = rawQuery.trim();
@@ -510,25 +510,19 @@ function QuickAppointmentModal({
     setError("");
   };
 
- const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setError("");
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
 
-  console.log("DEBUG selectedPatientId =", selectedPatientId);
+    if (!form.branchId || !form.date || !form.time) {
+      setError("Салбар, огноо, цаг талбаруудыг бөглөнө үү.");
+      return;
+    }
 
-  if (!form.branchId || !form.date || !form.time) {
-    setError("Салбар, огноо, цаг талбаруудыг бөглөнө үү.");
-    return;
-  }
-
-  if (!selectedPatientId) {
-    setError(
-      "Үйлчлүүлэгчийг жагсаалтаас сонгох эсвэл + товчоор шинээр бүртгэнэ үү."
-    );
-    return;
-  }
-  // ...
-};
+    if (!form.patientId) {
+      setError("Үйлчлүүлэгчийг жагсаалтаас сонгоно уу.");
+      return;
+    }
 
     if (!form.doctorId) {
       setError("Цаг захиалахын өмнө эмчийг заавал сонгоно уу.");
@@ -890,8 +884,7 @@ function QuickAppointmentModal({
   );
 }
 
-// ===== Main AppointmentForm (page section) stays the same as previous version =====
-// (I’ll keep it, unchanged, so you can still use the inline form.)
+// ===== Main AppointmentForm (inline section) =====
 
 type AppointmentFormProps = {
   branches: Branch[];
@@ -925,7 +918,6 @@ function AppointmentForm({
   });
   const [error, setError] = useState("");
 
-  // visible patient search results
   const [patientResults, setPatientResults] = useState<PatientLite[]>([]);
   const [patientSearchLoading, setPatientSearchLoading] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState<number | null>(
@@ -934,7 +926,6 @@ function AppointmentForm({
   const [searchDebounceTimer, setSearchDebounceTimer] =
     useState<NodeJS.Timeout | null>(null);
 
-  // quick new patient modal
   const [showQuickPatientModal, setShowQuickPatientModal] = useState(false);
   const [quickPatientForm, setQuickPatientForm] = useState<{
     name: string;
@@ -948,7 +939,6 @@ function AppointmentForm({
   const [quickPatientError, setQuickPatientError] = useState("");
   const [quickPatientSaving, setQuickPatientSaving] = useState(false);
 
-  // 30-minute time slots for the currently selected date (filtered by doctor)
   const [daySlots, setDaySlots] = useState<{ label: string; value: string }[]>(
     []
   );
@@ -971,7 +961,6 @@ function AppointmentForm({
     }
   }, [selectedBranchId]);
 
-  // recompute slots whenever date OR selected doctor changes
   useEffect(() => {
     if (!form.date) {
       setDaySlots([]);
@@ -989,7 +978,6 @@ function AppointmentForm({
       start: s.start,
     }));
 
-    // If doctor selected and we have schedule, filter by schedule
     if (form.doctorId) {
       const doctorIdNum = Number(form.doctorId);
       const doc = scheduledDoctors.find((sd) => sd.id === doctorIdNum);
@@ -1006,7 +994,6 @@ function AppointmentForm({
 
     setDaySlots(slots.map(({ label, value }) => ({ label, value })));
 
-    // if current selected time is no longer valid, clear it
     if (form.time && !slots.some((s) => s.value === form.time)) {
       setForm((prev) => ({ ...prev, time: "" }));
     }
@@ -1019,12 +1006,15 @@ function AppointmentForm({
     setForm((prev) => ({ ...prev, [name]: value }));
 
     if (name === "patientQuery") {
-      setSelectedPatientId(null);
+      const trimmed = value.trim();
+      if (!trimmed) {
+        setSelectedPatientId(null);
+        setPatientResults([]);
+        return;
+      }
       triggerPatientSearch(value);
     }
   };
-
-  // ---- patient search (visible list) ----
 
   const triggerPatientSearch = (rawQuery: string) => {
     const query = rawQuery.trim();
@@ -1118,8 +1108,6 @@ function AppointmentForm({
     setError("");
   };
 
-  // ---- schedule-aware validation ----
-
   const getDoctorSchedulesForDate = () => {
     if (!form.doctorId) return [];
     const doctorIdNum = Number(form.doctorId);
@@ -1157,8 +1145,6 @@ function AppointmentForm({
       return t >= slotStart && t < slotEnd;
     }).length;
   };
-
-  // ---- quick new patient (modal) ----
 
   const handleQuickPatientChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -1255,13 +1241,13 @@ function AppointmentForm({
       return;
     }
 
-   console.log("DEBUG inline selectedPatientId =", selectedPatientId);
-if (!selectedPatientId) {
-  setError(
-    "Үйлчлүүлэгчийг жагсаалтаас сонгох эсвэл + товчоор шинээр бүртгэнэ үү."
-  );
-  return;
-}
+    console.log("DEBUG inline selectedPatientId =", selectedPatientId);
+    if (!selectedPatientId) {
+      setError(
+        "Үйлчлүүлэгчийг жагсаалтаас сонгох эсвэл + товчоор шинээр бүртгэнэ үү."
+      );
+      return;
+    }
 
     if (!form.doctorId) {
       setError("Цаг захиалахын өмнө эмчийг заавал сонгоно уу.");
@@ -1609,7 +1595,7 @@ if (!selectedPatientId) {
         )}
       </div>
 
-      {/* Quick new patient modal (unchanged) */}
+      {/* Quick new patient modal */}
       {showQuickPatientModal && (
         <div
           style={{
@@ -1778,6 +1764,8 @@ if (!selectedPatientId) {
   );
 }
 
+// ==== Page ====
+
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -1927,7 +1915,7 @@ export default function AppointmentsPage() {
           display: "flex",
           gap: 8,
           flexWrap: "wrap",
-          borderBottom: "1px solid #e5e7eb",
+          borderBottom: "1px солид #e5e7eb",
           paddingBottom: 8,
         }}
       >
@@ -2160,7 +2148,7 @@ export default function AppointmentsPage() {
                   <div
                     style={{
                       padding: 6,
-                      borderRight: "1px solid #ddd",
+                      borderRight: "1px солид #ddd",
                       backgroundColor:
                         rowIndex % 2 === 0 ? "#fafafa" : "#ffffff",
                     }}
@@ -2286,7 +2274,7 @@ export default function AppointmentsPage() {
               style={{
                 minWidth: 260,
                 maxWidth: 320,
-                border: "1px solid #e5e7eb",
+                border: "1px солид #e5e7eb",
                 borderRadius: 8,
                 padding: 10,
                 backgroundColor: "#ffffff",
@@ -2375,7 +2363,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px солид #ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 6,
                   }}
                 >
@@ -2384,7 +2372,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px солид #ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 6,
                   }}
                 >
@@ -2393,7 +2381,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px солид #ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 6,
                   }}
                 >
@@ -2402,7 +2390,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px солид #ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 6,
                   }}
                 >
@@ -2411,7 +2399,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px солид #ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 6,
                   }}
                 >
@@ -2420,7 +2408,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px солид #ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 6,
                   }}
                 >
@@ -2429,7 +2417,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px солид #ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 6,
                   }}
                 >
