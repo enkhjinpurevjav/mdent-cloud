@@ -851,7 +851,7 @@ export default function AppointmentsPage() {
 
                     if (!isWorkingHour) {
                       // Non-working hour → orange
-                      bg = "#f15a29";
+                      bg = "#ee7148";
                     } else if (appsForCell.length === 0) {
                       // Working hour, free
                       bg = "#ffffff";
