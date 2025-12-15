@@ -26,6 +26,7 @@ type PatientLite = {
   id: number;
   name: string;
   regNo: string;
+  phone?: string | null;
   patientBook?: { bookNumber: string } | null;
 };
 
@@ -156,7 +157,8 @@ function AppointmentForm({
   const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
   const [form, setForm] = useState({
-    patientId: "",
+    patientName: "",
+    patientPhone: "",
     doctorId: "",
     branchId: branches.length ? String(branches[0].id) : "",
     date: selectedDate || todayStr,
@@ -230,12 +232,71 @@ function AppointmentForm({
     }).length;
   };
 
+  // ---- helper: find or create patient by name + phone ----
+  const findOrCreatePatient = async (): Promise<number | null> => {
+    const name = form.patientName.trim();
+    const phone = form.patientPhone.trim();
+
+    if (!name || !phone) {
+      setError("Өвчтөний нэр, утсыг бөглөнө үү.");
+      return null;
+    }
+
+    try {
+      // 1) Try to find by phone
+      const searchRes = await fetch(
+        `/api/patients?phone=${encodeURIComponent(phone)}`
+      );
+      const searchData = await searchRes.json().catch(() => []);
+
+      if (searchRes.ok && Array.isArray(searchData) && searchData.length > 0) {
+        // Assume first match
+        const existing = searchData[0];
+        return existing.id;
+      }
+
+      // 2) Not found -> create a new patient (minimal fields)
+      const branchIdForPatient = form.branchId
+        ? Number(form.branchId)
+        : selectedBranchId
+        ? Number(selectedBranchId)
+        : null;
+
+      const payload: any = {
+        name,
+        phone,
+      };
+      if (branchIdForPatient) payload.branchId = branchIdForPatient;
+
+      const createRes = await fetch("/api/patients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const createData = await createRes.json().catch(() => null);
+      if (!createRes.ok || !createData || typeof createData.id !== "number") {
+        setError(
+          (createData && createData.error) ||
+            "Шинэ өвчтөн бүртгэх үед алдаа гарлаа."
+        );
+        return null;
+      }
+
+      return createData.id as number;
+    } catch (e) {
+      console.error("findOrCreatePatient error", e);
+      setError("Өвчтөний мэдээллийг шалгах үед алдаа гарлаа.");
+      return null;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (!form.patientId || !form.branchId || !form.date || !form.time) {
-      setError("Өвчтөн, салбар, огноо, цаг талбаруудыг бөглөнө үү.");
+    if (!form.branchId || !form.date || !form.time) {
+      setError("Салбар, огноо, цаг талбаруудыг бөглөнө үү.");
       return;
     }
 
@@ -246,7 +307,11 @@ function AppointmentForm({
       return;
     }
 
-    // schedule + capacity validation only if doctor selected
+    // 1) Get or create patient id
+    const patientId = await findOrCreatePatient();
+    if (!patientId) return;
+
+    // 2) schedule + capacity validation only if doctor selected
     if (form.doctorId) {
       if (!isWithinDoctorSchedule(scheduledAt)) {
         setError("Сонгосон цагт эмчийн ажлын хуваарь байхгүй байна.");
@@ -265,7 +330,7 @@ function AppointmentForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          patientId: Number(form.patientId),
+          patientId,
           doctorId: form.doctorId ? Number(form.doctorId) : null,
           branchId: Number(form.branchId),
           scheduledAt: scheduledAtStr,
@@ -283,7 +348,8 @@ function AppointmentForm({
         onCreated(data as Appointment);
         setForm((prev) => ({
           ...prev,
-          patientId: "",
+          patientName: "",
+          patientPhone: "",
           time: "",
           notes: "",
           status: "booked",
@@ -307,12 +373,13 @@ function AppointmentForm({
         fontSize: 13,
       }}
     >
+      {/* Patient name */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Өвчтөн ID</label>
+        <label>Өвчтөний нэр</label>
         <input
-          name="patientId"
-          placeholder="Ж: 123"
-          value={form.patientId}
+          name="patientName"
+          placeholder="Ж: Батболд"
+          value={form.patientName}
           onChange={handleChange}
           required
           style={{
@@ -323,6 +390,24 @@ function AppointmentForm({
         />
       </div>
 
+      {/* Patient phone */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Утас</label>
+        <input
+          name="patientPhone"
+          placeholder="Ж: 99112233"
+          value={form.patientPhone}
+          onChange={handleChange}
+          required
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      {/* Doctor */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Эмч</label>
         <select
@@ -347,6 +432,7 @@ function AppointmentForm({
         </select>
       </div>
 
+      {/* Branch */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Салбар</label>
         <select
@@ -369,6 +455,7 @@ function AppointmentForm({
         </select>
       </div>
 
+      {/* Date */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Огноо</label>
         <input
@@ -385,6 +472,7 @@ function AppointmentForm({
         />
       </div>
 
+      {/* Time */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Цаг</label>
         <input
@@ -404,6 +492,7 @@ function AppointmentForm({
         />
       </div>
 
+      {/* Status */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Төлөв</label>
         <select
@@ -423,6 +512,7 @@ function AppointmentForm({
         </select>
       </div>
 
+      {/* Notes */}
       <div
         style={{
           display: "flex",
@@ -445,6 +535,7 @@ function AppointmentForm({
         />
       </div>
 
+      {/* Submit + error */}
       <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8 }}>
         <button
           type="submit"
