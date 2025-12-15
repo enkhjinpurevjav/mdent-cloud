@@ -16,8 +16,8 @@ type ScheduledDoctor = Doctor & {
     id: number;
     branchId: number;
     date: string;
-    startTime: string;
-    endTime: string;
+    startTime: string; // "HH:MM"
+    endTime: string; // "HH:MM"
     note: string | null;
   }[];
 };
@@ -82,6 +82,20 @@ function generateTimeSlotsForDay(day: Date): TimeSlot[] {
     }
   }
   return slots;
+}
+
+function pad2(n: number) {
+  return n.toString().padStart(2, "0");
+}
+
+function getSlotTimeString(date: Date): string {
+  // "HH:MM" (24h) in local time
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+// Returns true if "time" is within [startTime, endTime)
+function isTimeWithinRange(time: string, startTime: string, endTime: string) {
+  return time >= startTime && time < endTime;
 }
 
 function formatDoctorName(d?: Doctor | null) {
@@ -395,31 +409,36 @@ export default function AppointmentsPage() {
   };
 
   const loadScheduledDoctors = async () => {
-  try {
-    const params = new URLSearchParams();
-    if (filterDate) params.set("date", filterDate);
-    if (filterBranchId) params.set("branchId", filterBranchId);
+    try {
+      const params = new URLSearchParams();
+      if (filterDate) params.set("date", filterDate);
+      if (filterBranchId) params.set("branchId", filterBranchId);
 
-    const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
-    const data = await res.json();
-    console.log("scheduled doctors response", { params: params.toString(), data }); // <--- add this
+      const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
+      const data = await res.json();
+      console.log("scheduled doctors response", {
+        params: params.toString(),
+        data,
+      });
 
-    if (!res.ok || !Array.isArray(data)) {
-      throw new Error("failed");
+      if (!res.ok || !Array.isArray(data)) {
+        throw new Error("failed");
+      }
+
+      const sorted = data
+        .slice()
+        .sort((a: ScheduledDoctor, b: ScheduledDoctor) => {
+          const an = (a.name || "").toLowerCase();
+          const bn = (b.name || "").toLowerCase();
+          return an.localeCompare(bn);
+        });
+
+      setScheduledDoctors(sorted);
+    } catch (e) {
+      console.error("Failed to load scheduled doctors", e);
+      setScheduledDoctors([]);
     }
-
-    const sorted = data.slice().sort((a: ScheduledDoctor, b: ScheduledDoctor) => {
-      const an = (a.name || "").toLowerCase();
-      const bn = (b.name || "").toLowerCase();
-      return an.localeCompare(bn);
-    });
-
-    setScheduledDoctors(sorted);
-  } catch (e) {
-    console.error("Failed to load scheduled doctors", e);
-    setScheduledDoctors([]);
-  }
-};
+  };
 
   useEffect(() => {
     const loadMeta = async () => {
@@ -455,9 +474,8 @@ export default function AppointmentsPage() {
     setFilterBranchId(branchId);
   };
 
-  
-  // AFTER: only show scheduled doctors in the grid
-const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
+  // For the grid: ONLY show scheduled doctors
+  const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
 
   return (
     <main
@@ -630,7 +648,7 @@ const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
         </div>
       )}
 
-      {/* Day-grouped mini calendar (unchanged) */}
+      {/* Day-grouped mini calendar */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 8 }}>Календарь (өдрөөр)</h2>
         {groupedAppointments.length === 0 && (
@@ -719,7 +737,7 @@ const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
         </div>
       </section>
 
-      {/* Time grid by doctor – uses scheduled doctors */}
+      {/* Time grid by doctor – using scheduled doctors and coloring non-working hours */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
@@ -817,16 +835,38 @@ const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
                       return t >= slot.start && t < slot.end;
                     });
 
-                    const bg =
-                      appsForCell.length === 0
-                        ? "#ffffff"
-                        : appsForCell[0].status === "completed"
-                        ? "#e0f7e9"
-                        : appsForCell[0].status === "ongoing"
-                        ? "#fff4e0"
-                        : appsForCell[0].status === "cancelled"
-                        ? "#fde0e0"
-                        : "#e6f0ff";
+                    const slotTimeStr = getSlotTimeString(slot.start); // "HH:MM"
+                    const schedules = (doc as any).schedules || [];
+
+                    // Working hour = inside any DoctorSchedule for this doctor
+                    const isWorkingHour = schedules.some((s: any) =>
+                      isTimeWithinRange(
+                        slotTimeStr,
+                        s.startTime,
+                        s.endTime
+                      )
+                    );
+
+                    let bg: string;
+
+                    if (!isWorkingHour) {
+                      // Non-working hour → orange
+                      bg = "#ffe8cc";
+                    } else if (appsForCell.length === 0) {
+                      // Working hour, free
+                      bg = "#ffffff";
+                    } else {
+                      // Working hour, booked: status-based color
+                      const status = appsForCell[0].status;
+                      bg =
+                        status === "completed"
+                          ? "#e0f7e9"
+                          : status === "ongoing"
+                          ? "#fff4e0"
+                          : status === "cancelled"
+                          ? "#fde0e0"
+                          : "#e6f0ff";
+                    }
 
                     return (
                       <div
@@ -854,7 +894,7 @@ const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
         )}
       </section>
 
-      {/* Raw table (unchanged) */}
+      {/* Raw table */}
       <section>
         <h2 style={{ fontSize: 16, marginBottom: 8 }}>
           Бүгдийг жагсаалтаар харах
