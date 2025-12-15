@@ -11,6 +11,17 @@ type Doctor = {
   ovog: string | null;
 };
 
+type ScheduledDoctor = Doctor & {
+  schedules?: {
+    id: number;
+    branchId: number;
+    date: string;
+    startTime: string;
+    endTime: string;
+    note: string | null;
+  }[];
+};
+
 type PatientLite = {
   id: number;
   name: string;
@@ -73,16 +84,6 @@ function generateTimeSlotsForDay(day: Date): TimeSlot[] {
   return slots;
 }
 
-function getUniqueDoctorIds(appointments: Appointment[]): (number | null)[] {
-  const set = new Set<number | null>();
-  for (const a of appointments) set.add(a.doctorId);
-  return Array.from(set).sort((a, b) => {
-    if (a === null) return -1;
-    if (b === null) return 1;
-    return a - b;
-  });
-}
-
 function formatDoctorName(d?: Doctor | null) {
   if (!d) return "Тодорхойгүй";
   const name = d.name || "";
@@ -99,6 +100,12 @@ function formatPatientLabel(p?: PatientLite, id?: number) {
     ? ` • Карт: ${p.patientBook.bookNumber}`
     : "";
   return `${p.name}${book}`;
+}
+
+function getDateFromYMD(ymd: string): Date {
+  const [year, month, day] = ymd.split("-").map(Number);
+  if (!year || !month || !day) return new Date();
+  return new Date(year, month - 1, day);
 }
 
 type AppointmentFormProps = {
@@ -350,6 +357,9 @@ export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>(
+    []
+  );
   const [error, setError] = useState("");
 
   // Filters
@@ -358,14 +368,12 @@ export default function AppointmentsPage() {
   const [filterBranchId, setFilterBranchId] = useState<string>("");
   const [filterDoctorId, setFilterDoctorId] = useState<string>("");
 
-  // NEW: Active branch tab
-  // "" means "all branches" tab is selected.
+  // Branch tab ("" = all branches)
   const [activeBranchTab, setActiveBranchTab] = useState<string>("");
 
   const groupedAppointments = groupByDate(appointments);
-  const today = new Date();
-  const timeSlots = generateTimeSlotsForDay(today);
-  const doctorIds = getUniqueDoctorIds(appointments);
+  const selectedDay = getDateFromYMD(filterDate);
+  const timeSlots = generateTimeSlotsForDay(selectedDay);
 
   const loadAppointments = async () => {
     try {
@@ -383,6 +391,33 @@ export default function AppointmentsPage() {
       setAppointments(data);
     } catch {
       setError("Цаг захиалгуудыг ачаалах үед алдаа гарлаа.");
+    }
+  };
+
+  const loadScheduledDoctors = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (filterDate) params.set("date", filterDate);
+      if (filterBranchId) params.set("branchId", filterBranchId);
+
+      const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok || !Array.isArray(data)) {
+        throw new Error("failed");
+      }
+
+      const sorted = data
+        .slice()
+        .sort((a: ScheduledDoctor, b: ScheduledDoctor) => {
+          const an = (a.name || "").toLowerCase();
+          const bn = (b.name || "").toLowerCase();
+          return an.localeCompare(bn);
+        });
+
+      setScheduledDoctors(sorted);
+    } catch (e) {
+      console.error("Failed to load scheduled doctors", e);
+      setScheduledDoctors([]);
     }
   };
 
@@ -411,16 +446,18 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     loadAppointments();
+    loadScheduledDoctors();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterDate, filterBranchId, filterDoctorId]);
 
-  // When user clicks a branch tab, we:
-  // - set activeBranchTab for UI
-  // - set filterBranchId so backend query filters by that branch
   const handleBranchTabClick = (branchId: string) => {
     setActiveBranchTab(branchId);
     setFilterBranchId(branchId);
   };
+
+  // For the grid: use only scheduled doctors; if none, fallback to all doctors
+  const gridDoctors: ScheduledDoctor[] =
+    scheduledDoctors.length > 0 ? scheduledDoctors : doctors;
 
   return (
     <main
@@ -528,7 +565,7 @@ export default function AppointmentsPage() {
               onChange={(e) => {
                 const value = e.target.value;
                 setFilterBranchId(value);
-                setActiveBranchTab(value); // keep tabs in sync with dropdown
+                setActiveBranchTab(value);
               }}
               style={{
                 borderRadius: 6,
@@ -593,7 +630,7 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Day-grouped mini calendar */}
+      {/* Day-grouped mini calendar (unchanged) */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 8 }}>Календарь (өдрөөр)</h2>
         {groupedAppointments.length === 0 && (
@@ -682,17 +719,25 @@ export default function AppointmentsPage() {
         </div>
       </section>
 
-      {/* Time grid by doctor */}
+      {/* Time grid by doctor – uses scheduled doctors */}
       <section style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 8 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
         </h2>
-        {appointments.length === 0 && (
+        <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
+          {selectedDay.toLocaleDateString("mn-MN", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            weekday: "long",
+          })}
+        </div>
+        {gridDoctors.length === 0 && (
           <div style={{ color: "#6b7280", fontSize: 13 }}>
-            Цаг захиалга алга.
+            Энэ өдөр ажиллах эмчийн хуваарь алга.
           </div>
         )}
-        {appointments.length > 0 && (
+        {gridDoctors.length > 0 && (
           <div
             style={{
               border: "1px solid #ddd",
@@ -701,22 +746,23 @@ export default function AppointmentsPage() {
               fontSize: 12,
             }}
           >
-            {/* Header row: empty corner + doctor names */}
+            {/* Header row: doctor names + appointment counts */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: `80px repeat(${doctorIds.length}, 1fr)`,
+                gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
                 backgroundColor: "#f5f5f5",
                 borderBottom: "1px solid #ddd",
               }}
             >
               <div style={{ padding: 8, fontWeight: "bold" }}>Цаг</div>
-              {doctorIds.map((docId, idx) => {
-                const doc = appointments.find((a) => a.doctorId === docId)
-                  ?.doctor;
+              {gridDoctors.map((doc) => {
+                const count = appointments.filter(
+                  (a) => a.doctorId === doc.id
+                ).length;
                 return (
                   <div
-                    key={idx}
+                    key={doc.id}
                     style={{
                       padding: 8,
                       fontWeight: "bold",
@@ -724,9 +770,16 @@ export default function AppointmentsPage() {
                       borderLeft: "1px solid #ddd",
                     }}
                   >
-                    {docId === null
-                      ? "Эмч сонгоогүй"
-                      : formatDoctorName(doc ?? null)}
+                    <div>{formatDoctorName(doc)}</div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "#6b7280",
+                        marginTop: 2,
+                      }}
+                    >
+                      {count} захиалга
+                    </div>
                   </div>
                 );
               })}
@@ -739,7 +792,7 @@ export default function AppointmentsPage() {
                   key={rowIndex}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: `80px repeat(${doctorIds.length}, 1fr)`,
+                    gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
                     borderBottom: "1px solid #f0f0f0",
                   }}
                 >
@@ -755,17 +808,13 @@ export default function AppointmentsPage() {
                     {slot.label}
                   </div>
 
-                  {/* One cell per doctor for this time slot */}
-                  {doctorIds.map((docId, colIndex) => {
+                  {/* Cell per doctor */}
+                  {gridDoctors.map((doc) => {
                     const appsForCell = appointments.filter((a) => {
+                      if (a.doctorId !== doc.id) return false;
                       const t = new Date(a.scheduledAt);
                       if (Number.isNaN(t.getTime())) return false;
-                      return (
-                        (a.doctorId === docId ||
-                          (a.doctorId === null && docId === null)) &&
-                        t >= slot.start &&
-                        t < slot.end
-                      );
+                      return t >= slot.start && t < slot.end;
                     });
 
                     const bg =
@@ -781,7 +830,7 @@ export default function AppointmentsPage() {
 
                     return (
                       <div
-                        key={colIndex}
+                        key={doc.id}
                         style={{
                           padding: 4,
                           borderLeft: "1px solid #f0f0f0",
@@ -805,7 +854,7 @@ export default function AppointmentsPage() {
         )}
       </section>
 
-      {/* Raw table */}
+      {/* Raw table (unchanged) */}
       <section>
         <h2 style={{ fontSize: 16, marginBottom: 8 }}>
           Бүгдийг жагсаалтаар харах
