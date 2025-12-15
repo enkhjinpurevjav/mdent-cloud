@@ -205,7 +205,7 @@ function AppointmentForm({
   const [quickPatientForm, setQuickPatientForm] = useState<{
     name: string;
     phone: string;
-    branchId: string; // new: branch selection inside modal
+    branchId: string;
   }>({
     name: "",
     phone: "",
@@ -220,7 +220,6 @@ function AppointmentForm({
     }
   }, [branches, form.branchId]);
 
-  // keep date/branch in sync with filters
   useEffect(() => {
     if (selectedDate) {
       setForm((prev) => ({ ...prev, date: selectedDate }));
@@ -240,7 +239,7 @@ function AppointmentForm({
     setForm((prev) => ({ ...prev, [name]: value }));
 
     if (name === "patientQuery") {
-      setSelectedPatientId(null); // changing text cancels prior selection
+      setSelectedPatientId(null);
       triggerPatientSearch(value);
     }
   };
@@ -292,7 +291,6 @@ function AppointmentForm({
             .toLowerCase();
 
           if (isNumeric) {
-            // digits: only match regNo / phone / book number
             return (
               regNo.includes(qAtSchedule) ||
               phone.includes(qAtSchedule) ||
@@ -300,7 +298,6 @@ function AppointmentForm({
             );
           }
 
-          // text: allow all main fields
           return (
             regNo.includes(qAtSchedule) ||
             phone.includes(qAtSchedule) ||
@@ -348,13 +345,12 @@ function AppointmentForm({
     const doctorIdNum = Number(form.doctorId);
     const doc = scheduledDoctors.find((d) => d.id === doctorIdNum);
     if (!doc || !doc.schedules) return [];
-    // /api/doctors/scheduled is already filtered by date
     return doc.schedules;
   };
 
   const isWithinDoctorSchedule = (scheduledAt: Date) => {
     const schedules = getDoctorSchedulesForDate();
-    if (schedules.length === 0) return true; // no schedule info: don't block
+    if (schedules.length === 0) return true;
     const timeStr = getSlotTimeString(scheduledAt);
     return schedules.some((s: any) =>
       isTimeWithinRange(timeStr, s.startTime, s.endTime)
@@ -399,8 +395,6 @@ function AppointmentForm({
       return;
     }
 
-    // if branch is explicitly chosen in modal, use it;
-    // otherwise fall back to main form branch or filter branch
     const branchIdFromModal = quickPatientForm.branchId
       ? Number(quickPatientForm.branchId)
       : null;
@@ -487,7 +481,6 @@ function AppointmentForm({
       return;
     }
 
-    // build local Date (no timezone shift) and send ISO
     const [year, month, day] = form.date.split("-").map(Number);
     const [hour, minute] = form.time.split(":").map(Number);
 
@@ -511,7 +504,6 @@ function AppointmentForm({
 
     const patientId = selectedPatientId;
 
-    // schedule + capacity validation only if doctor selected
     if (form.doctorId) {
       if (!isWithinDoctorSchedule(scheduledAt)) {
         setError("Сонгосон цагт эмчийн ажлын хуваарь байхгүй байна.");
@@ -574,7 +566,7 @@ function AppointmentForm({
         fontSize: 13,
       }}
     >
-      {/* Patient (Үйлчлүүлэгч) field + quick create button */}
+      {/* Үйлчлүүлэгч */}
       <div
         style={{
           display: "flex",
@@ -602,7 +594,6 @@ function AppointmentForm({
             onClick={() => {
               setShowQuickPatientModal(true);
               setQuickPatientError("");
-              // preselect branch in modal from main form if empty
               setQuickPatientForm((prev) => ({
                 ...prev,
                 branchId: prev.branchId || form.branchId || selectedBranchId,
@@ -629,7 +620,6 @@ function AppointmentForm({
         )}
       </div>
 
-      {/* Visible patient search results */}
       {patientResults.length > 0 && (
         <div
           style={{
@@ -838,9 +828,7 @@ function AppointmentForm({
               fontSize: 13,
             }}
           >
-            <h3
-              style={{ marginTop: 0, marginBottom: 8, fontSize: 15 }}
-            >
+            <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 15 }}>
               Шинэ үйлчлүүлэгч хурдан бүртгэх
             </h3>
             <p
@@ -850,9 +838,8 @@ function AppointmentForm({
                 color: "#6b7280",
               }}
             >
-              Зөвхөн нэр, утас болон салбарыг бүртгэнэ. Дэлгэрэнгүй
-              мэдээллийг дараа нь &quot;Үйлчлүүлэгчийн бүртгэл&quot;
-              хэсгээс засварлана.
+              Зөвхөн нэр, утас болон салбарыг бүртгэнэ. Дэлгэрэнгүй мэдээллийг
+              дараа нь &quot;Үйлчлүүлэгчийн бүртгэл&quot; хэсгээс засварлана.
             </p>
             <div
               style={{
@@ -976,9 +963,7 @@ function AppointmentForm({
                     cursor: quickPatientSaving ? "default" : "pointer",
                   }}
                 >
-                  {quickPatientSaving
-                    ? "Хадгалж байна..."
-                    : "Хадгалах"}
+                  {quickPatientSaving ? "Хадгалж байна..." : "Хадгалах"}
                 </button>
               </div>
             </div>
@@ -998,13 +983,11 @@ export default function AppointmentsPage() {
   );
   const [error, setError] = useState("");
 
-  // Filters
   const todayStr = new Date().toISOString().slice(0, 10);
   const [filterDate, setFilterDate] = useState<string>(todayStr);
   const [filterBranchId, setFilterBranchId] = useState<string>("");
   const [filterDoctorId, setFilterDoctorId] = useState<string>("");
 
-  // Branch tab ("" = all branches)
   const [activeBranchTab, setActiveBranchTab] = useState<string>("");
 
   const groupedAppointments = groupByDate(appointments);
@@ -1038,10 +1021,6 @@ export default function AppointmentsPage() {
 
       const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
       const data = await res.json();
-      console.log("scheduled doctors response", {
-        params: params.toString(),
-        data,
-      });
 
       if (!res.ok || !Array.isArray(data)) {
         throw new Error("failed");
@@ -1096,7 +1075,6 @@ export default function AppointmentsPage() {
     setFilterBranchId(branchId);
   };
 
-  // For the grid: ONLY scheduled doctors
   const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
 
   return (
@@ -1363,8 +1341,317 @@ export default function AppointmentsPage() {
         </div>
       </section>
 
-      {/* Time grid and raw table remain unchanged from your last working version */}
-      {/* ... */}
+      {/* Time grid by doctor */}
+      <section style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 4 }}>
+          Өдрийн цагийн хүснэгт (эмчээр)
+        </h2>
+        <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
+          {selectedDay.toLocaleDateString("mn-MN", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            weekday: "long",
+          })}
+        </div>
+        {gridDoctors.length === 0 && (
+          <div style={{ color: "#6b7280", fontSize: 13 }}>
+            Энэ өдөр ажиллах эмчийн хуваарь алга.
+          </div>
+        )}
+        {gridDoctors.length > 0 && (
+          <div
+            style={{
+              border: "1px solid #ddd",
+              borderRadius: 8,
+              overflow: "hidden",
+              fontSize: 12,
+            }}
+          >
+            {/* Header row */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+                backgroundColor: "#f5f5f5",
+                borderBottom: "1px solid #ddd",
+              }}
+            >
+              <div style={{ padding: 8, fontWeight: "bold" }}>Цаг</div>
+              {gridDoctors.map((doc) => {
+                const count = appointments.filter(
+                  (a) => a.doctorId === doc.id
+                ).length;
+                return (
+                  <div
+                    key={doc.id}
+                    style={{
+                      padding: 8,
+                      fontWeight: "bold",
+                      textAlign: "center",
+                      borderLeft: "1px solid #ddd",
+                    }}
+                  >
+                    <div>{formatDoctorName(doc)}</div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "#6b7280",
+                        marginTop: 2,
+                      }}
+                    >
+                      {count} захиалга
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Time rows */}
+            <div>
+              {timeSlots.map((slot, rowIndex) => (
+                <div
+                  key={rowIndex}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+                    borderBottom: "1px solid #f0f0f0",
+                  }}
+                >
+                  {/* Time label */}
+                  <div
+                    style={{
+                      padding: 6,
+                      borderRight: "1px solid #ddd",
+                      backgroundColor:
+                        rowIndex % 2 === 0 ? "#fafafa" : "#ffffff",
+                    }}
+                  >
+                    {slot.label}
+                  </div>
+
+                  {/* Cell per doctor */}
+                  {gridDoctors.map((doc) => {
+                    const appsForCell = appointments.filter((a) => {
+                      if (a.doctorId !== doc.id) return false;
+                      const t = new Date(a.scheduledAt);
+                      if (Number.isNaN(t.getTime())) return false;
+                      return t >= slot.start && t < slot.end;
+                    });
+
+                    const slotTimeStr = getSlotTimeString(slot.start);
+                    const schedules = (doc as any).schedules || [];
+
+                    const isWorkingHour = schedules.some((s: any) =>
+                      isTimeWithinRange(
+                        slotTimeStr,
+                        s.startTime,
+                        s.endTime
+                      )
+                    );
+
+                    const weekdayIndex = slot.start.getDay();
+                    const isWeekend =
+                      weekdayIndex === 0 || weekdayIndex === 6;
+
+                    const isWeekendLunch =
+                      isWeekend &&
+                      isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+
+                    let bg: string;
+
+                    if (!isWorkingHour || isWeekendLunch) {
+                      bg = "#ee7148";
+                    } else if (appsForCell.length === 0) {
+                      bg = "#ffffff";
+                    } else {
+                      const status = appsForCell[0].status;
+                      bg =
+                        status === "completed"
+                          ? "#e0f7e9"
+                          : status === "ongoing"
+                          ? "#fff4e0"
+                          : status === "cancelled"
+                          ? "#fde0e0"
+                          : "#e6f0ff";
+                    }
+
+                    return (
+                      <div
+                        key={doc.id}
+                        style={{
+                          padding: 4,
+                          borderLeft: "1px solid #f0f0f0",
+                          backgroundColor: bg,
+                          minHeight: 28,
+                        }}
+                      >
+                        {appsForCell.map((a) => (
+                          <div key={a.id}>
+                            {formatPatientLabel(a.patient, a.patientId)} (
+                            {a.status})
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Raw table */}
+      <section>
+        <h2 style={{ fontSize: 16, marginBottom: 8 }}>
+          Бүгдийг жагсаалтаар харах
+        </h2>
+        {appointments.length === 0 ? (
+          <div style={{ color: "#6b7280", fontSize: 13 }}>
+            Цаг захиалга алга.
+          </div>
+        ) : (
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              marginTop: 4,
+              fontSize: 13,
+            }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 6,
+                  }}
+                >
+                  ID
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Өвчтөн
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Салбар
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Эмч
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Огноо / цаг
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Төлөв
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Тэмдэглэл
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {appointments.map((a) => (
+                <tr key={a.id}>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 6,
+                    }}
+                  >
+                    {a.id}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 6,
+                    }}
+                  >
+                    {formatPatientLabel(a.patient, a.patientId)}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 6,
+                    }}
+                  >
+                    {a.branch?.name ?? a.branchId}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 6,
+                    }}
+                  >
+                    {formatDoctorName(a.doctor ?? null)}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 6,
+                    }}
+                  >
+                    {new Date(a.scheduledAt).toLocaleString("mn-MN")}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 6,
+                    }}
+                  >
+                    {a.status}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 6,
+                    }}
+                  >
+                    {a.notes || "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
     </main>
   );
 }
