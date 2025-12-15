@@ -26,7 +26,6 @@ type PatientLite = {
   id: number;
   name: string;
   regNo: string;
-  phone?: string | null;
   patientBook?: { bookNumber: string } | null;
 };
 
@@ -135,20 +134,11 @@ function getDateFromYMD(ymd: string): Date {
   return new Date(year, month - 1, day);
 }
 
-// ---------- Patient search helper types ----------
-type PatientSearchResult = {
-  id: number;
-  name: string;
-  regNo: string;
-  phone?: string | null;
-  patientBook?: { bookNumber: string } | null;
-};
-
 type AppointmentFormProps = {
   branches: Branch[];
   doctors: Doctor[];
   scheduledDoctors: ScheduledDoctor[];
-  appointments: Appointment[]; // full list, we'll filter inside
+  appointments: Appointment[];
   selectedDate: string;
   selectedBranchId: string;
   onCreated: (a: Appointment) => void;
@@ -176,22 +166,13 @@ function AppointmentForm({
   });
   const [error, setError] = useState("");
 
-  // Patient search state
-  const [patientQuery, setPatientQuery] = useState("");
-  const [patientResults, setPatientResults] = useState<PatientSearchResult[]>(
-    []
-  );
-  const [patientSearchLoading, setPatientSearchLoading] = useState(false);
-  const [selectedPatient, setSelectedPatient] =
-    useState<PatientSearchResult | null>(null);
-
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
       setForm((prev) => ({ ...prev, branchId: String(branches[0].id) }));
     }
   }, [branches, form.branchId]);
 
-  // sync date/branch in form with filters
+  // keep date/branch in sync with filters
   useEffect(() => {
     if (selectedDate) {
       setForm((prev) => ({ ...prev, date: selectedDate }));
@@ -208,50 +189,7 @@ function AppointmentForm({
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => setForm({ ...form, [e.target.name]: e.target.value });
 
-  // --- Patient search ---
-
-  const searchPatients = async () => {
-    if (!patientQuery.trim()) {
-      setPatientResults([]);
-      return;
-    }
-    try {
-      setPatientSearchLoading(true);
-      // Adjust this to your actual search API
-      const res = await fetch(
-        `/api/patients?search=${encodeURIComponent(patientQuery.trim())}`
-      );
-      const data = await res.json();
-      if (res.ok && Array.isArray(data)) {
-        setPatientResults(
-          data.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            regNo: p.regNo,
-            phone: p.phone,
-            patientBook: p.patientBook || null,
-          }))
-        );
-      } else {
-        setPatientResults([]);
-      }
-    } catch (e) {
-      console.error("Failed to search patients", e);
-      setPatientResults([]);
-    } finally {
-      setPatientSearchLoading(false);
-    }
-  };
-
-  const handleSelectPatient = (p: PatientSearchResult) => {
-    setSelectedPatient(p);
-    setForm((prev) => ({ ...prev, patientId: String(p.id) }));
-    setPatientResults([]);
-    setPatientQuery("");
-    setError("");
-  };
-
-  // --- schedule / capacity helpers ---
+  // ---- schedule-aware validation ----
 
   const getDoctorSchedulesForDate = () => {
     if (!form.doctorId) return [];
@@ -264,7 +202,7 @@ function AppointmentForm({
 
   const isWithinDoctorSchedule = (scheduledAt: Date) => {
     const schedules = getDoctorSchedulesForDate();
-    if (schedules.length === 0) return true; // if no schedule info, don't block
+    if (schedules.length === 0) return true; // no schedule info: don't block
     const timeStr = getSlotTimeString(scheduledAt);
     return schedules.some((s: any) =>
       isTimeWithinRange(timeStr, s.startTime, s.endTime)
@@ -274,6 +212,7 @@ function AppointmentForm({
   const countAppointmentsInSlot = (scheduledAt: Date) => {
     if (!form.doctorId) return 0;
     const doctorIdNum = Number(form.doctorId);
+
     const slotStart = new Date(scheduledAt);
     const slotEnd = new Date(
       slotStart.getTime() + SLOT_MINUTES * 60 * 1000
@@ -281,10 +220,10 @@ function AppointmentForm({
 
     return appointments.filter((a) => {
       if (a.doctorId !== doctorIdNum) return false;
-      const t = new Date(a.scheduledAt);
-      if (Number.isNaN(t.getTime())) return false;
       if (selectedBranchId && String(a.branchId) !== selectedBranchId)
         return false;
+      const t = new Date(a.scheduledAt);
+      if (Number.isNaN(t.getTime())) return false;
       const dayStr = t.toISOString().slice(0, 10);
       if (dayStr !== form.date) return false;
       return t >= slotStart && t < slotEnd;
@@ -295,22 +234,19 @@ function AppointmentForm({
     e.preventDefault();
     setError("");
 
-    if (!form.patientId) {
-      setError("Өвчтөн сонгоно уу.");
-      return;
-    }
-    if (!form.branchId || !form.date || !form.time) {
-      setError("Салбар, огноо, цаг талбаруудыг бөглөнө үү.");
+    if (!form.patientId || !form.branchId || !form.date || !form.time) {
+      setError("Өвчтөн, салбар, огноо, цаг талбаруудыг бөглөнө үү.");
       return;
     }
 
     const scheduledAtStr = `${form.date}T${form.time}`;
     const scheduledAt = new Date(scheduledAtStr);
     if (Number.isNaN(scheduledAt.getTime())) {
-      setError("Цагийн формат буруу байна.");
+      setError("Огноо/цаг буруу байна.");
       return;
     }
 
+    // schedule + capacity validation only if doctor selected
     if (form.doctorId) {
       if (!isWithinDoctorSchedule(scheduledAt)) {
         setError("Сонгосон цагт эмчийн ажлын хуваарь байхгүй байна.");
@@ -352,8 +288,6 @@ function AppointmentForm({
           notes: "",
           status: "booked",
         }));
-        setSelectedPatient(null);
-        setError("");
       } else {
         setError((data as any).error || "Алдаа гарлаа");
       }
@@ -369,146 +303,26 @@ function AppointmentForm({
         marginBottom: 24,
         display: "grid",
         gap: 12,
-        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
         fontSize: 13,
       }}
     >
-      {/* Patient search */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-          gridColumn: "1 / -1",
-        }}
-      >
-        <label>Өвчтөн хайх</label>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            placeholder="Нэр, РД эсвэл утас..."
-            value={patientQuery}
-            onChange={(e) => setPatientQuery(e.target.value)}
-            style={{
-              flex: 1,
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              padding: "6px 8px",
-            }}
-          />
-          <button
-            type="button"
-            onClick={searchPatients}
-            disabled={patientSearchLoading}
-            style={{
-              padding: "6px 10px",
-              borderRadius: 6,
-              border: "1px solid #2563eb",
-              background: "#2563eb",
-              color: "white",
-              fontSize: 12,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {patientSearchLoading ? "Хайж байна..." : "Хайх"}
-          </button>
-        </div>
-
-        {selectedPatient && (
-          <div
-            style={{
-              marginTop: 6,
-              padding: 8,
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              background: "#f9fafb",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <div>
-              <div style={{ fontWeight: 600 }}>
-                {selectedPatient.name}{" "}
-                <span style={{ color: "#6b7280", fontSize: 12 }}>
-                  ({selectedPatient.regNo})
-                </span>
-              </div>
-              <div style={{ fontSize: 12, color: "#4b5563" }}>
-                Утас: {selectedPatient.phone || "—"}{" "}
-                {selectedPatient.patientBook?.bookNumber && (
-                  <> • Карт #{selectedPatient.patientBook.bookNumber}</>
-                )}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedPatient(null);
-                setForm((prev) => ({ ...prev, patientId: "" }));
-              }}
-              style={{
-                border: "none",
-                background: "transparent",
-                color: "#b91c1c",
-                fontSize: 12,
-                cursor: "pointer",
-              }}
-            >
-              Солих
-            </button>
-          </div>
-        )}
-
-        {patientResults.length > 0 && (
-          <div
-            style={{
-              marginTop: 4,
-              maxHeight: 220,
-              overflowY: "auto",
-              borderRadius: 6,
-              border: "1px solid #e5e7eb",
-              background: "#ffffff",
-            }}
-          >
-            {patientResults.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleSelectPatient(p)}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "6px 8px",
-                  border: "none",
-                  borderBottom: "1px solid #f3f4f6",
-                  background: "white",
-                  cursor: "pointer",
-                  fontSize: 12,
-                }}
-              >
-                <div style={{ fontWeight: 500 }}>
-                  {p.name}{" "}
-                  <span style={{ color: "#6b7280" }}>({p.regNo})</span>
-                </div>
-                <div style={{ color: "#6b7280" }}>
-                  Утас: {p.phone || "—"}{" "}
-                  {p.patientBook?.bookNumber && (
-                    <> • Карт #{p.patientBook.bookNumber}</>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Өвчтөн ID</label>
+        <input
+          name="patientId"
+          placeholder="Ж: 123"
+          value={form.patientId}
+          onChange={handleChange}
+          required
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
       </div>
 
-      {/* Hidden patientId for POST */}
-      <input type="hidden" name="patientId" value={form.patientId} />
-
-      {/* Doctor */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Эмч</label>
         <select
@@ -533,7 +347,6 @@ function AppointmentForm({
         </select>
       </div>
 
-      {/* Branch */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Салбар</label>
         <select
@@ -556,7 +369,6 @@ function AppointmentForm({
         </select>
       </div>
 
-      {/* Date */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Огноо</label>
         <input
@@ -573,7 +385,6 @@ function AppointmentForm({
         />
       </div>
 
-      {/* Time */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Цаг</label>
         <input
@@ -593,7 +404,6 @@ function AppointmentForm({
         />
       </div>
 
-      {/* Status */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Төлөв</label>
         <select
@@ -613,7 +423,6 @@ function AppointmentForm({
         </select>
       </div>
 
-      {/* Notes */}
       <div
         style={{
           display: "flex",
@@ -947,7 +756,409 @@ export default function AppointmentsPage() {
       )}
 
       {/* Day-grouped mini calendar */}
-      {/* ... keep your existing calendar, time grid, and table sections unchanged below ... */}
+      <section style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 8 }}>Календарь (өдрөөр)</h2>
+        {groupedAppointments.length === 0 && (
+          <div style={{ color: "#6b7280", fontSize: 13 }}>
+            Цаг захиалга алга.
+          </div>
+        )}
+        <div
+          style={{
+            display: "flex",
+            gap: 16,
+            overflowX: "auto",
+            paddingBottom: 8,
+            justifyContent: "flex-start",
+          }}
+        >
+          {groupedAppointments.map(([date, apps]) => (
+            <div
+              key={date}
+              style={{
+                minWidth: 260,
+                maxWidth: 320,
+                border: "1px solid #e5e7eb",
+                borderRadius: 8,
+                padding: 10,
+                backgroundColor: "#ffffff",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 600,
+                  marginBottom: 8,
+                  fontSize: 13,
+                  color: "#111827",
+                }}
+              >
+                {new Date(date).toLocaleDateString("mn-MN", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                  weekday: "short",
+                })}
+              </div>
+              {apps
+                .slice()
+                .sort(
+                  (a, b) =>
+                    new Date(a.scheduledAt).getTime() -
+                    new Date(b.scheduledAt).getTime()
+                )
+                .map((a) => (
+                  <div
+                    key={a.id}
+                    style={{
+                      marginBottom: 6,
+                      padding: 6,
+                      borderRadius: 4,
+                      backgroundColor:
+                        a.status === "completed"
+                          ? "#e0f7e9"
+                          : a.status === "ongoing"
+                          ? "#fff4e0"
+                          : a.status === "cancelled"
+                          ? "#fde0e0"
+                          : "#e6f0ff",
+                      fontSize: 12,
+                    }}
+                  >
+                    <div style={{ fontWeight: 500 }}>
+                      {new Date(a.scheduledAt).toLocaleTimeString("mn-MN", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}{" "}
+                      — {formatPatientLabel(a.patient, a.patientId)}
+                    </div>
+                    <div>
+                      Эмч: {formatDoctorName(a.doctor)} | Салбар:{" "}
+                      {a.branch?.name ?? a.branchId}
+                    </div>
+                    <div>Тайлбар: {a.notes || "-"}</div>
+                    <div>Төлөв: {a.status}</div>
+                  </div>
+                ))}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Time grid by doctor – using scheduled doctors and coloring non-working hours + weekend lunch */}
+      <section style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 4 }}>
+          Өдрийн цагийн хүснэгт (эмчээр)
+        </h2>
+        <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
+          {selectedDay.toLocaleDateString("mn-MN", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            weekday: "long",
+          })}
+        </div>
+        {gridDoctors.length === 0 && (
+          <div style={{ color: "#6b7280", fontSize: 13 }}>
+            Энэ өдөр ажиллах эмчийн хуваарь алга.
+          </div>
+        )}
+        {gridDoctors.length > 0 && (
+          <div
+            style={{
+              border: "1px solid #ddd",
+              borderRadius: 8,
+              overflow: "hidden",
+              fontSize: 12,
+            }}
+          >
+            {/* Header row: doctor names + appointment counts */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+                backgroundColor: "#f5f5f5",
+                borderBottom: "1px solid #ddd",
+              }}
+            >
+              <div style={{ padding: 8, fontWeight: "bold" }}>Цаг</div>
+              {gridDoctors.map((doc) => {
+                const count = appointments.filter(
+                  (a) => a.doctorId === doc.id
+                ).length;
+                return (
+                  <div
+                    key={doc.id}
+                    style={{
+                      padding: 8,
+                      fontWeight: "bold",
+                      textAlign: "center",
+                      borderLeft: "1px solid #ddd",
+                    }}
+                  >
+                    <div>{formatDoctorName(doc)}</div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "#6b7280",
+                        marginTop: 2,
+                      }}
+                    >
+                      {count} захиалга
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Time rows */}
+            <div>
+              {timeSlots.map((slot, rowIndex) => (
+                <div
+                  key={rowIndex}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+                    borderBottom: "1px solid #f0f0f0",
+                  }}
+                >
+                  {/* Time label */}
+                  <div
+                    style={{
+                      padding: 6,
+                      borderRight: "1px solid #ddd",
+                      backgroundColor:
+                        rowIndex % 2 === 0 ? "#fafafa" : "#ffffff",
+                    }}
+                  >
+                    {slot.label}
+                  </div>
+
+                  {/* Cell per doctor */}
+                  {gridDoctors.map((doc) => {
+                    const appsForCell = appointments.filter((a) => {
+                      if (a.doctorId !== doc.id) return false;
+                      const t = new Date(a.scheduledAt);
+                      if (Number.isNaN(t.getTime())) return false;
+                      return t >= slot.start && t < slot.end;
+                    });
+
+                    const slotTimeStr = getSlotTimeString(slot.start); // "HH:MM"
+                    const schedules = (doc as any).schedules || [];
+
+                    // Working hour = inside any DoctorSchedule for this doc
+                    const isWorkingHour = schedules.some((s: any) =>
+                      isTimeWithinRange(
+                        slotTimeStr,
+                        s.startTime,
+                        s.endTime
+                      )
+                    );
+
+                    const weekdayIndex = slot.start.getDay(); // 0=Sun, 6=Sat
+                    const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
+
+                    // Weekend lunch 14:00–15:00
+                    const isWeekendLunch =
+                      isWeekend &&
+                      isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+
+                    let bg: string;
+
+                    if (!isWorkingHour || isWeekendLunch) {
+                      // Non-working OR weekend lunch → clinic orange
+                      bg = "#ee7148";
+                    } else if (appsForCell.length === 0) {
+                      // Working hour, free
+                      bg = "#ffffff";
+                    } else {
+                      // Working hour, booked → status color
+                      const status = appsForCell[0].status;
+                      bg =
+                        status === "completed"
+                          ? "#e0f7e9"
+                          : status === "ongoing"
+                          ? "#fff4e0"
+                          : status === "cancelled"
+                          ? "#fde0e0"
+                          : "#e6f0ff";
+                    }
+
+                    return (
+                      <div
+                        key={doc.id}
+                        style={{
+                          padding: 4,
+                          borderLeft: "1px solid #f0f0f0",
+                          backgroundColor: bg,
+                          minHeight: 28,
+                        }}
+                      >
+                        {appsForCell.map((a) => (
+                          <div key={a.id}>
+                            {formatPatientLabel(a.patient, a.patientId)} (
+                            {a.status})
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Raw table */}
+      <section>
+        <h2 style={{ fontSize: 16, marginBottom: 8 }}>
+          Бүгдийг жагсаалтаар харах
+        </h2>
+        {appointments.length === 0 ? (
+          <div style={{ color: "#6b7280", fontSize: 13 }}>
+            Цаг захиалга алга.
+          </div>
+        ) : (
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              marginTop: 4,
+              fontSize: 13,
+            }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 6,
+                  }}
+                >
+                  ID
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Өвчтөн
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Салбар
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Эмч
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Огноо / цаг
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Төлөв
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px solid #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Тэмдэглэл
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {appointments.map((a) => (
+                <tr key={a.id}>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 6,
+                    }}
+                  >
+                    {a.id}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 6,
+                    }}
+                  >
+                    {formatPatientLabel(a.patient, a.patientId)}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 6,
+                    }}
+                  >
+                    {a.branch?.name ?? a.branchId}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 6,
+                    }}
+                  >
+                    {formatDoctorName(a.doctor ?? null)}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 6,
+                    }}
+                  >
+                    {new Date(a.scheduledAt).toLocaleString("mn-MN")}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid "#f0f0f0",
+                      padding: 6,
+                    }}
+                  >
+                    {a.status}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 6,
+                    }}
+                  >
+                    {a.notes || "-"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
     </main>
   );
 }
