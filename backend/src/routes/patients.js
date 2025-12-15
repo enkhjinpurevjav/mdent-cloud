@@ -5,28 +5,46 @@ const router = express.Router();
 
 // Helper: get next available numeric bookNumber as string
 async function generateNextBookNumber() {
-  const last = await prisma.patientBook.findFirst({
+  // 1) Load all non-empty bookNumbers and find the max numeric value
+  const books = await prisma.patientBook.findMany({
     where: {
       bookNumber: { not: "" },
     },
-    orderBy: {
-      id: "desc",
-    },
+    select: { bookNumber: true },
   });
 
-  let next = 1;
-
-  if (last && last.bookNumber) {
-    const match = last.bookNumber.match(/^\d+$/);
+  let max = 0;
+  for (const b of books) {
+    const match = b.bookNumber && b.bookNumber.match(/^\d+$/);
     if (match) {
-      const current = parseInt(last.bookNumber, 10);
-      if (!Number.isNaN(current) && current >= 1) {
-        next = current + 1;
+      const n = parseInt(b.bookNumber, 10);
+      if (!Number.isNaN(n) && n > max) {
+        max = n;
       }
     }
   }
 
-  return String(next);
+  // Start from max + 1 (or 1 if nothing numeric exists)
+  let next = max + 1 || 1;
+
+  // 2) Ensure uniqueness: if candidate exists, keep incrementing
+  //    (protects against historical data and rare race conditions)
+  //    Dataset is small, so this simple loop is fine.
+  //    NOTE: bookNumber is unique in schema, so this mirrors that constraint.
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const candidate = String(next);
+
+    const existing = await prisma.patientBook.findUnique({
+      where: { bookNumber: candidate },
+    });
+
+    if (!existing) {
+      return candidate;
+    }
+
+    next += 1;
+  }
 }
 
 // GET /api/patients
