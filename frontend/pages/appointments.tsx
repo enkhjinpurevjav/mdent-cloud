@@ -177,7 +177,7 @@ function formatStatus(status: string): string {
   }
 }
 
-// ==== Appointment Details Modal (existing) ====
+// ==== Appointment Details Modal ====
 
 type AppointmentDetailsModalProps = {
   open: boolean;
@@ -351,7 +351,7 @@ function AppointmentDetailsModal({
   );
 }
 
-// ==== Quick Appointment Modal (new) ====
+// ==== Quick Appointment Modal (with defaultPatient) ====
 
 type QuickAppointmentModalProps = {
   open: boolean;
@@ -363,6 +363,7 @@ type QuickAppointmentModalProps = {
   doctors: Doctor[];
   appointments: Appointment[];
   onCreated: (a: Appointment) => void;
+  defaultPatient?: PatientLite | null;
 };
 
 function QuickAppointmentModal({
@@ -375,6 +376,7 @@ function QuickAppointmentModal({
   doctors,
   appointments,
   onCreated,
+  defaultPatient,
 }: QuickAppointmentModalProps) {
   const [form, setForm] = useState({
     patientQuery: "",
@@ -399,10 +401,12 @@ function QuickAppointmentModal({
       doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
       date: defaultDate,
       time: defaultTime,
+      patientId: defaultPatient ? defaultPatient.id : null,
+      patientQuery: defaultPatient ? formatPatientSearchLabel(defaultPatient) : "",
     }));
     setError("");
     setPatientResults([]);
-  }, [open, defaultDoctorId, defaultDate, defaultTime]);
+  }, [open, defaultDoctorId, defaultDate, defaultTime, defaultPatient]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -511,12 +515,10 @@ function QuickAppointmentModal({
       setError("Салбар, огноо, цаг талбаруудыг бөглөнө үү.");
       return;
     }
-
     if (!form.patientId) {
       setError("Үйлчлүүлэгчийг жагсаалтаас сонгоно уу.");
       return;
     }
-
     if (!form.doctorId) {
       setError("Цаг захиалахын өмнө эмчийг заавал сонгоно уу.");
       return;
@@ -877,8 +879,7 @@ function QuickAppointmentModal({
   );
 }
 
-// ===== Main AppointmentForm (page section) stays the same as previous version =====
-// (I’ll keep it, unchanged, so you can still use the inline form.)
+// ==== Main AppointmentForm (inline section, now shares selectedPatient) ====
 
 type AppointmentFormProps = {
   branches: Branch[];
@@ -888,6 +889,8 @@ type AppointmentFormProps = {
   selectedDate: string;
   selectedBranchId: string;
   onCreated: (a: Appointment) => void;
+  selectedPatient: PatientLite | null;
+  onSelectedPatientChange: (p: PatientLite | null) => void;
 };
 
 function AppointmentForm({
@@ -898,6 +901,8 @@ function AppointmentForm({
   selectedDate,
   selectedBranchId,
   onCreated,
+  selectedPatient,
+  onSelectedPatientChange,
 }: AppointmentFormProps) {
   const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
@@ -1007,6 +1012,7 @@ function AppointmentForm({
 
     if (name === "patientQuery") {
       setSelectedPatientId(null);
+      onSelectedPatientChange(null);
       triggerPatientSearch(value);
     }
   };
@@ -1103,6 +1109,7 @@ function AppointmentForm({
     }));
     setPatientResults([]);
     setError("");
+    onSelectedPatientChange(p);
   };
 
   // ---- schedule-aware validation ----
@@ -1222,6 +1229,7 @@ function AppointmentForm({
         ...prev,
         patientQuery: formatPatientSearchLabel(p),
       }));
+      onSelectedPatientChange(p);
 
       setQuickPatientForm({ name: "", phone: "", branchId: "" });
       setShowQuickPatientModal(false);
@@ -1241,14 +1249,12 @@ function AppointmentForm({
       setError("Салбар, огноо, цаг талбаруудыг бөглөнө үү.");
       return;
     }
-
     if (!selectedPatientId) {
       setError(
         "Үйлчлүүлэгчийг жагсаалтаас сонгох эсвэл + товчоор шинээр бүртгэнэ үү."
       );
       return;
     }
-
     if (!form.doctorId) {
       setError("Цаг захиалахын өмнө эмчийг заавал сонгоно уу.");
       return;
@@ -1275,8 +1281,6 @@ function AppointmentForm({
     const scheduledAtStr = local.toISOString();
     const scheduledAt = local;
 
-    const patientId = selectedPatientId;
-
     if (!isWithinDoctorSchedule(scheduledAt)) {
       setError("Сонгосон цагт эмчийн ажлын хуваарь байхгүй байна.");
       return;
@@ -1293,7 +1297,7 @@ function AppointmentForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          patientId,
+          patientId: selectedPatientId,
           doctorId: Number(form.doctorId),
           branchId: Number(form.branchId),
           scheduledAt: scheduledAtStr,
@@ -1319,6 +1323,7 @@ function AppointmentForm({
           doctorId: "",
         }));
         setSelectedPatientId(null);
+        onSelectedPatientChange(null);
         setPatientResults([]);
       } else {
         setError((data as any).error || "Алдаа гарлаа");
@@ -1764,6 +1769,8 @@ function AppointmentForm({
   );
 }
 
+// ==== Page ====
+
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -1806,6 +1813,11 @@ export default function AppointmentsPage() {
     date: todayStr,
     time: "09:00",
   });
+
+  // shared selected patient for inline form + quick modal
+  const [selectedPatient, setSelectedPatient] = useState<PatientLite | null>(
+    null
+  );
 
   const formSectionRef = useRef<HTMLElement | null>(null);
 
@@ -2059,6 +2071,8 @@ export default function AppointmentsPage() {
           selectedDate={filterDate}
           selectedBranchId={filterBranchId}
           onCreated={(a) => setAppointments((prev) => [a, ...prev])}
+          selectedPatient={selectedPatient}
+          onSelectedPatientChange={setSelectedPatient}
         />
       </section>
 
@@ -2201,7 +2215,7 @@ export default function AppointmentsPage() {
 
                     const handleCellClick = () => {
                       if (appsForCell.length === 0) {
-                        // Empty cell → open quick modal
+                        // Empty cell → open quick modal, using selectedPatient if any
                         setQuickModalState({
                           open: true,
                           doctorId: doc.id,
@@ -2514,6 +2528,7 @@ export default function AppointmentsPage() {
         doctors={doctors}
         appointments={appointments}
         onCreated={(a) => setAppointments((prev) => [a, ...prev])}
+        defaultPatient={selectedPatient}
       />
     </main>
   );
