@@ -25,6 +25,7 @@ type ScheduledDoctor = Doctor & {
 type PatientLite = {
   id: number;
   name: string;
+  ovog?: string | null;
   regNo: string;
   phone?: string | null;
   patientBook?: { bookNumber: string } | null;
@@ -129,6 +130,29 @@ function formatPatientLabel(p?: PatientLite, id?: number) {
   return `${p.name}${book}`;
 }
 
+function formatPatientSearchLabel(p: PatientLite): string {
+  const ovog = (p.ovog || "").trim();
+  const name = (p.name || "").trim();
+  const phone = (p.phone || "").trim();
+  const regNo = (p.regNo || "").trim();
+  const parts: string[] = [];
+
+  if (ovog || name) {
+    parts.push([ovog, name].filter(Boolean).join(" "));
+  }
+  if (phone) {
+    parts.push(`Утас: ${phone}`);
+  }
+  if (regNo) {
+    parts.push(`РД: ${regNo}`);
+  }
+  if (p.patientBook?.bookNumber) {
+    parts.push(`Карт #${p.patientBook.bookNumber}`);
+  }
+
+  return parts.join(" • ");
+}
+
 function getDateFromYMD(ymd: string): Date {
   const [year, month, day] = ymd.split("-").map(Number);
   if (!year || !month || !day) return new Date();
@@ -157,8 +181,7 @@ function AppointmentForm({
   const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
   const [form, setForm] = useState({
-    patientName: "",
-    patientPhone: "",
+    patientQuery: "",
     doctorId: "",
     branchId: branches.length ? String(branches[0].id) : "",
     date: selectedDate || todayStr,
@@ -176,6 +199,15 @@ function AppointmentForm({
   );
   const [searchDebounceTimer, setSearchDebounceTimer] =
     useState<NodeJS.Timeout | null>(null);
+
+  // quick new patient modal
+  const [showQuickPatientModal, setShowQuickPatientModal] = useState(false);
+  const [quickPatientForm, setQuickPatientForm] = useState({
+    name: "",
+    phone: "",
+  });
+  const [quickPatientError, setQuickPatientError] = useState("");
+  const [quickPatientSaving, setQuickPatientSaving] = useState(false);
 
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
@@ -202,15 +234,9 @@ function AppointmentForm({
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
 
-    if (name === "patientName" || name === "patientPhone") {
+    if (name === "patientQuery") {
       setSelectedPatientId(null); // changing text cancels prior selection
-      triggerPatientSearch(
-        name === "patientPhone" && value.trim()
-          ? value
-          : name === "patientName"
-          ? value
-          : ""
-      );
+      triggerPatientSearch(value);
     }
   };
 
@@ -229,7 +255,7 @@ function AppointmentForm({
     const t = setTimeout(async () => {
       try {
         setPatientSearchLoading(true);
-        // unified search by name / phone / regNo
+        // unified search by regNo / name / ovog / phone
         const res = await fetch(
           `/api/patients/search?query=${encodeURIComponent(query)}`
         );
@@ -239,6 +265,7 @@ function AppointmentForm({
             data.map((p: any) => ({
               id: p.id,
               name: p.name,
+              ovog: p.ovog ?? null,
               regNo: p.regNo,
               phone: p.phone,
               patientBook: p.patientBook || null,
@@ -262,8 +289,7 @@ function AppointmentForm({
     setSelectedPatientId(p.id);
     setForm((prev) => ({
       ...prev,
-      patientName: p.name,
-      patientPhone: p.phone || prev.patientPhone,
+      patientQuery: formatPatientSearchLabel(p),
     }));
     setPatientResults([]);
     setError("");
@@ -310,33 +336,25 @@ function AppointmentForm({
     }).length;
   };
 
-  // ---- helper: find or create patient by name + phone, using visible selection if available ----
-  const findOrCreatePatient = async (): Promise<number | null> => {
-    const name = form.patientName.trim();
-    const phone = form.patientPhone.trim();
+  // ---- quick new patient (modal) ----
 
-    if (!name || !phone) {
-      setError("Өвчтөний нэр, утсыг бөглөнө үү.");
-      return null;
+  const handleQuickPatientChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const { name, value } = e.target;
+    setQuickPatientForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleQuickPatientSave = async () => {
+    setQuickPatientError("");
+    if (!quickPatientForm.name.trim() || !quickPatientForm.phone.trim()) {
+      setQuickPatientError("Нэр болон утас заавал бөглөнө үү.");
+      return;
     }
 
-    // if user already clicked a search result, trust that id
-    if (selectedPatientId) {
-      return selectedPatientId;
-    }
+    setQuickPatientSaving(true);
 
     try {
-      // 1) Try to find by phone (exact)
-      const searchRes = await fetch(
-        `/api/patients?phone=${encodeURIComponent(phone)}`
-      );
-      const searchData = await searchRes.json().catch(() => []);
-      if (searchRes.ok && Array.isArray(searchData) && searchData.length > 0) {
-        const existing = searchData[0];
-        return existing.id;
-      }
-
-      // 2) Not found -> create a new patient (minimal fields)
       const branchIdForPatient = form.branchId
         ? Number(form.branchId)
         : selectedBranchId
@@ -344,31 +362,49 @@ function AppointmentForm({
         : null;
 
       const payload: any = {
-        name,
-        phone,
+        name: quickPatientForm.name.trim(),
+        phone: quickPatientForm.phone.trim(),
       };
       if (branchIdForPatient) payload.branchId = branchIdForPatient;
 
-      const createRes = await fetch("/api/patients", {
+      const res = await fetch("/api/patients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      const data = await res.json().catch(() => null);
 
-      const createData = await createRes.json().catch(() => null);
-      if (!createRes.ok || !createData || typeof createData.id !== "number") {
-        setError(
-          (createData && createData.error) ||
-            "Шинэ өвчтөн бүртгэх үед алдаа гарлаа."
+      if (!res.ok || !data || typeof data.id !== "number") {
+        setQuickPatientError(
+          (data && data.error) ||
+            "Шинэ үйлчлүүлэгч бүртгэх үед алдаа гарлаа."
         );
-        return null;
+        setQuickPatientSaving(false);
+        return;
       }
 
-      return createData.id as number;
+      const p: PatientLite = {
+        id: data.id,
+        name: data.name,
+        ovog: data.ovog ?? null,
+        regNo: data.regNo ?? "",
+        phone: data.phone ?? null,
+        patientBook: data.patientBook || null,
+      };
+
+      setSelectedPatientId(p.id);
+      setForm((prev) => ({
+        ...prev,
+        patientQuery: formatPatientSearchLabel(p),
+      }));
+
+      setQuickPatientForm({ name: "", phone: "" });
+      setShowQuickPatientModal(false);
     } catch (e) {
-      console.error("findOrCreatePatient error", e);
-      setError("Өвчтөний мэдээллийг шалгах үед алдаа гарлаа.");
-      return null;
+      console.error(e);
+      setQuickPatientError("Сүлжээгээ шалгана уу.");
+    } finally {
+      setQuickPatientSaving(false);
     }
   };
 
@@ -381,6 +417,13 @@ function AppointmentForm({
       return;
     }
 
+    if (!selectedPatientId) {
+      setError(
+        "Үйлчлүүлэгчийг жагсаалтаас сонгох эсвэл + товчоор шинээр бүртгэнэ үү."
+      );
+      return;
+    }
+
     const scheduledAtStr = `${form.date}T${form.time}`;
     const scheduledAt = new Date(scheduledAtStr);
     if (Number.isNaN(scheduledAt.getTime())) {
@@ -388,11 +431,9 @@ function AppointmentForm({
       return;
     }
 
-    // 1) Get or create patient id
-    const patientId = await findOrCreatePatient();
-    if (!patientId) return;
+    const patientId = selectedPatientId;
 
-    // 2) schedule + capacity validation only if doctor selected
+    // schedule + capacity validation only if doctor selected
     if (form.doctorId) {
       if (!isWithinDoctorSchedule(scheduledAt)) {
         setError("Сонгосон цагт эмчийн ажлын хуваарь байхгүй байна.");
@@ -429,8 +470,7 @@ function AppointmentForm({
         onCreated(data as Appointment);
         setForm((prev) => ({
           ...prev,
-          patientName: "",
-          patientPhone: "",
+          patientQuery: "",
           time: "",
           notes: "",
           status: "booked",
@@ -456,46 +496,57 @@ function AppointmentForm({
         fontSize: 13,
       }}
     >
-      {/* Patient name */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Өвчтөний нэр</label>
-        <input
-          name="patientName"
-          placeholder="Ж: Батболд"
-          value={form.patientName}
-          onChange={handleChange}
-          required
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        />
-      </div>
-
-      {/* Patient phone */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Утас</label>
-        <input
-          name="patientPhone"
-          placeholder="Ж: 99112233"
-          value={form.patientPhone}
-          onChange={handleChange}
-          required
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        />
+      {/* Patient (Үйлчлүүлэгч) field + quick create button */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          gridColumn: "1 / -1",
+        }}
+      >
+        <label>Үйлчлүүлэгч</label>
+        <div style={{ display: "flex", gap: 6 }}>
+          <input
+            name="patientQuery"
+            placeholder="РД, овог, нэр эсвэл утас..."
+            value={form.patientQuery}
+            onChange={handleChange}
+            style={{
+              flex: 1,
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => {
+              setShowQuickPatientModal(true);
+              setQuickPatientError("");
+            }}
+            style={{
+              padding: "0 10px",
+              borderRadius: 6,
+              border: "1px solid #16a34a",
+              background: "#dcfce7",
+              color: "#166534",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+            title="Шинэ үйлчлүүлэгч хурдан бүртгэх"
+          >
+            +
+          </button>
+        </div>
         {patientSearchLoading && (
           <span style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
-            Өвчтөн хайж байна...
+            Үйлчлүүлэгч хайж байна...
           </span>
         )}
       </div>
 
-      {/* Visible patient search results (below name+phone, across full width) */}
+      {/* Visible patient search results (below Үйлчлүүлэгч, across full width) */}
       {patientResults.length > 0 && (
         <div
           style={{
@@ -524,16 +575,7 @@ function AppointmentForm({
                 fontSize: 12,
               }}
             >
-              <div style={{ fontWeight: 500 }}>
-                {p.name}{" "}
-                <span style={{ color: "#6b7280" }}>({p.regNo})</span>
-              </div>
-              <div style={{ color: "#6b7280" }}>
-                Утас: {p.phone || "—"}{" "}
-                {p.patientBook?.bookNumber && (
-                  <> • Карт #{p.patientBook.bookNumber}</>
-                )}
-              </div>
+              {formatPatientSearchLabel(p)}
             </button>
           ))}
         </div>
@@ -689,6 +731,151 @@ function AppointmentForm({
           </div>
         )}
       </div>
+
+      {/* Quick new patient modal */}
+      {showQuickPatientModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+          }}
+        >
+          <div
+            style={{
+              background: "white",
+              borderRadius: 8,
+              padding: 16,
+              width: 320,
+              boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+              fontSize: 13,
+            }}
+          >
+            <h3
+              style={{ marginTop: 0, marginBottom: 8, fontSize: 15 }}
+            >
+              Шинэ үйлчлүүлэгч хурдан бүртгэх
+            </h3>
+            <p
+              style={{
+                marginTop: 0,
+                marginBottom: 12,
+                color: "#6b7280",
+              }}
+            >
+              Зөвхөн нэр болон утсыг бүртгэнэ. Дэлгэрэнгүй мэдээллийг
+              дараа нь &quot;Үйлчлүүлэгчийн бүртгэл&quot; хэсгээс
+              засварлана.
+            </p>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              <label
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                }}
+              >
+                Нэр
+                <input
+                  name="name"
+                  value={quickPatientForm.name}
+                  onChange={handleQuickPatientChange}
+                  placeholder="Ж: Батболд"
+                  style={{
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "6px 8px",
+                  }}
+                />
+              </label>
+              <label
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                }}
+              >
+                Утас
+                <input
+                  name="phone"
+                  value={quickPatientForm.phone}
+                  onChange={handleQuickPatientChange}
+                  placeholder="Ж: 99112233"
+                  style={{
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "6px 8px",
+                  }}
+                />
+              </label>
+              {quickPatientError && (
+                <div
+                  style={{
+                    color: "#b91c1c",
+                    fontSize: 12,
+                  }}
+                >
+                  {quickPatientError}
+                </div>
+              )}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 8,
+                  marginTop: 8,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!quickPatientSaving) {
+                      setShowQuickPatientModal(false);
+                      setQuickPatientError("");
+                    }
+                  }}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#f9fafb",
+                    cursor: quickPatientSaving ? "default" : "pointer",
+                  }}
+                >
+                  Болих
+                </button>
+                <button
+                  type="button"
+                  onClick={handleQuickPatientSave}
+                  disabled={quickPatientSaving}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: "#16a34a",
+                    color: "white",
+                    cursor: quickPatientSaving ? "default" : "pointer",
+                  }}
+                >
+                  {quickPatientSaving
+                    ? "Хадгалж байна..."
+                    : "Хадгалах"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }
@@ -1309,7 +1496,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px solid #ddd",
+                    borderBottom: "1px солид #ddd",
                     padding: 6,
                   }}
                 >
