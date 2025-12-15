@@ -379,75 +379,78 @@ function AppointmentForm({
 
   // ---- quick new patient (modal) ----
 
-  const handleQuickPatientChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const { name, value } = e.target;
-    setQuickPatientForm((prev) => ({ ...prev, [name]: value }));
-  };
-
   const handleQuickPatientSave = async () => {
-    setQuickPatientError("");
-    if (!quickPatientForm.name.trim() || !quickPatientForm.phone.trim()) {
-      setQuickPatientError("Нэр болон утас заавал бөглөнө үү.");
+  setQuickPatientError("");
+
+  if (!quickPatientForm.name.trim() || !quickPatientForm.phone.trim()) {
+    setQuickPatientError("Нэр болон утас заавал бөглөнө үү.");
+    return;
+  }
+
+  // Make sure we have a branchId to send, since Patient.branchId is required
+  const branchIdForPatient = form.branchId
+    ? Number(form.branchId)
+    : selectedBranchId
+    ? Number(selectedBranchId)
+    : null;
+
+  if (!branchIdForPatient || Number.isNaN(branchIdForPatient)) {
+    setQuickPatientError(
+      "Шинэ үйлчлүүлэгч бүртгэхийн өмнө 'Салбар' талбараас салбарыг сонгоно уу."
+    );
+    return;
+  }
+
+  setQuickPatientSaving(true);
+
+  try {
+    const payload: any = {
+      name: quickPatientForm.name.trim(),
+      phone: quickPatientForm.phone.trim(),
+      branchId: branchIdForPatient,
+    };
+
+    const res = await fetch("/api/patients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || !data || typeof data.id !== "number") {
+      setQuickPatientError(
+        (data && data.error) ||
+          "Шинэ үйлчлүүлэгч бүртгэх үед алдаа гарлаа."
+      );
+      setQuickPatientSaving(false);
       return;
     }
 
-    setQuickPatientSaving(true);
+    const p: PatientLite = {
+      id: data.id,
+      name: data.name,
+      ovog: data.ovog ?? null,
+      regNo: data.regNo ?? "",
+      phone: data.phone ?? null,
+      patientBook: data.patientBook || null,
+    };
 
-    try {
-      const branchIdForPatient = form.branchId
-        ? Number(form.branchId)
-        : selectedBranchId
-        ? Number(selectedBranchId)
-        : null;
+    setSelectedPatientId(p.id);
+    setForm((prev) => ({
+      ...prev,
+      patientQuery: formatPatientSearchLabel(p),
+    }));
 
-      const payload: any = {
-        name: quickPatientForm.name.trim(),
-        phone: quickPatientForm.phone.trim(),
-      };
-      if (branchIdForPatient) payload.branchId = branchIdForPatient;
-
-      const res = await fetch("/api/patients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok || !data || typeof data.id !== "number") {
-        setQuickPatientError(
-          (data && data.error) ||
-            "Шинэ үйлчлүүлэгч бүртгэх үед алдаа гарлаа."
-        );
-        setQuickPatientSaving(false);
-        return;
-      }
-
-      const p: PatientLite = {
-        id: data.id,
-        name: data.name,
-        ovog: data.ovog ?? null,
-        regNo: data.regNo ?? "",
-        phone: data.phone ?? null,
-        patientBook: data.patientBook || null,
-      };
-
-      setSelectedPatientId(p.id);
-      setForm((prev) => ({
-        ...prev,
-        patientQuery: formatPatientSearchLabel(p),
-      }));
-
-      setQuickPatientForm({ name: "", phone: "" });
-      setShowQuickPatientModal(false);
-    } catch (e) {
-      console.error(e);
-      setQuickPatientError("Сүлжээгээ шалгана уу.");
-    } finally {
-      setQuickPatientSaving(false);
-    }
-  };
+    setQuickPatientForm({ name: "", phone: "" });
+    setShowQuickPatientModal(false);
+  } catch (e) {
+    console.error(e);
+    setQuickPatientError("Сүлжээгээ шалгана уу.");
+  } finally {
+    setQuickPatientSaving(false);
+  }
+};
 
   const handleSubmit = async (e: React.FormEvent) => {
   e.preventDefault();
