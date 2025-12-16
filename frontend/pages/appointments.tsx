@@ -430,6 +430,9 @@ function QuickAppointmentModal({
   const [searchDebounceTimer, setSearchDebounceTimer] =
     useState<NodeJS.Timeout | null>(null);
 
+  // 30-min slots for popup date
+  const [popupSlots, setPopupSlots] = useState<{ label: string; value: string }[]>([]);
+
   useEffect(() => {
     if (!open) return;
     setForm((prev) => ({
@@ -444,6 +447,24 @@ function QuickAppointmentModal({
     setError("");
     setPatientResults([]);
   }, [open, defaultDoctorId, defaultDate, defaultTime]);
+
+  useEffect(() => {
+    if (!form.date) {
+      setPopupSlots([]);
+      return;
+    }
+    const [y, m, d] = form.date.split("-").map(Number);
+    if (!y || !m || !d) {
+      setPopupSlots([]);
+      return;
+    }
+    const day = new Date(y, (m || 1) - 1, d || 1);
+    const slots = generateTimeSlotsForDay(day).map((s) => ({
+      label: s.label,
+      value: getSlotTimeString(s.start),
+    }));
+    setPopupSlots(slots);
+  }, [form.date]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -725,7 +746,7 @@ function QuickAppointmentModal({
             gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
           }}
         >
-      {/* Patient */}
+          {/* Patient */}
           <div
             style={{
               gridColumn: "1 / -1",
@@ -810,37 +831,47 @@ function QuickAppointmentModal({
           {/* Start time */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label>Эхлэх цаг</label>
-            <input
-              type="time"
+            <select
               name="startTime"
               value={form.startTime}
               onChange={handleChange}
               required
-              step={SLOT_MINUTES * 60}
               style={{
                 borderRadius: 6,
                 border: "1px solid #d1d5db",
                 padding: "6px 8px",
               }}
-            />
+            >
+              <option value="">Эхлэх цаг сонгох</option>
+              {popupSlots.map((slot) => (
+                <option key={slot.value} value={slot.value}>
+                  {slot.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* End time */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label>Дуусах цаг</label>
-            <input
-              type="time"
+            <select
               name="endTime"
               value={form.endTime}
               onChange={handleChange}
               required
-              step={SLOT_MINUTES * 60}
               style={{
                 borderRadius: 6,
                 border: "1px solid #d1d5db",
                 padding: "6px 8px",
               }}
-            />
+            >
+              <option value="">Дуусах цаг сонгох</option>
+              {popupSlots.map((slot) => (
+                <option key={slot.value} value={slot.value}>
+                  {slot.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Status */}
@@ -940,6 +971,21 @@ function QuickAppointmentModal({
     </div>
   );
 }
+
+// ===== Inline AppointmentForm with start/end time =====
+
+type AppointmentFormProps = {
+  branches: Branch[];
+  doctors: Doctor[];
+  scheduledDoctors: ScheduledDoctor[];
+  appointments: Appointment[];
+  selectedDate: string;
+  selectedBranchId: string;
+  onCreated: (a: Appointment) => void;
+};
+
+// ... Inline AppointmentForm and AppointmentsPage stay exactly as in your latest code ...
+
 
 // ===== Inline AppointmentForm with start/end time =====
 
