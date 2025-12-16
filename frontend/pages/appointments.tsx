@@ -225,7 +225,6 @@ type AppointmentDetailsModalProps = {
   slotTime?: string; // HH:MM
   date?: string; // YYYY-MM-DD
   appointments: Appointment[];
-  // NEW: callback so parent can update status in global list
   onStatusUpdated?: (updated: Appointment) => void;
 };
 
@@ -293,19 +292,26 @@ function AppointmentDetailsModal({
 
     try {
       const res = await fetch(`/api/appointments/${a.id}`, {
-        method: "PUT", // change to PATCH if your API expects PATCH
+        method: "PATCH", // MUST match backend
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: editingStatus }),
       });
-      let data: Appointment | { error?: string };
+
+      let text: string | null = null;
+      let data: any = null;
       try {
-        data = await res.json();
+        text = await res.text();
+        data = text ? JSON.parse(text) : null;
       } catch {
-        data = { error: "Unknown error" };
+        data = null;
       }
 
       if (!res.ok) {
-        setError((data as any).error || "Төлөв шинэчлэхэд алдаа гарлаа.");
+        console.error("Update status failed", res.status, text);
+        setError(
+          (data && data.error) ||
+            `Төлөв шинэчлэхэд алдаа гарлаа (код ${res.status})`
+        );
         setSaving(false);
         return;
       }
@@ -315,7 +321,8 @@ function AppointmentDetailsModal({
 
       setEditingId(null);
       setEditingStatus("");
-    } catch {
+    } catch (e) {
+      console.error("Update status network error", e);
       setError("Сүлжээгээ шалгана уу.");
     } finally {
       setSaving(false);
@@ -450,7 +457,7 @@ function AppointmentDetailsModal({
                     )}
                   </div>
 
-                  {/* Status (view or edit) */}
+                  {/* Status view / edit */}
                   {!isEditing ? (
                     <div style={{ color: "#4b5563" }}>
                       <strong>Төлөв:</strong> {formatStatus(a.status)}
@@ -2969,11 +2976,9 @@ export default function AppointmentsPage() {
   date={detailsModalState.date}
   appointments={detailsModalState.appointments}
   onStatusUpdated={(updated) => {
-    // update global appointments list
     setAppointments((prev) =>
       prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
     );
-    // also update the list inside the modal state
     setDetailsModalState((prev) => ({
       ...prev,
       appointments: prev.appointments.map((a) =>
