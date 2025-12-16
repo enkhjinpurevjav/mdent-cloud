@@ -1601,7 +1601,7 @@ function AppointmentForm({
           required
           style={{
             borderRadius: 6,
-            border: "1px solid "#d1d5db",
+            border: "1px solid #d1d5db",
             padding: "6px 8px",
           }}
         >
