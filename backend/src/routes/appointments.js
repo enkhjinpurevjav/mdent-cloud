@@ -131,28 +131,28 @@ if (endAt !== undefined && endAt !== null && endAt !== "") {
 }
 
     const appt = await prisma.appointment.create({
-      data: {
-        patientId: parsedPatientId,
-        doctorId: parsedDoctorId,
-        branchId: parsedBranchId,
-        scheduledAt: scheduledDate,
-        status:
-          typeof status === "string" && status.trim()
-            ? status.trim()
-            : "booked",
-        notes: notes || null,
-      },
+  data: {
+    patientId: parsedPatientId,
+    doctorId: parsedDoctorId,
+    branchId: parsedBranchId,
+    scheduledAt: scheduledDate,
+    endAt: endDate, // NEW (can be null)
+    status:
+      typeof status === "string" && status.trim()
+        ? status.trim()
+        : "booked",
+    notes: notes || null,
+  },
+  include: {
+    patient: {
       include: {
-        patient: {
-          include: {
-            patientBook: true,
-          },
-        },
-        doctor: true,
-        branch: true,
+        patientBook: true,
       },
-    });
-
+    },
+    doctor: true,
+    branch: true,
+  },
+});
     res.status(201).json(appt);
   } catch (err) {
     console.error("Error creating appointment:", err);
