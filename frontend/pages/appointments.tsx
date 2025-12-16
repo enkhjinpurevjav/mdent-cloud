@@ -821,45 +821,68 @@ function QuickAppointmentModal({
             </div>
           )}
 
-          {/* Date */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label>Огноо</label>
-            <input
-              type="date"
-              name="date"
-              value={form.date}
-              onChange={handleChange}
-              required
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            />
-          </div>
+           {/* Date */}
+  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+    <label>Огноо</label>
+    <input
+      type="date"
+      name="date"
+      value={form.date}
+      onChange={handleChange}
+      required
+      style={{
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "6px 8px",
+      }}
+    />
+  </div>
 
-          {/* Start time */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label>Эхлэх цаг</label>
-            <select
-              name="startTime"
-              value={form.startTime}
-              onChange={handleChange}
-              required
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            >
-              <option value="">Эхлэх цаг сонгох</option>
-              {popupSlots.map((slot) => (
-                <option key={slot.value} value={slot.value}>
-                  {slot.label}
-                </option>
-              ))}
-            </select>
-          </div>
+  {/* Branch */}
+  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+    <label>Салбар</label>
+    <select
+      name="branchId"
+      value={form.branchId}
+      onChange={handleChange}
+      required
+      style={{
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "6px 8px",
+      }}
+    >
+      <option value="">Салбар сонгох</option>
+      {branches.map((b) => (
+        <option key={b.id} value={b.id}>
+          {b.name}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  {/* Start time */}
+  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+    <label>Эхлэх цаг</label>
+    <select
+      name="startTime"
+      value={form.startTime}
+      onChange={handleChange}
+      required
+      style={{
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "6px 8px",
+      }}
+    >
+      <option value="">Эхлэх цаг сонгох</option>
+      {popupSlots.map((slot) => (
+        <option key={slot.value} value={slot.value}>
+          {slot.label}
+        </option>
+      ))}
+    </select>
+  </div>
 
           {/* End time */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
