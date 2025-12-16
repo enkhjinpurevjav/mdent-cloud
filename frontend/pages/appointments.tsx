@@ -90,9 +90,10 @@ function generateTimeSlotsForDay(day: Date): TimeSlot[] {
       start.setHours(hour, m, 0, 0);
       const end = new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
       const label = start.toLocaleTimeString("mn-MN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
       slots.push({ label, start, end });
     }
   }
@@ -340,22 +341,25 @@ function AppointmentDetailsModal({
                     <strong>Салбар:</strong> {a.branch?.name ?? a.branchId}
                   </div>
                   <div style={{ color: "#4b5563" }}>
-                    <strong>Цаг (нарийвчилсан):</strong>{" "}
+                 <strong>Цаг (нарийвчилсэн):</strong>{" "}
 {formatDateYmdDots(start)}{" "}
 {start.toLocaleTimeString("mn-MN", {
   hour: "2-digit",
   minute: "2-digit",
+  hour12: false,
 })}
 {end
   ? ` – ${end.toLocaleTimeString("mn-MN", {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
     })}`
   : ""}
                     {end
                       ? ` – ${end.toLocaleTimeString("mn-MN", {
                           hour: "2-digit",
                           minute: "2-digit",
+                          hour12: false,
                         })}`
                       : ""}
                   </div>
@@ -2580,11 +2584,13 @@ export default function AppointmentsPage() {
                         {start.toLocaleTimeString("mn-MN", {
                           hour: "2-digit",
                           minute: "2-digit",
+                          hour12: false,
                         })}
                         {end
                           ? ` – ${end.toLocaleTimeString("mn-MN", {
                               hour: "2-digit",
                               minute: "2-digit",
+                              hour12: false,
                             })}`
                           : ""}
                         {" — "}
@@ -2741,11 +2747,13 @@ export default function AppointmentsPage() {
   {start.toLocaleTimeString("mn-MN", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   })}
   {end
     ? ` – ${end.toLocaleTimeString("mn-MN", {
         hour: "2-digit",
         minute: "2-digit",
+        hour12: false,
       })}`
     : ""}
 </td>
