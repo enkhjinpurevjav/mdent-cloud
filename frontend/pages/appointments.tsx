@@ -341,28 +341,21 @@ function AppointmentDetailsModal({
                     <strong>Салбар:</strong> {a.branch?.name ?? a.branchId}
                   </div>
                   <div style={{ color: "#4b5563" }}>
-                 <strong>Цаг (нарийвчилсэн):</strong>{" "}
-{formatDateYmdDots(start)}{" "}
-{start.toLocaleTimeString("mn-MN", {
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-})}
-{end
-  ? ` – ${end.toLocaleTimeString("mn-MN", {
+              <div style={{ color: "#4b5563" }}>
+  <strong>Цаг (нарийвчилсэн):</strong>{" "}
+  {formatDateYmdDots(start)}{" "}
+  {start.toLocaleTimeString("mn-MN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })}
+  {end &&
+    ` – ${end.toLocaleTimeString("mn-MN", {
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
-    })}`
-  : ""}
-                    {end
-                      ? ` – ${end.toLocaleTimeString("mn-MN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: false,
-                        })}`
-                      : ""}
-                  </div>
+    })}`}
+</div>
                   <div style={{ color: "#4b5563" }}>
                     <strong>Тэмдэглэл:</strong> {a.notes || "-"}
                   </div>
