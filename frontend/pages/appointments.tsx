@@ -341,13 +341,17 @@ function AppointmentDetailsModal({
                   </div>
                   <div style={{ color: "#4b5563" }}>
                     <strong>Цаг (нарийвчилсан):</strong>{" "}
-                    {start.toLocaleString("mn-MN", {
-                      year: "numeric",
-                      month: "2-digit",
-                      day: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+{formatDateYmdDots(start)}{" "}
+{start.toLocaleTimeString("mn-MN", {
+  hour: "2-digit",
+  minute: "2-digit",
+})}
+{end
+  ? ` – ${end.toLocaleTimeString("mn-MN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`
+  : ""}
                     {end
                       ? ` – ${end.toLocaleTimeString("mn-MN", {
                           hour: "2-digit",
