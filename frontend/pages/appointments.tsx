@@ -2625,17 +2625,19 @@ export default function AppointmentsPage() {
                       bg = "#ee7148";
                     } else if (appsForCell.length === 0) {
                       bg = "#ffffff";
-                    } else {
-                      const status = appsForCell[0].status;
-                      bg =
-                        status === "completed"
-                          ? "#e0f7e9"
-                          : status === "ongoing"
-                          ? "#fff4e0"
-                          : status === "cancelled"
-                          ? "#fde0e0"
-                          : "#e6f0ff";
-                    }
+                    } } else {
+  const status = appsForCell[0].status;
+  bg =
+    status === "completed"
+      ? "#bbf7d0" // completed - slightly stronger green
+      : status === "confirmed"
+      ? "#d1fae5" // confirmed (Баталгаажсан) - light green
+      : status === "ongoing"
+      ? "#fff4e0" // ongoing - light orange
+      : status === "cancelled"
+      ? "#fde0e0" // cancelled - light red
+      : "#e6f0ff"; // default (booked) - light blue
+}
 
                     const handleCellClick = () => {
                       if (appsForCell.length === 0) {
