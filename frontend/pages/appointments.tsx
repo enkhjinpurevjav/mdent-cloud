@@ -2625,7 +2625,7 @@ export default function AppointmentsPage() {
                       bg = "#ee7148";
                     } else if (appsForCell.length === 0) {
                       bg = "#ffffff";
-                    } } else {
+                    } else {
   const status = appsForCell[0].status;
   bg =
     status === "completed"
