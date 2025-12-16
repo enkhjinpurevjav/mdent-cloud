@@ -372,6 +372,7 @@ function AppointmentDetailsModal({
   );
 }
 
+
 // ==== Quick Appointment Modal ====
 
 type QuickAppointmentModalProps = {
