@@ -141,10 +141,21 @@ function formatDoctorName(d?: Doctor | null) {
 
 function formatPatientLabel(p?: PatientLite, id?: number) {
   if (!p) return `Patient #${id ?? "-"}`;
+
+  const ovog = (p.ovog || "").trim();
+  const name = (p.name || "").trim();
+
+  // Build display name like "Э.Маргад" if ovog exists, otherwise just name
+  let displayName = name;
+  if (ovog && name) {
+    displayName = `${ovog.charAt(0).toUpperCase()}.${name}`;
+  }
+
   const book = p.patientBook?.bookNumber
     ? ` • Карт: ${p.patientBook.bookNumber}`
     : "";
-  return `${p.name}${book}`;
+
+  return `${displayName}${book}`;
 }
 
 function formatPatientSearchLabel(p: PatientLite): string {
