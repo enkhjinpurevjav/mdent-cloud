@@ -341,7 +341,7 @@ function AppointmentDetailsModal({
                     <strong>Салбар:</strong> {a.branch?.name ?? a.branchId}
                   </div>
                   <div style={{ color: "#4b5563" }}>
-              <div style={{ color: "#4b5563" }}>
+            
   <strong>Цаг (нарийвчилсэн):</strong>{" "}
   {formatDateYmdDots(start)}{" "}
   {start.toLocaleTimeString("mn-MN", {
