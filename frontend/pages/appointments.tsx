@@ -299,14 +299,7 @@ function AppointmentDetailsModal({
         <div style={{ marginBottom: 8, color: "#4b5563" }}>
           <div>
             <strong>Огноо:</strong>{" "}
-            {date
-              ? new Date(date).toLocaleDateString("mn-MN", {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                  weekday: "short",
-                })
-              : "-"}
+            {date ? formatDateYmdDots(new Date(date)) : "-"}
           </div>
           <div>
             <strong>Цаг:</strong> {slotLabel || slotTime || "-"}
@@ -2324,12 +2317,7 @@ export default function AppointmentsPage() {
           Өдрийн цагийн хүснэгт (эмчээр)
         </h2>
         <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
-          {selectedDay.toLocaleDateString("mn-MN", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-            weekday: "long",
-          })}
+         {formatDateYmdDots(selectedDay)}
         </div>
         {gridDoctors.length === 0 && (
           <div style={{ color: "#6b7280", fontSize: 13 }}>
@@ -2549,12 +2537,7 @@ export default function AppointmentsPage() {
                   color: "#111827",
                 }}
               >
-                {new Date(date).toLocaleDateString("mn-MN", {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                  weekday: "short",
-                })}
+                {formatDateYmdDots(new Date(date))}
               </div>
               {apps
                 .slice()
