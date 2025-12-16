@@ -225,7 +225,32 @@ type AppointmentDetailsModalProps = {
   slotTime?: string; // HH:MM
   date?: string; // YYYY-MM-DD
   appointments: Appointment[];
+  // NEW: callback so parent can update status in global list
+  onStatusUpdated?: (updated: Appointment) => void;
 };
+
+function formatDetailedTimeRange(start: Date, end: Date | null): string {
+  if (Number.isNaN(start.getTime())) return "-";
+
+  const datePart = formatDateYmdDots(start);
+  const startTime = start.toLocaleTimeString("mn-MN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  if (!end || Number.isNaN(end.getTime())) {
+    return `${datePart} ${startTime}`;
+  }
+
+  const endTime = end.toLocaleTimeString("mn-MN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  return `${datePart} ${startTime} – ${endTime}`;
+}
 
 function AppointmentDetailsModal({
   open,
@@ -235,8 +260,67 @@ function AppointmentDetailsModal({
   slotTime,
   date,
   appointments,
+  onStatusUpdated,
 }: AppointmentDetailsModalProps) {
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingStatus, setEditingStatus] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
   if (!open) return null;
+
+  const totalCount = appointments.length;
+
+  const handleStartEdit = (a: Appointment) => {
+    setEditingId(a.id);
+    setEditingStatus(a.status);
+    setError("");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditingStatus("");
+    setError("");
+  };
+
+  const handleSaveStatus = async (a: Appointment) => {
+    if (!editingStatus || editingStatus === a.status) {
+      setEditingId(null);
+      return;
+    }
+    setSaving(true);
+    setError("");
+
+    try {
+      const res = await fetch(`/api/appointments/${a.id}`, {
+        method: "PUT", // change to PATCH if your API expects PATCH
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: editingStatus }),
+      });
+      let data: Appointment | { error?: string };
+      try {
+        data = await res.json();
+      } catch {
+        data = { error: "Unknown error" };
+      }
+
+      if (!res.ok) {
+        setError((data as any).error || "Төлөв шинэчлэхэд алдаа гарлаа.");
+        setSaving(false);
+        return;
+      }
+
+      const updated = data as Appointment;
+      if (onStatusUpdated) onStatusUpdated(updated);
+
+      setEditingId(null);
+      setEditingStatus("");
+    } catch {
+      setError("Сүлжээгээ шалгана уу.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div
@@ -308,6 +392,9 @@ function AppointmentDetailsModal({
           <div>
             <strong>Эмч:</strong> {formatDoctorName(doctor ?? null)}
           </div>
+          <div>
+            <strong>Нийт захиалга:</strong> {totalCount}
+          </div>
         </div>
 
         {appointments.length === 0 ? (
@@ -321,6 +408,8 @@ function AppointmentDetailsModal({
                   ? new Date(a.endAt)
                   : null;
 
+              const isEditing = editingId === a.id;
+
               return (
                 <div
                   key={a.id}
@@ -331,31 +420,113 @@ function AppointmentDetailsModal({
                     background: "#f9fafb",
                   }}
                 >
-                  <div style={{ fontWeight: 500, marginBottom: 2 }}>
-                    {formatPatientLabel(a.patient, a.patientId)}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 4,
+                    }}
+                  >
+                    <div style={{ fontWeight: 500 }}>
+                      {formatPatientLabel(a.patient, a.patientId)}
+                    </div>
+                    {!isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => handleStartEdit(a)}
+                        style={{
+                          fontSize: 11,
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          border: "1px solid #2563eb",
+                          background: "#eff6ff",
+                          color: "#1d4ed8",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Засах
+                      </button>
+                    )}
                   </div>
-                  <div style={{ color: "#4b5563" }}>
-                    <strong>Төлөв:</strong> {formatStatus(a.status)}
-                  </div>
+
+                  {/* Status (view or edit) */}
+                  {!isEditing ? (
+                    <div style={{ color: "#4b5563" }}>
+                      <strong>Төлөв:</strong> {formatStatus(a.status)}
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        marginBottom: 4,
+                      }}
+                    >
+                      <label style={{ fontSize: 12 }}>
+                        Төлөв:
+                        <select
+                          value={editingStatus}
+                          onChange={(e) =>
+                            setEditingStatus(e.target.value)
+                          }
+                          style={{
+                            marginLeft: 4,
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "2px 6px",
+                            fontSize: 12,
+                          }}
+                        >
+                          <option value="booked">Захиалсан</option>
+                          <option value="confirmed">Баталгаажсан</option>
+                          <option value="ongoing">Явагдаж байна</option>
+                          <option value="completed">Дууссан</option>
+                          <option value="cancelled">Цуцалсан</option>
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveStatus(a)}
+                        disabled={saving}
+                        style={{
+                          fontSize: 11,
+                          padding: "2px 8px",
+                          borderRadius: 6,
+                          border: "none",
+                          background: "#16a34a",
+                          color: "white",
+                          cursor: saving ? "default" : "pointer",
+                        }}
+                      >
+                        {saving ? "Хадгалж байна..." : "Хадгалах"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCancelEdit}
+                        disabled={saving}
+                        style={{
+                          fontSize: 11,
+                          padding: "2px 8px",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          background: "#f9fafb",
+                          cursor: saving ? "default" : "pointer",
+                        }}
+                      >
+                        Болих
+                      </button>
+                    </div>
+                  )}
+
                   <div style={{ color: "#4b5563" }}>
                     <strong>Салбар:</strong> {a.branch?.name ?? a.branchId}
                   </div>
                   <div style={{ color: "#4b5563" }}>
-            
-  <strong>Цаг (нарийвчилсэн):</strong>{" "}
-  {formatDateYmdDots(start)}{" "}
-  {start.toLocaleTimeString("mn-MN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })}
-  {end &&
-    ` – ${end.toLocaleTimeString("mn-MN", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    })}`}
-</div>
+                    <strong>Цаг (нарийвчилсэн):</strong>{" "}
+                    {formatDetailedTimeRange(start, end)}
+                  </div>
                   <div style={{ color: "#4b5563" }}>
                     <strong>Тэмдэглэл:</strong> {a.notes || "-"}
                   </div>
@@ -371,6 +542,18 @@ function AppointmentDetailsModal({
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {error && (
+          <div
+            style={{
+              marginTop: 8,
+              color: "#b91c1c",
+              fontSize: 12,
+            }}
+          >
+            {error}
           </div>
         )}
 
