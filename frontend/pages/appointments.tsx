@@ -725,8 +725,70 @@ function QuickAppointmentModal({
             gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
           }}
         >
-          {/* Patient */}
-          {/* ... keep your existing patient UI, unchanged ... */}
+      {/* Patient */}
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <label>Үйлчлүүлэгч</label>
+            <input
+              name="patientQuery"
+              placeholder="РД, овог, нэр эсвэл утас..."
+              value={form.patientQuery}
+              onChange={handleChange}
+              autoComplete="off"
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            />
+            {patientSearchLoading && (
+              <span
+                style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}
+              >
+                Үйлчлүүлэгч хайж байна...
+              </span>
+            )}
+          </div>
+
+          {patientResults.length > 0 && (
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                borderRadius: 6,
+                border: "1px solid #e5e7eb",
+                background: "#ffffff",
+                maxHeight: 200,
+                overflowY: "auto",
+              }}
+            >
+              {patientResults.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => handleSelectPatient(p)}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "6px 8px",
+                    border: "none",
+                    borderBottom: "1px solid #f3f4f6",
+                    background: "white",
+                    cursor: "pointer",
+                    fontSize: 12,
+                  }}
+                >
+                  {formatPatientSearchLabel(p)}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Date */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
