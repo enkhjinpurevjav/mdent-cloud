@@ -2629,7 +2629,7 @@ export default function AppointmentsPage() {
   const status = appsForCell[0].status;
   bg =
     status === "completed"
-      ? "#ff004e" // completed - slightly stronger green
+      ? "#fb6190" // completed - slightly stronger green
       : status === "confirmed"
       ? "#bbf7d0" // confirmed (Баталгаажсан) - light green
       : status === "ongoing"
