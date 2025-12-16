@@ -651,17 +651,19 @@ function QuickAppointmentModal({
             }}
           >
             <label>Үйлчлүүлэгч</label>
-            <input
-              name="patientQuery"
-              placeholder="РД, овог, нэр эсвэл утас..."
-              value={form.patientQuery}
-              onChange={handleChange}
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            />
+          <input
+            name="patientQuery"
+            placeholder="РД, овог, нэр эсвэл утас..."
+            value={form.patientQuery}
+            onChange={handleChange}
+            autoComplete="off"          // turn off browser history/autofill
+            style={{
+              flex: 1,
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
             {patientSearchLoading && (
               <span
                 style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}
@@ -1364,17 +1366,17 @@ function AppointmentForm({
         <label>Үйлчлүүлэгч</label>
         <div style={{ display: "flex", gap: 6 }}>
           <input
-            name="patientQuery"
-            placeholder="РД, овог, нэр эсвэл утас..."
-            value={form.patientQuery}
-            onChange={handleChange}
-            style={{
-              flex: 1,
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              padding: "6px 8px",
-            }}
-          />
+        name="patientQuery"
+        placeholder="РД, овог, нэр эсвэл утас..."
+        value={form.patientQuery}
+        onChange={handleChange}
+        autoComplete="off"          // same here
+        style={{
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "6px 8px",
+        }}
+      />
           <button
             type="button"
             onClick={() => {
