@@ -108,6 +108,22 @@ function getSlotTimeString(date: Date): string {
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
+function addMinutesToTimeString(time: string, minutesToAdd: number): string {
+  if (!time) return "";
+  const [h, m] = time.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return time;
+
+  let total = h * 60 + m + minutesToAdd;
+  if (total < 0) total = 0;
+  // We don't wrap around midnight; just clamp inside 0..(23:59)
+  if (total > 23 * 60 + 59) total = 23 * 60 + 59;
+
+  const newH = Math.floor(total / 60);
+  const newM = total % 60;
+  return `${newH.toString().padStart(2, "0")}:${newM
+    .toString()
+    .padStart(2, "0")}`;
+}
 function isTimeWithinRange(time: string, startTime: string, endTime: string) {
   // inclusive of start, exclusive of end
   return time >= startTime && time < endTime;
@@ -428,22 +444,61 @@ function QuickAppointmentModal({
     setPatientResults([]);
   }, [open, defaultDoctorId, defaultDate, defaultTime]);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+  cconst handleChange = (
+  e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+) => {
+  const { name, value } = e.target;
 
-    if (name === "patientQuery") {
-      const trimmed = value.trim();
-      if (!trimmed) {
-        setForm((prev) => ({ ...prev, patientId: null }));
-        setPatientResults([]);
-        return;
-      }
-      triggerPatientSearch(value);
+  // Patient search logic (unchanged)
+  if (name === "patientQuery") {
+    setForm((prev) => ({ ...prev, patientQuery: value }));
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setSelectedPatientId(null);
+      setPatientResults([]);
+      return;
     }
-  };
+    if (trimmed === form.patientQuery.trim()) {
+      return;
+    }
+    triggerPatientSearch(value);
+    return;
+  }
+
+  // Other fields
+  setForm((prev) => {
+    // When startTime changes, auto-fill endTime if empty or before new start
+    if (name === "startTime") {
+      const newStart = value;
+      let newEnd = prev.endTime;
+
+      if (!newEnd) {
+        // no end time yet → start + 30 мин
+        newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
+      } else {
+        // if existing end is earlier than new start, also bump it
+        if (newEnd <= newStart) {
+          newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
+        }
+      }
+
+      return {
+        ...prev,
+        startTime: newStart,
+        endTime: newEnd,
+      };
+    }
+
+    // If endTime is being changed manually, just set it
+    if (name === "endTime") {
+      return { ...prev, endTime: value };
+    }
+
+    // default: doctorId, branchId, date, status, notes
+    return { ...prev, [name]: value };
+  });
+};
 
   const triggerPatientSearch = (rawQuery: string) => {
     const query = rawQuery.trim();
