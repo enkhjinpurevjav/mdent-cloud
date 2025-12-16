@@ -2629,14 +2629,14 @@ export default function AppointmentsPage() {
   const status = appsForCell[0].status;
   bg =
     status === "completed"
-      ? "#bbf7d0" // completed - slightly stronger green
+      ? "#ff004e" // completed - slightly stronger green
       : status === "confirmed"
-      ? "#d1fae5" // confirmed (Баталгаажсан) - light green
+      ? "#bbf7d0" // confirmed (Баталгаажсан) - light green
       : status === "ongoing"
-      ? "#fff4e0" // ongoing - light orange
+      ? "#f9d89b" // ongoing - light orange
       : status === "cancelled"
-      ? "#fde0e0" // cancelled - light red
-      : "#e6f0ff"; // default (booked) - light blue
+      ? "#9d9d9d" // cancelled - light red
+      : "#77f9fe"; // default (booked) - light blue
 }
 
                     const handleCellClick = () => {
