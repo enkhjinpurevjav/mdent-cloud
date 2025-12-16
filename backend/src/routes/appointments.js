@@ -78,13 +78,14 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const {
-      patientId,
-      doctorId,
-      branchId,
-      scheduledAt,
-      status,
-      notes,
-    } = req.body || {};
+  patientId,
+  doctorId,
+  branchId,
+  scheduledAt,
+  endAt,     // NEW
+  status,
+  notes,
+} = req.body || {};
 
     if (!patientId || !branchId || !scheduledAt) {
       return res.status(400).json({
@@ -110,9 +111,24 @@ router.post("/", async (req, res) => {
     }
 
     const scheduledDate = new Date(scheduledAt);
-    if (Number.isNaN(scheduledDate.getTime())) {
-      return res.status(400).json({ error: "scheduledAt is invalid date" });
-    }
+if (Number.isNaN(scheduledDate.getTime())) {
+  return res.status(400).json({ error: "scheduledAt is invalid date" });
+}
+
+// NEW: optional endAt
+let endDate = null;
+if (endAt !== undefined && endAt !== null && endAt !== "") {
+  const tmp = new Date(endAt);
+  if (Number.isNaN(tmp.getTime())) {
+    return res.status(400).json({ error: "endAt is invalid date" });
+  }
+  if (tmp <= scheduledDate) {
+    return res
+      .status(400)
+      .json({ error: "endAt must be later than scheduledAt" });
+  }
+  endDate = tmp;
+}
 
     const appt = await prisma.appointment.create({
       data: {
