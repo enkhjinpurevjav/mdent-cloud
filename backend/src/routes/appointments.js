@@ -4,6 +4,17 @@ import prisma from "../db.js";
 const router = express.Router();
 
 /**
+ * Allowed appointment statuses (must match frontend options)
+ */
+const ALLOWED_STATUSES = [
+  "booked",
+  "confirmed",
+  "ongoing",
+  "completed",
+  "cancelled",
+];
+
+/**
  * GET /api/appointments
  *
  * Optional query parameters:
@@ -72,20 +83,21 @@ router.get("/", async (req, res) => {
  *  - doctorId (number, optional)
  *  - branchId (number, required)
  *  - scheduledAt (ISO string or YYYY-MM-DDTHH:mm, required)
+ *  - endAt (ISO string or YYYY-MM-DDTHH:mm, optional; must be > scheduledAt)
  *  - status (string, optional, defaults to "booked")
  *  - notes (string, optional)
  */
 router.post("/", async (req, res) => {
   try {
     const {
-  patientId,
-  doctorId,
-  branchId,
-  scheduledAt,
-  endAt,     // NEW
-  status,
-  notes,
-} = req.body || {};
+      patientId,
+      doctorId,
+      branchId,
+      scheduledAt,
+      endAt, // NEW
+      status,
+      notes,
+    } = req.body || {};
 
     if (!patientId || !branchId || !scheduledAt) {
       return res.status(400).json({
@@ -111,52 +123,112 @@ router.post("/", async (req, res) => {
     }
 
     const scheduledDate = new Date(scheduledAt);
-if (Number.isNaN(scheduledDate.getTime())) {
-  return res.status(400).json({ error: "scheduledAt is invalid date" });
-}
+    if (Number.isNaN(scheduledDate.getTime())) {
+      return res.status(400).json({ error: "scheduledAt is invalid date" });
+    }
 
-// NEW: optional endAt
-let endDate = null;
-if (endAt !== undefined && endAt !== null && endAt !== "") {
-  const tmp = new Date(endAt);
-  if (Number.isNaN(tmp.getTime())) {
-    return res.status(400).json({ error: "endAt is invalid date" });
-  }
-  if (tmp <= scheduledDate) {
-    return res
-      .status(400)
-      .json({ error: "endAt must be later than scheduledAt" });
-  }
-  endDate = tmp;
-}
+    // NEW: optional endAt
+    let endDate = null;
+    if (endAt !== undefined && endAt !== null && endAt !== "") {
+      const tmp = new Date(endAt);
+      if (Number.isNaN(tmp.getTime())) {
+        return res.status(400).json({ error: "endAt is invalid date" });
+      }
+      if (tmp <= scheduledDate) {
+        return res
+          .status(400)
+          .json({ error: "endAt must be later than scheduledAt" });
+      }
+      endDate = tmp;
+    }
 
-    const appt = await prisma.appointment.create({
-  data: {
-    patientId: parsedPatientId,
-    doctorId: parsedDoctorId,
-    branchId: parsedBranchId,
-    scheduledAt: scheduledDate,
-    endAt: endDate, // NEW (can be null)
-    status:
+    // Normalize and validate status
+    const normalizedStatus =
       typeof status === "string" && status.trim()
         ? status.trim()
-        : "booked",
-    notes: notes || null,
-  },
-  include: {
-    patient: {
-      include: {
-        patientBook: true,
+        : "booked";
+
+    if (!ALLOWED_STATUSES.includes(normalizedStatus)) {
+      return res.status(400).json({ error: "invalid status" });
+    }
+
+    const appt = await prisma.appointment.create({
+      data: {
+        patientId: parsedPatientId,
+        doctorId: parsedDoctorId,
+        branchId: parsedBranchId,
+        scheduledAt: scheduledDate,
+        endAt: endDate, // can be null
+        status: normalizedStatus,
+        notes: notes || null,
       },
-    },
-    doctor: true,
-    branch: true,
-  },
-});
+      include: {
+        patient: {
+          include: {
+            patientBook: true,
+          },
+        },
+        doctor: true,
+        branch: true,
+      },
+    });
+
     res.status(201).json(appt);
   } catch (err) {
     console.error("Error creating appointment:", err);
     res.status(500).json({ error: "failed to create appointment" });
+  }
+});
+
+/**
+ * PATCH /api/appointments/:id
+ *
+ * Currently used to update status only (from Цагийн дэлгэрэнгүй modal).
+ *
+ * Body:
+ *  - status (string, required; one of ALLOWED_STATUSES)
+ */
+router.patch("/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid appointment id" });
+    }
+
+    const { status } = req.body || {};
+    if (typeof status !== "string" || !status.trim()) {
+      return res.status(400).json({ error: "status is required" });
+    }
+
+    const normalizedStatus = status.trim();
+    if (!ALLOWED_STATUSES.includes(normalizedStatus)) {
+      return res.status(400).json({ error: "invalid status" });
+    }
+
+    const appt = await prisma.appointment.update({
+      where: { id },
+      data: {
+        status: normalizedStatus,
+      },
+      include: {
+        patient: {
+          include: {
+            patientBook: true,
+          },
+        },
+        doctor: true,
+        branch: true,
+      },
+    });
+
+    res.json(appt);
+  } catch (err) {
+    console.error("Error updating appointment:", err);
+    if (err.code === "P2025") {
+      // Prisma: record not found
+      return res.status(404).json({ error: "appointment not found" });
+    }
+    res.status(500).json({ error: "failed to update appointment" });
   }
 });
 
