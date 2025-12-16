@@ -36,7 +36,8 @@ type Appointment = {
   patientId: number;
   doctorId: number | null;
   branchId: number;
-  scheduledAt: string;
+  scheduledAt: string; // start
+  endAt?: string | null; // end
   status: string;
   notes: string | null;
   patient?: PatientLite;
@@ -283,43 +284,63 @@ function AppointmentDetailsModal({
           <div style={{ color: "#6b7280" }}>Энэ цагт захиалга алга.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {appointments.map((a) => (
-              <div
-                key={a.id}
-                style={{
-                  borderRadius: 6,
-                  border: "1px solid #e5e7eb",
-                  padding: 8,
-                  background: "#f9fafb",
-                }}
-              >
-                <div style={{ fontWeight: 500, marginBottom: 2 }}>
-                  {formatPatientLabel(a.patient, a.patientId)}
+            {appointments.map((a) => {
+              const start = new Date(a.scheduledAt);
+              const end =
+                a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+                  ? new Date(a.endAt)
+                  : null;
+
+              return (
+                <div
+                  key={a.id}
+                  style={{
+                    borderRadius: 6,
+                    border: "1px solid #e5e7eb",
+                    padding: 8,
+                    background: "#f9fafb",
+                  }}
+                >
+                  <div style={{ fontWeight: 500, marginBottom: 2 }}>
+                    {formatPatientLabel(a.patient, a.patientId)}
+                  </div>
+                  <div style={{ color: "#4b5563" }}>
+                    <strong>Төлөв:</strong> {formatStatus(a.status)}
+                  </div>
+                  <div style={{ color: "#4b5563" }}>
+                    <strong>Салбар:</strong> {a.branch?.name ?? a.branchId}
+                  </div>
+                  <div style={{ color: "#4b5563" }}>
+                    <strong>Цаг (нарийвчилсан):</strong>{" "}
+                    {start.toLocaleString("mn-MN", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                    {end
+                      ? ` – ${end.toLocaleTimeString("mn-MN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}`
+                      : ""}
+                  </div>
+                  <div style={{ color: "#4b5563" }}>
+                    <strong>Тэмдэглэл:</strong> {a.notes || "-"}
+                  </div>
+                  <div
+                    style={{
+                      color: "#9ca3af",
+                      fontSize: 11,
+                      marginTop: 2,
+                    }}
+                  >
+                    ID: {a.id}
+                  </div>
                 </div>
-                <div style={{ color: "#4b5563" }}>
-                  <strong>Төлөв:</strong> {formatStatus(a.status)}
-                </div>
-                <div style={{ color: "#4b5563" }}>
-                  <strong>Салбар:</strong> {a.branch?.name ?? a.branchId}
-                </div>
-                <div style={{ color: "#4b5563" }}>
-                  <strong>Цаг (нарийвчилсан):</strong>{" "}
-                  {new Date(a.scheduledAt).toLocaleString("mn-MN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    year: "numeric",
-                    month: "2-digit",
-                    day: "2-digit",
-                  })}
-                </div>
-                <div style={{ color: "#4b5563" }}>
-                  <strong>Тэмдэглэл:</strong> {a.notes || "-"}
-                </div>
-                <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 2 }}>
-                  ID: {a.id}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -382,7 +403,7 @@ function QuickAppointmentModal({
     doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
     branchId: branches.length ? String(branches[0].id) : "",
     date: defaultDate,
-    time: defaultTime,
+    time: defaultTime, // still single time for quick modal = 30min
     status: "booked",
     notes: "",
   });
@@ -532,7 +553,7 @@ function QuickAppointmentModal({
     const [year, month, day] = form.date.split("-").map(Number);
     const [hour, minute] = form.time.split(":").map(Number);
 
-    const local = new Date(
+    const start = new Date(
       year,
       (month || 1) - 1,
       day || 1,
@@ -541,11 +562,14 @@ function QuickAppointmentModal({
       0,
       0
     );
-    if (Number.isNaN(local.getTime())) {
+    if (Number.isNaN(start.getTime())) {
       setError("Огноо/цаг буруу байна.");
       return;
     }
-    const scheduledAtStr = local.toISOString();
+    const end = new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+
+    const scheduledAtStr = start.toISOString();
+    const endAtStr = end.toISOString();
 
     try {
       const res = await fetch("/api/appointments", {
@@ -556,6 +580,7 @@ function QuickAppointmentModal({
           doctorId: Number(form.doctorId),
           branchId: Number(form.branchId),
           scheduledAt: scheduledAtStr,
+          endAt: endAtStr,
           status: form.status,
           notes: form.notes || null,
         }),
@@ -651,19 +676,18 @@ function QuickAppointmentModal({
             }}
           >
             <label>Үйлчлүүлэгч</label>
-          <input
-            name="patientQuery"
-            placeholder="РД, овог, нэр эсвэл утас..."
-            value={form.patientQuery}
-            onChange={handleChange}
-            autoComplete="off"          // turn off browser history/autofill
-            style={{
-              flex: 1,
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              padding: "6px 8px",
-            }}
-          />
+            <input
+              name="patientQuery"
+              placeholder="РД, овог, нэр эсвэл утас..."
+              value={form.patientQuery}
+              onChange={handleChange}
+              autoComplete="off"
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            />
             {patientSearchLoading && (
               <span
                 style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}
@@ -914,7 +938,8 @@ function AppointmentForm({
     doctorId: "",
     branchId: branches.length ? String(branches[0].id) : "",
     date: selectedDate || todayStr,
-    time: "",
+    startTime: "",
+    endTime: "",
     status: "booked",
     notes: "",
   });
@@ -996,8 +1021,14 @@ function AppointmentForm({
 
     setDaySlots(slots.map(({ label, value }) => ({ label, value })));
 
-    if (form.time && !slots.some((s) => s.value === form.time)) {
-      setForm((prev) => ({ ...prev, time: "" }));
+    if (
+      form.startTime &&
+      !slots.some((s) => s.value === form.startTime)
+    ) {
+      setForm((prev) => ({ ...prev, startTime: "" }));
+    }
+    if (form.endTime && !slots.some((s) => s.value === form.endTime)) {
+      setForm((prev) => ({ ...prev, endTime: "" }));
     }
   }, [form.date, form.doctorId, scheduledDoctors]);
 
@@ -1010,19 +1041,16 @@ function AppointmentForm({
     if (name === "patientQuery") {
       const trimmed = value.trim();
 
-      // fully cleared → clear selection and results
       if (!trimmed) {
         setSelectedPatientId(null);
         setPatientResults([]);
         return;
       }
 
-      // if text didn't actually change, do nothing
       if (trimmed === form.patientQuery.trim()) {
         return;
       }
 
-      // otherwise just search; do not clear selectedPatientId here
       triggerPatientSearch(value);
     }
   };
@@ -1110,6 +1138,7 @@ function AppointmentForm({
   };
 
   const handleSelectPatient = (p: PatientLite) => {
+    console.log("DEBUG handleSelectPatient clicked id =", p.id);
     setSelectedPatientId(p.id);
     setForm((prev) => ({
       ...prev,
@@ -1136,11 +1165,12 @@ function AppointmentForm({
     );
   };
 
-  const countAppointmentsInSlot = (scheduledAt: Date) => {
+  // Count existing appointments overlapping a 30min slot
+  const countAppointmentsInSlot = (slotStartDate: Date) => {
     if (!form.doctorId) return 0;
     const doctorIdNum = Number(form.doctorId);
 
-    const slotStart = new Date(scheduledAt);
+    const slotStart = new Date(slotStartDate);
     const slotEnd = new Date(
       slotStart.getTime() + SLOT_MINUTES * 60 * 1000
     );
@@ -1149,11 +1179,20 @@ function AppointmentForm({
       if (a.doctorId !== doctorIdNum) return false;
       if (selectedBranchId && String(a.branchId) !== selectedBranchId)
         return false;
-      const t = new Date(a.scheduledAt);
-      if (Number.isNaN(t.getTime())) return false;
-      const dayStr = t.toISOString().slice(0, 10);
+
+      const start = new Date(a.scheduledAt);
+      if (Number.isNaN(start.getTime())) return false;
+
+      const end =
+        a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+          ? new Date(a.endAt)
+          : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+
+      const dayStr = start.toISOString().slice(0, 10);
       if (dayStr !== form.date) return false;
-      return t >= slotStart && t < slotEnd;
+
+      // overlap: start < slotEnd && end > slotStart
+      return start < slotEnd && end > slotStart;
     }).length;
   };
 
@@ -1247,8 +1286,13 @@ function AppointmentForm({
     e.preventDefault();
     setError("");
 
-    if (!form.branchId || !form.date || !form.time) {
-      setError("Салбар, огноо, цаг талбаруудыг бөглөнө үү.");
+    if (
+      !form.branchId ||
+      !form.date ||
+      !form.startTime ||
+      !form.endTime
+    ) {
+      setError("Салбар, огноо, эхлэх/дуусах цаг талбаруудыг бөглөнө үү.");
       return;
     }
 
@@ -1266,25 +1310,43 @@ function AppointmentForm({
     }
 
     const [year, month, day] = form.date.split("-").map(Number);
-    const [hour, minute] = form.time.split(":").map(Number);
+    const [startHour, startMinute] = form.startTime
+      .split(":")
+      .map(Number);
+    const [endHour, endMinute] = form.endTime.split(":").map(Number);
 
-    const local = new Date(
+    const start = new Date(
       year,
       (month || 1) - 1,
       day || 1,
-      hour || 0,
-      minute || 0,
+      startHour || 0,
+      startMinute || 0,
+      0,
+      0
+    );
+    const end = new Date(
+      year,
+      (month || 1) - 1,
+      day || 1,
+      endHour || 0,
+      endMinute || 0,
       0,
       0
     );
 
-    if (Number.isNaN(local.getTime())) {
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       setError("Огноо/цаг буруу байна.");
       return;
     }
 
-    const scheduledAtStr = local.toISOString();
-    const scheduledAt = local;
+    if (end <= start) {
+      setError("Дуусах цаг нь эхлэх цагаас хойш байх ёстой.");
+      return;
+    }
+
+    const scheduledAtStr = start.toISOString();
+    const endAtStr = end.toISOString();
+    const scheduledAt = start;
 
     const patientId = selectedPatientId;
 
@@ -1293,10 +1355,19 @@ function AppointmentForm({
       return;
     }
 
-    const existingCount = countAppointmentsInSlot(scheduledAt);
-    if (existingCount >= 2) {
-      setError("Энэ 30 минутын блок дээр аль хэдийн 2 захиалга байна.");
-      return;
+    // Check each 30-min block for max 2 appointments
+    let currentBlockStart = new Date(scheduledAt);
+    while (currentBlockStart < end) {
+      const existingCount = countAppointmentsInSlot(currentBlockStart);
+      if (existingCount >= 2) {
+        setError(
+          "Сонгосон хугацааны зарим 30 минутын блок дээр аль хэдийн 2 захиалга байна."
+        );
+        return;
+      }
+      currentBlockStart = new Date(
+        currentBlockStart.getTime() + SLOT_MINUTES * 60 * 1000
+      );
     }
 
     try {
@@ -1308,6 +1379,7 @@ function AppointmentForm({
           doctorId: Number(form.doctorId),
           branchId: Number(form.branchId),
           scheduledAt: scheduledAtStr,
+          endAt: endAtStr,
           status: form.status,
           notes: form.notes || null,
         }),
@@ -1324,7 +1396,8 @@ function AppointmentForm({
         setForm((prev) => ({
           ...prev,
           patientQuery: "",
-          time: "",
+          startTime: "",
+          endTime: "",
           notes: "",
           status: "booked",
           doctorId: "",
@@ -1366,17 +1439,18 @@ function AppointmentForm({
         <label>Үйлчлүүлэгч</label>
         <div style={{ display: "flex", gap: 6 }}>
           <input
-        name="patientQuery"
-        placeholder="РД, овог, нэр эсвэл утас..."
-        value={form.patientQuery}
-        onChange={handleChange}
-        autoComplete="off"          // same here
-        style={{
-          borderRadius: 6,
-          border: "1px solid #d1d5db",
-          padding: "6px 8px",
-        }}
-      />
+            name="patientQuery"
+            placeholder="РД, овог, нэр эсвэл утас..."
+            value={form.patientQuery}
+            onChange={handleChange}
+            autoComplete="off"
+            style={{
+              flex: 1,
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
           <button
             type="button"
             onClick={() => {
@@ -1513,12 +1587,38 @@ function AppointmentForm({
         />
       </div>
 
-      {/* Time */}
+      {/* Start time */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Цаг</label>
+        <label>Эхлэх цаг</label>
         <select
-          name="time"
-          value={form.time}
+          name="startTime"
+          value={form.startTime}
+          onChange={(e) => {
+            handleChange(e);
+            setError("");
+          }}
+          required
+          style={{
+            borderRadius: 6,
+            border: "1px solid "#d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Эхлэх цаг сонгох</option>
+          {daySlots.map((slot) => (
+            <option key={slot.value} value={slot.value}>
+              {slot.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* End time */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Дуусах цаг</label>
+        <select
+          name="endTime"
+          value={form.endTime}
           onChange={(e) => {
             handleChange(e);
             setError("");
@@ -1530,7 +1630,7 @@ function AppointmentForm({
             padding: "6px 8px",
           }}
         >
-          <option value="">Цаг сонгох</option>
+          <option value="">Дуусах цаг сонгох</option>
           {daySlots.map((slot) => (
             <option key={slot.value} value={slot.value}>
               {slot.label}
@@ -2170,9 +2270,24 @@ export default function AppointmentsPage() {
                   {gridDoctors.map((doc) => {
                     const appsForCell = appointments.filter((a) => {
                       if (a.doctorId !== doc.id) return false;
-                      const t = new Date(a.scheduledAt);
-                      if (Number.isNaN(t.getTime())) return false;
-                      return t >= slot.start && t < slot.end;
+
+                      const start = new Date(a.scheduledAt);
+                      if (Number.isNaN(start.getTime())) return false;
+
+                      const end =
+                        a.endAt &&
+                        !Number.isNaN(new Date(a.endAt).getTime())
+                          ? new Date(a.endAt)
+                          : new Date(
+                              start.getTime() +
+                                SLOT_MINUTES * 60 * 1000
+                            );
+
+                      const slotStart = slot.start;
+                      const slotEnd = slot.end;
+
+                      // overlap: start < slotEnd && end > slotStart
+                      return start < slotEnd && end > slotStart;
                     });
 
                     const slotTimeStr = getSlotTimeString(slot.start);
@@ -2311,39 +2426,55 @@ export default function AppointmentsPage() {
                     new Date(a.scheduledAt).getTime() -
                     new Date(b.scheduledAt).getTime()
                 )
-                .map((a) => (
-                  <div
-                    key={a.id}
-                    style={{
-                      marginBottom: 6,
-                      padding: 6,
-                      borderRadius: 4,
-                      backgroundColor:
-                        a.status === "completed"
-                          ? "#e0f7e9"
-                          : a.status === "ongoing"
-                          ? "#fff4e0"
-                          : a.status === "cancelled"
-                          ? "#fde0e0"
-                          : "#e6f0ff",
-                      fontSize: 12,
-                    }}
-                  >
-                    <div style={{ fontWeight: 500 }}>
-                      {new Date(a.scheduledAt).toLocaleTimeString("mn-MN", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}{" "}
-                      — {formatPatientLabel(a.patient, a.patientId)}
+                .map((a) => {
+                  const start = new Date(a.scheduledAt);
+                  const end =
+                    a.endAt &&
+                    !Number.isNaN(new Date(a.endAt).getTime())
+                      ? new Date(a.endAt)
+                      : null;
+
+                  return (
+                    <div
+                      key={a.id}
+                      style={{
+                        marginBottom: 6,
+                        padding: 6,
+                        borderRadius: 4,
+                        backgroundColor:
+                          a.status === "completed"
+                            ? "#e0f7e9"
+                            : a.status === "ongoing"
+                            ? "#fff4e0"
+                            : a.status === "cancelled"
+                            ? "#fde0e0"
+                            : "#e6f0ff",
+                        fontSize: 12,
+                      }}
+                    >
+                      <div style={{ fontWeight: 500 }}>
+                        {start.toLocaleTimeString("mn-MN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                        {end
+                          ? ` – ${end.toLocaleTimeString("mn-MN", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}`
+                          : ""}
+                        {" — "}
+                        {formatPatientLabel(a.patient, a.patientId)}
+                      </div>
+                      <div>
+                        Эмч: {formatDoctorName(a.doctor)} | Салбар:{" "}
+                        {a.branch?.name ?? a.branchId}
+                      </div>
+                      <div>Тайлбар: {a.notes || "-"}</div>
+                      <div>Төлөв: {formatStatus(a.status)}</div>
                     </div>
-                    <div>
-                      Эмч: {formatDoctorName(a.doctor)} | Салбар:{" "}
-                      {a.branch?.name ?? a.branchId}
-                    </div>
-                    <div>Тайлбар: {a.notes || "-"}</div>
-                    <div>Төлөв: {formatStatus(a.status)}</div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           ))}
         </div>
@@ -2372,7 +2503,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px солид #ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 6,
                   }}
                 >
@@ -2381,7 +2512,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px солид #ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 6,
                   }}
                 >
@@ -2390,7 +2521,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px солид #ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 6,
                   }}
                 >
@@ -2399,7 +2530,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px солид #ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 6,
                   }}
                 >
@@ -2408,7 +2539,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px солид #ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 6,
                   }}
                 >
@@ -2417,7 +2548,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px солид #ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 6,
                   }}
                 >
@@ -2426,7 +2557,7 @@ export default function AppointmentsPage() {
                 <th
                   style={{
                     textAlign: "left",
-                    borderBottom: "1px солид #ddd",
+                    borderBottom: "1px solid #ddd",
                     padding: 6,
                   }}
                 >
@@ -2435,66 +2566,80 @@ export default function AppointmentsPage() {
               </tr>
             </thead>
             <tbody>
-              {appointments.map((a) => (
-                <tr key={a.id}>
-                  <td
-                    style={{
-                      borderBottom: "1px солид #f0f0f0",
-                      padding: 6,
-                    }}
-                  >
-                    {a.id}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px солид #f0f0f0",
-                      padding: 6,
-                    }}
-                  >
-                    {formatPatientLabel(a.patient, a.patientId)}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px солид #f0f0f0",
-                      padding: 6,
-                    }}
-                  >
-                    {a.branch?.name ?? a.branchId}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px солид #f0f0f0",
-                      padding: 6,
-                    }}
-                  >
-                    {formatDoctorName(a.doctor ?? null)}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px солид #f0f0f0",
-                      padding: 6,
-                    }}
-                  >
-                    {new Date(a.scheduledAt).toLocaleString("mn-MN")}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px солид #f0f0f0",
-                      padding: 6,
-                    }}
-                  >
-                    {formatStatus(a.status)}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px солид #f0f0f0",
-                      padding: 6,
-                    }}
-                  >
-                    {a.notes || "-"}
-                  </td>
-                </tr>
-              ))}
+              {appointments.map((a) => {
+                const start = new Date(a.scheduledAt);
+                const end =
+                  a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+                    ? new Date(a.endAt)
+                    : null;
+
+                return (
+                  <tr key={a.id}>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 6,
+                      }}
+                    >
+                      {a.id}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 6,
+                      }}
+                    >
+                      {formatPatientLabel(a.patient, a.patientId)}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 6,
+                      }}
+                    >
+                      {a.branch?.name ?? a.branchId}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 6,
+                      }}
+                    >
+                      {formatDoctorName(a.doctor ?? null)}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 6,
+                      }}
+                    >
+                      {start.toLocaleString("mn-MN")}
+                      {end
+                        ? ` – ${end.toLocaleTimeString("mn-MN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}`
+                        : ""}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 6,
+                      }}
+                    >
+                      {formatStatus(a.status)}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 6,
+                      }}
+                    >
+                      {a.notes || "-"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
