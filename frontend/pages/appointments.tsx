@@ -389,20 +389,17 @@ function AppointmentDetailsModal({
         </div>
 
         <div style={{ marginBottom: 8, color: "#4b5563" }}>
-          <div>
-            <strong>Огноо:</strong>{" "}
-            {date ? formatDateYmdDots(new Date(date)) : "-"}
-          </div>
-          <div>
-            <strong>Цаг:</strong> {slotLabel || slotTime || "-"}
-          </div>
-          <div>
-            <strong>Эмч:</strong> {formatDoctorName(doctor ?? null)}
-          </div>
-          <div>
-            <strong>Нийт захиалга:</strong> {totalCount}
-          </div>
-        </div>
+  <div>
+    <strong>Огноо:</strong>{" "}
+    {date ? formatDateYmdDots(new Date(date)) : "-"}
+  </div>
+  <div>
+    <strong>Цаг:</strong> {slotLabel || slotTime || "-"}
+  </div>
+  <div>
+    <strong>Эмч:</strong> {formatDoctorName(doctor ?? null)}
+  </div>
+</div>
 
         {appointments.length === 0 ? (
           <div style={{ color: "#6b7280" }}>Энэ цагт захиалга алга.</div>
@@ -459,10 +456,15 @@ function AppointmentDetailsModal({
 
                   {/* Status view / edit */}
                   {!isEditing ? (
-                    <div style={{ color: "#4b5563" }}>
-                      <strong>Төлөв:</strong> {formatStatus(a.status)}
-                    </div>
-                  ) : (
+  <div style={{ color: "#4b5563" }}>
+    <div>
+      <strong>Төлөв:</strong> {formatStatus(a.status)}
+    </div>
+    <div>
+      <strong>Утас:</strong> {a.patient?.phone || "-"}
+    </div>
+  </div>
+) : (
                     <div
                       style={{
                         display: "flex",
@@ -531,21 +533,13 @@ function AppointmentDetailsModal({
                     <strong>Салбар:</strong> {a.branch?.name ?? a.branchId}
                   </div>
                   <div style={{ color: "#4b5563" }}>
-                    <strong>Цаг (нарийвчилсэн):</strong>{" "}
+                    <strong>Цаг захиалга:</strong>{" "}
                     {formatDetailedTimeRange(start, end)}
                   </div>
                   <div style={{ color: "#4b5563" }}>
                     <strong>Тэмдэглэл:</strong> {a.notes || "-"}
                   </div>
-                  <div
-                    style={{
-                      color: "#9ca3af",
-                      fontSize: 11,
-                      marginTop: 2,
-                    }}
-                  >
-                    ID: {a.id}
-                  </div>
+                 
                 </div>
               );
             })}
