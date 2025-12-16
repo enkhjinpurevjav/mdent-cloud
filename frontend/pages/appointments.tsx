@@ -115,7 +115,6 @@ function addMinutesToTimeString(time: string, minutesToAdd: number): string {
 
   let total = h * 60 + m + minutesToAdd;
   if (total < 0) total = 0;
-  // We don't wrap around midnight; just clamp inside 0..(23:59)
   if (total > 23 * 60 + 59) total = 23 * 60 + 59;
 
   const newH = Math.floor(total / 60);
@@ -124,6 +123,7 @@ function addMinutesToTimeString(time: string, minutesToAdd: number): string {
     .toString()
     .padStart(2, "0")}`;
 }
+
 function isTimeWithinRange(time: string, startTime: string, endTime: string) {
   // inclusive of start, exclusive of end
   return time >= startTime && time < endTime;
@@ -388,8 +388,7 @@ function AppointmentDetailsModal({
   );
 }
 
-
-// ==== Quick Appointment Modal ====
+// ==== Quick Appointment Modal (always 30min) ====
 
 type QuickAppointmentModalProps = {
   open: boolean;
@@ -420,7 +419,7 @@ function QuickAppointmentModal({
     doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
     branchId: branches.length ? String(branches[0].id) : "",
     date: defaultDate,
-    time: defaultTime, // still single time for quick modal = 30min
+    time: defaultTime, // single start time, always 30 min
     status: "booked",
     notes: "",
   });
@@ -444,61 +443,25 @@ function QuickAppointmentModal({
     setPatientResults([]);
   }, [open, defaultDoctorId, defaultDate, defaultTime]);
 
-  cconst handleChange = (
-  e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-) => {
-  const { name, value } = e.target;
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
 
-  // Patient search logic (unchanged)
-  if (name === "patientQuery") {
-    setForm((prev) => ({ ...prev, patientQuery: value }));
-
-    const trimmed = value.trim();
-    if (!trimmed) {
-      setSelectedPatientId(null);
-      setPatientResults([]);
-      return;
-    }
-    if (trimmed === form.patientQuery.trim()) {
-      return;
-    }
-    triggerPatientSearch(value);
-    return;
-  }
-
-  // Other fields
-  setForm((prev) => {
-    // When startTime changes, auto-fill endTime if empty or before new start
-    if (name === "startTime") {
-      const newStart = value;
-      let newEnd = prev.endTime;
-
-      if (!newEnd) {
-        // no end time yet → start + 30 мин
-        newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
-      } else {
-        // if existing end is earlier than new start, also bump it
-        if (newEnd <= newStart) {
-          newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
-        }
+    if (name === "patientQuery") {
+      setForm((prev) => ({ ...prev, patientQuery: value }));
+      const trimmed = value.trim();
+      if (!trimmed) {
+        setForm((prev) => ({ ...prev, patientId: null }));
+        setPatientResults([]);
+        return;
       }
-
-      return {
-        ...prev,
-        startTime: newStart,
-        endTime: newEnd,
-      };
+      triggerPatientSearch(value);
+      return;
     }
 
-    // If endTime is being changed manually, just set it
-    if (name === "endTime") {
-      return { ...prev, endTime: value };
-    }
-
-    // default: doctorId, branchId, date, status, notes
-    return { ...prev, [name]: value };
-  });
-};
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
 
   const triggerPatientSearch = (rawQuery: string) => {
     const query = rawQuery.trim();
@@ -966,7 +929,7 @@ function QuickAppointmentModal({
   );
 }
 
-// ===== Inline AppointmentForm =====
+// ===== Inline AppointmentForm with start/end time =====
 
 type AppointmentFormProps = {
   branches: Branch[];
@@ -1077,10 +1040,7 @@ function AppointmentForm({
 
     setDaySlots(slots.map(({ label, value }) => ({ label, value })));
 
-    if (
-      form.startTime &&
-      !slots.some((s) => s.value === form.startTime)
-    ) {
+    if (form.startTime && !slots.some((s) => s.value === form.startTime)) {
       setForm((prev) => ({ ...prev, startTime: "" }));
     }
     if (form.endTime && !slots.some((s) => s.value === form.endTime)) {
@@ -1092,23 +1052,48 @@ function AppointmentForm({
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
 
+    // Patient search
     if (name === "patientQuery") {
-      const trimmed = value.trim();
+      setForm((prev) => ({ ...prev, patientQuery: value }));
 
+      const trimmed = value.trim();
       if (!trimmed) {
         setSelectedPatientId(null);
         setPatientResults([]);
         return;
       }
-
       if (trimmed === form.patientQuery.trim()) {
         return;
       }
-
       triggerPatientSearch(value);
+      return;
     }
+
+    // Other fields
+    setForm((prev) => {
+      if (name === "startTime") {
+        const newStart = value;
+        let newEnd = prev.endTime;
+
+        // If no end yet or end <= start → auto 30 min
+        if (!newEnd || newEnd <= newStart) {
+          newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
+        }
+
+        return {
+          ...prev,
+          startTime: newStart,
+          endTime: newEnd,
+        };
+      }
+
+      if (name === "endTime") {
+        return { ...prev, endTime: value };
+      }
+
+      return { ...prev, [name]: value };
+    });
   };
 
   const triggerPatientSearch = (rawQuery: string) => {
@@ -2269,7 +2254,7 @@ export default function AppointmentsPage() {
                 display: "grid",
                 gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
                 backgroundColor: "#f5f5f5",
-                borderBottom: "1px солид #ddd",
+                borderBottom: "1px solid #ddd",
               }}
             >
               <div style={{ padding: 8, fontWeight: "bold" }}>Цаг</div>
