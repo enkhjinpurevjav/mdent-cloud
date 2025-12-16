@@ -444,61 +444,31 @@ function QuickAppointmentModal({
     setPatientResults([]);
   }, [open, defaultDoctorId, defaultDate, defaultTime]);
 
-  cconst handleChange = (
-  e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-) => {
-  const { name, value } = e.target;
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
 
-  // Patient search logic (unchanged)
-  if (name === "patientQuery") {
-    setForm((prev) => ({ ...prev, patientQuery: value }));
+    // Patient search logic
+    if (name === "patientQuery") {
+      setForm((prev) => ({ ...prev, patientQuery: value }));
 
-    const trimmed = value.trim();
-    if (!trimmed) {
-      setSelectedPatientId(null);
-      setPatientResults([]);
-      return;
-    }
-    if (trimmed === form.patientQuery.trim()) {
-      return;
-    }
-    triggerPatientSearch(value);
-    return;
-  }
-
-  // Other fields
-  setForm((prev) => {
-    // When startTime changes, auto-fill endTime if empty or before new start
-    if (name === "startTime") {
-      const newStart = value;
-      let newEnd = prev.endTime;
-
-      if (!newEnd) {
-        // no end time yet → start + 30 мин
-        newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
-      } else {
-        // if existing end is earlier than new start, also bump it
-        if (newEnd <= newStart) {
-          newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
-        }
+      const trimmed = value.trim();
+      if (!trimmed) {
+        setForm((prev) => ({ ...prev, patientId: null }));
+        setPatientResults([]);
+        return;
       }
-
-      return {
-        ...prev,
-        startTime: newStart,
-        endTime: newEnd,
-      };
+      if (trimmed === form.patientQuery.trim()) {
+        return;
+      }
+      triggerPatientSearch(value);
+      return;
     }
 
-    // If endTime is being changed manually, just set it
-    if (name === "endTime") {
-      return { ...prev, endTime: value };
-    }
-
-    // default: doctorId, branchId, date, status, notes
-    return { ...prev, [name]: value };
-  });
-};
+    // Other fields (time, doctorId, branchId, date, status, notes)
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
 
   const triggerPatientSearch = (rawQuery: string) => {
     const query = rawQuery.trim();
@@ -1092,11 +1062,12 @@ function AppointmentForm({
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
 
+    // Patient search logic
     if (name === "patientQuery") {
-      const trimmed = value.trim();
+      setForm((prev) => ({ ...prev, patientQuery: value }));
 
+      const trimmed = value.trim();
       if (!trimmed) {
         setSelectedPatientId(null);
         setPatientResults([]);
@@ -1108,7 +1079,40 @@ function AppointmentForm({
       }
 
       triggerPatientSearch(value);
+      return;
     }
+
+    // Handle startTime changes with auto-fill logic
+    if (name === "startTime") {
+      const newStart = value;
+      let newEnd = form.endTime;
+
+      if (!newEnd) {
+        // no end time yet → start + 30 min
+        newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
+      } else {
+        // if existing end is earlier than or equal to new start, bump it
+        if (newEnd <= newStart) {
+          newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
+        }
+      }
+
+      setForm((prev) => ({
+        ...prev,
+        startTime: newStart,
+        endTime: newEnd,
+      }));
+      return;
+    }
+
+    // Handle endTime changes
+    if (name === "endTime") {
+      setForm((prev) => ({ ...prev, endTime: value }));
+      return;
+    }
+
+    // Other fields (doctorId, branchId, date, status, notes)
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const triggerPatientSearch = (rawQuery: string) => {
@@ -2269,7 +2273,7 @@ export default function AppointmentsPage() {
                 display: "grid",
                 gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
                 backgroundColor: "#f5f5f5",
-                borderBottom: "1px солид #ddd",
+                borderBottom: "1px solid #ddd",
               }}
             >
               <div style={{ padding: 8, fontWeight: "bold" }}>Цаг</div>
