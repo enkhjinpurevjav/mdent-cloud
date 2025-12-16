@@ -466,6 +466,16 @@ function QuickAppointmentModal({
     setPopupSlots(slots);
   }, [form.date]);
 
+  useEffect(() => {
+    // Prefer currently selected branch if exists; otherwise default to first branch
+    if (!form.branchId && branches.length > 0) {
+      setForm((prev) => ({
+        ...prev,
+        branchId: String(branches[0].id),
+      }));
+    }
+  }, [branches, form.branchId]);
+  
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
