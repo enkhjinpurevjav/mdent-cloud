@@ -171,6 +171,7 @@ model Appointment {
   branchId    Int
 
   scheduledAt DateTime
+  endAt       DateTime?   // Дуусах цаг (шинэ)
   status      String    @default("booked")
   notes       String?
 
