@@ -2959,16 +2959,29 @@ export default function AppointmentsPage() {
 
       {/* Modals */}
       <AppointmentDetailsModal
-        open={detailsModalState.open}
-        onClose={() =>
-          setDetailsModalState((prev) => ({ ...prev, open: false }))
-        }
-        doctor={detailsModalState.doctor}
-        slotLabel={detailsModalState.slotLabel}
-        slotTime={detailsModalState.slotTime}
-        date={detailsModalState.date}
-        appointments={detailsModalState.appointments}
-      />
+  open={detailsModalState.open}
+  onClose={() =>
+    setDetailsModalState((prev) => ({ ...prev, open: false }))
+  }
+  doctor={detailsModalState.doctor}
+  slotLabel={detailsModalState.slotLabel}
+  slotTime={detailsModalState.slotTime}
+  date={detailsModalState.date}
+  appointments={detailsModalState.appointments}
+  onStatusUpdated={(updated) => {
+    // update global appointments list
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
+    );
+    // also update the list inside the modal state
+    setDetailsModalState((prev) => ({
+      ...prev,
+      appointments: prev.appointments.map((a) =>
+        a.id === updated.id ? { ...a, ...updated } : a
+      ),
+    }));
+  }}
+/>
 
       <QuickAppointmentModal
         open={quickModalState.open}
