@@ -2727,20 +2727,24 @@ export default function AppointmentsPage() {
                     >
                       {formatDoctorName(a.doctor ?? null)}
                     </td>
-                    <td
-                      style={{
-                        borderBottom: "1px солид #f0f0f0",
-                        padding: 6,
-                      }}
-                    >
-                      {start.toLocaleString("mn-MN")}
-                      {end
-                        ? ` – ${end.toLocaleTimeString("mn-MN", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}`
-                        : ""}
-                    </td>
+                  <td
+  style={{
+    borderBottom: "1px солид #f0f0f0",
+    padding: 6,
+  }}
+>
+  {formatDateYmdDots(start)}{" "}
+  {start.toLocaleTimeString("mn-MN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}
+  {end
+    ? ` – ${end.toLocaleTimeString("mn-MN", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`
+    : ""}
+</td>
                     <td
                       style={{
                         borderBottom: "1px солид #f0f0f0",
