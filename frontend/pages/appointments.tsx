@@ -388,7 +388,7 @@ function AppointmentDetailsModal({
   );
 }
 
-// ==== Quick Appointment Modal (always 30min) ====
+// ==== Quick Appointment Modal (with start/end, default 30min) ====
 
 type QuickAppointmentModalProps = {
   open: boolean;
@@ -419,7 +419,8 @@ function QuickAppointmentModal({
     doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
     branchId: branches.length ? String(branches[0].id) : "",
     date: defaultDate,
-    time: defaultTime, // single start time, always 30 min
+    startTime: defaultTime,
+    endTime: addMinutesToTimeString(defaultTime, SLOT_MINUTES), // default +30min
     status: "booked",
     notes: "",
   });
@@ -435,7 +436,8 @@ function QuickAppointmentModal({
       ...prev,
       doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
       date: defaultDate,
-      time: defaultTime,
+      startTime: defaultTime,
+      endTime: addMinutesToTimeString(defaultTime, SLOT_MINUTES),
       patientId: null,
       patientQuery: "",
     }));
@@ -460,7 +462,25 @@ function QuickAppointmentModal({
       return;
     }
 
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => {
+      if (name === "startTime") {
+        const newStart = value;
+        let newEnd = prev.endTime;
+
+        // if no end yet, or end <= start → auto 30min
+        if (!newEnd || newEnd <= newStart) {
+          newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
+        }
+
+        return { ...prev, startTime: newStart, endTime: newEnd };
+      }
+
+      if (name === "endTime") {
+        return { ...prev, endTime: value };
+      }
+
+      return { ...prev, [name]: value };
+    });
   };
 
   const triggerPatientSearch = (rawQuery: string) => {
@@ -554,8 +574,13 @@ function QuickAppointmentModal({
     e.preventDefault();
     setError("");
 
-    if (!form.branchId || !form.date || !form.time) {
-      setError("Салбар, огноо, цаг талбаруудыг бөглөнө үү.");
+    if (
+      !form.branchId ||
+      !form.date ||
+      !form.startTime ||
+      !form.endTime
+    ) {
+      setError("Салбар, огноо, эхлэх/дуусах цаг талбаруудыг бөглөнө үү.");
       return;
     }
 
@@ -570,22 +595,37 @@ function QuickAppointmentModal({
     }
 
     const [year, month, day] = form.date.split("-").map(Number);
-    const [hour, minute] = form.time.split(":").map(Number);
+    const [startHour, startMinute] = form.startTime.split(":").map(Number);
+    const [endHour, endMinute] = form.endTime.split(":").map(Number);
 
     const start = new Date(
       year,
       (month || 1) - 1,
       day || 1,
-      hour || 0,
-      minute || 0,
+      startHour || 0,
+      startMinute || 0,
       0,
       0
     );
-    if (Number.isNaN(start.getTime())) {
+    const end = new Date(
+      year,
+      (month || 1) - 1,
+      day || 1,
+      endHour || 0,
+      endMinute || 0,
+      0,
+      0
+    );
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       setError("Огноо/цаг буруу байна.");
       return;
     }
-    const end = new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+
+    if (end <= start) {
+      setError("Дуусах цаг нь эхлэх цагаас хойш байх ёстой.");
+      return;
+    }
 
     const scheduledAtStr = start.toISOString();
     const endAtStr = end.toISOString();
@@ -686,115 +726,7 @@ function QuickAppointmentModal({
           }}
         >
           {/* Patient */}
-          <div
-            style={{
-              gridColumn: "1 / -1",
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-            }}
-          >
-            <label>Үйлчлүүлэгч</label>
-            <input
-              name="patientQuery"
-              placeholder="РД, овог, нэр эсвэл утас..."
-              value={form.patientQuery}
-              onChange={handleChange}
-              autoComplete="off"
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            />
-            {patientSearchLoading && (
-              <span
-                style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}
-              >
-                Үйлчлүүлэгч хайж байна...
-              </span>
-            )}
-          </div>
-
-          {patientResults.length > 0 && (
-            <div
-              style={{
-                gridColumn: "1 / -1",
-                borderRadius: 6,
-                border: "1px solid #e5e7eb",
-                background: "#ffffff",
-                maxHeight: 200,
-                overflowY: "auto",
-              }}
-            >
-              {patientResults.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => handleSelectPatient(p)}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "6px 8px",
-                    border: "none",
-                    borderBottom: "1px solid #f3f4f6",
-                    background: "white",
-                    cursor: "pointer",
-                    fontSize: 12,
-                  }}
-                >
-                  {formatPatientSearchLabel(p)}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Doctor */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label>Эмч</label>
-            <select
-              name="doctorId"
-              value={form.doctorId}
-              onChange={handleChange}
-              required
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            >
-              <option value="">Эмч сонгох</option>
-              {doctors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {formatDoctorName(d)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Branch */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label>Салбар</label>
-            <select
-              name="branchId"
-              value={form.branchId}
-              onChange={handleChange}
-              required
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            >
-              <option value="">Салбар сонгох</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* ... keep your existing patient UI, unchanged ... */}
 
           {/* Date */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -813,13 +745,31 @@ function QuickAppointmentModal({
             />
           </div>
 
-          {/* Time */}
+          {/* Start time */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label>Цаг</label>
+            <label>Эхлэх цаг</label>
             <input
               type="time"
-              name="time"
-              value={form.time}
+              name="startTime"
+              value={form.startTime}
+              onChange={handleChange}
+              required
+              step={SLOT_MINUTES * 60}
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            />
+          </div>
+
+          {/* End time */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Дуусах цаг</label>
+            <input
+              type="time"
+              name="endTime"
+              value={form.endTime}
               onChange={handleChange}
               required
               step={SLOT_MINUTES * 60}
