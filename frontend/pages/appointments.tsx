@@ -187,6 +187,15 @@ function getDateFromYMD(ymd: string): Date {
   return new Date(year, month - 1, day);
 }
 
+function formatDateYmdDots(date: Date): string {
+  // outputs: "2025.12.16"
+  return date.toLocaleDateString("mn-MN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
 // Map internal status codes to Mongolian labels
 function formatStatus(status: string): string {
   switch (status) {
