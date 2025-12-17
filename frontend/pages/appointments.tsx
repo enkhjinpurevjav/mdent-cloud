@@ -218,6 +218,34 @@ function formatPatientLabel(p?: PatientLite, id?: number) {
   return `${displayName}${book}`;
 }
 
+function formatGridShortLabel(a: Appointment): string {
+  // Very compact: just patient name / ovog + 1–2 chars of status
+  const p = a.patient;
+  const ovog = (p?.ovog || "").trim();
+  const name = (p?.name || "").trim();
+
+  let displayName = name || `#${a.patientId}`;
+  if (ovog && name) {
+    displayName = `${ovog.charAt(0).toUpperCase()}.${name}`;
+  }
+
+  // Short status code (first letter)
+  const statusShort =
+    a.status === "booked"
+      ? "З"
+      : a.status === "confirmed"
+      ? "Б"
+      : a.status === "ongoing"
+      ? "Я"
+      : a.status === "completed"
+      ? "Д"
+      : a.status === "cancelled"
+      ? "Ц"
+      : "";
+
+  return statusShort ? `${displayName} (${statusShort})` : displayName;
+}
+
 function formatPatientSearchLabel(p: PatientLite): string {
   const ovog = (p.ovog || "").trim();
   const name = (p.name || "").trim();
@@ -2753,17 +2781,16 @@ export default function AppointmentsPage() {
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      // pill-like block
       padding: "1px 3px",
       borderRadius: 4,
-      background: "rgba(255,255,255,0.6)",
+      background: "rgba(255,255,255,0.8)",
       fontSize: 11,
       lineHeight: 1.2,
-      // IMPORTANT: force side-by-side layout
-      flexBasis: appsForCell.length > 1 ? "48%" : "100%",
+      // TWO appointments share a row; more will wrap but still look tidy
+      flexBasis: appsForCell.length > 1 ? "50%" : "100%",
       flexGrow: 0,
       flexShrink: 0,
-      minWidth: 0, // allow text-overflow to work
+      minWidth: 0,
       whiteSpace: "nowrap",
       overflow: "hidden",
       textOverflow: "ellipsis",
@@ -2773,8 +2800,7 @@ export default function AppointmentsPage() {
       a.patientId
     )} (${formatStatus(a.status)})`}
   >
-    {formatPatientLabel(a.patient, a.patientId)} (
-    {formatStatus(a.status)})
+    {formatGridShortLabel(a)}
   </div>
 ))}
                       </div>
