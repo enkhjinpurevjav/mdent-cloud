@@ -69,9 +69,6 @@ const SLOT_MINUTES = 30;
 const WEEKEND_START_HOUR = 10; // 10:00
 const WEEKEND_END_HOUR = 19; // 19:00
 
-// Visual row height for a 30‑minute slot in the doctor grid
-const ROW_HEIGHT = 28; // px
-
 type TimeSlot = {
   label: string; // "09:00"
   start: Date;
@@ -112,6 +109,22 @@ function getSlotTimeString(date: Date): string {
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
+// Only show text in the first 30‑min slot of an appointment
+function isFirstSlotForAppointment(
+  a: Appointment,
+  slotStart: Date,
+  slotMinutes = SLOT_MINUTES
+): boolean {
+  const start = new Date(a.scheduledAt);
+  if (Number.isNaN(start.getTime())) return false;
+
+  const diffMinutes = Math.floor(
+    (slotStart.getTime() - start.getTime()) / 60000
+  );
+  // first slot that starts at or after scheduledAt, within one slot
+  return diffMinutes >= 0 && diffMinutes < slotMinutes;
+}
+
 function addMinutesToTimeString(time: string, minutesToAdd: number): string {
   if (!time) return "";
   const [h, m] = time.split(":").map(Number);
@@ -126,22 +139,6 @@ function addMinutesToTimeString(time: string, minutesToAdd: number): string {
   return `${newH.toString().padStart(2, "0")}:${newM
     .toString()
     .padStart(2, "0")}`;
-}
-
-// NEW: helper to only show text in the first 30-min slot of an appointment
-function isFirstSlotForAppointment(
-  a: Appointment,
-  slotStart: Date,
-  slotMinutes = SLOT_MINUTES
-): boolean {
-  const start = new Date(a.scheduledAt);
-  if (Number.isNaN(start.getTime())) return false;
-
-  const diffMinutes = Math.floor(
-    (slotStart.getTime() - start.getTime()) / 60000
-  );
-  // show in the first slot that starts at or after scheduledAt, and within 1 slot
-  return diffMinutes >= 0 && diffMinutes < slotMinutes;
 }
 
 function isTimeWithinRange(time: string, startTime: string, endTime: string) {
@@ -643,6 +640,7 @@ function QuickAppointmentModal({
   const [searchDebounceTimer, setSearchDebounceTimer] =
     useState<NodeJS.Timeout | null>(null);
 
+  // 30-min slots for popup date
   const [popupSlots, setPopupSlots] = useState<
     { label: string; value: string }[]
   >([]);
@@ -681,6 +679,7 @@ function QuickAppointmentModal({
   }, [form.date]);
 
   useEffect(() => {
+    // Prefer currently selected branch if exists; otherwise default to first branch
     if (!form.branchId && branches.length > 0) {
       setForm((prev) => ({
         ...prev,
@@ -710,9 +709,12 @@ function QuickAppointmentModal({
       if (name === "startTime") {
         const newStart = value;
         let newEnd = prev.endTime;
+
+        // if no end yet, or end <= start → auto 30min
         if (!newEnd || newEnd <= newStart) {
           newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
         }
+
         return { ...prev, startTime: newStart, endTime: newEnd };
       }
 
@@ -1339,6 +1341,7 @@ function AppointmentForm({
   ) => {
     const { name, value } = e.target;
 
+    // Patient search
     if (name === "patientQuery") {
       setForm((prev) => ({ ...prev, patientQuery: value }));
 
@@ -1355,13 +1358,17 @@ function AppointmentForm({
       return;
     }
 
+    // Other fields
     setForm((prev) => {
       if (name === "startTime") {
         const newStart = value;
         let newEnd = prev.endTime;
+
+        // If no end yet or end <= start → auto 30 min
         if (!newEnd || newEnd <= newStart) {
           newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
         }
+
         return {
           ...prev,
           startTime: newStart,
@@ -1487,6 +1494,7 @@ function AppointmentForm({
     );
   };
 
+  // Count existing appointments overlapping a 30min slot
   const countAppointmentsInSlot = (slotStartDate: Date) => {
     if (!form.doctorId) return 0;
     const doctorIdNum = Number(form.doctorId);
@@ -1512,6 +1520,7 @@ function AppointmentForm({
       const dayStr = start.toISOString().slice(0, 10);
       if (dayStr !== form.date) return false;
 
+      // overlap: start < slotEnd && end > slotStart
       return start < slotEnd && end > slotStart;
     }).length;
   };
@@ -1675,6 +1684,7 @@ function AppointmentForm({
       return;
     }
 
+    // Check each 30-min block for max 2 appointments
     let currentBlockStart = new Date(scheduledAt);
     while (currentBlockStart < end) {
       const existingCount = countAppointmentsInSlot(currentBlockStart);
@@ -2500,10 +2510,7 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Time grid by doctor with overlapping bars in each cell (old behavior) */}
-      {/* NOTE: this section is still your overlapping-in-each-slot version.
-               If you truly want bar-spanning across rows, this whole section
-               needs to be replaced with an absolute-position overlay approach. */}
+      {/* Time grid by doctor – with merged 1‑hour labels */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
@@ -2511,11 +2518,13 @@ export default function AppointmentsPage() {
         <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
           {formatDateYmdDots(selectedDay)}
         </div>
+
         {gridDoctors.length === 0 && (
           <div style={{ color: "#6b7280", fontSize: 13 }}>
             Энэ өдөр ажиллах эмчийн хуваарь алга.
           </div>
         )}
+
         {gridDoctors.length > 0 && (
           <div
             style={{
@@ -2525,6 +2534,7 @@ export default function AppointmentsPage() {
               fontSize: 12,
             }}
           >
+            {/* Header row */}
             <div
               style={{
                 display: "grid",
@@ -2538,38 +2548,16 @@ export default function AppointmentsPage() {
                 const count = appointments.filter(
                   (a) => a.doctorId === doc.id
                 ).length;
-                 return (
-                      <div
-                        key={doc.id}
-                        onClick={handleCellClick}
-                        style={{
-                          padding: 4,
-                          borderLeft: "1px солид #f0f0f0",
-                          backgroundColor: bg,
-                          minHeight: 28,
-                          cursor: isNonWorking ? "not-allowed" : "pointer",
-                          display: "flex",
-                          flexWrap: "wrap",
-                          alignItems: "center",      // center vertically
-                          justifyContent: "center",  // center horizontally
-                          gap: 4,
-                          textAlign: "center",
-                        }}
-                      >
-                        {visibleAppointments.map((a) => (
-                          <div
-                            key={a.id}
-                            style={{
-                              fontSize: 12,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {formatPatientLabel(a.patient, a.patientId)} (
-                            {formatStatus(a.status)})
-                          </div>
-                        ))}
-                      </div>
-                   );
+                return (
+                  <div
+                    key={doc.id}
+                    style={{
+                      padding: 8,
+                      fontWeight: "bold",
+                      textAlign: "center",
+                      borderLeft: "1px солид #ddd",
+                    }}
+                  >
                     <div>{formatDoctorName(doc)}</div>
                     <div
                       style={{
@@ -2585,6 +2573,7 @@ export default function AppointmentsPage() {
               })}
             </div>
 
+            {/* Time rows */}
             <div>
               {timeSlots.map((slot, rowIndex) => (
                 <div
@@ -2595,6 +2584,7 @@ export default function AppointmentsPage() {
                     borderBottom: "1px солид #f0f0f0",
                   }}
                 >
+                  {/* Time label column */}
                   <div
                     style={{
                       padding: 6,
@@ -2606,6 +2596,7 @@ export default function AppointmentsPage() {
                     {slot.label}
                   </div>
 
+                  {/* Doctor columns */}
                   {gridDoctors.map((doc) => {
                     const appsForCell = appointments.filter((a) => {
                       if (a.doctorId !== doc.id) return false;
@@ -2625,6 +2616,7 @@ export default function AppointmentsPage() {
                       const slotStart = slot.start;
                       const slotEnd = slot.end;
 
+                      // overlap: start < slotEnd && end > slotStart
                       return start < slotEnd && end > slotStart;
                     });
 
@@ -2648,7 +2640,6 @@ export default function AppointmentsPage() {
                       isTimeWithinRange(slotTimeStr, "14:00", "15:00");
 
                     let bg: string;
-
                     if (!isWorkingHour || isWeekendLunch) {
                       bg = "#ee7148";
                     } else if (appsForCell.length === 0) {
@@ -2691,6 +2682,11 @@ export default function AppointmentsPage() {
                       }
                     };
 
+                    // Only show text for appointments whose FIRST slot is this one
+                    const visibleAppointments = appsForCell.filter((a) =>
+                      isFirstSlotForAppointment(a, slot.start)
+                    );
+
                     return (
                       <div
                         key={doc.id}
@@ -2703,17 +2699,26 @@ export default function AppointmentsPage() {
                           cursor: isNonWorking ? "not-allowed" : "pointer",
                           display: "flex",
                           flexWrap: "wrap",
-                          alignItems: "flex-start",
+                          alignItems: "center", // center vertically
+                          justifyContent: "center", // center horizontally
                           gap: 4,
+                          textAlign: "center",
                         }}
                       >
-                        {appsForCell.map((a) => (
+                        {visibleAppointments.map((a) => (
                           <div
                             key={a.id}
                             style={{
                               fontSize: 12,
                               whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              maxWidth: "100%",
                             }}
+                            title={`${formatPatientLabel(
+                              a.patient,
+                              a.patientId
+                            )} (${formatStatus(a.status)})`}
                           >
                             {formatPatientLabel(a.patient, a.patientId)} (
                             {formatStatus(a.status)})
