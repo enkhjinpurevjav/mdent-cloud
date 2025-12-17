@@ -2867,31 +2867,27 @@ export default function AppointmentsPage() {
 </div>
 
                         {/* RIGHT HALF */}
-                        <div
-                          style={{
-                            flex: 1,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            padding: rightVisible ? "1px 3px" : 0,
-                            backgroundColor: rightVisible
-                              ? laneBg(rightApp)
-                              : "transparent",
-                            whiteSpace: "normal",        // allow wrapping
+<div
+  style={{
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: rightVisible ? "1px 3px" : 0,
+    backgroundColor: rightVisible ? laneBg(rightApp) : "transparent",
+    whiteSpace: "normal",        // allow wrapping
     wordBreak: "break-word",
     overflowWrap: "anywhere",
     fontSize: 11,
     lineHeight: 1.2,
     textAlign: "center",
-                                )} (${formatStatus(rightApp.status)})`
-                              : ""
-                          }
-                        >
-                          {rightVisible && rightApp &&
-                            `${formatGridShortLabel(rightApp)} (${formatStatus(
-                              rightApp.status
-                            )})`}
-                        </div>
+  }}
+>
+  {rightVisible && rightApp &&
+    `${formatGridShortLabel(rightApp)} (${formatStatus(
+      rightApp.status
+    )})`}
+</div>
                       </div>
                     );
                   })}
