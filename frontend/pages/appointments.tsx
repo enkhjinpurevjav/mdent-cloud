@@ -599,13 +599,6 @@ function AppointmentDetailsModal({
 }
 
 // ==== Quick Appointment Modal (with start/end, default 30min) ====
-// ...  (UNCHANGED – keep your existing QuickAppointmentModal, AppointmentForm, etc.)
-
-// To keep this answer focused, I only showed the top + time‑grid parts.
-// Replace your existing file with the full version from my previous answer,
-// but in the "Time grid by doctor" section, use the new return block above.
-
-// ==== Quick Appointment Modal (with start/end, default 30min) ====
 
 type QuickAppointmentModalProps = {
   open: boolean;
@@ -1806,7 +1799,7 @@ function AppointmentForm({
               fontWeight: 600,
               cursor: "pointer",
             }}
-            title="Шинэ үйлчлүүлэгч хурдан бүртгэх"
+            title="Шинэ үйлчлэгч хурдан бүртгэх"
           >
             +
           </button>
@@ -2517,7 +2510,7 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Time grid by doctor with merged 1‑hour labels */}
+      {/* Time grid by doctor with “first-slot-only” labels (text not repeated on lower cells) */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
@@ -2689,55 +2682,50 @@ export default function AppointmentsPage() {
                       }
                     };
 
-                      // Only show text for appointments whose FIRST slot is this one
-  const visibleAppointments = appsForCell.filter((a) =>
-    isFirstSlotForAppointment(a, slot.start)
-  );
+                    // Only show text for appointments whose FIRST slot is this one
+                    const visibleAppointments = appsForCell.filter((a) =>
+                      isFirstSlotForAppointment(a, slot.start)
+                    );
 
-  // Make the first-slot cell taller so the text looks centered
-  const baseSlotHeight = 28; // same as your old minHeight
-  const cellMinHeight =
-    visibleAppointments.length > 0 ? baseSlotHeight * 2 : baseSlotHeight;
-
-  return (
-    <div
-      key={doc.id}
-      onClick={handleCellClick}
-      style={{
-        padding: 4,
-        borderLeft: "1px солид #f0f0f0",
-        backgroundColor: bg,
-        minHeight: cellMinHeight,
-        cursor: isNonWorking ? "not-allowed" : "pointer",
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "center",   // vertical center within taller cell
-        justifyContent: "center", // horizontal center
-        gap: 4,
-        textAlign: "center",
-      }}
-    >
-      {visibleAppointments.map((a) => (
-        <div
-          key={a.id}
-          style={{
-            fontSize: 12,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            maxWidth: "100%",
-          }}
-          title={`${formatPatientLabel(
-            a.patient,
-            a.patientId
-          )} (${formatStatus(a.status)})`}
-        >
-          {formatPatientLabel(a.patient, a.patientId)} (
-          {formatStatus(a.status)})
-        </div>
-      ))}
-    </div>
-  );
+                    return (
+                      <div
+                        key={doc.id}
+                        onClick={handleCellClick}
+                        style={{
+                          padding: 4,
+                          borderLeft: "1px солид #f0f0f0",
+                          backgroundColor: bg,
+                          minHeight: 28,
+                          cursor: isNonWorking ? "not-allowed" : "pointer",
+                          display: "flex",
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 4,
+                          textAlign: "center",
+                        }}
+                      >
+                        {visibleAppointments.map((a) => (
+                          <div
+                            key={a.id}
+                            style={{
+                              fontSize: 12,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              maxWidth: "100%",
+                            }}
+                            title={`${formatPatientLabel(
+                              a.patient,
+                              a.patientId
+                            )} (${formatStatus(a.status)})`}
+                          >
+                            {formatPatientLabel(a.patient, a.patientId)} (
+                            {formatStatus(a.status)})
+                          </div>
+                        ))}
+                      </div>
+                    );
                   })}
                 </div>
               ))}
