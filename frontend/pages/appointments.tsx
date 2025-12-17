@@ -468,6 +468,7 @@ function AppointmentDetailsModal({
                     )}
                   </div>
 
+                  {/* Status view / edit */}
                   {!isEditing ? (
                     <div style={{ color: "#4b5563" }}>
                       <div>
@@ -2510,7 +2511,7 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Time grid by doctor – with merged 1‑hour labels */}
+      {/* Time grid by doctor with merged text per appointment */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
@@ -2699,8 +2700,8 @@ export default function AppointmentsPage() {
                           cursor: isNonWorking ? "not-allowed" : "pointer",
                           display: "flex",
                           flexWrap: "wrap",
-                          alignItems: "center", // center vertically
-                          justifyContent: "center", // center horizontally
+                          alignItems: "center", // vertical center
+                          justifyContent: "center", // horizontal center
                           gap: 4,
                           textAlign: "center",
                         }}
