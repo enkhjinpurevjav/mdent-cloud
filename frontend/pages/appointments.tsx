@@ -90,10 +90,10 @@ function generateTimeSlotsForDay(day: Date): TimeSlot[] {
       start.setHours(hour, m, 0, 0);
       const end = new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
       const label = start.toLocaleTimeString("mn-MN", {
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
       slots.push({ label, start, end });
     }
   }
@@ -268,8 +268,6 @@ function AppointmentDetailsModal({
 
   if (!open) return null;
 
-  const totalCount = appointments.length;
-
   const handleStartEdit = (a: Appointment) => {
     setEditingId(a.id);
     setEditingStatus(a.status);
@@ -389,17 +387,17 @@ function AppointmentDetailsModal({
         </div>
 
         <div style={{ marginBottom: 8, color: "#4b5563" }}>
-  <div>
-    <strong>Огноо:</strong>{" "}
-    {date ? formatDateYmdDots(new Date(date)) : "-"}
-  </div>
-  <div>
-    <strong>Цаг:</strong> {slotLabel || slotTime || "-"}
-  </div>
-  <div>
-    <strong>Эмч:</strong> {formatDoctorName(doctor ?? null)}
-  </div>
-</div>
+          <div>
+            <strong>Огноо:</strong>{" "}
+            {date ? formatDateYmdDots(new Date(date)) : "-"}
+          </div>
+          <div>
+            <strong>Цаг:</strong> {slotLabel || slotTime || "-"}
+          </div>
+          <div>
+            <strong>Эмч:</strong> {formatDoctorName(doctor ?? null)}
+          </div>
+        </div>
 
         {appointments.length === 0 ? (
           <div style={{ color: "#6b7280" }}>Энэ цагт захиалга алга.</div>
@@ -454,17 +452,16 @@ function AppointmentDetailsModal({
                     )}
                   </div>
 
-                  {/* Status view / edit */}
                   {!isEditing ? (
-  <div style={{ color: "#4b5563" }}>
-    <div>
-      <strong>Төлөв:</strong> {formatStatus(a.status)}
-    </div>
-    <div>
-      <strong>Утас:</strong> {a.patient?.phone || "-"}
-    </div>
-  </div>
-) : (
+                    <div style={{ color: "#4b5563" }}>
+                      <div>
+                        <strong>Төлөв:</strong> {formatStatus(a.status)}
+                      </div>
+                      <div>
+                        <strong>Утас:</strong> {a.patient?.phone || "-"}
+                      </div>
+                    </div>
+                  ) : (
                     <div
                       style={{
                         display: "flex",
@@ -539,7 +536,6 @@ function AppointmentDetailsModal({
                   <div style={{ color: "#4b5563" }}>
                     <strong>Тэмдэглэл:</strong> {a.notes || "-"}
                   </div>
-                 
                 </div>
               );
             })}
@@ -629,7 +625,9 @@ function QuickAppointmentModal({
     useState<NodeJS.Timeout | null>(null);
 
   // 30-min slots for popup date
-  const [popupSlots, setPopupSlots] = useState<{ label: string; value: string }[]>([]);
+  const [popupSlots, setPopupSlots] = useState<
+    { label: string; value: string }[]
+  >([]);
 
   useEffect(() => {
     if (!open) return;
@@ -673,7 +671,7 @@ function QuickAppointmentModal({
       }));
     }
   }, [branches, form.branchId]);
-  
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -1019,68 +1017,68 @@ function QuickAppointmentModal({
             </div>
           )}
 
-           {/* Date */}
-  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-    <label>Огноо</label>
-    <input
-      type="date"
-      name="date"
-      value={form.date}
-      onChange={handleChange}
-      required
-      style={{
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        padding: "6px 8px",
-      }}
-    />
-  </div>
+          {/* Date */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Огноо</label>
+            <input
+              type="date"
+              name="date"
+              value={form.date}
+              onChange={handleChange}
+              required
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            />
+          </div>
 
-  {/* Branch */}
-  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-    <label>Салбар</label>
-    <select
-      name="branchId"
-      value={form.branchId}
-      onChange={handleChange}
-      required
-      style={{
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        padding: "6px 8px",
-      }}
-    >
-      <option value="">Салбар сонгох</option>
-      {branches.map((b) => (
-        <option key={b.id} value={b.id}>
-          {b.name}
-        </option>
-      ))}
-    </select>
-  </div>
+          {/* Branch */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Салбар</label>
+            <select
+              name="branchId"
+              value={form.branchId}
+              onChange={handleChange}
+              required
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            >
+              <option value="">Салбар сонгох</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-  {/* Start time */}
-  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-    <label>Эхлэх цаг</label>
-    <select
-      name="startTime"
-      value={form.startTime}
-      onChange={handleChange}
-      required
-      style={{
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        padding: "6px 8px",
-      }}
-    >
-      <option value="">Эхлэх цаг сонгох</option>
-      {popupSlots.map((slot) => (
-        <option key={slot.value} value={slot.value}>
-          {slot.label}
-        </option>
-      ))}
-    </select>
-  </div>
+          {/* Start time */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Эхлэх цаг</label>
+            <select
+              name="startTime"
+              value={form.startTime}
+              onChange={handleChange}
+              required
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            >
+              <option value="">Эхлэх цаг сонгох</option>
+              {popupSlots.map((slot) => (
+                <option key={slot.value} value={slot.value}>
+                  {slot.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {/* End time */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1819,7 +1817,7 @@ function AppointmentForm({
                 textAlign: "left",
                 padding: "6px 8px",
                 border: "none",
-                borderBottom: "1px solid #f3f4f6",
+                borderBottom: "1px солид #f3f4f6",
                 background: "white",
                 cursor: "pointer",
                 fontSize: 12,
@@ -2196,9 +2194,8 @@ export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>(
-    []
-  );
+  const [scheduledDoctors, setScheduledDoctors] =
+    useState<ScheduledDoctor[]>([]);
   const [error, setError] = useState("");
 
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -2498,275 +2495,290 @@ export default function AppointmentsPage() {
 
       {/* Time grid by doctor */}
       <section style={{ marginBottom: 24 }}>
-  <h2 style={{ fontSize: 16, marginBottom: 4 }}>
-    Өдрийн цагийн хүснэгт (эмчээр)
-  </h2>
-  <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
-    {formatDateYmdDots(selectedDay)}
-  </div>
-
-  {gridDoctors.length === 0 && (
-    <div style={{ color: "#6b7280", fontSize: 13 }}>
-      Энэ өдөр ажиллах эмчийн хуваарь алга.
-    </div>
-  )}
-
-  {gridDoctors.length > 0 && (
-    <div
-      style={{
-        border: "1px солид #ddd",
-        borderRadius: 8,
-        overflow: "hidden",
-        fontSize: 12,
-      }}
-    >
-      {/* Header row */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
-          backgroundColor: "#f5f5f5",
-          borderBottom: "1px солид #ddd",
-        }}
-      >
-        <div style={{ padding: 8, fontWeight: "bold" }}>Цаг</div>
-        {gridDoctors.map((doc) => {
-          const count = appointments.filter(
-            (a) => a.doctorId === doc.id
-          ).length;
-          return (
-            <div
-              key={doc.id}
-              style={{
-                padding: 8,
-                fontWeight: "bold",
-                textAlign: "center",
-                borderLeft: "1px солид #ddd",
-              }}
-            >
-              <div>{formatDoctorName(doc)}</div>
-              <div
-                style={{
-                  fontSize: 11,
-                  color: "#6b7280",
-                  marginTop: 2,
-                }}
-              >
-                {count} захиалга
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Time rows */}
-      <div>
-        {timeSlots.map((slot, rowIndex) => (
+        <h2 style={{ fontSize: 16, marginBottom: 4 }}>
+          Өдрийн цагийн хүснэгт (эмчээр)
+        </h2>
+        <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
+          {formatDateYmdDots(selectedDay)}
+        </div>
+        {gridDoctors.length === 0 && (
+          <div style={{ color: "#6b7280", fontSize: 13 }}>
+            Энэ өдөр ажиллах эмчийн хуваарь алга.
+          </div>
+        )}
+        {gridDoctors.length > 0 && (
           <div
-            key={rowIndex}
             style={{
-              display: "grid",
-              gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
-              borderBottom: "1px солид #f0f0f0",
+              border: "1px солид #ddd",
+              borderRadius: 8,
+              overflow: "hidden",
+              fontSize: 12,
             }}
           >
-            {/* Time label column */}
             <div
               style={{
-                padding: 6,
-                borderRight: "1px солид #ddd",
-                backgroundColor:
-                  rowIndex % 2 === 0 ? "#fafafa" : "#ffffff",
+                display: "grid",
+                gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+                backgroundColor: "#f5f5f5",
+                borderBottom: "1px солид #ddd",
               }}
             >
-              {slot.label}
+              <div style={{ padding: 8, fontWeight: "bold" }}>Цаг</div>
+              {gridDoctors.map((doc) => {
+                const count = appointments.filter(
+                  (a) => a.doctorId === doc.id
+                ).length;
+                return (
+                  <div
+                    key={doc.id}
+                    style={{
+                      padding: 8,
+                      fontWeight: "bold",
+                      textAlign: "center",
+                      borderLeft: "1px солид #ddd",
+                    }}
+                  >
+                    <div>{formatDoctorName(doc)}</div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "#6b7280",
+                        marginTop: 2,
+                      }}
+                    >
+                      {count} захиалга
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Doctor columns */}
-            {gridDoctors.map((doc) => {
-  const appsForCell = appointments.filter((a) => {
-    if (a.doctorId !== doc.id) return false;
+            <div>
+              {timeSlots.map((slot, rowIndex) => (
+                <div
+                  key={rowIndex}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+                    borderBottom: "1px солид #f0f0f0",
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: 6,
+                      borderRight: "1px солид #ddd",
+                      backgroundColor:
+                        rowIndex % 2 === 0 ? "#fafafa" : "#ffffff",
+                    }}
+                  >
+                    {slot.label}
+                  </div>
 
-    const start = new Date(a.scheduledAt);
-    if (Number.isNaN(start.getTime())) return false;
+                  {gridDoctors.map((doc) => {
+                    const appsForCell = appointments.filter((a) => {
+                      if (a.doctorId !== doc.id) return false;
 
-    const end =
-      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-        ? new Date(a.endAt)
-        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+                      const start = new Date(a.scheduledAt);
+                      if (Number.isNaN(start.getTime())) return false;
 
-    const slotStart = slot.start;
-    const slotEnd = slot.end;
+                      const end =
+                        a.endAt &&
+                        !Number.isNaN(new Date(a.endAt).getTime())
+                          ? new Date(a.endAt)
+                          : new Date(
+                              start.getTime() +
+                                SLOT_MINUTES * 60 * 1000
+                            );
 
-    // overlap: start < slotEnd && end > slotStart
-    return start < slotEnd && end > slotStart;
-  });
+                      const slotStart = slot.start;
+                      const slotEnd = slot.end;
 
-  const slotTimeStr = getSlotTimeString(slot.start);
-  const schedules = (doc as any).schedules || [];
+                      // overlap: start < slotEnd && end > slotStart
+                      return start < slotEnd && end > slotStart;
+                    });
 
-  const isWorkingHour = schedules.some((s: any) =>
-    isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
-  );
+                    const slotTimeStr = getSlotTimeString(slot.start);
+                    const schedules = (doc as any).schedules || [];
 
-  const weekdayIndex = slot.start.getDay();
-  const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
+                    const isWorkingHour = schedules.some((s: any) =>
+                      isTimeWithinRange(
+                        slotTimeStr,
+                        s.startTime,
+                        s.endTime
+                      )
+                    );
 
-  const isWeekendLunch =
-    isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+                    const weekdayIndex = slot.start.getDay();
+                    const isWeekend =
+                      weekdayIndex === 0 || weekdayIndex === 6;
 
-  let bg: string;
-  if (!isWorkingHour || isWeekendLunch) {
-    bg = "#ee7148";
-  } else if (appsForCell.length === 0) {
-    bg = "#ffffff";
-  } else {
-    const status = appsForCell[0].status;
-    bg =
-      status === "completed"
-        ? "#fb6190"
-        : status === "confirmed"
-        ? "#bbf7d0"
-        : status === "ongoing"
-        ? "#f9d89b"
-        : status === "cancelled"
-        ? "#9d9d9d"
-        : "#77f9fe";
-  }
+                    const isWeekendLunch =
+                      isWeekend &&
+                      isTimeWithinRange(slotTimeStr, "14:00", "15:00");
 
-  const isNonWorking = !isWorkingHour || isWeekendLunch;
+                    let bg: string;
 
-  const handleCellClick = () => {
-    if (isNonWorking) return;
+                    if (!isWorkingHour || isWeekendLunch) {
+                      bg = "#ee7148";
+                    } else if (appsForCell.length === 0) {
+                      bg = "#ffffff";
+                    } else {
+                      const status = appsForCell[0].status;
+                      bg =
+                        status === "completed"
+                          ? "#fb6190"
+                          : status === "confirmed"
+                          ? "#bbf7d0"
+                          : status === "ongoing"
+                          ? "#f9d89b"
+                          : status === "cancelled"
+                          ? "#9d9d9d"
+                          : "#77f9fe";
+                    }
 
-    if (appsForCell.length === 0) {
-      setQuickModalState({
-        open: true,
-        doctorId: doc.id,
-        date: filterDate,
-        time: slotTimeStr,
-      });
-    } else {
-      setDetailsModalState({
-        open: true,
-        doctor: doc,
-        slotLabel: slot.label,
-        slotTime: slotTimeStr,
-        date: filterDate,
-        appointments: appsForCell,
-      });
-    }
-  };
+                    const isNonWorking = !isWorkingHour || isWeekendLunch;
 
-  return (
-    <div
-      key={doc.id}
-      onClick={handleCellClick}
-      style={{
-        padding: 0,
-        borderLeft: "1px солид #f0f0f0",
-        backgroundColor: bg,
-        minHeight: 28,
-        cursor: isNonWorking ? "not-allowed" : "pointer",
-        display: "flex",          // <-- row
-        flexDirection: "row",     // <-- horizontal split
-      }}
-    >
-      {/* 0 appointments: empty cell */}
-      {appsForCell.length === 0 && <div style={{ flex: 1 }} />}
+                    const handleCellClick = () => {
+                      if (isNonWorking) return;
 
-      {/* 1 appointment: full-width cell */}
-      {appsForCell.length === 1 && (
-        <div
-          style={{
-            flex: 1,
-            padding: 4,
-            fontSize: 12,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-          title={`${formatPatientLabel(
-            appsForCell[0].patient,
-            appsForCell[0].patientId
-          )} (${formatStatus(appsForCell[0].status)})`}
-        >
-          {formatPatientLabel(
-            appsForCell[0].patient,
-            appsForCell[0].patientId
-          )}{" "}
-          ({formatStatus(appsForCell[0].status)})
-        </div>
-      )}
+                      if (appsForCell.length === 0) {
+                        setQuickModalState({
+                          open: true,
+                          doctorId: doc.id,
+                          date: filterDate,
+                          time: slotTimeStr,
+                        });
+                      } else {
+                        setDetailsModalState({
+                          open: true,
+                          doctor: doc,
+                          slotLabel: slot.label,
+                          slotTime: slotTimeStr,
+                          date: filterDate,
+                          appointments: appsForCell,
+                        });
+                      }
+                    };
 
-      {/* 2 appointments: split horizontally 50/50 */}
-      {appsForCell.length === 2 &&
-  appsForCell.map((a) => {
-    const itemBg =
-      a.status === "completed"
-        ? "#bbf7d0"
-        : a.status === "confirmed"
-        ? "#d1fae5"
-        : a.status === "ongoing"
-        ? "#fed7aa"
-        : a.status === "cancelled"
-        ? "#9d9d9d"
-        : "#77f9fe"; // booked
+                    // Layout:
+                    // - 0 appointments: empty background only
+                    // - 1 appointment: full width
+                    // - 2 appointments: split 50/50 horizontally, text wraps vertically
+                    // - >2: show summary count
+                    return (
+                      <div
+                        key={doc.id}
+                        onClick={handleCellClick}
+                        style={{
+                          padding: 0,
+                          borderLeft: "1px солид #f0f0f0",
+                          backgroundColor: bg,
+                          minHeight: 28,
+                          cursor: isNonWorking ? "not-allowed" : "pointer",
+                          display: "flex",
+                          flexDirection: "row",
+                        }}
+                      >
+                        {appsForCell.length === 0 && (
+                          <div style={{ flex: 1 }} />
+                        )}
 
-    return (
-      <div
-        key={a.id}
-        style={{
-          flex: 1,           // still half width
-          padding: 4,
-          fontSize: 12,
-          backgroundColor: itemBg,
-          // allow wrapping => cell grows vertically instead of horizontal scroll
-          whiteSpace: "normal",
-          wordBreak: "break-word",
-          minHeight: 28,     // keep a minimum height so short text looks ok
-        }}
-        title={`${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
-          a.status
-        )})`}
-      >
-        {formatPatientLabel(a.patient, a.patientId)} ({formatStatus(a.status)})
-      </div>
-    );
-  })}
+                        {appsForCell.length === 1 && (
+                          <div
+                            style={{
+                              flex: 1,
+                              padding: 4,
+                              fontSize: 12,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                            title={`${formatPatientLabel(
+                              appsForCell[0].patient,
+                              appsForCell[0].patientId
+                            )} (${formatStatus(
+                              appsForCell[0].status
+                            )})`}
+                          >
+                            {formatPatientLabel(
+                              appsForCell[0].patient,
+                              appsForCell[0].patientId
+                            )}{" "}
+                            ({formatStatus(appsForCell[0].status)})
+                          </div>
+                        )}
 
-      {/* >2 appointments: summary */}
-      {appsForCell.length > 2 && (
-        <div
-          style={{
-            flex: 1,
-            padding: 4,
-            fontSize: 11,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-          title={appsForCell
-            .map(
-              (a) =>
-                `${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
-                  a.status
-                )})`
-            )
-            .join(" • ")}
-        >
-          {appsForCell.length} захиалга
-        </div>
-      )}
-    </div>
-  );
-})}
+                        {appsForCell.length === 2 &&
+                          appsForCell.map((a) => {
+                            const itemBg =
+                              a.status === "completed"
+                                ? "#bbf7d0"
+                                : a.status === "confirmed"
+                                ? "#d1fae5"
+                                : a.status === "ongoing"
+                                ? "#fed7aa"
+                                : a.status === "cancelled"
+                                ? "#9d9d9d"
+                                : "#77f9fe";
+
+                            return (
+                              <div
+                                key={a.id}
+                                style={{
+                                  flex: 1,
+                                  padding: 4,
+                                  fontSize: 12,
+                                  backgroundColor: itemBg,
+                                  whiteSpace: "normal",
+                                  wordBreak: "break-word",
+                                  minHeight: 28,
+                                }}
+                                title={`${formatPatientLabel(
+                                  a.patient,
+                                  a.patientId
+                                )} (${formatStatus(a.status)})`}
+                              >
+                                {formatPatientLabel(
+                                  a.patient,
+                                  a.patientId
+                                )}{" "}
+                                ({formatStatus(a.status)})
+                              </div>
+                            );
+                          })}
+
+                        {appsForCell.length > 2 && (
+                          <div
+                            style={{
+                              flex: 1,
+                              padding: 4,
+                              fontSize: 11,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                            title={appsForCell
+                              .map(
+                                (a) =>
+                                  `${formatPatientLabel(
+                                    a.patient,
+                                    a.patientId
+                                  )} (${formatStatus(a.status)})`
+                              )
+                              .join(" • ")}
+                          >
+                            {appsForCell.length} захиалга
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>
-        ))}
-      </div>
-    </div>
-  )}
-</section>
+        )}
+      </section>
 
       {/* Day-grouped calendar */}
       <section style={{ marginBottom: 24 }}>
@@ -2997,26 +3009,26 @@ export default function AppointmentsPage() {
                     >
                       {formatDoctorName(a.doctor ?? null)}
                     </td>
-                  <td
-  style={{
-    borderBottom: "1px солид #f0f0f0",
-    padding: 6,
-  }}
->
-  {formatDateYmdDots(start)}{" "}
-  {start.toLocaleTimeString("mn-MN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })}
-  {end
-    ? ` – ${end.toLocaleTimeString("mn-MN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      })}`
-    : ""}
-</td>
+                    <td
+                      style={{
+                        borderBottom: "1px солид #f0f0f0",
+                        padding: 6,
+                      }}
+                    >
+                      {formatDateYmdDots(start)}{" "}
+                      {start.toLocaleTimeString("mn-MN", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      })}
+                      {end
+                        ? ` – ${end.toLocaleTimeString("mn-MN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: false,
+                          })}`
+                        : ""}
+                    </td>
                     <td
                       style={{
                         borderBottom: "1px солид #f0f0f0",
@@ -3043,27 +3055,27 @@ export default function AppointmentsPage() {
 
       {/* Modals */}
       <AppointmentDetailsModal
-  open={detailsModalState.open}
-  onClose={() =>
-    setDetailsModalState((prev) => ({ ...prev, open: false }))
-  }
-  doctor={detailsModalState.doctor}
-  slotLabel={detailsModalState.slotLabel}
-  slotTime={detailsModalState.slotTime}
-  date={detailsModalState.date}
-  appointments={detailsModalState.appointments}
-  onStatusUpdated={(updated) => {
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
-    );
-    setDetailsModalState((prev) => ({
-      ...prev,
-      appointments: prev.appointments.map((a) =>
-        a.id === updated.id ? { ...a, ...updated } : a
-      ),
-    }));
-  }}
-/>
+        open={detailsModalState.open}
+        onClose={() =>
+          setDetailsModalState((prev) => ({ ...prev, open: false }))
+        }
+        doctor={detailsModalState.doctor}
+        slotLabel={detailsModalState.slotLabel}
+        slotTime={detailsModalState.slotTime}
+        date={detailsModalState.date}
+        appointments={detailsModalState.appointments}
+        onStatusUpdated={(updated) => {
+          setAppointments((prev) =>
+            prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
+          );
+          setDetailsModalState((prev) => ({
+            ...prev,
+            appointments: prev.appointments.map((a) =>
+              a.id === updated.id ? { ...a, ...updated } : a
+            ),
+          }));
+        }}
+      />
 
       <QuickAppointmentModal
         open={quickModalState.open}
