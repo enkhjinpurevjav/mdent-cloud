@@ -2802,22 +2802,21 @@ export default function AppointmentsPage() {
                         >
                           {visible && a && (
                             <span
-                              style={{
-                                backgroundColor: laneBg(a),
-                                borderRadius: 4,
-                                padding: "1px 4px",
-                                maxWidth: "100%",
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                fontSize: 11,
-                                lineHeight: 1.2,
-                              }}
-                            >
-                              {`${formatGridShortLabel(a)} (${formatStatus(
-                                a.status
-                              )})`}
-                            </span>
+  style={{
+    backgroundColor: laneBg(a),
+    borderRadius: 4,
+    padding: "1px 4px",
+    maxWidth: "100%",
+    whiteSpace: "normal",          // allow wrapping
+    wordBreak: "break-word",       // break long words if needed
+    overflowWrap: "anywhere",
+    fontSize: 11,
+    lineHeight: 1.2,
+    textAlign: "center",
+  }}
+>
+  {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
+</span>
                           )}
                         </div>
                       );
@@ -2846,35 +2845,26 @@ export default function AppointmentsPage() {
                       >
                         {/* LEFT HALF */}
                         <div
-                          style={{
-                            flex: 1,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            padding: leftVisible ? "1px 3px" : 0,
-                            backgroundColor: leftVisible
-                              ? laneBg(leftApp)
-                              : "transparent",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            fontSize: 11,
-                            lineHeight: 1.2,
-                          }}
-                          title={
-                            leftVisible && leftApp
-                              ? `${formatPatientLabel(
-                                  leftApp.patient,
-                                  leftApp.patientId
-                                )} (${formatStatus(leftApp.status)})`
-                              : ""
-                          }
-                        >
-                          {leftVisible && leftApp &&
-                            `${formatGridShortLabel(leftApp)} (${formatStatus(
-                              leftApp.status
-                            )})`}
-                        </div>
+  style={{
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: leftVisible ? "1px 3px" : 0,
+    backgroundColor: leftVisible ? laneBg(leftApp) : "transparent",
+    whiteSpace: "normal",        // allow wrapping
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
+    fontSize: 11,
+    lineHeight: 1.2,
+    textAlign: "center",
+  }}
+>
+  {leftVisible && leftApp &&
+    `${formatGridShortLabel(leftApp)} (${formatStatus(
+      leftApp.status
+    )})`}
+</div>
 
                         {/* RIGHT HALF */}
                         <div
@@ -2887,18 +2877,12 @@ export default function AppointmentsPage() {
                             backgroundColor: rightVisible
                               ? laneBg(rightApp)
                               : "transparent",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            fontSize: 11,
-                            lineHeight: 1.2,
-                            borderLeft: "1px солид rgba(255,255,255,0.4)",
-                          }}
-                          title={
-                            rightVisible && rightApp
-                              ? `${formatPatientLabel(
-                                  rightApp.patient,
-                                  rightApp.patientId
+                            whiteSpace: "normal",        // allow wrapping
+    wordBreak: "break-word",
+    overflowWrap: "anywhere",
+    fontSize: 11,
+    lineHeight: 1.2,
+    textAlign: "center",
                                 )} (${formatStatus(rightApp.status)})`
                               : ""
                           }
