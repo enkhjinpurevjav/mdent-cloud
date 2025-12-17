@@ -2639,25 +2639,29 @@ export default function AppointmentsPage() {
       : "#77f9fe"; // default (booked) - light blue
 }
 
-                    const handleCellClick = () => {
-                      if (appsForCell.length === 0) {
-                        setQuickModalState({
-                          open: true,
-                          doctorId: doc.id,
-                          date: filterDate,
-                          time: slotTimeStr,
-                        });
-                      } else {
-                        setDetailsModalState({
-                          open: true,
-                          doctor: doc,
-                          slotLabel: slot.label,
-                          slotTime: slotTimeStr,
-                          date: filterDate,
-                          appointments: appsForCell,
-                        });
-                      }
-                    };
+                  const isNonWorking = !isWorkingHour || isWeekendLunch;
+
+const handleCellClick = () => {
+  if (isNonWorking) return; // disable click on orange cells
+
+  if (appsForCell.length === 0) {
+    setQuickModalState({
+      open: true,
+      doctorId: doc.id,
+      date: filterDate,
+      time: slotTimeStr,
+    });
+  } else {
+    setDetailsModalState({
+      open: true,
+      doctor: doc,
+      slotLabel: slot.label,
+      slotTime: slotTimeStr,
+      date: filterDate,
+      appointments: appsForCell,
+    });
+  }
+};
 
                     return (
                       <div
