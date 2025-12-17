@@ -124,7 +124,40 @@ function isFirstSlotForAppointment(
   // first slot that starts at or after scheduledAt, within one slot
   return diffMinutes >= 0 && diffMinutes < slotMinutes;
 }
+// Show text in the "middle" 30‑minute slot of the appointment
+function isMiddleSlotForAppointment(
+  a: Appointment,
+  slotStart: Date,
+  slotMinutes = SLOT_MINUTES
+): boolean {
+  const start = new Date(a.scheduledAt);
+  const end = a.endAt ? new Date(a.endAt) : null;
+  if (Number.isNaN(start.getTime()) || !end || Number.isNaN(end.getTime())) {
+    return false;
+  }
 
+  const durationMinutes = Math.floor(
+    (end.getTime() - start.getTime()) / 60000
+  );
+  if (durationMinutes <= 0) return false;
+
+  // Middle time of the appointment
+  const middleTime = new Date(
+    start.getTime() + (durationMinutes / 2) * 60000
+  );
+
+  // We treat slotStart as the "center" of that 30‑min slot
+  const slotCenter = new Date(
+    slotStart.getTime() + (slotMinutes / 2) * 60000
+  );
+
+  // If the middle of the appointment falls within this slot window, it's the middle slot
+  const slotStartMs = slotStart.getTime();
+  const slotEndMs = slotStart.getTime() + slotMinutes * 60000;
+  const middleMs = middleTime.getTime();
+
+  return middleMs >= slotStartMs && middleMs < slotEndMs;
+}
 function addMinutesToTimeString(time: string, minutesToAdd: number): string {
   if (!time) return "";
   const [h, m] = time.split(":").map(Number);
