@@ -2655,6 +2655,7 @@ export default function AppointmentsPage() {
 
                   {/* Doctor columns */}
                   {gridDoctors.map((doc) => {
+  // All appointments for this doctor that overlap this slot
   const appsForCell = appointments.filter((a) => {
     if (a.doctorId !== doc.id) return false;
 
@@ -2728,9 +2729,14 @@ export default function AppointmentsPage() {
     }
   };
 
-  // Helper: does appointment overlap this slot?
-  const slotStart = slot.start;
-  const slotEnd = slot.end;
+  // ===== Helpers for "merged" look =====
+  const slotsPerHour = 60 / SLOT_MINUTES;
+
+  // current slot absolute index in day
+  const currentSlotIndex =
+    slot.start.getHours() * slotsPerHour +
+    Math.floor(slot.start.getMinutes() / SLOT_MINUTES);
+
   const appCoversSlot = (a: Appointment | null) => {
     if (!a) return false;
     const start = new Date(a.scheduledAt);
@@ -2739,7 +2745,18 @@ export default function AppointmentsPage() {
       a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
         ? new Date(a.endAt)
         : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
-    return start < slotEnd && end > slotStart;
+    return start < slot.end && end > slot.start;
+  };
+
+  // First slot index where this appointment overlaps any slot of the day
+  const firstSlotIndexForApp = (a: Appointment | null) => {
+    if (!a) return Infinity;
+    const start = new Date(a.scheduledAt);
+    if (Number.isNaN(start.getTime())) return Infinity;
+    const appStartIndex =
+      start.getHours() * slotsPerHour +
+      Math.floor(start.getMinutes() / SLOT_MINUTES);
+    return appStartIndex;
   };
 
   const laneBg = (a: Appointment | null): string => {
@@ -2758,10 +2775,12 @@ export default function AppointmentsPage() {
     }
   };
 
-  // 0 or 1 app: render full-width cell
+  // ===== 0 or 1 appointment → full-width merged block =====
   if (appsForCell.length <= 1) {
     const a = appsForCell[0] || null;
-    const visible = appCoversSlot(a);
+    const covers = appCoversSlot(a);
+    const firstIndex = firstSlotIndexForApp(a);
+    const isFirst = currentSlotIndex === firstIndex;
 
     return (
       <div
@@ -2775,24 +2794,24 @@ export default function AppointmentsPage() {
           alignItems: "center",
           justifyContent: "center",
           minHeight: 28,
-          padding: visible ? "1px 3px" : 0,
+          padding: covers ? "1px 3px" : 0,
         }}
         title={
-          visible && a
+          isFirst && a
             ? `${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
                 a.status
               )})`
             : ""
         }
       >
-        {visible && a && (
+        {covers && a && isFirst && (
           <span
             style={{
               backgroundColor: laneBg(a),
               borderRadius: 4,
               padding: "1px 4px",
               maxWidth: "100%",
-              whiteSpace: "normal", // allow wrapping
+              whiteSpace: "normal",
               wordBreak: "break-word",
               overflowWrap: "anywhere",
               fontSize: 11,
@@ -2807,11 +2826,18 @@ export default function AppointmentsPage() {
     );
   }
 
-  // 2+ apps: use first 2 as left/right lanes
+  // ===== 2 parallel apps → left/right lanes, each merged vertically =====
   const leftApp = appsForCell[0] || null;
   const rightApp = appsForCell[1] || null;
-  const leftVisible = appCoversSlot(leftApp);
-  const rightVisible = appCoversSlot(rightApp);
+
+  const leftCovers = appCoversSlot(leftApp);
+  const rightCovers = appCoversSlot(rightApp);
+
+  const leftFirstIndex = firstSlotIndexForApp(leftApp);
+  const rightFirstIndex = firstSlotIndexForApp(rightApp);
+
+  const leftIsFirst = currentSlotIndex === leftFirstIndex;
+  const rightIsFirst = currentSlotIndex === rightFirstIndex;
 
   return (
     <div
@@ -2835,8 +2861,8 @@ export default function AppointmentsPage() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: leftVisible ? "1px 3px" : 0,
-          backgroundColor: leftVisible ? laneBg(leftApp) : "transparent",
+          padding: leftCovers ? "1px 3px" : 0,
+          backgroundColor: leftCovers ? laneBg(leftApp) : "transparent",
           whiteSpace: "normal",
           wordBreak: "break-word",
           overflowWrap: "anywhere",
@@ -2845,7 +2871,7 @@ export default function AppointmentsPage() {
           textAlign: "center",
         }}
         title={
-          leftVisible && leftApp
+          leftIsFirst && leftApp
             ? `${formatPatientLabel(
                 leftApp.patient,
                 leftApp.patientId
@@ -2853,7 +2879,7 @@ export default function AppointmentsPage() {
             : ""
         }
       >
-        {leftVisible && leftApp &&
+        {leftCovers && leftApp && leftIsFirst &&
           `${formatGridShortLabel(leftApp)} (${formatStatus(
             leftApp.status
           )})`}
@@ -2866,8 +2892,8 @@ export default function AppointmentsPage() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: rightVisible ? "1px 3px" : 0,
-          backgroundColor: rightVisible ? laneBg(rightApp) : "transparent",
+          padding: rightCovers ? "1px 3px" : 0,
+          backgroundColor: rightCovers ? laneBg(rightApp) : "transparent",
           whiteSpace: "normal",
           wordBreak: "break-word",
           overflowWrap: "anywhere",
@@ -2877,7 +2903,7 @@ export default function AppointmentsPage() {
           borderLeft: "1px solid rgba(255,255,255,0.4)",
         }}
         title={
-          rightVisible && rightApp
+          rightIsFirst && rightApp
             ? `${formatPatientLabel(
                 rightApp.patient,
                 rightApp.patientId
@@ -2885,12 +2911,14 @@ export default function AppointmentsPage() {
             : ""
         }
       >
-        {rightVisible && rightApp &&
+        {rightCovers && rightApp && rightIsFirst &&
           `${formatGridShortLabel(rightApp)} (${formatStatus(
             rightApp.status
           )})`}
       </div>
     </div>
+  );
+})}
   );
 })}
                 </div>
