@@ -2655,242 +2655,244 @@ export default function AppointmentsPage() {
 
                   {/* Doctor columns */}
                   {gridDoctors.map((doc) => {
-                    const appsForCell = appointments.filter((a) => {
-                      if (a.doctorId !== doc.id) return false;
+  const appsForCell = appointments.filter((a) => {
+    if (a.doctorId !== doc.id) return false;
 
-                      const start = new Date(a.scheduledAt);
-                      if (Number.isNaN(start.getTime())) return false;
+    const start = new Date(a.scheduledAt);
+    if (Number.isNaN(start.getTime())) return false;
 
-                      const end =
-                        a.endAt &&
-                        !Number.isNaN(new Date(a.endAt).getTime())
-                          ? new Date(a.endAt)
-                          : new Date(
-                              start.getTime() +
-                                SLOT_MINUTES * 60 * 1000
-                            );
+    const end =
+      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+        ? new Date(a.endAt)
+        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
 
-                      const slotStart = slot.start;
-                      const slotEnd = slot.end;
+    const slotStart = slot.start;
+    const slotEnd = slot.end;
 
-                      // overlap: start < slotEnd && end > slotStart
-                      return start < slotEnd && end > slotStart;
-                    });
+    // overlap: start < slotEnd && end > slotStart
+    return start < slotEnd && end > slotStart;
+  });
 
-                                        const slotTimeStr = getSlotTimeString(slot.start);
-                    const schedules = (doc as any).schedules || [];
+  const slotTimeStr = getSlotTimeString(slot.start);
+  const schedules = (doc as any).schedules || [];
 
-                    const isWorkingHour = schedules.some((s: any) =>
-                      isTimeWithinRange(
-                        slotTimeStr,
-                        s.startTime,
-                        s.endTime
-                      )
-                    );
+  const isWorkingHour = schedules.some((s: any) =>
+    isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
+  );
 
-                    const weekdayIndex = slot.start.getDay();
-                    const isWeekend =
-                      weekdayIndex === 0 || weekdayIndex === 6;
+  const weekdayIndex = slot.start.getDay();
+  const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
+  const isWeekendLunch =
+    isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
 
-                    const isWeekendLunch =
-                      isWeekend &&
-                      isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+  let bg: string;
+  if (!isWorkingHour || isWeekendLunch) {
+    bg = "#ee7148"; // non-working
+  } else if (appsForCell.length === 0) {
+    bg = "#ffffff"; // empty working slot
+  } else {
+    const status = appsForCell[0].status;
+    bg =
+      status === "completed"
+        ? "#fb6190"
+        : status === "confirmed"
+        ? "#bbf7d0"
+        : status === "ongoing"
+        ? "#f9d89b"
+        : status === "cancelled"
+        ? "#9d9d9d"
+        : "#77f9fe";
+  }
 
-                    let bg: string;
-                    if (!isWorkingHour || isWeekendLunch) {
-                      bg = "#ee7148"; // non-working
-                    } else if (appsForCell.length === 0) {
-                      bg = "#ffffff"; // empty working slot
-                    } else {
-                      const status = appsForCell[0].status;
-                      bg =
-                        status === "completed"
-                          ? "#fb6190"
-                          : status === "confirmed"
-                          ? "#bbf7d0"
-                          : status === "ongoing"
-                          ? "#f9d89b"
-                          : status === "cancelled"
-                          ? "#9d9d9d"
-                          : "#77f9fe";
-                    }
+  const isNonWorking = !isWorkingHour || isWeekendLunch;
 
-                    const isNonWorking = !isWorkingHour || isWeekendLunch;
+  const handleCellClick = () => {
+    if (isNonWorking) return;
 
-                    const handleCellClick = () => {
-                      if (isNonWorking) return;
+    if (appsForCell.length === 0) {
+      setQuickModalState({
+        open: true,
+        doctorId: doc.id,
+        date: filterDate,
+        time: slotTimeStr,
+      });
+    } else {
+      setDetailsModalState({
+        open: true,
+        doctor: doc,
+        slotLabel: slot.label,
+        slotTime: slotTimeStr,
+        date: filterDate,
+        appointments: appsForCell,
+      });
+    }
+  };
 
-                      if (appsForCell.length === 0) {
-                        setQuickModalState({
-                          open: true,
-                          doctorId: doc.id,
-                          date: filterDate,
-                          time: slotTimeStr,
-                        });
-                      } else {
-                        setDetailsModalState({
-                          open: true,
-                          doctor: doc,
-                          slotLabel: slot.label,
-                          slotTime: slotTimeStr,
-                          date: filterDate,
-                          appointments: appsForCell,
-                        });
-                      }
-                    };
+  // Helper: does appointment overlap this slot?
+  const slotStart = slot.start;
+  const slotEnd = slot.end;
+  const appCoversSlot = (a: Appointment | null) => {
+    if (!a) return false;
+    const start = new Date(a.scheduledAt);
+    if (Number.isNaN(start.getTime())) return false;
+    const end =
+      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+        ? new Date(a.endAt)
+        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+    return start < slotEnd && end > slotStart;
+  };
 
-                    // Helper: does appointment overlap this slot?
-                    const slotStart = slot.start;
-                    const slotEnd = slot.end;
-                    const appCoversSlot = (a: Appointment | null) => {
-                      if (!a) return false;
-                      const start = new Date(a.scheduledAt);
-                      if (Number.isNaN(start.getTime())) return false;
-                      const end =
-                        a.endAt &&
-                        !Number.isNaN(new Date(a.endAt).getTime())
-                          ? new Date(a.endAt)
-                          : new Date(
-                              start.getTime() + SLOT_MINUTES * 60 * 1000
-                            );
-                      return start < slotEnd && end > slotStart;
-                    };
+  const laneBg = (a: Appointment | null): string => {
+    if (!a) return "transparent";
+    switch (a.status) {
+      case "completed":
+        return "#fb6190";
+      case "confirmed":
+        return "#bbf7d0";
+      case "ongoing":
+        return "#f9d89b";
+      case "cancelled":
+        return "#9d9d9d";
+      default:
+        return "#77f9fe";
+    }
+  };
 
-                    const laneBg = (a: Appointment | null): string => {
-                      if (!a) return "transparent";
-                      switch (a.status) {
-                        case "completed":
-                          return "#fb6190";
-                        case "confirmed":
-                          return "#bbf7d0";
-                        case "ongoing":
-                          return "#f9d89b";
-                        case "cancelled":
-                          return "#9d9d9d";
-                        default:
-                          return "#77f9fe";
-                      }
-                    };
+  // 0 or 1 app: render full-width cell
+  if (appsForCell.length <= 1) {
+    const a = appsForCell[0] || null;
+    const visible = appCoversSlot(a);
 
-                    // 0 or 1 app: render full cell
-                    if (appsForCell.length <= 1) {
-                      const a = appsForCell[0] || null;
-                      const visible = appCoversSlot(a);
+    return (
+      <div
+        key={doc.id}
+        onClick={handleCellClick}
+        style={{
+          borderLeft: "1px solid #f0f0f0",
+          backgroundColor: bg,
+          cursor: isNonWorking ? "not-allowed" : "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: 28,
+          padding: visible ? "1px 3px" : 0,
+        }}
+        title={
+          visible && a
+            ? `${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
+                a.status
+              )})`
+            : ""
+        }
+      >
+        {visible && a && (
+          <span
+            style={{
+              backgroundColor: laneBg(a),
+              borderRadius: 4,
+              padding: "1px 4px",
+              maxWidth: "100%",
+              whiteSpace: "normal", // allow wrapping
+              wordBreak: "break-word",
+              overflowWrap: "anywhere",
+              fontSize: 11,
+              lineHeight: 1.2,
+              textAlign: "center",
+            }}
+          >
+            {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
+          </span>
+        )}
+      </div>
+    );
+  }
 
-                      return (
-                        <div
-                          key={doc.id}
-                          onClick={handleCellClick}
-                          style={{
-                            borderLeft: "1px солид #f0f0f0",
-                            backgroundColor: bg,
-                            cursor: isNonWorking ? "not-allowed" : "pointer",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            minHeight: 28,
-                            padding: visible ? "1px 3px" : 0,
-                          }}
-                          title={
-                            visible && a
-                              ? `${formatPatientLabel(
-                                  a.patient,
-                                  a.patientId
-                                )} (${formatStatus(a.status)})`
-                              : ""
-                          }
-                        >
-                          {visible && a && (
-                            <span
-  style={{
-    backgroundColor: laneBg(a),
-    borderRadius: 4,
-    padding: "1px 4px",
-    maxWidth: "100%",
-    whiteSpace: "normal",          // allow wrapping
-    wordBreak: "break-word",       // break long words if needed
-    overflowWrap: "anywhere",
-    fontSize: 11,
-    lineHeight: 1.2,
-    textAlign: "center",
-  }}
->
-  {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
-</span>
-                          )}
-                        </div>
-                      );
-                    }
+  // 2+ apps: use first 2 as left/right lanes
+  const leftApp = appsForCell[0] || null;
+  const rightApp = appsForCell[1] || null;
+  const leftVisible = appCoversSlot(leftApp);
+  const rightVisible = appCoversSlot(rightApp);
 
-                    // 2+ apps: use first 2 as left/right lanes
-                    const leftApp = appsForCell[0] || null;
-                    const rightApp = appsForCell[1] || null;
-                    const leftVisible = appCoversSlot(leftApp);
-                    const rightVisible = appCoversSlot(rightApp);
+  return (
+    <div
+      key={doc.id}
+      onClick={handleCellClick}
+      style={{
+        borderLeft: "1px solid #f0f0f0",
+        backgroundColor: bg,
+        cursor: isNonWorking ? "not-allowed" : "pointer",
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "stretch",
+        minHeight: 28,
+        padding: 0,
+      }}
+    >
+      {/* LEFT HALF */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: leftVisible ? "1px 3px" : 0,
+          backgroundColor: leftVisible ? laneBg(leftApp) : "transparent",
+          whiteSpace: "normal",
+          wordBreak: "break-word",
+          overflowWrap: "anywhere",
+          fontSize: 11,
+          lineHeight: 1.2,
+          textAlign: "center",
+        }}
+        title={
+          leftVisible && leftApp
+            ? `${formatPatientLabel(
+                leftApp.patient,
+                leftApp.patientId
+              )} (${formatStatus(leftApp.status)})`
+            : ""
+        }
+      >
+        {leftVisible && leftApp &&
+          `${formatGridShortLabel(leftApp)} (${formatStatus(
+            leftApp.status
+          )})`}
+      </div>
 
-                    return (
-                      <div
-                        key={doc.id}
-                        onClick={handleCellClick}
-                        style={{
-                          borderLeft: "1px солид #f0f0f0",
-                          backgroundColor: bg,
-                          cursor: isNonWorking ? "not-allowed" : "pointer",
-                          display: "flex",
-                          flexDirection: "row",
-                          alignItems: "stretch",
-                          minHeight: 28,
-                          padding: 0,
-                        }}
-                      >
-                        {/* LEFT HALF */}
-                        <div
-  style={{
-    flex: 1,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: leftVisible ? "1px 3px" : 0,
-    backgroundColor: leftVisible ? laneBg(leftApp) : "transparent",
-    whiteSpace: "normal",        // allow wrapping
-    wordBreak: "break-word",
-    overflowWrap: "anywhere",
-    fontSize: 11,
-    lineHeight: 1.2,
-    textAlign: "center",
-  }}
->
-  {leftVisible && leftApp &&
-    `${formatGridShortLabel(leftApp)} (${formatStatus(
-      leftApp.status
-    )})`}
-</div>
-
-                        {/* RIGHT HALF */}
-<div
-  style={{
-    flex: 1,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: rightVisible ? "1px 3px" : 0,
-    backgroundColor: rightVisible ? laneBg(rightApp) : "transparent",
-    whiteSpace: "normal",        // allow wrapping
-    wordBreak: "break-word",
-    overflowWrap: "anywhere",
-    fontSize: 11,
-    lineHeight: 1.2,
-    textAlign: "center",
-  }}
->
-  {rightVisible && rightApp &&
-    `${formatGridShortLabel(rightApp)} (${formatStatus(
-      rightApp.status
-    )})`}
-</div>
-                      </div>
-                    );
-                  })}
+      {/* RIGHT HALF */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: rightVisible ? "1px 3px" : 0,
+          backgroundColor: rightVisible ? laneBg(rightApp) : "transparent",
+          whiteSpace: "normal",
+          wordBreak: "break-word",
+          overflowWrap: "anywhere",
+          fontSize: 11,
+          lineHeight: 1.2,
+          textAlign: "center",
+          borderLeft: "1px solid rgba(255,255,255,0.4)",
+        }}
+        title={
+          rightVisible && rightApp
+            ? `${formatPatientLabel(
+                rightApp.patient,
+                rightApp.patientId
+              )} (${formatStatus(rightApp.status)})`
+            : ""
+        }
+      >
+        {rightVisible && rightApp &&
+          `${formatGridShortLabel(rightApp)} (${formatStatus(
+            rightApp.status
+          )})`}
+      </div>
+    </div>
+  );
+})}
                 </div>
               ))}
             </div>
