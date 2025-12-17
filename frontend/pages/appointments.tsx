@@ -125,6 +125,8 @@ function isFirstSlotForAppointment(
   return diffMinutes >= 0 && diffMinutes < slotMinutes;
 }
 // Show text in the "middle" 30‑minute slot of the appointment
+// Show text in the "middle" 30‑minute slot of the appointment,
+// based on slot indices instead of exact time rounding.
 function isMiddleSlotForAppointment(
   a: Appointment,
   slotStart: Date,
@@ -141,22 +143,21 @@ function isMiddleSlotForAppointment(
   );
   if (durationMinutes <= 0) return false;
 
-  // Middle time of the appointment
-  const middleTime = new Date(
-    start.getTime() + (durationMinutes / 2) * 60000
-  );
+  // slot index for appointment start and current slot
+  const apptStartIndex =
+    start.getHours() * (60 / slotMinutes) + Math.floor(start.getMinutes() / slotMinutes);
+  const slotIndex =
+    slotStart.getHours() * (60 / slotMinutes) + Math.floor(slotStart.getMinutes() / slotMinutes);
 
-  // We treat slotStart as the "center" of that 30‑min slot
-  const slotCenter = new Date(
-    slotStart.getTime() + (slotMinutes / 2) * 60000
-  );
+  const slotCount = Math.max(1, Math.ceil(durationMinutes / slotMinutes));
 
-  // If the middle of the appointment falls within this slot window, it's the middle slot
-  const slotStartMs = slotStart.getTime();
-  const slotEndMs = slotStart.getTime() + slotMinutes * 60000;
-  const middleMs = middleTime.getTime();
+  // Choose middle slot index:
+  // - For odd slotCount: exact middle (e.g. 3 slots -> index offset 1)
+  // - For even slotCount: use the UPPER middle (e.g. 2 slots -> offset 1)
+  const middleOffset = Math.floor(slotCount / 2);
+  const middleIndex = apptStartIndex + middleOffset;
 
-  return middleMs >= slotStartMs && middleMs < slotEndMs;
+  return slotIndex === middleIndex;
 }
 function addMinutesToTimeString(time: string, minutesToAdd: number): string {
   if (!time) return "";
