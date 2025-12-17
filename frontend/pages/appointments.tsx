@@ -128,6 +128,22 @@ function addMinutesToTimeString(time: string, minutesToAdd: number): string {
     .padStart(2, "0")}`;
 }
 
+// NEW: helper to only show text in the first 30-min slot of an appointment
+function isFirstSlotForAppointment(
+  a: Appointment,
+  slotStart: Date,
+  slotMinutes = SLOT_MINUTES
+): boolean {
+  const start = new Date(a.scheduledAt);
+  if (Number.isNaN(start.getTime())) return false;
+
+  const diffMinutes = Math.floor(
+    (slotStart.getTime() - start.getTime()) / 60000
+  );
+  // show in the first slot that starts at or after scheduledAt, and within 1 slot
+  return diffMinutes >= 0 && diffMinutes < slotMinutes;
+}
+
 function isTimeWithinRange(time: string, startTime: string, endTime: string) {
   // inclusive of start, exclusive of end
   return time >= startTime && time < endTime;
@@ -2523,15 +2539,34 @@ export default function AppointmentsPage() {
                   (a) => a.doctorId === doc.id
                 ).length;
                 return (
-                  <div
-                    key={doc.id}
-                    style={{
-                      padding: 8,
-                      fontWeight: "bold",
-                      textAlign: "center",
-                      borderLeft: "1px солид #ddd",
-                    }}
-                  >
+                      <div
+                        key={doc.id}
+                        onClick={handleCellClick}
+                        style={{
+                          padding: 4,
+                          borderLeft: "1px солид #f0f0ф0",
+                          backgroundColor: bg,
+                          minHeight: 28,
+                          cursor: isNonWorking ? "not-allowed" : "pointer",
+                          display: "flex",
+                          flexWrap: "wrap",
+                          alignItems: "flex-start",
+                          gap: 4,
+                        }}
+                      >
+                        {appsForCell.map((a) => (
+                          <div
+                            key={a.id}
+                            style={{
+                              fontSize: 12,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {formatPatientLabel(a.patient, a.patientId)} (
+                            {formatStatus(a.status)})
+                          </div>
+                        ))}
+                      </div>
                     <div>{formatDoctorName(doc)}</div>
                     <div
                       style={{
