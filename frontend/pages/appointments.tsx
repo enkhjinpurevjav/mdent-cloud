@@ -2746,29 +2746,36 @@ export default function AppointmentsPage() {
                         }}
                       >
                         {appsForCell.map((a) => (
-                          <div
-                            key={a.id}
-                            style={{
-  fontSize: 11,
-  padding: "0 2px",
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  // Force each appointment label to take ~half of the cell width
-  // when there are 2 or more in this slot:
-  flexBasis: appsForCell.length > 1 ? "50%" : "100%",
-  flexGrow: 0,
-  flexShrink: 0,
-}}
-                            title={`${formatPatientLabel(
-                              a.patient,
-                              a.patientId
-                            )} (${formatStatus(a.status)})`}
-                          >
-                            {formatPatientLabel(a.patient, a.patientId)} (
-                            {formatStatus(a.status)})
-                          </div>
-                        ))}
+  <div
+    key={a.id}
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      // pill-like block
+      padding: "1px 3px",
+      borderRadius: 4,
+      background: "rgba(255,255,255,0.6)",
+      fontSize: 11,
+      lineHeight: 1.2,
+      // IMPORTANT: force side-by-side layout
+      flexBasis: appsForCell.length > 1 ? "48%" : "100%",
+      flexGrow: 0,
+      flexShrink: 0,
+      minWidth: 0, // allow text-overflow to work
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+    }}
+    title={`${formatPatientLabel(
+      a.patient,
+      a.patientId
+    )} (${formatStatus(a.status)})`}
+  >
+    {formatPatientLabel(a.patient, a.patientId)} (
+    {formatStatus(a.status)})
+  </div>
+))}
                       </div>
                     );
                   })}
