@@ -2715,10 +2715,10 @@ export default function AppointmentsPage() {
                       }
                     };
 
-                    // Only show text for appointments whose FIRST slot is this one
-                    const visibleAppointments = appsForCell.filter((a) =>
-                      isFirstSlotForAppointment(a, slot.start)
-                    );
+                      // Only show text for appointments whose MIDDLE slot is this one
+  const visibleAppointments = appsForCell.filter((a) =>
+    isMiddleSlotForAppointment(a, slot.start)
+  );
 
                     return (
                       <div
