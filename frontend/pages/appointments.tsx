@@ -127,6 +127,9 @@ function isFirstSlotForAppointment(
 // Show text in the "middle" 30‑minute slot of the appointment
 // Show text in the "middle" 30‑minute slot of the appointment,
 // based on slot indices instead of exact time rounding.
+// Show text in the "middle" 30‑minute slot of the appointment,
+// but for even slot counts (like 60min = 2 slots) use the LOWER middle,
+// so the text is not visually hugging the bottom.
 function isMiddleSlotForAppointment(
   a: Appointment,
   slotStart: Date,
@@ -144,17 +147,23 @@ function isMiddleSlotForAppointment(
   if (durationMinutes <= 0) return false;
 
   // slot index for appointment start and current slot
+  const slotsPerHour = 60 / slotMinutes; // 2 when slotMinutes = 30
   const apptStartIndex =
-    start.getHours() * (60 / slotMinutes) + Math.floor(start.getMinutes() / slotMinutes);
+    start.getHours() * slotsPerHour + Math.floor(start.getMinutes() / slotMinutes);
   const slotIndex =
-    slotStart.getHours() * (60 / slotMinutes) + Math.floor(slotStart.getMinutes() / slotMinutes);
+    slotStart.getHours() * slotsPerHour + Math.floor(slotStart.getMinutes() / slotMinutes);
 
   const slotCount = Math.max(1, Math.ceil(durationMinutes / slotMinutes));
 
-  // Choose middle slot index:
-  // - For odd slotCount: exact middle (e.g. 3 slots -> index offset 1)
-  // - For even slotCount: use the UPPER middle (e.g. 2 slots -> offset 1)
-  const middleOffset = Math.floor(slotCount / 2);
+  // Middle slot index:
+  //  - For odd slotCount (1,3,5) → exact middle
+  //  - For even slotCount (2,4,6) → LOWER middle
+  //
+  // Examples with 30min slots:
+  //  - 60min (2 slots): offsets 0,1 → lower-middle offset = 0 → first slot
+  //  - 90min (3 slots): offsets 0,1,2 → middle offset = 1 → middle slot
+  //  - 120min (4 slots): offsets 0,1,2,3 → lower-middle offset = 1
+  const middleOffset = Math.floor((slotCount - 1) / 2);
   const middleIndex = apptStartIndex + middleOffset;
 
   return slotIndex === middleIndex;
