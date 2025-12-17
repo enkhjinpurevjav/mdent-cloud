@@ -2660,22 +2660,23 @@ export default function AppointmentsPage() {
             {/* Time rows */}
             <div>
              {timeSlots.map((slot, rowIndex) => (
-  <div
-    key={rowIndex}
-    style={{
-      display: "grid",
-      gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
-      borderBottom: "1px солид #f0f0f0",
-      minHeight: 48, // was implicit ~28 via cell; now taller rows
-    }}
-  >
-                  {/* Time label column */}
-                  <div
-                    style={{
-                      padding: 6,
-                      borderRight: "1px солид #ddd",
-                      backgroundColor:
-                        rowIndex % 2 === 0 ? "#fafafa" : "#ffffff",
+ <div
+                key={rowIndex}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+                  borderBottom: "1px солид #f0f0f0",
+                }}
+              >
+                {/* Time label column */}
+                <div
+                  style={{
+                    padding: 6,
+                    borderRight: "1px солид #ddd",
+                    backgroundColor:
+                      rowIndex % 2 === 0 ? "#fafafa" : "#ffffff",
+                  }}
+                >
                     }}
                   >
                     {slot.label}
@@ -2743,78 +2744,93 @@ export default function AppointmentsPage() {
                           : "#77f9fe";
                     }
 
-                    const handleCellClick = () => {
-  if (isNonWorking) return;
+                    return (
+                    <div
+                      key={doc.id}
+                      onClick={handleCellClick}
+                      style={{
+                        borderLeft: "1px солид #f0f0f0",
+                        backgroundColor: bg,
+                        minHeight: 28,
+                        cursor: isNonWorking ? "not-allowed" : "pointer",
+                        display: "flex",
+                        flexDirection: "row",
+                        alignItems: "stretch",
+                        padding: 0,
+                      }}
+                    >
+                      {/* LEFT LANE */}
+                      <div
+                        style={{
+                          flex: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: leftApp ? "1px 3px" : 0,
+                          backgroundColor: leftApp
+                            ? laneBg(leftApp)
+                            : "transparent",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          fontSize: 11,
+                          lineHeight: 1.2,
+                        }}
+                        title={
+                          leftApp
+                            ? `${formatPatientLabel(
+                                leftApp.patient,
+                                leftApp.patientId
+                              )} (${formatStatus(leftApp.status)})`
+                            : ""
+                        }
+                      >
+                        {leftApp &&
+                          `${formatPatientLabel(
+                            leftApp.patient,
+                            leftApp.patientId
+                          )} (${formatStatus(leftApp.status)})`}
+                      </div>
 
-  if (appsForCell.length === 0) {
-    setQuickModalState({
-      open: true,
-      doctorId: doc.id,
-      date: filterDate,
-      time: slotTimeStr,
-    });
-  } else {
-    setDetailsModalState({
-      open: true,
-      doctor: doc,
-      slotLabel: slot.label,
-      slotTime: slotTimeStr,
-      date: filterDate,
-      appointments: appsForCell,
-    });
-  }
-};
-
-// Only show text for appointments whose MIDDLE slot is this one
-const visibleAppointments = appsForCell.filter((a) =>
-  isMiddleSlotForAppointment(a, slot.start)
-);
-
-return (
-  <div
-    key={doc.id}
-    onClick={handleCellClick}
-    style={{
-      padding: 4,
-      borderLeft: "1px солид #f0f0f0",
-      backgroundColor: bg,
-      minHeight: 28,
-      cursor: isNonWorking ? "not-allowed" : "pointer",
-      display: "flex",
-      flexWrap: "wrap",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 4,
-      textAlign: "center",
-    }}
-  >
-    {visibleAppointments.map((a) => (
-      <div
-        key={a.id}
-        style={{
-          fontSize: 12,
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          maxWidth: "100%",
-        }}
-        title={`${formatPatientLabel(
-          a.patient,
-          a.patientId
-        )} (${formatStatus(a.status)})`}
-      >
-        {formatPatientLabel(a.patient, a.patientId)} (
-        {formatStatus(a.status)})
-      </div>
-    ))}
-  </div>
-);
-                  })}
-                </div>
-              ))}
-            </div>
+                      {/* RIGHT LANE */}
+                      <div
+                        style={{
+                          flex: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: rightApp ? "1px 3px" : 0,
+                          backgroundColor: rightApp
+                            ? laneBg(rightApp)
+                            : "transparent",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          fontSize: 11,
+                          lineHeight: 1.2,
+                          borderLeft: "1px солид rgba(255,255,255,0.4)",
+                        }}
+                        title={
+                          rightApp
+                            ? `${formatPatientLabel(
+                                rightApp.patient,
+                                rightApp.patientId
+                              )} (${formatStatus(rightApp.status)})`
+                            : ""
+                        }
+                      >
+                        {rightApp &&
+                          `${formatPatientLabel(
+                            rightApp.patient,
+                            rightApp.patientId
+                          )} (${formatStatus(rightApp.status)})`}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
-        )}
       </section>
 
       {/* Day-grouped calendar */}
