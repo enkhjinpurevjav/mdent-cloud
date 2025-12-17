@@ -2618,15 +2618,16 @@ export default function AppointmentsPage() {
 
             {/* Time rows */}
             <div>
-              {timeSlots.map((slot, rowIndex) => (
-                <div
-                  key={rowIndex}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
-                    borderBottom: "1px солид #f0f0f0",
-                  }}
-                >
+             {timeSlots.map((slot, rowIndex) => (
+  <div
+    key={rowIndex}
+    style={{
+      display: "grid",
+      gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+      borderBottom: "1px солид #f0f0f0",
+      minHeight: 48, // was implicit ~28 via cell; now taller rows
+    }}
+  >
                   {/* Time label column */}
                   <div
                     style={{
