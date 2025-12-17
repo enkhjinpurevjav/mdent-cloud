@@ -2584,193 +2584,184 @@ export default function AppointmentsPage() {
 
             {/* Doctor columns */}
             {gridDoctors.map((doc) => {
-              const appsForCell = appointments.filter((a) => {
-                if (a.doctorId !== doc.id) return false;
+  const appsForCell = appointments.filter((a) => {
+    if (a.doctorId !== doc.id) return false;
 
-                const start = new Date(a.scheduledAt);
-                if (Number.isNaN(start.getTime())) return false;
+    const start = new Date(a.scheduledAt);
+    if (Number.isNaN(start.getTime())) return false;
 
-                const end =
-                  a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-                    ? new Date(a.endAt)
-                    : new Date(
-                        start.getTime() + SLOT_MINUTES * 60 * 1000
-                      );
+    const end =
+      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+        ? new Date(a.endAt)
+        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
 
-                const slotStart = slot.start;
-                const slotEnd = slot.end;
+    const slotStart = slot.start;
+    const slotEnd = slot.end;
 
-                // overlap: start < slotEnd && end > slotStart
-                return start < slotEnd && end > slotStart;
-              });
+    // overlap: start < slotEnd && end > slotStart
+    return start < slotEnd && end > slotStart;
+  });
 
-              const slotTimeStr = getSlotTimeString(slot.start);
-              const schedules = (doc as any).schedules || [];
+  const slotTimeStr = getSlotTimeString(slot.start);
+  const schedules = (doc as any).schedules || [];
 
-              const isWorkingHour = schedules.some((s: any) =>
-                isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
-              );
+  const isWorkingHour = schedules.some((s: any) =>
+    isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
+  );
 
-              const weekdayIndex = slot.start.getDay();
-              const isWeekend =
-                weekdayIndex === 0 || weekdayIndex === 6;
+  const weekdayIndex = slot.start.getDay();
+  const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
 
-              const isWeekendLunch =
-                isWeekend &&
-                isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+  const isWeekendLunch =
+    isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
 
-              let bg: string;
-              if (!isWorkingHour || isWeekendLunch) {
-                bg = "#ee7148";
-              } else if (appsForCell.length === 0) {
-                bg = "#ffffff";
-              } else {
-                const status = appsForCell[0].status;
-                bg =
-                  status === "completed"
-                    ? "#fb6190"
-                    : status === "confirmed"
-                    ? "#bbf7d0"
-                    : status === "ongoing"
-                    ? "#f9d89b"
-                    : status === "cancelled"
-                    ? "#9d9d9d"
-                    : "#77f9fe";
-              }
+  let bg: string;
+  if (!isWorkingHour || isWeekendLunch) {
+    bg = "#ee7148";
+  } else if (appsForCell.length === 0) {
+    bg = "#ffffff";
+  } else {
+    const status = appsForCell[0].status;
+    bg =
+      status === "completed"
+        ? "#fb6190"
+        : status === "confirmed"
+        ? "#bbf7d0"
+        : status === "ongoing"
+        ? "#f9d89b"
+        : status === "cancelled"
+        ? "#9d9d9d"
+        : "#77f9fe";
+  }
 
-              const isNonWorking = !isWorkingHour || isWeekendLunch;
+  const isNonWorking = !isWorkingHour || isWeekendLunch;
 
-              const handleCellClick = () => {
-                if (isNonWorking) return;
+  const handleCellClick = () => {
+    if (isNonWorking) return;
 
-                if (appsForCell.length === 0) {
-                  setQuickModalState({
-                    open: true,
-                    doctorId: doc.id,
-                    date: filterDate,
-                    time: slotTimeStr,
-                  });
-                } else {
-                  setDetailsModalState({
-                    open: true,
-                    doctor: doc,
-                    slotLabel: slot.label,
-                    slotTime: slotTimeStr,
-                    date: filterDate,
-                    appointments: appsForCell,
-                  });
-                }
-              };
+    if (appsForCell.length === 0) {
+      setQuickModalState({
+        open: true,
+        doctorId: doc.id,
+        date: filterDate,
+        time: slotTimeStr,
+      });
+    } else {
+      setDetailsModalState({
+        open: true,
+        doctor: doc,
+        slotLabel: slot.label,
+        slotTime: slotTimeStr,
+        date: filterDate,
+        appointments: appsForCell,
+      });
+    }
+  };
 
-              return (
-                <div
-                  key={doc.id}
-                  onClick={handleCellClick}
-                  style={{
-                    padding: 4,
-                    borderLeft: "1px солид #f0f0f0",
-                    backgroundColor: bg,
-                    minHeight: 28,
-                    cursor: isNonWorking ? "not-allowed" : "pointer",
-                    display: "flex",
-                    flexDirection: "column",
-                  }}
-                >
-                  {/* 0 appointments – empty cell */}
-                  {appsForCell.length === 0 && (
-                    <div style={{ flex: 1 }} />
-                  )}
+  return (
+    <div
+      key={doc.id}
+      onClick={handleCellClick}
+      style={{
+        padding: 0,
+        borderLeft: "1px солид #f0f0f0",
+        backgroundColor: bg,
+        minHeight: 28,
+        cursor: isNonWorking ? "not-allowed" : "pointer",
+        display: "flex",          // <-- row
+        flexDirection: "row",     // <-- horizontal split
+      }}
+    >
+      {/* 0 appointments: empty cell */}
+      {appsForCell.length === 0 && <div style={{ flex: 1 }} />}
 
-                  {/* 1 appointment – full cell */}
-                  {appsForCell.length === 1 && (
-                    <div
-                      style={{
-                        flex: 1,
-                        fontSize: 12,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                      title={`${formatPatientLabel(
-                        appsForCell[0].patient,
-                        appsForCell[0].patientId
-                      )} (${formatStatus(appsForCell[0].status)})`}
-                    >
-                      {formatPatientLabel(
-                        appsForCell[0].patient,
-                        appsForCell[0].patientId
-                      )}{" "}
-                      ({formatStatus(appsForCell[0].status)})
-                    </div>
-                  )}
+      {/* 1 appointment: full-width cell */}
+      {appsForCell.length === 1 && (
+        <div
+          style={{
+            flex: 1,
+            padding: 4,
+            fontSize: 12,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+          title={`${formatPatientLabel(
+            appsForCell[0].patient,
+            appsForCell[0].patientId
+          )} (${formatStatus(appsForCell[0].status)})`}
+        >
+          {formatPatientLabel(
+            appsForCell[0].patient,
+            appsForCell[0].patientId
+          )}{" "}
+          ({formatStatus(appsForCell[0].status)})
+        </div>
+      )}
 
-                  {/* 2 appointments – split cell vertically */}
-                  {appsForCell.length === 2 &&
-                    appsForCell.map((a, idx) => {
-                      const itemBg =
-                        a.status === "completed"
-                          ? "#bbf7d0"
-                          : a.status === "confirmed"
-                          ? "#d1fae5"
-                          : a.status === "ongoing"
-                          ? "#fed7aa"
-                          : a.status === "cancelled"
-                          ? "#e5e7eb"
-                          : "transparent";
+      {/* 2 appointments: split horizontally 50/50 */}
+      {appsForCell.length === 2 &&
+        appsForCell.map((a) => {
+          const itemBg =
+            a.status === "completed"
+              ? "#bbf7d0"
+              : a.status === "confirmed"
+              ? "#d1fae5"
+              : a.status === "ongoing"
+              ? "#fed7aa"
+              : a.status === "cancelled"
+              ? "#9d9d9d"
+              : "#77f9fe"; // same blue as booked
 
-                      return (
-                        <div
-                          key={a.id}
-                          style={{
-                            flex: 1,
-                            fontSize: 12,
-                            padding: "2px 4px",
-                            backgroundColor: itemBg,
-                            borderTop:
-                              idx === 1
-                                ? "1px солид rgba(0,0,0,0.05)"
-                                : "none",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                          title={`${formatPatientLabel(
-                            a.patient,
-                            a.patientId
-                          )} (${formatStatus(a.status)})`}
-                        >
-                          {formatPatientLabel(a.patient, a.patientId)} (
-                          {formatStatus(a.status)})
-                        </div>
-                      );
-                    })}
+          return (
+            <div
+              key={a.id}
+              style={{
+                flex: 1,                // <-- each takes half width
+                padding: 4,
+                fontSize: 12,
+                backgroundColor: itemBg,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+              title={`${formatPatientLabel(
+                a.patient,
+                a.patientId
+              )} (${formatStatus(a.status)})`}
+            >
+              {formatPatientLabel(a.patient, a.patientId)} (
+              {formatStatus(a.status)})
+            </div>
+          );
+        })}
 
-                  {/* >2 appointments – fallback summary */}
-                  {appsForCell.length > 2 && (
-                    <div
-                      style={{
-                        flex: 1,
-                        fontSize: 11,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                      title={appsForCell
-                        .map(
-                          (a) =>
-                            `${formatPatientLabel(
-                              a.patient,
-                              a.patientId
-                            )} (${formatStatus(a.status)})`
-                        )
-                        .join(" • ")}
-                    >
-                      {appsForCell.length} захиалга
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+      {/* >2 appointments: summary */}
+      {appsForCell.length > 2 && (
+        <div
+          style={{
+            flex: 1,
+            padding: 4,
+            fontSize: 11,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+          title={appsForCell
+            .map(
+              (a) =>
+                `${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
+                  a.status
+                )})`
+            )
+            .join(" • ")}
+        >
+          {appsForCell.length} захиалга
+        </div>
+      )}
+    </div>
+  );
+})}
           </div>
         ))}
       </div>
