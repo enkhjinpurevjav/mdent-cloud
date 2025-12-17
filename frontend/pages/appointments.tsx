@@ -1,7 +1,3 @@
-
-
-
-
 import React, { useEffect, useRef, useState } from "react";
 
 type Branch = {
@@ -2753,13 +2749,17 @@ export default function AppointmentsPage() {
                           <div
                             key={a.id}
                             style={{
-                              fontSize: 12,
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              maxWidth:
-                                appsForCell.length > 1 ? "48%" : "100%",
-                            }}
+  fontSize: 11,
+  padding: "0 2px",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  // Force each appointment label to take ~half of the cell width
+  // when there are 2 or more in this slot:
+  flexBasis: appsForCell.length > 1 ? "50%" : "100%",
+  flexGrow: 0,
+  flexShrink: 0,
+}}
                             title={`${formatPatientLabel(
                               a.patient,
                               a.patientId
