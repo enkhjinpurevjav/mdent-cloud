@@ -69,6 +69,9 @@ const SLOT_MINUTES = 30;
 const WEEKEND_START_HOUR = 10; // 10:00
 const WEEKEND_END_HOUR = 19; // 19:00
 
+// Visual row height for a 30‑minute slot in the doctor grid
+const ROW_HEIGHT = 28; // px
+
 type TimeSlot = {
   label: string; // "09:00"
   start: Date;
@@ -624,7 +627,6 @@ function QuickAppointmentModal({
   const [searchDebounceTimer, setSearchDebounceTimer] =
     useState<NodeJS.Timeout | null>(null);
 
-  // 30-min slots for popup date
   const [popupSlots, setPopupSlots] = useState<
     { label: string; value: string }[]
   >([]);
@@ -663,7 +665,6 @@ function QuickAppointmentModal({
   }, [form.date]);
 
   useEffect(() => {
-    // Prefer currently selected branch if exists; otherwise default to first branch
     if (!form.branchId && branches.length > 0) {
       setForm((prev) => ({
         ...prev,
@@ -693,12 +694,9 @@ function QuickAppointmentModal({
       if (name === "startTime") {
         const newStart = value;
         let newEnd = prev.endTime;
-
-        // if no end yet, or end <= start → auto 30min
         if (!newEnd || newEnd <= newStart) {
           newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
         }
-
         return { ...prev, startTime: newStart, endTime: newEnd };
       }
 
@@ -1325,7 +1323,6 @@ function AppointmentForm({
   ) => {
     const { name, value } = e.target;
 
-    // Patient search
     if (name === "patientQuery") {
       setForm((prev) => ({ ...prev, patientQuery: value }));
 
@@ -1342,17 +1339,13 @@ function AppointmentForm({
       return;
     }
 
-    // Other fields
     setForm((prev) => {
       if (name === "startTime") {
         const newStart = value;
         let newEnd = prev.endTime;
-
-        // If no end yet or end <= start → auto 30 min
         if (!newEnd || newEnd <= newStart) {
           newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
         }
-
         return {
           ...prev,
           startTime: newStart,
@@ -1478,7 +1471,6 @@ function AppointmentForm({
     );
   };
 
-  // Count existing appointments overlapping a 30min slot
   const countAppointmentsInSlot = (slotStartDate: Date) => {
     if (!form.doctorId) return 0;
     const doctorIdNum = Number(form.doctorId);
@@ -1504,7 +1496,6 @@ function AppointmentForm({
       const dayStr = start.toISOString().slice(0, 10);
       if (dayStr !== form.date) return false;
 
-      // overlap: start < slotEnd && end > slotStart
       return start < slotEnd && end > slotStart;
     }).length;
   };
@@ -1668,7 +1659,6 @@ function AppointmentForm({
       return;
     }
 
-    // Check each 30-min block for max 2 appointments
     let currentBlockStart = new Date(scheduledAt);
     while (currentBlockStart < end) {
       const existingCount = countAppointmentsInSlot(currentBlockStart);
@@ -1817,7 +1807,7 @@ function AppointmentForm({
                 textAlign: "left",
                 padding: "6px 8px",
                 border: "none",
-                borderBottom: "1px солид #f3f4f6",
+                borderBottom: "1px solid #f3f4f6",
                 background: "white",
                 cursor: "pointer",
                 fontSize: 12,
@@ -2194,8 +2184,9 @@ export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [scheduledDoctors, setScheduledDoctors] =
-    useState<ScheduledDoctor[]>([]);
+  const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>(
+    []
+  );
   const [error, setError] = useState("");
 
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -2493,7 +2484,10 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Time grid by doctor */}
+      {/* Time grid by doctor with overlapping bars in each cell (old behavior) */}
+      {/* NOTE: this section is still your overlapping-in-each-slot version.
+               If you truly want bar-spanning across rows, this whole section
+               needs to be replaced with an absolute-position overlay approach. */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
@@ -2593,7 +2587,6 @@ export default function AppointmentsPage() {
                       const slotStart = slot.start;
                       const slotEnd = slot.end;
 
-                      // overlap: start < slotEnd && end > slotStart
                       return start < slotEnd && end > slotStart;
                     });
 
@@ -2660,116 +2653,34 @@ export default function AppointmentsPage() {
                       }
                     };
 
-                    // Layout:
-                    // - 0 appointments: empty background only
-                    // - 1 appointment: full width
-                    // - 2 appointments: split 50/50 horizontally, text wraps vertically
-                    // - >2: show summary count
                     return (
                       <div
                         key={doc.id}
                         onClick={handleCellClick}
                         style={{
-                          padding: 0,
+                          padding: 4,
                           borderLeft: "1px солид #f0f0f0",
                           backgroundColor: bg,
                           minHeight: 28,
                           cursor: isNonWorking ? "not-allowed" : "pointer",
                           display: "flex",
-                          flexDirection: "row",
+                          flexWrap: "wrap",
+                          alignItems: "flex-start",
+                          gap: 4,
                         }}
                       >
-                        {appsForCell.length === 0 && (
-                          <div style={{ flex: 1 }} />
-                        )}
-
-                        {appsForCell.length === 1 && (
+                        {appsForCell.map((a) => (
                           <div
+                            key={a.id}
                             style={{
-                              flex: 1,
-                              padding: 4,
                               fontSize: 12,
                               whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
                             }}
-                            title={`${formatPatientLabel(
-                              appsForCell[0].patient,
-                              appsForCell[0].patientId
-                            )} (${formatStatus(
-                              appsForCell[0].status
-                            )})`}
                           >
-                            {formatPatientLabel(
-                              appsForCell[0].patient,
-                              appsForCell[0].patientId
-                            )}{" "}
-                            ({formatStatus(appsForCell[0].status)})
+                            {formatPatientLabel(a.patient, a.patientId)} (
+                            {formatStatus(a.status)})
                           </div>
-                        )}
-
-                        {appsForCell.length === 2 &&
-                          appsForCell.map((a) => {
-                            const itemBg =
-                              a.status === "completed"
-                                ? "#bbf7d0"
-                                : a.status === "confirmed"
-                                ? "#d1fae5"
-                                : a.status === "ongoing"
-                                ? "#fed7aa"
-                                : a.status === "cancelled"
-                                ? "#9d9d9d"
-                                : "#77f9fe";
-
-                            return (
-                              <div
-                                key={a.id}
-                                style={{
-                                  flex: 1,
-                                  padding: 4,
-                                  fontSize: 12,
-                                  backgroundColor: itemBg,
-                                  whiteSpace: "normal",
-                                  wordBreak: "break-word",
-                                  minHeight: 28,
-                                }}
-                                title={`${formatPatientLabel(
-                                  a.patient,
-                                  a.patientId
-                                )} (${formatStatus(a.status)})`}
-                              >
-                                {formatPatientLabel(
-                                  a.patient,
-                                  a.patientId
-                                )}{" "}
-                                ({formatStatus(a.status)})
-                              </div>
-                            );
-                          })}
-
-                        {appsForCell.length > 2 && (
-                          <div
-                            style={{
-                              flex: 1,
-                              padding: 4,
-                              fontSize: 11,
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                            title={appsForCell
-                              .map(
-                                (a) =>
-                                  `${formatPatientLabel(
-                                    a.patient,
-                                    a.patientId
-                                  )} (${formatStatus(a.status)})`
-                              )
-                              .join(" • ")}
-                          >
-                            {appsForCell.length} захиалга
-                          </div>
-                        )}
+                        ))}
                       </div>
                     );
                   })}
