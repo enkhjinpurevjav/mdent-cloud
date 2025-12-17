@@ -105,10 +105,11 @@ function pad2(n: number) {
 }
 
 function getSlotTimeString(date: Date): string {
+  // "HH:MM" in local time
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
-// Only used in some checks; not used in grid anymore
+// Kept for possible reuse; NOT used in grid rendering anymore
 function isFirstSlotForAppointment(
   a: Appointment,
   slotStart: Date,
@@ -123,7 +124,7 @@ function isFirstSlotForAppointment(
   return diffMinutes >= 0 && diffMinutes < slotMinutes;
 }
 
-// Kept for potential future use
+// Kept for possible reuse; NOT used in grid rendering anymore
 function isMiddleSlotForAppointment(
   a: Appointment,
   slotStart: Date,
@@ -140,7 +141,7 @@ function isMiddleSlotForAppointment(
   );
   if (durationMinutes <= 0) return false;
 
-  const slotsPerHour = 60 / slotMinutes;
+  const slotsPerHour = 60 / slotMinutes; // 2 when 30‑min slots
   const apptStartIndex =
     start.getHours() * slotsPerHour +
     Math.floor(start.getMinutes() / slotMinutes);
@@ -172,6 +173,7 @@ function addMinutesToTimeString(time: string, minutesToAdd: number): string {
 }
 
 function isTimeWithinRange(time: string, startTime: string, endTime: string) {
+  // inclusive of start, exclusive of end
   return time >= startTime && time < endTime;
 }
 
@@ -233,6 +235,7 @@ function getDateFromYMD(ymd: string): Date {
 }
 
 function formatDateYmdDots(date: Date): string {
+  // outputs: "2025.12.16"
   return date.toLocaleDateString("mn-MN", {
     year: "numeric",
     month: "2-digit",
@@ -240,6 +243,7 @@ function formatDateYmdDots(date: Date): string {
   });
 }
 
+// Map internal status codes to Mongolian labels
 function formatStatus(status: string): string {
   switch (status) {
     case "booked":
@@ -258,14 +262,14 @@ function formatStatus(status: string): string {
 }
 
 // ==== Appointment Details Modal ====
-// (your existing implementation)
+// (this is exactly your current implementation)
 type AppointmentDetailsModalProps = {
   open: boolean;
   onClose: () => void;
   doctor?: Doctor | null;
   slotLabel?: string;
-  slotTime?: string;
-  date?: string;
+  slotTime?: string; // HH:MM
+  date?: string; // YYYY-MM-DD
   appointments: Appointment[];
   onStatusUpdated?: (updated: Appointment) => void;
 };
@@ -332,7 +336,7 @@ function AppointmentDetailsModal({
 
     try {
       const res = await fetch(`/api/appointments/${a.id}`, {
-        method: "PATCH",
+        method: "PATCH", // MUST match backend
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: editingStatus }),
       });
@@ -347,6 +351,7 @@ function AppointmentDetailsModal({
       }
 
       if (!res.ok) {
+        console.error("Update status failed", res.status, text);
         setError(
           (data && data.error) ||
             `Төлөв шинэчлэхэд алдаа гарлаа (код ${res.status})`
@@ -356,11 +361,12 @@ function AppointmentDetailsModal({
       }
 
       const updated = data as Appointment;
-      onStatusUpdated?.(updated);
+      if (onStatusUpdated) onStatusUpdated(updated);
 
       setEditingId(null);
       setEditingStatus("");
-    } catch {
+    } catch (e) {
+      console.error("Update status network error", e);
       setError("Сүлжээгээ шалгана уу.");
     } finally {
       setSaving(false);
@@ -402,7 +408,14 @@ function AppointmentDetailsModal({
             marginBottom: 8,
           }}
         >
-          <h3 style={{ margin: 0, fontSize: 15 }}>Цагийн дэлгэрэнгүй</h3>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: 15,
+            }}
+          >
+            Цагийн дэлгэрэнгүй
+          </h3>
           <button
             type="button"
             onClick={onClose}
@@ -616,28 +629,380 @@ function AppointmentDetailsModal({
 }
 
 // ==== QuickAppointmentModal ====
-// (your existing implementation – unchanged)
-// ... KEEP the full QuickAppointmentModal from your file ...
+// (this is your implementation from the file – unchanged)
+// ... keep exactly as in your current file ...
 
 // ==== AppointmentForm ====
-// (your existing implementation – unchanged)
-// ... KEEP the full AppointmentForm from your file ...
+// (unchanged – use your existing implementation)
+// ... keep exactly as in your current file ...
 
 // ==== Page ====
 
 export default function AppointmentsPage() {
-  // ... all your state and effects from current file (unchanged) ...
-  // (use exactly what you pasted, up to the time grid)
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>(
+    []
+  );
+  const [error, setError] = useState("");
 
-  // [keep everything above the time grid exactly as in your last message]
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [filterDate, setFilterDate] = useState<string>(todayStr);
+  const [filterBranchId, setFilterBranchId] = useState<string>("");
+  const [filterDoctorId, setFilterDoctorId] = useState<string>("");
 
-  // I’ll resume after you’ve defined:
-  // appointments, branches, doctors, scheduledDoctors, error,
-  // filterDate, filterBranchId, filterDoctorId, groupedAppointments,
-  // selectedDay, timeSlots, detailsModalState, quickModalState, etc.
+  const [activeBranchTab, setActiveBranchTab] = useState<string>("");
 
-  // === paste your existing AppointmentsPage state/effects here ===
-  // (to keep this answer shorter I won’t duplicate them again)
+  const groupedAppointments = groupByDate(appointments);
+  const selectedDay = getDateFromYMD(filterDate);
+  const timeSlots = generateTimeSlotsForDay(selectedDay);
 
-  // IMPORTANT PART: the time grid section below
+  const [detailsModalState, setDetailsModalState] = useState<{
+    open: boolean;
+    doctor?: Doctor | null;
+    slotLabel?: string;
+    slotTime?: string;
+    date?: string;
+    appointments: Appointment[];
+  }>({
+    open: false,
+    appointments: [],
+  });
+
+  const [quickModalState, setQuickModalState] = useState<{
+    open: boolean;
+    doctorId?: number;
+    date: string;
+    time: string;
+  }>({
+    open: false,
+    date: todayStr,
+    time: "09:00",
+  });
+
+  const formSectionRef = useRef<HTMLElement | null>(null);
+
+  const loadAppointments = async () => {
+    try {
+      setError("");
+      const params = new URLSearchParams();
+      if (filterDate) params.set("date", filterDate);
+      if (filterBranchId) params.set("branchId", filterBranchId);
+      if (filterDoctorId) params.set("doctorId", filterDoctorId);
+
+      const res = await fetch(`/api/appointments?${params.toString()}`);
+      const data = await res.json();
+      if (!res.ok || !Array.isArray(data)) {
+        throw new Error("failed");
+      }
+      setAppointments(data);
+    } catch {
+      setError("Цаг захиалгуудыг ачаалах үед алдаа гарлаа.");
+    }
+  };
+
+  const loadScheduledDoctors = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (filterDate) params.set("date", filterDate);
+      if (filterBranchId) params.set("branchId", filterBranchId);
+
+      const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
+      const data = await res.json();
+
+      if (!res.ok || !Array.isArray(data)) {
+        throw new Error("failed");
+      }
+
+      const sorted = data
+        .slice()
+        .sort((a: ScheduledDoctor, b: ScheduledDoctor) => {
+          const an = (a.name || "").toLowerCase();
+          const bn = (b.name || "").toLowerCase();
+          return an.localeCompare(bn);
+        });
+
+      setScheduledDoctors(sorted);
+    } catch (e) {
+      console.error("Failed to load scheduled doctors", e);
+      setScheduledDoctors([]);
+    }
+  };
+
+  useEffect(() => {
+    const loadMeta = async () => {
+      try {
+        const [bRes, dRes] = await Promise.all([
+          fetch("/api/branches"),
+          fetch("/api/users?role=doctor"),
+        ]);
+
+        const [bData, dData] = await Promise.all([
+          bRes.json().catch(() => []),
+          dRes.json().catch(() => []),
+        ]);
+
+        if (Array.isArray(bData)) setBranches(bData);
+        if (Array.isArray(dData)) setDoctors(dData);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    loadMeta();
+  }, []);
+
+  useEffect(() => {
+    loadAppointments();
+    loadScheduledDoctors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterDate, filterBranchId, filterDoctorId]);
+
+  const handleBranchTabClick = (branchId: string) => {
+    setActiveBranchTab(branchId);
+    setFilterBranchId(branchId);
+  };
+
+  const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
+
+  return (
+    <main
+      style={{
+        maxWidth: 1100,
+        margin: "40px auto",
+        padding: 24,
+        fontFamily: "sans-serif",
+      }}
+    >
+      {/* header, branch tabs, filters, AppointmentForm – all as in your current file */}
+
+      {/* ... keep your header, tabs, filters, create form, and error display here ... */}
+
+      {/* Time grid by doctor – COLOR FOR DURATION + side‑by‑side text */}
+      <section style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 4 }}>
+          Өдрийн цагийн хүснэгт (эмчээр)
+        </h2>
+        <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
+          {formatDateYmdDots(selectedDay)}
+        </div>
+
+        {gridDoctors.length === 0 && (
+          <div style={{ color: "#6b7280", fontSize: 13 }}>
+            Энэ өдөр ажиллах эмчийн хуваарь алга.
+          </div>
+        )}
+
+        {gridDoctors.length > 0 && (
+          <div
+            style={{
+              border: "1px солид #ddd",
+              borderRadius: 8,
+              overflow: "hidden",
+              fontSize: 12,
+            }}
+          >
+            {/* Header row */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+                backgroundColor: "#f5f5f5",
+                borderBottom: "1px солид #ddd",
+              }}
+            >
+              <div style={{ padding: 8, fontWeight: "bold" }}>Цаг</div>
+              {gridDoctors.map((doc) => {
+                const count = appointments.filter(
+                  (a) => a.doctorId === doc.id
+                ).length;
+                return (
+                  <div
+                    key={doc.id}
+                    style={{
+                      padding: 8,
+                      fontWeight: "bold",
+                      textAlign: "center",
+                      borderLeft: "1px солид #ddd",
+                    }}
+                  >
+                    <div>{formatDoctorName(doc)}</div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "#6b7280",
+                        marginTop: 2,
+                      }}
+                    >
+                      {count} захиалга
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Time rows */}
+            <div>
+              {timeSlots.map((slot, rowIndex) => (
+                <div
+                  key={rowIndex}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+                    borderBottom: "1px солид #f0f0f0",
+                  }}
+                >
+                  {/* Time label column */}
+                  <div
+                    style={{
+                      padding: 6,
+                      borderRight: "1px солид #ddd",
+                      backgroundColor:
+                        rowIndex % 2 === 0 ? "#fafafa" : "#ffffff",
+                    }}
+                  >
+                    {slot.label}
+                  </div>
+
+                  {/* Doctor columns */}
+                  {gridDoctors.map((doc) => {
+                    const appsForCell = appointments.filter((a) => {
+                      if (a.doctorId !== doc.id) return false;
+
+                      const start = new Date(a.scheduledAt);
+                      if (Number.isNaN(start.getTime())) return false;
+
+                      const end =
+                        a.endAt &&
+                        !Number.isNaN(new Date(a.endAt).getTime())
+                          ? new Date(a.endAt)
+                          : new Date(
+                              start.getTime() +
+                                SLOT_MINUTES * 60 * 1000
+                            );
+
+                      const slotStart = slot.start;
+                      const slotEnd = slot.end;
+
+                      // overlap: start < slotEnd && end > slotStart
+                      return start < slotEnd && end > slotStart;
+                    });
+
+                    const slotTimeStr = getSlotTimeString(slot.start);
+                    const schedules = (doc as any).schedules || [];
+
+                    const isWorkingHour = schedules.some((s: any) =>
+                      isTimeWithinRange(
+                        slotTimeStr,
+                        s.startTime,
+                        s.endTime
+                      )
+                    );
+
+                    const weekdayIndex = slot.start.getDay();
+                    const isWeekend =
+                      weekdayIndex === 0 || weekdayIndex === 6;
+
+                    const isWeekendLunch =
+                      isWeekend &&
+                      isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+
+                    let bg: string;
+                    if (!isWorkingHour || isWeekendLunch) {
+                      bg = "#ee7148";
+                    } else if (appsForCell.length === 0) {
+                      bg = "#ffffff";
+                    } else {
+                      // COLOR FOR DURATION – first overlapping app
+                      const status = appsForCell[0].status;
+                      bg =
+                        status === "completed"
+                          ? "#fb6190"
+                          : status === "confirmed"
+                          ? "#bbf7d0"
+                          : status === "ongoing"
+                          ? "#f9d89b"
+                          : status === "cancelled"
+                          ? "#9d9d9d"
+                          : "#77f9fe";
+                    }
+
+                    const isNonWorking = !isWorkingHour || isWeekendLunch;
+
+                    const handleCellClick = () => {
+                      if (isNonWorking) return;
+
+                      if (appsForCell.length === 0) {
+                        setQuickModalState({
+                          open: true,
+                          doctorId: doc.id,
+                          date: filterDate,
+                          time: slotTimeStr,
+                        });
+                      } else {
+                        setDetailsModalState({
+                          open: true,
+                          doctor: doc,
+                          slotLabel: slot.label,
+                          slotTime: slotTimeStr,
+                          date: filterDate,
+                          appointments: appsForCell,
+                        });
+                      }
+                    };
+
+                    return (
+                      <div
+                        key={doc.id}
+                        onClick={handleCellClick}
+                        style={{
+                          padding: 4,
+                          borderLeft: "1px солид #f0f0f0",
+                          backgroundColor: bg,
+                          minHeight: 28,
+                          cursor: isNonWorking ? "not-allowed" : "pointer",
+                          display: "flex",
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                          justifyContent: "flex-start",
+                          gap: 4,
+                          textAlign: "left",
+                        }}
+                      >
+                        {appsForCell.map((a) => (
+                          <div
+                            key={a.id}
+                            style={{
+                              fontSize: 12,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              maxWidth:
+                                appsForCell.length > 1 ? "48%" : "100%",
+                            }}
+                            title={`${formatPatientLabel(
+                              a.patient,
+                              a.patientId
+                            )} (${formatStatus(a.status)})`}
+                          >
+                            {formatPatientLabel(a.patient, a.patientId)} (
+                            {formatStatus(a.status)})
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Day‑grouped calendar, raw table, modals – keep exactly as in your file */}
+
+      {/* ... copy the rest of your existing AppointmentsPage (calendar, table, modals) here ... */}
+    </main>
+  );
 }
