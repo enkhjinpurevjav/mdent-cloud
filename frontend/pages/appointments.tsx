@@ -2608,45 +2608,7 @@ export default function AppointmentsPage() {
                       return start < slotEnd && end > slotStart;
                     });
 
-                    const slotTimeStr = getSlotTimeString(slot.start);
-                    const schedules = (doc as any).schedules || [];
-
-                    const isWorkingHour = schedules.some((s: any) =>
-                      isTimeWithinRange(
-                        slotTimeStr,
-                        s.startTime,
-                        s.endTime
-                      )
-                    );
-
-                    const weekdayIndex = slot.start.getDay();
-                    const isWeekend =
-                      weekdayIndex === 0 || weekdayIndex === 6;
-
-                    const isWeekendLunch =
-                      isWeekend &&
-                      isTimeWithinRange(slotTimeStr, "14:00", "15:00");
-
-                    let bg: string;
-                    if (!isWorkingHour || isWeekendLunch) {
-                      bg = "#ee7148";
-                    } else if (appsForCell.length === 0) {
-                      bg = "#ffffff";
-                    } else {
-                      const status = appsForCell[0].status;
-                      bg =
-                        status === "completed"
-                          ? "#fb6190"
-                          : status === "confirmed"
-                          ? "#bbf7d0"
-                          : status === "ongoing"
-                          ? "#f9d89b"
-                          : status === "cancelled"
-                          ? "#9d9d9d"
-                          : "#77f9fe";
-                    }
-
-                    const isNonWorking = !isWorkingHour || isWeekendLunch;
+                                        const isNonWorking = !isWorkingHour || isWeekendLunch;
 
                     const handleCellClick = () => {
                       if (isNonWorking) return;
@@ -2670,9 +2632,36 @@ export default function AppointmentsPage() {
                       }
                     };
 
-                    // Helpers for merged look
+                    // ===== Per-slot lane logic =====
+                    // For this slot, find all overlapping appointments for this doctor,
+                    // sort by start time, and take at most 2 → lane0 and lane1.
+                    const overlapping = appointments
+                      .filter((a) => {
+                        if (a.doctorId !== doc.id) return false;
+                        const start = new Date(a.scheduledAt);
+                        if (Number.isNaN(start.getTime())) return false;
+                        const end =
+                          a.endAt &&
+                          !Number.isNaN(new Date(a.endAt).getTime())
+                            ? new Date(a.endAt)
+                            : new Date(
+                                start.getTime() +
+                                  SLOT_MINUTES * 60 * 1000
+                              );
+                        return start < slot.end && end > slot.start;
+                      })
+                      .sort(
+                        (a, b) =>
+                          new Date(a.scheduledAt).getTime() -
+                          new Date(b.scheduledAt).getTime()
+                      );
+
+                    const lane0 = overlapping[0] ?? null;
+                    const lane1 = overlapping[1] ?? null;
+
+                    const slotsPerHourLocal = 60 / SLOT_MINUTES;
                     const currentSlotIndex =
-                      slot.start.getHours() * slotsPerHour +
+                      slot.start.getHours() * slotsPerHourLocal +
                       Math.floor(
                         slot.start.getMinutes() / SLOT_MINUTES
                       );
@@ -2699,12 +2688,12 @@ export default function AppointmentsPage() {
                       const start = new Date(a.scheduledAt);
                       if (Number.isNaN(start.getTime()))
                         return Infinity;
-                      const appStartIndex =
-                        start.getHours() * slotsPerHour +
+                      return (
+                        start.getHours() * slotsPerHourLocal +
                         Math.floor(
                           start.getMinutes() / SLOT_MINUTES
-                        );
-                      return appStartIndex;
+                        )
+                      );
                     };
 
                     const laneBg = (a: Appointment | null): string => {
@@ -2723,14 +2712,22 @@ export default function AppointmentsPage() {
                       }
                     };
 
-                    // 0 or 1 app -> full-width merged block
-                    if (appsForCell.length <= 1) {
-                      const a = appsForCell[0] || null;
-                      const covers = appCoversSlot(a);
-                      const firstIndex = firstSlotIndexForApp(a);
-                      const isFirst =
-                        currentSlotIndex === firstIndex;
+                    const lane0Covers = appCoversSlot(lane0);
+                    const lane1Covers = appCoversSlot(lane1);
 
+                    const lane0FirstIndex =
+                      firstSlotIndexForApp(lane0);
+                    const lane1FirstIndex =
+                      firstSlotIndexForApp(lane1);
+
+                    const lane0IsFirst =
+                      currentSlotIndex === lane0FirstIndex;
+                    const lane1IsFirst =
+                      currentSlotIndex === lane1FirstIndex;
+
+                    // If only 0 or 1 appointment overlaps this slot, use a single full-width lane.
+                    if (!lane1Covers && lane0Covers) {
+                      const a = lane0;
                       return (
                         <div
                           key={doc.id}
@@ -2745,10 +2742,10 @@ export default function AppointmentsPage() {
                             alignItems: "center",
                             justifyContent: "center",
                             minHeight: 28,
-                            padding: covers ? "1px 3px" : 0,
+                            padding: "1px 3px",
                           }}
                           title={
-                            isFirst && a
+                            lane0IsFirst && a
                               ? `${formatPatientLabel(
                                   a.patient,
                                   a.patientId
@@ -2756,7 +2753,7 @@ export default function AppointmentsPage() {
                               : ""
                           }
                         >
-                          {covers && a && isFirst && (
+                          {a && lane0IsFirst && (
                             <span
                               style={{
                                 backgroundColor: laneBg(a),
@@ -2780,23 +2777,25 @@ export default function AppointmentsPage() {
                       );
                     }
 
-                    // 2+ apps -> left/right lanes, each merged vertically
-                    const leftApp = appsForCell[0] || null;
-                    const rightApp = appsForCell[1] || null;
+                    // 0 apps covering this slot → empty cell
+                    if (!lane0Covers && !lane1Covers) {
+                      return (
+                        <div
+                          key={doc.id}
+                          onClick={handleCellClick}
+                          style={{
+                            borderLeft: "1px солид #f0f0f0",
+                            backgroundColor: bg,
+                            cursor: isNonWorking
+                              ? "not-allowed"
+                              : "pointer",
+                            minHeight: 28,
+                          }}
+                        />
+                      );
+                    }
 
-                    const leftCovers = appCoversSlot(leftApp);
-                    const rightCovers = appCoversSlot(rightApp);
-
-                    const leftFirstIndex =
-                      firstSlotIndexForApp(leftApp);
-                    const rightFirstIndex =
-                      firstSlotIndexForApp(rightApp);
-
-                    const leftIsFirst =
-                      currentSlotIndex === leftFirstIndex;
-                    const rightIsFirst =
-                      currentSlotIndex === rightFirstIndex;
-
+                    // 2 lanes in this slot
                     return (
                       <div
                         key={doc.id}
@@ -2814,16 +2813,16 @@ export default function AppointmentsPage() {
                           padding: 0,
                         }}
                       >
-                        {/* LEFT HALF */}
+                        {/* LEFT HALF (lane0) */}
                         <div
                           style={{
                             flex: 1,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            padding: leftCovers ? "1px 3px" : 0,
-                            backgroundColor: leftCovers
-                              ? laneBg(leftApp)
+                            padding: lane0Covers ? "1px 3px" : 0,
+                            backgroundColor: lane0Covers
+                              ? laneBg(lane0)
                               : "transparent",
                             whiteSpace: "normal",
                             wordBreak: "break-word",
@@ -2833,36 +2832,32 @@ export default function AppointmentsPage() {
                             textAlign: "center",
                           }}
                           title={
-                            leftIsFirst && leftApp
+                            lane0IsFirst && lane0
                               ? `${formatPatientLabel(
-                                  leftApp.patient,
-                                  leftApp.patientId
-                                )} (${formatStatus(
-                                  leftApp.status
-                                )})`
+                                  lane0.patient,
+                                  lane0.patientId
+                                )} (${formatStatus(lane0.status)})`
                               : ""
                           }
                         >
-                          {leftCovers &&
-                            leftApp &&
-                            leftIsFirst &&
+                          {lane0Covers &&
+                            lane0 &&
+                            lane0IsFirst &&
                             `${formatGridShortLabel(
-                              leftApp
-                            )} (${formatStatus(
-                              leftApp.status
-                            )})`}
+                              lane0
+                            )} (${formatStatus(lane0.status)})`}
                         </div>
 
-                        {/* RIGHT HALF */}
+                        {/* RIGHT HALF (lane1) */}
                         <div
                           style={{
                             flex: 1,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            padding: rightCovers ? "1px 3px" : 0,
-                            backgroundColor: rightCovers
-                              ? laneBg(rightApp)
+                            padding: lane1Covers ? "1px 3px" : 0,
+                            backgroundColor: lane1Covers
+                              ? laneBg(lane1)
                               : "transparent",
                             whiteSpace: "normal",
                             wordBreak: "break-word",
@@ -2874,24 +2869,20 @@ export default function AppointmentsPage() {
                               "1px солид rgba(255,255,255,0.4)",
                           }}
                           title={
-                            rightIsFirst && rightApp
+                            lane1IsFirst && lane1
                               ? `${formatPatientLabel(
-                                  rightApp.patient,
-                                  rightApp.patientId
-                                )} (${formatStatus(
-                                  rightApp.status
-                                )})`
+                                  lane1.patient,
+                                  lane1.patientId
+                                )} (${formatStatus(lane1.status)})`
                               : ""
                           }
                         >
-                          {rightCovers &&
-                            rightApp &&
-                            rightIsFirst &&
+                          {lane1Covers &&
+                            lane1 &&
+                            lane1IsFirst &&
                             `${formatGridShortLabel(
-                              rightApp
-                            )} (${formatStatus(
-                              rightApp.status
-                            )})`}
+                              lane1
+                            )} (${formatStatus(lane1.status)})`}
                         </div>
                       </div>
                     );
