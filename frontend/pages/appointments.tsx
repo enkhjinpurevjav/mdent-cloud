@@ -2504,11 +2504,13 @@ export default function AppointmentsPage() {
   <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
     {formatDateYmdDots(selectedDay)}
   </div>
+
   {gridDoctors.length === 0 && (
     <div style={{ color: "#6b7280", fontSize: 13 }}>
       Энэ өдөр ажиллах эмчийн хуваарь алга.
     </div>
   )}
+
   {gridDoctors.length > 0 && (
     <div
       style={{
@@ -2518,6 +2520,7 @@ export default function AppointmentsPage() {
         fontSize: 12,
       }}
     >
+      {/* Header row */}
       <div
         style={{
           display: "grid",
@@ -2556,6 +2559,7 @@ export default function AppointmentsPage() {
         })}
       </div>
 
+      {/* Time rows */}
       <div>
         {timeSlots.map((slot, rowIndex) => (
           <div
@@ -2566,6 +2570,7 @@ export default function AppointmentsPage() {
               borderBottom: "1px солид #f0f0f0",
             }}
           >
+            {/* Time label column */}
             <div
               style={{
                 padding: 6,
@@ -2577,6 +2582,7 @@ export default function AppointmentsPage() {
               {slot.label}
             </div>
 
+            {/* Doctor columns */}
             {gridDoctors.map((doc) => {
               const appsForCell = appointments.filter((a) => {
                 if (a.doctorId !== doc.id) return false;
@@ -2667,28 +2673,101 @@ export default function AppointmentsPage() {
                     minHeight: 28,
                     cursor: isNonWorking ? "not-allowed" : "pointer",
                     display: "flex",
-                    flexWrap: "wrap",
-                    alignItems: "flex-start",
-                    gap: 4,
+                    flexDirection: "column",
                   }}
                 >
-                  {appsForCell.map((a) => (
-  <div
-    key={a.id}
-    style={{
-      fontSize: 12,
-      whiteSpace: "nowrap",
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      maxWidth: "100%", // let it shrink if needed
-    }}
-    title={`${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
-      a.status
-    )})`}
-  >
-    {formatPatientLabel(a.patient, a.patientId)} ({formatStatus(a.status)})
-  </div>
-))}
+                  {/* 0 appointments – empty cell */}
+                  {appsForCell.length === 0 && (
+                    <div style={{ flex: 1 }} />
+                  )}
+
+                  {/* 1 appointment – full cell */}
+                  {appsForCell.length === 1 && (
+                    <div
+                      style={{
+                        flex: 1,
+                        fontSize: 12,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                      title={`${formatPatientLabel(
+                        appsForCell[0].patient,
+                        appsForCell[0].patientId
+                      )} (${formatStatus(appsForCell[0].status)})`}
+                    >
+                      {formatPatientLabel(
+                        appsForCell[0].patient,
+                        appsForCell[0].patientId
+                      )}{" "}
+                      ({formatStatus(appsForCell[0].status)})
+                    </div>
+                  )}
+
+                  {/* 2 appointments – split cell vertically */}
+                  {appsForCell.length === 2 &&
+                    appsForCell.map((a, idx) => {
+                      const itemBg =
+                        a.status === "completed"
+                          ? "#bbf7d0"
+                          : a.status === "confirmed"
+                          ? "#d1fae5"
+                          : a.status === "ongoing"
+                          ? "#fed7aa"
+                          : a.status === "cancelled"
+                          ? "#e5e7eb"
+                          : "transparent";
+
+                      return (
+                        <div
+                          key={a.id}
+                          style={{
+                            flex: 1,
+                            fontSize: 12,
+                            padding: "2px 4px",
+                            backgroundColor: itemBg,
+                            borderTop:
+                              idx === 1
+                                ? "1px солид rgba(0,0,0,0.05)"
+                                : "none",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                          title={`${formatPatientLabel(
+                            a.patient,
+                            a.patientId
+                          )} (${formatStatus(a.status)})`}
+                        >
+                          {formatPatientLabel(a.patient, a.patientId)} (
+                          {formatStatus(a.status)})
+                        </div>
+                      );
+                    })}
+
+                  {/* >2 appointments – fallback summary */}
+                  {appsForCell.length > 2 && (
+                    <div
+                      style={{
+                        flex: 1,
+                        fontSize: 11,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                      title={appsForCell
+                        .map(
+                          (a) =>
+                            `${formatPatientLabel(
+                              a.patient,
+                              a.patientId
+                            )} (${formatStatus(a.status)})`
+                        )
+                        .join(" • ")}
+                    >
+                      {appsForCell.length} захиалга
+                    </div>
+                  )}
                 </div>
               );
             })}
