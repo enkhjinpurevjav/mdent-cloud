@@ -468,7 +468,6 @@ function AppointmentDetailsModal({
                     )}
                   </div>
 
-                  {/* Status view / edit */}
                   {!isEditing ? (
                     <div style={{ color: "#4b5563" }}>
                       <div>
@@ -2511,7 +2510,7 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Time grid by doctor with merged text per appointment */}
+      {/* Time grid by doctor with merged 1‑hour labels */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
