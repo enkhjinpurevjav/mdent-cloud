@@ -2664,17 +2664,18 @@ const handleCellClick = () => {
 };
 
                     return (
-                      <div
-                        key={doc.id}
-                        onClick={handleCellClick}
-                        style={{
-                          padding: 4,
-                          borderLeft: "1px солид #f0f0f0",
-                          backgroundColor: bg,
-                          minHeight: 28,
-                          cursor: "pointer",
-                        }}
-                      >
+                    <div
+  key={doc.id}
+  onClick={handleCellClick}
+  style={{
+    padding: 4,
+    borderLeft: "1px солид #f0f0f0",
+    backgroundColor: bg,
+    minHeight: 28,
+    cursor: isNonWorking ? "not-allowed" : "pointer",
+    opacity: isNonWorking ? 0.8 : 1,
+  }}
+>
                         {appsForCell.map((a) => (
                           <div key={a.id}>
                             {formatPatientLabel(a.patient, a.patientId)} (
