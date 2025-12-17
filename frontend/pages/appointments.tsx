@@ -109,65 +109,6 @@ function getSlotTimeString(date: Date): string {
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
-// Only show text in the first 30‑min slot of an appointment
-function isFirstSlotForAppointment(
-  a: Appointment,
-  slotStart: Date,
-  slotMinutes = SLOT_MINUTES
-): boolean {
-  const start = new Date(a.scheduledAt);
-  if (Number.isNaN(start.getTime())) return false;
-
-  const diffMinutes = Math.floor(
-    (slotStart.getTime() - start.getTime()) / 60000
-  );
-  // first slot that starts at or after scheduledAt, within one slot
-  return diffMinutes >= 0 && diffMinutes < slotMinutes;
-}
-// Show text in the "middle" 30‑minute slot of the appointment
-// Show text in the "middle" 30‑minute slot of the appointment,
-// based on slot indices instead of exact time rounding.
-// Show text in the "middle" 30‑minute slot of the appointment,
-// but for even slot counts (like 60min = 2 slots) use the LOWER middle,
-// so the text is not visually hugging the bottom.
-function isMiddleSlotForAppointment(
-  a: Appointment,
-  slotStart: Date,
-  slotMinutes = SLOT_MINUTES
-): boolean {
-  const start = new Date(a.scheduledAt);
-  const end = a.endAt ? new Date(a.endAt) : null;
-  if (Number.isNaN(start.getTime()) || !end || Number.isNaN(end.getTime())) {
-    return false;
-  }
-
-  const durationMinutes = Math.floor(
-    (end.getTime() - start.getTime()) / 60000
-  );
-  if (durationMinutes <= 0) return false;
-
-  // slot index for appointment start and current slot
-  const slotsPerHour = 60 / slotMinutes; // 2 when slotMinutes = 30
-  const apptStartIndex =
-    start.getHours() * slotsPerHour + Math.floor(start.getMinutes() / slotMinutes);
-  const slotIndex =
-    slotStart.getHours() * slotsPerHour + Math.floor(slotStart.getMinutes() / slotMinutes);
-
-  const slotCount = Math.max(1, Math.ceil(durationMinutes / slotMinutes));
-
-  // Middle slot index:
-  //  - For odd slotCount (1,3,5) → exact middle
-  //  - For even slotCount (2,4,6) → LOWER middle
-  //
-  // Examples with 30min slots:
-  //  - 60min (2 slots): offsets 0,1 → lower-middle offset = 0 → first slot
-  //  - 90min (3 slots): offsets 0,1,2 → middle offset = 1 → middle slot
-  //  - 120min (4 slots): offsets 0,1,2,3 → lower-middle offset = 1
-  const middleOffset = Math.floor((slotCount - 1) / 2);
-  const middleIndex = apptStartIndex + middleOffset;
-
-  return slotIndex === middleIndex;
-}
 function addMinutesToTimeString(time: string, minutesToAdd: number): string {
   if (!time) return "";
   const [h, m] = time.split(":").map(Number);
@@ -205,7 +146,6 @@ function formatPatientLabel(p?: PatientLite, id?: number) {
   const ovog = (p.ovog || "").trim();
   const name = (p.name || "").trim();
 
-  // Build display name like "Э.Маргад" if ovog exists, otherwise just name
   let displayName = name;
   if (ovog && name) {
     displayName = `${ovog.charAt(0).toUpperCase()}.${name}`;
@@ -261,7 +201,6 @@ function getDateFromYMD(ymd: string): Date {
 }
 
 function formatDateYmdDots(date: Date): string {
-  // outputs: "2025.12.16"
   return date.toLocaleDateString("mn-MN", {
     year: "numeric",
     month: "2-digit",
@@ -269,7 +208,6 @@ function formatDateYmdDots(date: Date): string {
   });
 }
 
-// Map internal status codes to Mongolian labels
 function formatStatus(status: string): string {
   switch (status) {
     case "booked":
@@ -362,7 +300,7 @@ function AppointmentDetailsModal({
 
     try {
       const res = await fetch(`/api/appointments/${a.id}`, {
-        method: "PATCH", // MUST match backend
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: editingStatus }),
       });
@@ -686,7 +624,7 @@ function QuickAppointmentModal({
     branchId: branches.length ? String(branches[0].id) : "",
     date: defaultDate,
     startTime: defaultTime,
-    endTime: addMinutesToTimeString(defaultTime, SLOT_MINUTES), // default +30min
+    endTime: addMinutesToTimeString(defaultTime, SLOT_MINUTES),
     status: "booked",
     notes: "",
   });
@@ -696,7 +634,6 @@ function QuickAppointmentModal({
   const [searchDebounceTimer, setSearchDebounceTimer] =
     useState<NodeJS.Timeout | null>(null);
 
-  // 30-min slots for popup date
   const [popupSlots, setPopupSlots] = useState<
     { label: string; value: string }[]
   >([]);
@@ -735,7 +672,6 @@ function QuickAppointmentModal({
   }, [form.date]);
 
   useEffect(() => {
-    // Prefer currently selected branch if exists; otherwise default to first branch
     if (!form.branchId && branches.length > 0) {
       setForm((prev) => ({
         ...prev,
@@ -766,7 +702,6 @@ function QuickAppointmentModal({
         const newStart = value;
         let newEnd = prev.endTime;
 
-        // if no end yet, or end <= start → auto 30min
         if (!newEnd || newEnd <= newStart) {
           newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
         }
@@ -1397,7 +1332,6 @@ function AppointmentForm({
   ) => {
     const { name, value } = e.target;
 
-    // Patient search
     if (name === "patientQuery") {
       setForm((prev) => ({ ...prev, patientQuery: value }));
 
@@ -1414,13 +1348,11 @@ function AppointmentForm({
       return;
     }
 
-    // Other fields
     setForm((prev) => {
       if (name === "startTime") {
         const newStart = value;
         let newEnd = prev.endTime;
 
-        // If no end yet or end <= start → auto 30 min
         if (!newEnd || newEnd <= newStart) {
           newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
         }
@@ -1550,7 +1482,6 @@ function AppointmentForm({
     );
   };
 
-  // Count existing appointments overlapping a 30min slot
   const countAppointmentsInSlot = (slotStartDate: Date) => {
     if (!form.doctorId) return 0;
     const doctorIdNum = Number(form.doctorId);
@@ -1576,7 +1507,6 @@ function AppointmentForm({
       const dayStr = start.toISOString().slice(0, 10);
       if (dayStr !== form.date) return false;
 
-      // overlap: start < slotEnd && end > slotStart
       return start < slotEnd && end > slotStart;
     }).length;
   };
@@ -1740,7 +1670,6 @@ function AppointmentForm({
       return;
     }
 
-    // Check each 30-min block for max 2 appointments
     let currentBlockStart = new Date(scheduledAt);
     while (currentBlockStart < end) {
       const existingCount = countAppointmentsInSlot(currentBlockStart);
@@ -1889,7 +1818,7 @@ function AppointmentForm({
                 textAlign: "left",
                 padding: "6px 8px",
                 border: "none",
-                borderBottom: "1px solid #f3f4f6",
+                borderBottom: "1px солид #f3f4f6",
                 background: "white",
                 cursor: "pointer",
                 fontSize: 12,
@@ -2390,6 +2319,9 @@ export default function AppointmentsPage() {
 
   const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
 
+  // Helper functions for merged blocks in grid
+  const slotsPerHour = 60 / SLOT_MINUTES;
+
   return (
     <main
       style={{
@@ -2566,7 +2498,7 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Time grid by doctor with “first-slot-only” labels (text not repeated on lower cells) */}
+      {/* Time grid by doctor with merged blocks */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
@@ -2631,16 +2563,16 @@ export default function AppointmentsPage() {
 
             {/* Time rows */}
             <div>
-             {timeSlots.map((slot, rowIndex) => (
-  <div
-    key={rowIndex}
-    style={{
-      display: "grid",
-      gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
-      borderBottom: "1px солид #f0f0f0",
-      minHeight: 48, // was implicit ~28 via cell; now taller rows
-    }}
-  >
+              {timeSlots.map((slot, rowIndex) => (
+                <div
+                  key={rowIndex}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+                    borderBottom: "1px солид #f0f0f0",
+                    minHeight: 48,
+                  }}
+                >
                   {/* Time label column */}
                   <div
                     style={{
@@ -2655,272 +2587,315 @@ export default function AppointmentsPage() {
 
                   {/* Doctor columns */}
                   {gridDoctors.map((doc) => {
-  // All appointments for this doctor that overlap this slot
-  const appsForCell = appointments.filter((a) => {
-    if (a.doctorId !== doc.id) return false;
+                    const appsForCell = appointments.filter((a) => {
+                      if (a.doctorId !== doc.id) return false;
 
-    const start = new Date(a.scheduledAt);
-    if (Number.isNaN(start.getTime())) return false;
+                      const start = new Date(a.scheduledAt);
+                      if (Number.isNaN(start.getTime())) return false;
 
-    const end =
-      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-        ? new Date(a.endAt)
-        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+                      const end =
+                        a.endAt &&
+                        !Number.isNaN(new Date(a.endAt).getTime())
+                          ? new Date(a.endAt)
+                          : new Date(
+                              start.getTime() +
+                                SLOT_MINUTES * 60 * 1000
+                            );
 
-    const slotStart = slot.start;
-    const slotEnd = slot.end;
+                      const slotStart = slot.start;
+                      const slotEnd = slot.end;
 
-    // overlap: start < slotEnd && end > slotStart
-    return start < slotEnd && end > slotStart;
-  });
+                      return start < slotEnd && end > slotStart;
+                    });
 
-  const slotTimeStr = getSlotTimeString(slot.start);
-  const schedules = (doc as any).schedules || [];
+                    const slotTimeStr = getSlotTimeString(slot.start);
+                    const schedules = (doc as any).schedules || [];
 
-  const isWorkingHour = schedules.some((s: any) =>
-    isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
-  );
+                    const isWorkingHour = schedules.some((s: any) =>
+                      isTimeWithinRange(
+                        slotTimeStr,
+                        s.startTime,
+                        s.endTime
+                      )
+                    );
 
-  const weekdayIndex = slot.start.getDay();
-  const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
-  const isWeekendLunch =
-    isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+                    const weekdayIndex = slot.start.getDay();
+                    const isWeekend =
+                      weekdayIndex === 0 || weekdayIndex === 6;
 
-  let bg: string;
-  if (!isWorkingHour || isWeekendLunch) {
-    bg = "#ee7148"; // non-working
-  } else if (appsForCell.length === 0) {
-    bg = "#ffffff"; // empty working slot
-  } else {
-    const status = appsForCell[0].status;
-    bg =
-      status === "completed"
-        ? "#fb6190"
-        : status === "confirmed"
-        ? "#bbf7d0"
-        : status === "ongoing"
-        ? "#f9d89b"
-        : status === "cancelled"
-        ? "#9d9d9d"
-        : "#77f9fe";
-  }
+                    const isWeekendLunch =
+                      isWeekend &&
+                      isTimeWithinRange(slotTimeStr, "14:00", "15:00");
 
-  const isNonWorking = !isWorkingHour || isWeekendLunch;
+                    let bg: string;
+                    if (!isWorkingHour || isWeekendLunch) {
+                      bg = "#ee7148";
+                    } else if (appsForCell.length === 0) {
+                      bg = "#ffffff";
+                    } else {
+                      const status = appsForCell[0].status;
+                      bg =
+                        status === "completed"
+                          ? "#fb6190"
+                          : status === "confirmed"
+                          ? "#bbf7d0"
+                          : status === "ongoing"
+                          ? "#f9d89b"
+                          : status === "cancelled"
+                          ? "#9d9d9d"
+                          : "#77f9fe";
+                    }
 
-  const handleCellClick = () => {
-    if (isNonWorking) return;
+                    const isNonWorking = !isWorkingHour || isWeekendLunch;
 
-    if (appsForCell.length === 0) {
-      setQuickModalState({
-        open: true,
-        doctorId: doc.id,
-        date: filterDate,
-        time: slotTimeStr,
-      });
-    } else {
-      setDetailsModalState({
-        open: true,
-        doctor: doc,
-        slotLabel: slot.label,
-        slotTime: slotTimeStr,
-        date: filterDate,
-        appointments: appsForCell,
-      });
-    }
-  };
+                    const handleCellClick = () => {
+                      if (isNonWorking) return;
 
-  // ===== Helpers for "merged" look =====
-  const slotsPerHour = 60 / SLOT_MINUTES;
+                      if (appsForCell.length === 0) {
+                        setQuickModalState({
+                          open: true,
+                          doctorId: doc.id,
+                          date: filterDate,
+                          time: slotTimeStr,
+                        });
+                      } else {
+                        setDetailsModalState({
+                          open: true,
+                          doctor: doc,
+                          slotLabel: slot.label,
+                          slotTime: slotTimeStr,
+                          date: filterDate,
+                          appointments: appsForCell,
+                        });
+                      }
+                    };
 
-  // current slot absolute index in day
-  const currentSlotIndex =
-    slot.start.getHours() * slotsPerHour +
-    Math.floor(slot.start.getMinutes() / SLOT_MINUTES);
+                    // Helpers for merged look
+                    const currentSlotIndex =
+                      slot.start.getHours() * slotsPerHour +
+                      Math.floor(
+                        slot.start.getMinutes() / SLOT_MINUTES
+                      );
 
-  const appCoversSlot = (a: Appointment | null) => {
-    if (!a) return false;
-    const start = new Date(a.scheduledAt);
-    if (Number.isNaN(start.getTime())) return false;
-    const end =
-      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-        ? new Date(a.endAt)
-        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
-    return start < slot.end && end > slot.start;
-  };
+                    const appCoversSlot = (a: Appointment | null) => {
+                      if (!a) return false;
+                      const start = new Date(a.scheduledAt);
+                      if (Number.isNaN(start.getTime())) return false;
+                      const end =
+                        a.endAt &&
+                        !Number.isNaN(new Date(a.endAt).getTime())
+                          ? new Date(a.endAt)
+                          : new Date(
+                              start.getTime() +
+                                SLOT_MINUTES * 60 * 1000
+                            );
+                      return start < slot.end && end > slot.start;
+                    };
 
-  // First slot index where this appointment overlaps any slot of the day
-  const firstSlotIndexForApp = (a: Appointment | null) => {
-    if (!a) return Infinity;
-    const start = new Date(a.scheduledAt);
-    if (Number.isNaN(start.getTime())) return Infinity;
-    const appStartIndex =
-      start.getHours() * slotsPerHour +
-      Math.floor(start.getMinutes() / SLOT_MINUTES);
-    return appStartIndex;
-  };
+                    const firstSlotIndexForApp = (
+                      a: Appointment | null
+                    ) => {
+                      if (!a) return Infinity;
+                      const start = new Date(a.scheduledAt);
+                      if (Number.isNaN(start.getTime()))
+                        return Infinity;
+                      const appStartIndex =
+                        start.getHours() * slotsPerHour +
+                        Math.floor(
+                          start.getMinutes() / SLOT_MINUTES
+                        );
+                      return appStartIndex;
+                    };
 
-  const laneBg = (a: Appointment | null): string => {
-    if (!a) return "transparent";
-    switch (a.status) {
-      case "completed":
-        return "#fb6190";
-      case "confirmed":
-        return "#bbf7d0";
-      case "ongoing":
-        return "#f9d89b";
-      case "cancelled":
-        return "#9d9d9d";
-      default:
-        return "#77f9fe";
-    }
-  };
+                    const laneBg = (a: Appointment | null): string => {
+                      if (!a) return "transparent";
+                      switch (a.status) {
+                        case "completed":
+                          return "#fb6190";
+                        case "confirmed":
+                          return "#bbf7d0";
+                        case "ongoing":
+                          return "#f9d89b";
+                        case "cancelled":
+                          return "#9d9d9d";
+                        default:
+                          return "#77f9fe";
+                      }
+                    };
 
-  // ===== 0 or 1 appointment → full-width merged block =====
-  if (appsForCell.length <= 1) {
-    const a = appsForCell[0] || null;
-    const covers = appCoversSlot(a);
-    const firstIndex = firstSlotIndexForApp(a);
-    const isFirst = currentSlotIndex === firstIndex;
+                    // 0 or 1 app -> full-width merged block
+                    if (appsForCell.length <= 1) {
+                      const a = appsForCell[0] || null;
+                      const covers = appCoversSlot(a);
+                      const firstIndex = firstSlotIndexForApp(a);
+                      const isFirst =
+                        currentSlotIndex === firstIndex;
 
-    return (
-      <div
-        key={doc.id}
-        onClick={handleCellClick}
-        style={{
-          borderLeft: "1px solid #f0f0f0",
-          backgroundColor: bg,
-          cursor: isNonWorking ? "not-allowed" : "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: 28,
-          padding: covers ? "1px 3px" : 0,
-        }}
-        title={
-          isFirst && a
-            ? `${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
-                a.status
-              )})`
-            : ""
-        }
-      >
-        {covers && a && isFirst && (
-          <span
-            style={{
-              backgroundColor: laneBg(a),
-              borderRadius: 4,
-              padding: "1px 4px",
-              maxWidth: "100%",
-              whiteSpace: "normal",
-              wordBreak: "break-word",
-              overflowWrap: "anywhere",
-              fontSize: 11,
-              lineHeight: 1.2,
-              textAlign: "center",
-            }}
-          >
-            {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
-          </span>
-        )}
-      </div>
-    );
-  }
+                      return (
+                        <div
+                          key={doc.id}
+                          onClick={handleCellClick}
+                          style={{
+                            borderLeft: "1px солид #f0f0f0",
+                            backgroundColor: bg,
+                            cursor: isNonWorking
+                              ? "not-allowed"
+                              : "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            minHeight: 28,
+                            padding: covers ? "1px 3px" : 0,
+                          }}
+                          title={
+                            isFirst && a
+                              ? `${formatPatientLabel(
+                                  a.patient,
+                                  a.patientId
+                                )} (${formatStatus(a.status)})`
+                              : ""
+                          }
+                        >
+                          {covers && a && isFirst && (
+                            <span
+                              style={{
+                                backgroundColor: laneBg(a),
+                                borderRadius: 4,
+                                padding: "1px 4px",
+                                maxWidth: "100%",
+                                whiteSpace: "normal",
+                                wordBreak: "break-word",
+                                overflowWrap: "anywhere",
+                                fontSize: 11,
+                                lineHeight: 1.2,
+                                textAlign: "center",
+                              }}
+                            >
+                              {`${formatGridShortLabel(
+                                a
+                              )} (${formatStatus(a.status)})`}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    }
 
-  // ===== 2 parallel apps → left/right lanes, each merged vertically =====
-  const leftApp = appsForCell[0] || null;
-  const rightApp = appsForCell[1] || null;
+                    // 2+ apps -> left/right lanes, each merged vertically
+                    const leftApp = appsForCell[0] || null;
+                    const rightApp = appsForCell[1] || null;
 
-  const leftCovers = appCoversSlot(leftApp);
-  const rightCovers = appCoversSlot(rightApp);
+                    const leftCovers = appCoversSlot(leftApp);
+                    const rightCovers = appCoversSlot(rightApp);
 
-  const leftFirstIndex = firstSlotIndexForApp(leftApp);
-  const rightFirstIndex = firstSlotIndexForApp(rightApp);
+                    const leftFirstIndex =
+                      firstSlotIndexForApp(leftApp);
+                    const rightFirstIndex =
+                      firstSlotIndexForApp(rightApp);
 
-  const leftIsFirst = currentSlotIndex === leftFirstIndex;
-  const rightIsFirst = currentSlotIndex === rightFirstIndex;
+                    const leftIsFirst =
+                      currentSlotIndex === leftFirstIndex;
+                    const rightIsFirst =
+                      currentSlotIndex === rightFirstIndex;
 
-  return (
-    <div
-      key={doc.id}
-      onClick={handleCellClick}
-      style={{
-        borderLeft: "1px solid #f0f0f0",
-        backgroundColor: bg,
-        cursor: isNonWorking ? "not-allowed" : "pointer",
-        display: "flex",
-        flexDirection: "row",
-        alignItems: "stretch",
-        minHeight: 28,
-        padding: 0,
-      }}
-    >
-      {/* LEFT HALF */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: leftCovers ? "1px 3px" : 0,
-          backgroundColor: leftCovers ? laneBg(leftApp) : "transparent",
-          whiteSpace: "normal",
-          wordBreak: "break-word",
-          overflowWrap: "anywhere",
-          fontSize: 11,
-          lineHeight: 1.2,
-          textAlign: "center",
-        }}
-        title={
-          leftIsFirst && leftApp
-            ? `${formatPatientLabel(
-                leftApp.patient,
-                leftApp.patientId
-              )} (${formatStatus(leftApp.status)})`
-            : ""
-        }
-      >
-        {leftCovers && leftApp && leftIsFirst &&
-          `${formatGridShortLabel(leftApp)} (${formatStatus(
-            leftApp.status
-          )})`}
-      </div>
+                    return (
+                      <div
+                        key={doc.id}
+                        onClick={handleCellClick}
+                        style={{
+                          borderLeft: "1px солид #f0f0f0",
+                          backgroundColor: bg,
+                          cursor: isNonWorking
+                            ? "not-allowed"
+                            : "pointer",
+                          display: "flex",
+                          flexDirection: "row",
+                          alignItems: "stretch",
+                          minHeight: 28,
+                          padding: 0,
+                        }}
+                      >
+                        {/* LEFT HALF */}
+                        <div
+                          style={{
+                            flex: 1,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: leftCovers ? "1px 3px" : 0,
+                            backgroundColor: leftCovers
+                              ? laneBg(leftApp)
+                              : "transparent",
+                            whiteSpace: "normal",
+                            wordBreak: "break-word",
+                            overflowWrap: "anywhere",
+                            fontSize: 11,
+                            lineHeight: 1.2,
+                            textAlign: "center",
+                          }}
+                          title={
+                            leftIsFirst && leftApp
+                              ? `${formatPatientLabel(
+                                  leftApp.patient,
+                                  leftApp.patientId
+                                )} (${formatStatus(
+                                  leftApp.status
+                                )})`
+                              : ""
+                          }
+                        >
+                          {leftCovers &&
+                            leftApp &&
+                            leftIsFirst &&
+                            `${formatGridShortLabel(
+                              leftApp
+                            )} (${formatStatus(
+                              leftApp.status
+                            )})`}
+                        </div>
 
-      {/* RIGHT HALF */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: rightCovers ? "1px 3px" : 0,
-          backgroundColor: rightCovers ? laneBg(rightApp) : "transparent",
-          whiteSpace: "normal",
-          wordBreak: "break-word",
-          overflowWrap: "anywhere",
-          fontSize: 11,
-          lineHeight: 1.2,
-          textAlign: "center",
-          borderLeft: "1px solid rgba(255,255,255,0.4)",
-        }}
-        title={
-          rightIsFirst && rightApp
-            ? `${formatPatientLabel(
-                rightApp.patient,
-                rightApp.patientId
-              )} (${formatStatus(rightApp.status)})`
-            : ""
-        }
-      >
-        {rightCovers && rightApp && rightIsFirst &&
-          `${formatGridShortLabel(rightApp)} (${formatStatus(
-            rightApp.status
-          )})`}
-      </div>
-    </div>
-  );
-})}
-  );
-})}
+                        {/* RIGHT HALF */}
+                        <div
+                          style={{
+                            flex: 1,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: rightCovers ? "1px 3px" : 0,
+                            backgroundColor: rightCovers
+                              ? laneBg(rightApp)
+                              : "transparent",
+                            whiteSpace: "normal",
+                            wordBreak: "break-word",
+                            overflowWrap: "anywhere",
+                            fontSize: 11,
+                            lineHeight: 1.2,
+                            textAlign: "center",
+                            borderLeft:
+                              "1px солид rgba(255,255,255,0.4)",
+                          }}
+                          title={
+                            rightIsFirst && rightApp
+                              ? `${formatPatientLabel(
+                                  rightApp.patient,
+                                  rightApp.patientId
+                                )} (${formatStatus(
+                                  rightApp.status
+                                )})`
+                              : ""
+                          }
+                        >
+                          {rightCovers &&
+                            rightApp &&
+                            rightIsFirst &&
+                            `${formatGridShortLabel(
+                              rightApp
+                            )} (${formatStatus(
+                              rightApp.status
+                            )})`}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
             </div>
