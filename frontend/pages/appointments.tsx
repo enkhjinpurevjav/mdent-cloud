@@ -2621,10 +2621,26 @@ export default function AppointmentsPage() {
 
   const isNonWorking = !isWorkingHour || isWeekendLunch;
 
-  // Base cell background:
-  //  - non‑working → orange
-  //  - working     → plain white (appointment colours are inside lanes)
-  const cellBaseBg = isNonWorking ? "#ee7148" : "#ffffff";
+  // ==== BASE CELL BACKGROUND ====
+  //  - Non‑working → orange
+  //  - Exactly 1 app → fill entire cell with that app's status colour
+  //  - 0 or 2+ apps → white; colours will be drawn per-lane only
+  let baseBg = "#ffffff";
+  if (isNonWorking) {
+    baseBg = "#ee7148";
+  } else if (appsForCell.length === 1) {
+    const status = appsForCell[0].status;
+    baseBg =
+      status === "completed"
+        ? "#fb6190"
+        : status === "confirmed"
+        ? "#bbf7d0"
+        : status === "ongoing"
+        ? "#f9d89b"
+        : status === "cancelled"
+        ? "#9d9d9d"
+        : "#77f9fe";
+  }
 
   const handleCellClick = () => {
     if (isNonWorking) return;
@@ -2648,9 +2664,9 @@ export default function AppointmentsPage() {
     }
   };
 
-  // ===== Per‑slot lane logic =====
+  // ===== Per‑slot lane logic (for cases where we actually have 2 apps) =====
 
-  // For this slot, sort overlapping appointments by start time
+  // Sort overlapping appointments by start time
   const overlapping = appsForCell
     .slice()
     .sort(
@@ -2675,6 +2691,7 @@ export default function AppointmentsPage() {
       a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
         ? new Date(a.endAt)
         : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+    // overlap with THIS slot only
     return start < slot.end && end > slot.start;
   };
 
@@ -2713,15 +2730,15 @@ export default function AppointmentsPage() {
   const lane0IsFirst = currentSlotIndex === lane0FirstIndex;
   const lane1IsFirst = currentSlotIndex === lane1FirstIndex;
 
-  // 0 apps covering this slot → empty cell (just non‑working bg if any)
-  if (!lane0Covers && !lane1Covers) {
+  // CASE A: no appointment actually covers this slot → empty cell
+  if (!lane0Covers && !lane1Covers && appsForCell.length === 0) {
     return (
       <div
         key={doc.id}
         onClick={handleCellClick}
         style={{
           borderLeft: "1px солид #f0f0f0",
-          backgroundColor: cellBaseBg,
+          backgroundColor: baseBg,
           cursor: isNonWorking ? "not-allowed" : "pointer",
           minHeight: 28,
         }}
@@ -2729,7 +2746,7 @@ export default function AppointmentsPage() {
     );
   }
 
-  // Exactly 1 appointment covering this slot → single full‑width lane
+  // CASE B: exactly 1 appointment covers this slot (lane0) → full-width block
   if (!lane1Covers && lane0Covers) {
     const a = lane0!;
     return (
@@ -2738,7 +2755,7 @@ export default function AppointmentsPage() {
         onClick={handleCellClick}
         style={{
           borderLeft: "1px солид #f0f0f0",
-          backgroundColor: cellBaseBg,
+          backgroundColor: baseBg, // already coloured by status when appsForCell.length === 1
           cursor: isNonWorking ? "not-allowed" : "pointer",
           display: "flex",
           alignItems: "center",
@@ -2757,7 +2774,7 @@ export default function AppointmentsPage() {
         {lane0IsFirst && (
           <span
             style={{
-              backgroundColor: laneBg(a),
+              // inner span is only for text; colour comes from baseBg
               borderRadius: 4,
               padding: "1px 4px",
               maxWidth: "100%",
@@ -2776,14 +2793,14 @@ export default function AppointmentsPage() {
     );
   }
 
-  // 2 lanes in this slot
+  // CASE C: 2 lanes in this slot (both lane0/lane1 cover here)
   return (
     <div
       key={doc.id}
       onClick={handleCellClick}
       style={{
         borderLeft: "1px солид #f0f0f0",
-        backgroundColor: cellBaseBg,
+        backgroundColor: baseBg, // white (or orange if non-working)
         cursor: isNonWorking ? "not-allowed" : "pointer",
         display: "flex",
         flexDirection: "row",
