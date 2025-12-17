@@ -2765,107 +2765,50 @@ export default function AppointmentsPage() {
   }
 };
 
-// 0 apps → empty cell.
-// 1 app  → full-width lane (we put it in left lane and leave right lane empty).
-// 2 apps → left & right lanes, each with own status color.
-const leftApp = appsForCell[0] || null;
-const rightApp = appsForCell[1] || null;
-
-// Per-status background colors for lanes
-const laneBg = (a: Appointment | null): string => {
-  if (!a) return "transparent";
-  switch (a.status) {
-    case "completed":
-      return "#fb6190";
-    case "confirmed":
-      return "#bbf7d0";
-    case "ongoing":
-      return "#f9d89b";
-    case "cancelled":
-      return "#9d9d9d";
-    default:
-      return "#77f9fe"; // booked or other
-  }
-};
+// Only show text for appointments whose MIDDLE slot is this one
+const visibleAppointments = appsForCell.filter((a) =>
+  isMiddleSlotForAppointment(a, slot.start)
+);
 
 return (
   <div
     key={doc.id}
     onClick={handleCellClick}
     style={{
+      padding: 4,
       borderLeft: "1px солид #f0f0f0",
-      backgroundColor: bg, // base cell color for the slot (e.g. non-working)
+      backgroundColor: bg,
+      minHeight: 28,
       cursor: isNonWorking ? "not-allowed" : "pointer",
       display: "flex",
-      flexDirection: "row",
-      alignItems: "stretch",
-      minHeight: 28,
-      padding: 0,
+      flexWrap: "wrap",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
+      textAlign: "center",
     }}
   >
-    {/* LEFT HALF */}
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: leftApp ? "1px 3px" : 0,
-        backgroundColor: leftApp ? laneBg(leftApp) : "transparent",
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        fontSize: 11,
-        lineHeight: 1.2,
-      }}
-      title={
-        leftApp
-          ? `${formatPatientLabel(
-              leftApp.patient,
-              leftApp.patientId
-            )} (${formatStatus(leftApp.status)})`
-          : ""
-      }
-    >
-      {leftApp &&
-        `${formatGridShortLabel(leftApp)} (${formatStatus(
-          leftApp.status
-        )})`}
-    </div>
-
-    {/* RIGHT HALF */}
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: rightApp ? "1px 3px" : 0,
-        backgroundColor: rightApp ? laneBg(rightApp) : "transparent",
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        fontSize: 11,
-        lineHeight: 1.2,
-        borderLeft: "1px солид rgba(255,255,255,0.4)", // subtle separator
-      }}
-      title={
-        rightApp
-          ? `${formatPatientLabel(
-              rightApp.patient,
-              rightApp.patientId
-            )} (${formatStatus(rightApp.status)})`
-          : ""
-      }
-    >
-      {rightApp &&
-        `${formatGridShortLabel(rightApp)} (${formatStatus(
-          rightApp.status
-        )})`}
-    </div>
+    {visibleAppointments.map((a) => (
+      <div
+        key={a.id}
+        style={{
+          fontSize: 12,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          maxWidth: "100%",
+        }}
+        title={`${formatPatientLabel(
+          a.patient,
+          a.patientId
+        )} (${formatStatus(a.status)})`}
+      >
+        {formatPatientLabel(a.patient, a.patientId)} (
+        {formatStatus(a.status)})
+      </div>
+    ))}
   </div>
 );
-                    );
                   })}
                 </div>
               ))}
