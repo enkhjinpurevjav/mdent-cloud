@@ -2701,40 +2701,39 @@ export default function AppointmentsPage() {
 
       {/* 2 appointments: split horizontally 50/50 */}
       {appsForCell.length === 2 &&
-        appsForCell.map((a) => {
-          const itemBg =
-            a.status === "completed"
-              ? "#bbf7d0"
-              : a.status === "confirmed"
-              ? "#d1fae5"
-              : a.status === "ongoing"
-              ? "#fed7aa"
-              : a.status === "cancelled"
-              ? "#9d9d9d"
-              : "#77f9fe"; // same blue as booked
+  appsForCell.map((a) => {
+    const itemBg =
+      a.status === "completed"
+        ? "#bbf7d0"
+        : a.status === "confirmed"
+        ? "#d1fae5"
+        : a.status === "ongoing"
+        ? "#fed7aa"
+        : a.status === "cancelled"
+        ? "#9d9d9d"
+        : "#77f9fe"; // booked
 
-          return (
-            <div
-              key={a.id}
-              style={{
-                flex: 1,                // <-- each takes half width
-                padding: 4,
-                fontSize: 12,
-                backgroundColor: itemBg,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-              title={`${formatPatientLabel(
-                a.patient,
-                a.patientId
-              )} (${formatStatus(a.status)})`}
-            >
-              {formatPatientLabel(a.patient, a.patientId)} (
-              {formatStatus(a.status)})
-            </div>
-          );
-        })}
+    return (
+      <div
+        key={a.id}
+        style={{
+          flex: 1,           // still half width
+          padding: 4,
+          fontSize: 12,
+          backgroundColor: itemBg,
+          // allow wrapping => cell grows vertically instead of horizontal scroll
+          whiteSpace: "normal",
+          wordBreak: "break-word",
+          minHeight: 28,     // keep a minimum height so short text looks ok
+        }}
+        title={`${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
+          a.status
+        )})`}
+      >
+        {formatPatientLabel(a.patient, a.patientId)} ({formatStatus(a.status)})
+      </div>
+    );
+  })}
 
       {/* >2 appointments: summary */}
       {appsForCell.length > 2 && (
