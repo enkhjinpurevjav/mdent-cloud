@@ -2498,213 +2498,211 @@ export default function AppointmentsPage() {
 
       {/* Time grid by doctor */}
       <section style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 4 }}>
-          Өдрийн цагийн хүснэгт (эмчээр)
-        </h2>
-        <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
-         {formatDateYmdDots(selectedDay)}
-        </div>
-        {gridDoctors.length === 0 && (
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
-            Энэ өдөр ажиллах эмчийн хуваарь алга.
-          </div>
-        )}
-        {gridDoctors.length > 0 && (
+  <h2 style={{ fontSize: 16, marginBottom: 4 }}>
+    Өдрийн цагийн хүснэгт (эмчээр)
+  </h2>
+  <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
+    {formatDateYmdDots(selectedDay)}
+  </div>
+  {gridDoctors.length === 0 && (
+    <div style={{ color: "#6b7280", fontSize: 13 }}>
+      Энэ өдөр ажиллах эмчийн хуваарь алга.
+    </div>
+  )}
+  {gridDoctors.length > 0 && (
+    <div
+      style={{
+        border: "1px солид #ddd",
+        borderRadius: 8,
+        overflow: "hidden",
+        fontSize: 12,
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+          backgroundColor: "#f5f5f5",
+          borderBottom: "1px солид #ddd",
+        }}
+      >
+        <div style={{ padding: 8, fontWeight: "bold" }}>Цаг</div>
+        {gridDoctors.map((doc) => {
+          const count = appointments.filter(
+            (a) => a.doctorId === doc.id
+          ).length;
+          return (
+            <div
+              key={doc.id}
+              style={{
+                padding: 8,
+                fontWeight: "bold",
+                textAlign: "center",
+                borderLeft: "1px солид #ddd",
+              }}
+            >
+              <div>{formatDoctorName(doc)}</div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#6b7280",
+                  marginTop: 2,
+                }}
+              >
+                {count} захиалга
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div>
+        {timeSlots.map((slot, rowIndex) => (
           <div
+            key={rowIndex}
             style={{
-              border: "1px солид #ddd",
-              borderRadius: 8,
-              overflow: "hidden",
-              fontSize: 12,
+              display: "grid",
+              gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+              borderBottom: "1px солид #f0f0f0",
             }}
           >
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
-                backgroundColor: "#f5f5f5",
-                borderBottom: "1px солид #ddd",
+                padding: 6,
+                borderRight: "1px солид #ddd",
+                backgroundColor:
+                  rowIndex % 2 === 0 ? "#fafafa" : "#ffffff",
               }}
             >
-              <div style={{ padding: 8, fontWeight: "bold" }}>Цаг</div>
-              {gridDoctors.map((doc) => {
-                const count = appointments.filter(
-                  (a) => a.doctorId === doc.id
-                ).length;
-                return (
-                  <div
-                    key={doc.id}
-                    style={{
-                      padding: 8,
-                      fontWeight: "bold",
-                      textAlign: "center",
-                      borderLeft: "1px солид #ddd",
-                    }}
-                  >
-                    <div>{formatDoctorName(doc)}</div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        color: "#6b7280",
-                        marginTop: 2,
-                      }}
-                    >
-                      {count} захиалга
-                    </div>
-                  </div>
-                );
-              })}
+              {slot.label}
             </div>
 
-            <div>
-              {timeSlots.map((slot, rowIndex) => (
+            {gridDoctors.map((doc) => {
+              const appsForCell = appointments.filter((a) => {
+                if (a.doctorId !== doc.id) return false;
+
+                const start = new Date(a.scheduledAt);
+                if (Number.isNaN(start.getTime())) return false;
+
+                const end =
+                  a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+                    ? new Date(a.endAt)
+                    : new Date(
+                        start.getTime() + SLOT_MINUTES * 60 * 1000
+                      );
+
+                const slotStart = slot.start;
+                const slotEnd = slot.end;
+
+                // overlap: start < slotEnd && end > slotStart
+                return start < slotEnd && end > slotStart;
+              });
+
+              const slotTimeStr = getSlotTimeString(slot.start);
+              const schedules = (doc as any).schedules || [];
+
+              const isWorkingHour = schedules.some((s: any) =>
+                isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
+              );
+
+              const weekdayIndex = slot.start.getDay();
+              const isWeekend =
+                weekdayIndex === 0 || weekdayIndex === 6;
+
+              const isWeekendLunch =
+                isWeekend &&
+                isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+
+              let bg: string;
+              if (!isWorkingHour || isWeekendLunch) {
+                bg = "#ee7148";
+              } else if (appsForCell.length === 0) {
+                bg = "#ffffff";
+              } else {
+                const status = appsForCell[0].status;
+                bg =
+                  status === "completed"
+                    ? "#fb6190"
+                    : status === "confirmed"
+                    ? "#bbf7d0"
+                    : status === "ongoing"
+                    ? "#f9d89b"
+                    : status === "cancelled"
+                    ? "#9d9d9d"
+                    : "#77f9fe";
+              }
+
+              const isNonWorking = !isWorkingHour || isWeekendLunch;
+
+              const handleCellClick = () => {
+                if (isNonWorking) return;
+
+                if (appsForCell.length === 0) {
+                  setQuickModalState({
+                    open: true,
+                    doctorId: doc.id,
+                    date: filterDate,
+                    time: slotTimeStr,
+                  });
+                } else {
+                  setDetailsModalState({
+                    open: true,
+                    doctor: doc,
+                    slotLabel: slot.label,
+                    slotTime: slotTimeStr,
+                    date: filterDate,
+                    appointments: appsForCell,
+                  });
+                }
+              };
+
+              return (
                 <div
-                  key={rowIndex}
+                  key={doc.id}
+                  onClick={handleCellClick}
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
-                    borderBottom: "1px солид #f0f0f0",
+                    padding: 4,
+                    borderLeft: "1px солид #f0f0f0",
+                    backgroundColor: bg,
+                    minHeight: 28,
+                    cursor: isNonWorking ? "not-allowed" : "pointer",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "flex-start",
+                    gap: 4,
                   }}
                 >
-                  <div
-                    style={{
-                      padding: 6,
-                      borderRight: "1px солид #ddd",
-                      backgroundColor:
-                        rowIndex % 2 === 0 ? "#fafafa" : "#ffffff",
-                    }}
-                  >
-                    {slot.label}
-                  </div>
-
-                  {gridDoctors.map((doc) => {
-                    const appsForCell = appointments.filter((a) => {
-                      if (a.doctorId !== doc.id) return false;
-
-                      const start = new Date(a.scheduledAt);
-                      if (Number.isNaN(start.getTime())) return false;
-
-                      const end =
-                        a.endAt &&
-                        !Number.isNaN(new Date(a.endAt).getTime())
-                          ? new Date(a.endAt)
-                          : new Date(
-                              start.getTime() +
-                                SLOT_MINUTES * 60 * 1000
-                            );
-
-                      const slotStart = slot.start;
-                      const slotEnd = slot.end;
-
-                      // overlap: start < slotEnd && end > slotStart
-                      return start < slotEnd && end > slotStart;
-                    });
-
-                    const slotTimeStr = getSlotTimeString(slot.start);
-                    const schedules = (doc as any).schedules || [];
-
-                    const isWorkingHour = schedules.some((s: any) =>
-                      isTimeWithinRange(
-                        slotTimeStr,
-                        s.startTime,
-                        s.endTime
-                      )
-                    );
-
-                    const weekdayIndex = slot.start.getDay();
-                    const isWeekend =
-                      weekdayIndex === 0 || weekdayIndex === 6;
-
-                    const isWeekendLunch =
-                      isWeekend &&
-                      isTimeWithinRange(slotTimeStr, "14:00", "15:00");
-
-                    let bg: string;
-
-                    if (!isWorkingHour || isWeekendLunch) {
-                      bg = "#ee7148";
-                    } else if (appsForCell.length === 0) {
-                      bg = "#ffffff";
-                    } else {
-  const status = appsForCell[0].status;
-  bg =
-    status === "completed"
-      ? "#fb6190" // completed - slightly stronger green
-      : status === "confirmed"
-      ? "#bbf7d0" // confirmed (Баталгаажсан) - light green
-      : status === "ongoing"
-      ? "#f9d89b" // ongoing - light orange
-      : status === "cancelled"
-      ? "#9d9d9d" // cancelled - light red
-      : "#77f9fe"; // default (booked) - light blue
-}
-
-                  const isNonWorking = !isWorkingHour || isWeekendLunch;
-
-const handleCellClick = () => {
-  if (isNonWorking) return; // disable click on orange cells
-
-  if (appsForCell.length === 0) {
-    setQuickModalState({
-      open: true,
-      doctorId: doc.id,
-      date: filterDate,
-      time: slotTimeStr,
-    });
-  } else {
-    setDetailsModalState({
-      open: true,
-      doctor: doc,
-      slotLabel: slot.label,
-      slotTime: slotTimeStr,
-      date: filterDate,
-      appointments: appsForCell,
-    });
-  }
-};
-
-                    return (
-  <div
-    key={doc.id}
-    onClick={handleCellClick}
-    style={{
-      padding: 4,
-      borderLeft: "1px солид #f0f0f0",
-      backgroundColor: bg,
-      minHeight: 28,
-      cursor: isNonWorking ? "not-allowed" : "pointer",
-      display: "flex",
-      flexWrap: "wrap",
-      alignItems: "flex-start",
-      gap: 4,
-    }}
-  >
-    {appsForCell.map((a) => (
-  <div
-    key={a.id}
-    style={{
-      fontSize: 11,
-      padding: "1px 4px",
-      borderRadius: 4,
-      backgroundColor: "rgba(0,0,0,0.05)",
-      maxWidth: "100px",
-      whiteSpace: "nowrap",
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-    }}
-    title={`${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
-      a.status
-    )})`}
-  >
-    {formatPatientLabel(a.patient, a.patientId)} ({formatStatus(a.status)})
-  </div>
-))}
+                  {appsForCell.map((a) => (
+                    <div
+                      key={a.id}
+                      style={{
+                        fontSize: 11,
+                        padding: "1px 4px",
+                        borderRadius: 4,
+                        backgroundColor: "rgba(0,0,0,0.05)",
+                        maxWidth: "100px",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                      title={`${formatPatientLabel(
+                        a.patient,
+                        a.patientId
+                      )} (${formatStatus(a.status)})`}
+                    >
+                      {formatPatientLabel(a.patient, a.patientId)} (
+                      {formatStatus(a.status)})
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
-        )}
-      </section>
+        ))}
+      </div>
+    </div>
+  )}
+</section>
 
       {/* Day-grouped calendar */}
       <section style={{ marginBottom: 24 }}>
