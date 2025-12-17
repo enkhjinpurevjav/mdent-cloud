@@ -2538,23 +2538,25 @@ export default function AppointmentsPage() {
                 const count = appointments.filter(
                   (a) => a.doctorId === doc.id
                 ).length;
-                return (
+                 return (
                       <div
                         key={doc.id}
                         onClick={handleCellClick}
                         style={{
                           padding: 4,
-                          borderLeft: "1px солид #f0f0ф0",
+                          borderLeft: "1px солид #f0f0f0",
                           backgroundColor: bg,
                           minHeight: 28,
                           cursor: isNonWorking ? "not-allowed" : "pointer",
                           display: "flex",
                           flexWrap: "wrap",
-                          alignItems: "flex-start",
+                          alignItems: "center",      // center vertically
+                          justifyContent: "center",  // center horizontally
                           gap: 4,
+                          textAlign: "center",
                         }}
                       >
-                        {appsForCell.map((a) => (
+                        {visibleAppointments.map((a) => (
                           <div
                             key={a.id}
                             style={{
@@ -2567,6 +2569,7 @@ export default function AppointmentsPage() {
                           </div>
                         ))}
                       </div>
+                   );
                     <div>{formatDoctorName(doc)}</div>
                     <div
                       style={{
