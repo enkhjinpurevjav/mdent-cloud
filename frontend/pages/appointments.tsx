@@ -2673,16 +2673,43 @@ const handleCellClick = () => {
     backgroundColor: bg,
     minHeight: 28,
     cursor: isNonWorking ? "not-allowed" : "pointer",
-    opacity: isNonWorking ? 0.8 : 1,
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "flex-start",
+    gap: 2,
   }}
 >
-                        {appsForCell.map((a) => (
-                          <div key={a.id}>
-                            {formatPatientLabel(a.patient, a.patientId)} (
-                            {formatStatus(a.status)})
-                          </div>
-                        ))}
-                      </div>
+  {appsForCell.map((a) => (
+    <div
+      key={a.id}
+      style={{
+        padding: "1px 4px",
+        borderRadius: 4,
+        background:
+          a.status === "completed"
+            ? "#16a34a"
+            : a.status === "confirmed"
+            ? "#22c55e"
+            : a.status === "ongoing"
+            ? "#f97316"
+            : a.status === "cancelled"
+            ? "#9ca3af"
+            : "#3b82f6",
+        color: "white",
+        fontSize: 10,
+        maxWidth: "100%",
+        whiteSpace: "nowrap",
+        textOverflow: "ellipsis",
+        overflow: "hidden",
+      }}
+      title={`${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
+        a.status
+      )})`}
+    >
+      {formatPatientLabel(a.patient, a.patientId)}
+    </div>
+  ))}
+</div>
                     );
                   })}
                 </div>
