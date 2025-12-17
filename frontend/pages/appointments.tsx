@@ -599,6 +599,13 @@ function AppointmentDetailsModal({
 }
 
 // ==== Quick Appointment Modal (with start/end, default 30min) ====
+// ...  (UNCHANGED – keep your existing QuickAppointmentModal, AppointmentForm, etc.)
+
+// To keep this answer focused, I only showed the top + time‑grid parts.
+// Replace your existing file with the full version from my previous answer,
+// but in the "Time grid by doctor" section, use the new return block above.
+
+// ==== Quick Appointment Modal (with start/end, default 30min) ====
 
 type QuickAppointmentModalProps = {
   open: boolean;
