@@ -2689,50 +2689,55 @@ export default function AppointmentsPage() {
                       }
                     };
 
-                    // Only show text for appointments whose FIRST slot is this one
-                    const visibleAppointments = appsForCell.filter((a) =>
-                      isFirstSlotForAppointment(a, slot.start)
-                    );
+                      // Only show text for appointments whose FIRST slot is this one
+  const visibleAppointments = appsForCell.filter((a) =>
+    isFirstSlotForAppointment(a, slot.start)
+  );
 
-                    return (
-                      <div
-                        key={doc.id}
-                        onClick={handleCellClick}
-                        style={{
-                          padding: 4,
-                          borderLeft: "1px солид #f0f0f0",
-                          backgroundColor: bg,
-                          minHeight: 28,
-                          cursor: isNonWorking ? "not-allowed" : "pointer",
-                          display: "flex",
-                          flexWrap: "wrap",
-                          alignItems: "center", // vertical center
-                          justifyContent: "center", // horizontal center
-                          gap: 4,
-                          textAlign: "center",
-                        }}
-                      >
-                        {visibleAppointments.map((a) => (
-                          <div
-                            key={a.id}
-                            style={{
-                              fontSize: 12,
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              maxWidth: "100%",
-                            }}
-                            title={`${formatPatientLabel(
-                              a.patient,
-                              a.patientId
-                            )} (${formatStatus(a.status)})`}
-                          >
-                            {formatPatientLabel(a.patient, a.patientId)} (
-                            {formatStatus(a.status)})
-                          </div>
-                        ))}
-                      </div>
-                    );
+  // Make the first-slot cell taller so the text looks centered
+  const baseSlotHeight = 28; // same as your old minHeight
+  const cellMinHeight =
+    visibleAppointments.length > 0 ? baseSlotHeight * 2 : baseSlotHeight;
+
+  return (
+    <div
+      key={doc.id}
+      onClick={handleCellClick}
+      style={{
+        padding: 4,
+        borderLeft: "1px солид #f0f0f0",
+        backgroundColor: bg,
+        minHeight: cellMinHeight,
+        cursor: isNonWorking ? "not-allowed" : "pointer",
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",   // vertical center within taller cell
+        justifyContent: "center", // horizontal center
+        gap: 4,
+        textAlign: "center",
+      }}
+    >
+      {visibleAppointments.map((a) => (
+        <div
+          key={a.id}
+          style={{
+            fontSize: 12,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            maxWidth: "100%",
+          }}
+          title={`${formatPatientLabel(
+            a.patient,
+            a.patientId
+          )} (${formatStatus(a.status)})`}
+        >
+          {formatPatientLabel(a.patient, a.patientId)} (
+          {formatStatus(a.status)})
+        </div>
+      ))}
+    </div>
+  );
                   })}
                 </div>
               ))}
