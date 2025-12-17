@@ -2587,50 +2587,80 @@ export default function AppointmentsPage() {
 
                   {/* Doctor columns */}
                   {gridDoctors.map((doc) => {
-                    const appsForCell = appointments.filter((a) => {
-                      if (a.doctorId !== doc.id) return false;
+  const appsForCell = appointments.filter((a) => {
+    if (a.doctorId !== doc.id) return false;
 
-                      const start = new Date(a.scheduledAt);
-                      if (Number.isNaN(start.getTime())) return false;
+    const start = new Date(a.scheduledAt);
+    if (Number.isNaN(start.getTime())) return false;
 
-                      const end =
-                        a.endAt &&
-                        !Number.isNaN(new Date(a.endAt).getTime())
-                          ? new Date(a.endAt)
-                          : new Date(
-                              start.getTime() +
-                                SLOT_MINUTES * 60 * 1000
-                            );
+    const end =
+      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+        ? new Date(a.endAt)
+        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
 
-                      const slotStart = slot.start;
-                      const slotEnd = slot.end;
+    const slotStart = slot.start;
+    const slotEnd = slot.end;
 
-                      return start < slotEnd && end > slotStart;
-                    });
+    return start < slotEnd && end > slotStart;
+  });
 
-                                        const isNonWorking = !isWorkingHour || isWeekendLunch;
+  // ✨ restore these:
+  const slotTimeStr = getSlotTimeString(slot.start);
+  const schedules = (doc as any).schedules || [];
 
-                    const handleCellClick = () => {
-                      if (isNonWorking) return;
+  const isWorkingHour = schedules.some((s: any) =>
+    isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
+  );
 
-                      if (appsForCell.length === 0) {
-                        setQuickModalState({
-                          open: true,
-                          doctorId: doc.id,
-                          date: filterDate,
-                          time: slotTimeStr,
-                        });
-                      } else {
-                        setDetailsModalState({
-                          open: true,
-                          doctor: doc,
-                          slotLabel: slot.label,
-                          slotTime: slotTimeStr,
-                          date: filterDate,
-                          appointments: appsForCell,
-                        });
-                      }
-                    };
+  const weekdayIndex = slot.start.getDay();
+  const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
+
+  const isWeekendLunch =
+    isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+
+  let bg: string;
+  if (!isWorkingHour || isWeekendLunch) {
+    bg = "#ee7148";
+  } else if (appsForCell.length === 0) {
+    bg = "#ffffff";
+  } else {
+    const status = appsForCell[0].status;
+    bg =
+      status === "completed"
+        ? "#fb6190"
+        : status === "confirmed"
+        ? "#bbf7d0"
+        : status === "ongoing"
+        ? "#f9d89b"
+        : status === "cancelled"
+        ? "#9d9d9d"
+        : "#77f9fe";
+  }
+
+  const isNonWorking = !isWorkingHour || isWeekendLunch;
+
+  const handleCellClick = () => {
+    if (isNonWorking) return;
+
+    if (appsForCell.length === 0) {
+      setQuickModalState({
+        open: true,
+        doctorId: doc.id,
+        date: filterDate,
+        time: slotTimeStr,
+      });
+    } else {
+      setDetailsModalState({
+        open: true,
+        doctor: doc,
+        slotLabel: slot.label,
+        slotTime: slotTimeStr,
+        date: filterDate,
+        appointments: appsForCell,
+      });
+    }
+  };
+
 
                     // ===== Per-slot lane logic =====
                     // For this slot, find all overlapping appointments for this doctor,
