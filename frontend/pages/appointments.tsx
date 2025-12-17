@@ -2680,20 +2680,25 @@ const handleCellClick = () => {
     }}
   >
     {appsForCell.map((a) => (
-      <div
-        key={a.id}
-        style={{
-          fontSize: 12,
-          whiteSpace: "nowrap",
-        }}
-      >
-        {formatPatientLabel(a.patient, a.patientId)} (
-        {formatStatus(a.status)})
-      </div>
-    ))}
+  <div
+    key={a.id}
+    style={{
+      fontSize: 11,
+      padding: "1px 4px",
+      borderRadius: 4,
+      backgroundColor: "rgba(0,0,0,0.05)",
+      maxWidth: "100px",
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+    }}
+    title={`${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
+      a.status
+    )})`}
+  >
+    {formatPatientLabel(a.patient, a.patientId)} ({formatStatus(a.status)})
   </div>
-);
-                  })}
+))}
                 </div>
               ))}
             </div>
