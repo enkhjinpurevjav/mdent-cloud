@@ -104,49 +104,6 @@ function pad2(n: number) {
   return n.toString().padStart(2, "0");
 }
 
-
-// Given the day's first slot and current slot, return index (0,1,2,...)
-function getSlotIndex(daySlots: TimeSlot[], slot: TimeSlot): number {
-  return daySlots.findIndex((s) => s.start.getTime() === slot.start.getTime());
-}
-
-// Given an appointment, compute slot index range it spans within this day
-function getAppointmentSlotRange(
-  daySlots: TimeSlot[],
-  a: Appointment
-): { startIndex: number; endIndex: number } | null {
-  const start = new Date(a.scheduledAt);
-  if (Number.isNaN(start.getTime())) return null;
-  const end =
-    a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-      ? new Date(a.endAt)
-      : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
-
-  // Only consider appointments on this day
-  const dayYmd = daySlots[0]?.start.toISOString().slice(0, 10);
-  const apptYmd = start.toISOString().slice(0, 10);
-  if (dayYmd !== apptYmd) return null;
-
-  // Find first slot whose [start,end) intersects appointment at all
-  let startIndex = -1;
-  let endIndex = -1;
-  for (let i = 0; i < daySlots.length; i++) {
-    const s = daySlots[i];
-    if (start < s.end && end > s.start) {
-      if (startIndex === -1) startIndex = i;
-      endIndex = i + 1; // exclusive
-    } else if (startIndex !== -1) {
-      // once we passed the overlapping region
-      break;
-    }
-  }
-
-  if (startIndex === -1 || endIndex === -1) return null;
-  return { startIndex, endIndex };
-}
-
-
-
 function getSlotTimeString(date: Date): string {
   // "HH:MM" in local time
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
@@ -2257,26 +2214,6 @@ export default function AppointmentsPage() {
   const selectedDay = getDateFromYMD(filterDate);
   const timeSlots = generateTimeSlotsForDay(selectedDay);
 
-  // Precompute a grid: doctorId -> slotIndex -> Appointment[]
-const doctorSlotGrid: Record<number, Appointment[][]> = {};
-
-for (const doc of gridDoctors) {
-  const slotsForDoc: Appointment[][] = Array(timeSlots.length)
-    .fill(null)
-    .map(() => []);
-
-  const docApps = appointments.filter((a) => a.doctorId === doc.id);
-  for (const a of docApps) {
-    const range = getAppointmentSlotRange(timeSlots, a);
-    if (!range) continue;
-    for (let i = range.startIndex; i < range.endIndex; i++) {
-      slotsForDoc[i].push(a);
-    }
-  }
-
-  doctorSlotGrid[doc.id] = slotsForDoc;
-}
-
   const [detailsModalState, setDetailsModalState] = useState<{
     open: boolean;
     doctor?: Doctor | null;
@@ -2657,20 +2594,20 @@ for (const doc of gridDoctors) {
 
                   {/* Doctor columns */}
                   {gridDoctors.map((doc) => {
-  // All appointments for this doctor that intersect THIS 30‑min slot
-  const appsForCell = appointments.filter((a) => {
-    if (a.doctorId !== doc.id) return false;
+// All appointments for this doctor that intersect THIS 30‑min slot
+const appsForCell = appointments.filter((a) => {
+  if (a.doctorId !== doc.id) return false;
 
-    const start = new Date(a.scheduledAt);
-    if (Number.isNaN(start.getTime())) return false;
+  const start = new Date(a.scheduledAt);
+  if (Number.isNaN(start.getTime())) return false;
 
-    const end =
-      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-        ? new Date(a.endAt)
-        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+  const end =
+    a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+      ? new Date(a.endAt)
+      : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
 
-    const slotStart = slot.start;
-    const slotEnd = slot.end;
+  const slotStart = slot.start;
+  const slotEnd = slot.end;
 
   // colour every slot that this appointment overlaps
   return start < slotEnd && end > slotStart;
