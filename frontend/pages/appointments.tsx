@@ -2609,24 +2609,9 @@ export default function AppointmentsPage() {
     const slotStart = slot.start;
     const slotEnd = slot.end;
 
-    // overlap check for THIS slot
+    // overlap check for THIS slot only
     return start < slotEnd && end > slotStart;
   });
-                  
-                  if (slot.label === "17:00" && doc.id === 4) {
-  console.log(
-    "DEBUG SLOT", slot.label,
-    "DOC", doc.id,
-    "appsForCell",
-    appsForCell.map((a) => ({
-      id: a.id,
-      patient: formatGridShortLabel(a),
-      start: a.scheduledAt,
-      end: a.endAt,
-    }))
-  );
-}
-                  
 
   const slotTimeStr = getSlotTimeString(slot.start);
   const schedules = (doc as any).schedules || [];
@@ -2643,7 +2628,7 @@ export default function AppointmentsPage() {
 
   const isNonWorking = !isWorkingHour || isWeekendLunch;
 
-  // ==== Base cell background ====
+  // base background of the ROW for this doctor/slot
   let baseBg = "#ffffff";
   if (isNonWorking) {
     baseBg = "#ee7148"; // orange for non-working time
@@ -2689,7 +2674,7 @@ export default function AppointmentsPage() {
         key={doc.id}
         onClick={handleCellClick}
         style={{
-          borderLeft: "1px солид #f0f0f0",
+          borderLeft: "1px solid #f0f0f0",
           backgroundColor: baseBg,
           cursor: isNonWorking ? "not-allowed" : "pointer",
           minHeight: 28,
@@ -2698,9 +2683,73 @@ export default function AppointmentsPage() {
     );
   }
 
-  // 1 APPOINTMENT → full-width coloured block
-if (appsForCell.length === 1) {
-  const a = appsForCell[0];
+  // 1 APPOINTMENT → full-width coloured block in THIS row only
+  if (appsForCell.length === 1) {
+    const a = appsForCell[0];
+
+    return (
+      <div
+        key={doc.id}
+        onClick={handleCellClick}
+        style={{
+          borderLeft: "1px solid #f0f0f0",
+          backgroundColor: baseBg,
+          cursor: isNonWorking ? "not-allowed" : "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: 28,
+          padding: "1px 3px",
+        }}
+        title={`${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
+          a.status
+        )})`}
+      >
+        <span
+          style={{
+            borderRadius: 4,
+            padding: "1px 4px",
+            maxWidth: "100%",
+            whiteSpace: "normal",
+            wordBreak: "break-word",
+            overflowWrap: "anywhere",
+            fontSize: 11,
+            lineHeight: 1.2,
+            textAlign: "center",
+          }}
+        >
+          {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
+        </span>
+      </div>
+    );
+  }
+
+  // 2 APPOINTMENTS in THIS slot → 2-lane layout ONLY for this row
+  const overlapping = appsForCell
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(a.scheduledAt).getTime() -
+        new Date(b.scheduledAt).getTime()
+    );
+
+  const lane0 = overlapping[0];
+  const lane1 = overlapping[1];
+
+  const laneBg = (a: Appointment): string => {
+    switch (a.status) {
+      case "completed":
+        return "#fb6190";
+      case "confirmed":
+        return "#bbf7d0";
+      case "ongoing":
+        return "#f9d89b";
+      case "cancelled":
+        return "#9d9d9d";
+      default:
+        return "#77f9fe";
+    }
+  };
 
   return (
     <div
@@ -2708,23 +2757,24 @@ if (appsForCell.length === 1) {
       onClick={handleCellClick}
       style={{
         borderLeft: "1px solid #f0f0f0",
-        backgroundColor: baseBg, // you already set baseBg from status
+        backgroundColor: baseBg, // white or orange; lane colors on top
         cursor: isNonWorking ? "not-allowed" : "pointer",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
+        flexDirection: "row",
+        alignItems: "stretch",
         minHeight: 28,
-        padding: "1px 3px",
+        padding: 0,
       }}
-      title={`${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
-        a.status
-      )})`}
     >
-      <span
+      {/* LEFT HALF (lane0) */}
+      <div
         style={{
-          borderRadius: 4,
-          padding: "1px 4px",
-          maxWidth: "100%",
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "1px 3px",
+          backgroundColor: laneBg(lane0),
           whiteSpace: "normal",
           wordBreak: "break-word",
           overflowWrap: "anywhere",
@@ -2732,106 +2782,40 @@ if (appsForCell.length === 1) {
           lineHeight: 1.2,
           textAlign: "center",
         }}
+        title={`${formatPatientLabel(
+          lane0.patient,
+          lane0.patientId
+        )} (${formatStatus(lane0.status)})`}
       >
-        {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
-      </span>
+        {`${formatGridShortLabel(lane0)} (${formatStatus(lane0.status)})`}
+      </div>
+
+      {/* RIGHT HALF (lane1) */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "1px 3px",
+          backgroundColor: laneBg(lane1),
+          whiteSpace: "normal",
+          wordBreak: "break-word",
+          overflowWrap: "anywhere",
+          fontSize: 11,
+          lineHeight: 1.2,
+          textAlign: "center",
+          borderLeft: "1px solid rgba(255,255,255,0.4)",
+        }}
+        title={`${formatPatientLabel(
+          lane1.patient,
+          lane1.patientId
+        )} (${formatStatus(lane1.status)})`}
+      >
+        {`${formatGridShortLabel(lane1)} (${formatStatus(lane1.status)})`}
+      </div>
     </div>
   );
-}
-
-  // 2+ APPOINTMENTS in this slot → 2-lane layout using first two
-const overlapping = appsForCell
-  .slice()
-  .sort(
-    (a, b) =>
-      new Date(a.scheduledAt).getTime() -
-      new Date(b.scheduledAt).getTime()
-  );
-
-const lane0 = overlapping[0];
-const lane1 = overlapping[1];
-
-// lane background by status (reuse your existing function)
-const laneBg = (a: Appointment): string => {
-  switch (a.status) {
-    case "completed":
-      return "#fb6190";
-    case "confirmed":
-      return "#bbf7d0";
-    case "ongoing":
-      return "#f9d89b";
-    case "cancelled":
-      return "#9d9d9d";
-    default:
-      return "#77f9fe";
-  }
-};
-
-return (
-  <div
-    key={doc.id}
-    onClick={handleCellClick}
-    style={{
-      borderLeft: "1px solid #f0f0f0",
-      backgroundColor: baseBg, // white or orange (non-working); lane colours on top
-      cursor: isNonWorking ? "not-allowed" : "pointer",
-      display: "flex",
-      flexDirection: "row",
-      alignItems: "stretch",
-      minHeight: 28,
-      padding: 0,
-    }}
-  >
-    {/* LEFT HALF (lane0) */}
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1px 3px",
-        backgroundColor: laneBg(lane0),
-        whiteSpace: "normal",
-        wordBreak: "break-word",
-        overflowWrap: "anywhere",
-        fontSize: 11,
-        lineHeight: 1.2,
-        textAlign: "center",
-      }}
-      title={`${formatPatientLabel(
-        lane0.patient,
-        lane0.patientId
-      )} (${formatStatus(lane0.status)})`}
-    >
-      {`${formatGridShortLabel(lane0)} (${formatStatus(lane0.status)})`}
-    </div>
-
-    {/* RIGHT HALF (lane1) */}
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1px 3px",
-        backgroundColor: laneBg(lane1),
-        whiteSpace: "normal",
-        wordBreak: "break-word",
-        overflowWrap: "anywhere",
-        fontSize: 11,
-        lineHeight: 1.2,
-        textAlign: "center",
-        borderLeft: "1px solid rgba(255,255,255,0.4)",
-      }}
-      title={`${formatPatientLabel(
-        lane1.patient,
-        lane1.patientId
-      )} (${formatStatus(lane1.status)})`}
-    >
-      {`${formatGridShortLabel(lane1)} (${formatStatus(lane1.status)})`}
-    </div>
-  </div>
-);
 })}
                 </div>
               ))}
