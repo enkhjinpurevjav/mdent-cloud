@@ -104,49 +104,6 @@ function pad2(n: number) {
   return n.toString().padStart(2, "0");
 }
 
-
-// Given the day's first slot and current slot, return index (0,1,2,...)
-function getSlotIndex(daySlots: TimeSlot[], slot: TimeSlot): number {
-  return daySlots.findIndex((s) => s.start.getTime() === slot.start.getTime());
-}
-
-// Given an appointment, compute slot index range it spans within this day
-function getAppointmentSlotRange(
-  daySlots: TimeSlot[],
-  a: Appointment
-): { startIndex: number; endIndex: number } | null {
-  const start = new Date(a.scheduledAt);
-  if (Number.isNaN(start.getTime())) return null;
-  const end =
-    a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-      ? new Date(a.endAt)
-      : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
-
-  // Only consider appointments on this day
-  const dayYmd = daySlots[0]?.start.toISOString().slice(0, 10);
-  const apptYmd = start.toISOString().slice(0, 10);
-  if (dayYmd !== apptYmd) return null;
-
-  // Find first slot whose [start,end) intersects appointment at all
-  let startIndex = -1;
-  let endIndex = -1;
-  for (let i = 0; i < daySlots.length; i++) {
-    const s = daySlots[i];
-    if (start < s.end && end > s.start) {
-      if (startIndex === -1) startIndex = i;
-      endIndex = i + 1; // exclusive
-    } else if (startIndex !== -1) {
-      // once we passed the overlapping region
-      break;
-    }
-  }
-
-  if (startIndex === -1 || endIndex === -1) return null;
-  return { startIndex, endIndex };
-}
-
-
-
 function getSlotTimeString(date: Date): string {
   // "HH:MM" in local time
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
@@ -244,10 +201,11 @@ function getDateFromYMD(ymd: string): Date {
 }
 
 function formatDateYmdDots(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}.${m}.${d}`;
+  return date.toLocaleDateString("mn-MN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 }
 
 function formatStatus(status: string): string {
@@ -2255,7 +2213,6 @@ export default function AppointmentsPage() {
   const groupedAppointments = groupByDate(appointments);
   const selectedDay = getDateFromYMD(filterDate);
   const timeSlots = generateTimeSlotsForDay(selectedDay);
-  
 
   const [detailsModalState, setDetailsModalState] = useState<{
     open: boolean;
@@ -2652,39 +2609,52 @@ export default function AppointmentsPage() {
     const slotStart = slot.start;
     const slotEnd = slot.end;
 
-  // colour every slot that this appointment overlaps
-  return start < slotEnd && end > slotStart;
-});
+    // overlap check for THIS slot only
+    return start < slotEnd && end > slotStart;
+  });
 
-             
+                  if (slot.label === "19:00" && doc.id === 4) {
+  console.log("CELL DEBUG 19:00 DOC 4", appsForCell.map((a) => ({
+    id: a.id,
+    patient: formatGridShortLabel(a),
+    status: a.status,
+    scheduledAt: a.scheduledAt,
+    endAt: a.endAt,
+  })));
+}
 
   const slotTimeStr = getSlotTimeString(slot.start);
   const schedules = (doc as any).schedules || [];
 
   const isWorkingHour = schedules.some((s: any) =>
-  isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
-);
-const weekdayIndex = slot.start.getDay();
-const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
-const isWeekendLunch =
-  isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
-const isNonWorking = !isWorkingHour || isWeekendLunch;
+    isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
+  );
 
-// Base background: only appointments colour a slot
-let baseBg = "#ffffff";
-if (appsForCell.length === 1) {
-  const status = appsForCell[0].status;
-  baseBg =
-    status === "completed"
-      ? "#fb6190"
-      : status === "confirmed"
-      ? "#bbf7d0"
-      : status === "ongoing"
-      ? "#f9d89b"
-      : status === "cancelled"
-      ? "#9d9d9d"
-      : "#77f9fe";
-}
+  const weekdayIndex = slot.start.getDay();
+  const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
+
+  const isWeekendLunch =
+    isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+
+  const isNonWorking = !isWorkingHour || isWeekendLunch;
+
+  // base background of the ROW for this doctor/slot
+  let baseBg = "#ffffff";
+  if (isNonWorking) {
+    baseBg = "#ee7148"; // orange for non-working time
+  } else if (appsForCell.length === 1) {
+    const status = appsForCell[0].status;
+    baseBg =
+      status === "completed"
+        ? "#fb6190"
+        : status === "confirmed"
+        ? "#bbf7d0"
+        : status === "ongoing"
+        ? "#f9d89b"
+        : status === "cancelled"
+        ? "#9d9d9d"
+        : "#77f9fe";
+  }
 
   const handleCellClick = () => {
     if (isNonWorking) return;
