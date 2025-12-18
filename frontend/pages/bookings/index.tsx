@@ -200,35 +200,35 @@ export default function BookingsPage() {
   }, [selectedBranchId, selectedDate, doctors]);
 
   // Determine clinic open/close for selected date (same rules as backend)
-const { clinicOpen, clinicClose } = useMemo(() => {
-  if (!selectedDate) {
+  const { clinicOpen, clinicClose } = useMemo(() => {
+    if (!selectedDate) {
+      return { clinicOpen: "09:00", clinicClose: "21:00" };
+    }
+    const d = new Date(selectedDate);
+    const weekday = d.getDay(); // 0 Sun .. 6 Sat
+    const isWeekend = weekday === 0 || weekday === 6;
+    if (isWeekend) {
+      return { clinicOpen: "10:00", clinicClose: "19:00" };
+    }
     return { clinicOpen: "09:00", clinicClose: "21:00" };
-  }
-  const d = new Date(selectedDate);
-  const weekday = d.getDay(); // 0 Sun .. 6 Sat
-  const isWeekend = weekday === 0 || weekday === 6;
-  if (isWeekend) {
-    return { clinicOpen: "10:00", clinicClose: "19:00" };
-  }
-  return { clinicOpen: "09:00", clinicClose: "21:00" };
-}, [selectedDate]);
+  }, [selectedDate]);
 
-const timeSlots = useMemo(() => {
-  const start = timeToMinutes(clinicOpen);
-  const end = timeToMinutes(clinicClose);
-  const slots: string[] = [];
-  for (let m = start; m <= end; m += SLOT_MINUTES) {
-    const h = String(Math.floor(m / 60)).padStart(2, "0");
-    const mm = String(m % 60).padStart(2, "0");
-    slots.push(`${h}:${mm}`);
-  }
-  return slots;
-}, [clinicOpen, clinicClose]);
+  const timeSlots = useMemo(() => {
+    const start = timeToMinutes(clinicOpen);
+    const end = timeToMinutes(clinicClose);
+    const slots: string[] = [];
+    for (let m = start; m <= end; m += SLOT_MINUTES) {
+      const h = String(Math.floor(m / 60)).padStart(2, "0");
+      const mm = String(m % 60).padStart(2, "0");
+      slots.push(`${h}:${mm}`);
+    }
+    return slots;
+  }, [clinicOpen, clinicClose]);
 
-const dayStartMinutes = useMemo(
-  () => timeToMinutes(clinicOpen),
-  [clinicOpen]
-);
+  const dayStartMinutes = useMemo(
+    () => timeToMinutes(clinicOpen),
+    [clinicOpen]
+  );
 
   return (
     <main
@@ -294,7 +294,7 @@ const dayStartMinutes = useMemo(
         </div>
       </section>
 
-      {/* Day grid by doctor (no booking blocks yet) */}
+      {/* Day grid by doctor */}
       <section style={{ marginTop: 24 }}>
         <h2>Өдрийн цагийн хүснэгт (эмчээр)</h2>
 
@@ -360,7 +360,7 @@ const dayStartMinutes = useMemo(
               ))}
             </div>
 
-            {/* Body: time axis + empty doctor columns with schedule background */}
+            {/* Body: time axis + doctor columns */}
             <div
               style={{
                 display: "grid",
@@ -393,112 +393,119 @@ const dayStartMinutes = useMemo(
               </div>
 
               {/* Doctor columns */}
-{workingDoctors.map((wd) => {
-  // --- schedule vertical position (simple + consistent) ---
-  const schedStartMin = timeToMinutes(wd.schedule.startTime);
-  const schedEndMin = timeToMinutes(wd.schedule.endTime);
-  const schedOffsetMin = schedStartMin - dayStartMinutes;
-  const schedDurationMin = schedEndMin - schedStartMin;
+              {workingDoctors.map((wd) => {
+                // schedule vertical position
+                const schedStartMin = timeToMinutes(wd.schedule.startTime);
+                const schedEndMin = timeToMinutes(wd.schedule.endTime);
+                const schedOffsetMin = schedStartMin - dayStartMinutes;
+                const schedDurationMin = schedEndMin - schedStartMin;
 
-  const schedTopPx =
-    (schedOffsetMin / SLOT_MINUTES) * ROW_HEIGHT;
-  const schedHeightPx =
-    (schedDurationMin / SLOT_MINUTES) * ROW_HEIGHT;
+                const schedTopPx =
+                  (schedOffsetMin / SLOT_MINUTES) * ROW_HEIGHT;
+                const schedHeightPx =
+                  (schedDurationMin / SLOT_MINUTES) * ROW_HEIGHT;
 
-  return (
-    <div
-      key={wd.doctor.id}
-      style={{
-        position: "relative",
-        borderRight: "1px solid #f3f4f6",
-      }}
-    >
-      {/* schedule background (DoctorSchedule) */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          top: schedTopPx,
-          height: schedHeightPx,
-          background: "#ecfeff",
-          opacity: 0.5,
-          pointerEvents: "none",
-        }}
-      />
+                return (
+                  <div
+                    key={wd.doctor.id}
+                    style={{
+                      position: "relative",
+                      borderRight: "1px solid #f3f4f6",
+                    }}
+                  >
+                    {/* schedule background */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        right: 0,
+                        top: schedTopPx,
+                        height: schedHeightPx,
+                        background: "#ecfeff",
+                        opacity: 0.5,
+                        pointerEvents: "none",
+                      }}
+                    />
 
-      {/* booking blocks (simple version, full-width, same math) */}
-      {bookings
-        .filter((b) => b.doctor.id === wd.doctor.id)
-        .map((b) => {
-          const startMin = timeToMinutes(b.startTime);
-          const endMin = timeToMinutes(b.endTime);
-          const offsetMin = startMin - dayStartMinutes;
-          const durationMin = endMin - startMin;
+                    {/* booking blocks */}
+                    {bookings
+                      .filter((b) => b.doctor.id === wd.doctor.id)
+                      .map((b) => {
+                        const startMin = timeToMinutes(b.startTime);
+                        const endMin = timeToMinutes(b.endTime);
+                        const offsetMin = startMin - dayStartMinutes;
+                        const durationMin = endMin - startMin;
 
-          const top =
-            (offsetMin / SLOT_MINUTES) * ROW_HEIGHT;
-          const height = Math.max(
-            (durationMin / SLOT_MINUTES) * ROW_HEIGHT,
-            ROW_HEIGHT / 2
-          );
+                        const top =
+                          (offsetMin / SLOT_MINUTES) * ROW_HEIGHT;
+                        const height = Math.max(
+                          (durationMin / SLOT_MINUTES) * ROW_HEIGHT,
+                          ROW_HEIGHT / 2
+                        );
 
-          let bg = "#67e8f9"; // PENDING
-          if (b.status === "CONFIRMED") bg = "#bbf7d0";
-          if (b.status === "IN_PROGRESS") bg = "#fed7aa";
-          if (b.status === "COMPLETED") bg = "#f9a8d4";
-          if (b.status === "CANCELLED") bg = "#e5e7eb";
+                        let bg = "#67e8f9"; // PENDING
+                        if (b.status === "CONFIRMED") bg = "#bbf7d0";
+                        if (b.status === "IN_PROGRESS") bg = "#fed7aa";
+                        if (b.status === "COMPLETED") bg = "#f9a8d4";
+                        if (b.status === "CANCELLED") bg = "#e5e7eb";
 
-          const patientLabel =
-            b.patient?.name ||
-            b.patient?.regNo ||
-            b.patient?.phone ||
-            `ID ${b.patient?.id}`;
+                        const patientLabel =
+                          b.patient?.name ||
+                          b.patient?.regNo ||
+                          b.patient?.phone ||
+                          `ID ${b.patient?.id}`;
 
-          return (
-            <div
-              key={b.id}
-              style={{
-                position: "absolute",
-                left: 4,
-                right: 4,
-                top,
-                height,
-                background: bg,
-                borderRadius: 4,
-                padding: "4px 6px",
-                fontSize: 12,
-                overflow: "hidden",
-                boxShadow: "0 1px 2px rgba(15,23,42,0.15)",
-              }}
-              title={`${b.startTime}–${b.endTime} • ${b.status}`}
-            >
-              <div style={{ fontWeight: 500, whiteSpace: "nowrap" }}>
-                {patientLabel}
-              </div>
-              <div style={{ fontSize: 11 }}>
-                {b.startTime}–{b.endTime}
-              </div>
+                        return (
+                          <div
+                            key={b.id}
+                            style={{
+                              position: "absolute",
+                              left: 4,
+                              right: 4,
+                              top,
+                              height,
+                              background: bg,
+                              borderRadius: 4,
+                              padding: "4px 6px",
+                              fontSize: 12,
+                              overflow: "hidden",
+                              boxShadow:
+                                "0 1px 2px rgba(15,23,42,0.15)",
+                            }}
+                            title={`${b.startTime}–${b.endTime} • ${b.status}`}
+                          >
+                            <div
+                              style={{
+                                fontWeight: 500,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {patientLabel}
+                            </div>
+                            <div style={{ fontSize: 11 }}>
+                              {b.startTime}–{b.endTime}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                    {/* grid rows to match time column */}
+                    {timeSlots.map((t, idx) => (
+                      <div
+                        key={t}
+                        style={{
+                          height: ROW_HEIGHT,
+                          borderBottom:
+                            idx === timeSlots.length - 1
+                              ? "none"
+                              : "1px solid #f9fafb",
+                        }}
+                      />
+                    ))}
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
-
-      {/* grid rows to match time column height */}
-      {timeSlots.map((t, idx) => (
-        <div
-          key={t}
-          style={{
-            height: ROW_HEIGHT,
-            borderBottom:
-              idx === timeSlots.length - 1
-                ? "none"
-                : "1px solid #f9fafb",
-          }}
-        />
-      ))}
-    </div>
-  );
-})}
           </div>
         )}
       </section>
@@ -511,7 +518,9 @@ const dayStartMinutes = useMemo(
           <div style={{ color: "red" }}>{bookingsError}</div>
         )}
         {!loadingBookings && !bookingsError && bookings.length === 0 && (
-          <div style={{ color: "#888" }}>Энэ өдөрт цаг захиалга алга.</div>
+          <div style={{ color: "#888" }}>
+            Энэ өдөрт цаг захиалга алга.
+          </div>
         )}
         {!loadingBookings && !bookingsError && bookings.length > 0 && (
           <pre
