@@ -2606,6 +2606,17 @@ export default function AppointmentsPage() {
     // overlap check for THIS slot
     return start < slotEnd && end > slotStart;
   });
+                  console.log(
+  "SLOT", slot.label,
+  "DOC", doc.id,
+  "appsForCell",
+  appsForCell.map(a => ({
+    id: a.id,
+    patient: formatGridShortLabel(a),
+    start: a.scheduledAt,
+    end: a.endAt,
+  }))
+);
 
   const slotTimeStr = getSlotTimeString(slot.start);
   const schedules = (doc as any).schedules || [];
