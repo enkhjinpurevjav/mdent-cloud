@@ -197,5 +197,293 @@ export default function BookingsPage() {
     }
 
     loadWorkingDoctors();
-  }, [selectedBranchId, selectedDate,](#)*
-
+  }, [selectedBranchId, selectedDate, doctors]);
+
+  // Compute time grid (min start / max end from schedules, or default 09:00–18:00)
+  const timeSlots = useMemo(() => {
+    if (workingDoctors.length === 0) {
+      const start = 9 * 60;
+      const end = 18 * 60;
+      const slots: string[] = [];
+      for (let m = start; m <= end; m += SLOT_MINUTES) {
+        const h = String(Math.floor(m / 60)).padStart(2, "0");
+        const mm = String(m % 60).padStart(2, "0");
+        slots.push(`${h}:${mm}`);
+      }
+      return slots;
+    }
+
+    let minStart = Infinity;
+    let maxEnd = -Infinity;
+
+    for (const wd of workingDoctors) {
+      const s = timeToMinutes(wd.schedule.startTime);
+      const e = timeToMinutes(wd.schedule.endTime);
+      if (s < minStart) minStart = s;
+      if (e > maxEnd) maxEnd = e;
+    }
+
+    minStart = Math.floor(minStart / SLOT_MINUTES) * SLOT_MINUTES;
+    maxEnd = Math.ceil(maxEnd / SLOT_MINUTES) * SLOT_MINUTES;
+
+    const slots: string[] = [];
+    for (let m = minStart; m <= maxEnd; m += SLOT_MINUTES) {
+      const h = String(Math.floor(m / 60)).padStart(2, "0");
+      const mm = String(m % 60).padStart(2, "0");
+      slots.push(`${h}:${mm}`);
+    }
+    return slots;
+  }, [workingDoctors]);
+
+  const dayStartMinutes = useMemo(() => {
+    if (timeSlots.length === 0) return 9 * 60;
+    return timeToMinutes(timeSlots[0]);
+  }, [timeSlots]);
+
+  return (
+    <main
+      style={{
+        maxWidth: 1200,
+        margin: "40px auto",
+        padding: 24,
+        fontFamily: "sans-serif",
+      }}
+    >
+      <h1>Цаг захиалга (шинэ Bookings)</h1>
+      <p style={{ color: "#555", marginBottom: 16 }}>
+        Эмч, салбар, өдрөөр цаг захиалгуудыг харах шинэ систем.
+      </p>
+
+      {globalError && (
+        <div style={{ color: "red", marginBottom: 12 }}>{globalError}</div>
+      )}
+
+      {/* Filters */}
+      <section
+        style={{
+          marginBottom: 24,
+          padding: 16,
+          borderRadius: 8,
+          background: "#f9fafb",
+          border: "1px solid #e5e7eb",
+        }}
+      >
+        <h2 style={{ marginTop: 0, marginBottom: 12 }}>Шүүлтүүр</h2>
+
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 16,
+            alignItems: "center",
+          }}
+        >
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            Огноо
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+            />
+          </label>
+
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            Салбар
+            <select
+              value={selectedBranchId}
+              onChange={(e) => setSelectedBranchId(e.target.value)}
+            >
+              <option value="">Салбар сонгох</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </section>
+
+      {/* Day grid by doctor (no booking blocks yet) */}
+      <section style={{ marginTop: 24 }}>
+        <h2>Өдрийн цагийн хүснэгт (эмчээр)</h2>
+
+        {loadingSchedule && <div>Ажлын хуваарь ачааллаж байна...</div>}
+        {scheduleError && (
+          <div style={{ color: "red", marginBottom: 8 }}>{scheduleError}</div>
+        )}
+
+        {!loadingSchedule && workingDoctors.length === 0 && (
+          <div style={{ color: "#888", marginTop: 8 }}>
+            Энэ өдөр, энэ салбарт ажлын хуваарьтай эмч алга.
+          </div>
+        )}
+
+        {workingDoctors.length > 0 && (
+          <div
+            style={{
+              marginTop: 12,
+              border: "1px solid #e5e7eb",
+              borderRadius: 8,
+              overflow: "hidden",
+            }}
+          >
+            {/* Header row */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: `120px repeat(${workingDoctors.length}, 1fr)`,
+                background: "#f3f4f6",
+                borderBottom: "1px solid #e5e7eb",
+              }}
+            >
+              <div
+                style={{
+                  padding: "8px 12px",
+                  fontWeight: 600,
+                  borderRight: "1px solid #e5e7eb",
+                }}
+              >
+                Цаг
+              </div>
+              {workingDoctors.map((wd) => (
+                <div
+                  key={wd.doctor.id}
+                  style={{
+                    padding: "8px 12px",
+                    fontWeight: 600,
+                    textAlign: "center",
+                    borderRight: "1px solid #e5e7eb",
+                  }}
+                >
+                  {formatDoctorName(wd.doctor)}
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "#6b7280",
+                      marginTop: 2,
+                    }}
+                  >
+                    {wd.schedule.startTime}–{wd.schedule.endTime}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Body: time axis + empty doctor columns with schedule background */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: `120px repeat(${workingDoctors.length}, 1fr)`,
+              }}
+            >
+              {/* Time column */}
+              <div
+                style={{
+                  borderRight: "1px solid #e5e7eb",
+                }}
+              >
+                {timeSlots.map((t, idx) => (
+                  <div
+                    key={t}
+                    style={{
+                      height: ROW_HEIGHT,
+                      borderBottom:
+                        idx === timeSlots.length - 1
+                          ? "none"
+                          : "1px solid #f3f4f6",
+                      padding: "4px 8px",
+                      fontSize: 13,
+                      color: "#4b5563",
+                    }}
+                  >
+                    {t}
+                  </div>
+                ))}
+              </div>
+
+              {/* Doctor columns */}
+              {workingDoctors.map((wd) => {
+                const schedStartMin = timeToMinutes(wd.schedule.startTime);
+                const schedEndMin = timeToMinutes(wd.schedule.endTime);
+                const topOffsetMinutes = schedStartMin - dayStartMinutes;
+                const heightMinutes = schedEndMin - schedStartMin;
+
+                const topPx =
+                  topOffsetMinutes * (ROW_HEIGHT / SLOT_MINUTES);
+                const heightPx =
+                  heightMinutes * (ROW_HEIGHT / SLOT_MINUTES);
+
+                return (
+                  <div
+                    key={wd.doctor.id}
+                    style={{
+                      position: "relative",
+                      borderRight: "1px solid #f3f4f6",
+                    }}
+                  >
+                    {/* schedule background */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        right: 0,
+                        top: topPx,
+                        height: heightPx,
+                        background: "#ecfeff",
+                        opacity: 0.5,
+                        pointerEvents: "none",
+                      }}
+                    />
+
+                    {/* rows to match height */}
+                    {timeSlots.map((t, idx) => (
+                      <div
+                        key={t}
+                        style={{
+                          height: ROW_HEIGHT,
+                          borderBottom:
+                            idx === timeSlots.length - 1
+                              ? "none"
+                              : "1px solid #f9fafb",
+                        }}
+                      />
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Debug bookings list */}
+      <section style={{ marginTop: 32 }}>
+        <h2>Тухайн өдрийн цаг захиалгууд (debug list)</h2>
+        {loadingBookings && <div>Ачааллаж байна...</div>}
+        {bookingsError && (
+          <div style={{ color: "red" }}>{bookingsError}</div>
+        )}
+        {!loadingBookings && !bookingsError && bookings.length === 0 && (
+          <div style={{ color: "#888" }}>Энэ өдөрт цаг захиалга алга.</div>
+        )}
+        {!loadingBookings && !bookingsError && bookings.length > 0 && (
+          <pre
+            style={{
+              marginTop: 12,
+              padding: 12,
+              background: "#111827",
+              color: "#e5e7eb",
+              borderRadius: 8,
+              maxHeight: 400,
+              overflow: "auto",
+              fontSize: 12,
+            }}
+          >
+            {JSON.stringify(bookings, null, 2)}
+          </pre>
+        )}
+      </section>
+    </main>
+  );
+}
