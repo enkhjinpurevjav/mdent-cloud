@@ -53,7 +53,7 @@ type WorkingDoctor = {
 };
 
 const SLOT_MINUTES = 30;
-const ROW_HEIGHT = 40; // px per 30-min slot
+const ROW_HEIGHT = 40; // px per 30‑minute slot
 
 function timeToMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);
@@ -213,11 +213,12 @@ export default function BookingsPage() {
     return { clinicOpen: "09:00", clinicClose: "21:00" };
   }, [selectedDate]);
 
+  // Build 30‑minute slots between open and close (end is exclusive)
   const timeSlots = useMemo(() => {
     const start = timeToMinutes(clinicOpen);
     const end = timeToMinutes(clinicClose);
     const slots: string[] = [];
-    for (let m = start; m <= end; m += SLOT_MINUTES) {
+    for (let m = start; m < end; m += SLOT_MINUTES) {
       const h = String(Math.floor(m / 60)).padStart(2, "0");
       const mm = String(m % 60).padStart(2, "0");
       slots.push(`${h}:${mm}`);
@@ -229,6 +230,8 @@ export default function BookingsPage() {
     () => timeToMinutes(clinicOpen),
     [clinicOpen]
   );
+
+  const bodyHeight = timeSlots.length * ROW_HEIGHT;
 
   return (
     <main
@@ -365,6 +368,7 @@ export default function BookingsPage() {
               style={{
                 display: "grid",
                 gridTemplateColumns: `120px repeat(${workingDoctors.length}, 1fr)`,
+                height: bodyHeight,
               }}
             >
               {/* Time column */}
@@ -394,16 +398,18 @@ export default function BookingsPage() {
 
               {/* Doctor columns */}
               {workingDoctors.map((wd) => {
-                // schedule vertical position
+                // schedule vertical position: snap to 30‑min slots from clinicOpen
                 const schedStartMin = timeToMinutes(wd.schedule.startTime);
                 const schedEndMin = timeToMinutes(wd.schedule.endTime);
-                const schedOffsetMin = schedStartMin - dayStartMinutes;
-                const schedDurationMin = schedEndMin - schedStartMin;
+                const openMin = dayStartMinutes;
 
-                const schedTopPx =
-                  (schedOffsetMin / SLOT_MINUTES) * ROW_HEIGHT;
+                const slotIndexStart =
+                  (schedStartMin - openMin) / SLOT_MINUTES;
+                const slotIndexEnd = (schedEndMin - openMin) / SLOT_MINUTES;
+
+                const schedTopPx = slotIndexStart * ROW_HEIGHT;
                 const schedHeightPx =
-                  (schedDurationMin / SLOT_MINUTES) * ROW_HEIGHT;
+                  (slotIndexEnd - slotIndexStart) * ROW_HEIGHT;
 
                 return (
                   <div
@@ -433,13 +439,16 @@ export default function BookingsPage() {
                       .map((b) => {
                         const startMin = timeToMinutes(b.startTime);
                         const endMin = timeToMinutes(b.endTime);
-                        const offsetMin = startMin - dayStartMinutes;
-                        const durationMin = endMin - startMin;
+                        const open = dayStartMinutes;
 
-                        const top =
-                          (offsetMin / SLOT_MINUTES) * ROW_HEIGHT;
+                        const slotStart =
+                          (startMin - open) / SLOT_MINUTES;
+                        const slotEnd =
+                          (endMin - open) / SLOT_MINUTES;
+
+                        const top = slotStart * ROW_HEIGHT;
                         const height = Math.max(
-                          (durationMin / SLOT_MINUTES) * ROW_HEIGHT,
+                          (slotEnd - slotStart) * ROW_HEIGHT,
                           ROW_HEIGHT / 2
                         );
 
