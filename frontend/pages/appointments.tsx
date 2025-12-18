@@ -2606,6 +2606,20 @@ export default function AppointmentsPage() {
     // overlap check for THIS slot
     return start < slotEnd && end > slotStart;
   });
+                  
+                  if (slot.label === "17:00" && doc.id === 4) {
+  console.log(
+    "DEBUG SLOT", slot.label,
+    "DOC", doc.id,
+    "appsForCell",
+    appsForCell.map((a) => ({
+      id: a.id,
+      patient: formatGridShortLabel(a),
+      start: a.scheduledAt,
+      end: a.endAt,
+    }))
+  );
+}
                   console.log(
   "SLOT", slot.label,
   "DOC", doc.id,
