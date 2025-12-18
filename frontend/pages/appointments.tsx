@@ -2195,9 +2195,14 @@ export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>(
-    []
-  );
+  const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>([]);
+  const [error, setError] = useState("");
+
+  // ADD THIS:
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
   const [error, setError] = useState("");
 
   const todayStr = new Date().toISOString().slice(0, 10);
