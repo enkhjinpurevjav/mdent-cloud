@@ -2198,12 +2198,13 @@ export default function AppointmentsPage() {
   const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>([]);
   const [error, setError] = useState("");
 
-  // ADD THIS:
   const [hasMounted, setHasMounted] = useState(false);
   useEffect(() => {
     setHasMounted(true);
   }, []);
-  const [error, setError] = useState("");
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  ...
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const [filterDate, setFilterDate] = useState<string>(todayStr);
