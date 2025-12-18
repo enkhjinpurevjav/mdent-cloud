@@ -200,14 +200,6 @@ function buildDoctorLayouts(
 
 // ========= formatting helpers =========
 
-function formatDateYmdDots(date: Date): string {
-  return date.toLocaleDateString("mn-MN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-}
-
 function formatDoctorName(d?: Doctor | null) {
   if (!d) return "Тодорхойгүй";
   const name = d.name || "";
@@ -265,7 +257,7 @@ function buildLocalDateTimeString(dateStr: string, timeStr: string): string {
   return `${dateStr} ${timeStr}:00`;
 }
 
-// ========= AppointmentForm (same logic, simplified markup) =========
+// ========= AppointmentForm (logic only; fill in fields as before) =========
 
 type AppointmentFormProps = {
   branches: Branch[];
@@ -411,17 +403,10 @@ function AppointmentForm({
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{
-        marginBottom: 16,
-        display: "grid",
-        gap: 10,
-        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-        fontSize: 13,
-      }}
-    >
-      {/* your existing form fields here */}
+    <form onSubmit={handleSubmit}>
+      {/* reuse your actual form fields here */}
+      {error && <div style={{ color: "#b91c1c" }}>{error}</div>}
+      <button type="submit">Цаг захиалах</button>
     </form>
   );
 }
@@ -524,7 +509,7 @@ export default function AppointmentsPage() {
         fontFamily: "sans-serif",
       }}
     >
-      {/* filters + AppointmentForm */}
+      {/* filters + AppointmentForm go here */}
 
       {error && (
         <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
