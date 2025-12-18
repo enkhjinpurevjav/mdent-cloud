@@ -22,7 +22,7 @@ router.get("/", async (req, res) => {
   try {
     const { date, branchId, doctorId, patientId } = req.query;
 
-    const where = {};
+    const where: any = {};
 
     if (branchId) {
       const parsed = Number(branchId);
@@ -40,23 +40,25 @@ router.get("/", async (req, res) => {
     }
 
     if (date) {
-      // Expecting YYYY-MM-DD; interpret this as LOCAL clinic date
-      const [y, m, d] = String(date).split("-").map(Number);
-      if (!y || !m || !d) {
+      const dateStr = String(date); // expected "YYYY-MM-DD"
+      const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!m) {
         return res.status(400).json({ error: "Invalid date format" });
       }
 
-      const localStart = new Date(y, m - 1, d, 0, 0, 0, 0);
-      const localEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
-
-      where.scheduledAt = { gte: localStart, lte: localEnd };
+      // scheduledAt is a String column now
+      where.scheduledAt = { startsWith: dateStr };
     }
 
     const appointments = await prisma.appointment.findMany({
       where,
       orderBy: { scheduledAt: "asc" },
       include: {
-        patient: { include: { patientBook: true } },
+        patient: {
+          include: {
+            patientBook: true,
+          },
+        },
         doctor: true,
         branch: true,
       },
