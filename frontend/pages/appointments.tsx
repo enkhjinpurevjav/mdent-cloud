@@ -2613,14 +2613,16 @@ export default function AppointmentsPage() {
     return start < slotEnd && end > slotStart;
   });
 
-                  if (slot.label === "19:00" && doc.id === 4) {
-  console.log("CELL DEBUG 19:00 DOC 4", appsForCell.map((a) => ({
-    id: a.id,
-    patient: formatGridShortLabel(a),
-    status: a.status,
-    scheduledAt: a.scheduledAt,
-    endAt: a.endAt,
-  })));
+                  if ((slot.label === "09:00" || slot.label === "10:00") && doc.id === /* id of T.Amaraa */) {
+  console.log("CELL DEBUG", slot.label, "DOC", doc.id,
+    appsForCell.map((a) => ({
+      id: a.id,
+      patient: formatGridShortLabel(a),
+      status: a.status,
+      scheduledAt: a.scheduledAt,
+      endAt: a.endAt,
+    })),
+  );
 }
 
   const slotTimeStr = getSlotTimeString(slot.start);
