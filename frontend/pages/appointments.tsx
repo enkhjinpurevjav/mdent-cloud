@@ -2603,7 +2603,7 @@ export default function AppointmentsPage() {
     const slotStart = slot.start;
     const slotEnd = slot.end;
 
-    // simple overlap check
+    // overlap check for THIS slot
     return start < slotEnd && end > slotStart;
   });
 
@@ -2622,13 +2622,10 @@ export default function AppointmentsPage() {
 
   const isNonWorking = !isWorkingHour || isWeekendLunch;
 
-  // ==== BASE CELL BACKGROUND ====
-  //  - Non‑working → orange
-  //  - Exactly 1 app → fill entire cell with that app's status colour
-  //  - 0 or 2+ apps → white; colours will be drawn per-lane only
+  // ==== Base cell background ====
   let baseBg = "#ffffff";
   if (isNonWorking) {
-    baseBg = "#ee7148";
+    baseBg = "#ee7148"; // orange for non-working time
   } else if (appsForCell.length === 1) {
     const status = appsForCell[0].status;
     baseBg =
@@ -2645,7 +2642,6 @@ export default function AppointmentsPage() {
 
   const handleCellClick = () => {
     if (isNonWorking) return;
-
     if (appsForCell.length === 0) {
       setQuickModalState({
         open: true,
@@ -2665,74 +2661,8 @@ export default function AppointmentsPage() {
     }
   };
 
-  // ===== Per‑slot lane logic (for cases where we actually have 2 apps) =====
-
-  // Sort overlapping appointments by start time
-  const overlapping = appsForCell
-    .slice()
-    .sort(
-      (a, b) =>
-        new Date(a.scheduledAt).getTime() -
-        new Date(b.scheduledAt).getTime()
-    );
-
-  const lane0 = overlapping[0] ?? null;
-  const lane1 = overlapping[1] ?? null;
-
-  const slotsPerHourLocal = 60 / SLOT_MINUTES;
-  const currentSlotIndex =
-    slot.start.getHours() * slotsPerHourLocal +
-    Math.floor(slot.start.getMinutes() / SLOT_MINUTES);
-
-  const appCoversSlot = (a: Appointment | null) => {
-    if (!a) return false;
-    const start = new Date(a.scheduledAt);
-    if (Number.isNaN(start.getTime())) return false;
-    const end =
-      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-        ? new Date(a.endAt)
-        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
-    // overlap with THIS slot only
-    return start < slot.end && end > slot.start;
-  };
-
-  const firstSlotIndexForApp = (a: Appointment | null) => {
-    if (!a) return Infinity;
-    const start = new Date(a.scheduledAt);
-    if (Number.isNaN(start.getTime())) return Infinity;
-    return (
-      start.getHours() * slotsPerHourLocal +
-      Math.floor(start.getMinutes() / SLOT_MINUTES)
-    );
-  };
-
-  const laneBg = (a: Appointment | null): string => {
-    if (!a) return "transparent";
-    switch (a.status) {
-      case "completed":
-        return "#fb6190";
-      case "confirmed":
-        return "#bbf7d0";
-      case "ongoing":
-        return "#f9d89b";
-      case "cancelled":
-        return "#9d9d9d";
-      default:
-        return "#77f9fe"; // booked or other
-    }
-  };
-
-  const lane0Covers = appCoversSlot(lane0);
-  const lane1Covers = appCoversSlot(lane1);
-
-  const lane0FirstIndex = firstSlotIndexForApp(lane0);
-  const lane1FirstIndex = firstSlotIndexForApp(lane1);
-
-  const lane0IsFirst = currentSlotIndex === lane0FirstIndex;
-  const lane1IsFirst = currentSlotIndex === lane1FirstIndex;
-
-  // CASE A: no appointment actually covers this slot → empty cell
-  if (!lane0Covers && !lane1Covers && appsForCell.length === 0) {
+  // 0 APPOINTMENTS → just baseBg (orange or white)
+  if (appsForCell.length === 0) {
     return (
       <div
         key={doc.id}
@@ -2747,16 +2677,27 @@ export default function AppointmentsPage() {
     );
   }
 
-  // CASE B: exactly 1 appointment covers this slot (lane0) → full-width block
-  if (!lane1Covers && lane0Covers) {
-    const a = lane0!;
+  // 1 APPOINTMENT → full-width coloured block (baseBg already has status colour)
+  if (appsForCell.length === 1) {
+    const a = appsForCell[0];
+    const firstSlotIndex =
+      new Date(a.scheduledAt).getHours() * (60 / SLOT_MINUTES) +
+      Math.floor(
+        new Date(a.scheduledAt).getMinutes() / SLOT_MINUTES
+      );
+    const currentSlotIndex =
+      slot.start.getHours() * (60 / SLOT_MINUTES) +
+      Math.floor(slot.start.getMinutes() / SLOT_MINUTES);
+
+    const isFirstSlot = currentSlotIndex === firstSlotIndex;
+
     return (
       <div
         key={doc.id}
         onClick={handleCellClick}
         style={{
           borderLeft: "1px солид #f0f0f0",
-          backgroundColor: baseBg, // already coloured by status when appsForCell.length === 1
+          backgroundColor: baseBg,
           cursor: isNonWorking ? "not-allowed" : "pointer",
           display: "flex",
           alignItems: "center",
@@ -2765,17 +2706,16 @@ export default function AppointmentsPage() {
           padding: "1px 3px",
         }}
         title={
-          lane0IsFirst
+          isFirstSlot
             ? `${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
                 a.status
               )})`
             : ""
         }
       >
-        {lane0IsFirst && (
+        {isFirstSlot && (
           <span
             style={{
-              // inner span is only for text; colour comes from baseBg
               borderRadius: 4,
               padding: "1px 4px",
               maxWidth: "100%",
@@ -2794,14 +2734,58 @@ export default function AppointmentsPage() {
     );
   }
 
-  // CASE C: 2 lanes in this slot (both lane0/lane1 cover here)
+  // 2+ APPOINTMENTS in this slot → true 2-lane layout using first two
+  const overlapping = appsForCell
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(a.scheduledAt).getTime() -
+        new Date(b.scheduledAt).getTime()
+    );
+
+  const lane0 = overlapping[0];
+  const lane1 = overlapping[1];
+
+  const slotsPerHourLocal = 60 / SLOT_MINUTES;
+  const currentSlotIndex =
+    slot.start.getHours() * slotsPerHourLocal +
+    Math.floor(slot.start.getMinutes() / SLOT_MINUTES);
+
+  const firstSlotIndexForApp = (a: Appointment) => {
+    const start = new Date(a.scheduledAt);
+    return (
+      start.getHours() * slotsPerHourLocal +
+      Math.floor(start.getMinutes() / SLOT_MINUTES)
+    );
+  };
+
+  const isFirstSlotLane0 =
+    currentSlotIndex === firstSlotIndexForApp(lane0);
+  const isFirstSlotLane1 =
+    currentSlotIndex === firstSlotIndexForApp(lane1);
+
+  const laneBg = (a: Appointment): string => {
+    switch (a.status) {
+      case "completed":
+        return "#fb6190";
+      case "confirmed":
+        return "#bbf7d0";
+      case "ongoing":
+        return "#f9d89b";
+      case "cancelled":
+        return "#9d9d9d";
+      default:
+        return "#77f9fe";
+    }
+  };
+
   return (
     <div
       key={doc.id}
       onClick={handleCellClick}
       style={{
         borderLeft: "1px солид #f0f0f0",
-        backgroundColor: baseBg, // white (or orange if non-working)
+        backgroundColor: baseBg, // white or orange
         cursor: isNonWorking ? "not-allowed" : "pointer",
         display: "flex",
         flexDirection: "row",
@@ -2817,8 +2801,8 @@ export default function AppointmentsPage() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: lane0Covers ? "1px 3px" : 0,
-          backgroundColor: lane0Covers ? laneBg(lane0) : "transparent",
+          padding: "1px 3px",
+          backgroundColor: laneBg(lane0),
           whiteSpace: "normal",
           wordBreak: "break-word",
           overflowWrap: "anywhere",
@@ -2827,7 +2811,7 @@ export default function AppointmentsPage() {
           textAlign: "center",
         }}
         title={
-          lane0IsFirst && lane0
+          isFirstSlotLane0
             ? `${formatPatientLabel(
                 lane0.patient,
                 lane0.patientId
@@ -2835,9 +2819,7 @@ export default function AppointmentsPage() {
             : ""
         }
       >
-        {lane0Covers &&
-          lane0 &&
-          lane0IsFirst &&
+        {isFirstSlotLane0 &&
           `${formatGridShortLabel(lane0)} (${formatStatus(lane0.status)})`}
       </div>
 
@@ -2848,8 +2830,8 @@ export default function AppointmentsPage() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          padding: lane1Covers ? "1px 3px" : 0,
-          backgroundColor: lane1Covers ? laneBg(lane1) : "transparent",
+          padding: "1px 3px",
+          backgroundColor: laneBg(lane1),
           whiteSpace: "normal",
           wordBreak: "break-word",
           overflowWrap: "anywhere",
@@ -2859,7 +2841,7 @@ export default function AppointmentsPage() {
           borderLeft: "1px солид rgba(255,255,255,0.4)",
         }}
         title={
-          lane1IsFirst && lane1
+          isFirstSlotLane1
             ? `${formatPatientLabel(
                 lane1.patient,
                 lane1.patientId
@@ -2867,9 +2849,7 @@ export default function AppointmentsPage() {
             : ""
         }
       >
-        {lane1Covers &&
-          lane1 &&
-          lane1IsFirst &&
+        {isFirstSlotLane1 &&
           `${formatGridShortLabel(lane1)} (${formatStatus(lane1.status)})`}
       </div>
     </div>
