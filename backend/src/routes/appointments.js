@@ -45,14 +45,20 @@ router.get("/", async (req, res) => {
     }
 
     if (date) {
-      // Expecting YYYY-MM-DD; build a UTC range for that calendar day
-      const start = new Date(`${date}T00:00:00.000Z`);
-      const end = new Date(`${date}T23:59:59.999Z`);
-      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-        return res.status(400).json({ error: "Invalid date format" });
-      }
-      where.scheduledAt = { gte: start, lte: end };
-    }
+  // Expecting YYYY-MM-DD; interpret this as a LOCAL clinic date (Asia/Ulaanbaatar)
+  const [y, m, d] = String(date).split("-").map(Number);
+  if (!y || !m || !d) {
+    return res.status(400).json({ error: "Invalid date format" });
+  }
+
+  // Build local start/end of day (server's local timezone)
+  const localStart = new Date(y, m - 1, d, 0, 0, 0, 0);
+  const localEnd   = new Date(y, m - 1, d, 23, 59, 59, 999);
+
+  // These Date objects already represent exact instants in time (UTC internally),
+  // so we can use them directly in the Prisma range.
+  where.scheduledAt = { gte: localStart, lte: localEnd };
+}
 
     const appointments = await prisma.appointment.findMany({
       where,
