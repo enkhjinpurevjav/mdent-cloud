@@ -2613,6 +2613,20 @@ export default function AppointmentsPage() {
     return start < slotEnd && end > slotStart;
   });
 
+                  if (slot.label === "19:00" && doc.id === 4) {
+    console.log("CELL DEBUG", {
+      slot: slot.label,
+      doctorId: doc.id,
+      appsForCell: appsForCell.map((a) => ({
+        id: a.id,
+        patient: formatGridShortLabel(a),
+        status: a.status,
+        start: a.scheduledAt,
+        end: a.endAt,
+      })),
+    });
+  }
+
   const slotTimeStr = getSlotTimeString(slot.start);
   const schedules = (doc as any).schedules || [];
 
