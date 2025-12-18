@@ -421,17 +421,18 @@ export default function BookingsPage() {
                   >
                     {/* schedule background */}
                     <div
-                      style={{
-                        position: "absolute",
-                        left: 0,
-                        right: 0,
-                        top: schedTopPx,
-                        height: schedHeightPx,
-                        background: "#ecfeff",
-                        opacity: 0.5,
-                        pointerEvents: "none",
-                      }}
-                    />
+  className="schedule-debug"
+  style={{
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: schedTopPx,
+    height: schedHeightPx,
+    background: "rgba(56,189,248,0.35)", // blue
+    outline: "2px solid rgba(37,99,235,0.9)", // strong blue outline
+    pointerEvents: "none",
+  }}
+/>
 
                     {/* booking blocks */}
                     {bookings
