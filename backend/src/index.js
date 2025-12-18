@@ -62,6 +62,7 @@ app.use("/api/services", servicesRouter);
 app.use("/api/reports", reportsRouter);
 // NEW
 app.use("/api/doctors", doctorsRouter);
+app.use("/api/bookings", bookingsRouter);
 
 // Optional central error handler
 app.use((err, _req, res, _next) => {
