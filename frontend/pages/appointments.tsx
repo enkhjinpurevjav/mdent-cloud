@@ -383,78 +383,128 @@ export default function AppointmentsPage() {
                 </div>
 
                 {/* doctor columns */}
-                {gridDoctors.map((doc) => {
-                  const docApps = appointments.filter(
-                    (a) => a.doctorId === doc.id
-                  );
+               {gridDoctors.map((doc) => {
+  // All appointments for this doctor on this day
+  const docApps = appointments.filter((a) => a.doctorId === doc.id);
 
-                  // appointments overlapping this slot
-                  const overlapping = docApps.filter((a) => {
-                    const start = new Date(a.scheduledAt);
-                    if (Number.isNaN(start.getTime())) return false;
-                    const end =
-                      a.endAt &&
-                      !Number.isNaN(new Date(a.endAt).getTime())
-                        ? new Date(a.endAt)
-                        : new Date(
-                            start.getTime() + SLOT_MINUTES * 60 * 1000
-                          );
-                    return start < slot.end && end > slot.start;
-                  });
+  // Appointments that overlap this 30-minute slot
+  const overlapping = docApps.filter((a) => {
+    const start = new Date(a.scheduledAt);
+    if (Number.isNaN(start.getTime())) return false;
 
-                  if (overlapping.length === 0) {
-                    return (
-                      <div
-                        key={doc.id}
-                        style={{
-                          borderLeft: "1px solid #f0f0f0",
-                          backgroundColor: "#ffffff",
-                          minHeight: 40,
-                        }}
-                      />
-                    );
-                  }
+    const end =
+      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+        ? new Date(a.endAt)
+        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
 
-                  // full width cell if only 1 appointment overlaps this row
-                  if (overlapping.length === 1) {
-                    const a = overlapping[0];
-                    const startIndex = getAppointmentStartIndex(
-                      timeSlots,
-                      a
-                    );
-                    const isStartRow = startIndex === rowIndex;
+    return start < slot.end && end > slot.start;
+  });
 
-                    return (
-                      <div
-                        key={doc.id}
-                        style={{
-                          borderLeft: "1px solid #f0f0f0",
-                          backgroundColor: laneBg(a),
-                          minHeight: 40,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          padding: "1px 4px",
-                        }}
-                      >
-                        {isStartRow && (
-                          <span
-                            style={{
-                              fontSize: 11,
-                              lineHeight: 1.2,
-                              textAlign: "center",
-                              whiteSpace: "normal",
-                              wordBreak: "break-word",
-                            }}
-                          >
-                            {`${formatGridShortLabel(a)} (${formatStatus(
-                              a.status
-                            )})`}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  }
+  const slotKey = `${doc.id}-${rowIndex}`;
+
+  // 0 appointments -> empty cell
+  if (overlapping.length === 0) {
+    return (
+      <div
+        key={slotKey}
+        style={{
+          borderLeft: "1px solid #f0f0f0",
+          backgroundColor: "#ffffff",
+          minHeight: 40,
+        }}
+      />
+    );
+  }
+
+  // helper to know if this row is the appointment's start row
+  const isStartRow = (a: Appointment) => {
+    const startIndex = getAppointmentStartIndex(timeSlots, a);
+    return startIndex === rowIndex;
+  };
+
+  // 1 appointment -> full width
+  if (overlapping.length === 1) {
+    const a = overlapping[0];
+
+    return (
+      <div
+        key={slotKey}
+        style={{
+          borderLeft: "1px solid #f0f0f0",
+          backgroundColor: laneBg(a),
+          minHeight: 40,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "1px 4px",
+        }}
+        title={`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
+      >
+        {isStartRow(a) && (
+          <span
+            style={{
+              fontSize: 11,
+              lineHeight: 1.2,
+              textAlign: "center",
+              whiteSpace: "normal",
+              wordBreak: "break-word",
+            }}
+          >
+            {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  // 2+ appointments -> split evenly (we expect max 2 in your rules)
+  const perWidth = 100 / overlapping.length;
+
+  return (
+    <div
+      key={slotKey}
+      style={{
+        borderLeft: "1px solid #f0f0f0",
+        backgroundColor: "#ffffff",
+        minHeight: 40,
+        display: "flex",
+        flexDirection: "row",
+        padding: 0,
+      }}
+    >
+      {overlapping.map((a, idx) => (
+        <div
+          key={a.id}
+          style={{
+            width: `${perWidth}%`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1px 3px",
+            backgroundColor: laneBg(a),
+            boxSizing: "border-box",
+            borderLeft: idx === 0 ? "none" : "2px solid #ffffff",
+          }}
+          title={`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
+        >
+          {isStartRow(a) && (
+            <span
+              style={{
+                fontSize: 11,
+                lineHeight: 1.2,
+                textAlign: "center",
+                whiteSpace: "normal",
+                wordBreak: "break-word",
+              }}
+            >
+              {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+})}
 
                   // 2 or more overlapping -> split evenly (for now we only expect max 2)
                   const toRender = overlapping.slice(0, 2);
