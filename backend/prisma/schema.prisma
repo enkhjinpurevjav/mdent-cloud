@@ -165,14 +165,12 @@ model Patient {
 // Appointment model
 model Appointment {
   id          Int       @id @default(autoincrement())
-
   patientId   Int
   doctorId    Int?
   branchId    Int
-
-  scheduledAt DateTime
-  endAt       DateTime?   // Дуусах цаг (шинэ)
-  status      String    @default("booked")
+  scheduledAt String    // local "YYYY-MM-DD HH:MM:SS"
+  endAt       String?   // same, optional
+  status      String
   notes       String?
 
   patient     Patient   @relation(fields: [patientId], references: [id])
