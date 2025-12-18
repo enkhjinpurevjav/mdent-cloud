@@ -2698,132 +2698,33 @@ export default function AppointmentsPage() {
     );
   }
 
-  // 1 APPOINTMENT → full-width coloured block (baseBg already has status colour)
-  if (appsForCell.length === 1) {
-    const a = appsForCell[0];
-    const firstSlotIndex =
-      new Date(a.scheduledAt).getHours() * (60 / SLOT_MINUTES) +
-      Math.floor(
-        new Date(a.scheduledAt).getMinutes() / SLOT_MINUTES
-      );
-    const currentSlotIndex =
-      slot.start.getHours() * (60 / SLOT_MINUTES) +
-      Math.floor(slot.start.getMinutes() / SLOT_MINUTES);
-
-    const isFirstSlot = currentSlotIndex === firstSlotIndex;
-
-    return (
-      <div
-        key={doc.id}
-        onClick={handleCellClick}
-        style={{
-          borderLeft: "1px солид #f0f0f0",
-          backgroundColor: baseBg,
-          cursor: isNonWorking ? "not-allowed" : "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: 28,
-          padding: "1px 3px",
-        }}
-        title={
-          isFirstSlot
-            ? `${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
-                a.status
-              )})`
-            : ""
-        }
-      >
-        {isFirstSlot && (
-          <span
-            style={{
-              borderRadius: 4,
-              padding: "1px 4px",
-              maxWidth: "100%",
-              whiteSpace: "normal",
-              wordBreak: "break-word",
-              overflowWrap: "anywhere",
-              fontSize: 11,
-              lineHeight: 1.2,
-              textAlign: "center",
-            }}
-          >
-            {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  // 2+ APPOINTMENTS in this slot → true 2-lane layout using first two
-  const overlapping = appsForCell
-    .slice()
-    .sort(
-      (a, b) =>
-        new Date(a.scheduledAt).getTime() -
-        new Date(b.scheduledAt).getTime()
-    );
-
-  const lane0 = overlapping[0];
-  const lane1 = overlapping[1];
-
-  const slotsPerHourLocal = 60 / SLOT_MINUTES;
-  const currentSlotIndex =
-    slot.start.getHours() * slotsPerHourLocal +
-    Math.floor(slot.start.getMinutes() / SLOT_MINUTES);
-
-  const firstSlotIndexForApp = (a: Appointment) => {
-    const start = new Date(a.scheduledAt);
-    return (
-      start.getHours() * slotsPerHourLocal +
-      Math.floor(start.getMinutes() / SLOT_MINUTES)
-    );
-  };
-
-  const isFirstSlotLane0 =
-    currentSlotIndex === firstSlotIndexForApp(lane0);
-  const isFirstSlotLane1 =
-    currentSlotIndex === firstSlotIndexForApp(lane1);
-
-  const laneBg = (a: Appointment): string => {
-    switch (a.status) {
-      case "completed":
-        return "#fb6190";
-      case "confirmed":
-        return "#bbf7d0";
-      case "ongoing":
-        return "#f9d89b";
-      case "cancelled":
-        return "#9d9d9d";
-      default:
-        return "#77f9fe";
-    }
-  };
+  // 1 APPOINTMENT → full-width coloured block
+if (appsForCell.length === 1) {
+  const a = appsForCell[0];
 
   return (
     <div
       key={doc.id}
       onClick={handleCellClick}
       style={{
-        borderLeft: "1px солид #f0f0f0",
-        backgroundColor: baseBg, // white or orange
+        borderLeft: "1px solid #f0f0f0",
+        backgroundColor: baseBg, // you already set baseBg from status
         cursor: isNonWorking ? "not-allowed" : "pointer",
         display: "flex",
-        flexDirection: "row",
-        alignItems: "stretch",
+        alignItems: "center",
+        justifyContent: "center",
         minHeight: 28,
-        padding: 0,
+        padding: "1px 3px",
       }}
+      title={`${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
+        a.status
+      )})`}
     >
-      {/* LEFT HALF (lane0) */}
-      <div
+      <span
         style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "1px 3px",
-          backgroundColor: laneBg(lane0),
+          borderRadius: 4,
+          padding: "1px 4px",
+          maxWidth: "100%",
           whiteSpace: "normal",
           wordBreak: "break-word",
           overflowWrap: "anywhere",
@@ -2831,50 +2732,106 @@ export default function AppointmentsPage() {
           lineHeight: 1.2,
           textAlign: "center",
         }}
-        title={
-          isFirstSlotLane0
-            ? `${formatPatientLabel(
-                lane0.patient,
-                lane0.patientId
-              )} (${formatStatus(lane0.status)})`
-            : ""
-        }
       >
-        {isFirstSlotLane0 &&
-          `${formatGridShortLabel(lane0)} (${formatStatus(lane0.status)})`}
-      </div>
-
-      {/* RIGHT HALF (lane1) */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "1px 3px",
-          backgroundColor: laneBg(lane1),
-          whiteSpace: "normal",
-          wordBreak: "break-word",
-          overflowWrap: "anywhere",
-          fontSize: 11,
-          lineHeight: 1.2,
-          textAlign: "center",
-          borderLeft: "1px солид rgba(255,255,255,0.4)",
-        }}
-        title={
-          isFirstSlotLane1
-            ? `${formatPatientLabel(
-                lane1.patient,
-                lane1.patientId
-              )} (${formatStatus(lane1.status)})`
-            : ""
-        }
-      >
-        {isFirstSlotLane1 &&
-          `${formatGridShortLabel(lane1)} (${formatStatus(lane1.status)})`}
-      </div>
+        {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
+      </span>
     </div>
   );
+}
+
+  // 2+ APPOINTMENTS in this slot → 2-lane layout using first two
+const overlapping = appsForCell
+  .slice()
+  .sort(
+    (a, b) =>
+      new Date(a.scheduledAt).getTime() -
+      new Date(b.scheduledAt).getTime()
+  );
+
+const lane0 = overlapping[0];
+const lane1 = overlapping[1];
+
+// lane background by status (reuse your existing function)
+const laneBg = (a: Appointment): string => {
+  switch (a.status) {
+    case "completed":
+      return "#fb6190";
+    case "confirmed":
+      return "#bbf7d0";
+    case "ongoing":
+      return "#f9d89b";
+    case "cancelled":
+      return "#9d9d9d";
+    default:
+      return "#77f9fe";
+  }
+};
+
+return (
+  <div
+    key={doc.id}
+    onClick={handleCellClick}
+    style={{
+      borderLeft: "1px solid #f0f0f0",
+      backgroundColor: baseBg, // white or orange (non-working); lane colours on top
+      cursor: isNonWorking ? "not-allowed" : "pointer",
+      display: "flex",
+      flexDirection: "row",
+      alignItems: "stretch",
+      minHeight: 28,
+      padding: 0,
+    }}
+  >
+    {/* LEFT HALF (lane0) */}
+    <div
+      style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "1px 3px",
+        backgroundColor: laneBg(lane0),
+        whiteSpace: "normal",
+        wordBreak: "break-word",
+        overflowWrap: "anywhere",
+        fontSize: 11,
+        lineHeight: 1.2,
+        textAlign: "center",
+      }}
+      title={`${formatPatientLabel(
+        lane0.patient,
+        lane0.patientId
+      )} (${formatStatus(lane0.status)})`}
+    >
+      {`${formatGridShortLabel(lane0)} (${formatStatus(lane0.status)})`}
+    </div>
+
+    {/* RIGHT HALF (lane1) */}
+    <div
+      style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "1px 3px",
+        backgroundColor: laneBg(lane1),
+        whiteSpace: "normal",
+        wordBreak: "break-word",
+        overflowWrap: "anywhere",
+        fontSize: 11,
+        lineHeight: 1.2,
+        textAlign: "center",
+        borderLeft: "1px solid rgba(255,255,255,0.4)",
+      }}
+      title={`${formatPatientLabel(
+        lane1.patient,
+        lane1.patientId
+      )} (${formatStatus(lane1.status)})`}
+    >
+      {`${formatGridShortLabel(lane1)} (${formatStatus(lane1.status)})`}
+    </div>
+  </div>
+);
 })}
                 </div>
               ))}
