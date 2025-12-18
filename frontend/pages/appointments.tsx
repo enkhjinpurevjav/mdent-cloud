@@ -2861,11 +2861,279 @@ export default function AppointmentsPage() {
         )}
       </section>
 
+
       {/* Day-grouped calendar */}
-      {/* (unchanged) */}
+      <section style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 8 }}>Календарь (өдрөөр)</h2>
+        {groupedAppointments.length === 0 && (
+          <div style={{ color: "#6b7280", fontSize: 13 }}>
+            Цаг захиалга алга.
+          </div>
+        )}
+        <div
+          style={{
+            display: "flex",
+            gap: 16,
+            overflowX: "auto",
+            paddingBottom: 8,
+            justifyContent: "flex-start",
+          }}
+        >
+          {groupedAppointments.map(([date, apps]) => (
+            <div
+              key={date}
+              style={{
+                minWidth: 260,
+                maxWidth: 320,
+                border: "1px солид #e5e7eb",
+                borderRadius: 8,
+                padding: 10,
+                backgroundColor: "#ffffff",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 600,
+                  marginBottom: 8,
+                  fontSize: 13,
+                  color: "#111827",
+                }}
+              >
+                {formatDateYmdDots(new Date(date))}
+              </div>
+              {apps
+                .slice()
+                .sort(
+                  (a, b) =>
+                    new Date(a.scheduledAt).getTime() -
+                    new Date(b.scheduledAt).getTime()
+                )
+                .map((a) => {
+                  const start = new Date(a.scheduledAt);
+                  const end =
+                    a.endAt &&
+                    !Number.isNaN(new Date(a.endAt).getTime())
+                      ? new Date(a.endAt)
+                      : null;
+
+                  return (
+                    <div
+                      key={a.id}
+                      style={{
+                        marginBottom: 6,
+                        padding: 6,
+                        borderRadius: 4,
+                        backgroundColor:
+                          a.status === "completed"
+                            ? "#e0f7e9"
+                            : a.status === "ongoing"
+                            ? "#fff4e0"
+                            : a.status === "cancelled"
+                            ? "#fde0e0"
+                            : "#e6f0ff",
+                        fontSize: 12,
+                      }}
+                    >
+                      <div style={{ fontWeight: 500 }}>
+                        {start.toLocaleTimeString("mn-MN", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                        })}
+                        {end
+                          ? ` – ${end.toLocaleTimeString("mn-MN", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: false,
+                            })}`
+                          : ""}
+                        {" — "}
+                        {formatPatientLabel(a.patient, a.patientId)}
+                      </div>
+                      <div>
+                        Эмч: {formatDoctorName(a.doctor)} | Салбар:{" "}
+                        {a.branch?.name ?? a.branchId}
+                      </div>
+                      <div>Тайлбар: {a.notes || "-"}</div>
+                      <div>Төлөв: {formatStatus(a.status)}</div>
+                    </div>
+                  );
+                })}
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* Raw table */}
-      {/* (unchanged) */}
+      <section>
+        <h2 style={{ fontSize: 16, marginBottom: 8 }}>
+          Бүгдийг жагсаалтаар харах
+        </h2>
+        {appointments.length === 0 ? (
+          <div style={{ color: "#6b7280", fontSize: 13 }}>
+            Цаг захиалга алга.
+          </div>
+        ) : (
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              marginTop: 4,
+              fontSize: 13,
+            }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px солид #ddd",
+                    padding: 6,
+                  }}
+                >
+                  ID
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px солид #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Өвчтөн
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px солид #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Салбар
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px солид #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Эмч
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px солид #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Огноо / цаг
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px солид #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Төлөв
+                </th>
+                <th
+                  style={{
+                    textAlign: "left",
+                    borderBottom: "1px солид #ddd",
+                    padding: 6,
+                  }}
+                >
+                  Тэмдэглэл
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {appointments.map((a) => {
+                const start = new Date(a.scheduledAt);
+                const end =
+                  a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+                    ? new Date(a.endAt)
+                    : null;
+
+                return (
+                  <tr key={a.id}>
+                    <td
+                      style={{
+                        borderBottom: "1px солид #f0f0f0",
+                        padding: 6,
+                      }}
+                    >
+                      {a.id}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px солид #f0f0f0",
+                        padding: 6,
+                      }}
+                    >
+                      {formatPatientLabel(a.patient, a.patientId)}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px солид #f0f0f0",
+                        padding: 6,
+                      }}
+                    >
+                      {a.branch?.name ?? a.branchId}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px солид #f0f0f0",
+                        padding: 6,
+                      }}
+                    >
+                      {formatDoctorName(a.doctor ?? null)}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px солид #f0f0f0",
+                        padding: 6,
+                      }}
+                    >
+                      {formatDateYmdDots(start)}{" "}
+                      {start.toLocaleTimeString("mn-MN", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      })}
+                      {end
+                        ? ` – ${end.toLocaleTimeString("mn-MN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: false,
+                          })}`
+                        : ""}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px солид #f0f0f0",
+                        padding: 6,
+                      }}
+                    >
+                      {formatStatus(a.status)}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px солид #f0f0f0",
+                        padding: 6,
+                      }}
+                    >
+                      {a.notes || "-"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </section>
 
       {/* Modals */}
       <AppointmentDetailsModal
@@ -2880,9 +3148,7 @@ export default function AppointmentsPage() {
         appointments={detailsModalState.appointments}
         onStatusUpdated={(updated) => {
           setAppointments((prev) =>
-            prev.map((a) =>
-              a.id === updated.id ? { ...a, ...updated } : a
-            )
+            prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
           );
           setDetailsModalState((prev) => ({
             ...prev,
