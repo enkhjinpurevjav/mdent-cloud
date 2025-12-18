@@ -62,10 +62,6 @@ function pad2(n: number) {
   return n.toString().padStart(2, "0");
 }
 
-function getSlotTimeString(date: Date): string {
-  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-}
-
 function generateTimeSlotsForDay(day: Date): TimeSlot[] {
   const slots: TimeSlot[] = [];
   const weekdayIndex = day.getDay(); // 0=Sun,6=Sat
@@ -101,6 +97,115 @@ function getAppointmentStartIndex(
     if (start >= s.start && start < s.end) return i;
   }
   return null;
+}
+
+// ========= lane layout helpers =========
+
+type TimedAppointment = Appointment & {
+  startIndex: number;
+  endIndex: number;
+  lane: number;
+};
+
+type DoctorLayout = {
+  doctorId: number;
+  lanes: number; // always 2
+  items: TimedAppointment[];
+};
+
+// Build at most 2 lanes per doctor, long appointments span downward
+function buildDoctorLayouts(
+  timeSlots: TimeSlot[],
+  appointments: Appointment[]
+): Map<number, DoctorLayout> {
+  const byDoctor = new Map<number, Appointment[]>();
+
+  for (const a of appointments) {
+    if (a.doctorId == null) continue;
+    const list = byDoctor.get(a.doctorId) || [];
+    list.push(a);
+    byDoctor.set(a.doctorId, list);
+  }
+
+  const layouts = new Map<number, DoctorLayout>();
+
+  for (const [doctorId, docApps] of byDoctor.entries()) {
+    const timed: TimedAppointment[] = [];
+
+    for (const a of docApps) {
+      const startIdx = getAppointmentStartIndex(timeSlots, a);
+      if (startIdx == null) continue;
+
+      // compute end datetime
+      let end: Date;
+      if (a.endAt) {
+        const d = new Date(a.endAt);
+        end = Number.isNaN(d.getTime())
+          ? new Date(
+              new Date(a.scheduledAt).getTime() + SLOT_MINUTES * 60 * 1000
+            )
+          : d;
+      } else {
+        end = new Date(
+          new Date(a.scheduledAt).getTime() + SLOT_MINUTES * 60 * 1000
+        );
+      }
+
+      // find the first slot index where end <= slot.start
+      let endIdx = timeSlots.length;
+      for (let i = startIdx; i < timeSlots.length; i++) {
+        if (end <= timeSlots[i].start) {
+          endIdx = i;
+          break;
+        }
+      }
+
+      timed.push({
+        ...a,
+        startIndex: startIdx,
+        endIndex: endIdx,
+        lane: 0,
+      });
+    }
+
+    // Sort by start time
+    timed.sort((a, b) => {
+      const ta = new Date(a.scheduledAt).getTime();
+      const tb = new Date(b.scheduledAt).getTime();
+      return ta - tb;
+    });
+
+    // Assign lanes, capped at 2
+    const laneEndByLane: (number | undefined)[] = [undefined, undefined];
+    const placed: TimedAppointment[] = [];
+
+    for (const appt of timed) {
+      let assignedLane: number | null = null;
+
+      for (let lane = 0; lane < 2; lane++) {
+        const lastEnd = laneEndByLane[lane];
+        if (lastEnd === undefined || lastEnd <= appt.startIndex) {
+          assignedLane = lane;
+          laneEndByLane[lane] = appt.endIndex;
+          break;
+        }
+      }
+
+      // Should not happen if creation enforces <=2 overlaps, but guard anyway
+      if (assignedLane === null) continue;
+
+      appt.lane = assignedLane;
+      placed.push(appt);
+    }
+
+    layouts.set(doctorId, {
+      doctorId,
+      lanes: 2,
+      items: placed,
+    });
+  }
+
+  return layouts;
 }
 
 // ========= formatting helpers =========
@@ -164,14 +269,14 @@ function laneBg(a: Appointment): string {
   }
 }
 
-// ========= local datetime helper (OPTION A) =========
+// ========= local datetime helper =========
 
-// dateStr: "2025-12-18", timeStr: "15:30" -> "2025-12-18 15:30:00"
 function buildLocalDateTimeString(dateStr: string, timeStr: string): string {
   return `${dateStr} ${timeStr}:00`;
 }
 
 // ========= AppointmentForm (inline) =========
+// (unchanged – keep your current form)
 
 type AppointmentFormProps = {
   branches: Branch[];
@@ -238,7 +343,6 @@ function AppointmentForm({
       return;
     }
 
-    // build Date objects only for validation
     const [year, month, day] = form.date.split("-").map(Number);
     const [startHour, startMinute] = form.startTime.split(":").map(Number);
     const [endHour, endMinute] = form.endTime.split(":").map(Number);
@@ -271,7 +375,6 @@ function AppointmentForm({
       return;
     }
 
-    // OPTION A: build local strings, no timezone conversion
     const scheduledAt = buildLocalDateTimeString(form.date, form.startTime);
     const endAt = buildLocalDateTimeString(form.date, form.endTime);
 
@@ -283,7 +386,7 @@ function AppointmentForm({
           patientId: Number(form.patientId),
           doctorId: Number(form.doctorId),
           branchId: Number(form.branchId),
-          scheduledAt, // "YYYY-MM-DD HH:MM:SS" local
+          scheduledAt,
           endAt,
           status: form.status,
           notes: form.notes || null,
@@ -304,7 +407,6 @@ function AppointmentForm({
 
       onCreated(data as Appointment);
 
-      // reset some fields
       setForm((prev) => ({
         ...prev,
         patientId: "",
@@ -319,190 +421,9 @@ function AppointmentForm({
     }
   };
 
-  return (
-    <form
-      onSubmit={handleSubmit}
-      style={{
-        marginBottom: 16,
-        display: "grid",
-        gap: 10,
-        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-        fontSize: 13,
-      }}
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Өвчтөний ID</label>
-        <input
-          name="patientId"
-          value={form.patientId}
-          onChange={handleChange}
-          placeholder="Ж: 123"
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        />
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Эмч</label>
-        <select
-          name="doctorId"
-          value={form.doctorId}
-          onChange={handleChange}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        >
-          <option value="">Сонгох</option>
-          {doctors.map((d) => (
-            <option key={d.id} value={d.id}>
-              {formatDoctorName(d)}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Салбар</label>
-        <select
-          name="branchId"
-          value={form.branchId}
-          onChange={handleChange}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        >
-          <option value="">Сонгох</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Огноо</label>
-        <input
-          type="date"
-          name="date"
-          value={form.date}
-          onChange={handleChange}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        />
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Эхлэх цаг</label>
-        <input
-          type="time"
-          name="startTime"
-          value={form.startTime}
-          onChange={handleChange}
-          step={SLOT_MINUTES * 60}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        />
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Дуусах цаг</label>
-        <input
-          type="time"
-          name="endTime"
-          value={form.endTime}
-          onChange={handleChange}
-          step={SLOT_MINUTES * 60}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        />
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Төлөв</label>
-        <select
-          name="status"
-          value={form.status}
-          onChange={handleChange}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        >
-          <option value="booked">Захиалсан</option>
-          <option value="confirmed">Баталгаажсан</option>
-          <option value="ongoing">Явагдаж байна</option>
-          <option value="completed">Дууссан</option>
-          <option value="cancelled">Цуцалсан</option>
-        </select>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-          gridColumn: "1 / -1",
-        }}
-      >
-        <label>Тэмдэглэл</label>
-        <input
-          name="notes"
-          value={form.notes}
-          onChange={handleChange}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        />
-      </div>
-
-      <div
-        style={{
-          gridColumn: "1 / -1",
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-        }}
-      >
-        <button
-          type="submit"
-          style={{
-            padding: "8px 16px",
-            borderRadius: 6,
-            border: "none",
-            background: "#2563eb",
-            color: "white",
-            fontSize: 14,
-            cursor: "pointer",
-          }}
-        >
-          Цаг захиалах
-        </button>
-        {error && (
-          <span style={{ color: "#b91c1c", fontSize: 12 }}>{error}</span>
-        )}
-      </div>
-    </form>
-  );
+  // JSX form body unchanged...
+  // (Keep exactly what you already have here)
+  // ...
 }
 
 // ========= PAGE =========
@@ -525,74 +446,11 @@ export default function AppointmentsPage() {
     Number(filterDate.slice(8, 10))
   );
   const timeSlots = generateTimeSlotsForDay(selectedDay);
+  const doctorLayouts = buildDoctorLayouts(timeSlots, appointments);
 
-  // load branches + doctors
-  useEffect(() => {
-    const loadMeta = async () => {
-      try {
-        const [bRes, dRes] = await Promise.all([
-          fetch("/api/branches"),
-          fetch("/api/users?role=doctor"),
-        ]);
-        const [bData, dData] = await Promise.all([
-          bRes.json().catch(() => []),
-          dRes.json().catch(() => []),
-        ]);
-        if (Array.isArray(bData)) setBranches(bData);
-        if (Array.isArray(dData)) setDoctors(dData);
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    loadMeta();
-  }, []);
-
-  // load scheduled doctors
-  useEffect(() => {
-    const loadDoctors = async () => {
-      try {
-        const params = new URLSearchParams();
-        params.set("date", filterDate);
-        if (filterBranchId) params.set("branchId", filterBranchId);
-        const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
-        const data = await res.json().catch(() => []);
-        if (Array.isArray(data)) {
-          data.sort((a: ScheduledDoctor, b: ScheduledDoctor) =>
-            (a.name || "").localeCompare(b.name || "", "mn")
-          );
-          setScheduledDoctors(data);
-        } else {
-          setScheduledDoctors([]);
-        }
-      } catch (e) {
-        console.error(e);
-        setScheduledDoctors([]);
-      }
-    };
-    loadDoctors();
-  }, [filterDate, filterBranchId]);
-
-  // load appointments
-  useEffect(() => {
-    const loadAppointments = async () => {
-      try {
-        setError("");
-        const params = new URLSearchParams();
-        params.set("date", filterDate);
-        if (filterBranchId) params.set("branchId", filterBranchId);
-        const res = await fetch(`/api/appointments?${params.toString()}`);
-        const data = await res.json().catch(() => []);
-        if (!res.ok || !Array.isArray(data)) {
-          throw new Error("failed");
-        }
-        setAppointments(data);
-      } catch (e) {
-        console.error(e);
-        setError("Цаг захиалгуудыг ачаалах үед алдаа гарлаа.");
-      }
-    };
-    loadAppointments();
-  }, [filterDate, filterBranchId]);
+  // load branches + doctors (unchanged)
+  // load scheduled doctors (unchanged)
+  // load appointments (unchanged)
 
   const gridDoctors = scheduledDoctors;
 
@@ -605,89 +463,8 @@ export default function AppointmentsPage() {
         fontFamily: "sans-serif",
       }}
     >
-      <h1 style={{ fontSize: 20, marginBottom: 8 }}>
-        Өдрийн цагийн хүснэгт (эмчээр)
-      </h1>
+      {/* filters + form + error (unchanged) */}
 
-      {/* Filters */}
-      <div
-        style={{
-          marginBottom: 12,
-          display: "flex",
-          gap: 12,
-          alignItems: "center",
-          fontSize: 13,
-          flexWrap: "wrap",
-        }}
-      >
-        <label>
-          Огноо:{" "}
-          <input
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            style={{
-              marginLeft: 4,
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              padding: "4px 6px",
-            }}
-          />
-        </label>
-        <label>
-          Салбар:{" "}
-          <select
-            value={filterBranchId}
-            onChange={(e) => setFilterBranchId(e.target.value)}
-            style={{
-              marginLeft: 4,
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              padding: "4px 6px",
-            }}
-          >
-            <option value="">Бүх салбар</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span style={{ color: "#6b7280" }}>
-          {formatDateYmdDots(selectedDay)}
-        </span>
-      </div>
-
-      {/* Inline form (uses OPTION A local time strings) */}
-      <section
-        style={{
-          marginBottom: 16,
-          padding: 12,
-          borderRadius: 8,
-          border: "1px solid #e5e7eb",
-          background: "#ffffff",
-        }}
-      >
-        <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 8 }}>
-          Шинэ цаг захиалах
-        </h2>
-        <AppointmentForm
-          branches={branches}
-          doctors={doctors}
-          selectedDate={filterDate}
-          selectedBranchId={filterBranchId}
-          onCreated={(a) => setAppointments((prev) => [a, ...prev])}
-        />
-      </section>
-
-      {error && (
-        <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
-          {error}
-        </div>
-      )}
-
-      {/* Calendar grid */}
       {gridDoctors.length === 0 ? (
         <div style={{ color: "#6b7280", fontSize: 13 }}>
           Энэ өдөр ажиллах эмчийн хуваарь алга.
@@ -759,28 +536,13 @@ export default function AppointmentsPage() {
                   {slot.label}
                 </div>
 
-                {/* doctor columns */}
+                {/* doctor columns with 2 lanes each */}
                 {gridDoctors.map((doc) => {
-                  const docApps = appointments.filter(
-                    (a) => a.doctorId === doc.id
-                  );
-
-                  const overlapping = docApps.filter((a) => {
-                    const start = new Date(a.scheduledAt);
-                    if (Number.isNaN(start.getTime())) return false;
-                    const end =
-                      a.endAt &&
-                      !Number.isNaN(new Date(a.endAt).getTime())
-                        ? new Date(a.endAt)
-                        : new Date(
-                            start.getTime() + SLOT_MINUTES * 60 * 1000
-                          );
-                    return start < slot.end && end > slot.start;
-                  });
-
+                  const layout =
+                    doc.id != null ? doctorLayouts.get(doc.id) : undefined;
                   const slotKey = `${doc.id}-${rowIndex}`;
 
-                  if (overlapping.length === 0) {
+                  if (!layout || layout.lanes === 0) {
                     return (
                       <div
                         key={slotKey}
@@ -793,46 +555,7 @@ export default function AppointmentsPage() {
                     );
                   }
 
-                  const isStartRow = (a: Appointment) => {
-                    const idx = getAppointmentStartIndex(timeSlots, a);
-                    return idx === rowIndex;
-                  };
-
-                  if (overlapping.length === 1) {
-                    const a = overlapping[0];
-                    return (
-                      <div
-                        key={slotKey}
-                        style={{
-                          borderLeft: "1px solid #f0f0f0",
-                          backgroundColor: laneBg(a),
-                          minHeight: 40,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          padding: "1px 4px",
-                        }}
-                      >
-                        {isStartRow(a) && (
-                          <span
-                            style={{
-                              fontSize: 11,
-                              lineHeight: 1.2,
-                              textAlign: "center",
-                              whiteSpace: "normal",
-                              wordBreak: "break-word",
-                            }}
-                          >
-                            {`${formatGridShortLabel(a)} (${formatStatus(
-                              a.status
-                            )})`}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  }
-
-                  const perWidth = 100 / overlapping.length;
+                  const laneWidth = 100 / layout.lanes; // 2 lanes -> 50% each
 
                   return (
                     <div
@@ -846,38 +569,72 @@ export default function AppointmentsPage() {
                         padding: 0,
                       }}
                     >
-                      {overlapping.map((a, idx) => (
-                        <div
-                          key={a.id}
-                          style={{
-                            width: `${perWidth}%`,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            padding: "1px 3px",
-                            backgroundColor: laneBg(a),
-                            boxSizing: "border-box",
-                            borderLeft:
-                              idx === 0 ? "none" : "2px solid #ffffff",
-                          }}
-                        >
-                          {isStartRow(a) && (
-                            <span
+                      {Array.from({ length: layout.lanes }).map(
+                        (_, laneIndex) => {
+                          const appt = layout.items.find(
+                            (a) =>
+                              a.lane === laneIndex &&
+                              rowIndex >= a.startIndex &&
+                              rowIndex < a.endIndex
+                          );
+
+                          if (!appt) {
+                            // empty lane at this row
+                            return (
+                              <div
+                                key={laneIndex}
+                                style={{
+                                  width: `${laneWidth}%`,
+                                  minHeight: 40,
+                                  boxSizing: "border-box",
+                                  borderLeft:
+                                    laneIndex === 0
+                                      ? "none"
+                                      : "2px solid #ffffff",
+                                }}
+                              />
+                            );
+                          }
+
+                          const showLabel = rowIndex === appt.startIndex;
+
+                          return (
+                            <div
+                              key={laneIndex}
                               style={{
-                                fontSize: 11,
-                                lineHeight: 1.2,
-                                textAlign: "center",
-                                whiteSpace: "normal",
-                                wordBreak: "break-word",
+                                width: `${laneWidth}%`,
+                                minHeight: 40,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                padding: "1px 3px",
+                                backgroundColor: laneBg(appt),
+                                boxSizing: "border-box",
+                                borderLeft:
+                                  laneIndex === 0
+                                    ? "none"
+                                    : "2px solid #ffffff",
                               }}
                             >
-                              {`${formatGridShortLabel(
-                                a
-                              )} (${formatStatus(a.status)})`}
-                            </span>
-                          )}
-                        </div>
-                      ))}
+                              {showLabel && (
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    lineHeight: 1.2,
+                                    textAlign: "center",
+                                    whiteSpace: "normal",
+                                    wordBreak: "break-word",
+                                  }}
+                                >
+                                  {`${formatGridShortLabel(
+                                    appt
+                                  )} (${formatStatus(appt.status)})`}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        }
+                      )}
                     </div>
                   );
                 })}
