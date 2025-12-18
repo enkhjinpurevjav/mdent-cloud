@@ -68,6 +68,7 @@ model Branch {
 
   // Appointments booked in this branch
   appointments    Appointment[]
+bookings Booking[]   // <-- NEW, all bookings in this branch
 }
 
 // ==========================================================
@@ -114,6 +115,7 @@ model User {
 
   // Appointments where this user is the doctor
   appointments       Appointment[]
+bookings Booking[]   // <-- NEW, all bookings for this user as doctor
 }
 
 // Join table for many-to-many between Doctor (User) and Branch
@@ -168,6 +170,7 @@ model Patient {
 
   // Back-relation to appointments
   appointments   Appointment[]
+bookings Booking[]   // <-- NEW, all bookings for this patient
 }
 
 // Appointment model
