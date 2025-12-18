@@ -2256,11 +2256,8 @@ export default function AppointmentsPage() {
   const groupedAppointments = groupByDate(appointments);
   const selectedDay = getDateFromYMD(filterDate);
   const timeSlots = generateTimeSlotsForDay(selectedDay);
-
-  // Precompute a grid: doctorId -> slotIndex -> Appointment[]
-const doctorSlotGrid: Record<number, Appointment[][]> = {};
-
-for (const doc of gridDoctors) {
+  const doctorSlotGrid: Record<number, Appointment[][]> = {};
+  for (const doc of gridDoctors) {
   const slotsForDoc: Appointment[][] = Array(timeSlots.length)
     .fill(null)
     .map(() => []);
