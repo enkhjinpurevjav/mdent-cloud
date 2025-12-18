@@ -37,8 +37,8 @@ type Appointment = {
   patientId: number;
   doctorId: number | null;
   branchId: number;
-  scheduledAt: string; // start
-  endAt?: string | null; // end
+  scheduledAt: string; // ISO
+  endAt?: string | null; // ISO
   status: string;
   notes: string | null;
   patient?: PatientLite;
@@ -46,7 +46,7 @@ type Appointment = {
   branch?: Branch | null;
 };
 
-// ==== time helpers ====
+// ========= time helpers =========
 
 const START_HOUR = 9;
 const END_HOUR = 21;
@@ -68,7 +68,7 @@ function getSlotTimeString(date: Date): string {
 
 function generateTimeSlotsForDay(day: Date): TimeSlot[] {
   const slots: TimeSlot[] = [];
-  const weekdayIndex = day.getDay(); // 0=Sun, 6=Sat
+  const weekdayIndex = day.getDay(); // 0=Sun,6=Sat
   const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
 
   const startHour = isWeekend ? 10 : START_HOUR;
@@ -96,13 +96,14 @@ function getAppointmentStartIndex(
 ): number | null {
   const start = new Date(a.scheduledAt);
   if (Number.isNaN(start.getTime())) return null;
-
   for (let i = 0; i < daySlots.length; i++) {
     const s = daySlots[i];
     if (start >= s.start && start < s.end) return i;
   }
   return null;
 }
+
+// ========= formatting helpers =========
 
 function formatDateYmdDots(date: Date): string {
   return date.toLocaleDateString("mn-MN", {
@@ -163,7 +164,7 @@ function laneBg(a: Appointment): string {
   }
 }
 
-// ==== PAGE (calendar only) ====
+// ========= PAGE =========
 
 export default function AppointmentsPage() {
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -183,7 +184,7 @@ export default function AppointmentsPage() {
   );
   const timeSlots = generateTimeSlotsForDay(selectedDay);
 
-  // load meta (branches + scheduled doctors)
+  // load branches
   useEffect(() => {
     const loadBranches = async () => {
       try {
@@ -197,8 +198,9 @@ export default function AppointmentsPage() {
     loadBranches();
   }, []);
 
+  // load scheduled doctors
   useEffect(() => {
-    const loadScheduledDoctors = async () => {
+    const loadDoctors = async () => {
       try {
         const params = new URLSearchParams();
         params.set("date", filterDate);
@@ -218,7 +220,7 @@ export default function AppointmentsPage() {
         setScheduledDoctors([]);
       }
     };
-    loadScheduledDoctors();
+    loadDoctors();
   }, [filterDate, filterBranchId]);
 
   // load appointments
@@ -257,6 +259,8 @@ export default function AppointmentsPage() {
       <h1 style={{ fontSize: 20, marginBottom: 8 }}>
         Өдрийн цагийн хүснэгт (эмчээр)
       </h1>
+
+      {/* Filters */}
       <div
         style={{
           marginBottom: 12,
@@ -264,6 +268,7 @@ export default function AppointmentsPage() {
           gap: 12,
           alignItems: "center",
           fontSize: 13,
+          flexWrap: "wrap",
         }}
       >
         <label>
@@ -383,134 +388,88 @@ export default function AppointmentsPage() {
                 </div>
 
                 {/* doctor columns */}
-               {gridDoctors.map((doc) => {
-  // All appointments for this doctor on this day
-  const docApps = appointments.filter((a) => a.doctorId === doc.id);
+                {gridDoctors.map((doc) => {
+                  // all appointments for this doctor on this day
+                  const docApps = appointments.filter(
+                    (a) => a.doctorId === doc.id
+                  );
 
-  // Appointments that overlap this 30-minute slot
-  const overlapping = docApps.filter((a) => {
-    const start = new Date(a.scheduledAt);
-    if (Number.isNaN(start.getTime())) return false;
+                  // appointments that overlap this slot
+                  const overlapping = docApps.filter((a) => {
+                    const start = new Date(a.scheduledAt);
+                    if (Number.isNaN(start.getTime())) return false;
+                    const end =
+                      a.endAt &&
+                      !Number.isNaN(new Date(a.endAt).getTime())
+                        ? new Date(a.endAt)
+                        : new Date(
+                            start.getTime() + SLOT_MINUTES * 60 * 1000
+                          );
+                    return start < slot.end && end > slot.start;
+                  });
 
-    const end =
-      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-        ? new Date(a.endAt)
-        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+                  const slotKey = `${doc.id}-${rowIndex}`;
 
-    return start < slot.end && end > slot.start;
-  });
+                  if (overlapping.length === 0) {
+                    // empty cell
+                    return (
+                      <div
+                        key={slotKey}
+                        style={{
+                          borderLeft: "1px solid #f0f0f0",
+                          backgroundColor: "#ffffff",
+                          minHeight: 40,
+                        }}
+                      />
+                    );
+                  }
 
-  const slotKey = `${doc.id}-${rowIndex}`;
+                  const isStartRow = (a: Appointment) => {
+                    const idx = getAppointmentStartIndex(timeSlots, a);
+                    return idx === rowIndex;
+                  };
 
-  // 0 appointments -> empty cell
-  if (overlapping.length === 0) {
-    return (
-      <div
-        key={slotKey}
-        style={{
-          borderLeft: "1px solid #f0f0f0",
-          backgroundColor: "#ffffff",
-          minHeight: 40,
-        }}
-      />
-    );
-  }
+                  if (overlapping.length === 1) {
+                    // single appointment -> full width
+                    const a = overlapping[0];
+                    return (
+                      <div
+                        key={slotKey}
+                        style={{
+                          borderLeft: "1px solid #f0f0f0",
+                          backgroundColor: laneBg(a),
+                          minHeight: 40,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "1px 4px",
+                        }}
+                      >
+                        {isStartRow(a) && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              lineHeight: 1.2,
+                              textAlign: "center",
+                              whiteSpace: "normal",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {`${formatGridShortLabel(a)} (${formatStatus(
+                              a.status
+                            )})`}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  }
 
-  // helper to know if this row is the appointment's start row
-  const isStartRow = (a: Appointment) => {
-    const startIndex = getAppointmentStartIndex(timeSlots, a);
-    return startIndex === rowIndex;
-  };
+                  // 2+ overlapping appointments in this row -> split evenly
+                  const perWidth = 100 / overlapping.length;
 
-  // 1 appointment -> full width
-  if (overlapping.length === 1) {
-    const a = overlapping[0];
-
-    return (
-      <div
-        key={slotKey}
-        style={{
-          borderLeft: "1px solid #f0f0f0",
-          backgroundColor: laneBg(a),
-          minHeight: 40,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "1px 4px",
-        }}
-        title={`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
-      >
-        {isStartRow(a) && (
-          <span
-            style={{
-              fontSize: 11,
-              lineHeight: 1.2,
-              textAlign: "center",
-              whiteSpace: "normal",
-              wordBreak: "break-word",
-            }}
-          >
-            {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  // 2+ appointments -> split evenly (we expect max 2 in your rules)
-  const perWidth = 100 / overlapping.length;
-
-  return (
-    <div
-      key={slotKey}
-      style={{
-        borderLeft: "1px solid #f0f0f0",
-        backgroundColor: "#ffffff",
-        minHeight: 40,
-        display: "flex",
-        flexDirection: "row",
-        padding: 0,
-      }}
-    >
-      {overlapping.map((a, idx) => (
-        <div
-          key={a.id}
-          style={{
-            width: `${perWidth}%`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1px 3px",
-            backgroundColor: laneBg(a),
-            boxSizing: "border-box",
-            borderLeft: idx === 0 ? "none" : "2px solid #ffffff",
-          }}
-          title={`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
-        >
-          {isStartRow(a) && (
-            <span
-              style={{
-                fontSize: 11,
-                lineHeight: 1.2,
-                textAlign: "center",
-                whiteSpace: "normal",
-                wordBreak: "break-word",
-              }}
-            >
-              {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
-            </span>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-})}
-
-                  // 2 or more overlapping -> split evenly (for now we only expect max 2)
-                  const toRender = overlapping.slice(0, 2);
                   return (
                     <div
-                      key={doc.id}
+                      key={slotKey}
                       style={{
                         borderLeft: "1px solid #f0f0f0",
                         backgroundColor: "#ffffff",
@@ -520,47 +479,38 @@ export default function AppointmentsPage() {
                         padding: 0,
                       }}
                     >
-                      {toRender.map((a, idx) => {
-                        const startIndex = getAppointmentStartIndex(
-                          timeSlots,
-                          a
-                        );
-                        const isStartRow = startIndex === rowIndex;
-                        return (
-                          <div
-                            key={a.id}
-                            style={{
-                              flex: 1,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              padding: "1px 3px",
-                              backgroundColor: laneBg(a),
-                              borderLeft:
-                                idx === 0
-                                  ? "none"
-                                  : "2px solid #ffffff",
-                              boxSizing: "border-box",
-                            }}
-                          >
-                            {isStartRow && (
-                              <span
-                                style={{
-                                  fontSize: 11,
-                                  lineHeight: 1.2,
-                                  textAlign: "center",
-                                  whiteSpace: "normal",
-                                  wordBreak: "break-word",
-                                }}
-                              >
-                                {`${formatGridShortLabel(
-                                  a
-                                )} (${formatStatus(a.status)})`}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
+                      {overlapping.map((a, idx) => (
+                        <div
+                          key={a.id}
+                          style={{
+                            width: `${perWidth}%`,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "1px 3px",
+                            backgroundColor: laneBg(a),
+                            boxSizing: "border-box",
+                            borderLeft:
+                              idx === 0 ? "none" : "2px solid #ffffff",
+                          }}
+                        >
+                          {isStartRow(a) && (
+                            <span
+                              style={{
+                                fontSize: 11,
+                                lineHeight: 1.2,
+                                textAlign: "center",
+                                whiteSpace: "normal",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {`${formatGridShortLabel(
+                                a
+                              )} (${formatStatus(a.status)})`}
+                            </span>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   );
                 })}
