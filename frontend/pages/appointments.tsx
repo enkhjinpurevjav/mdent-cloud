@@ -680,93 +680,103 @@ export default function AppointmentsPage() {
 
                 {/* doctor columns */}
                 {gridDoctors.map((doc) => {
-                  const docApps = appointments.filter(
-                    (a) => a.doctorId === doc.id
-                  );
+  const docApps = appointments.filter((a) => a.doctorId === doc.id);
 
-                  const overlapping = docApps.filter((a) => {
-                    const start = new Date(a.scheduledAt);
-                    if (Number.isNaN(start.getTime())) return false;
-                    const end =
-                      a.endAt &&
-                      !Number.isNaN(new Date(a.endAt).getTime())
-                        ? new Date(a.endAt)
-                        : new Date(
-                            start.getTime() + SLOT_MINUTES * 60 * 1000
-                          );
-                    return start < slot.end && end > slot.start;
-                  });
+  // New rule: only show appts in their *start* row
+  const overlapping = docApps.filter((a) => {
+    const idx = getAppointmentStartIndex(timeSlots, a);
+    return idx === rowIndex;
+  });
 
-                  // Optional debug
-                  if (doc.id === 4 && filterDate === "2025-12-16") {
-                    console.log(
-                      "DEBUG SLOT",
-                      slot.label,
-                      "doc",
-                      doc.id,
-                      "overlapping:",
-                      overlapping.map((a) => ({
-                        id: a.id,
-                        scheduledAt: a.scheduledAt,
-                        endAt: a.endAt,
-                        status: a.status,
-                      }))
-                    );
-                  }
+  const slotKey = `${doc.id}-${rowIndex}`;
 
-                  const slotKey = `${doc.id}-${rowIndex}`;
+  if (overlapping.length === 0) {
+    return (
+      <div
+        key={slotKey}
+        style={{
+          borderLeft: "1px solid #f0f0f0",
+          backgroundColor: "#ffffff",
+          minHeight: 40,
+        }}
+      />
+    );
+  }
 
-                  if (overlapping.length === 0) {
-                    return (
-                      <div
-                        key={slotKey}
-                        style={{
-                          borderLeft: "1px solid #f0f0f0",
-                          backgroundColor: "#ffffff",
-                          minHeight: 40,
-                        }}
-                      />
-                    );
-                  }
+  if (overlapping.length === 1) {
+    const a = overlapping[0];
+    return (
+      <div
+        key={slotKey}
+        style={{
+          borderLeft: "1px solid #f0f0f0",
+          backgroundColor: laneBg(a),
+          minHeight: 40,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "1px 4px",
+        }}
+      >
+        <span
+          style={{
+            fontSize: 11,
+            lineHeight: 1.2,
+            textAlign: "center",
+            whiteSpace: "normal",
+            wordBreak: "break-word",
+          }}
+        >
+          {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
+        </span>
+      </div>
+    );
+  }
 
-                  const isStartRow = (a: Appointment) => {
-                    const idx = getAppointmentStartIndex(timeSlots, a);
-                    return idx === rowIndex;
-                  };
+  const perWidth = 100 / overlapping.length;
 
-                  if (overlapping.length === 1) {
-                    const a = overlapping[0];
-                    return (
-                      <div
-                        key={slotKey}
-                        style={{
-                          borderLeft: "1px solid #f0f0f0",
-                          backgroundColor: laneBg(a),
-                          minHeight: 40,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          padding: "1px 4px",
-                        }}
-                      >
-                        {isStartRow(a) && (
-                          <span
-                            style={{
-                              fontSize: 11,
-                              lineHeight: 1.2,
-                              textAlign: "center",
-                              whiteSpace: "normal",
-                              wordBreak: "break-word",
-                            }}
-                          >
-                            {`${formatGridShortLabel(a)} (${formatStatus(
-                              a.status
-                            )})`}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  }
+  return (
+    <div
+      key={slotKey}
+      style={{
+        borderLeft: "1px solid #f0f0f0",
+        backgroundColor: "#ffffff",
+        minHeight: 40,
+        display: "flex",
+        flexDirection: "row",
+        padding: 0,
+      }}
+    >
+      {overlapping.map((a, idx) => (
+        <div
+          key={a.id}
+          style={{
+            width: `${perWidth}%`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1px 3px",
+            backgroundColor: laneBg(a),
+            boxSizing: "border-box",
+            borderLeft: idx === 0 ? "none" : "2px solid #ffffff",
+          }}
+        >
+          <span
+            style={{
+              fontSize: 11,
+              lineHeight: 1.2,
+              textAlign: "center",
+              whiteSpace: "normal",
+              wordBreak: "break-word",
+            }}
+          >
+            {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+})}
 
                   const perWidth = 100 / overlapping.length;
 
