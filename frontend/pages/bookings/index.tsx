@@ -434,15 +434,17 @@ const heightPx = (slotIndexEnd - slotIndexStart) * slotHeight;
   .filter((b) => b.doctor.id === wd.doctor.id)
   .map((b) => {
     const startMin = timeToMinutes(b.startTime);
-    const endMin = timeToMinutes(b.endTime);
-    const offsetMin = startMin - dayStartMinutes;
-    const durationMin = endMin - startMin;
+const endMin = timeToMinutes(b.endTime);
+const slotIndexStart =
+  (startMin - dayStartMinutes) / SLOT_MINUTES;
+const slotIndexEnd =
+  (endMin - dayStartMinutes) / SLOT_MINUTES;
 
-    const top = offsetMin * (ROW_HEIGHT / SLOT_MINUTES);
-    const height = Math.max(
-      durationMin * (ROW_HEIGHT / SLOT_MINUTES),
-      16
-    );
+const top = slotIndexStart * ROW_HEIGHT;
+const height = Math.max(
+  (slotIndexEnd - slotIndexStart) * ROW_HEIGHT,
+  ROW_HEIGHT / 2
+);
 
     // simple color per status
     let bg = "#67e8f9"; // PENDING
