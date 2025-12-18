@@ -763,7 +763,21 @@ export default function AppointmentsPage() {
                 {gridDoctors.map((doc) => {
                   const docApps = appointments.filter(
                     (a) => a.doctorId === doc.id
-                  );
+                 if (doc.id === 4 && filterDate === "2025-12-16") {
+  console.log(
+    "DEBUG SLOT",
+    slot.label,
+    "doc",
+    doc.id,
+    "overlapping:",
+    overlapping.map((a) => ({
+      id: a.id,
+      scheduledAt: a.scheduledAt,
+      endAt: a.endAt,
+      status: a.status,
+    }))
+  );
+} );
 
                   const overlapping = docApps.filter((a) => {
                     const start = new Date(a.scheduledAt);
