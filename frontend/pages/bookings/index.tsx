@@ -411,32 +411,88 @@ const heightPx = heightMinutes * (ROW_HEIGHT / SLOT_MINUTES);
                     }}
                   >
                     {/* schedule background */}
-                    <div
-                      style={{
-                        position: "absolute",
-                        left: 0,
-                        right: 0,
-                        top: topPx,
-                        height: heightPx,
-                        background: "#ecfeff",
-                        opacity: 0.5,
-                        pointerEvents: "none",
-                      }}
-                    />
+<div
+  style={{
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: topPx,
+    height: heightPx,
+    background: "#ecfeff",
+    opacity: 0.5,
+    pointerEvents: "none",
+  }}
+/>
 
-                    {/* rows to match height */}
-                    {timeSlots.map((t, idx) => (
-                      <div
-                        key={t}
-                        style={{
-                          height: ROW_HEIGHT,
-                          borderBottom:
-                            idx === timeSlots.length - 1
-                              ? "none"
-                              : "1px solid #f9fafb",
-                        }}
-                      />
-                    ))}
+{/* booking blocks (simple version, full-width) */}
+{bookings
+  .filter((b) => b.doctor.id === wd.doctor.id)
+  .map((b) => {
+    const startMin = timeToMinutes(b.startTime);
+    const endMin = timeToMinutes(b.endTime);
+    const offsetMin = startMin - dayStartMinutes;
+    const durationMin = endMin - startMin;
+
+    const top = offsetMin * (ROW_HEIGHT / SLOT_MINUTES);
+    const height = Math.max(
+      durationMin * (ROW_HEIGHT / SLOT_MINUTES),
+      16
+    );
+
+    // simple color per status
+    let bg = "#67e8f9"; // PENDING
+    if (b.status === "CONFIRMED") bg = "#bbf7d0";
+    if (b.status === "IN_PROGRESS") bg = "#fed7aa";
+    if (b.status === "COMPLETED") bg = "#f9a8d4";
+    if (b.status === "CANCELLED") bg = "#e5e7eb";
+
+    const patientLabel =
+      b.patient?.name ||
+      b.patient?.regNo ||
+      b.patient?.phone ||
+      `ID ${b.patient?.id}`;
+
+    return (
+      <div
+        key={b.id}
+        style={{
+          position: "absolute",
+          left: 4,
+          right: 4,
+          top,
+          height,
+          background: bg,
+          borderRadius: 4,
+          padding: "4px 6px",
+          fontSize: 12,
+          overflow: "hidden",
+          boxShadow: "0 1px 2px rgba(15,23,42,0.15)",
+        }}
+        title={`${b.startTime}–${b.endTime} • ${b.status}`}
+      >
+        <div style={{ fontWeight: 500, whiteSpace: "nowrap" }}>
+          {patientLabel}
+        </div>
+        <div style={{ fontSize: 11 }}>
+          {b.startTime}–{b.endTime}
+        </div>
+      </div>
+    );
+  })}
+
+/* rows to match height */
+{timeSlots.map((t, idx) => (
+  <div
+    key={t}
+    style={{
+      height: ROW_HEIGHT,
+      borderBottom:
+        idx === timeSlots.length - 1
+          ? "none"
+          : "1px solid #f9fafb",
+    }}
+  />
+))}
                   </div>
                 );
               })}
