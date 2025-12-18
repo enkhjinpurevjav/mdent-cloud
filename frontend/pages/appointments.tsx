@@ -2265,48 +2265,72 @@ export default function AppointmentsPage() {
   const selectedDay = getDateFromYMD(filterDate);
   const timeSlots = generateTimeSlotsForDay(selectedDay);
 
-    // 2‑lane grid per doctor for the selected day
-  type LaneCell = Appointment | null;
-  type DoctorLanes = [LaneCell[], LaneCell[]];
+  // 2‑lane grid per doctor for the selected day
+  // ===== inside AppointmentsPage component, after timeSlots and before useState hooks =====
 
-  const doctorLanesMap: Record<number, DoctorLanes> = {};
+// 2‑lane grid per doctor for the selected day
+type LaneCell = Appointment | null;
+type DoctorLanes = [LaneCell[], LaneCell[]];
 
-  const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
+const doctorLanesMap: Record<number, DoctorLanes> = {};
 
-  gridDoctors.forEach((doc) => {
-    const lanes: DoctorLanes = [
-      Array<LaneCell>(timeSlots.length).fill(null),
-      Array<LaneCell>(timeSlots.length).fill(null),
-    ];
+const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
 
-    const docApps = appointments.filter((a) => a.doctorId === doc.id);
-    for (const a of docApps) {
-      const range = getAppointmentSlotRange(timeSlots, a);
-      if (!range) continue;
-      const { startIndex, endIndex } = range;
+// Fill 2 lanes per doctor for this day's time slots
+gridDoctors.forEach((doc) => {
+  const lanes: DoctorLanes = [
+    Array<LaneCell>(timeSlots.length).fill(null),
+    Array<LaneCell>(timeSlots.length).fill(null),
+  ];
 
-      const canPlaceInLane = (laneIndex: 0 | 1) => {
-        for (let i = startIndex; i < endIndex; i++) {
-          if (lanes[laneIndex][i] !== null) return false;
-        }
-        return true;
-      };
+  const docApps = appointments.filter((a) => a.doctorId === doc.id);
+  for (const a of docApps) {
+    const range = getAppointmentSlotRange(timeSlots, a);
+    if (!range) continue;
+    const { startIndex, endIndex } = range;
 
-      if (canPlaceInLane(0)) {
-        for (let i = startIndex; i < endIndex; i++) {
-          lanes[0][i] = a;
-        }
-      } else if (canPlaceInLane(1)) {
-        for (let i = startIndex; i < endIndex; i++) {
-          lanes[1][i] = a;
-        }
+    const canPlaceInLane = (laneIndex: 0 | 1) => {
+      for (let i = startIndex; i < endIndex; i++) {
+        if (lanes[laneIndex][i] !== null) return false;
+      }
+      return true;
+    };
+
+    if (canPlaceInLane(0)) {
+      for (let i = startIndex; i < endIndex; i++) {
+        lanes[0][i] = a;
+      }
+    } else if (canPlaceInLane(1)) {
+      for (let i = startIndex; i < endIndex; i++) {
+        lanes[1][i] = a;
       }
     }
+    // if neither lane can fit, skip; creation-side countAppointmentsInSlot prevents >2 per block
+  }
 
-    doctorLanesMap[doc.id] = lanes;
-  });
+  doctorLanesMap[doc.id] = lanes;
 });
 
+  // DEBUG: log lanes for one doctor and first few slots
+  if (gridDoctors.length > 0) {
+    const debugDoc = gridDoctors[0];
+    const lanes = doctorLanesMap[debugDoc.id];
+    console.log("DEBUG lanes for", debugDoc.name, "on", filterDate);
+    timeSlots.forEach((slot, idx) => {
+      const l0 = lanes[0][idx];
+      const l1 = lanes[1][idx];
+      if (l0 || l1) {
+        console.log(
+          slot.label,
+          "lane0=",
+          l0 ? `${l0.id} ${l0.scheduledAt} -> ${l0.endAt}` : null,
+          " lane1=",
+          l1 ? `${l1.id} ${l1.scheduledAt} -> ${l1.endAt}` : null
+        );
+      }
+    });
+  }
+  
   const [detailsModalState, setDetailsModalState] = useState<{
     open: boolean;
     doctor?: Doctor | null;
