@@ -22,7 +22,7 @@ router.get("/", async (req, res) => {
   try {
     const { date, branchId, doctorId, patientId } = req.query;
 
-    const where: any = {};
+    const where = {};
 
     if (branchId) {
       const parsed = Number(branchId);
