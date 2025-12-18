@@ -44,8 +44,11 @@ type Appointment = {
   doctor?: Doctor | null;
   branch?: Branch | null;
 };
+
+// 2‑lane types
 type LaneCell = Appointment | null;
 type DoctorLanes = [LaneCell[], LaneCell[]];
+
 function groupByDate(appointments: Appointment[]) {
   const map: Record<string, Appointment[]> = {};
   for (const a of appointments) {
@@ -106,7 +109,6 @@ function pad2(n: number) {
 }
 
 function getSlotTimeString(date: Date): string {
-  // "HH:MM" in local time
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
@@ -122,7 +124,6 @@ function getAppointmentSlotRange(
       ? new Date(a.endAt)
       : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
 
-  // Only consider appointments on this day
   if (!daySlots.length) return null;
   const dayYmd = daySlots[0].start.toISOString().slice(0, 10);
   const apptYmd = start.toISOString().slice(0, 10);
@@ -133,7 +134,6 @@ function getAppointmentSlotRange(
 
   for (let i = 0; i < daySlots.length; i++) {
     const s = daySlots[i];
-    // overlap check: [start,end) overlaps [s.start,s.end)
     if (start < s.end && end > s.start) {
       if (startIndex === -1) startIndex = i;
       endIndex = i + 1; // exclusive
@@ -157,9 +157,7 @@ function addMinutesToTimeString(time: string, minutesToAdd: number): string {
 
   const newH = Math.floor(total / 60);
   const newM = total % 60;
-  return `${newH.toString().padStart(2, "0")}:${newM
-    .toString()
-    .padStart(2, "0")}`;
+  return `${pad2(newH)}:${pad2(newM)}`;
 }
 
 function getAppointmentStartIndex(
@@ -177,7 +175,6 @@ function getAppointmentStartIndex(
 }
 
 function isTimeWithinRange(time: string, startTime: string, endTime: string) {
-  // inclusive of start, exclusive of end
   return time >= startTime && time < endTime;
 }
 
@@ -232,12 +229,8 @@ function formatPatientSearchLabel(p: PatientLite): string {
   if (ovog || name) {
     parts.push([ovog, name].filter(Boolean).join(" "));
   }
-  if (phone) {
-    parts.push(`Утас: ${phone}`);
-  }
-  if (regNo) {
-    parts.push(`РД: ${regNo}`);
-  }
+  if (phone) parts.push(`Утас: ${phone}`);
+  if (regNo) parts.push(`РД: ${regNo}`);
   if (p.patientBook?.bookNumber) {
     parts.push(`Карт #${p.patientBook.bookNumber}`);
   }
@@ -2296,7 +2289,6 @@ export default function AppointmentsPage() {
           lanes[1][i] = a;
         }
       }
-      // else: more than 2 overlaps; creation code should prevent this
     }
 
     doctorLanesMap[doc.id] = lanes;
@@ -2326,7 +2318,6 @@ export default function AppointmentsPage() {
   });
 
   const formSectionRef = useRef<HTMLElement | null>(null);
-
       {/* Time grid by doctor with merged blocks */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
