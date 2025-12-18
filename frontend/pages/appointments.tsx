@@ -99,6 +99,106 @@ function getAppointmentStartIndex(
   return null;
 }
 
+type TimedAppointment = Appointment & {
+  startIndex: number;
+  endIndex: number;
+  lane: number;
+};
+
+type DoctorLayout = {
+  doctorId: number;
+  lanes: number;
+  items: TimedAppointment[];
+};
+
+// Compute per-doctor lane layout so appointments can span downward.
+function buildDoctorLayouts(
+  timeSlots: TimeSlot[],
+  appointments: Appointment[]
+): Map<number, DoctorLayout> {
+  const byDoctor = new Map<number, Appointment[]>();
+
+  for (const a of appointments) {
+    if (a.doctorId == null) continue;
+    const list = byDoctor.get(a.doctorId) || [];
+    list.push(a);
+    byDoctor.set(a.doctorId, list);
+  }
+
+  const layouts = new Map<number, DoctorLayout>();
+
+  for (const [doctorId, docApps] of byDoctor.entries()) {
+    const timed: TimedAppointment[] = [];
+
+    for (const a of docApps) {
+      const startIdx = getAppointmentStartIndex(timeSlots, a);
+      if (startIdx == null) continue;
+
+      let end: Date;
+      if (a.endAt) {
+        const d = new Date(a.endAt);
+        end = Number.isNaN(d.getTime())
+          ? new Date(
+              new Date(a.scheduledAt).getTime() + SLOT_MINUTES * 60 * 1000
+            )
+          : d;
+      } else {
+        end = new Date(
+          new Date(a.scheduledAt).getTime() + SLOT_MINUTES * 60 * 1000
+        );
+      }
+
+      // find the first slot index where end <= slot.start
+      let endIdx = timeSlots.length;
+      for (let i = startIdx; i < timeSlots.length; i++) {
+        if (end <= timeSlots[i].start) {
+          endIdx = i;
+          break;
+        }
+      }
+
+      timed.push({
+        ...a,
+        startIndex: startIdx,
+        endIndex: endIdx,
+        lane: 0, // temporary, will assign next
+      });
+    }
+
+    // Sort by start time
+    timed.sort((a, b) => {
+      const ta = new Date(a.scheduledAt).getTime();
+      const tb = new Date(b.scheduledAt).getTime();
+      return ta - tb;
+    });
+
+    // Assign lanes greedily
+    const laneEndByLane: number[] = []; // for each lane, last endIndex
+
+    for (const appt of timed) {
+      let lane = 0;
+      while (true) {
+        const lastEnd = laneEndByLane[lane];
+        if (lastEnd === undefined || lastEnd <= appt.startIndex) {
+          // we can use this lane
+          appt.lane = lane;
+          laneEndByLane[lane] = appt.endIndex;
+          break;
+        }
+        lane++;
+      }
+    }
+
+    layouts.set(doctorId, {
+      doctorId,
+      lanes: laneEndByLane.length,
+      items: timed,
+    });
+  }
+
+  return layouts;
+}
+
 // ========= formatting helpers =========
 
 function formatDateYmdDots(date: Date): string {
@@ -331,7 +431,7 @@ export default function AppointmentsPage() {
     Number(filterDate.slice(8, 10))
   );
   const timeSlots = generateTimeSlotsForDay(selectedDay);
-
+  const doctorLayouts = buildDoctorLayouts(timeSlots, appointments);
   useEffect(() => {
     const loadMeta = async () => {
       try {
@@ -489,62 +589,101 @@ export default function AppointmentsPage() {
 
                 {/* doctor columns */}
                 {gridDoctors.map((doc) => {
-                  const docApps = appointments.filter(
-                    (a) => a.doctorId === doc.id
-                  );
+  const layout = doc.id != null ? doctorLayouts.get(doc.id) : undefined;
 
-                  // Only show appointments in their start row
-                  const overlapping = docApps.filter((a) => {
-                    const idx = getAppointmentStartIndex(timeSlots, a);
-                    return idx === rowIndex;
-                  });
+  const slotKey = `${doc.id}-${rowIndex}`;
 
-                  const slotKey = `${doc.id}-${rowIndex}`;
+  if (!layout || layout.lanes === 0) {
+    // No appointments for this doctor at all
+    return (
+      <div
+        key={slotKey}
+        style={{
+          borderLeft: "1px solid #f0f0f0",
+          backgroundColor: "#ffffff",
+          minHeight: 40,
+        }}
+      />
+    );
+  }
 
-                  if (overlapping.length === 0) {
-                    return (
-                      <div
-                        key={slotKey}
-                        style={{
-                          borderLeft: "1px solid #f0f0f0",
-                          backgroundColor: "#ffffff",
-                          minHeight: 40,
-                        }}
-                      />
-                    );
-                  }
+  // For this row, build cells per lane
+  const laneWidth = 100 / layout.lanes;
 
-                  if (overlapping.length === 1) {
-                    const a = overlapping[0];
-                    return (
-                      <div
-                        key={slotKey}
-                        style={{
-                          borderLeft: "1px solid #f0f0f0",
-                          backgroundColor: laneBg(a),
-                          minHeight: 40,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          padding: "1px 4px",
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: 11,
-                            lineHeight: 1.2,
-                            textAlign: "center",
-                            whiteSpace: "normal",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          {`${formatGridShortLabel(a)} (${formatStatus(
-                            a.status
-                          )})`}
-                        </span>
-                      </div>
-                    );
-                  }
+  return (
+    <div
+      key={slotKey}
+      style={{
+        borderLeft: "1px solid #f0f0f0",
+        backgroundColor: "#ffffff",
+        minHeight: 40,
+        display: "flex",
+        flexDirection: "row",
+        padding: 0,
+      }}
+    >
+      {Array.from({ length: layout.lanes }).map((_, laneIndex) => {
+        const appt = layout.items.find(
+          (a) =>
+            a.lane === laneIndex &&
+            rowIndex >= a.startIndex &&
+            rowIndex < a.endIndex
+        );
+
+        if (!appt) {
+          // empty lane cell at this row
+          return (
+            <div
+              key={laneIndex}
+              style={{
+                width: `${laneWidth}%`,
+                minHeight: 40,
+                boxSizing: "border-box",
+                borderLeft: laneIndex === 0 ? "none" : "2px solid #ffffff",
+              }}
+            />
+          );
+        }
+
+        // Only render label on first row of this appointment
+        const showLabel = rowIndex === appt.startIndex;
+
+        return (
+          <div
+            key={laneIndex}
+            style={{
+              width: `${laneWidth}%`,
+              minHeight: 40,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "1px 3px",
+              backgroundColor: laneBg(appt),
+              boxSizing: "border-box",
+              borderLeft: laneIndex === 0 ? "none" : "2px solid #ffffff",
+            }}
+          >
+            {showLabel && (
+              <span
+                style={{
+                  fontSize: 11,
+                  lineHeight: 1.2,
+                  textAlign: "center",
+                  whiteSpace: "normal",
+                  wordBreak: "break-word",
+                }}
+              >
+                {`${formatGridShortLabel(appt)} (${formatStatus(
+                  appt.status
+                )})`}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+})}
 
                   const perWidth = 100 / overlapping.length;
 
