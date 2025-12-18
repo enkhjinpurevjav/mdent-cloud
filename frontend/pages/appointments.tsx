@@ -2266,46 +2266,50 @@ export default function AppointmentsPage() {
   const timeSlots = generateTimeSlotsForDay(selectedDay);
 
   // 2‑lane grid per doctor for the selected day
-  type LaneCell = Appointment | null;
-  type DoctorLanes = [LaneCell[], LaneCell[]];
+  // ===== inside AppointmentsPage component, after timeSlots and before useState hooks =====
 
-  const doctorLanesMap: Record<number, DoctorLanes> = {};
+// 2‑lane grid per doctor for the selected day
+type LaneCell = Appointment | null;
+type DoctorLanes = [LaneCell[], LaneCell[]];
 
-  const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
+const doctorLanesMap: Record<number, DoctorLanes> = {};
 
-  gridDoctors.forEach((doc) => {
-    const lanes: DoctorLanes = [
-      Array<LaneCell>(timeSlots.length).fill(null),
-      Array<LaneCell>(timeSlots.length).fill(null),
-    ];
+const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
 
-    const docApps = appointments.filter((a) => a.doctorId === doc.id);
-    for (const a of docApps) {
-      const range = getAppointmentSlotRange(timeSlots, a);
-      if (!range) continue;
-      const { startIndex, endIndex } = range;
+// Fill 2 lanes per doctor for this day's time slots
+gridDoctors.forEach((doc) => {
+  const lanes: DoctorLanes = [
+    Array<LaneCell>(timeSlots.length).fill(null),
+    Array<LaneCell>(timeSlots.length).fill(null),
+  ];
 
-      const canPlaceInLane = (laneIndex: 0 | 1) => {
-        for (let i = startIndex; i < endIndex; i++) {
-          if (lanes[laneIndex][i] !== null) return false;
-        }
-        return true;
-      };
+  const docApps = appointments.filter((a) => a.doctorId === doc.id);
+  for (const a of docApps) {
+    const range = getAppointmentSlotRange(timeSlots, a);
+    if (!range) continue;
+    const { startIndex, endIndex } = range;
 
-      if (canPlaceInLane(0)) {
-        for (let i = startIndex; i < endIndex; i++) {
-          lanes[0][i] = a;
-        }
-      } else if (canPlaceInLane(1)) {
-        for (let i = startIndex; i < endIndex; i++) {
-          lanes[1][i] = a;
-        }
+    const canPlaceInLane = (laneIndex: 0 | 1) => {
+      for (let i = startIndex; i < endIndex; i++) {
+        if (lanes[laneIndex][i] !== null) return false;
       }
-      // if neither lane can fit, we skip; creation-side check should prevent this
-    }
+      return true;
+    };
 
-    doctorLanesMap[doc.id] = lanes;
-  });
+    if (canPlaceInLane(0)) {
+      for (let i = startIndex; i < endIndex; i++) {
+        lanes[0][i] = a;
+      }
+    } else if (canPlaceInLane(1)) {
+      for (let i = startIndex; i < endIndex; i++) {
+        lanes[1][i] = a;
+      }
+    }
+    // if neither lane can fit, skip; creation-side countAppointmentsInSlot prevents >2 per block
+  }
+
+  doctorLanesMap[doc.id] = lanes;
+});
 
   const [detailsModalState, setDetailsModalState] = useState<{
     open: boolean;
@@ -2681,8 +2685,8 @@ export default function AppointmentsPage() {
                     {slot.label}
                   </div>
 
-                  {/* Doctor columns */}
-                  {gridDoctors.map((doc) => {
+                 {/* Doctor columns */}
+{gridDoctors.map((doc) => {
   const lanes = doctorLanesMap[doc.id];
   const lane0 = lanes ? lanes[0][rowIndex] : null;
   const lane1 = lanes ? lanes[1][rowIndex] : null;
@@ -2721,7 +2725,7 @@ export default function AppointmentsPage() {
     });
   };
 
-  // 0 appointments in this slot
+  // 0 appointments in this slot for this doctor
   if (!lane0 && !lane1) {
     return (
       <div
@@ -2737,7 +2741,6 @@ export default function AppointmentsPage() {
     );
   }
 
-  // Background color per status
   const laneBg = (a: Appointment): string => {
     switch (a.status) {
       case "completed":
@@ -2753,13 +2756,13 @@ export default function AppointmentsPage() {
     }
   };
 
-  // If only one lane is filled → treat it as single block spanning multiple rows
+  // ONE appointment (either lane0 or lane1)
   if ((!!lane0 && !lane1) || (!lane0 && !!lane1)) {
     const a = lane0 || lane1;
     const startIndex = getAppointmentStartIndex(timeSlots, a!);
     const isStartRow = startIndex === rowIndex;
 
-    // Simple colored bar if not start row
+    // Non-start rows: solid bar only, no text
     if (!isStartRow) {
       return (
         <div
@@ -2813,7 +2816,7 @@ export default function AppointmentsPage() {
     );
   }
 
-  // Two lanes: both appointments exist
+  // TWO appointments (both lanes filled)
   const lane0StartIndex = getAppointmentStartIndex(timeSlots, lane0!);
   const lane1StartIndex = getAppointmentStartIndex(timeSlots, lane1!);
   const lane0IsStart = lane0StartIndex === rowIndex;
