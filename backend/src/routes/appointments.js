@@ -18,7 +18,7 @@ const ALLOWED_STATUSES = [
  * GET /api/appointments
  *
  * Optional query parameters:
- *  - date=YYYY-MM-DD       → filter by calendar date (LOCAL string range)
+ *  - date=YYYY-MM-DD       → filter by calendar date (LOCAL, string prefix)
  *  - branchId=number       → filter by branch
  *  - doctorId=number       → filter by doctor
  *  - patientId=number      → filter by patient
@@ -45,20 +45,15 @@ router.get("/", async (req, res) => {
     }
 
     if (date) {
-  const dateStr = String(date); // expected "YYYY-MM-DD"
-  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) {
-    return res.status(400).json({ error: "Invalid date format" });
-  }
+      const dateStr = String(date); // expected "YYYY-MM-DD"
+      const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!m) {
+        return res.status(400).json({ error: "Invalid date format" });
+      }
 
-  where.scheduledAt = { startsWith: dateStr };
-}
-
-      const dayStart = `${dateStr} 00:00:00`;
-      const dayEnd = `${dateStr} 23:59:59`;
-
-      // scheduledAt is String("YYYY-MM-DD HH:MM:SS"), so lexicographic range works
-      where.scheduledAt = { gte: dayStart, lte: dayEnd };
+      // scheduledAt is a String; allow either "YYYY-MM-DD HH:MM:SS"
+      // or legacy "YYYY-MM-DDTHH:MM:SSZ" by prefix match
+      where.scheduledAt = { startsWith: dateStr };
     }
 
     const appointments = await prisma.appointment.findMany({
@@ -236,8 +231,6 @@ router.post("/", async (req, res) => {
 
 /**
  * PATCH /api/appointments/:id
- *
- * Currently used to update status only.
  */
 router.patch("/:id", async (req, res) => {
   try {
