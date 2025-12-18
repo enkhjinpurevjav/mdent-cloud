@@ -9,6 +9,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum BookingStatus {
+  PENDING      // Захиалсан
+  CONFIRMED    // Баталгаажсан
+  IN_PROGRESS  // Явж байна
+  COMPLETED    // Дууссан
+  CANCELLED    // Цуцалсан
+}
+
 // GENERATOR
 generator client {
   provider = "prisma-client-js"
@@ -180,6 +188,33 @@ model Appointment {
   branch      Branch    @relation(fields: [branchId], references: [id])
 
   @@index([branchId, scheduledAt])
+}
+
+model Booking {
+  id        Int           @id @default(autoincrement())
+
+  doctorId  Int
+  branchId  Int
+  patientId Int
+
+  /// Stored as date-only (we normalize to 00:00:00 UTC/local)
+  date      DateTime
+
+  /// HH:MM 24h format (e.g. "09:30")
+  startTime String
+
+  /// HH:MM 24h format (e.g. "10:00")
+  endTime   String
+
+  status    BookingStatus @default(PENDING)
+  note      String?       @db.Text
+
+  doctor  User    @relation(fields: [doctorId], references: [id])
+  branch  Branch  @relation(fields: [branchId], references: [id])
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // DIGITAL HISTORY BOOK
