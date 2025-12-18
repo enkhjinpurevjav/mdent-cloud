@@ -16,12 +16,7 @@ const ALLOWED_STATUSES = [
 
 /**
  * GET /api/appointments
- *
- * Optional query parameters:
- *  - date=YYYY-MM-DD       → filter by calendar date (server timezone, using 00:00–23:59)
- *  - branchId=number       → filter by branch
- *  - doctorId=number       → filter by doctor
- *  - patientId=number      → filter by patient
+ * (unchanged from what you have)
  */
 router.get("/", async (req, res) => {
   try {
@@ -45,30 +40,23 @@ router.get("/", async (req, res) => {
     }
 
     if (date) {
-  // Expecting YYYY-MM-DD; interpret this as a LOCAL clinic date (Asia/Ulaanbaatar)
-  const [y, m, d] = String(date).split("-").map(Number);
-  if (!y || !m || !d) {
-    return res.status(400).json({ error: "Invalid date format" });
-  }
+      // Expecting YYYY-MM-DD; interpret this as LOCAL clinic date
+      const [y, m, d] = String(date).split("-").map(Number);
+      if (!y || !m || !d) {
+        return res.status(400).json({ error: "Invalid date format" });
+      }
 
-  // Build local start/end of day (server's local timezone)
-  const localStart = new Date(y, m - 1, d, 0, 0, 0, 0);
-  const localEnd   = new Date(y, m - 1, d, 23, 59, 59, 999);
+      const localStart = new Date(y, m - 1, d, 0, 0, 0, 0);
+      const localEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
 
-  // These Date objects already represent exact instants in time (UTC internally),
-  // so we can use them directly in the Prisma range.
-  where.scheduledAt = { gte: localStart, lte: localEnd };
-}
+      where.scheduledAt = { gte: localStart, lte: localEnd };
+    }
 
     const appointments = await prisma.appointment.findMany({
       where,
       orderBy: { scheduledAt: "asc" },
       include: {
-        patient: {
-          include: {
-            patientBook: true,
-          },
-        },
+        patient: { include: { patientBook: true } },
         doctor: true,
         branch: true,
       },
@@ -88,8 +76,8 @@ router.get("/", async (req, res) => {
  *  - patientId (number, required)
  *  - doctorId (number, optional)
  *  - branchId (number, required)
- *  - scheduledAt (ISO string or YYYY-MM-DDTHH:mm, required)
- *  - endAt (ISO string or YYYY-MM-DDTHH:mm, optional; must be > scheduledAt)
+ *  - scheduledAt (string "YYYY-MM-DD HH:MM[:SS]" in LOCAL time, required)
+ *  - endAt (same format, optional; must be > scheduledAt)
  *  - status (string, optional, defaults to "booked")
  *  - notes (string, optional)
  */
@@ -128,7 +116,7 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "doctorId must be a number" });
     }
 
-    // --- LOCAL TIME VALIDATION (no conversion to UTC) ---
+    // ---- LOCAL TIME VALIDATION (no UTC conversion) ----
 
     if (typeof scheduledAt !== "string" || !scheduledAt.trim()) {
       return res.status(400).json({ error: "scheduledAt must be a string" });
@@ -136,9 +124,10 @@ router.post("/", async (req, res) => {
 
     const scheduledStr = scheduledAt.trim(); // e.g. "2025-12-18 15:30:00"
 
-    // Very simple pattern check: "YYYY-MM-DD HH:MM" or "YYYY-MM-DD HH:MM:SS"
+    // Accept "YYYY-MM-DD HH:MM" or "YYYY-MM-DD HH:MM:SS" (space or "T")
     const dateTimeRegex =
       /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/;
+
     const m1 = scheduledStr.match(dateTimeRegex);
     if (!m1) {
       return res.status(400).json({
@@ -159,8 +148,8 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "scheduledAt is invalid date" });
     }
 
-    let endStr: string | null = null;
-    let end: Date | null = null;
+    let endStr = null;
+    let end = null;
 
     if (endAt !== undefined && endAt !== null && endAt !== "") {
       if (typeof endAt !== "string") {
@@ -174,6 +163,7 @@ router.post("/", async (req, res) => {
             "endAt must be in 'YYYY-MM-DD HH:MM[:SS]' format (local time)",
         });
       }
+
       const eYear = Number(m2[1]);
       const eMonth = Number(m2[2]);
       const eDay = Number(m2[3]);
@@ -192,7 +182,7 @@ router.post("/", async (req, res) => {
       }
     }
 
-    // Normalize and validate status
+    // Normalize status
     const normalizedStatus =
       typeof status === "string" && status.trim()
         ? status.trim()
@@ -202,25 +192,19 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "invalid status" });
     }
 
-    // --- IMPORTANT PART: save the LOCAL strings directly ---
-    // scheduledStr = "YYYY-MM-DD HH:MM:SS" (or with :00 fixed on frontend)
-    // endStr may be null
+    // Save the LOCAL datetime strings directly (no toISOString)
     const appt = await prisma.appointment.create({
       data: {
         patientId: parsedPatientId,
         doctorId: parsedDoctorId,
         branchId: parsedBranchId,
-        scheduledAt: scheduledStr,
+        scheduledAt: scheduledStr, // local string
         endAt: endStr || null,
         status: normalizedStatus,
         notes: notes || null,
       },
       include: {
-        patient: {
-          include: {
-            patientBook: true,
-          },
-        },
+        patient: { include: { patientBook: true } },
         doctor: true,
         branch: true,
       },
