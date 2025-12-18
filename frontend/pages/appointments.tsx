@@ -2198,13 +2198,10 @@ export default function AppointmentsPage() {
   const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>([]);
   const [error, setError] = useState("");
 
-  const [hasMounted, setHasMounted] = useState(false);
+    const [hasMounted, setHasMounted] = useState(false);
   useEffect(() => {
     setHasMounted(true);
   }, []);
-
-  const todayStr = new Date().toISOString().slice(0, 10);
-  ...
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const [filterDate, setFilterDate] = useState<string>(todayStr);
@@ -2629,17 +2626,7 @@ export default function AppointmentsPage() {
     }))
   );
 }
-                  console.log(
-  "SLOT", slot.label,
-  "DOC", doc.id,
-  "appsForCell",
-  appsForCell.map(a => ({
-    id: a.id,
-    patient: formatGridShortLabel(a),
-    start: a.scheduledAt,
-    end: a.endAt,
-  }))
-);
+                  
 
   const slotTimeStr = getSlotTimeString(slot.start);
   const schedules = (doc as any).schedules || [];
