@@ -38,7 +38,7 @@ type Appointment = {
   doctorId: number | null;
   branchId: number;
   scheduledAt: string; // "YYYY-MM-DD HH:MM:SS" local
-  endAt?: string | null; // same format or null
+  endAt?: string | null;
   status: string;
   notes: string | null;
   patient?: PatientLite;
@@ -166,7 +166,7 @@ function buildLocalDateTimeString(dateStr: string, timeStr: string): string {
   return `${dateStr} ${timeStr}:00`;
 }
 
-// ========= AppointmentForm =========
+// ========= AppointmentForm (same logic, simplified markup) =========
 
 type AppointmentFormProps = {
   branches: Branch[];
@@ -237,24 +237,8 @@ function AppointmentForm({
     const [startHour, startMinute] = form.startTime.split(":").map(Number);
     const [endHour, endMinute] = form.endTime.split(":").map(Number);
 
-    const start = new Date(
-      year,
-      (month || 1) - 1,
-      day || 1,
-      startHour || 0,
-      startMinute || 0,
-      0,
-      0
-    );
-    const end = new Date(
-      year,
-      (month || 1) - 1,
-      day || 1,
-      endHour || 0,
-      endMinute || 0,
-      0,
-      0
-    );
+    const start = new Date(year, (month || 1) - 1, day || 1, startHour, startMinute, 0, 0);
+    const end = new Date(year, (month || 1) - 1, day || 1, endHour, endMinute, 0, 0);
 
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       setError("Огноо/цаг буруу байна.");
@@ -322,7 +306,7 @@ function AppointmentForm({
         fontSize: 13,
       }}
     >
-      {/* keep your form fields as before */}
+      {/* keep your existing form fields here */}
     </form>
   );
 }
@@ -424,7 +408,7 @@ export default function AppointmentsPage() {
         fontFamily: "sans-serif",
       }}
     >
-      {/* filters + form ... */}
+      {/* filters + AppointmentForm go here, unchanged */}
 
       {error && (
         <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
@@ -434,12 +418,12 @@ export default function AppointmentsPage() {
 
       {gridDoctors.length === 0 ? (
         <div style={{ color: "#6b7280", fontSize: 13 }}>
-          Энэ өдөр ажиллах эмчийн хуваарь алga.
+          Энэ өдөр ажиллах эмчийн хуваарь алга.
         </div>
       ) : (
         <div
           style={{
-            border: "1px solid "#ddd",
+            border: "1px solid #ddd",
             borderRadius: 8,
             overflow: "hidden",
             fontSize: 12,
@@ -509,7 +493,7 @@ export default function AppointmentsPage() {
                     (a) => a.doctorId === doc.id
                   );
 
-                  // Only show appointments in their *start* row
+                  // Only show appointments in their start row
                   const overlapping = docApps.filter((a) => {
                     const idx = getAppointmentStartIndex(timeSlots, a);
                     return idx === rowIndex;
