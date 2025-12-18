@@ -19,7 +19,7 @@ type ScheduledDoctor = Doctor & {
     branchId: number;
     date: string;
     startTime: string; // "HH:MM"
-    endTime: string; // "HH:MM"
+    endTime: string;   // "HH:MM"
     note: string | null;
   }[];
 };
@@ -38,7 +38,7 @@ type Appointment = {
   doctorId: number | null;
   branchId: number;
   scheduledAt: string; // "YYYY-MM-DD HH:MM:SS" local
-  endAt?: string | null; // same format or null
+  endAt?: string | null;
   status: string;
   notes: string | null;
   patient?: PatientLite;
@@ -68,7 +68,7 @@ function getSlotTimeString(date: Date): string {
 
 function generateTimeSlotsForDay(day: Date): TimeSlot[] {
   const slots: TimeSlot[] = [];
-  const weekdayIndex = day.getDay(); // 0=Sun,6=Sat
+  const weekdayIndex = day.getDay();
   const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
 
   const startHour = isWeekend ? 10 : START_HOUR;
@@ -113,12 +113,11 @@ type TimedAppointment = Appointment & {
 
 type DoctorLayout = {
   doctorId: number;
-  lanes: number;          // will always be 2 in our case
+  lanes: number; // always 2
   items: TimedAppointment[];
 };
 
-// Compute per-doctor lane layout so appointments can span downward,
-// with at most 2 lanes per doctor.
+// at most 2 lanes per doctor
 function buildDoctorLayouts(
   timeSlots: TimeSlot[],
   appointments: Appointment[]
@@ -141,7 +140,6 @@ function buildDoctorLayouts(
       const startIdx = getAppointmentStartIndex(timeSlots, a);
       if (startIdx == null) continue;
 
-      // compute end datetime
       let end: Date;
       if (a.endAt) {
         const d = new Date(a.endAt);
@@ -156,7 +154,6 @@ function buildDoctorLayouts(
         );
       }
 
-      // find the first slot index where end <= slot.start
       let endIdx = timeSlots.length;
       for (let i = startIdx; i < timeSlots.length; i++) {
         if (end <= timeSlots[i].start) {
@@ -169,19 +166,17 @@ function buildDoctorLayouts(
         ...a,
         startIndex: startIdx,
         endIndex: endIdx,
-        lane: 0, // temporary
+        lane: 0,
       });
     }
 
-    // Sort by start time
     timed.sort((a, b) => {
       const ta = new Date(a.scheduledAt).getTime();
       const tb = new Date(b.scheduledAt).getTime();
       return ta - tb;
     });
 
-    // Assign lanes, capped at 2
-    const laneEndByLane: Array<number | undefined> = [undefined, undefined];
+    const laneEndByLane: (number | undefined)[] = [undefined, undefined];
     const placed: TimedAppointment[] = [];
 
     for (const appt of timed) {
@@ -196,7 +191,6 @@ function buildDoctorLayouts(
         }
       }
 
-      // If both lanes are busy, skip; creation should already prevent >2 overlaps.
       if (assignedLane === null) continue;
 
       appt.lane = assignedLane;
@@ -212,10 +206,6 @@ function buildDoctorLayouts(
 
   return layouts;
 }
-
-
-
-
 
 // ========= formatting helpers =========
 
@@ -278,14 +268,13 @@ function laneBg(a: Appointment): string {
   }
 }
 
-// ========= local datetime helper (OPTION A) =========
+// ========= local datetime helper =========
 
-// dateStr: "2025-12-18", timeStr: "15:30" -> "2025-12-18 15:30:00"
 function buildLocalDateTimeString(dateStr: string, timeStr: string): string {
   return `${dateStr} ${timeStr}:00`;
 }
 
-// ========= AppointmentForm (inline) =========
+// ========= AppointmentForm =========
 
 type AppointmentFormProps = {
   branches: Branch[];
@@ -640,6 +629,7 @@ export default function AppointmentsPage() {
   );
   const timeSlots = generateTimeSlotsForDay(selectedDay);
   const doctorLayouts = buildDoctorLayouts(timeSlots, appointments);
+
   
   // load branches + doctors
   useEffect(() => {
