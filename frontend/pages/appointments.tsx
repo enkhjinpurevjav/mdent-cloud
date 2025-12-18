@@ -2253,7 +2253,46 @@ export default function AppointmentsPage() {
   const groupedAppointments = groupByDate(appointments);
   const selectedDay = getDateFromYMD(filterDate);
   const timeSlots = generateTimeSlotsForDay(selectedDay);
-  
+  // Build 2‑lane grid per doctor for the selected day
+type LaneCell = Appointment | null;
+type DoctorLanes = [LaneCell[], LaneCell[]];
+
+const doctorLanesMap: Record<number, DoctorLanes> = {};
+
+gridDoctors.forEach((doc) => {
+  const lanes: DoctorLanes = [
+    Array<LaneCell>(timeSlots.length).fill(null),
+    Array<LaneCell>(timeSlots.length).fill(null),
+  ];
+
+  const docApps = appointments.filter((a) => a.doctorId === doc.id);
+  for (const a of docApps) {
+    const range = getAppointmentSlotRange(timeSlots, a);
+    if (!range) continue;
+    const { startIndex, endIndex } = range;
+
+    const canPlaceInLane = (laneIndex: 0 | 1) => {
+      for (let i = startIndex; i < endIndex; i++) {
+        if (lanes[laneIndex][i] !== null) return false;
+      }
+      return true;
+    };
+
+    if (canPlaceInLane(0)) {
+      for (let i = startIndex; i < endIndex; i++) {
+        lanes[0][i] = a;
+      }
+    } else if (canPlaceInLane(1)) {
+      for (let i = startIndex; i < endIndex; i++) {
+        lanes[1][i] = a;
+      }
+    } else {
+      // more than 2 overlapping; skip
+    }
+  }
+
+  doctorLanesMap[doc.id] = lanes;
+});
 
   const [detailsModalState, setDetailsModalState] = useState<{
     open: boolean;
@@ -2311,57 +2350,6 @@ export default function AppointmentsPage() {
       if (!res.ok || !Array.isArray(data)) {
         throw new Error("failed");
       }
-// Build a 2‑lane grid per doctor for the selected day
-type LaneCell = Appointment | null;
-type DoctorLanes = [LaneCell[], LaneCell[]];
-
-const doctorLanesMap: Record<number, DoctorLanes> = {};
-
-gridDoctors.forEach((doc) => {
-  // lane 0 and lane 1
-  const lanes: DoctorLanes = [
-    Array<LaneCell>(timeSlots.length).fill(null),
-    Array<LaneCell>(timeSlots.length).fill(null),
-  ];
-
-  // All appointments for this doctor on this day
-  const docApps = appointments.filter((a) => a.doctorId === doc.id);
-  for (const a of docApps) {
-    const range = getAppointmentSlotRange(timeSlots, a);
-    if (!range) continue;
-    const { startIndex, endIndex } = range;
-
-    // Try to place into lane 0
-    const canPlaceInLane = (laneIndex: 0 | 1) => {
-      for (let i = startIndex; i < endIndex; i++) {
-        if (lanes[laneIndex][i] !== null) return false;
-      }
-      return true;
-    };
-
-    let placed = false;
-
-    if (canPlaceInLane(0)) {
-      for (let i = startIndex; i < endIndex; i++) {
-        lanes[0][i] = a;
-      }
-      placed = true;
-    } else if (canPlaceInLane(1)) {
-      for (let i = startIndex; i < endIndex; i++) {
-        lanes[1][i] = a;
-      }
-      placed = true;
-    } else {
-      // More than 2 overlapping appointments in some slot – should not happen
-      // because creation-side validation already prevents this.
-      // If it does, we simply skip placing this appointment in the grid.
-      // Optionally log:
-      // console.warn("Could not place appointment in lanes", a.id, doc.id);
-    }
-  }
-
-  doctorLanesMap[doc.id] = lanes;
-});
       const sorted = data
         .slice()
         .sort((a: ScheduledDoctor, b: ScheduledDoctor) => {
@@ -2400,6 +2388,10 @@ gridDoctors.forEach((doc) => {
     loadMeta();
   }, []);
 
+ 
+
+  const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
+ 
   useEffect(() => {
     loadAppointments();
     loadScheduledDoctors();
@@ -2410,9 +2402,6 @@ gridDoctors.forEach((doc) => {
     setActiveBranchTab(branchId);
     setFilterBranchId(branchId);
   };
-
-  const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
-
   // Helper functions for merged blocks in grid
   const slotsPerHour = 60 / SLOT_MINUTES;
 
