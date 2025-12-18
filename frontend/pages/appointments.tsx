@@ -2613,7 +2613,7 @@ export default function AppointmentsPage() {
     return start < slotEnd && end > slotStart;
   });
 
-                  if ((slot.label === "09:00" || slot.label === "10:00") && doc.id === /* id of T.Amaraa */) {
+               if ((slot.label === "09:00" || slot.label === "10:00") && doc.id === 7) {
   console.log("CELL DEBUG", slot.label, "DOC", doc.id,
     appsForCell.map((a) => ({
       id: a.id,
