@@ -145,8 +145,6 @@ function getAppointmentSlotRange(
   return { startIndex, endIndex };
 }
 
-
-
 function getSlotTimeString(date: Date): string {
   // "HH:MM" in local time
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
@@ -2313,7 +2311,57 @@ export default function AppointmentsPage() {
       if (!res.ok || !Array.isArray(data)) {
         throw new Error("failed");
       }
+// Build a 2‑lane grid per doctor for the selected day
+type LaneCell = Appointment | null;
+type DoctorLanes = [LaneCell[], LaneCell[]];
 
+const doctorLanesMap: Record<number, DoctorLanes> = {};
+
+gridDoctors.forEach((doc) => {
+  // lane 0 and lane 1
+  const lanes: DoctorLanes = [
+    Array<LaneCell>(timeSlots.length).fill(null),
+    Array<LaneCell>(timeSlots.length).fill(null),
+  ];
+
+  // All appointments for this doctor on this day
+  const docApps = appointments.filter((a) => a.doctorId === doc.id);
+  for (const a of docApps) {
+    const range = getAppointmentSlotRange(timeSlots, a);
+    if (!range) continue;
+    const { startIndex, endIndex } = range;
+
+    // Try to place into lane 0
+    const canPlaceInLane = (laneIndex: 0 | 1) => {
+      for (let i = startIndex; i < endIndex; i++) {
+        if (lanes[laneIndex][i] !== null) return false;
+      }
+      return true;
+    };
+
+    let placed = false;
+
+    if (canPlaceInLane(0)) {
+      for (let i = startIndex; i < endIndex; i++) {
+        lanes[0][i] = a;
+      }
+      placed = true;
+    } else if (canPlaceInLane(1)) {
+      for (let i = startIndex; i < endIndex; i++) {
+        lanes[1][i] = a;
+      }
+      placed = true;
+    } else {
+      // More than 2 overlapping appointments in some slot – should not happen
+      // because creation-side validation already prevents this.
+      // If it does, we simply skip placing this appointment in the grid.
+      // Optionally log:
+      // console.warn("Could not place appointment in lanes", a.id, doc.id);
+    }
+  }
+
+  doctorLanesMap[doc.id] = lanes;
+});
       const sorted = data
         .slice()
         .sort((a: ScheduledDoctor, b: ScheduledDoctor) => {
@@ -2636,86 +2684,54 @@ export default function AppointmentsPage() {
                   </div>
 
                   {/* Doctor columns */}
-                  {gridDoctors.map((doc) => {
-  // All appointments for this doctor that intersect THIS 30‑min slot
-  const appsForCell = appointments.filter((a) => {
-    if (a.doctorId !== doc.id) return false;
-
-    const start = new Date(a.scheduledAt);
-    if (Number.isNaN(start.getTime())) return false;
-
-    const end =
-      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-        ? new Date(a.endAt)
-        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
-
-    const slotStart = slot.start;
-    const slotEnd = slot.end;
-
-  // colour every slot that this appointment overlaps
-  return start < slotEnd && end > slotStart;
-});
-
-             
+                 {gridDoctors.map((doc) => {
+  const lanes = doctorLanesMap[doc.id];
+  const lane0 = lanes ? lanes[0][rowIndex] : null;
+  const lane1 = lanes ? lanes[1][rowIndex] : null;
 
   const slotTimeStr = getSlotTimeString(slot.start);
   const schedules = (doc as any).schedules || [];
 
   const isWorkingHour = schedules.some((s: any) =>
-  isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
-);
-const weekdayIndex = slot.start.getDay();
-const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
-const isWeekendLunch =
-  isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
-const isNonWorking = !isWorkingHour || isWeekendLunch;
+    isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
+  );
+  const weekdayIndex = slot.start.getDay();
+  const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
+  const isWeekendLunch =
+    isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+  const isNonWorking = !isWorkingHour || isWeekendLunch;
 
-// Base background: only appointments colour a slot
-let baseBg = "#ffffff";
-if (appsForCell.length === 1) {
-  const status = appsForCell[0].status;
-  baseBg =
-    status === "completed"
-      ? "#fb6190"
-      : status === "confirmed"
-      ? "#bbf7d0"
-      : status === "ongoing"
-      ? "#f9d89b"
-      : status === "cancelled"
-      ? "#9d9d9d"
-      : "#77f9fe";
-}
-
-  const handleCellClick = () => {
+  const handleCellClickEmpty = () => {
     if (isNonWorking) return;
-    if (appsForCell.length === 0) {
-      setQuickModalState({
-        open: true,
-        doctorId: doc.id,
-        date: filterDate,
-        time: slotTimeStr,
-      });
-    } else {
-      setDetailsModalState({
-        open: true,
-        doctor: doc,
-        slotLabel: slot.label,
-        slotTime: slotTimeStr,
-        date: filterDate,
-        appointments: appsForCell,
-      });
-    }
+    setQuickModalState({
+      open: true,
+      doctorId: doc.id,
+      date: filterDate,
+      time: slotTimeStr,
+    });
   };
 
-  // 0 APPOINTMENTS → just baseBg (orange or white)
-  if (appsForCell.length === 0) {
+  const handleCellClickWithApps = (apps: Appointment[]) => {
+    if (isNonWorking) return;
+    setDetailsModalState({
+      open: true,
+      doctor: doc,
+      slotLabel: slot.label,
+      slotTime: slotTimeStr,
+      date: filterDate,
+      appointments: apps,
+    });
+  };
+
+  // 0 APPOINTMENTS in this slot for this doctor
+  if (!lane0 && !lane1) {
     return (
       <div
         key={doc.id}
-        onClick={handleCellClick}
+        onClick={handleCellClickEmpty}
         style={{
           borderLeft: "1px solid #f0f0f0",
-          backgroundColor: baseBg,
+          backgroundColor: "#ffffff",
           cursor: isNonWorking ? "not-allowed" : "pointer",
           minHeight: 28,
         }}
@@ -2723,17 +2739,29 @@ if (appsForCell.length === 1) {
     );
   }
 
-  // 1 APPOINTMENT → full-width coloured block in THIS row only
-  if (appsForCell.length === 1) {
-    const a = appsForCell[0];
+  // EXACTLY 1 APPOINTMENT in this slot (either lane0 or lane1)
+  if ((!!lane0 && !lane1) || (!lane0 && !!lane1)) {
+    const a = lane0 || lane1;
+
+    // background based on status
+    let bg =
+      a!.status === "completed"
+        ? "#fb6190"
+        : a!.status === "confirmed"
+        ? "#bbf7d0"
+        : a!.status === "ongoing"
+        ? "#f9d89b"
+        : a!.status === "cancelled"
+        ? "#9d9d9d"
+        : "#77f9fe";
 
     return (
       <div
         key={doc.id}
-        onClick={handleCellClick}
+        onClick={() => handleCellClickWithApps([a!])}
         style={{
           borderLeft: "1px solid #f0f0f0",
-          backgroundColor: baseBg,
+          backgroundColor: bg,
           cursor: isNonWorking ? "not-allowed" : "pointer",
           display: "flex",
           alignItems: "center",
@@ -2741,8 +2769,8 @@ if (appsForCell.length === 1) {
           minHeight: 28,
           padding: "1px 3px",
         }}
-        title={`${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(
-          a.status
+        title={`${formatPatientLabel(a!.patient, a!.patientId)} (${formatStatus(
+          a!.status
         )})`}
       >
         <span
@@ -2758,24 +2786,13 @@ if (appsForCell.length === 1) {
             textAlign: "center",
           }}
         >
-          {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
+          {`${formatGridShortLabel(a!)} (${formatStatus(a!.status)})`}
         </span>
       </div>
     );
   }
 
-  // 2 APPOINTMENTS in THIS slot → 2-lane layout ONLY for this row
-  const overlapping = appsForCell
-    .slice()
-    .sort(
-      (a, b) =>
-        new Date(a.scheduledAt).getTime() -
-        new Date(b.scheduledAt).getTime()
-    );
-
-  const lane0 = overlapping[0];
-  const lane1 = overlapping[1];
-
+  // 2 APPOINTMENTS in this slot (one in each lane)
   const laneBg = (a: Appointment): string => {
     switch (a.status) {
       case "completed":
@@ -2791,13 +2808,15 @@ if (appsForCell.length === 1) {
     }
   };
 
+  // lane0 and lane1 are both non-null here
   return (
     <div
       key={doc.id}
-      onClick={handleCellClick}
+      // clicking anywhere in the cell opens both appointments in details modal
+      onClick={() => handleCellClickWithApps([lane0!, lane1!])}
       style={{
         borderLeft: "1px solid #f0f0f0",
-        backgroundColor: baseBg, // white or orange; lane colors on top
+        backgroundColor: "#ffffff",
         cursor: isNonWorking ? "not-allowed" : "pointer",
         display: "flex",
         flexDirection: "row",
@@ -2806,7 +2825,7 @@ if (appsForCell.length === 1) {
         padding: 0,
       }}
     >
-      {/* LEFT HALF (lane0) */}
+      {/* LEFT lane (lane0) */}
       <div
         style={{
           flex: 1,
@@ -2814,7 +2833,7 @@ if (appsForCell.length === 1) {
           alignItems: "center",
           justifyContent: "center",
           padding: "1px 3px",
-          backgroundColor: laneBg(lane0),
+          backgroundColor: laneBg(lane0!),
           whiteSpace: "normal",
           wordBreak: "break-word",
           overflowWrap: "anywhere",
@@ -2823,14 +2842,14 @@ if (appsForCell.length === 1) {
           textAlign: "center",
         }}
         title={`${formatPatientLabel(
-          lane0.patient,
-          lane0.patientId
-        )} (${formatStatus(lane0.status)})`}
+          lane0!.patient,
+          lane0!.patientId
+        )} (${formatStatus(lane0!.status)})`}
       >
-        {`${formatGridShortLabel(lane0)} (${formatStatus(lane0.status)})`}
+        {`${formatGridShortLabel(lane0!)} (${formatStatus(lane0!.status)})`}
       </div>
 
-      {/* RIGHT HALF (lane1) */}
+      {/* RIGHT lane (lane1) */}
       <div
         style={{
           flex: 1,
@@ -2838,7 +2857,7 @@ if (appsForCell.length === 1) {
           alignItems: "center",
           justifyContent: "center",
           padding: "1px 3px",
-          backgroundColor: laneBg(lane1),
+          backgroundColor: laneBg(lane1!),
           whiteSpace: "normal",
           wordBreak: "break-word",
           overflowWrap: "anywhere",
@@ -2848,11 +2867,11 @@ if (appsForCell.length === 1) {
           borderLeft: "1px solid rgba(255,255,255,0.4)",
         }}
         title={`${formatPatientLabel(
-          lane1.patient,
-          lane1.patientId
-        )} (${formatStatus(lane1.status)})`}
+          lane1!.patient,
+          lane1!.patientId
+        )} (${formatStatus(lane1!.status)})`}
       >
-        {`${formatGridShortLabel(lane1)} (${formatStatus(lane1.status)})`}
+        {`${formatGridShortLabel(lane1!)} (${formatStatus(lane1!.status)})`}
       </div>
     </div>
   );
