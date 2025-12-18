@@ -396,11 +396,16 @@ const dayStartMinutes = useMemo(
               {workingDoctors.map((wd) => {
                 const schedStartMin = timeToMinutes(wd.schedule.startTime);
 const schedEndMin = timeToMinutes(wd.schedule.endTime);
-const topOffsetMinutes = schedStartMin - dayStartMinutes;
-const heightMinutes = schedEndMin - schedStartMin;
 
-const topPx = topOffsetMinutes * (ROW_HEIGHT / SLOT_MINUTES);
-const heightPx = heightMinutes * (ROW_HEIGHT / SLOT_MINUTES);
+// snap to 30‑min slot indices
+const slotHeight = ROW_HEIGHT; // one slot = one row
+const slotIndexStart =
+  (schedStartMin - dayStartMinutes) / SLOT_MINUTES;
+const slotIndexEnd =
+  (schedEndMin - dayStartMinutes) / SLOT_MINUTES;
+
+const topPx = slotIndexStart * slotHeight;
+const heightPx = (slotIndexEnd - slotIndexStart) * slotHeight;
 
                 return (
                   <div
@@ -480,7 +485,7 @@ const heightPx = heightMinutes * (ROW_HEIGHT / SLOT_MINUTES);
     );
   })}
 
-* rows to match height */
+{/* rows to match height */}
 {timeSlots.map((t, idx) => (
   <div
     key={t}
