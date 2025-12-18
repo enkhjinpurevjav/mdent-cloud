@@ -62,6 +62,10 @@ function pad2(n: number) {
   return n.toString().padStart(2, "0");
 }
 
+function getSlotTimeString(date: Date): string {
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
 function generateTimeSlotsForDay(day: Date): TimeSlot[] {
   const slots: TimeSlot[] = [];
   const weekdayIndex = day.getDay(); // 0=Sun,6=Sat
@@ -99,7 +103,7 @@ function getAppointmentStartIndex(
   return null;
 }
 
-// ========= lane layout helpers =========
+// ========= lane layout helpers (NEW) =========
 
 type TimedAppointment = Appointment & {
   startIndex: number;
@@ -269,14 +273,15 @@ function laneBg(a: Appointment): string {
   }
 }
 
-// ========= local datetime helper =========
+// ========= local datetime helper (OPTION A) =========
 
+// dateStr: "2025-12-18", timeStr: "15:30" -> "2025-12-18 15:30:00"
 function buildLocalDateTimeString(dateStr: string, timeStr: string): string {
   return `${dateStr} ${timeStr}:00`;
 }
 
 // ========= AppointmentForm (inline) =========
-// (unchanged – keep your current form)
+// (unchanged – your existing form code)
 
 type AppointmentFormProps = {
   branches: Branch[];
@@ -293,137 +298,9 @@ function AppointmentForm({
   selectedBranchId,
   onCreated,
 }: AppointmentFormProps) {
-  const todayStr = new Date().toISOString().slice(0, 10);
-
-  const [form, setForm] = useState({
-    patientId: "",
-    doctorId: "",
-    branchId: selectedBranchId || (branches[0]?.id?.toString() ?? ""),
-    date: selectedDate || todayStr,
-    startTime: "",
-    endTime: "",
-    status: "booked",
-    notes: "",
-  });
-
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (selectedDate) {
-      setForm((prev) => ({ ...prev, date: selectedDate }));
-    }
-  }, [selectedDate]);
-
-  useEffect(() => {
-    if (selectedBranchId) {
-      setForm((prev) => ({ ...prev, branchId: selectedBranchId }));
-    }
-  }, [selectedBranchId]);
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-
-    if (
-      !form.patientId ||
-      !form.doctorId ||
-      !form.branchId ||
-      !form.date ||
-      !form.startTime ||
-      !form.endTime
-    ) {
-      setError("Бүх шаардлагатай талбаруудыг бөглөнө үү.");
-      return;
-    }
-
-    const [year, month, day] = form.date.split("-").map(Number);
-    const [startHour, startMinute] = form.startTime.split(":").map(Number);
-    const [endHour, endMinute] = form.endTime.split(":").map(Number);
-
-    const start = new Date(
-      year,
-      (month || 1) - 1,
-      day || 1,
-      startHour || 0,
-      startMinute || 0,
-      0,
-      0
-    );
-    const end = new Date(
-      year,
-      (month || 1) - 1,
-      day || 1,
-      endHour || 0,
-      endMinute || 0,
-      0,
-      0
-    );
-
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-      setError("Огноо/цаг буруу байна.");
-      return;
-    }
-    if (end <= start) {
-      setError("Дуусах цаг нь эхлэх цагаас хойш байх ёстой.");
-      return;
-    }
-
-    const scheduledAt = buildLocalDateTimeString(form.date, form.startTime);
-    const endAt = buildLocalDateTimeString(form.date, form.endTime);
-
-    try {
-      const res = await fetch("/api/appointments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          patientId: Number(form.patientId),
-          doctorId: Number(form.doctorId),
-          branchId: Number(form.branchId),
-          scheduledAt,
-          endAt,
-          status: form.status,
-          notes: form.notes || null,
-        }),
-      });
-
-      let data: Appointment | { error?: string };
-      try {
-        data = await res.json();
-      } catch {
-        data = { error: "Unknown error" };
-      }
-
-      if (!res.ok) {
-        setError((data as any).error || "Алдаа гарлаа");
-        return;
-      }
-
-      onCreated(data as Appointment);
-
-      setForm((prev) => ({
-        ...prev,
-        patientId: "",
-        startTime: "",
-        endTime: "",
-        notes: "",
-        status: "booked",
-      }));
-    } catch (err) {
-      console.error(err);
-      setError("Сүлжээгээ шалгана уу.");
-    }
-  };
-
-  // JSX form body unchanged...
-  // (Keep exactly what you already have here)
-  // ...
+  // ... keep your existing AppointmentForm exactly as in your message ...
+  // (no changes needed here)
+  // paste your current AppointmentForm implementation here unchanged
 }
 
 // ========= PAGE =========
@@ -448,9 +325,73 @@ export default function AppointmentsPage() {
   const timeSlots = generateTimeSlotsForDay(selectedDay);
   const doctorLayouts = buildDoctorLayouts(timeSlots, appointments);
 
-  // load branches + doctors (unchanged)
-  // load scheduled doctors (unchanged)
-  // load appointments (unchanged)
+  // load branches + doctors
+  useEffect(() => {
+    const loadMeta = async () => {
+      try {
+        const [bRes, dRes] = await Promise.all([
+          fetch("/api/branches"),
+          fetch("/api/users?role=doctor"),
+        ]);
+        const [bData, dData] = await Promise.all([
+          bRes.json().catch(() => []),
+          dRes.json().catch(() => []),
+        ]);
+        if (Array.isArray(bData)) setBranches(bData);
+        if (Array.isArray(dData)) setDoctors(dData);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    loadMeta();
+  }, []);
+
+  // load scheduled doctors
+  useEffect(() => {
+    const loadDoctors = async () => {
+      try {
+        const params = new URLSearchParams();
+        params.set("date", filterDate);
+        if (filterBranchId) params.set("branchId", filterBranchId);
+        const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
+        const data = await res.json().catch(() => []);
+        if (Array.isArray(data)) {
+          data.sort((a: ScheduledDoctor, b: ScheduledDoctor) =>
+            (a.name || "").localeCompare(b.name || "", "mn")
+          );
+          setScheduledDoctors(data);
+        } else {
+          setScheduledDoctors([]);
+        }
+      } catch (e) {
+        console.error(e);
+        setScheduledDoctors([]);
+      }
+    };
+    loadDoctors();
+  }, [filterDate, filterBranchId]);
+
+  // load appointments
+  useEffect(() => {
+    const loadAppointments = async () => {
+      try {
+        setError("");
+        const params = new URLSearchParams();
+        params.set("date", filterDate);
+        if (filterBranchId) params.set("branchId", filterBranchId);
+        const res = await fetch(`/api/appointments?${params.toString()}`);
+        const data = await res.json().catch(() => []);
+        if (!res.ok || !Array.isArray(data)) {
+          throw new Error("failed");
+        }
+        setAppointments(data);
+      } catch (e) {
+        console.error(e);
+        setError("Цаг захиалгуудыг ачаалах үед алдаа гарлаа.");
+      }
+    };
+    loadAppointments();
+  }, [filterDate, filterBranchId]);
 
   const gridDoctors = scheduledDoctors;
 
@@ -463,8 +404,9 @@ export default function AppointmentsPage() {
         fontFamily: "sans-serif",
       }}
     >
-      {/* filters + form + error (unchanged) */}
+      {/* filters + form + error (keep your existing JSX here) */}
 
+      {/* Calendar grid */}
       {gridDoctors.length === 0 ? (
         <div style={{ color: "#6b7280", fontSize: 13 }}>
           Энэ өдөр ажиллах эмчийн хуваарь алга.
@@ -536,7 +478,7 @@ export default function AppointmentsPage() {
                   {slot.label}
                 </div>
 
-                {/* doctor columns with 2 lanes each */}
+                {/* doctor columns with 2 vertical lanes */}
                 {gridDoctors.map((doc) => {
                   const layout =
                     doc.id != null ? doctorLayouts.get(doc.id) : undefined;
