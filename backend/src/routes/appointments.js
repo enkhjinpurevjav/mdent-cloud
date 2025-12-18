@@ -100,7 +100,7 @@ router.post("/", async (req, res) => {
       doctorId,
       branchId,
       scheduledAt,
-      endAt, // NEW
+      endAt,
       status,
       notes,
     } = req.body || {};
@@ -128,24 +128,68 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "doctorId must be a number" });
     }
 
-    const scheduledDate = new Date(scheduledAt);
-    if (Number.isNaN(scheduledDate.getTime())) {
+    // --- LOCAL TIME VALIDATION (no conversion to UTC) ---
+
+    if (typeof scheduledAt !== "string" || !scheduledAt.trim()) {
+      return res.status(400).json({ error: "scheduledAt must be a string" });
+    }
+
+    const scheduledStr = scheduledAt.trim(); // e.g. "2025-12-18 15:30:00"
+
+    // Very simple pattern check: "YYYY-MM-DD HH:MM" or "YYYY-MM-DD HH:MM:SS"
+    const dateTimeRegex =
+      /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/;
+    const m1 = scheduledStr.match(dateTimeRegex);
+    if (!m1) {
+      return res.status(400).json({
+        error:
+          "scheduledAt must be in 'YYYY-MM-DD HH:MM[:SS]' format (local time)",
+      });
+    }
+
+    const sYear = Number(m1[1]);
+    const sMonth = Number(m1[2]);
+    const sDay = Number(m1[3]);
+    const sHour = Number(m1[4]);
+    const sMin = Number(m1[5]);
+    const sSec = m1[6] ? Number(m1[6]) : 0;
+
+    const start = new Date(sYear, sMonth - 1, sDay, sHour, sMin, sSec, 0);
+    if (Number.isNaN(start.getTime())) {
       return res.status(400).json({ error: "scheduledAt is invalid date" });
     }
 
-    // NEW: optional endAt
-    let endDate = null;
+    let endStr: string | null = null;
+    let end: Date | null = null;
+
     if (endAt !== undefined && endAt !== null && endAt !== "") {
-      const tmp = new Date(endAt);
-      if (Number.isNaN(tmp.getTime())) {
+      if (typeof endAt !== "string") {
+        return res.status(400).json({ error: "endAt must be a string" });
+      }
+      endStr = endAt.trim();
+      const m2 = endStr.match(dateTimeRegex);
+      if (!m2) {
+        return res.status(400).json({
+          error:
+            "endAt must be in 'YYYY-MM-DD HH:MM[:SS]' format (local time)",
+        });
+      }
+      const eYear = Number(m2[1]);
+      const eMonth = Number(m2[2]);
+      const eDay = Number(m2[3]);
+      const eHour = Number(m2[4]);
+      const eMin = Number(m2[5]);
+      const eSec = m2[6] ? Number(m2[6]) : 0;
+
+      end = new Date(eYear, eMonth - 1, eDay, eHour, eMin, eSec, 0);
+      if (Number.isNaN(end.getTime())) {
         return res.status(400).json({ error: "endAt is invalid date" });
       }
-      if (tmp <= scheduledDate) {
+      if (end <= start) {
         return res
           .status(400)
           .json({ error: "endAt must be later than scheduledAt" });
       }
-      endDate = tmp;
     }
 
     // Normalize and validate status
@@ -158,13 +202,16 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "invalid status" });
     }
 
+    // --- IMPORTANT PART: save the LOCAL strings directly ---
+    // scheduledStr = "YYYY-MM-DD HH:MM:SS" (or with :00 fixed on frontend)
+    // endStr may be null
     const appt = await prisma.appointment.create({
       data: {
         patientId: parsedPatientId,
         doctorId: parsedDoctorId,
         branchId: parsedBranchId,
-        scheduledAt: scheduledDate,
-        endAt: endDate, // can be null
+        scheduledAt: scheduledStr,
+        endAt: endStr || null,
         status: normalizedStatus,
         notes: notes || null,
       },
