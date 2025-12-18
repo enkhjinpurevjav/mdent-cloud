@@ -62,6 +62,10 @@ function pad2(n: number) {
   return n.toString().padStart(2, "0");
 }
 
+function getSlotTimeString(date: Date): string {
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
 function generateTimeSlotsForDay(day: Date): TimeSlot[] {
   const slots: TimeSlot[] = [];
   const weekdayIndex = day.getDay(); // 0=Sun,6=Sat
@@ -160,13 +164,14 @@ function laneBg(a: Appointment): string {
   }
 }
 
-// ========= local datetime helper =========
+// ========= local datetime helper (OPTION A) =========
 
+// dateStr: "2025-12-18", timeStr: "15:30" -> "2025-12-18 15:30:00"
 function buildLocalDateTimeString(dateStr: string, timeStr: string): string {
   return `${dateStr} ${timeStr}:00`;
 }
 
-// ========= AppointmentForm =========
+// ========= AppointmentForm (inline) =========
 
 type AppointmentFormProps = {
   branches: Branch[];
@@ -233,6 +238,7 @@ function AppointmentForm({
       return;
     }
 
+    // build Date objects only for validation
     const [year, month, day] = form.date.split("-").map(Number);
     const [startHour, startMinute] = form.startTime.split(":").map(Number);
     const [endHour, endMinute] = form.endTime.split(":").map(Number);
@@ -265,6 +271,7 @@ function AppointmentForm({
       return;
     }
 
+    // OPTION A: build local strings, no timezone conversion
     const scheduledAt = buildLocalDateTimeString(form.date, form.startTime);
     const endAt = buildLocalDateTimeString(form.date, form.endTime);
 
@@ -276,7 +283,7 @@ function AppointmentForm({
           patientId: Number(form.patientId),
           doctorId: Number(form.doctorId),
           branchId: Number(form.branchId),
-          scheduledAt,
+          scheduledAt, // "YYYY-MM-DD HH:MM:SS" local
           endAt,
           status: form.status,
           notes: form.notes || null,
@@ -297,6 +304,7 @@ function AppointmentForm({
 
       onCreated(data as Appointment);
 
+      // reset some fields
       setForm((prev) => ({
         ...prev,
         patientId: "",
@@ -322,7 +330,177 @@ function AppointmentForm({
         fontSize: 13,
       }}
     >
-      {/* keep your form fields as before */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Өвчтөний ID</label>
+        <input
+          name="patientId"
+          value={form.patientId}
+          onChange={handleChange}
+          placeholder="Ж: 123"
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Эмч</label>
+        <select
+          name="doctorId"
+          value={form.doctorId}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Сонгох</option>
+          {doctors.map((d) => (
+            <option key={d.id} value={d.id}>
+              {formatDoctorName(d)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Салбар</label>
+        <select
+          name="branchId"
+          value={form.branchId}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Сонгох</option>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Огноо</label>
+        <input
+          type="date"
+          name="date"
+          value={form.date}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Эхлэх цаг</label>
+        <input
+          type="time"
+          name="startTime"
+          value={form.startTime}
+          onChange={handleChange}
+          step={SLOT_MINUTES * 60}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Дуусах цаг</label>
+        <input
+          type="time"
+          name="endTime"
+          value={form.endTime}
+          onChange={handleChange}
+          step={SLOT_MINUTES * 60}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Төлөв</label>
+        <select
+          name="status"
+          value={form.status}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="booked">Захиалсан</option>
+          <option value="confirmed">Баталгаажсан</option>
+          <option value="ongoing">Явагдаж байна</option>
+          <option value="completed">Дууссан</option>
+          <option value="cancelled">Цуцалсан</option>
+        </select>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          gridColumn: "1 / -1",
+        }}
+      >
+        <label>Тэмдэглэл</label>
+        <input
+          name="notes"
+          value={form.notes}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      <div
+        style={{
+          gridColumn: "1 / -1",
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+        }}
+      >
+        <button
+          type="submit"
+          style={{
+            padding: "8px 16px",
+            borderRadius: 6,
+            border: "none",
+            background: "#2563eb",
+            color: "white",
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          Цаг захиалах
+        </button>
+        {error && (
+          <span style={{ color: "#b91c1c", fontSize: 12 }}>{error}</span>
+        )}
+      </div>
     </form>
   );
 }
@@ -348,6 +526,7 @@ export default function AppointmentsPage() {
   );
   const timeSlots = generateTimeSlotsForDay(selectedDay);
 
+  // load branches + doctors
   useEffect(() => {
     const loadMeta = async () => {
       try {
@@ -368,6 +547,7 @@ export default function AppointmentsPage() {
     loadMeta();
   }, []);
 
+  // load scheduled doctors
   useEffect(() => {
     const loadDoctors = async () => {
       try {
@@ -392,6 +572,7 @@ export default function AppointmentsPage() {
     loadDoctors();
   }, [filterDate, filterBranchId]);
 
+  // load appointments
   useEffect(() => {
     const loadAppointments = async () => {
       try {
@@ -424,7 +605,81 @@ export default function AppointmentsPage() {
         fontFamily: "sans-serif",
       }}
     >
-      {/* filters + form ... */}
+      <h1 style={{ fontSize: 20, marginBottom: 8 }}>
+        Өдрийн цагийн хүснэгт (эмчээр)
+      </h1>
+
+      {/* Filters */}
+      <div
+        style={{
+          marginBottom: 12,
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          fontSize: 13,
+          flexWrap: "wrap",
+        }}
+      >
+        <label>
+          Огноо:{" "}
+          <input
+            type="date"
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
+            style={{
+              marginLeft: 4,
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "4px 6px",
+            }}
+          />
+        </label>
+        <label>
+          Салбар:{" "}
+          <select
+            value={filterBranchId}
+            onChange={(e) => setFilterBranchId(e.target.value)}
+            style={{
+              marginLeft: 4,
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "4px 6px",
+            }}
+          >
+            <option value="">Бүх салбар</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span style={{ color: "#6b7280" }}>
+          {formatDateYmdDots(selectedDay)}
+        </span>
+      </div>
+
+      {/* Inline form (uses OPTION A local time strings) */}
+      <section
+        style={{
+          marginBottom: 16,
+          padding: 12,
+          borderRadius: 8,
+          border: "1px solid #e5e7eb",
+          background: "#ffffff",
+        }}
+      >
+        <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 8 }}>
+          Шинэ цаг захиалах
+        </h2>
+        <AppointmentForm
+          branches={branches}
+          doctors={doctors}
+          selectedDate={filterDate}
+          selectedBranchId={filterBranchId}
+          onCreated={(a) => setAppointments((prev) => [a, ...prev])}
+        />
+      </section>
 
       {error && (
         <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
@@ -432,14 +687,15 @@ export default function AppointmentsPage() {
         </div>
       )}
 
+      {/* Calendar grid */}
       {gridDoctors.length === 0 ? (
         <div style={{ color: "#6b7280", fontSize: 13 }}>
-          Энэ өдөр ажиллах эмчийн хуваарь алga.
+          Энэ өдөр ажиллах эмчийн хуваарь алга.
         </div>
       ) : (
         <div
           style={{
-            border: "1px solid "#ddd",
+            border: "1px solid #ddd",
             borderRadius: 8,
             overflow: "hidden",
             fontSize: 12,
@@ -509,10 +765,17 @@ export default function AppointmentsPage() {
                     (a) => a.doctorId === doc.id
                   );
 
-                  // Only show appointments in their *start* row
                   const overlapping = docApps.filter((a) => {
-                    const idx = getAppointmentStartIndex(timeSlots, a);
-                    return idx === rowIndex;
+                    const start = new Date(a.scheduledAt);
+                    if (Number.isNaN(start.getTime())) return false;
+                    const end =
+                      a.endAt &&
+                      !Number.isNaN(new Date(a.endAt).getTime())
+                        ? new Date(a.endAt)
+                        : new Date(
+                            start.getTime() + SLOT_MINUTES * 60 * 1000
+                          );
+                    return start < slot.end && end > slot.start;
                   });
 
                   const slotKey = `${doc.id}-${rowIndex}`;
@@ -530,6 +793,11 @@ export default function AppointmentsPage() {
                     );
                   }
 
+                  const isStartRow = (a: Appointment) => {
+                    const idx = getAppointmentStartIndex(timeSlots, a);
+                    return idx === rowIndex;
+                  };
+
                   if (overlapping.length === 1) {
                     const a = overlapping[0];
                     return (
@@ -545,19 +813,21 @@ export default function AppointmentsPage() {
                           padding: "1px 4px",
                         }}
                       >
-                        <span
-                          style={{
-                            fontSize: 11,
-                            lineHeight: 1.2,
-                            textAlign: "center",
-                            whiteSpace: "normal",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          {`${formatGridShortLabel(a)} (${formatStatus(
-                            a.status
-                          )})`}
-                        </span>
+                        {isStartRow(a) && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              lineHeight: 1.2,
+                              textAlign: "center",
+                              whiteSpace: "normal",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {`${formatGridShortLabel(a)} (${formatStatus(
+                              a.status
+                            )})`}
+                          </span>
+                        )}
                       </div>
                     );
                   }
@@ -591,19 +861,21 @@ export default function AppointmentsPage() {
                               idx === 0 ? "none" : "2px solid #ffffff",
                           }}
                         >
-                          <span
-                            style={{
-                              fontSize: 11,
-                              lineHeight: 1.2,
-                              textAlign: "center",
-                              whiteSpace: "normal",
-                              wordBreak: "break-word",
-                            }}
-                          >
-                            {`${formatGridShortLabel(a)} (${formatStatus(
-                              a.status
-                            )})`}
-                          </span>
+                          {isStartRow(a) && (
+                            <span
+                              style={{
+                                fontSize: 11,
+                                lineHeight: 1.2,
+                                textAlign: "center",
+                                whiteSpace: "normal",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {`${formatGridShortLabel(
+                                a
+                              )} (${formatStatus(a.status)})`}
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>
