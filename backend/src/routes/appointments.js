@@ -45,11 +45,14 @@ router.get("/", async (req, res) => {
     }
 
     if (date) {
-      const dateStr = String(date); // expected "YYYY-MM-DD"
-      const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (!m) {
-        return res.status(400).json({ error: "Invalid date format" });
-      }
+  const dateStr = String(date); // expected "YYYY-MM-DD"
+  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) {
+    return res.status(400).json({ error: "Invalid date format" });
+  }
+
+  where.scheduledAt = { startsWith: dateStr };
+}
 
       const dayStart = `${dateStr} 00:00:00`;
       const dayEnd = `${dateStr} 23:59:59`;
