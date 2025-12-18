@@ -2705,7 +2705,7 @@ gridDoctors.forEach((doc) => {
                     {slot.label}
                   </div>
 
-                 {/* Doctor columns */}
+                {/* Doctor columns */}
 {gridDoctors.map((doc) => {
   const lanes = doctorLanesMap[doc.id];
   const lane0 = lanes ? lanes[0][rowIndex] : null;
@@ -2772,7 +2772,7 @@ gridDoctors.forEach((doc) => {
       case "cancelled":
         return "#9d9d9d";
       default:
-        return "#77f9fe";
+        return "#77f9fe"; // booked, etc.
     }
   };
 
@@ -2782,8 +2782,8 @@ gridDoctors.forEach((doc) => {
     const startIndex = getAppointmentStartIndex(timeSlots, a!);
     const isStartRow = startIndex === rowIndex;
 
-    // Non-start rows: solid bar only, no text
     if (!isStartRow) {
+      // Non-start rows: colored bar only
       return (
         <div
           key={doc.id}
@@ -2836,105 +2836,105 @@ gridDoctors.forEach((doc) => {
     );
   }
 
-  // 2 APPOINTMENTS in this slot (one in each lane)
-const lane0StartIndex = getAppointmentStartIndex(timeSlots, lane0!);
-const lane1StartIndex = getAppointmentStartIndex(timeSlots, lane1!);
-const lane0IsStart = lane0StartIndex === rowIndex;
-const lane1IsStart = lane1StartIndex === rowIndex;
+  // TWO appointments in this slot (one in each lane)
+  const lane0StartIndex = getAppointmentStartIndex(timeSlots, lane0!);
+  const lane1StartIndex = getAppointmentStartIndex(timeSlots, lane1!);
+  const lane0IsStart = lane0StartIndex === rowIndex;
+  const lane1IsStart = lane1StartIndex === rowIndex;
 
-return (
-  <div
-    key={doc.id}
-    onClick={() => handleCellClickWithApps([lane0!, lane1!])}
-    style={{
-      borderLeft: "1px solid #f0f0f0",
-      backgroundColor: "#ffffff",
-      cursor: isNonWorking ? "not-allowed" : "pointer",
-      display: "flex",
-      flexDirection: "row",
-      alignItems: "stretch",
-      minHeight: 28,
-      padding: 0,
-    }}
-  >
-    {/* LEFT lane (lane0) */}
+  return (
     <div
+      key={doc.id}
+      onClick={() => handleCellClickWithApps([lane0!, lane1!])}
       style={{
-        flex: 1,
+        borderLeft: "1px solid #f0f0f0",
+        backgroundColor: "#ffffff",
+        cursor: isNonWorking ? "not-allowed" : "pointer",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1px 3px",
-        backgroundColor: laneBg(lane0!),
-        borderRight: "2px solid #ffffff",
-        boxSizing: "border-box",
+        flexDirection: "row",
+        alignItems: "stretch",
+        minHeight: 28,
+        padding: 0,
       }}
-      title={
-        lane0IsStart
-          ? `${formatPatientLabel(
-              lane0!.patient,
-              lane0!.patientId
-            )} (${formatStatus(lane0!.status)})`
-          : undefined
-      }
     >
-      {lane0IsStart && (
-        <span
-          style={{
-            whiteSpace: "normal",
-            wordBreak: "break-word",
-            overflowWrap: "anywhere",
-            fontSize: 11,
-            lineHeight: 1.2,
-            textAlign: "center",
-          }}
-        >
-          {`${formatGridShortLabel(lane0!)} (${formatStatus(
-            lane0!.status
-          )})`}
-        </span>
-      )}
-    </div>
+      {/* LEFT lane (lane0) */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "1px 3px",
+          backgroundColor: laneBg(lane0!),
+          borderRight: "2px solid #ffffff", // strong divider
+          boxSizing: "border-box",
+        }}
+        title={
+          lane0IsStart
+            ? `${formatPatientLabel(
+                lane0!.patient,
+                lane0!.patientId
+              )} (${formatStatus(lane0!.status)})`
+            : undefined
+        }
+      >
+        {lane0IsStart && (
+          <span
+            style={{
+              whiteSpace: "normal",
+              wordBreak: "break-word",
+              overflowWrap: "anywhere",
+              fontSize: 11,
+              lineHeight: 1.2,
+              textAlign: "center",
+            }}
+          >
+            {`${formatGridShortLabel(lane0!)} (${formatStatus(
+              lane0!.status
+            )})`}
+          </span>
+        )}
+      </div>
 
-    {/* RIGHT lane (lane1) */}
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1px 3px",
-        backgroundColor: laneBg(lane1!),
-        boxSizing: "border-box",
-      }}
-      title={
-        lane1IsStart
-          ? `${formatPatientLabel(
-              lane1!.patient,
-              lane1!.patientId
-            )} (${formatStatus(lane1!.status)})`
-          : undefined
-      }
-    >
-      {lane1IsStart && (
-        <span
-          style={{
-            whiteSpace: "normal",
-            wordBreak: "break-word",
-            overflowWrap: "anywhere",
-            fontSize: 11,
-            lineHeight: 1.2,
-            textAlign: "center",
-          }}
-        >
-          {`${formatGridShortLabel(lane1!)} (${formatStatus(
-            lane1!.status
-          )})`}
-        </span>
-      )}
+      {/* RIGHT lane (lane1) */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "1px 3px",
+          backgroundColor: laneBg(lane1!),
+          boxSizing: "border-box",
+        }}
+        title={
+          lane1IsStart
+            ? `${formatPatientLabel(
+                lane1!.patient,
+                lane1!.patientId
+              )} (${formatStatus(lane1!.status)})`
+            : undefined
+        }
+      >
+        {lane1IsStart && (
+          <span
+            style={{
+              whiteSpace: "normal",
+              wordBreak: "break-word",
+              overflowWrap: "anywhere",
+              fontSize: 11,
+              lineHeight: 1.2,
+              textAlign: "center",
+            }}
+          >
+            {`${formatGridShortLabel(lane1!)} (${formatStatus(
+              lane1!.status
+            )})`}
+          </span>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
 })}
                 </div>
               ))}
