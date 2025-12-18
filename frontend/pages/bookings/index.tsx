@@ -199,46 +199,36 @@ export default function BookingsPage() {
     loadWorkingDoctors();
   }, [selectedBranchId, selectedDate, doctors]);
 
-  // Compute time grid (min start / max end from schedules, or default 09:00–18:00)
-  const timeSlots = useMemo(() => {
-    if (workingDoctors.length === 0) {
-      const start = 9 * 60;
-      const end = 18 * 60;
-      const slots: string[] = [];
-      for (let m = start; m <= end; m += SLOT_MINUTES) {
-        const h = String(Math.floor(m / 60)).padStart(2, "0");
-        const mm = String(m % 60).padStart(2, "0");
-        slots.push(`${h}:${mm}`);
-      }
-      return slots;
-    }
+  // Determine clinic open/close for selected date (same rules as backend)
+const { clinicOpen, clinicClose } = useMemo(() => {
+  if (!selectedDate) {
+    return { clinicOpen: "09:00", clinicClose: "21:00" };
+  }
+  const d = new Date(selectedDate);
+  const weekday = d.getDay(); // 0 Sun .. 6 Sat
+  const isWeekend = weekday === 0 || weekday === 6;
+  if (isWeekend) {
+    return { clinicOpen: "10:00", clinicClose: "19:00" };
+  }
+  return { clinicOpen: "09:00", clinicClose: "21:00" };
+}, [selectedDate]);
 
-    let minStart = Infinity;
-    let maxEnd = -Infinity;
+const timeSlots = useMemo(() => {
+  const start = timeToMinutes(clinicOpen);
+  const end = timeToMinutes(clinicClose);
+  const slots: string[] = [];
+  for (let m = start; m <= end; m += SLOT_MINUTES) {
+    const h = String(Math.floor(m / 60)).padStart(2, "0");
+    const mm = String(m % 60).padStart(2, "0");
+    slots.push(`${h}:${mm}`);
+  }
+  return slots;
+}, [clinicOpen, clinicClose]);
 
-    for (const wd of workingDoctors) {
-      const s = timeToMinutes(wd.schedule.startTime);
-      const e = timeToMinutes(wd.schedule.endTime);
-      if (s < minStart) minStart = s;
-      if (e > maxEnd) maxEnd = e;
-    }
-
-    minStart = Math.floor(minStart / SLOT_MINUTES) * SLOT_MINUTES;
-    maxEnd = Math.ceil(maxEnd / SLOT_MINUTES) * SLOT_MINUTES;
-
-    const slots: string[] = [];
-    for (let m = minStart; m <= maxEnd; m += SLOT_MINUTES) {
-      const h = String(Math.floor(m / 60)).padStart(2, "0");
-      const mm = String(m % 60).padStart(2, "0");
-      slots.push(`${h}:${mm}`);
-    }
-    return slots;
-  }, [workingDoctors]);
-
-  const dayStartMinutes = useMemo(() => {
-    if (timeSlots.length === 0) return 9 * 60;
-    return timeToMinutes(timeSlots[0]);
-  }, [timeSlots]);
+const dayStartMinutes = useMemo(
+  () => timeToMinutes(clinicOpen),
+  [clinicOpen]
+);
 
   return (
     <main
@@ -405,14 +395,12 @@ export default function BookingsPage() {
               {/* Doctor columns */}
               {workingDoctors.map((wd) => {
                 const schedStartMin = timeToMinutes(wd.schedule.startTime);
-                const schedEndMin = timeToMinutes(wd.schedule.endTime);
-                const topOffsetMinutes = schedStartMin - dayStartMinutes;
-                const heightMinutes = schedEndMin - schedStartMin;
+const schedEndMin = timeToMinutes(wd.schedule.endTime);
+const topOffsetMinutes = schedStartMin - dayStartMinutes;
+const heightMinutes = schedEndMin - schedStartMin;
 
-                const topPx =
-                  topOffsetMinutes * (ROW_HEIGHT / SLOT_MINUTES);
-                const heightPx =
-                  heightMinutes * (ROW_HEIGHT / SLOT_MINUTES);
+const topPx = topOffsetMinutes * (ROW_HEIGHT / SLOT_MINUTES);
+const heightPx = heightMinutes * (ROW_HEIGHT / SLOT_MINUTES);
 
                 return (
                   <div
