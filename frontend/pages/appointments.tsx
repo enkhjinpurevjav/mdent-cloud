@@ -322,7 +322,7 @@ function AppointmentForm({
         fontSize: 13,
       }}
     >
-      {/* ... keep your form fields exactly as you have them ... */}
+      {/* keep your form fields as before */}
     </form>
   );
 }
@@ -434,12 +434,12 @@ export default function AppointmentsPage() {
 
       {gridDoctors.length === 0 ? (
         <div style={{ color: "#6b7280", fontSize: 13 }}>
-          Энэ өдөр ажиллах эмчийн хуваарь алга.
+          Энэ өдөр ажиллах эмчийн хуваарь алga.
         </div>
       ) : (
         <div
           style={{
-            border: "1px solid #ddd",
+            border: "1px solid "#ddd",
             borderRadius: 8,
             overflow: "hidden",
             fontSize: 12,
@@ -505,103 +505,62 @@ export default function AppointmentsPage() {
 
                 {/* doctor columns */}
                 {gridDoctors.map((doc) => {
-  const docApps = appointments.filter((a) => a.doctorId === doc.id);
+                  const docApps = appointments.filter(
+                    (a) => a.doctorId === doc.id
+                  );
 
-  // New rule: only show appts in their *start* row
-  const overlapping = docApps.filter((a) => {
-    const idx = getAppointmentStartIndex(timeSlots, a);
-    return idx === rowIndex;
-  });
+                  // Only show appointments in their *start* row
+                  const overlapping = docApps.filter((a) => {
+                    const idx = getAppointmentStartIndex(timeSlots, a);
+                    return idx === rowIndex;
+                  });
 
-  const slotKey = `${doc.id}-${rowIndex}`;
+                  const slotKey = `${doc.id}-${rowIndex}`;
 
-  if (overlapping.length === 0) {
-    return (
-      <div
-        key={slotKey}
-        style={{
-          borderLeft: "1px solid #f0f0f0",
-          backgroundColor: "#ffffff",
-          minHeight: 40,
-        }}
-      />
-    );
-  }
+                  if (overlapping.length === 0) {
+                    return (
+                      <div
+                        key={slotKey}
+                        style={{
+                          borderLeft: "1px solid #f0f0f0",
+                          backgroundColor: "#ffffff",
+                          minHeight: 40,
+                        }}
+                      />
+                    );
+                  }
 
-  if (overlapping.length === 1) {
-    const a = overlapping[0];
-    return (
-      <div
-        key={slotKey}
-        style={{
-          borderLeft: "1px solid #f0f0f0",
-          backgroundColor: laneBg(a),
-          minHeight: 40,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "1px 4px",
-        }}
-      >
-        <span
-          style={{
-            fontSize: 11,
-            lineHeight: 1.2,
-            textAlign: "center",
-            whiteSpace: "normal",
-            wordBreak: "break-word",
-          }}
-        >
-          {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
-        </span>
-      </div>
-    );
-  }
-
-  const perWidth = 100 / overlapping.length;
-
-  return (
-    <div
-      key={slotKey}
-      style={{
-        borderLeft: "1px solid #f0f0f0",
-        backgroundColor: "#ffffff",
-        minHeight: 40,
-        display: "flex",
-        flexDirection: "row",
-        padding: 0,
-      }}
-    >
-      {overlapping.map((a, idx) => (
-        <div
-          key={a.id}
-          style={{
-            width: `${perWidth}%`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "1px 3px",
-            backgroundColor: laneBg(a),
-            boxSizing: "border-box",
-            borderLeft: idx === 0 ? "none" : "2px solid #ffffff",
-          }}
-        >
-          <span
-            style={{
-              fontSize: 11,
-              lineHeight: 1.2,
-              textAlign: "center",
-              whiteSpace: "normal",
-              wordBreak: "break-word",
-            }}
-          >
-            {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-})}
+                  if (overlapping.length === 1) {
+                    const a = overlapping[0];
+                    return (
+                      <div
+                        key={slotKey}
+                        style={{
+                          borderLeft: "1px solid #f0f0f0",
+                          backgroundColor: laneBg(a),
+                          minHeight: 40,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "1px 4px",
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 11,
+                            lineHeight: 1.2,
+                            textAlign: "center",
+                            whiteSpace: "normal",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {`${formatGridShortLabel(a)} (${formatStatus(
+                            a.status
+                          )})`}
+                        </span>
+                      </div>
+                    );
+                  }
 
                   const perWidth = 100 / overlapping.length;
 
@@ -632,21 +591,19 @@ export default function AppointmentsPage() {
                               idx === 0 ? "none" : "2px solid #ffffff",
                           }}
                         >
-                          {isStartRow(a) && (
-                            <span
-                              style={{
-                                fontSize: 11,
-                                lineHeight: 1.2,
-                                textAlign: "center",
-                                whiteSpace: "normal",
-                                wordBreak: "break-word",
-                              }}
-                            >
-                              {`${formatGridShortLabel(
-                                a
-                              )} (${formatStatus(a.status)})`}
-                            </span>
-                          )}
+                          <span
+                            style={{
+                              fontSize: 11,
+                              lineHeight: 1.2,
+                              textAlign: "center",
+                              whiteSpace: "normal",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {`${formatGridShortLabel(a)} (${formatStatus(
+                              a.status
+                            )})`}
+                          </span>
                         </div>
                       ))}
                     </div>
