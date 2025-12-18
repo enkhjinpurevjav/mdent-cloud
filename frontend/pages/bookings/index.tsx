@@ -480,7 +480,7 @@ const heightPx = heightMinutes * (ROW_HEIGHT / SLOT_MINUTES);
     );
   })}
 
-/* rows to match height */
+* rows to match height */
 {timeSlots.map((t, idx) => (
   <div
     key={t}
