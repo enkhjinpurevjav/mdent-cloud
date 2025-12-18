@@ -62,10 +62,6 @@ function pad2(n: number) {
   return n.toString().padStart(2, "0");
 }
 
-function getSlotTimeString(date: Date): string {
-  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
-}
-
 function generateTimeSlotsForDay(day: Date): TimeSlot[] {
   const slots: TimeSlot[] = [];
   const weekdayIndex = day.getDay(); // 0=Sun,6=Sat
@@ -326,177 +322,7 @@ function AppointmentForm({
         fontSize: 13,
       }}
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Өвчтөний ID</label>
-        <input
-          name="patientId"
-          value={form.patientId}
-          onChange={handleChange}
-          placeholder="Ж: 123"
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        />
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Эмч</label>
-        <select
-          name="doctorId"
-          value={form.doctorId}
-          onChange={handleChange}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        >
-          <option value="">Сонгох</option>
-          {doctors.map((d) => (
-            <option key={d.id} value={d.id}>
-              {formatDoctorName(d)}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Салбар</label>
-        <select
-          name="branchId"
-          value={form.branchId}
-          onChange={handleChange}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        >
-          <option value="">Сонгох</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Огноо</label>
-        <input
-          type="date"
-          name="date"
-          value={form.date}
-          onChange={handleChange}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        />
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Эхлэх цаг</label>
-        <input
-          type="time"
-          name="startTime"
-          value={form.startTime}
-          onChange={handleChange}
-          step={SLOT_MINUTES * 60}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        />
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Дуусах цаг</label>
-        <input
-          type="time"
-          name="endTime"
-          value={form.endTime}
-          onChange={handleChange}
-          step={SLOT_MINUTES * 60}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        />
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Төлөв</label>
-        <select
-          name="status"
-          value={form.status}
-          onChange={handleChange}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        >
-          <option value="booked">Захиалсан</option>
-          <option value="confirmed">Баталгаажсан</option>
-          <option value="ongoing">Явагдаж байна</option>
-          <option value="completed">Дууссан</option>
-          <option value="cancelled">Цуцалсан</option>
-        </select>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-          gridColumn: "1 / -1",
-        }}
-      >
-        <label>Тэмдэглэл</label>
-        <input
-          name="notes"
-          value={form.notes}
-          onChange={handleChange}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        />
-      </div>
-
-      <div
-        style={{
-          gridColumn: "1 / -1",
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-        }}
-      >
-        <button
-          type="submit"
-          style={{
-            padding: "8px 16px",
-            borderRadius: 6,
-            border: "none",
-            background: "#2563eb",
-            color: "white",
-            fontSize: 14,
-            cursor: "pointer",
-          }}
-        >
-          Цаг захиалах
-        </button>
-        {error && (
-          <span style={{ color: "#b91c1c", fontSize: 12 }}>{error}</span>
-        )}
-      </div>
+      {/* ... keep your form fields exactly as you have them ... */}
     </form>
   );
 }
@@ -598,7 +424,7 @@ export default function AppointmentsPage() {
         fontFamily: "sans-serif",
       }}
     >
-      {/* filters + form ... unchanged */}
+      {/* filters + form ... */}
 
       {error && (
         <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
@@ -606,7 +432,6 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-            {/* Calendar grid */}
       {gridDoctors.length === 0 ? (
         <div style={{ color: "#6b7280", fontSize: 13 }}>
           Энэ өдөр ажиллах эмчийн хуваарь алга.
