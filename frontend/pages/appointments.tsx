@@ -2240,6 +2240,9 @@ function AppointmentForm({
 }
 
 // ==== Page ====
+ // 2‑lane grid per doctor for the selected day
+  type LaneCell = Appointment | null;
+  type DoctorLanes = [LaneCell[], LaneCell[]];
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -2267,9 +2270,7 @@ export default function AppointmentsPage() {
 
   // ... keep everything above ...
 
-  // 2‑lane grid per doctor for the selected day
-  type LaneCell = Appointment | null;
-  type DoctorLanes = [LaneCell[], LaneCell[]];
+ 
 
   const doctorLanesMap: Record<number, DoctorLanes> = {};
   const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
