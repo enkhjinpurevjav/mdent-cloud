@@ -2250,49 +2250,9 @@ export default function AppointmentsPage() {
 
   const [activeBranchTab, setActiveBranchTab] = useState<string>("");
 
-  const groupedAppointments = groupByDate(appointments);
+    const groupedAppointments = groupByDate(appointments);
   const selectedDay = getDateFromYMD(filterDate);
   const timeSlots = generateTimeSlotsForDay(selectedDay);
-  // Build 2‑lane grid per doctor for the selected day
-type LaneCell = Appointment | null;
-type DoctorLanes = [LaneCell[], LaneCell[]];
-
-const doctorLanesMap: Record<number, DoctorLanes> = {};
-
-gridDoctors.forEach((doc) => {
-  const lanes: DoctorLanes = [
-    Array<LaneCell>(timeSlots.length).fill(null),
-    Array<LaneCell>(timeSlots.length).fill(null),
-  ];
-
-  const docApps = appointments.filter((a) => a.doctorId === doc.id);
-  for (const a of docApps) {
-    const range = getAppointmentSlotRange(timeSlots, a);
-    if (!range) continue;
-    const { startIndex, endIndex } = range;
-
-    const canPlaceInLane = (laneIndex: 0 | 1) => {
-      for (let i = startIndex; i < endIndex; i++) {
-        if (lanes[laneIndex][i] !== null) return false;
-      }
-      return true;
-    };
-
-    if (canPlaceInLane(0)) {
-      for (let i = startIndex; i < endIndex; i++) {
-        lanes[0][i] = a;
-      }
-    } else if (canPlaceInLane(1)) {
-      for (let i = startIndex; i < endIndex; i++) {
-        lanes[1][i] = a;
-      }
-    } else {
-      // more than 2 overlapping; skip
-    }
-  }
-
-  doctorLanesMap[doc.id] = lanes;
-});
 
   const [detailsModalState, setDetailsModalState] = useState<{
     open: boolean;
@@ -2319,89 +2279,58 @@ gridDoctors.forEach((doc) => {
 
   const formSectionRef = useRef<HTMLElement | null>(null);
 
-  const loadAppointments = async () => {
-    try {
-      setError("");
-      const params = new URLSearchParams();
-      if (filterDate) params.set("date", filterDate);
-      if (filterBranchId) params.set("branchId", filterBranchId);
-      if (filterDoctorId) params.set("doctorId", filterDoctorId);
+  const loadAppointments = async () => { ... };
+  const loadScheduledDoctors = async () => { ... };
 
-      const res = await fetch(`/api/appointments?${params.toString()}`);
-      const data = await res.json();
-      if (!res.ok || !Array.isArray(data)) {
-        throw new Error("failed");
-      }
-      setAppointments(data);
-    } catch {
-      setError("Цаг захиалгуудыг ачаалах үед алдаа гарлаа.");
-    }
-  };
+  useEffect(() => { ... }, []);
+  useEffect(() => { ... }, [filterDate, filterBranchId, filterDoctorId]);
 
-  const loadScheduledDoctors = async () => {
-    try {
-      const params = new URLSearchParams();
-      if (filterDate) params.set("date", filterDate);
-      if (filterBranchId) params.set("branchId", filterBranchId);
+  const handleBranchTabClick = (branchId: string) => { ... };
 
-      const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
-      const data = await res.json();
-
-      if (!res.ok || !Array.isArray(data)) {
-        throw new Error("failed");
-      }
-      const sorted = data
-        .slice()
-        .sort((a: ScheduledDoctor, b: ScheduledDoctor) => {
-          const an = (a.name || "").toLowerCase();
-          const bn = (b.name || "").toLowerCase();
-          return an.localeCompare(bn);
-        });
-
-      setScheduledDoctors(sorted);
-    } catch (e) {
-      console.error("Failed to load scheduled doctors", e);
-      setScheduledDoctors([]);
-    }
-  };
-
-  useEffect(() => {
-    const loadMeta = async () => {
-      try {
-        const [bRes, dRes] = await Promise.all([
-          fetch("/api/branches"),
-          fetch("/api/users?role=doctor"),
-        ]);
-
-        const [bData, dData] = await Promise.all([
-          bRes.json().catch(() => []),
-          dRes.json().catch(() => []),
-        ]);
-
-        if (Array.isArray(bData)) setBranches(bData);
-        if (Array.isArray(dData)) setDoctors(dData);
-      } catch (e) {
-        console.error(e);
-      }
-    };
-
-    loadMeta();
-  }, []);
-
- 
-
+  // Doctors shown in the grid
   const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
- 
-  useEffect(() => {
-    loadAppointments();
-    loadScheduledDoctors();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterDate, filterBranchId, filterDoctorId]);
 
-  const handleBranchTabClick = (branchId: string) => {
-    setActiveBranchTab(branchId);
-    setFilterBranchId(branchId);
-  };
+  // Build 2‑lane grid per doctor for the selected day
+  type LaneCell = Appointment | null;
+  type DoctorLanes = [LaneCell[], LaneCell[]];
+
+  const doctorLanesMap: Record<number, DoctorLanes> = {};
+
+  gridDoctors.forEach((doc) => {
+    const lanes: DoctorLanes = [
+      Array<LaneCell>(timeSlots.length).fill(null),
+      Array<LaneCell>(timeSlots.length).fill(null),
+    ];
+
+    const docApps = appointments.filter((a) => a.doctorId === doc.id);
+    for (const a of docApps) {
+      const range = getAppointmentSlotRange(timeSlots, a);
+      if (!range) continue;
+      const { startIndex, endIndex } = range;
+
+      const canPlaceInLane = (laneIndex: 0 | 1) => {
+        for (let i = startIndex; i < endIndex; i++) {
+          if (lanes[laneIndex][i] !== null) return false;
+        }
+        return true;
+      };
+
+      if (canPlaceInLane(0)) {
+        for (let i = startIndex; i < endIndex; i++) {
+          lanes[0][i] = a;
+        }
+      } else if (canPlaceInLane(1)) {
+        for (let i = startIndex; i < endIndex; i++) {
+          lanes[1][i] = a;
+        }
+      } else {
+        // more than 2 overlapping; skip
+      }
+    }
+
+    doctorLanesMap[doc.id] = lanes;
+  });
+
   // Helper functions for merged blocks in grid
   const slotsPerHour = 60 / SLOT_MINUTES;
 
