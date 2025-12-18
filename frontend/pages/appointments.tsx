@@ -2544,6 +2544,7 @@ export default function AppointmentsPage() {
                       fontWeight: "bold",
                       textAlign: "center",
                       borderLeft: "1px солид #ddd",
+                      backgroundColor: baseBg,
                     }}
                   >
                     <div>{formatDoctorName(doc)}</div>
