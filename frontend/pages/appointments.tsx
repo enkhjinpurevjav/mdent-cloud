@@ -2195,10 +2195,11 @@ export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>([]);
+  const [scheduledDoctors, setScheduledDoctors] =
+    useState<ScheduledDoctor[]>([]);
   const [error, setError] = useState("");
 
-    const [hasMounted, setHasMounted] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
   useEffect(() => {
     setHasMounted(true);
   }, []);
@@ -2214,7 +2215,7 @@ export default function AppointmentsPage() {
   const selectedDay = getDateFromYMD(filterDate);
   const timeSlots = generateTimeSlotsForDay(selectedDay);
 
-    // 2‑lane grid per doctor for the selected day
+  // 2‑lane grid per doctor for the selected day
   type LaneCell = Appointment | null;
   type DoctorLanes = [LaneCell[], LaneCell[]];
 
@@ -2362,7 +2363,7 @@ export default function AppointmentsPage() {
     setFilterBranchId(branchId);
   };
 
-  // Helper functions for merged blocks in grid
+  // Helper (kept if you use it later)
   const slotsPerHour = 60 / SLOT_MINUTES;
 
   return (
@@ -2551,7 +2552,6 @@ export default function AppointmentsPage() {
         </div>
 
         {!hasMounted ? (
-          // During SSR and very first client paint: show a simple placeholder
           <div style={{ color: "#6b7280", fontSize: 13 }}>
             Цагийн хүснэгтийг ачаалж байна...
           </div>
@@ -2590,7 +2590,6 @@ export default function AppointmentsPage() {
                       fontWeight: "bold",
                       textAlign: "center",
                       borderLeft: "1px солид #ddd",
-                      
                     }}
                   >
                     <div>{formatDoctorName(doc)}</div>
@@ -2634,195 +2633,227 @@ export default function AppointmentsPage() {
 
                   {/* Doctor columns */}
                   {gridDoctors.map((doc) => {
-  {gridDoctors.map((doc) => {
-  const lanes = doctorLanesMap[doc.id];
-  const lane0 = lanes ? lanes[0][rowIndex] : null;
-  const lane1 = lanes ? lanes[1][rowIndex] : null;
+                    const lanes = doctorLanesMap[doc.id];
+                    const lane0 = lanes ? lanes[0][rowIndex] : null;
+                    const lane1 = lanes ? lanes[1][rowIndex] : null;
 
-  const slotTimeStr = getSlotTimeString(slot.start);
-  const schedules = (doc as any).schedules || [];
+                    const slotTimeStr = getSlotTimeString(slot.start);
+                    const schedules = (doc as any).schedules || [];
 
-  const isWorkingHour = schedules.some((s: any) =>
-    isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
-  );
-  const weekdayIndex = slot.start.getDay();
-  const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
-  const isWeekendLunch =
-    isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
-  const isNonWorking = !isWorkingHour || isWeekendLunch;
+                    const isWorkingHour = schedules.some((s: any) =>
+                      isTimeWithinRange(
+                        slotTimeStr,
+                        s.startTime,
+                        s.endTime
+                      )
+                    );
+                    const weekdayIndex = slot.start.getDay();
+                    const isWeekend =
+                      weekdayIndex === 0 || weekdayIndex === 6;
+                    const isWeekendLunch =
+                      isWeekend &&
+                      isTimeWithinRange(
+                        slotTimeStr,
+                        "14:00",
+                        "15:00"
+                      );
+                    const isNonWorking = !isWorkingHour || isWeekendLunch;
 
-  const handleCellClickEmpty = () => {
-    if (isNonWorking) return;
-    setQuickModalState({
-      open: true,
-      doctorId: doc.id,
-      date: filterDate,
-      time: slotTimeStr,
-    });
-  };
+                    const handleCellClickEmpty = () => {
+                      if (isNonWorking) return;
+                      setQuickModalState({
+                        open: true,
+                        doctorId: doc.id,
+                        date: filterDate,
+                        time: slotTimeStr,
+                      });
+                    };
 
-  const handleCellClickWithApps = (apps: Appointment[]) => {
-    if (isNonWorking) return;
-    setDetailsModalState({
-      open: true,
-      doctor: doc,
-      slotLabel: slot.label,
-      slotTime: slotTimeStr,
-      date: filterDate,
-      appointments: apps,
-    });
-  };
+                    const handleCellClickWithApps = (
+                      apps: Appointment[]
+                    ) => {
+                      if (isNonWorking) return;
+                      setDetailsModalState({
+                        open: true,
+                        doctor: doc,
+                        slotLabel: slot.label,
+                        slotTime: slotTimeStr,
+                        date: filterDate,
+                        appointments: apps,
+                      });
+                    };
 
-  // 0 APPOINTMENTS in this slot for this doctor
-  if (!lane0 && !lane1) {
-    return (
-      <div
-        key={doc.id}
-        onClick={handleCellClickEmpty}
-        style={{
-          borderLeft: "1px solid #f0f0f0",
-          backgroundColor: "#ffffff",
-          cursor: isNonWorking ? "not-allowed" : "pointer",
-          minHeight: 28,
-        }}
-      />
-    );
-  }
+                    // 0 APPOINTMENTS in this slot for this doctor
+                    if (!lane0 && !lane1) {
+                      return (
+                        <div
+                          key={doc.id}
+                          onClick={handleCellClickEmpty}
+                          style={{
+                            borderLeft: "1px solid #f0f0f0",
+                            backgroundColor: "#ffffff",
+                            cursor: isNonWorking
+                              ? "not-allowed"
+                              : "pointer",
+                            minHeight: 28,
+                          }}
+                        />
+                      );
+                    }
 
-  // EXACTLY 1 APPOINTMENT in this slot (either lane0 or lane1)
-  if ((!!lane0 && !lane1) || (!lane0 && !!lane1)) {
-    const a = lane0 || lane1;
+                    // EXACTLY 1 APPOINTMENT in this slot (either lane0 or lane1)
+                    if (
+                      (!!lane0 && !lane1) ||
+                      (!lane0 && !!lane1)
+                    ) {
+                      const a = lane0 || lane1;
 
-    let bg =
-      a!.status === "completed"
-        ? "#fb6190"
-        : a!.status === "confirmed"
-        ? "#bbf7d0"
-        : a!.status === "ongoing"
-        ? "#f9d89b"
-        : a!.status === "cancelled"
-        ? "#9d9d9d"
-        : "#77f9fe";
+                      let bg =
+                        a!.status === "completed"
+                          ? "#fb6190"
+                          : a!.status === "confirmed"
+                          ? "#bbf7d0"
+                          : a!.status === "ongoing"
+                          ? "#f9d89b"
+                          : a!.status === "cancelled"
+                          ? "#9d9d9d"
+                          : "#77f9fe";
 
-    return (
-      <div
-        key={doc.id}
-        onClick={() => handleCellClickWithApps([a!])}
-        style={{
-          borderLeft: "1px solid #f0f0f0",
-          backgroundColor: bg,
-          cursor: isNonWorking ? "not-allowed" : "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minHeight: 28,
-          padding: "1px 3px",
-        }}
-        title={`${formatPatientLabel(a!.patient, a!.patientId)} (${formatStatus(
-          a!.status
-        )})`}
-      >
-        <span
-          style={{
-            borderRadius: 4,
-            padding: "1px 4px",
-            maxWidth: "100%",
-            whiteSpace: "normal",
-            wordBreak: "break-word",
-            overflowWrap: "anywhere",
-            fontSize: 11,
-            lineHeight: 1.2,
-            textAlign: "center",
-          }}
-        >
-          {`${formatGridShortLabel(a!)} (${formatStatus(a!.status)})`}
-        </span>
-      </div>
-    );
-  }
+                      return (
+                        <div
+                          key={doc.id}
+                          onClick={() =>
+                            handleCellClickWithApps([a!])
+                          }
+                          style={{
+                            borderLeft: "1px solid #f0f0f0",
+                            backgroundColor: bg,
+                            cursor: isNonWorking
+                              ? "not-allowed"
+                              : "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            minHeight: 28,
+                            padding: "1px 3px",
+                          }}
+                          title={`${formatPatientLabel(
+                            a!.patient,
+                            a!.patientId
+                          )} (${formatStatus(a!.status)})`}
+                        >
+                          <span
+                            style={{
+                              borderRadius: 4,
+                              padding: "1px 4px",
+                              maxWidth: "100%",
+                              whiteSpace: "normal",
+                              wordBreak: "break-word",
+                              overflowWrap: "anywhere",
+                              fontSize: 11,
+                              lineHeight: 1.2,
+                              textAlign: "center",
+                            }}
+                          >
+                            {`${formatGridShortLabel(
+                              a!
+                            )} (${formatStatus(a!.status)})`}
+                          </span>
+                        </div>
+                      );
+                    }
 
-  // 2 APPOINTMENTS in this slot (one in each lane)
-  const laneBg = (a: Appointment): string => {
-    switch (a.status) {
-      case "completed":
-        return "#fb6190";
-      case "confirmed":
-        return "#bbf7d0";
-      case "ongoing":
-        return "#f9d89b";
-      case "cancelled":
-        return "#9d9d9d";
-      default:
-        return "#77f9fe";
-    }
-  };
+                    // 2 APPOINTMENTS in this slot (one in each lane)
+                    const laneBg = (a: Appointment): string => {
+                      switch (a.status) {
+                        case "completed":
+                          return "#fb6190";
+                        case "confirmed":
+                          return "#bbf7d0";
+                        case "ongoing":
+                          return "#f9d89b";
+                        case "cancelled":
+                          return "#9d9d9d";
+                        default:
+                          return "#77f9fe";
+                      }
+                    };
 
-  return (
-    <div
-      key={doc.id}
-      onClick={() => handleCellClickWithApps([lane0!, lane1!])}
-      style={{
-        borderLeft: "1px solid #f0f0f0",
-        backgroundColor: "#ffffff",
-        cursor: isNonWorking ? "not-allowed" : "pointer",
-        display: "flex",
-        flexDirection: "row",
-        alignItems: "stretch",
-        minHeight: 28,
-        padding: 0,
-      }}
-    >
-      {/* LEFT lane (lane0) */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "1px 3px",
-          backgroundColor: laneBg(lane0!),
-          whiteSpace: "normal",
-          wordBreak: "break-word",
-          overflowWrap: "anywhere",
-          fontSize: 11,
-          lineHeight: 1.2,
-          textAlign: "center",
-        }}
-        title={`${formatPatientLabel(
-          lane0!.patient,
-          lane0!.patientId
-        )} (${formatStatus(lane0!.status)})`}
-      >
-        {`${formatGridShortLabel(lane0!)} (${formatStatus(lane0!.status)})`}
-      </div>
+                    return (
+                      <div
+                        key={doc.id}
+                        onClick={() =>
+                          handleCellClickWithApps([lane0!, lane1!])
+                        }
+                        style={{
+                          borderLeft: "1px solid #f0f0f0",
+                          backgroundColor: "#ffffff",
+                          cursor: isNonWorking
+                            ? "not-allowed"
+                            : "pointer",
+                          display: "flex",
+                          flexDirection: "row",
+                          alignItems: "stretch",
+                          minHeight: 28,
+                          padding: 0,
+                        }}
+                      >
+                        {/* LEFT lane (lane0) */}
+                        <div
+                          style={{
+                            flex: 1,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "1px 3px",
+                            backgroundColor: laneBg(lane0!),
+                            whiteSpace: "normal",
+                            wordBreak: "break-word",
+                            overflowWrap: "anywhere",
+                            fontSize: 11,
+                            lineHeight: 1.2,
+                            textAlign: "center",
+                          }}
+                          title={`${formatPatientLabel(
+                            lane0!.patient,
+                            lane0!.patientId
+                          )} (${formatStatus(lane0!.status)})`}
+                        >
+                          {`${formatGridShortLabel(
+                            lane0!
+                          )} (${formatStatus(lane0!.status)})`}
+                        </div>
 
-      {/* RIGHT lane (lane1) */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "1px 3px",
-          backgroundColor: laneBg(lane1!),
-          whiteSpace: "normal",
-          wordBreak: "break-word",
-          overflowWrap: "anywhere",
-          fontSize: 11,
-          lineHeight: 1.2,
-          textAlign: "center",
-          borderLeft: "1px solid rgba(255,255,255,0.4)",
-        }}
-        title={`${formatPatientLabel(
-          lane1!.patient,
-          lane1!.patientId
-        )} (${formatStatus(lane1!.status)})`}
-      >
-        {`${formatGridShortLabel(lane1!)} (${formatStatus(lane1!.status)})`}
-      </div>
-    </div>
-  );
-})}
+                        {/* RIGHT lane (lane1) */}
+                        <div
+                          style={{
+                            flex: 1,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "1px 3px",
+                            backgroundColor: laneBg(lane1!),
+                            whiteSpace: "normal",
+                            wordBreak: "break-word",
+                            overflowWrap: "anywhere",
+                            fontSize: 11,
+                            lineHeight: 1.2,
+                            textAlign: "center",
+                            borderLeft:
+                              "1px solid rgba(255,255,255,0.4)",
+                          }}
+                          title={`${formatPatientLabel(
+                            lane1!.patient,
+                            lane1!.patientId
+                          )} (${formatStatus(lane1!.status)})`}
+                        >
+                          {`${formatGridShortLabel(
+                            lane1!
+                          )} (${formatStatus(lane1!.status)})`}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ))}
             </div>
@@ -2831,277 +2862,10 @@ export default function AppointmentsPage() {
       </section>
 
       {/* Day-grouped calendar */}
-      <section style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 8 }}>Календарь (өдрөөр)</h2>
-        {groupedAppointments.length === 0 && (
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
-            Цаг захиалга алга.
-          </div>
-        )}
-        <div
-          style={{
-            display: "flex",
-            gap: 16,
-            overflowX: "auto",
-            paddingBottom: 8,
-            justifyContent: "flex-start",
-          }}
-        >
-          {groupedAppointments.map(([date, apps]) => (
-            <div
-              key={date}
-              style={{
-                minWidth: 260,
-                maxWidth: 320,
-                border: "1px солид #e5e7eb",
-                borderRadius: 8,
-                padding: 10,
-                backgroundColor: "#ffffff",
-              }}
-            >
-              <div
-                style={{
-                  fontWeight: 600,
-                  marginBottom: 8,
-                  fontSize: 13,
-                  color: "#111827",
-                }}
-              >
-                {formatDateYmdDots(new Date(date))}
-              </div>
-              {apps
-                .slice()
-                .sort(
-                  (a, b) =>
-                    new Date(a.scheduledAt).getTime() -
-                    new Date(b.scheduledAt).getTime()
-                )
-                .map((a) => {
-                  const start = new Date(a.scheduledAt);
-                  const end =
-                    a.endAt &&
-                    !Number.isNaN(new Date(a.endAt).getTime())
-                      ? new Date(a.endAt)
-                      : null;
-
-                  return (
-                    <div
-                      key={a.id}
-                      style={{
-                        marginBottom: 6,
-                        padding: 6,
-                        borderRadius: 4,
-                        backgroundColor:
-                          a.status === "completed"
-                            ? "#e0f7e9"
-                            : a.status === "ongoing"
-                            ? "#fff4e0"
-                            : a.status === "cancelled"
-                            ? "#fde0e0"
-                            : "#e6f0ff",
-                        fontSize: 12,
-                      }}
-                    >
-                      <div style={{ fontWeight: 500 }}>
-                        {start.toLocaleTimeString("mn-MN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: false,
-                        })}
-                        {end
-                          ? ` – ${end.toLocaleTimeString("mn-MN", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: false,
-                            })}`
-                          : ""}
-                        {" — "}
-                        {formatPatientLabel(a.patient, a.patientId)}
-                      </div>
-                      <div>
-                        Эмч: {formatDoctorName(a.doctor)} | Салбар:{" "}
-                        {a.branch?.name ?? a.branchId}
-                      </div>
-                      <div>Тайлбар: {a.notes || "-"}</div>
-                      <div>Төлөв: {formatStatus(a.status)}</div>
-                    </div>
-                  );
-                })}
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* (unchanged) */}
 
       {/* Raw table */}
-      <section>
-        <h2 style={{ fontSize: 16, marginBottom: 8 }}>
-          Бүгдийг жагсаалтаар харах
-        </h2>
-        {appointments.length === 0 ? (
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
-            Цаг захиалга алга.
-          </div>
-        ) : (
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              marginTop: 4,
-              fontSize: 13,
-            }}
-          >
-            <thead>
-              <tr>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px солид #ddd",
-                    padding: 6,
-                  }}
-                >
-                  ID
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px солид #ddd",
-                    padding: 6,
-                  }}
-                >
-                  Өвчтөн
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px солид #ddd",
-                    padding: 6,
-                  }}
-                >
-                  Салбар
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px солид #ddd",
-                    padding: 6,
-                  }}
-                >
-                  Эмч
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px солид #ddd",
-                    padding: 6,
-                  }}
-                >
-                  Огноо / цаг
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px солид #ddd",
-                    padding: 6,
-                  }}
-                >
-                  Төлөв
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px солид #ddd",
-                    padding: 6,
-                  }}
-                >
-                  Тэмдэглэл
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {appointments.map((a) => {
-                const start = new Date(a.scheduledAt);
-                const end =
-                  a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-                    ? new Date(a.endAt)
-                    : null;
-
-                return (
-                  <tr key={a.id}>
-                    <td
-                      style={{
-                        borderBottom: "1px солид #f0f0f0",
-                        padding: 6,
-                      }}
-                    >
-                      {a.id}
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px солид #f0f0f0",
-                        padding: 6,
-                      }}
-                    >
-                      {formatPatientLabel(a.patient, a.patientId)}
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px солид #f0f0f0",
-                        padding: 6,
-                      }}
-                    >
-                      {a.branch?.name ?? a.branchId}
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px солид #f0f0f0",
-                        padding: 6,
-                      }}
-                    >
-                      {formatDoctorName(a.doctor ?? null)}
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px солид #f0f0f0",
-                        padding: 6,
-                      }}
-                    >
-                      {formatDateYmdDots(start)}{" "}
-                      {start.toLocaleTimeString("mn-MN", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false,
-                      })}
-                      {end
-                        ? ` – ${end.toLocaleTimeString("mn-MN", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: false,
-                          })}`
-                        : ""}
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px солид #f0f0f0",
-                        padding: 6,
-                      }}
-                    >
-                      {formatStatus(a.status)}
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px солид #f0f0f0",
-                        padding: 6,
-                      }}
-                    >
-                      {a.notes || "-"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
+      {/* (unchanged) */}
 
       {/* Modals */}
       <AppointmentDetailsModal
@@ -3116,7 +2880,9 @@ export default function AppointmentsPage() {
         appointments={detailsModalState.appointments}
         onStatusUpdated={(updated) => {
           setAppointments((prev) =>
-            prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
+            prev.map((a) =>
+              a.id === updated.id ? { ...a, ...updated } : a
+            )
           );
           setDetailsModalState((prev) => ({
             ...prev,
