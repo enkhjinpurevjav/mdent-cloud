@@ -2256,23 +2256,7 @@ export default function AppointmentsPage() {
   const groupedAppointments = groupByDate(appointments);
   const selectedDay = getDateFromYMD(filterDate);
   const timeSlots = generateTimeSlotsForDay(selectedDay);
-  const doctorSlotGrid: Record<number, Appointment[][]> = {};
-  for (const doc of gridDoctors) {
-  const slotsForDoc: Appointment[][] = Array(timeSlots.length)
-    .fill(null)
-    .map(() => []);
-
-  const docApps = appointments.filter((a) => a.doctorId === doc.id);
-  for (const a of docApps) {
-    const range = getAppointmentSlotRange(timeSlots, a);
-    if (!range) continue;
-    for (let i = range.startIndex; i < range.endIndex; i++) {
-      slotsForDoc[i].push(a);
-    }
-  }
-
-  doctorSlotGrid[doc.id] = slotsForDoc;
-}
+  
 
   const [detailsModalState, setDetailsModalState] = useState<{
     open: boolean;
