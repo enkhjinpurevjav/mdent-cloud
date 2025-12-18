@@ -109,6 +109,42 @@ function getSlotTimeString(date: Date): string {
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
+function getAppointmentSlotRange(
+  daySlots: TimeSlot[],
+  a: Appointment
+): { startIndex: number; endIndex: number } | null {
+  const start = new Date(a.scheduledAt);
+  if (Number.isNaN(start.getTime())) return null;
+
+  const end =
+    a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+      ? new Date(a.endAt)
+      : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+
+  // Only consider appointments on this day
+  if (!daySlots.length) return null;
+  const dayYmd = daySlots[0].start.toISOString().slice(0, 10);
+  const apptYmd = start.toISOString().slice(0, 10);
+  if (dayYmd !== apptYmd) return null;
+
+  let startIndex = -1;
+  let endIndex = -1;
+
+  for (let i = 0; i < daySlots.length; i++) {
+    const s = daySlots[i];
+    // overlap check: [start,end) overlaps [s.start,s.end)
+    if (start < s.end && end > s.start) {
+      if (startIndex === -1) startIndex = i;
+      endIndex = i + 1; // exclusive
+    } else if (startIndex !== -1) {
+      break;
+    }
+  }
+
+  if (startIndex === -1 || endIndex === -1) return null;
+  return { startIndex, endIndex };
+}
+
 function addMinutesToTimeString(time: string, minutesToAdd: number): string {
   if (!time) return "";
   const [h, m] = time.split(":").map(Number);
