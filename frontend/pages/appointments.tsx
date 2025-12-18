@@ -103,7 +103,7 @@ function getAppointmentStartIndex(
   return null;
 }
 
-// ========= lane layout helpers (NEW) =========
+// ========= lane layout helpers =========
 
 type TimedAppointment = Appointment & {
   startIndex: number;
@@ -281,7 +281,6 @@ function buildLocalDateTimeString(dateStr: string, timeStr: string): string {
 }
 
 // ========= AppointmentForm (inline) =========
-// (unchanged – your existing form code)
 
 type AppointmentFormProps = {
   branches: Branch[];
@@ -298,9 +297,321 @@ function AppointmentForm({
   selectedBranchId,
   onCreated,
 }: AppointmentFormProps) {
-  // ... keep your existing AppointmentForm exactly as in your message ...
-  // (no changes needed here)
-  // paste your current AppointmentForm implementation here unchanged
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const [form, setForm] = useState({
+    patientId: "",
+    doctorId: "",
+    branchId: selectedBranchId || (branches[0]?.id?.toString() ?? ""),
+    date: selectedDate || todayStr,
+    startTime: "",
+    endTime: "",
+    status: "booked",
+    notes: "",
+  });
+
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (selectedDate) {
+      setForm((prev) => ({ ...prev, date: selectedDate }));
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
+    if (selectedBranchId) {
+      setForm((prev) => ({ ...prev, branchId: selectedBranchId }));
+    }
+  }, [selectedBranchId]);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (
+      !form.patientId ||
+      !form.doctorId ||
+      !form.branchId ||
+      !form.date ||
+      !form.startTime ||
+      !form.endTime
+    ) {
+      setError("Бүх шаардлагатай талбаруудыг бөглөнө үү.");
+      return;
+    }
+
+    // build Date objects only for validation
+    const [year, month, day] = form.date.split("-").map(Number);
+    const [startHour, startMinute] = form.startTime.split(":").map(Number);
+    const [endHour, endMinute] = form.endTime.split(":").map(Number);
+
+    const start = new Date(
+      year,
+      (month || 1) - 1,
+      day || 1,
+      startHour || 0,
+      startMinute || 0,
+      0,
+      0
+    );
+    const end = new Date(
+      year,
+      (month || 1) - 1,
+      day || 1,
+      endHour || 0,
+      endMinute || 0,
+      0,
+      0
+    );
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      setError("Огноо/цаг буруу байна.");
+      return;
+    }
+    if (end <= start) {
+      setError("Дуусах цаг нь эхлэх цагаас хойш байх ёстой.");
+      return;
+    }
+
+    // OPTION A: build local strings, no timezone conversion
+    const scheduledAt = buildLocalDateTimeString(form.date, form.startTime);
+    const endAt = buildLocalDateTimeString(form.date, form.endTime);
+
+    try {
+      const res = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientId: Number(form.patientId),
+          doctorId: Number(form.doctorId),
+          branchId: Number(form.branchId),
+          scheduledAt, // "YYYY-MM-DD HH:MM:SS" local
+          endAt,
+          status: form.status,
+          notes: form.notes || null,
+        }),
+      });
+
+      let data: Appointment | { error?: string };
+      try {
+        data = await res.json();
+      } catch {
+        data = { error: "Unknown error" };
+      }
+
+      if (!res.ok) {
+        setError((data as any).error || "Алдаа гарлаа");
+        return;
+      }
+
+      onCreated(data as Appointment);
+
+      // reset some fields
+      setForm((prev) => ({
+        ...prev,
+        patientId: "",
+        startTime: "",
+        endTime: "",
+        notes: "",
+        status: "booked",
+      }));
+    } catch (err) {
+      console.error(err);
+      setError("Сүлжээгээ шалгана уу.");
+    }
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      style={{
+        marginBottom: 16,
+        display: "grid",
+        gap: 10,
+        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+        fontSize: 13,
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Өвчтөний ID</label>
+        <input
+          name="patientId"
+          value={form.patientId}
+          onChange={handleChange}
+          placeholder="Ж: 123"
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Эмч</label>
+        <select
+          name="doctorId"
+          value={form.doctorId}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Сонгох</option>
+          {doctors.map((d) => (
+            <option key={d.id} value={d.id}>
+              {formatDoctorName(d)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Салбар</label>
+        <select
+          name="branchId"
+          value={form.branchId}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Сонгох</option>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Огноо</label>
+        <input
+          type="date"
+          name="date"
+          value={form.date}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Эхлэх цаг</label>
+        <input
+          type="time"
+          name="startTime"
+          value={form.startTime}
+          onChange={handleChange}
+          step={SLOT_MINUTES * 60}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Дуусах цаг</label>
+        <input
+          type="time"
+          name="endTime"
+          value={form.endTime}
+          onChange={handleChange}
+          step={SLOT_MINUTES * 60}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Төлөв</label>
+        <select
+          name="status"
+          value={form.status}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="booked">Захиалсан</option>
+          <option value="confirmed">Баталгаажсан</option>
+          <option value="ongoing">Явагдаж байна</option>
+          <option value="completed">Дууссан</option>
+          <option value="cancelled">Цуцалсан</option>
+        </select>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          gridColumn: "1 / -1",
+        }}
+      >
+        <label>Тэмдэглэл</label>
+        <input
+          name="notes"
+          value={form.notes}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      <div
+        style={{
+          gridColumn: "1 / -1",
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+        }}
+      >
+        <button
+          type="submit"
+          style={{
+            padding: "8px 16px",
+            borderRadius: 6,
+            border: "none",
+            background: "#2563eb",
+            color: "white",
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          Цаг захиалах
+        </button>
+        {error && (
+          <span style={{ color: "#b91c1c", fontSize: 12 }}>{error}</span>
+        )}
+      </div>
+    </form>
+  );
 }
 
 // ========= PAGE =========
@@ -323,7 +634,6 @@ export default function AppointmentsPage() {
     Number(filterDate.slice(8, 10))
   );
   const timeSlots = generateTimeSlotsForDay(selectedDay);
-  const doctorLayouts = buildDoctorLayouts(timeSlots, appointments);
 
   // load branches + doctors
   useEffect(() => {
@@ -404,7 +714,87 @@ export default function AppointmentsPage() {
         fontFamily: "sans-serif",
       }}
     >
-      {/* filters + form + error (keep your existing JSX here) */}
+      <h1 style={{ fontSize: 20, marginBottom: 8 }}>
+        Өдрийн цагийн хүснэгт (эмчээр)
+      </h1>
+
+      {/* Filters */}
+      <div
+        style={{
+          marginBottom: 12,
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          fontSize: 13,
+          flexWrap: "wrap",
+        }}
+      >
+        <label>
+          Огноо:{" "}
+          <input
+            type="date"
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
+            style={{
+              marginLeft: 4,
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "4px 6px",
+            }}
+          />
+        </label>
+        <label>
+          Салбар:{" "}
+          <select
+            value={filterBranchId}
+            onChange={(e) => setFilterBranchId(e.target.value)}
+            style={{
+              marginLeft: 4,
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "4px 6px",
+            }}
+          >
+            <option value="">Бүх салбар</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span style={{ color: "#6b7280" }}>
+          {formatDateYmdDots(selectedDay)}
+        </span>
+      </div>
+
+      {/* Inline form (uses OPTION A local time strings) */}
+      <section
+        style={{
+          marginBottom: 16,
+          padding: 12,
+          borderRadius: 8,
+          border: "1px solid #e5e7eb",
+          background: "#ffffff",
+        }}
+      >
+        <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 8 }}>
+          Шинэ цаг захиалах
+        </h2>
+        <AppointmentForm
+          branches={branches}
+          doctors={doctors}
+          selectedDate={filterDate}
+          selectedBranchId={filterBranchId}
+          onCreated={(a) => setAppointments((prev) => [a, ...prev])}
+        />
+      </section>
+
+      {error && (
+        <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
+          {error}
+        </div>
+      )}
 
       {/* Calendar grid */}
       {gridDoctors.length === 0 ? (
@@ -478,13 +868,28 @@ export default function AppointmentsPage() {
                   {slot.label}
                 </div>
 
-                {/* doctor columns with 2 vertical lanes */}
+                {/* doctor columns */}
                 {gridDoctors.map((doc) => {
-                  const layout =
-                    doc.id != null ? doctorLayouts.get(doc.id) : undefined;
+                  const docApps = appointments.filter(
+                    (a) => a.doctorId === doc.id
+                  );
+
+                  const overlapping = docApps.filter((a) => {
+                    const start = new Date(a.scheduledAt);
+                    if (Number.isNaN(start.getTime())) return false;
+                    const end =
+                      a.endAt &&
+                      !Number.isNaN(new Date(a.endAt).getTime())
+                        ? new Date(a.endAt)
+                        : new Date(
+                            start.getTime() + SLOT_MINUTES * 60 * 1000
+                          );
+                    return start < slot.end && end > slot.start;
+                  });
+
                   const slotKey = `${doc.id}-${rowIndex}`;
 
-                  if (!layout || layout.lanes === 0) {
+                  if (overlapping.length === 0) {
                     return (
                       <div
                         key={slotKey}
@@ -497,7 +902,46 @@ export default function AppointmentsPage() {
                     );
                   }
 
-                  const laneWidth = 100 / layout.lanes; // 2 lanes -> 50% each
+                  const isStartRow = (a: Appointment) => {
+                    const idx = getAppointmentStartIndex(timeSlots, a);
+                    return idx === rowIndex;
+                  };
+
+                  if (overlapping.length === 1) {
+                    const a = overlapping[0];
+                    return (
+                      <div
+                        key={slotKey}
+                        style={{
+                          borderLeft: "1px solid #f0f0f0",
+                          backgroundColor: laneBg(a),
+                          minHeight: 40,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          padding: "1px 4px",
+                        }}
+                      >
+                        {isStartRow(a) && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              lineHeight: 1.2,
+                              textAlign: "center",
+                              whiteSpace: "normal",
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {`${formatGridShortLabel(a)} (${formatStatus(
+                              a.status
+                            )})`}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  const perWidth = 100 / overlapping.length;
 
                   return (
                     <div
@@ -511,72 +955,38 @@ export default function AppointmentsPage() {
                         padding: 0,
                       }}
                     >
-                      {Array.from({ length: layout.lanes }).map(
-                        (_, laneIndex) => {
-                          const appt = layout.items.find(
-                            (a) =>
-                              a.lane === laneIndex &&
-                              rowIndex >= a.startIndex &&
-                              rowIndex < a.endIndex
-                          );
-
-                          if (!appt) {
-                            // empty lane at this row
-                            return (
-                              <div
-                                key={laneIndex}
-                                style={{
-                                  width: `${laneWidth}%`,
-                                  minHeight: 40,
-                                  boxSizing: "border-box",
-                                  borderLeft:
-                                    laneIndex === 0
-                                      ? "none"
-                                      : "2px solid #ffffff",
-                                }}
-                              />
-                            );
-                          }
-
-                          const showLabel = rowIndex === appt.startIndex;
-
-                          return (
-                            <div
-                              key={laneIndex}
+                      {overlapping.map((a, idx) => (
+                        <div
+                          key={a.id}
+                          style={{
+                            width: `${perWidth}%`,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "1px 3px",
+                            backgroundColor: laneBg(a),
+                            boxSizing: "border-box",
+                            borderLeft:
+                              idx === 0 ? "none" : "2px solid #ffffff",
+                          }}
+                        >
+                          {isStartRow(a) && (
+                            <span
                               style={{
-                                width: `${laneWidth}%`,
-                                minHeight: 40,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                padding: "1px 3px",
-                                backgroundColor: laneBg(appt),
-                                boxSizing: "border-box",
-                                borderLeft:
-                                  laneIndex === 0
-                                    ? "none"
-                                    : "2px solid #ffffff",
+                                fontSize: 11,
+                                lineHeight: 1.2,
+                                textAlign: "center",
+                                whiteSpace: "normal",
+                                wordBreak: "break-word",
                               }}
                             >
-                              {showLabel && (
-                                <span
-                                  style={{
-                                    fontSize: 11,
-                                    lineHeight: 1.2,
-                                    textAlign: "center",
-                                    whiteSpace: "normal",
-                                    wordBreak: "break-word",
-                                  }}
-                                >
-                                  {`${formatGridShortLabel(
-                                    appt
-                                  )} (${formatStatus(appt.status)})`}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        }
-                      )}
+                              {`${formatGridShortLabel(
+                                a
+                              )} (${formatStatus(a.status)})`}
+                            </span>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   );
                 })}
