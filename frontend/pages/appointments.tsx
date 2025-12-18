@@ -2657,20 +2657,20 @@ for (const doc of gridDoctors) {
 
                   {/* Doctor columns */}
                   {gridDoctors.map((doc) => {
-// All appointments for this doctor that intersect THIS 30‑min slot
-const docSlots = doctorSlotGrid[doc.id] || [];
-const appsForCell = docSlots[rowIndex] || [];
+  // All appointments for this doctor that intersect THIS 30‑min slot
+  const appsForCell = appointments.filter((a) => {
+    if (a.doctorId !== doc.id) return false;
 
-  const start = new Date(a.scheduledAt);
-  if (Number.isNaN(start.getTime())) return false;
+    const start = new Date(a.scheduledAt);
+    if (Number.isNaN(start.getTime())) return false;
 
-  const end =
-    a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-      ? new Date(a.endAt)
-      : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+    const end =
+      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+        ? new Date(a.endAt)
+        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
 
-  const slotStart = slot.start;
-  const slotEnd = slot.end;
+    const slotStart = slot.start;
+    const slotEnd = slot.end;
 
   // colour every slot that this appointment overlaps
   return start < slotEnd && end > slotStart;
