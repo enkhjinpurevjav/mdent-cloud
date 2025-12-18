@@ -37,8 +37,8 @@ type Appointment = {
   patientId: number;
   doctorId: number | null;
   branchId: number;
-  scheduledAt: string; // ISO
-  endAt?: string | null; // ISO
+  scheduledAt: string; // "YYYY-MM-DD HH:MM:SS" local
+  endAt?: string | null; // same format or null
   status: string;
   notes: string | null;
   patient?: PatientLite;
@@ -164,6 +164,347 @@ function laneBg(a: Appointment): string {
   }
 }
 
+// ========= local datetime helper (OPTION A) =========
+
+// dateStr: "2025-12-18", timeStr: "15:30" -> "2025-12-18 15:30:00"
+function buildLocalDateTimeString(dateStr: string, timeStr: string): string {
+  return `${dateStr} ${timeStr}:00`;
+}
+
+// ========= AppointmentForm (inline) =========
+
+type AppointmentFormProps = {
+  branches: Branch[];
+  doctors: Doctor[];
+  selectedDate: string;
+  selectedBranchId: string;
+  onCreated: (a: Appointment) => void;
+};
+
+function AppointmentForm({
+  branches,
+  doctors,
+  selectedDate,
+  selectedBranchId,
+  onCreated,
+}: AppointmentFormProps) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const [form, setForm] = useState({
+    patientId: "",
+    doctorId: "",
+    branchId: selectedBranchId || (branches[0]?.id?.toString() ?? ""),
+    date: selectedDate || todayStr,
+    startTime: "",
+    endTime: "",
+    status: "booked",
+    notes: "",
+  });
+
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (selectedDate) {
+      setForm((prev) => ({ ...prev, date: selectedDate }));
+    }
+  }, [selectedDate]);
+
+  useEffect(() => {
+    if (selectedBranchId) {
+      setForm((prev) => ({ ...prev, branchId: selectedBranchId }));
+    }
+  }, [selectedBranchId]);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (
+      !form.patientId ||
+      !form.doctorId ||
+      !form.branchId ||
+      !form.date ||
+      !form.startTime ||
+      !form.endTime
+    ) {
+      setError("Бүх шаардлагатай талбаруудыг бөглөнө үү.");
+      return;
+    }
+
+    // build Date objects only for validation
+    const [year, month, day] = form.date.split("-").map(Number);
+    const [startHour, startMinute] = form.startTime.split(":").map(Number);
+    const [endHour, endMinute] = form.endTime.split(":").map(Number);
+
+    const start = new Date(
+      year,
+      (month || 1) - 1,
+      day || 1,
+      startHour || 0,
+      startMinute || 0,
+      0,
+      0
+    );
+    const end = new Date(
+      year,
+      (month || 1) - 1,
+      day || 1,
+      endHour || 0,
+      endMinute || 0,
+      0,
+      0
+    );
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      setError("Огноо/цаг буруу байна.");
+      return;
+    }
+    if (end <= start) {
+      setError("Дуусах цаг нь эхлэх цагаас хойш байх ёстой.");
+      return;
+    }
+
+    // OPTION A: build local strings, no timezone conversion
+    const scheduledAt = buildLocalDateTimeString(form.date, form.startTime);
+    const endAt = buildLocalDateTimeString(form.date, form.endTime);
+
+    try {
+      const res = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientId: Number(form.patientId),
+          doctorId: Number(form.doctorId),
+          branchId: Number(form.branchId),
+          scheduledAt, // "YYYY-MM-DD HH:MM:SS" local
+          endAt,
+          status: form.status,
+          notes: form.notes || null,
+        }),
+      });
+
+      let data: Appointment | { error?: string };
+      try {
+        data = await res.json();
+      } catch {
+        data = { error: "Unknown error" };
+      }
+
+      if (!res.ok) {
+        setError((data as any).error || "Алдаа гарлаа");
+        return;
+      }
+
+      onCreated(data as Appointment);
+
+      // reset some fields
+      setForm((prev) => ({
+        ...prev,
+        patientId: "",
+        startTime: "",
+        endTime: "",
+        notes: "",
+        status: "booked",
+      }));
+    } catch (err) {
+      console.error(err);
+      setError("Сүлжээгээ шалгана уу.");
+    }
+  };
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      style={{
+        marginBottom: 16,
+        display: "grid",
+        gap: 10,
+        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+        fontSize: 13,
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Өвчтөний ID</label>
+        <input
+          name="patientId"
+          value={form.patientId}
+          onChange={handleChange}
+          placeholder="Ж: 123"
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Эмч</label>
+        <select
+          name="doctorId"
+          value={form.doctorId}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Сонгох</option>
+          {doctors.map((d) => (
+            <option key={d.id} value={d.id}>
+              {formatDoctorName(d)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Салбар</label>
+        <select
+          name="branchId"
+          value={form.branchId}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Сонгох</option>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Огноо</label>
+        <input
+          type="date"
+          name="date"
+          value={form.date}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Эхлэх цаг</label>
+        <input
+          type="time"
+          name="startTime"
+          value={form.startTime}
+          onChange={handleChange}
+          step={SLOT_MINUTES * 60}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Дуусах цаг</label>
+        <input
+          type="time"
+          name="endTime"
+          value={form.endTime}
+          onChange={handleChange}
+          step={SLOT_MINUTES * 60}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Төлөв</label>
+        <select
+          name="status"
+          value={form.status}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="booked">Захиалсан</option>
+          <option value="confirmed">Баталгаажсан</option>
+          <option value="ongoing">Явагдаж байна</option>
+          <option value="completed">Дууссан</option>
+          <option value="cancelled">Цуцалсан</option>
+        </select>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          gridColumn: "1 / -1",
+        }}
+      >
+        <label>Тэмдэглэл</label>
+        <input
+          name="notes"
+          value={form.notes}
+          onChange={handleChange}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        />
+      </div>
+
+      <div
+        style={{
+          gridColumn: "1 / -1",
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+        }}
+      >
+        <button
+          type="submit"
+          style={{
+            padding: "8px 16px",
+            borderRadius: 6,
+            border: "none",
+            background: "#2563eb",
+            color: "white",
+            fontSize: 14,
+            cursor: "pointer",
+          }}
+        >
+          Цаг захиалах
+        </button>
+        {error && (
+          <span style={{ color: "#b91c1c", fontSize: 12 }}>{error}</span>
+        )}
+      </div>
+    </form>
+  );
+}
+
 // ========= PAGE =========
 
 export default function AppointmentsPage() {
@@ -173,6 +514,7 @@ export default function AppointmentsPage() {
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [scheduledDoctors, setScheduledDoctors] =
     useState<ScheduledDoctor[]>([]);
   const [error, setError] = useState("");
@@ -184,18 +526,25 @@ export default function AppointmentsPage() {
   );
   const timeSlots = generateTimeSlotsForDay(selectedDay);
 
-  // load branches
+  // load branches + doctors
   useEffect(() => {
-    const loadBranches = async () => {
+    const loadMeta = async () => {
       try {
-        const res = await fetch("/api/branches");
-        const data = await res.json().catch(() => []);
-        if (Array.isArray(data)) setBranches(data);
+        const [bRes, dRes] = await Promise.all([
+          fetch("/api/branches"),
+          fetch("/api/users?role=doctor"),
+        ]);
+        const [bData, dData] = await Promise.all([
+          bRes.json().catch(() => []),
+          dRes.json().catch(() => []),
+        ]);
+        if (Array.isArray(bData)) setBranches(bData);
+        if (Array.isArray(dData)) setDoctors(dData);
       } catch (e) {
         console.error(e);
       }
     };
-    loadBranches();
+    loadMeta();
   }, []);
 
   // load scheduled doctors
@@ -310,12 +659,35 @@ export default function AppointmentsPage() {
         </span>
       </div>
 
+      {/* Inline form (uses OPTION A local time strings) */}
+      <section
+        style={{
+          marginBottom: 16,
+          padding: 12,
+          borderRadius: 8,
+          border: "1px solid #e5e7eb",
+          background: "#ffffff",
+        }}
+      >
+        <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 8 }}>
+          Шинэ цаг захиалах
+        </h2>
+        <AppointmentForm
+          branches={branches}
+          doctors={doctors}
+          selectedDate={filterDate}
+          selectedBranchId={filterBranchId}
+          onCreated={(a) => setAppointments((prev) => [a, ...prev])}
+        />
+      </section>
+
       {error && (
         <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
           {error}
         </div>
       )}
 
+      {/* Calendar grid */}
       {gridDoctors.length === 0 ? (
         <div style={{ color: "#6b7280", fontSize: 13 }}>
           Энэ өдөр ажиллах эмчийн хуваарь алга.
@@ -389,40 +761,26 @@ export default function AppointmentsPage() {
 
                 {/* doctor columns */}
                 {gridDoctors.map((doc) => {
-  const docApps = appointments.filter((a) => a.doctorId === doc.id);
+                  const docApps = appointments.filter(
+                    (a) => a.doctorId === doc.id
+                  );
 
-  const overlapping = docApps.filter((a) => {
-    const start = new Date(a.scheduledAt);
-    if (Number.isNaN(start.getTime())) return false;
-    const end =
-      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-        ? new Date(a.endAt)
-        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
-    return start < slot.end && end > slot.start;
-  });
-
-  // TEMP DEBUG: log the conflicting slot for doctor 4 on 2025‑12‑16
-  if (doc.id === 4 && filterDate === "2025-12-16") {
-    console.log(
-      "DEBUG SLOT",
-      slot.label,
-      "doc",
-      doc.id,
-      "overlapping:",
-      overlapping.map((a) => ({
-        id: a.id,
-        scheduledAt: a.scheduledAt,
-        endAt: a.endAt,
-        status: a.status,
-      }))
-    );
-  }
-
+                  const overlapping = docApps.filter((a) => {
+                    const start = new Date(a.scheduledAt);
+                    if (Number.isNaN(start.getTime())) return false;
+                    const end =
+                      a.endAt &&
+                      !Number.isNaN(new Date(a.endAt).getTime())
+                        ? new Date(a.endAt)
+                        : new Date(
+                            start.getTime() + SLOT_MINUTES * 60 * 1000
+                          );
+                    return start < slot.end && end > slot.start;
+                  });
 
                   const slotKey = `${doc.id}-${rowIndex}`;
 
                   if (overlapping.length === 0) {
-                    // empty cell
                     return (
                       <div
                         key={slotKey}
@@ -441,7 +799,6 @@ export default function AppointmentsPage() {
                   };
 
                   if (overlapping.length === 1) {
-                    // single appointment -> full width
                     const a = overlapping[0];
                     return (
                       <div
@@ -475,7 +832,6 @@ export default function AppointmentsPage() {
                     );
                   }
 
-                  // 2+ overlapping appointments in this row -> split evenly
                   const perWidth = 100 / overlapping.length;
 
                   return (
