@@ -44,7 +44,8 @@ type Appointment = {
   doctor?: Doctor | null;
   branch?: Branch | null;
 };
-
+type LaneCell = Appointment | null;
+type DoctorLanes = [LaneCell[], LaneCell[]];
 function groupByDate(appointments: Appointment[]) {
   const map: Record<string, Appointment[]> = {};
   for (const a of appointments) {
@@ -2239,11 +2240,6 @@ function AppointmentForm({
   );
 }
 
-// ==== Page ====
- // 2‑lane grid per doctor for the selected day
-  type LaneCell = Appointment | null;
-  type DoctorLanes = [LaneCell[], LaneCell[]];
-
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -2268,10 +2264,7 @@ export default function AppointmentsPage() {
   const selectedDay = getDateFromYMD(filterDate);
   const timeSlots = generateTimeSlotsForDay(selectedDay);
 
-  // ... keep everything above ...
-
- 
-
+  // 2-lane grid per doctor for the selected day
   const doctorLanesMap: Record<number, DoctorLanes> = {};
   const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
 
@@ -2309,7 +2302,30 @@ export default function AppointmentsPage() {
     doctorLanesMap[doc.id] = lanes;
   });
 
-// ... keep your useStates, effects, etc. ...
+  const [detailsModalState, setDetailsModalState] = useState<{
+    open: boolean;
+    doctor?: Doctor | null;
+    slotLabel?: string;
+    slotTime?: string;
+    date?: string;
+    appointments: Appointment[];
+  }>({
+    open: false,
+    appointments: [],
+  });
+
+  const [quickModalState, setQuickModalState] = useState<{
+    open: boolean;
+    doctorId?: number;
+    date: string;
+    time: string;
+  }>({
+    open: false,
+    date: todayStr,
+    time: "09:00",
+  });
+
+  const formSectionRef = useRef<HTMLElement | null>(null);
 
       {/* Time grid by doctor with merged blocks */}
       <section style={{ marginBottom: 24 }}>
