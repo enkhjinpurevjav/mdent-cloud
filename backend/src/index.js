@@ -16,6 +16,7 @@ import servicesRouter from "./routes/services.js";
 import reportsRouter from "./routes/reports.js";
 // NEW: scheduled doctors
 import doctorsRouter from "./routes/doctors.js";
+import bookingsRouter from "./routes/bookings.js";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const app = express();
