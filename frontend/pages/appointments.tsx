@@ -2504,7 +2504,7 @@ export default function AppointmentsPage() {
       )}
 
       {/* Time grid by doctor with merged blocks */}
-       <section style={{ marginBottom: 24 }}>
+      <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
         </h2>
