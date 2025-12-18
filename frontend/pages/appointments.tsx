@@ -95,6 +95,8 @@ function getAppointmentStartIndex(
   return null;
 }
 
+// ========= lane layout helpers =========
+
 type TimedAppointment = Appointment & {
   startIndex: number;
   endIndex: number;
@@ -130,6 +132,7 @@ function buildDoctorLayouts(
       const startIdx = getAppointmentStartIndex(timeSlots, a);
       if (startIdx == null) continue;
 
+      // compute end datetime
       let end: Date;
       if (a.endAt) {
         const d = new Date(a.endAt);
@@ -168,7 +171,7 @@ function buildDoctorLayouts(
       return ta - tb;
     });
 
-    // Assign lanes greedily
+    // Assign lanes greedily so overlapping appointments share space horizontally
     const laneEndByLane: number[] = [];
 
     for (const appt of timed) {
@@ -257,6 +260,7 @@ export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [scheduledDoctors, setScheduledDoctors] =
     useState<ScheduledDoctor[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [error, setError] = useState("");
 
   const selectedDay = new Date(
@@ -267,23 +271,28 @@ export default function AppointmentsPage() {
   const timeSlots = generateTimeSlotsForDay(selectedDay);
   const doctorLayouts = buildDoctorLayouts(timeSlots, appointments);
 
-  // Load doctors & appointments (simplified for this example)
+  // Load branches, doctors, appointments
   useEffect(() => {
-    const load = async () => {
+    const loadAll = async () => {
       try {
         setError("");
         const params = new URLSearchParams();
         params.set("date", filterDate);
         if (filterBranchId) params.set("branchId", filterBranchId);
 
-        const [dRes, aRes] = await Promise.all([
+        const [bRes, dRes, aRes] = await Promise.all([
+          fetch("/api/branches"),
           fetch(`/api/doctors/scheduled?${params.toString()}`),
           fetch(`/api/appointments?${params.toString()}`),
         ]);
 
-        const dData = await dRes.json().catch(() => []);
-        const aData = await aRes.json().catch(() => []);
+        const [bData, dData, aData] = await Promise.all([
+          bRes.json().catch(() => []),
+          dRes.json().catch(() => []),
+          aRes.json().catch(() => []),
+        ]);
 
+        if (Array.isArray(bData)) setBranches(bData);
         if (Array.isArray(dData)) {
           dData.sort((a: ScheduledDoctor, b: ScheduledDoctor) =>
             (a.name || "").localeCompare(b.name || "", "mn")
@@ -293,16 +302,14 @@ export default function AppointmentsPage() {
           setScheduledDoctors([]);
         }
 
-        if (!aRes.ok || !Array.isArray(aData)) {
-          throw new Error("failed");
-        }
+        if (!aRes.ok || !Array.isArray(aData)) throw new Error("failed");
         setAppointments(aData);
       } catch (e) {
         console.error(e);
         setError("Цаг захиалгуудыг ачаалах үед алдаа гарлаа.");
       }
     };
-    load();
+    loadAll();
   }, [filterDate, filterBranchId]);
 
   const gridDoctors = scheduledDoctors;
@@ -316,19 +323,56 @@ export default function AppointmentsPage() {
         fontFamily: "sans-serif",
       }}
     >
-      {/* simple filters just to keep page valid */}
-      <div style={{ marginBottom: 12, display: "flex", gap: 8 }}>
-        <input
-          type="date"
-          value={filterDate}
-          onChange={(e) => setFilterDate(e.target.value)}
-        />
-        <select
-          value={filterBranchId}
-          onChange={(e) => setFilterBranchId(e.target.value)}
-        >
-          <option value="">Бүх салбар</option>
-        </select>
+      <h1 style={{ fontSize: 20, marginBottom: 8 }}>
+        Өдрийн цагийн хүснэгт (эмчээр)
+      </h1>
+
+      {/* Filters */}
+      <div
+        style={{
+          marginBottom: 12,
+          display: "flex",
+          gap: 12,
+          alignItems: "center",
+          fontSize: 13,
+          flexWrap: "wrap",
+        }}
+      >
+        <label>
+          Огноо:{" "}
+          <input
+            type="date"
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
+            style={{
+              marginLeft: 4,
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "4px 6px",
+            }}
+          />
+        </label>
+
+        <label>
+          Салбар:{" "}
+          <select
+            value={filterBranchId}
+            onChange={(e) => setFilterBranchId(e.target.value)}
+            style={{
+              marginLeft: 4,
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "4px 6px",
+            }}
+          >
+            <option value="">Бүх салбар</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {error && (
@@ -451,6 +495,7 @@ export default function AppointmentsPage() {
                           );
 
                           if (!appt) {
+                            // empty lane at this row
                             return (
                               <div
                                 key={laneIndex}
