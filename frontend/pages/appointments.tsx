@@ -2499,7 +2499,7 @@ export default function AppointmentsPage() {
       )}
 
       {/* Time grid by doctor with merged blocks */}
-      <section style={{ marginBottom: 24 }}>
+       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
         </h2>
@@ -2507,13 +2507,16 @@ export default function AppointmentsPage() {
           {formatDateYmdDots(selectedDay)}
         </div>
 
-        {gridDoctors.length === 0 && (
+        {!hasMounted ? (
+          // During SSR and very first client paint: show a simple placeholder
+          <div style={{ color: "#6b7280", fontSize: 13 }}>
+            Цагийн хүснэгтийг ачаалж байна...
+          </div>
+        ) : gridDoctors.length === 0 ? (
           <div style={{ color: "#6b7280", fontSize: 13 }}>
             Энэ өдөр ажиллах эмчийн хуваарь алга.
           </div>
-        )}
-
-        {gridDoctors.length > 0 && (
+        ) : (
           <div
             style={{
               border: "1px солид #ddd",
