@@ -165,13 +165,12 @@ model Patient {
 // Appointment model
 model Appointment {
   id          Int       @id @default(autoincrement())
-
   patientId   Int
   doctorId    Int?
   branchId    Int
 
-  scheduledAt DateTime
-  endAt       DateTime?   // Дуусах цаг (шинэ)
+  scheduledAt DateTime  // Updated from 'String' to 'DateTime'
+  endAt       DateTime? // Existing type remains the same
   status      String    @default("booked")
   notes       String?
 
