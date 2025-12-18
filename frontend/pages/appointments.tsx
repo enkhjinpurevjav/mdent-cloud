@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+
+// ========= Types =========
 
 type Branch = {
   id: number;
@@ -46,10 +48,10 @@ type Appointment = {
   branch?: Branch | null;
 };
 
-// ========= time helpers =========
+// ========= Time helpers =========
 
 const START_HOUR = 9;
-const END_HOUR = 21;
+const END_HOUR = 21; // exclusive
 const SLOT_MINUTES = 30;
 
 type TimeSlot = {
@@ -95,7 +97,7 @@ function getAppointmentStartIndex(
   return null;
 }
 
-// ========= lane layout helpers =========
+// ========= Lane layout helpers =========
 
 type TimedAppointment = Appointment & {
   startIndex: number;
@@ -109,7 +111,12 @@ type DoctorLayout = {
   items: TimedAppointment[];
 };
 
-// Compute per-doctor lane layout so appointments can span downward.
+/**
+ * Build per‑doctor lanes so that:
+ * - long appointments span downward across multiple rows;
+ * - overlapping appointments share horizontal lanes;
+ * - empty capacity is visible.
+ */
 function buildDoctorLayouts(
   timeSlots: TimeSlot[],
   appointments: Appointment[]
@@ -118,7 +125,7 @@ function buildDoctorLayouts(
 
   for (const a of appointments) {
     if (a.doctorId == null) continue;
-    const list = byDoctor.get(a.doctorId) || [];
+    const list = byDoctor.get(a.doctorId) ?? [];
     list.push(a);
     byDoctor.set(a.doctorId, list);
   }
@@ -132,25 +139,22 @@ function buildDoctorLayouts(
       const startIdx = getAppointmentStartIndex(timeSlots, a);
       if (startIdx == null) continue;
 
-      // compute end datetime
-      let end: Date;
+      const startDate = new Date(a.scheduledAt);
+      let endDate: Date;
+
       if (a.endAt) {
-        const d = new Date(a.endAt);
-        end = Number.isNaN(d.getTime())
-          ? new Date(
-              new Date(a.scheduledAt).getTime() + SLOT_MINUTES * 60 * 1000
-            )
-          : d;
+        const parsed = new Date(a.endAt);
+        endDate = Number.isNaN(parsed.getTime())
+          ? new Date(startDate.getTime() + SLOT_MINUTES * 60 * 1000)
+          : parsed;
       } else {
-        end = new Date(
-          new Date(a.scheduledAt).getTime() + SLOT_MINUTES * 60 * 1000
-        );
+        endDate = new Date(startDate.getTime() + SLOT_MINUTES * 60 * 1000);
       }
 
-      // find the first slot index where end <= slot.start
+      // find first slot where endDate <= slot.start
       let endIdx = timeSlots.length;
       for (let i = startIdx; i < timeSlots.length; i++) {
-        if (end <= timeSlots[i].start) {
+        if (endDate <= timeSlots[i].start) {
           endIdx = i;
           break;
         }
@@ -160,23 +164,22 @@ function buildDoctorLayouts(
         ...a,
         startIndex: startIdx,
         endIndex: endIdx,
-        lane: 0, // temporary, will assign next
+        lane: 0,
       });
     }
 
-    // Sort by start time
+    // sort by start time for deterministic lane assignment
     timed.sort((a, b) => {
       const ta = new Date(a.scheduledAt).getTime();
       const tb = new Date(b.scheduledAt).getTime();
       return ta - tb;
     });
 
-    // Assign lanes greedily so overlapping appointments share space horizontally
+    // greedy lane assignment
     const laneEndByLane: number[] = [];
-
     for (const appt of timed) {
       let lane = 0;
-      while (true) {
+      for (;;) {
         const lastEnd = laneEndByLane[lane];
         if (lastEnd === undefined || lastEnd <= appt.startIndex) {
           appt.lane = lane;
@@ -197,9 +200,9 @@ function buildDoctorLayouts(
   return layouts;
 }
 
-// ========= formatting helpers =========
+// ========= Formatting helpers =========
 
-function formatDoctorName(d?: Doctor | null) {
+function formatDoctorName(d?: Doctor | null): string {
   if (!d) return "Тодорхойгүй";
   const name = d.name || "";
   const ovog = (d.ovog || "").trim();
@@ -250,32 +253,46 @@ function laneBg(a: Appointment): string {
   }
 }
 
-// ========= PAGE =========
+// ========= Page =========
 
-export default function AppointmentsPage() {
+export default function AppointmentsPage(): JSX.Element {
   const todayStr = new Date().toISOString().slice(0, 10);
+
   const [filterDate, setFilterDate] = useState<string>(todayStr);
   const [filterBranchId, setFilterBranchId] = useState<string>("");
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [scheduledDoctors, setScheduledDoctors] =
     useState<ScheduledDoctor[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string>("");
 
-  const selectedDay = new Date(
-    Number(filterDate.slice(0, 4)),
-    Number(filterDate.slice(5, 7)) - 1,
-    Number(filterDate.slice(8, 10))
+  const selectedDay = useMemo(
+    () =>
+      new Date(
+        Number(filterDate.slice(0, 4)),
+        Number(filterDate.slice(5, 7)) - 1,
+        Number(filterDate.slice(8, 10))
+      ),
+    [filterDate]
   );
-  const timeSlots = generateTimeSlotsForDay(selectedDay);
-  const doctorLayouts = buildDoctorLayouts(timeSlots, appointments);
 
-  // Load branches, doctors, appointments
+  const timeSlots = useMemo(
+    () => generateTimeSlotsForDay(selectedDay),
+    [selectedDay]
+  );
+
+  const doctorLayouts = useMemo(
+    () => buildDoctorLayouts(timeSlots, appointments),
+    [timeSlots, appointments]
+  );
+
+  // load branches, doctors, appointments
   useEffect(() => {
     const loadAll = async () => {
       try {
         setError("");
+
         const params = new URLSearchParams();
         params.set("date", filterDate);
         if (filterBranchId) params.set("branchId", filterBranchId);
@@ -293,6 +310,8 @@ export default function AppointmentsPage() {
         ]);
 
         if (Array.isArray(bData)) setBranches(bData);
+        else setBranches([]);
+
         if (Array.isArray(dData)) {
           dData.sort((a: ScheduledDoctor, b: ScheduledDoctor) =>
             (a.name || "").localeCompare(b.name || "", "mn")
@@ -302,13 +321,16 @@ export default function AppointmentsPage() {
           setScheduledDoctors([]);
         }
 
-        if (!aRes.ok || !Array.isArray(aData)) throw new Error("failed");
+        if (!aRes.ok || !Array.isArray(aData)) {
+          throw new Error("failed");
+        }
         setAppointments(aData);
       } catch (e) {
         console.error(e);
         setError("Цаг захиалгуудыг ачаалах үед алдаа гарлаа.");
       }
     };
+
     loadAll();
   }, [filterDate, filterBranchId]);
 
@@ -394,7 +416,7 @@ export default function AppointmentsPage() {
             fontSize: 12,
           }}
         >
-          {/* header */}
+          {/* header row */}
           <div
             style={{
               display: "grid",
@@ -428,7 +450,7 @@ export default function AppointmentsPage() {
             })}
           </div>
 
-          {/* rows */}
+          {/* time rows */}
           <div>
             {timeSlots.map((slot, rowIndex) => (
               <div
@@ -486,7 +508,7 @@ export default function AppointmentsPage() {
                       }}
                     >
                       {Array.from({ length: layout.lanes }).map(
-                        (_, laneIndex) => {
+                        (_unused, laneIndex) => {
                           const appt = layout.items.find(
                             (a) =>
                               a.lane === laneIndex &&
@@ -495,7 +517,7 @@ export default function AppointmentsPage() {
                           );
 
                           if (!appt) {
-                            // empty lane at this row
+                            // empty lane at this time row
                             return (
                               <div
                                 key={laneIndex}
