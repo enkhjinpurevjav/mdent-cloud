@@ -180,7 +180,6 @@ function buildDoctorLayouts(
       while (true) {
         const lastEnd = laneEndByLane[lane];
         if (lastEnd === undefined || lastEnd <= appt.startIndex) {
-          // we can use this lane
           appt.lane = lane;
           laneEndByLane[lane] = appt.endIndex;
           break;
@@ -337,8 +336,24 @@ function AppointmentForm({
     const [startHour, startMinute] = form.startTime.split(":").map(Number);
     const [endHour, endMinute] = form.endTime.split(":").map(Number);
 
-    const start = new Date(year, (month || 1) - 1, day || 1, startHour, startMinute, 0, 0);
-    const end = new Date(year, (month || 1) - 1, day || 1, endHour, endMinute, 0, 0);
+    const start = new Date(
+      year,
+      (month || 1) - 1,
+      day || 1,
+      startHour,
+      startMinute,
+      0,
+      0
+    );
+    const end = new Date(
+      year,
+      (month || 1) - 1,
+      day || 1,
+      endHour,
+      endMinute,
+      0,
+      0
+    );
 
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       setError("Огноо/цаг буруу байна.");
@@ -406,7 +421,7 @@ function AppointmentForm({
         fontSize: 13,
       }}
     >
-      {/* keep your existing form fields here */}
+      {/* your existing form fields here */}
     </form>
   );
 }
@@ -432,6 +447,7 @@ export default function AppointmentsPage() {
   );
   const timeSlots = generateTimeSlotsForDay(selectedDay);
   const doctorLayouts = buildDoctorLayouts(timeSlots, appointments);
+
   useEffect(() => {
     const loadMeta = async () => {
       try {
@@ -508,7 +524,7 @@ export default function AppointmentsPage() {
         fontFamily: "sans-serif",
       }}
     >
-      {/* filters + AppointmentForm go here, unchanged */}
+      {/* filters + AppointmentForm */}
 
       {error && (
         <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
@@ -589,103 +605,106 @@ export default function AppointmentsPage() {
 
                 {/* doctor columns */}
                 {gridDoctors.map((doc) => {
-  const layout = doc.id != null ? doctorLayouts.get(doc.id) : undefined;
+                  const layout =
+                    doc.id != null ? doctorLayouts.get(doc.id) : undefined;
+                  const slotKey = `${doc.id}-${rowIndex}`;
 
-  const slotKey = `${doc.id}-${rowIndex}`;
+                  if (!layout || layout.lanes === 0) {
+                    return (
+                      <div
+                        key={slotKey}
+                        style={{
+                          borderLeft: "1px solid #f0f0f0",
+                          backgroundColor: "#ffffff",
+                          minHeight: 40,
+                        }}
+                      />
+                    );
+                  }
 
-  if (!layout || layout.lanes === 0) {
-    // No appointments for this doctor at all
-    return (
-      <div
-        key={slotKey}
-        style={{
-          borderLeft: "1px solid #f0f0f0",
-          backgroundColor: "#ffffff",
-          minHeight: 40,
-        }}
-      />
-    );
-  }
+                  const laneWidth = 100 / layout.lanes;
 
-  // For this row, build cells per lane
-  const laneWidth = 100 / layout.lanes;
+                  return (
+                    <div
+                      key={slotKey}
+                      style={{
+                        borderLeft: "1px solid #f0f0f0",
+                        backgroundColor: "#ffffff",
+                        minHeight: 40,
+                        display: "flex",
+                        flexDirection: "row",
+                        padding: 0,
+                      }}
+                    >
+                      {Array.from({ length: layout.lanes }).map(
+                        (_, laneIndex) => {
+                          const appt = layout.items.find(
+                            (a) =>
+                              a.lane === laneIndex &&
+                              rowIndex >= a.startIndex &&
+                              rowIndex < a.endIndex
+                          );
 
-  return (
-    <div
-      key={slotKey}
-      style={{
-        borderLeft: "1px solid #f0f0f0",
-        backgroundColor: "#ffffff",
-        minHeight: 40,
-        display: "flex",
-        flexDirection: "row",
-        padding: 0,
-      }}
-    >
-      {Array.from({ length: layout.lanes }).map((_, laneIndex) => {
-        const appt = layout.items.find(
-          (a) =>
-            a.lane === laneIndex &&
-            rowIndex >= a.startIndex &&
-            rowIndex < a.endIndex
-        );
+                          if (!appt) {
+                            return (
+                              <div
+                                key={laneIndex}
+                                style={{
+                                  width: `${laneWidth}%`,
+                                  minHeight: 40,
+                                  boxSizing: "border-box",
+                                  borderLeft:
+                                    laneIndex === 0
+                                      ? "none"
+                                      : "2px solid #ffffff",
+                                }}
+                              />
+                            );
+                          }
 
-        if (!appt) {
-          // empty lane cell at this row
-          return (
-            <div
-              key={laneIndex}
-              style={{
-                width: `${laneWidth}%`,
-                minHeight: 40,
-                boxSizing: "border-box",
-                borderLeft: laneIndex === 0 ? "none" : "2px solid #ffffff",
-              }}
-            />
-          );
-        }
+                          const showLabel = rowIndex === appt.startIndex;
 
-        // Only render label on first row of this appointment
-        const showLabel = rowIndex === appt.startIndex;
-
-        return (
-          <div
-            key={laneIndex}
-            style={{
-              width: `${laneWidth}%`,
-              minHeight: 40,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "1px 3px",
-              backgroundColor: laneBg(appt),
-              boxSizing: "border-box",
-              borderLeft: laneIndex === 0 ? "none" : "2px solid #ffffff",
-            }}
-          >
-            {showLabel && (
-              <span
-                style={{
-                  fontSize: 11,
-                  lineHeight: 1.2,
-                  textAlign: "center",
-                  whiteSpace: "normal",
-                  wordBreak: "break-word",
-                }}
-              >
-                {`${formatGridShortLabel(appt)} (${formatStatus(
-                  appt.status
-                )})`}
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-})}
-
+                          return (
+                            <div
+                              key={laneIndex}
+                              style={{
+                                width: `${laneWidth}%`,
+                                minHeight: 40,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                padding: "1px 3px",
+                                backgroundColor: laneBg(appt),
+                                boxSizing: "border-box",
+                                borderLeft:
+                                  laneIndex === 0
+                                    ? "none"
+                                    : "2px solid #ffffff",
+                              }}
+                            >
+                              {showLabel && (
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    lineHeight: 1.2,
+                                    textAlign: "center",
+                                    whiteSpace: "normal",
+                                    wordBreak: "break-word",
+                                  }}
+                                >
+                                  {`${formatGridShortLabel(
+                                    appt
+                                  )} (${formatStatus(appt.status)})`}
+                                </span>
+                              )}
                             </div>
+                          );
+                        }
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             ))}
           </div>
         </div>
