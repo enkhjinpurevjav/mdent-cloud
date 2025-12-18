@@ -389,24 +389,35 @@ export default function AppointmentsPage() {
 
                 {/* doctor columns */}
                 {gridDoctors.map((doc) => {
-                  // all appointments for this doctor on this day
-                  const docApps = appointments.filter(
-                    (a) => a.doctorId === doc.id
-                  );
+  const docApps = appointments.filter((a) => a.doctorId === doc.id);
 
-                  // appointments that overlap this slot
-                  const overlapping = docApps.filter((a) => {
-                    const start = new Date(a.scheduledAt);
-                    if (Number.isNaN(start.getTime())) return false;
-                    const end =
-                      a.endAt &&
-                      !Number.isNaN(new Date(a.endAt).getTime())
-                        ? new Date(a.endAt)
-                        : new Date(
-                            start.getTime() + SLOT_MINUTES * 60 * 1000
-                          );
-                    return start < slot.end && end > slot.start;
-                  });
+  const overlapping = docApps.filter((a) => {
+    const start = new Date(a.scheduledAt);
+    if (Number.isNaN(start.getTime())) return false;
+    const end =
+      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+        ? new Date(a.endAt)
+        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+    return start < slot.end && end > slot.start;
+  });
+
+  // TEMP DEBUG: log the conflicting slot for doctor 4 on 2025‑12‑16
+  if (doc.id === 4 && filterDate === "2025-12-16") {
+    console.log(
+      "DEBUG SLOT",
+      slot.label,
+      "doc",
+      doc.id,
+      "overlapping:",
+      overlapping.map((a) => ({
+        id: a.id,
+        scheduledAt: a.scheduledAt,
+        endAt: a.endAt,
+        status: a.status,
+      }))
+    );
+  }
+
 
                   const slotKey = `${doc.id}-${rowIndex}`;
 
