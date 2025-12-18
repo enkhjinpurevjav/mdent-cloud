@@ -685,54 +685,7 @@ export default function AppointmentsPage() {
   );
 })}
 
-                  const perWidth = 100 / overlapping.length;
-
-                  return (
-                    <div
-                      key={slotKey}
-                      style={{
-                        borderLeft: "1px solid #f0f0f0",
-                        backgroundColor: "#ffffff",
-                        minHeight: 40,
-                        display: "flex",
-                        flexDirection: "row",
-                        padding: 0,
-                      }}
-                    >
-                      {overlapping.map((a, idx) => (
-                        <div
-                          key={a.id}
-                          style={{
-                            width: `${perWidth}%`,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            padding: "1px 3px",
-                            backgroundColor: laneBg(a),
-                            boxSizing: "border-box",
-                            borderLeft:
-                              idx === 0 ? "none" : "2px solid #ffffff",
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: 11,
-                              lineHeight: 1.2,
-                              textAlign: "center",
-                              whiteSpace: "normal",
-                              wordBreak: "break-word",
-                            }}
-                          >
-                            {`${formatGridShortLabel(a)} (${formatStatus(
-                              a.status
-                            )})`}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
+                            </div>
             ))}
           </div>
         </div>
