@@ -173,6 +173,27 @@ model Patient {
 bookings Booking[]   // <-- NEW, all bookings for this patient
 }
 
+model ChartTooth {
+  id          Int        @id @default(autoincrement())
+  
+  /// FDI tooth code (e.g., "11", "26", "85")
+  toothCode   String
+
+  status      String?     // General tooth condition/status
+  notes       String?     // Free-form notes
+
+  encounterId Int
+  encounter   Encounter  @relation(fields: [encounterId], references: [id])
+
+  /// Link multiple diagnoses to specific teeth
+  diagnoses   EncounterDiagnosis[]
+
+  /// Link multiple services to specific teeth
+  services    EncounterService[]
+
+  chartNotes  ChartNote[] // Related notes for the tooth
+}
+
 // Appointment model
 model Appointment {
   id          Int       @id @default(autoincrement())
