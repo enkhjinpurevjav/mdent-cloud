@@ -96,9 +96,7 @@ export default function DiagnosesPage() {
   }, [selectedDxId]);
 
   // ---- Diagnosis form handlers ----
-  const handleDxFormChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleDxFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setDxForm((prev) => ({ ...prev, [name]: value }));
   };
@@ -184,14 +182,11 @@ export default function DiagnosesPage() {
   };
 
   // ---- Problem form handlers ----
-  const handleProblemFormChange = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleProblemFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setProblemForm((prev) => ({
       ...prev,
-      [name]:
-        name === "order" ? (value === "" ? 0 : Number(value)) : value,
+      [name]: name === "order" ? (value === "" ? 0 : Number(value)) : value,
     }));
   };
 
@@ -209,17 +204,14 @@ export default function DiagnosesPage() {
     }
 
     try {
-      const res = await fetch(
-        `/api/diagnoses/${selectedDxId}/problems`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            label: problemForm.label.trim(),
-            order: Number(problemForm.order) || 0,
-          }),
-        }
-      );
+      const res = await fetch(`/api/diagnoses/${selectedDxId}/problems`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label: problemForm.label.trim(),
+          order: Number(problemForm.order) || 0,
+        }),
+      });
 
       let data: any = null;
       try {
@@ -243,14 +235,11 @@ export default function DiagnosesPage() {
   const toggleProblemActive = async (p: DiagnosisProblem) => {
     setProblemError("");
     try {
-      const res = await fetch(
-        `/api/diagnosis-problems/${p.id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ active: !p.active }),
-        }
-      );
+      const res = await fetch(`/api/diagnosis-problems/${p.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: !p.active }),
+      });
 
       let data: any = null;
       try {
@@ -283,8 +272,8 @@ export default function DiagnosesPage() {
     >
       <h1 style={{ fontSize: 20, marginBottom: 8 }}>Оношийн тохиргоо</h1>
       <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
-        Эмч нар онош сонгохдоо ашиглах код болон проблемын жагсаалтыг
-        эндээс удирдана.
+        Эмч нар онош сонгохдоо ашиглах код болон проблемын жагсаалтыг эндээс
+        удирдана.
       </p>
 
       <div
