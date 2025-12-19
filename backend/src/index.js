@@ -17,6 +17,7 @@ import reportsRouter from "./routes/reports.js";
 // NEW: scheduled doctors
 import doctorsRouter from "./routes/doctors.js";
 import bookingsRouter from "./routes/bookings.js";
+import diagnosesRouter from "./routes/diagnoses";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const app = express();
@@ -63,6 +64,7 @@ app.use("/api/reports", reportsRouter);
 // NEW
 app.use("/api/doctors", doctorsRouter);
 app.use("/api/bookings", bookingsRouter);
+app.use("/api/diagnoses", diagnosesRouter);
 
 // Optional central error handler
 app.use((err, _req, res, _next) => {
