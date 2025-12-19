@@ -35,10 +35,7 @@ router.get("/:id", async (req, res) => {
           },
           orderBy: { id: "asc" },
         },
-        // if you want to preload chart teeth as well:
-        // chartTeeth: {
-        //   include: { chartNotes: true },
-        // },
+        // chartTeeth can be loaded separately via chart-teeth endpoints
       },
     });
 
@@ -167,7 +164,7 @@ router.put("/:id/services", async (req, res) => {
 
 /**
  * GET /api/encounters/:id/chart-teeth
- * Returns all ChartTooth rows for this encounter (with ChartNote if you want later).
+ * Returns all ChartTooth rows for this encounter (with ChartNote).
  */
 router.get("/:id/chart-teeth", async (req, res) => {
   try {
