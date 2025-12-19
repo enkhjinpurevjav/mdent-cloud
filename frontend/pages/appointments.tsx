@@ -736,15 +736,7 @@ function QuickAppointmentModal({
   });
   const [quickPatientError, setQuickPatientError] = useState("");
   const [quickPatientSaving, setQuickPatientSaving] = useState(false);
-  const [searchDebounceTimer, setSearchDebounceTimer] =
-    useState<NodeJS.Timeout | null>(null);
-
-  const [popupStartSlots, setPopupStartSlots] = useState<
-  { label: string; value: string }[]
->([]);
-const [popupEndSlots, setPopupEndSlots] = useState<
-  { label: string; value: string }[]
->([]);
+  
 
   useEffect(() => {
     if (!open) return;
