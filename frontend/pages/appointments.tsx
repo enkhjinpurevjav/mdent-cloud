@@ -109,19 +109,6 @@ function getSlotTimeString(date: Date): string {
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
-// NEW: build separate options for start and end times
-function buildStartEndOptionsForDay(day: Date) {
-  const slots = generateTimeSlotsForDay(day);
-  const startOptions = slots.map((s) => ({
-    label: s.label,
-    value: getSlotTimeString(s.start), // 09:00 ... 20:30
-  }));
-  const endOptions = Array.from(
-    new Set(slots.map((s) => getSlotTimeString(s.end))) // 09:30 ... 21:00
-  ).map((t) => ({ label: t, value: t }));
-  return { startOptions, endOptions };
-}
-
 function addMinutesToTimeString(time: string, minutesToAdd: number): string {
   if (!time) return "";
   const [h, m] = time.split(":").map(Number);
@@ -221,7 +208,7 @@ function formatDateYmdDots(date: Date): string {
   });
 }
 
-function formatStatus(status: string) {
+function formatStatus(status: string): string {
   switch (status) {
     case "booked":
       return "Захиалсан";
@@ -249,12 +236,14 @@ function getAppointmentDayKey(a: Appointment): string {
 
 /**
  * Compute stable lanes (0 or 1) for all appointments for a doctor on a given day.
+ * Ensures that overlapping appointments never share the same lane.
  */
 function computeAppointmentLanesForDayAndDoctor(
   list: Appointment[]
 ): Record<number, 0 | 1> {
   const result: Record<number, 0 | 1> = {};
 
+  // Sort by start time, then by (end - start) duration DESC (longer first)
   const sorted = list
     .slice()
     .filter((a) => !Number.isNaN(new Date(a.scheduledAt).getTime()))
@@ -272,6 +261,7 @@ function computeAppointmentLanesForDayAndDoctor(
           ? new Date(b.endAt).getTime()
           : sb;
 
+      // longer first if same start
       return eb - ea;
     });
 
@@ -295,6 +285,7 @@ function computeAppointmentLanesForDayAndDoctor(
       }
     }
 
+    // If still null, both lanes overlap → force lane 0 visually (will stack)
     if (assignedLane === null) {
       assignedLane = 0;
       laneLastEnd[0] = Math.max(laneLastEnd[0] ?? 0, end);
@@ -717,15 +708,10 @@ function QuickAppointmentModal({
   const [searchDebounceTimer, setSearchDebounceTimer] =
     useState<NodeJS.Timeout | null>(null);
 
-  // NEW: separate start/end slot arrays for the popup
-  const [popupStartSlots, setPopupStartSlots] = useState<
-    { label: string; value: string }[]
-  >([]);
-  const [popupEndSlots, setPopupEndSlots] = useState<
+  const [popupSlots, setPopupSlots] = useState<
     { label: string; value: string }[]
   >([]);
 
-  // Reset form when modal opens
   useEffect(() => {
     if (!open) return;
     setForm((prev) => ({
@@ -741,26 +727,24 @@ function QuickAppointmentModal({
     setPatientResults([]);
   }, [open, defaultDoctorId, defaultDate, defaultTime]);
 
-  // Build start/end options when date changes
   useEffect(() => {
     if (!form.date) {
-      setPopupStartSlots([]);
-      setPopupEndSlots([]);
+      setPopupSlots([]);
       return;
     }
     const [y, m, d] = form.date.split("-").map(Number);
     if (!y || !m || !d) {
-      setPopupStartSlots([]);
-      setPopupEndSlots([]);
+      setPopupSlots([]);
       return;
     }
     const day = new Date(y, (m || 1) - 1, d || 1);
-    const { startOptions, endOptions } = buildStartEndOptionsForDay(day);
-    setPopupStartSlots(startOptions);
-    setPopupEndSlots(endOptions);
+    const slots = generateTimeSlotsForDay(day).map((s) => ({
+      label: s.label,
+      value: getSlotTimeString(s.start),
+    }));
+    setPopupSlots(slots);
   }, [form.date]);
 
-  // Default branch
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
       setForm((prev) => ({
@@ -1154,7 +1138,7 @@ function QuickAppointmentModal({
             </select>
           </div>
 
-                     {/* Start time */}
+          {/* Start time */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label>Эхлэх цаг</label>
             <select
@@ -1169,7 +1153,7 @@ function QuickAppointmentModal({
               }}
             >
               <option value="">Эхлэх цаг сонгох</option>
-              {popupStartSlots.map((slot) => (
+              {popupSlots.map((slot) => (
                 <option key={slot.value} value={slot.value}>
                   {slot.label}
                 </option>
@@ -1192,7 +1176,7 @@ function QuickAppointmentModal({
               }}
             >
               <option value="">Дуусах цаг сонгох</option>
-              {popupEndSlots.map((slot) => (
+              {popupSlots.map((slot) => (
                 <option key={slot.value} value={slot.value}>
                   {slot.label}
                 </option>
@@ -1354,12 +1338,9 @@ function AppointmentForm({
   const [quickPatientError, setQuickPatientError] = useState("");
   const [quickPatientSaving, setQuickPatientSaving] = useState(false);
 
-  const [dayStartSlots, setDayStartSlots] = useState<
-    { label: string; value: string }[]
-  >([]);
-  const [dayEndSlots, setDayEndSlots] = useState<
-    { label: string; value: string }[]
-  >([]);
+  const [daySlots, setDaySlots] = useState<{ label: string; value: string }[]>(
+    []
+  );
 
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
@@ -1379,25 +1360,21 @@ function AppointmentForm({
     }
   }, [selectedBranchId]);
 
-useEffect(() => {
+  useEffect(() => {
     if (!form.date) {
-      setDayStartSlots([]);
-      setDayEndSlots([]);
+      setDaySlots([]);
       return;
     }
     const [year, month, day] = form.date.split("-").map(Number);
     if (!year || !month || !day) {
-      setDayStartSlots([]);
-      setDayEndSlots([]);
+      setDaySlots([]);
       return;
     }
     const d = new Date(year, (month || 1) - 1, day || 1);
-
     let slots = generateTimeSlotsForDay(d).map((s) => ({
       label: s.label,
-      start: s.start,
-      end: s.end,
       value: getSlotTimeString(s.start),
+      start: s.start,
     }));
 
     if (form.doctorId) {
@@ -1414,21 +1391,12 @@ useEffect(() => {
       }
     }
 
-    const startOptions = slots.map(({ label, value }) => ({ label, value }));
-    const endOptions = Array.from(
-      new Set(slots.map((s) => getSlotTimeString(s.end)))
-    ).map((t) => ({ label: t, value: t }));
+    setDaySlots(slots.map(({ label, value }) => ({ label, value })));
 
-    setDayStartSlots(startOptions);
-    setDayEndSlots(endOptions);
-
-    if (
-      form.startTime &&
-      !startOptions.some((s) => s.value === form.startTime)
-    ) {
+    if (form.startTime && !slots.some((s) => s.value === form.startTime)) {
       setForm((prev) => ({ ...prev, startTime: "" }));
     }
-    if (form.endTime && !endOptions.some((s) => s.value === form.endTime)) {
+    if (form.endTime && !slots.some((s) => s.value === form.endTime)) {
       setForm((prev) => ({ ...prev, endTime: "" }));
     }
   }, [form.date, form.doctorId, scheduledDoctors]);
@@ -2007,7 +1975,7 @@ useEffect(() => {
         />
       </div>
 
-            {/* Start time */}
+      {/* Start time */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Эхлэх цаг</label>
         <select
@@ -2020,12 +1988,12 @@ useEffect(() => {
           required
           style={{
             borderRadius: 6,
-            border: "1px solid #d1d5db",
+            border: "1px солид #d1d5db",
             padding: "6px 8px",
           }}
         >
           <option value="">Эхлэх цаг сонгох</option>
-          {dayStartSlots.map((slot) => (
+          {daySlots.map((slot) => (
             <option key={slot.value} value={slot.value}>
               {slot.label}
             </option>
@@ -2046,12 +2014,12 @@ useEffect(() => {
           required
           style={{
             borderRadius: 6,
-            border: "1px solid #d1d5db",
+            border: "1px солид #d1d5db",
             padding: "6px 8px",
           }}
         >
           <option value="">Дуусах цаг сонгох</option>
-          {dayEndSlots.map((slot) => (
+          {daySlots.map((slot) => (
             <option key={slot.value} value={slot.value}>
               {slot.label}
             </option>
@@ -2782,43 +2750,45 @@ export default function AppointmentsPage() {
               </div>
 
                             {/* Doctor columns */}
-             {gridDoctors.map((doc) => {
-  const doctorAppointments = appointments.filter(
+              {gridDoctors.map((doc) => {
+                const doctorAppointments = appointments.filter(
+                  (a) =>
+                    a.doctorId === doc.id &&
+                    getAppointmentDayKey(a) === filterDate
+                );
+
+                const handleCellClick = (
+  clickedMinutes: number,
+  existingApps: Appointment[]
+) => {
+  const slotTime = new Date(firstSlot.getTime() + clickedMinutes * 60000);
+  const slotTimeStr = getSlotTimeString(slotTime);
+
+  // Treat as empty if there are 0 or only appointments from another day/doctor
+  const validApps = existingApps.filter(
     (a) =>
       a.doctorId === doc.id &&
       getAppointmentDayKey(a) === filterDate
   );
 
-  const handleCellClick = (
-    clickedMinutes: number,
-    existingApps: Appointment[]
-  ) => {
-    const slotTime = new Date(firstSlot.getTime() + clickedMinutes * 60000);
-    const slotTimeStr = getSlotTimeString(slotTime);
-
-    const validApps = existingApps.filter(
-      (a) => a.doctorId === doc.id && getAppointmentDayKey(a) === filterDate
-    );
-
-    // IMPORTANT: capacity logic
-    if (validApps.length === 2) {
-      setDetailsModalState({
-        open: true,
-        doctor: doc,
-        slotLabel: slotTimeStr,
-        slotTime: slotTimeStr,
-        date: filterDate,
-        appointments: validApps,
-      });
-    } else {
-      setQuickModalState({
-        open: true,
-        doctorId: doc.id,
-        date: filterDate,
-        time: slotTimeStr,
-      });
-    }
-  };
+  if (validApps.length === 0) {
+    setQuickModalState({
+      open: true,
+      doctorId: doc.id,
+      date: filterDate,
+      time: slotTimeStr,
+    });
+  } else {
+    setDetailsModalState({
+      open: true,
+      doctor: doc,
+      slotLabel: slotTimeStr,
+      slotTime: slotTimeStr,
+      date: filterDate,
+      appointments: validApps,
+    });
+  }
+};
 
                 return (
                   <div
@@ -2832,67 +2802,67 @@ export default function AppointmentsPage() {
                   >
                     {/* background stripes & click areas */}
                     {timeSlots.map((slot, index) => {
-  const slotStartMin =
-    (slot.start.getTime() - firstSlot.getTime()) / 60000;
-  const slotHeight =
-    (SLOT_MINUTES / totalMinutes) * columnHeightPx;
+                      const slotStartMin =
+                        (slot.start.getTime() - firstSlot.getTime()) / 60000;
+                      const slotHeight =
+                        (SLOT_MINUTES / totalMinutes) * columnHeightPx;
 
-  const slotTimeStr = getSlotTimeString(slot.start);
-  const schedules = (doc as any).schedules || [];
-  const isWorkingHour = schedules.some((s: any) =>
-    isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
-  );
-  const weekdayIndex = slot.start.getDay();
-  const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
-  const isWeekendLunch =
-    isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
-  const isNonWorking = !isWorkingHour || isWeekendLunch;
+                      const slotTimeStr = getSlotTimeString(slot.start);
+                      const schedules = (doc as any).schedules || [];
+                      const isWorkingHour = schedules.some((s: any) =>
+                        isTimeWithinRange(
+                          slotTimeStr,
+                          s.startTime,
+                          s.endTime
+                        )
+                      );
+                      const weekdayIndex = slot.start.getDay();
+                      const isWeekend =
+                        weekdayIndex === 0 || weekdayIndex === 6;
+                      const isWeekendLunch =
+                        isWeekend &&
+                        isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+                      const isNonWorking = !isWorkingHour || isWeekendLunch;
 
-// DEBUG: see which cells are considered working/non-working
-  console.log("CELL RENDER", {
-    doctorId: doc.id,
-    doctorName: doc.name,
-    time: slotTimeStr,
-    isNonWorking,
-  });
-                    
+                      const overlappedApps = doctorAppointments.filter((a) => {
+                        const start = new Date(a.scheduledAt);
+                        if (Number.isNaN(start.getTime())) return false;
+                        const end =
+                          a.endAt &&
+                          !Number.isNaN(new Date(a.endAt).getTime())
+                            ? new Date(a.endAt)
+                            : new Date(
+                                start.getTime() + SLOT_MINUTES * 60 * 1000
+                              );
+                        return start < slot.end && end > slot.start;
+                      });
 
-  // Appointments for THIS doctor that intersect THIS 30-min slot
-  const appsInThisSlot = doctorAppointments.filter((a) => {
-    const start = new Date(a.scheduledAt);
-    if (Number.isNaN(start.getTime())) return false;
-    const end =
-      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-        ? new Date(a.endAt)
-        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
-    return start < slot.end && end > slot.start;
-  });
-
-  return (
-    <div
-      key={index}
-      onClick={() =>
-        isNonWorking
-          ? undefined
-          : handleCellClick(slotStartMin, appsInThisSlot)
-      }
-      style={{
-        position: "absolute",
-        left: 0,
-        right: 0,
-        top: (slotStartMin / totalMinutes) * columnHeightPx,
-        height: slotHeight,
-        borderBottom: "1px solid #f0f0f0",
-        backgroundColor: isNonWorking
-          ? "#f3f4f6"
-          : index % 2 === 0
-          ? "#ffffff"
-          : "#fafafa",
-        cursor: isNonWorking ? "not-allowed" : "pointer",
-      }}
-    />
-  );
-})}
+                      return (
+                        <div
+                          key={index}
+                          onClick={() =>
+                            handleCellClick(slotStartMin, overlappedApps)
+                          }
+                          style={{
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            top:
+                              (slotStartMin / totalMinutes) * columnHeightPx,
+                            height: slotHeight,
+                            borderBottom: "1px solid #f0f0f0",
+                            backgroundColor: isNonWorking
+                              ? "#f3f4f6"
+                              : index % 2 === 0
+                              ? "#ffffff"
+                              : "#fafafa",
+                            cursor: isNonWorking
+                              ? "not-allowed"
+                              : "pointer",
+                          }}
+                        />
+                      );
+                    })}
 
                     {/* Build a map: does this appointment ever overlap another
                         appointment for this doctor on this day? */}
@@ -3061,7 +3031,19 @@ export default function AppointmentsPage() {
         }}
       />
 
-      
+      <QuickAppointmentModal
+        open={quickModalState.open}
+        onClose={() =>
+          setQuickModalState((prev) => ({ ...prev, open: false }))
+        }
+        defaultDoctorId={quickModalState.doctorId}
+        defaultDate={quickModalState.date}
+        defaultTime={quickModalState.time}
+        branches={branches}
+        doctors={doctors}
+        appointments={appointments}
+        onCreated={(a) => setAppointments((prev) => [a, ...prev])}
+      />
     </main>
   );
 }
