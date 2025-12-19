@@ -1,9 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 
-
-
-
 type Branch = {
   id: number;
   name: string;
@@ -139,10 +136,7 @@ export default function EncounterAdminPage() {
   const [encounter, setEncounter] = useState<Encounter | null>(null);
   const [encounterLoading, setEncounterLoading] = useState(false);
   const [encounterError, setEncounterError] = useState("");
-const [allServices, setAllServices] = useState<Service[]>([]);
-const [services, setServices] = useState<EncounterServiceRow[]>([]);
-const [servicesError, setServicesError] = useState("");
-const [servicesSaving, setServicesSaving] = useState(false);
+
   const [allDiagnoses, setAllDiagnoses] = useState<Diagnosis[]>([]);
   const [dxLoading, setDxLoading] = useState(false);
   const [dxError, setDxError] = useState("");
@@ -155,26 +149,30 @@ const [servicesSaving, setServicesSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Services state
+  const [allServices, setAllServices] = useState<Service[]>([]);
+  const [services, setServices] = useState<EncounterServiceRow[]>([]);
+  const [servicesError, setServicesError] = useState("");
+  const [servicesSaving, setServicesSaving] = useState(false);
 
+  // Load master services catalog
   useEffect(() => {
-  const loadServices = async () => {
-    try {
-      // You can filter by branchId if needed: /api/services?onlyActive=true&branchId=...
-      const res = await fetch("/api/services?onlyActive=true");
-      const data = await res.json();
-      if (!res.ok || !Array.isArray(data)) {
-        throw new Error(data?.error || "Алдаа гарлаа");
+    const loadServices = async () => {
+      try {
+        const res = await fetch("/api/services?onlyActive=true");
+        const data = await res.json();
+        if (!res.ok || !Array.isArray(data)) {
+          throw new Error(data?.error || "Алдаа гарлаа");
+        }
+        setAllServices(data);
+      } catch (err: any) {
+        console.error("Failed to load services:", err);
+        setServicesError(err.message || "Үйлчилгээ ачаалахад алдаа гарлаа.");
       }
-      setAllServices(data);
-    } catch (err: any) {
-      console.error("Failed to load services:", err);
-      setServicesError(err.message || "Үйлчилгээ ачаалахад алдаа гарлаа.");
-    }
-  };
-  loadServices();
-}, []);
+    };
+    loadServices();
+  }, []);
 
-  
   // Load encounter
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
@@ -196,7 +194,8 @@ const [servicesSaving, setServicesSaving] = useState(false);
         }
 
         setEncounter(data);
-        // Initialize editable rows from server data
+
+        // Initialize editable diagnosis rows from server data
         const initialRows: EditableDiagnosis[] =
           Array.isArray(data.encounterDiagnoses) &&
           data.encounterDiagnoses.length > 0
@@ -210,6 +209,20 @@ const [servicesSaving, setServicesSaving] = useState(false);
               }))
             : [];
         setRows(initialRows);
+
+        // Initialize services rows from server data
+        const initialServices: EncounterServiceRow[] =
+          Array.isArray(data.encounterServices) &&
+          data.encounterServices.length > 0
+            ? data.encounterServices.map((s: any) => ({
+                id: s.id,
+                serviceId: s.serviceId,
+                service: s.service,
+                quantity: s.quantity ?? 1,
+                toothCode: s.toothCode ?? null,
+              }))
+            : [];
+        setServices(initialServices);
       } catch (err: any) {
         console.error("Failed to load encounter:", err);
         setEncounterError(err.message || "Алдаа гарлаа");
@@ -250,17 +263,7 @@ const [servicesSaving, setServicesSaving] = useState(false);
 
     loadDx();
   }, []);
-const initialServices: EncounterServiceRow[] =
-  Array.isArray(data.encounterServices) && data.encounterServices.length > 0
-    ? data.encounterServices.map((s: any) => ({
-        id: s.id,
-        serviceId: s.serviceId,
-        service: s.service,
-        quantity: s.quantity ?? 1,
-        toothCode: s.toothCode ?? null,
-      }))
-    : [];
-setServices(initialServices);
+
   // Helper: load problems for a diagnosis once and cache
   const ensureProblemsLoaded = async (diagnosisId: number) => {
     if (problemsByDiagnosis[diagnosisId]) return;
@@ -338,13 +341,11 @@ setServices(initialServices);
 
   const handleNoteChange = (index: number, value: string) => {
     setRows((prev) =>
-      prev.map((row, i) =>
-        i === index ? { ...row, note: value } : row
-      )
+      prev.map((row, i) => (i === index ? { ...row, note: value } : row))
     );
   };
 
-  const handleSave = async () => {
+  const handleSaveDiagnoses = async () => {
     if (!encounterId || Number.isNaN(encounterId)) return;
     setSaveError("");
     setSaving(true);
@@ -358,89 +359,7 @@ setServices(initialServices);
             note: r.note || null,
           })),
       };
-const addServiceRow = () => {
-  setServices((prev) => [
-    ...prev,
-    { serviceId: 0, service: undefined, quantity: 1, toothCode: "" },
-  ]);
-};
 
-const removeServiceRow = (index: number) => {
-  setServices((prev) => prev.filter((_, i) => i !== index));
-};
-
-const handleServiceChange = (
-  index: number,
-  field: "serviceId" | "quantity" | "toothCode",
-  value: any
-) => {
-  setServices((prev) =>
-    prev.map((row, i) => {
-      if (i !== index) return row;
-      if (field === "serviceId") {
-        const sid = Number(value) || 0;
-        const svc = allServices.find((s) => s.id === sid);
-        return { ...row, serviceId: sid, service: svc || undefined };
-      }
-      if (field === "quantity") {
-        const q = Number(value) || 1;
-        return { ...row, quantity: q };
-      }
-      return { ...row, toothCode: value };
-    })
-  );
-};
-
-const totalServicePrice = services.reduce((sum, s) => {
-  const svc = s.service || allServices.find((x) => x.id === s.serviceId);
-  const price = svc?.price ?? 0;
-  return sum + price * (s.quantity || 1);
-}, 0);
-
-const handleSaveServices = async () => {
-  if (!encounterId || Number.isNaN(encounterId)) return;
-  setServicesError("");
-  setServicesSaving(true);
-  try {
-    const payload = {
-      items: services
-        .filter((s) => s.serviceId)
-        .map((s) => ({
-          serviceId: s.serviceId,
-          quantity: s.quantity || 1,
-          toothCode: s.toothCode || null,
-        })),
-    };
-
-    const res = await fetch(`/api/encounters/${encounterId}/services`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      throw new Error(data?.error || "Үйлчилгээ хадгалахад алдаа гарлаа.");
-    }
-
-    if (Array.isArray(data)) {
-      setServices(
-        data.map((s: any) => ({
-          id: s.id,
-          serviceId: s.serviceId,
-          service: s.service,
-          quantity: s.quantity ?? 1,
-          toothCode: s.toothCode ?? null,
-        }))
-      );
-    }
-  } catch (err: any) {
-    console.error("Failed to save services:", err);
-    setServicesError(err.message || "Үйлчилгээ хадгалахад алдаа гарлаа.");
-  } finally {
-    setServicesSaving(false);
-  }
-};
       const res = await fetch(`/api/encounters/${encounterId}/diagnoses`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -458,9 +377,7 @@ const handleSaveServices = async () => {
         throw new Error((data && data.error) || "Хадгалах үед алдаа гарлаа");
       }
 
-      // Refresh encounter from server to reflect saved data
       if (data && Array.isArray(data)) {
-        // data is list of EncounterDiagnosis with diagnosis included
         setRows(
           data.map((r: any) => ({
             diagnosisId: r.diagnosisId,
@@ -477,6 +394,92 @@ const handleSaveServices = async () => {
       setSaveError(err.message || "Хадгалах үед алдаа гарлаа");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // --- Services helpers ---
+
+  const addServiceRow = () => {
+    setServices((prev) => [
+      ...prev,
+      { serviceId: 0, service: undefined, quantity: 1, toothCode: "" },
+    ]);
+  };
+
+  const removeServiceRow = (index: number) => {
+    setServices((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleServiceChange = (
+    index: number,
+    field: "serviceId" | "quantity" | "toothCode",
+    value: any
+  ) => {
+    setServices((prev) =>
+      prev.map((row, i) => {
+        if (i !== index) return row;
+        if (field === "serviceId") {
+          const sid = Number(value) || 0;
+          const svc = allServices.find((s) => s.id === sid);
+          return { ...row, serviceId: sid, service: svc || undefined };
+        }
+        if (field === "quantity") {
+          const q = Number(value) || 1;
+          return { ...row, quantity: q };
+        }
+        return { ...row, toothCode: value };
+      })
+    );
+  };
+
+  const totalServicePrice = services.reduce((sum, s) => {
+    const svc = s.service || allServices.find((x) => x.id === s.serviceId);
+    const price = svc?.price ?? 0;
+    return sum + price * (s.quantity || 1);
+  }, 0);
+
+  const handleSaveServices = async () => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+    setServicesError("");
+    setServicesSaving(true);
+    try {
+      const payload = {
+        items: services
+          .filter((s) => s.serviceId)
+          .map((s) => ({
+            serviceId: s.serviceId,
+            quantity: s.quantity || 1,
+            toothCode: s.toothCode || null,
+          })),
+      };
+
+      const res = await fetch(`/api/encounters/${encounterId}/services`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || "Үйлчилгээ хадгалахад алдаа гарлаа.");
+      }
+
+      if (Array.isArray(data)) {
+        setServices(
+          data.map((s: any) => ({
+            id: s.id,
+            serviceId: s.serviceId,
+            service: s.service,
+            quantity: s.quantity ?? 1,
+            toothCode: s.toothCode ?? null,
+          }))
+        );
+      }
+    } catch (err: any) {
+      console.error("Failed to save services:", err);
+      setServicesError(err.message || "Үйлчилгээ хадгалахад алдаа гарлаа.");
+    } finally {
+      setServicesSaving(false);
     }
   };
 
@@ -511,9 +514,7 @@ const handleSaveServices = async () => {
 
       {encounterLoading && <div>Ачаалж байна...</div>}
       {!encounterLoading && encounterError && (
-        <div style={{ color: "red", marginBottom: 12 }}>
-          {encounterError}
-        </div>
+        <div style={{ color: "red", marginBottom: 12 }}>{encounterError}</div>
       )}
 
       {encounter && (
@@ -530,8 +531,8 @@ const handleSaveServices = async () => {
           >
             <div style={{ marginBottom: 4 }}>
               <strong>Үйлчлүүлэгч:</strong>{" "}
-              {formatPatientName(encounter.patientBook.patient)} (
-              Карт: {encounter.patientBook.bookNumber})
+              {formatPatientName(encounter.patientBook.patient)} (Карт:{" "}
+              {encounter.patientBook.bookNumber})
             </div>
             <div style={{ marginBottom: 4 }}>
               <strong>Салбар:</strong>{" "}
@@ -540,12 +541,10 @@ const handleSaveServices = async () => {
                 : "-"}
             </div>
             <div style={{ marginBottom: 4 }}>
-              <strong>Эмч:</strong>{" "}
-              {formatDoctorName(encounter.doctor)}
+              <strong>Эмч:</strong> {formatDoctorName(encounter.doctor)}
             </div>
             <div style={{ marginBottom: 4 }}>
-              <strong>Огноо:</strong>{" "}
-              {formatDateTime(encounter.visitDate)}
+              <strong>Огноо:</strong> {formatDateTime(encounter.visitDate)}
             </div>
             {encounter.notes && (
               <div style={{ marginTop: 4 }}>
@@ -590,22 +589,19 @@ const handleSaveServices = async () => {
             </div>
 
             {dxError && (
-              <div style={{ color: "red", marginBottom: 8 }}>
-                {dxError}
-              </div>
+              <div style={{ color: "red", marginBottom: 8 }}>{dxError}</div>
             )}
 
             {rows.length === 0 && (
               <div style={{ color: "#6b7280", fontSize: 13 }}>
-                Одоогоор онош сонгоогүй байна. Дээрх “Онош нэмэх”
-                товчоор онош нэмнэ үү.
+                Одоогоор онош сонгоогүй байна. Дээрх “Онош нэмэх” товчоор онош
+                нэмнэ үү.
               </div>
             )}
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {rows.map((row, index) => {
-                const problems =
-                  problemsByDiagnosis[row.diagnosisId] || [];
+                const problems = problemsByDiagnosis[row.diagnosisId] || [];
                 return (
                   <div
                     key={index}
@@ -672,8 +668,8 @@ const handleSaveServices = async () => {
                               marginBottom: 8,
                             }}
                           >
-                            Энэ оношид тохирсон проблем бүртгээгүй
-                            байна (оношийн тохиргооноос нэмнэ).
+                            Энэ оношид тохирсон проблем бүртгээгүй байна
+                            (оношийн тохиргооноос нэмнэ).
                           </div>
                         ) : (
                           <div
@@ -744,9 +740,7 @@ const handleSaveServices = async () => {
             </div>
 
             {saveError && (
-              <div style={{ color: "red", marginTop: 8 }}>
-                {saveError}
-              </div>
+              <div style={{ color: "red", marginTop: 8 }}>{saveError}</div>
             )}
 
             <div
@@ -758,7 +752,7 @@ const handleSaveServices = async () => {
             >
               <button
                 type="button"
-                onClick={handleSave}
+                onClick={handleSaveDiagnoses}
                 disabled={saving}
                 style={{
                   padding: "8px 16px",
@@ -775,184 +769,194 @@ const handleSaveServices = async () => {
             </div>
           </section>
 
-{/* Services / Treatments */}
-<section
-  style={{
-    marginTop: 16,
-    padding: 16,
-    borderRadius: 8,
-    border: "1px solid #e5e7eb",
-    background: "#ffffff",
-  }}
->
-  <div
-    style={{
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 8,
-    }}
-  >
-    <h2 style={{ fontSize: 16, margin: 0 }}>Үйлчилгээ / эмчилгээ</h2>
-    <button
-      type="button"
-      onClick={addServiceRow}
-      style={{
-        padding: "6px 12px",
-        borderRadius: 6,
-        border: "1px solid #2563eb",
-        background: "#eff6ff",
-        color: "#2563eb",
-        cursor: "pointer",
-        fontSize: 13,
-      }}
-    >
-      + Үйлчилгээ нэмэх
-    </button>
-  </div>
-
-  {servicesError && (
-    <div style={{ color: "red", marginBottom: 8 }}>{servicesError}</div>
-  )}
-
-  {services.length === 0 && (
-    <div style={{ color: "#6b7280", fontSize: 13, marginBottom: 8 }}>
-      Одоогоор үйлчилгээ сонгоогүй байна. Дээрх “Үйлчилгээ нэмэх” товчоор
-      эмчилгээ нэмнэ үү.
-    </div>
-  )}
-
-  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-    {services.map((s, index) => (
-      <div
-        key={index}
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(220px, 2fr) 80px 130px auto",
-          gap: 8,
-          alignItems: "center",
-          border: "1px solid #e5e7eb",
-          borderRadius: 8,
-          padding: 8,
-          background: "#f9fafb",
-        }}
-      >
-        <select
-          value={s.serviceId || ""}
-          onChange={(e) =>
-            handleServiceChange(index, "serviceId", e.target.value)
-          }
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        >
-          <option value="">Үйлчилгээ сонгох...</option>
-          {allServices.map((svc) => (
-            <option key={svc.id} value={svc.id}>
-              {svc.code ? `${svc.code} — ` : ""}
-              {svc.name} ({svc.price.toLocaleString("mn-MN")}₮)
-            </option>
-          ))}
-        </select>
-
-        <input
-          type="number"
-          min={1}
-          value={s.quantity || 1}
-          onChange={(e) =>
-            handleServiceChange(index, "quantity", e.target.value)
-          }
-          style={{
-            width: "100%",
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        />
-
-        <input
-          placeholder="Шүдний код (ж: 11, 26, 85)"
-          value={s.toothCode || ""}
-          onChange={(e) =>
-            handleServiceChange(index, "toothCode", e.target.value)
-          }
-          style={{
-            width: "100%",
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        />
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-          }}
-        >
-          <span style={{ fontSize: 13, color: "#111827" }}>
-            {(() => {
-              const svc =
-                s.service ||
-                allServices.find((x) => x.id === s.serviceId);
-              const price = svc?.price ?? 0;
-              return (price * (s.quantity || 1)).toLocaleString("mn-MN") + "₮";
-            })()}
-          </span>
-          <button
-            type="button"
-            onClick={() => removeServiceRow(index)}
+          {/* Services / Treatments */}
+          <section
             style={{
-              padding: "4px 8px",
-              borderRadius: 6,
-              border: "1px solid #dc2626",
-              background: "#fef2f2",
-              color: "#b91c1c",
-              cursor: "pointer",
-              fontSize: 12,
+              marginTop: 16,
+              padding: 16,
+              borderRadius: 8,
+              border: "1px solid #e5e7eb",
+              background: "#ffffff",
             }}
           >
-            Устгах
-          </button>
-        </div>
-      </div>
-    ))}
-  </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
+              <h2 style={{ fontSize: 16, margin: 0 }}>Үйлчилгээ / эмчилгээ</h2>
+              <button
+                type="button"
+                onClick={addServiceRow}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: "1px solid #2563eb",
+                  background: "#eff6ff",
+                  color: "#2563eb",
+                  cursor: "pointer",
+                  fontSize: 13,
+                }}
+              >
+                + Үйлчилгээ нэмэх
+              </button>
+            </div>
 
-  <div
-    style={{
-      marginTop: 12,
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-    }}
-  >
-    <div style={{ fontSize: 14, fontWeight: 600 }}>
-      Нийт дүн: {totalServicePrice.toLocaleString("mn-MN")}₮
-    </div>
-    <button
-      type="button"
-      onClick={handleSaveServices}
-      disabled={servicesSaving}
-      style={{
-        padding: "8px 16px",
-        borderRadius: 6,
-        border: "none",
-        background: "#2563eb",
-        color: "#ffffff",
-        cursor: "pointer",
-        fontSize: 14,
-      }}
-    >
-      {servicesSaving ? "Үйлчилгээ хадгалж байна..." : "Үйлчилгээ хадгалах"}
-    </button>
-  </div>
-</section>
-          
+            {servicesError && (
+              <div style={{ color: "red", marginBottom: 8 }}>
+                {servicesError}
+              </div>
+            )}
+
+            {services.length === 0 && (
+              <div
+                style={{ color: "#6b7280", fontSize: 13, marginBottom: 8 }}
+              >
+                Одоогоор үйлчилгээ сонгоогүй байна. Дээрх “Үйлчилгээ нэмэх”
+                товчоор эмчилгээ нэмнэ үү.
+              </div>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {services.map((s, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(220px, 2fr) 80px 130px auto",
+                    gap: 8,
+                    alignItems: "center",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 8,
+                    padding: 8,
+                    background: "#f9fafb",
+                  }}
+                >
+                  <select
+                    value={s.serviceId || ""}
+                    onChange={(e) =>
+                      handleServiceChange(index, "serviceId", e.target.value)
+                    }
+                    style={{
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      padding: "6px 8px",
+                    }}
+                  >
+                    <option value="">Үйлчилгээ сонгох...</option>
+                    {allServices.map((svc) => (
+                      <option key={svc.id} value={svc.id}>
+                        {svc.code ? `${svc.code} — ` : ""}
+                        {svc.name} (
+                        {svc.price.toLocaleString("mn-MN")}
+                        ₮)
+                      </option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="number"
+                    min={1}
+                    value={s.quantity || 1}
+                    onChange={(e) =>
+                      handleServiceChange(index, "quantity", e.target.value)
+                    }
+                    style={{
+                      width: "100%",
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      padding: "6px 8px",
+                    }}
+                  />
+
+                  <input
+                    placeholder="Шүдний код (ж: 11, 26, 85)"
+                    value={s.toothCode || ""}
+                    onChange={(e) =>
+                      handleServiceChange(index, "toothCode", e.target.value)
+                    }
+                    style={{
+                      width: "100%",
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      padding: "6px 8px",
+                    }}
+                  />
+
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 8,
+                    }}
+                  >
+                    <span style={{ fontSize: 13, color: "#111827" }}>
+                      {(() => {
+                        const svc =
+                          s.service ||
+                          allServices.find((x) => x.id === s.serviceId);
+                        const price = svc?.price ?? 0;
+                        return (
+                          (price * (s.quantity || 1)).toLocaleString("mn-MN") +
+                          "₮"
+                        );
+                      })()}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeServiceRow(index)}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        border: "1px solid #dc2626",
+                        background: "#fef2f2",
+                        color: "#b91c1c",
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                    >
+                      Устгах
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div
+              style={{
+                marginTop: 12,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div style={{ fontSize: 14, fontWeight: 600 }}>
+                Нийт дүн: {totalServicePrice.toLocaleString("mn-MN")}₮
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveServices}
+                disabled={servicesSaving}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: "#2563eb",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  fontSize: 14,
+                }}
+              >
+                {servicesSaving
+                  ? "Үйлчилгээ хадгалж байна..."
+                  : "Үйлчилгээ хадгалах"}
+              </button>
+            </div>
+          </section>
         </>
       )}
     </main>
