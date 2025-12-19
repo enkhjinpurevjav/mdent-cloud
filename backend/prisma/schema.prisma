@@ -185,6 +185,8 @@ model Appointment {
   endAt       DateTime?   // Дуусах цаг (шинэ)
   status      String    @default("booked")
   notes       String?
+// NEW: back relation to Encounter
+  encounter    Encounter?
 
   patient     Patient   @relation(fields: [patientId], references: [id])
   doctor      User?     @relation(fields: [doctorId], references: [id])
