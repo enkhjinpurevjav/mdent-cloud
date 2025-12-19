@@ -2764,14 +2764,13 @@ export default function AppointmentsPage() {
   const slotTime = new Date(firstSlot.getTime() + clickedMinutes * 60000);
   const slotTimeStr = getSlotTimeString(slotTime);
 
-  // Treat as empty if there are 0 or only appointments from another day/doctor
+  // Only apps that belong to THIS doctor & day (defensive)
   const validApps = existingApps.filter(
-    (a) =>
-      a.doctorId === doc.id &&
-      getAppointmentDayKey(a) === filterDate
+    (a) => a.doctorId === doc.id && getAppointmentDayKey(a) === filterDate
   );
 
   if (validApps.length === 0) {
+    // Behave as empty cell: quick-create new appointment
     setQuickModalState({
       open: true,
       doctorId: doc.id,
@@ -2779,6 +2778,7 @@ export default function AppointmentsPage() {
       time: slotTimeStr,
     });
   } else {
+    // There is at least one appointment for this doctor in this slot
     setDetailsModalState({
       open: true,
       doctor: doc,
@@ -2802,67 +2802,59 @@ export default function AppointmentsPage() {
                   >
                     {/* background stripes & click areas */}
                     {timeSlots.map((slot, index) => {
-                      const slotStartMin =
-                        (slot.start.getTime() - firstSlot.getTime()) / 60000;
-                      const slotHeight =
-                        (SLOT_MINUTES / totalMinutes) * columnHeightPx;
+  const slotStartMin =
+    (slot.start.getTime() - firstSlot.getTime()) / 60000;
+  const slotHeight =
+    (SLOT_MINUTES / totalMinutes) * columnHeightPx;
 
-                      const slotTimeStr = getSlotTimeString(slot.start);
-                      const schedules = (doc as any).schedules || [];
-                      const isWorkingHour = schedules.some((s: any) =>
-                        isTimeWithinRange(
-                          slotTimeStr,
-                          s.startTime,
-                          s.endTime
-                        )
-                      );
-                      const weekdayIndex = slot.start.getDay();
-                      const isWeekend =
-                        weekdayIndex === 0 || weekdayIndex === 6;
-                      const isWeekendLunch =
-                        isWeekend &&
-                        isTimeWithinRange(slotTimeStr, "14:00", "15:00");
-                      const isNonWorking = !isWorkingHour || isWeekendLunch;
+  const slotTimeStr = getSlotTimeString(slot.start);
+  const schedules = (doc as any).schedules || [];
+  const isWorkingHour = schedules.some((s: any) =>
+    isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
+  );
+  const weekdayIndex = slot.start.getDay();
+  const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
+  const isWeekendLunch =
+    isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+  const isNonWorking = !isWorkingHour || isWeekendLunch;
 
-                      const overlappedApps = doctorAppointments.filter((a) => {
-                        const start = new Date(a.scheduledAt);
-                        if (Number.isNaN(start.getTime())) return false;
-                        const end =
-                          a.endAt &&
-                          !Number.isNaN(new Date(a.endAt).getTime())
-                            ? new Date(a.endAt)
-                            : new Date(
-                                start.getTime() + SLOT_MINUTES * 60 * 1000
-                              );
-                        return start < slot.end && end > slot.start;
-                      });
+  // Appointments for THIS doctor that intersect THIS 30-min slot
+  const appsInThisSlot = doctorAppointments.filter((a) => {
+    const start = new Date(a.scheduledAt);
+    if (Number.isNaN(start.getTime())) return false;
+    const end =
+      a.endAt &&
+      !Number.isNaN(new Date(a.endAt).getTime())
+        ? new Date(a.endAt)
+        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+    return start < slot.end && end > slot.start;
+  });
 
-                      return (
-                        <div
-                          key={index}
-                          onClick={() =>
-                            handleCellClick(slotStartMin, overlappedApps)
-                          }
-                          style={{
-                            position: "absolute",
-                            left: 0,
-                            right: 0,
-                            top:
-                              (slotStartMin / totalMinutes) * columnHeightPx,
-                            height: slotHeight,
-                            borderBottom: "1px solid #f0f0f0",
-                            backgroundColor: isNonWorking
-                              ? "#f3f4f6"
-                              : index % 2 === 0
-                              ? "#ffffff"
-                              : "#fafafa",
-                            cursor: isNonWorking
-                              ? "not-allowed"
-                              : "pointer",
-                          }}
-                        />
-                      );
-                    })}
+  return (
+    <div
+      key={index}
+      onClick={() =>
+        isNonWorking
+          ? undefined
+          : handleCellClick(slotStartMin, appsInThisSlot)
+      }
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        top: (slotStartMin / totalMinutes) * columnHeightPx,
+        height: slotHeight,
+        borderBottom: "1px solid #f0f0f0",
+        backgroundColor: isNonWorking
+          ? "#f3f4f6"
+          : index % 2 === 0
+          ? "#ffffff"
+          : "#fafafa",
+        cursor: isNonWorking ? "not-allowed" : "pointer",
+      }}
+    />
+  );
+})}
 
                     {/* Build a map: does this appointment ever overlap another
                         appointment for this doctor on this day? */}
