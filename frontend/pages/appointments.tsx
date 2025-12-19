@@ -736,29 +736,61 @@ const [popupEndSlots, setPopupEndSlots] = useState<
     setPopupEndSlots([]);
     return;
   }
+
   const [y, m, d] = form.date.split("-").map(Number);
   if (!y || !m || !d) {
     setPopupStartSlots([]);
     setPopupEndSlots([]);
     return;
   }
+
   const day = new Date(y, (m || 1) - 1, d || 1);
 
-  // Build 30-min slots for the chosen day
-  const slots = generateTimeSlotsForDay(day);
-
-  const startOptions = slots.map((s) => ({
+  // Build raw 30-min slots
+  let slots = generateTimeSlotsForDay(day).map((s) => ({
     label: s.label,
-    value: getSlotTimeString(s.start), // 09:00 ... 20:30
+    start: s.start,
+    end: s.end,
+    value: getSlotTimeString(s.start),
   }));
 
+  // Filter by doctor schedule if doctorId is selected
+  if (form.doctorId) {
+    const doctorIdNum = Number(form.doctorId);
+    const docWithSchedule = (doctors as any[]).find(
+      (d) => d.id === doctorIdNum
+    ) as ScheduledDoctor | undefined;
+
+    const schedules = docWithSchedule?.schedules || [];
+    if (schedules.length > 0) {
+      slots = slots.filter((slot) => {
+        const tStr = getSlotTimeString(slot.start);
+        return schedules.some((s: any) =>
+          isTimeWithinRange(tStr, s.startTime, s.endTime)
+        );
+      });
+    }
+  }
+
+  const startOptions = slots.map(({ label, value }) => ({ label, value }));
   const endOptions = Array.from(
-    new Set(slots.map((s) => getSlotTimeString(s.end))) // 09:30 ... 21:00
+    new Set(slots.map((s) => getSlotTimeString(s.end)))
   ).map((t) => ({ label: t, value: t }));
 
   setPopupStartSlots(startOptions);
   setPopupEndSlots(endOptions);
-}, [form.date]);
+
+  // Reset start/end if current value isn’t valid anymore
+  if (
+    form.startTime &&
+    !startOptions.some((s) => s.value === form.startTime)
+  ) {
+    setForm((prev) => ({ ...prev, startTime: "" }));
+  }
+  if (form.endTime && !endOptions.some((s) => s.value === form.endTime)) {
+    setForm((prev) => ({ ...prev, endTime: "" }));
+  }
+}, [form.date, form.doctorId, doctors]);
 
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
