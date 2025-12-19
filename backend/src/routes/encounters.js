@@ -144,56 +144,48 @@ router.put("/:id/diagnoses", async (req, res) => {
  * Body: { items: { serviceId, quantity? }[] }
  * NOTE: toothCode is currently ignored because EncounterService has no such field.
  */
-router.put("/:id/services", async (req, res) => {
+router.put("/:id/diagnoses", async (req, res) => {
+  const encounterId = Number(req.params.id);
+  if (!encounterId || Number.isNaN(encounterId)) {
+    return res.status(400).json({ error: "Invalid encounter id" });
+  }
+
+  const { items } = req.body || {};
+  if (!Array.isArray(items)) {
+    return res.status(400).json({ error: "items must be an array" });
+  }
+
   try {
-    const encounterId = Number(req.params.id);
-    if (!encounterId || Number.isNaN(encounterId)) {
-      return res.status(400).json({ error: "Invalid encounter id" });
-    }
-
-    const { items } = req.body || {};
-    if (!Array.isArray(items)) {
-      return res.status(400).json({ error: "items must be an array" });
-    }
-
     await prisma.$transaction(async (trx) => {
-      // Delete all existing services for this encounter
-      await trx.encounterService.deleteMany({
+      // Replace all rows for this encounter
+      await trx.encounterDiagnosis.deleteMany({
         where: { encounterId },
       });
 
       for (const item of items) {
-        if (!item.serviceId) continue;
+        if (!item.diagnosisId) continue;
 
-        // Look up current service price
-        const svc = await trx.service.findUnique({
-          where: { id: item.serviceId },
-          select: { price: true },
-        });
-        if (!svc) continue;
-
-        await trx.encounterService.create({
+        await trx.encounterDiagnosis.create({
           data: {
             encounterId,
-            serviceId: item.serviceId,
-            quantity: item.quantity ?? 1,
-            price: svc.price, // REQUIRED field on EncounterService
+            diagnosisId: item.diagnosisId,
+            selectedProblemIds: item.selectedProblemIds ?? [],
+            note: item.note ?? null,
           },
         });
       }
     });
 
-    const updated = await prisma.encounterService.findMany({
+    const updated = await prisma.encounterDiagnosis.findMany({
       where: { encounterId },
-      include: { service: true },
+      include: { diagnosis: true },
       orderBy: { id: "asc" },
     });
 
     return res.json(updated);
   } catch (err) {
-    console.error("PUT /api/encounters/:id/services error:", err);
-    return res.status(500).json({ error: "Failed to save services" });
+    console.error("PUT /api/encounters/:id/diagnoses failed", err);
+    return res.status(500).json({ error: "Failed to save diagnoses" });
   }
 });
-
 export default router;
