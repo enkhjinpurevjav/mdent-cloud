@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/router";
 
 type Branch = {
   id: number;
@@ -354,7 +355,7 @@ function AppointmentDetailsModal({
   appointments,
   onStatusUpdated,
 }: AppointmentDetailsModalProps) {
-  const router = useRouter(); // ✅ use router HERE
+  const router = useRouter();
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingStatus, setEditingStatus] = useState<string>("");
@@ -421,7 +422,8 @@ function AppointmentDetailsModal({
       setSaving(false);
     }
   };
-const handleStartEncounter = async (a: Appointment) => {
+
+  const handleStartEncounter = async (a: Appointment) => {
     try {
       setError("");
       const res = await fetch(`/api/appointments/${a.id}/start-encounter`, {
@@ -450,6 +452,7 @@ const handleStartEncounter = async (a: Appointment) => {
       setError("Үзлэг эхлүүлэхэд сүлжээний алдаа гарлаа.");
     }
   };
+
   return (
     <div
       style={{
@@ -522,7 +525,107 @@ const handleStartEncounter = async (a: Appointment) => {
           </div>
         </div>
 
-                {appointments.length === 0 ? (
+        {appointments.length === 0 ? (
+          <div style={{ color: "#6b7280" }}>Энэ цагт захиалга алга.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {appointments.map((a) => {
+              const start = new Date(a.scheduledAt);
+              const end =
+                a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+                  ? new Date(a.endAt)
+                  : null;
+
+              const isEditing = editingId === a.id;
+              const canStartEncounter = isOngoing(a.status);
+
+              return (
+                <div
+                  key={a.id}
+                  style={{
+                    borderRadius: 6,
+                    border: "1px solid #e5e7eb",
+                    padding: 8,
+                    background: "#f9fafb",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 4,
+                    }}
+                  >
+                    <div style={{ fontWeight: 500 }}>
+                      {formatPatientLabel(a.patient, a.patientId)}
+                    </div>
+                    {!isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => handleStartEdit(a)}
+                        style={{
+                          fontSize: 11,
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          border: "1px solid #2563eb",
+                          background: "#eff6ff",
+                          color: "#1d4ed8",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Засах
+                      </button>
+                    )}
+                  </div>
+
+                  {!isEditing ? (
+                    <>
+                      <div style={{ color: "#4b5563" }}>
+                        <div>
+                          <strong>Төлөв:</strong> {formatStatus(a.status)}
+                        </div>
+                        <div>
+                          <strong>Утас:</strong> {a.patient?.phone || "-"}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          marginTop: 6,
+                          display: "flex",
+                          gap: 8,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        {canStartEncounter ? (
+                          <button
+                            type="button"
+                            onClick={() => handleStartEncounter(a)}
+                            style={{
+                              padding: "4px 10px",
+                              borderRadius: 6,
+                              border: "1px solid #16a34a",
+                              background: "#dcfce7",
+                              color: "#166534",
+                              fontSize: 12,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Үзлэг эхлүүлэх / үргэлжлүүлэх
+                          </button>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: "#9ca3af",
+                            }}
+                          >
+                            Үзлэгийг зөвхөн “Явагдаж байна” төлөвтэй үед эхлүүлнэ.
+                          </span>
+                        )}
+                      </div>
+                    </>
                   ) : (
                     <div
                       style={{
@@ -536,9 +639,7 @@ const handleStartEncounter = async (a: Appointment) => {
                         Төлөв:
                         <select
                           value={editingStatus}
-                          onChange={(e) =>
-                            setEditingStatus(e.target.value)
-                          }
+                          onChange={(e) => setEditingStatus(e.target.value)}
                           style={{
                             marginLeft: 4,
                             borderRadius: 6,
@@ -643,7 +744,6 @@ const handleStartEncounter = async (a: Appointment) => {
     </div>
   );
 }
-
 // ==== Quick Appointment Modal (with start/end, default 30min) ====
 
 type QuickAppointmentModalProps = {
