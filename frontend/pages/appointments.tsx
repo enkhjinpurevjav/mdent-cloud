@@ -2830,6 +2830,21 @@ export default function AppointmentsPage() {
     return start < slot.end && end > slot.start;
   });
 
+// DEBUG:
+if (appsInThisSlot.length > 0) {
+  console.log("SLOT HAS APPS", {
+    doctorId: doc.id,
+    doctorName: doc.name,
+    slot: slotTimeStr,
+    apps: appsInThisSlot.map((a) => ({
+      id: a.id,
+      patient: a.patient?.name,
+      start: a.scheduledAt,
+      end: a.endAt,
+    })),
+  });
+}
+                    
   return (
     <div
       key={index}
