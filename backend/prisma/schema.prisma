@@ -193,7 +193,13 @@ model ChartTooth {
 
   chartNotes  ChartNote[] // Related notes for the tooth
 }
-
+model ChartNote {
+  id           Int        @id @default(autoincrement())
+  chartToothId Int
+  description  String
+  createdAt    DateTime   @default(now())
+  chartTooth   ChartTooth @relation(fields: [chartToothId], references: [id])
+}
 // Appointment model
 model Appointment {
   id          Int       @id @default(autoincrement())
