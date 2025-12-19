@@ -262,6 +262,9 @@ model Encounter {
   visitDate          DateTime
   notes              String?
 
+  appointmentId      Int?      // <— NEW, optional link to Appointment
+  appointment        Appointment? @relation(fields: [appointmentId], references: [id])
+
   patientBook        PatientBook   @relation(fields: [patientBookId], references: [id])
   doctor             User          @relation("DoctorEncounters", fields: [doctorId], references: [id])
 
