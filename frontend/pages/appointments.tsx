@@ -2926,7 +2926,7 @@ if (appsInThisSlot.length > 0) {
         height: slotHeight,
         borderBottom: "1px solid #f0f0f0",
         backgroundColor: isNonWorking
-          ? "#f3f4f6"
+          ? "#ffc26b"
           : index % 2 === 0
           ? "#ffffff"
           : "#fafafa",
