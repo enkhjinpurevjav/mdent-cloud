@@ -168,7 +168,11 @@ function formatGridShortLabel(a: Appointment): string {
     displayName = `${ovog.charAt(0).toUpperCase()}.${name}`;
   }
 
-  return displayName;
+  const book = p?.patientBook?.bookNumber
+    ? ` (${p.patientBook.bookNumber})`
+    : "";
+
+  return `${displayName}${book}`;
 }
 
 function formatPatientSearchLabel(p: PatientLite): string {
