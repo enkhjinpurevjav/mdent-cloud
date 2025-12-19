@@ -385,10 +385,7 @@ model Procedure {
   invoiceItems InvoiceItem[]
 }
 
-model Diagnosis {
-  code        String @id
-  description String
-}
+
 
 // ==========================================================
 // INVOICES, PAYMENTS, E-BARIMT
