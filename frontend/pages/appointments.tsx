@@ -2758,32 +2758,37 @@ export default function AppointmentsPage() {
                 );
 
                 const handleCellClick = (
-                  clickedMinutes: number,
-                  existingApps: Appointment[]
-                ) => {
-                  const slotTime = new Date(
-                    firstSlot.getTime() + clickedMinutes * 60000
-                  );
-                  const slotTimeStr = getSlotTimeString(slotTime);
+  clickedMinutes: number,
+  existingApps: Appointment[]
+) => {
+  const slotTime = new Date(firstSlot.getTime() + clickedMinutes * 60000);
+  const slotTimeStr = getSlotTimeString(slotTime);
 
-                  if (existingApps.length === 0) {
-                    setQuickModalState({
-                      open: true,
-                      doctorId: doc.id,
-                      date: filterDate,
-                      time: slotTimeStr,
-                    });
-                  } else {
-                    setDetailsModalState({
-                      open: true,
-                      doctor: doc,
-                      slotLabel: slotTimeStr,
-                      slotTime: slotTimeStr,
-                      date: filterDate,
-                      appointments: existingApps,
-                    });
-                  }
-                };
+  // Treat as empty if there are 0 or only appointments from another day/doctor
+  const validApps = existingApps.filter(
+    (a) =>
+      a.doctorId === doc.id &&
+      getAppointmentDayKey(a) === filterDate
+  );
+
+  if (validApps.length === 0) {
+    setQuickModalState({
+      open: true,
+      doctorId: doc.id,
+      date: filterDate,
+      time: slotTimeStr,
+    });
+  } else {
+    setDetailsModalState({
+      open: true,
+      doctor: doc,
+      slotLabel: slotTimeStr,
+      slotTime: slotTimeStr,
+      date: filterDate,
+      appointments: validApps,
+    });
+  }
+};
 
                 return (
                   <div
