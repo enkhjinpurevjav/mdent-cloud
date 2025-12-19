@@ -71,15 +71,23 @@ router.put("/:id/services", async (req, res) => {
         where: { encounterId },
       });
 
-      // Insert new ones
       for (const item of items) {
         if (!item.serviceId) continue;
+
+        // Look up current service price
+        const svc = await trx.service.findUnique({
+          where: { id: item.serviceId },
+          select: { price: true },
+        });
+        if (!svc) continue; // skip invalid serviceId
+
         await trx.encounterService.create({
           data: {
             encounterId,
             serviceId: item.serviceId,
             quantity: item.quantity ?? 1,
             toothCode: item.toothCode ?? null,
+            price: svc.price, // REQUIRED field on EncounterService
           },
         });
       }
@@ -97,4 +105,5 @@ router.put("/:id/services", async (req, res) => {
     return res.status(500).json({ error: "Failed to save services" });
   }
 });
+
 export default router;
