@@ -36,6 +36,9 @@ export default function Dashboard() {
             <a href="/services">Үйлчилгээ</a>
           </li>
           <li>
+            <a href="/diagnoses">Онош</a>
+          </li>
+          <li>
             <a href="/reports">Тайлан</a>
           </li>
         </ul>
