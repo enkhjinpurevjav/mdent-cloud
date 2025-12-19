@@ -162,6 +162,13 @@ export default function EncounterAdminPage() {
   const [servicesError, setServicesError] = useState("");
   const [servicesSaving, setServicesSaving] = useState(false);
 
+  // Tooth chart state
+  const [chartTeeth, setChartTeeth] = useState<ChartToothRow[]>([]);
+  const [chartLoading, setChartLoading] = useState(false);
+  const [chartError, setChartError] = useState("");
+  const [chartSaving, setChartSaving] = useState(false);
+  const [toothMode, setToothMode] = useState<"ADULT" | "CHILD">("ADULT");
+
   // Load master services catalog
   useEffect(() => {
     const loadServices = async () => {
@@ -270,6 +277,43 @@ export default function EncounterAdminPage() {
 
     loadDx();
   }, []);
+
+  // Load tooth chart for this encounter
+  useEffect(() => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+
+    const loadChart = async () => {
+      setChartLoading(true);
+      setChartError("");
+      try {
+        const res = await fetch(`/api/encounters/${encounterId}/chart-teeth`);
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          data = null;
+        }
+        if (!res.ok || !Array.isArray(data)) {
+          throw new Error((data && data.error) || "Алдаа гарлаа");
+        }
+        const rows: ChartToothRow[] = data.map((t: any) => ({
+          id: t.id,
+          toothCode: t.toothCode,
+          status: t.status || "",
+          notes: t.notes || "",
+        }));
+        setChartTeeth(rows);
+      } catch (err: any) {
+        console.error("Failed to load tooth chart:", err);
+        setChartError(err.message || "Шүдний диаграм ачаалахад алдаа гарлаа.");
+        setChartTeeth([]);
+      } finally {
+        setChartLoading(false);
+      }
+    };
+
+    loadChart();
+  }, [encounterId]);
 
   // Helper: load problems for a diagnosis once and cache
   const ensureProblemsLoaded = async (diagnosisId: number) => {
@@ -456,7 +500,7 @@ export default function EncounterAdminPage() {
           .map((s) => ({
             serviceId: s.serviceId,
             quantity: s.quantity || 1,
-            toothCode: s.toothCode || null,
+            toothCode: s.toothCode || null, // not used by backend yet
           })),
       };
 
@@ -487,6 +531,103 @@ export default function EncounterAdminPage() {
       setServicesError(err.message || "Үйлчилгээ хадгалахад алдаа гарлаа.");
     } finally {
       setServicesSaving(false);
+    }
+  };
+
+  // --- Tooth chart helpers ---
+
+  const ADULT_TEETH: string[] = [
+    "11","12","13","14","15","16","17","18",
+    "21","22","23","24","25","26","27","28",
+    "31","32","33","34","35","36","37","38",
+    "41","42","43","44","45","46","47","48",
+  ];
+
+  const CHILD_TEETH: string[] = [
+    "51","52","53","54","55",
+    "61","62","63","64","65",
+    "71","72","73","74","75",
+    "81","82","83","84","85",
+  ];
+
+  const toggleToothMode = (mode: "ADULT" | "CHILD") => {
+    setToothMode(mode);
+  };
+
+  const isToothSelected = (code: string) =>
+    chartTeeth.some((t) => t.toothCode === code);
+
+  const toggleToothSelection = (code: string) => {
+    setChartTeeth((prev) => {
+      const exists = prev.find((t) => t.toothCode === code);
+      if (exists) {
+        return prev.filter((t) => t.toothCode !== code);
+      }
+      return [...prev, { toothCode: code, status: "", notes: "" }];
+    });
+  };
+
+  const handleToothFieldChange = (
+    index: number,
+    field: "status" | "notes",
+    value: string
+  ) => {
+    setChartTeeth((prev) =>
+      prev.map((t, i) =>
+        i === index
+          ? {
+              ...t,
+              [field]: value,
+            }
+          : t
+      )
+    );
+  };
+
+  const handleSaveChartTeeth = async () => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+    setChartError("");
+    setChartSaving(true);
+    try {
+      const payload = {
+        teeth: chartTeeth.map((t) => ({
+          toothCode: t.toothCode,
+          status: t.status || null,
+          notes: t.notes || null,
+        })),
+      };
+
+      const res = await fetch(`/api/encounters/${encounterId}/chart-teeth`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok || !Array.isArray(data)) {
+        throw new Error(
+          (data && data.error) || "Шүдний диаграм хадгалахад алдаа гарлаа"
+        );
+      }
+
+      const rows: ChartToothRow[] = data.map((t: any) => ({
+        id: t.id,
+        toothCode: t.toothCode,
+        status: t.status || "",
+        notes: t.notes || "",
+      }));
+      setChartTeeth(rows);
+    } catch (err: any) {
+      console.error("Failed to save tooth chart:", err);
+      setChartError(err.message || "Шүдний диаграм хадгалахад алдаа гарлаа.");
+    } finally {
+      setChartSaving(false);
     }
   };
 
@@ -772,6 +913,286 @@ export default function EncounterAdminPage() {
                 }}
               >
                 {saving ? "Хадгалж байна..." : "Онош хадгалах"}
+              </button>
+            </div>
+          </section>
+
+          {/* Tooth Chart */}
+          <section
+            style={{
+              marginTop: 16,
+              padding: 16,
+              borderRadius: 8,
+              border: "1px solid #e5e7eb",
+              background: "#ffffff",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
+              <h2 style={{ fontSize: 16, margin: 0 }}>Шүдний диаграм</h2>
+
+              <div
+                style={{
+                  display: "inline-flex",
+                  borderRadius: 999,
+                  border: "1px solid #d1d5db",
+                  overflow: "hidden",
+                  fontSize: 13,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleToothMode("ADULT")}
+                  style={{
+                    padding: "4px 10px",
+                    border: "none",
+                    background:
+                      toothMode === "ADULT" ? "#2563eb" : "white",
+                    color:
+                      toothMode === "ADULT" ? "white" : "#111827",
+                    cursor: "pointer",
+                  }}
+                >
+                  Насанд хүрэгч
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleToothMode("CHILD")}
+                  style={{
+                    padding: "4px 10px",
+                    border: "none",
+                    background:
+                      toothMode === "CHILD" ? "#2563eb" : "white",
+                    color:
+                      toothMode === "CHILD" ? "white" : "#111827",
+                    cursor: "pointer",
+                  }}
+                >
+                  Хүүхэд
+                </button>
+              </div>
+            </div>
+
+            {chartLoading && (
+              <div style={{ fontSize: 13 }}>Шүдний диаграм ачааллаж байна...</div>
+            )}
+            {!chartLoading && chartError && (
+              <div style={{ color: "red", marginBottom: 8 }}>
+                {chartError}
+              </div>
+            )}
+
+            {/* Simple FDI layout as pill buttons */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                marginBottom: 12,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                }}
+              >
+                {(toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH).map(
+                  (code) => {
+                    const selected = isToothSelected(code);
+                    return (
+                      <button
+                        key={code}
+                        type="button"
+                        onClick={() => toggleToothSelection(code)}
+                        style={{
+                          minWidth: 34,
+                          padding: "4px 6px",
+                          borderRadius: 999,
+                          border: selected
+                            ? "1px solid #16a34a"
+                            : "1px solid #d1d5db",
+                          background: selected ? "#dcfce7" : "white",
+                          color: selected ? "#166534" : "#111827",
+                          fontSize: 12,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {code}
+                      </button>
+                    );
+                  }
+                )}
+              </div>
+
+              <div style={{ fontSize: 11, color: "#6b7280" }}>
+                Дээрх кодоос шүдийг дарж сонгоно уу. Нэг шүдийг дахин дарвал
+                устгах болно.
+              </div>
+            </div>
+
+            {/* Selected teeth list with status + notes */}
+            {chartTeeth.length === 0 ? (
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                Одоогоор шүд сонгоогүй байна.
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                {chartTeeth
+                  .slice()
+                  .sort((a, b) => a.toothCode.localeCompare(b.toothCode))
+                  .map((t, index) => (
+                    <div
+                      key={t.toothCode}
+                      style={{
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 8,
+                        padding: 8,
+                        background: "#f9fafb",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          marginBottom: 6,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            fontSize: 13,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: 24,
+                              height: 24,
+                              borderRadius: "999px",
+                              background: "#2563eb",
+                              color: "white",
+                              fontSize: 12,
+                            }}
+                          >
+                            {t.toothCode}
+                          </span>
+                          <span>Шүд</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setChartTeeth((prev) =>
+                              prev.filter((x) => x.toothCode !== t.toothCode)
+                            );
+                          }}
+                          style={{
+                            padding: "2px 8px",
+                            borderRadius: 6,
+                            border: "1px solid #dc2626",
+                            background: "#fef2f2",
+                            color: "#b91c1c",
+                            cursor: "pointer",
+                            fontSize: 11,
+                          }}
+                        >
+                          Устгах
+                        </button>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "minmax(120px, 1fr) minmax(180px, 2fr)",
+                          gap: 8,
+                        }}
+                      >
+                        <input
+                          placeholder="Төлөв (ж: Эрүүл, Цоорсон...)"
+                          value={t.status || ""}
+                          onChange={(e) =>
+                            handleToothFieldChange(
+                              index,
+                              "status",
+                              e.target.value
+                            )
+                          }
+                          style={{
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "6px 8px",
+                            fontSize: 12,
+                          }}
+                        />
+                        <input
+                          placeholder="Тэмдэглэл (сонголттой)"
+                          value={t.notes || ""}
+                          onChange={(e) =>
+                            handleToothFieldChange(
+                              index,
+                              "notes",
+                              e.target.value
+                            )
+                          }
+                          style={{
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "6px 8px",
+                            fontSize: 12,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            <div
+              style={{
+                marginTop: 12,
+                display: "flex",
+                justifyContent: "flex-end",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleSaveChartTeeth}
+                disabled={chartSaving}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: "#0ea5e9",
+                  color: "white",
+                  cursor: "pointer",
+                  fontSize: 14,
+                }}
+              >
+                {chartSaving
+                  ? "Шүдний диаграм хадгалж байна..."
+                  : "Шүдний диаграм хадгалах"}
               </button>
             </div>
           </section>
