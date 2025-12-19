@@ -25,19 +25,20 @@ router.get("/:id", async (req, res) => {
           },
         },
         doctor: true,
-        // Relation on Encounter in schema.prisma
         diagnoses: {
           include: { diagnosis: true },
           orderBy: { createdAt: "asc" },
         },
-        // Relation on Encounter in schema.prisma
         encounterServices: {
           include: {
             service: true,
           },
           orderBy: { id: "asc" },
         },
-        // chartTeeth: true, // for future tooth chart
+        // if you want to preload chart teeth as well:
+        // chartTeeth: {
+        //   include: { chartNotes: true },
+        // },
       },
     });
 
@@ -45,7 +46,6 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ error: "Encounter not found" });
     }
 
-    // Rename diagnoses -> encounterDiagnoses to match frontend type
     const result = {
       ...encounter,
       encounterDiagnoses: encounter.diagnoses,
@@ -75,89 +75,8 @@ router.put("/:id/diagnoses", async (req, res) => {
   }
 
   try {
-    console.log("PUT /encounters/%d/diagnoses payload:", encounterId, items);
-
-    // Safety net delete
-    const deletedOutside = await prisma.encounterDiagnosis.deleteMany({
-      where: { encounterId },
-    });
-    console.log(
-      "Deleted outside transaction for encounter %d: %d rows",
-      encounterId,
-      deletedOutside.count
-    );
-
     await prisma.$transaction(async (trx) => {
-      const deletedInside = await trx.encounterDiagnosis.deleteMany({
-        where: { encounterId },
-      });
-      console.log(
-        "Deleted inside transaction for encounter %d: %d rows",
-        encounterId,
-        deletedInside.count
-      );
-
-      for (const item of items) {
-        if (!item.diagnosisId) continue;
-
-        console.log(
-          "Creating EncounterDiagnosis row:",
-          JSON.stringify(
-            {
-              encounterId,
-              diagnosisId: item.diagnosisId,
-              selectedProblemIds: item.selectedProblemIds ?? [],
-              note: item.note ?? null,
-            },
-            null,
-            2
-          )
-        );
-
-        await trx.encounterDiagnosis.create({
-          data: {
-            encounterId,
-            diagnosisId: item.diagnosisId,
-            selectedProblemIds: item.selectedProblemIds ?? [],
-            note: item.note ?? null,
-          },
-        });
-      }
-    });
-
-    const updated = await prisma.encounterDiagnosis.findMany({
-      where: { encounterId },
-      include: { diagnosis: true },
-      orderBy: { id: "asc" },
-    });
-
-    return res.json(updated);
-  } catch (err) {
-    console.error("PUT /api/encounters/:id/diagnoses failed", err);
-    return res.status(500).json({ error: "Failed to save diagnoses" });
-  }
-});
-
-/**
- * PUT /api/encounters/:id/services
- * Replaces all EncounterService rows for this encounter.
- * Body: { items: { serviceId, quantity? }[] }
- * NOTE: toothCode is currently ignored because EncounterService has no such field.
- */
-router.put("/:id/diagnoses", async (req, res) => {
-  const encounterId = Number(req.params.id);
-  if (!encounterId || Number.isNaN(encounterId)) {
-    return res.status(400).json({ error: "Invalid encounter id" });
-  }
-
-  const { items } = req.body || {};
-  if (!Array.isArray(items)) {
-    return res.status(400).json({ error: "items must be an array" });
-  }
-
-  try {
-    await prisma.$transaction(async (trx) => {
-      // Replace all rows for this encounter
+      // delete all existing diagnoses for this encounter
       await trx.encounterDiagnosis.deleteMany({
         where: { encounterId },
       });
@@ -188,4 +107,136 @@ router.put("/:id/diagnoses", async (req, res) => {
     return res.status(500).json({ error: "Failed to save diagnoses" });
   }
 });
+
+/**
+ * PUT /api/encounters/:id/services
+ * Replaces all EncounterService rows for this encounter.
+ * Body: { items: { serviceId, quantity? }[] }
+ */
+router.put("/:id/services", async (req, res) => {
+  const encounterId = Number(req.params.id);
+  if (!encounterId || Number.isNaN(encounterId)) {
+    return res.status(400).json({ error: "Invalid encounter id" });
+  }
+
+  const { items } = req.body || {};
+  if (!Array.isArray(items)) {
+    return res.status(400).json({ error: "items must be an array" });
+  }
+
+  try {
+    await prisma.$transaction(async (trx) => {
+      // delete existing services for this encounter
+      await trx.encounterService.deleteMany({
+        where: { encounterId },
+      });
+
+      for (const item of items) {
+        if (!item.serviceId) continue;
+
+        // look up current service price
+        const svc = await trx.service.findUnique({
+          where: { id: item.serviceId },
+          select: { price: true },
+        });
+        if (!svc) continue;
+
+        await trx.encounterService.create({
+          data: {
+            encounterId,
+            serviceId: item.serviceId,
+            quantity: item.quantity ?? 1,
+            price: svc.price,
+          },
+        });
+      }
+    });
+
+    const updated = await prisma.encounterService.findMany({
+      where: { encounterId },
+      include: { service: true },
+      orderBy: { id: "asc" },
+    });
+
+    return res.json(updated);
+  } catch (err) {
+    console.error("PUT /api/encounters/:id/services error:", err);
+    return res.status(500).json({ error: "Failed to save services" });
+  }
+});
+
+/**
+ * GET /api/encounters/:id/chart-teeth
+ * Returns all ChartTooth rows for this encounter (with ChartNote if you want later).
+ */
+router.get("/:id/chart-teeth", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
+
+    const chartTeeth = await prisma.chartTooth.findMany({
+      where: { encounterId },
+      orderBy: { id: "asc" },
+      include: {
+        chartNotes: true,
+      },
+    });
+
+    return res.json(chartTeeth);
+  } catch (err) {
+    console.error("GET /api/encounters/:id/chart-teeth error:", err);
+    return res.status(500).json({ error: "Failed to load tooth chart" });
+  }
+});
+
+/**
+ * PUT /api/encounters/:id/chart-teeth
+ * Replaces all ChartTooth rows for this encounter.
+ * Body: { teeth: { toothCode: string; status?: string; notes?: string }[] }
+ */
+router.put("/:id/chart-teeth", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
+
+    const { teeth } = req.body || {};
+    if (!Array.isArray(teeth)) {
+      return res.status(400).json({ error: "teeth must be an array" });
+    }
+
+    await prisma.$transaction(async (trx) => {
+      await trx.chartTooth.deleteMany({ where: { encounterId } });
+
+      for (const t of teeth) {
+        if (!t || typeof t.toothCode !== "string" || !t.toothCode.trim()) {
+          continue;
+        }
+        await trx.chartTooth.create({
+          data: {
+            encounterId,
+            toothCode: t.toothCode.trim(),
+            status: t.status || null,
+            notes: t.notes || null,
+          },
+        });
+      }
+    });
+
+    const updated = await prisma.chartTooth.findMany({
+      where: { encounterId },
+      orderBy: { id: "asc" },
+      include: { chartNotes: true },
+    });
+
+    return res.json(updated);
+  } catch (err) {
+    console.error("PUT /api/encounters/:id/chart-teeth error:", err);
+    return res.status(500).json({ error: "Failed to save tooth chart" });
+  }
+});
+
 export default router;
