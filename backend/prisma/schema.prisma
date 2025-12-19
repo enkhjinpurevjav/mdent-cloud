@@ -68,7 +68,9 @@ model Branch {
 
   // Appointments booked in this branch
   appointments    Appointment[]
-bookings Booking[]   // <-- NEW, all bookings in this branch
+
+  // Bookings in this branch
+  bookings        Booking[]
 }
 
 // ==========================================================
@@ -115,7 +117,9 @@ model User {
 
   // Appointments where this user is the doctor
   appointments       Appointment[]
-bookings Booking[]   // <-- NEW, all bookings for this user as doctor
+
+  // Bookings for this user as doctor
+  bookings           Booking[]
 }
 
 // Join table for many-to-many between Doctor (User) and Branch
@@ -170,9 +174,14 @@ model Patient {
 
   // Back-relation to appointments
   appointments   Appointment[]
-bookings Booking[]   // <-- NEW, all bookings for this patient
+
+  // Bookings for this patient
+  bookings       Booking[]
 }
 
+// ==========================================================
+// CHARTING (Tooth Records)
+// ==========================================================
 model ChartTooth {
   id          Int        @id @default(autoincrement())
 
@@ -181,6 +190,7 @@ model ChartTooth {
 
   /// General tooth condition/status (optional, e.g. "Healthy", "Caries")
   status      String?
+
   /// Free-form note for this tooth in this encounter
   notes       String?
 
@@ -198,6 +208,7 @@ model ChartNote {
 
   chartTooth   ChartTooth @relation(fields: [chartToothId], references: [id])
 }
+
 // Appointment model
 model Appointment {
   id          Int       @id @default(autoincrement())
@@ -208,16 +219,16 @@ model Appointment {
 
   scheduledAt DateTime
   endAt       DateTime?   // Дуусах цаг (шинэ)
-  status      String    @default("booked")
+  status      String      @default("booked")
   notes       String?
-
 
   patient     Patient   @relation(fields: [patientId], references: [id])
   doctor      User?     @relation(fields: [doctorId], references: [id])
   branch      Branch    @relation(fields: [branchId], references: [id])
 
   @@index([branchId, scheduledAt])
-// Back relation to Encounter (1 appointment → 0 or 1 encounter)
+
+  // Back relation to Encounter (1 appointment → 0 or 1 encounter)
   encounters  Encounter[]
 }
 
@@ -283,6 +294,7 @@ model DiagnosisProblem {
 
   diagnosis    Diagnosis  @relation(fields: [diagnosisId], references: [id])
 }
+
 model Encounter {
   id                 Int           @id @default(autoincrement())
   patientBookId      Int
@@ -328,11 +340,6 @@ model EncounterDiagnosis {
   // TEMP: allow same diagnosis multiple times per encounter
   // @@unique([encounterId, diagnosisId])
 }
-
-// ==========================================================
-// CHARTING (Tooth Records)
-// ==========================================================
-
 
 // ==========================================================
 // SERVICES, PROCEDURES, DIAGNOSES
@@ -395,8 +402,6 @@ model Procedure {
   price        Float
   invoiceItems InvoiceItem[]
 }
-
-
 
 // ==========================================================
 // INVOICES, PAYMENTS, E-BARIMT
