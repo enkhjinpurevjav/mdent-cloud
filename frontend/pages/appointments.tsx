@@ -2633,21 +2633,21 @@ const [dayEndSlots, setDayEndSlots] = useState<
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-const [branches, setBranches] = useState<Branch[]>([]);
-const [doctors, setDoctors] = useState<Doctor[]>([]);
-const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>([]);
-const [error, setError] = useState("");
-const [nowPosition, setNowPosition] = useState<number | null>(null);
-const [hasMounted, setHasMounted] = useState(false);
-  
-    
-  
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [scheduledDoctors, setScheduledDoctors] =
+    useState<ScheduledDoctor[]>([]);
+  const [error, setError] = useState("");
+  const [nowPosition, setNowPosition] = useState<number | null>(null);
+  const [hasMounted, setHasMounted] = useState(false);
+
   useEffect(() => {
     setHasMounted(true);
   }, []);
 
-  *const todayStr = new Date().toISOString().slice(0, 10);
-  *const [filterDate, setFilterDate] = useState<string>(todayStr);
+  // FIX: removed stray "*" characters here
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [filterDate, setFilterDate] = useState<string>(todayStr);
   const [filterBranchId, setFilterBranchId] = useState<string>("");
   const [filterDoctorId, setFilterDoctorId] = useState<string>("");
 
@@ -2810,41 +2810,44 @@ const [hasMounted, setHasMounted] = useState(false);
   }, [appointments, filterDate]);
 
   // total minutes for vertical positioning
-  const firstSlot = timeSlots[0]?.start ?? selectedDay;
+ const firstSlot = timeSlots[0]?.start ?? selectedDay;
   const lastSlot = timeSlots[timeSlots.length - 1]?.end ?? selectedDay;
   const totalMinutes =
     (lastSlot.getTime() - firstSlot.getTime()) / 60000 || 1;
 
   const columnHeightPx = 60 * (totalMinutes / 60); // 60px per hour
-useEffect(() => {
-  const updateNowPosition = () => {
-    const now = new Date();
 
-    const selectedDayKey = filterDate;
-    const nowKey = now.toISOString().slice(0, 10);
+  // Current time line: compute vertical position
+  useEffect(() => {
+    const updateNowPosition = () => {
+      const now = new Date();
 
-    // Only show the line when viewing today
-    if (nowKey !== selectedDayKey) {
-      setNowPosition(null);
-      return;
-    }
+      const selectedDayKey = filterDate;
+      const nowKey = now.toISOString().slice(0, 10);
 
-    // Clamp between firstSlot and lastSlot
-    const clamped = Math.min(
-      Math.max(now.getTime(), firstSlot.getTime()),
-      lastSlot.getTime()
-    );
+      // Only show the line when viewing today
+      if (nowKey !== selectedDayKey) {
+        setNowPosition(null);
+        return;
+      }
 
-    const minutesFromStart = (clamped - firstSlot.getTime()) / 60000;
-    const pos = (minutesFromStart / totalMinutes) * columnHeightPx;
+      // Clamp between firstSlot and lastSlot
+      const clamped = Math.min(
+        Math.max(now.getTime(), firstSlot.getTime()),
+        lastSlot.getTime()
+      );
 
-    setNowPosition(pos);
-  };
+      const minutesFromStart = (clamped - firstSlot.getTime()) / 60000;
+      const pos = (minutesFromStart / totalMinutes) * columnHeightPx;
 
-  updateNowPosition();
-  const id = setInterval(updateNowPosition, 60_000);
-  return () => clearInterval(id);
-}, [filterDate, firstSlot, lastSlot, totalMinutes, columnHeightPx]);
+      setNowPosition(pos);
+    };
+
+    updateNowPosition();
+    const id = setInterval(updateNowPosition, 60_000);
+    return () => clearInterval(id);
+  }, [filterDate, firstSlot, lastSlot, totalMinutes, columnHeightPx]);
+
   const getStatusColor = (status: string): string => {
     switch (status) {
       case "completed":
@@ -2857,7 +2860,7 @@ useEffect(() => {
         return "#1889fc";
       default:
         return "#77f9fe";
-    } 
+    }
   };
 
   return (
@@ -3036,7 +3039,7 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Time grid by doctor – NEW implementation with absolute positioning */}
+      {/* Time grid by doctor */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
@@ -3108,6 +3111,29 @@ useEffect(() => {
                 gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
               }}
             >
+              {/* CURRENT TIME LINE */}
+              {nowPosition !== null && (
+                <div
+                  style={{
+                    gridColumn: `1 / span ${gridDoctors.length + 1}`,
+                    position: "relative",
+                    height: 0,
+                    pointerEvents: "none",
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      top: nowPosition,
+                      borderTop: "2px dashed #ef4444", // or solid
+                      zIndex: 5,
+                    }}
+                  />
+                </div>
+              )}
+
               {/* Time labels / background grid */}
               <div
                 style={{
@@ -3146,47 +3172,48 @@ useEffect(() => {
                 })}
               </div>
 
-                            {/* Doctor columns */}
+              {/* Doctor columns */}
               {gridDoctors.map((doc) => {
                 const doctorAppointments = appointments.filter(
-  (a) =>
-    a.doctorId === doc.id &&
-    getAppointmentDayKey(a) === filterDate &&
-    a.status !== "cancelled"        // <--- add this
-);
+                  (a) =>
+                    a.doctorId === doc.id &&
+                    getAppointmentDayKey(a) === filterDate &&
+                    a.status !== "cancelled"
+                );
 
                 const handleCellClick = (
-  clickedMinutes: number,
-  existingApps: Appointment[]
-) => {
-  const slotTime = new Date(firstSlot.getTime() + clickedMinutes * 60000);
-  const slotTimeStr = getSlotTimeString(slotTime);
+                  clickedMinutes: number,
+                  existingApps: Appointment[]
+                ) => {
+                  const slotTime = new Date(
+                    firstSlot.getTime() + clickedMinutes * 60000
+                  );
+                  const slotTimeStr = getSlotTimeString(slotTime);
 
-  // Only apps that belong to THIS doctor & day (defensive)
-  const validApps = existingApps.filter(
-    (a) => a.doctorId === doc.id && getAppointmentDayKey(a) === filterDate
-  );
+                  const validApps = existingApps.filter(
+                    (a) =>
+                      a.doctorId === doc.id &&
+                      getAppointmentDayKey(a) === filterDate
+                  );
 
-  if (validApps.length === 2) {
-    // Slot already has 2 appointments → show details
-    setDetailsModalState({
-      open: true,
-      doctor: doc,
-      slotLabel: slotTimeStr,
-      slotTime: slotTimeStr,
-      date: filterDate,
-      appointments: validApps,
-    });
-  } else {
-    // 0 or 1 appointment in this slot: treat as available → quick-create
-    setQuickModalState({
-      open: true,
-      doctorId: doc.id,
-      date: filterDate,
-      time: slotTimeStr,
-    });
-  }
-};
+                  if (validApps.length === 2) {
+                    setDetailsModalState({
+                      open: true,
+                      doctor: doc,
+                      slotLabel: slotTimeStr,
+                      slotTime: slotTimeStr,
+                      date: filterDate,
+                      appointments: validApps,
+                    });
+                  } else {
+                    setQuickModalState({
+                      open: true,
+                      doctorId: doc.id,
+                      date: filterDate,
+                      time: slotTimeStr,
+                    });
+                  }
+                };
 
                 return (
                   <div
@@ -3200,108 +3227,69 @@ useEffect(() => {
                   >
                     {/* background stripes & click areas */}
                     {timeSlots.map((slot, index) => {
-  const slotStartMin =
-    (slot.start.getTime() - firstSlot.getTime()) / 60000;
-  const slotHeight =
-    (SLOT_MINUTES / totalMinutes) * columnHeightPx;
+                      const slotStartMin =
+                        (slot.start.getTime() - firstSlot.getTime()) / 60000;
+                      const slotHeight =
+                        (SLOT_MINUTES / totalMinutes) * columnHeightPx;
 
-  const slotTimeStr = getSlotTimeString(slot.start);
-  const schedules = (doc as any).schedules || [];
-  const isWorkingHour = schedules.some((s: any) =>
-    isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
-  );
-  const weekdayIndex = slot.start.getDay();
-  const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
-  const isWeekendLunch =
-    isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
-  const isNonWorking = !isWorkingHour || isWeekendLunch;
+                      const slotTimeStr = getSlotTimeString(slot.start);
+                      const schedules = (doc as any).schedules || [];
+                      const isWorkingHour = schedules.some((s: any) =>
+                        isTimeWithinRange(
+                          slotTimeStr,
+                          s.startTime,
+                          s.endTime
+                        )
+                      );
+                      const weekdayIndex = slot.start.getDay();
+                      const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
+                      const isWeekendLunch =
+                        isWeekend &&
+                        isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+                      const isNonWorking = !isWorkingHour || isWeekendLunch;
 
-  // Appointments for THIS doctor that intersect THIS 30-min slot
-  const appsInThisSlot = doctorAppointments.filter((a) => {
-  const start = new Date(a.scheduledAt);
-  if (Number.isNaN(start.getTime())) return false;
-  const end =
-    a.endAt &&
-    !Number.isNaN(new Date(a.endAt).getTime())
-      ? new Date(a.endAt)
-      : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
-  return start < slot.end && end > slot.start;
-});
-
-// DEBUG:
-if (appsInThisSlot.length > 0) {
-  console.log("SLOT HAS APPS", {
-    doctorId: doc.id,
-    doctorName: doc.name,
-    slot: slotTimeStr,
-    apps: appsInThisSlot.map((a) => ({
-      id: a.id,
-      patient: a.patient?.name,
-      start: a.scheduledAt,
-      end: a.endAt,
-    })),
-  });
-}
-                    
-  return (
-  <div
-    key={index}
-    onClick={() =>
-      isNonWorking
-        ? undefined
-        : handleCellClick(slotStartMin, appsInThisSlot)
-    }
-      style={{
-        position: "absolute",
-        left: 0,
-        right: 0,
-        top: (slotStartMin / totalMinutes) * columnHeightPx,
-        height: slotHeight,
-        borderBottom: "1px solid #f0f0f0",
-        backgroundColor: isNonWorking
-          ? "#ffc26b"
-          : index % 2 === 0
-          ? "#ffffff"
-          : "#fafafa",
-        cursor: isNonWorking ? "not-allowed" : "pointer",
-      }}
-    />
-  );
-})}
-
-                    {/* Build a map: does this appointment ever overlap another
-                        appointment for this doctor on this day? */}
-                    {(() => {
-                      const overlapsWithOther: Record<number, boolean> = {};
-
-                      for (let i = 0; i < doctorAppointments.length; i++) {
-                        const a = doctorAppointments[i];
-                        const aStart = new Date(a.scheduledAt).getTime();
-                        const aEnd =
+                      const appsInThisSlot = doctorAppointments.filter((a) => {
+                        const start = new Date(a.scheduledAt);
+                        if (Number.isNaN(start.getTime())) return false;
+                        const end =
                           a.endAt &&
                           !Number.isNaN(new Date(a.endAt).getTime())
-                            ? new Date(a.endAt).getTime()
-                            : aStart + SLOT_MINUTES * 60 * 1000;
+                            ? new Date(a.endAt)
+                            : new Date(
+                                start.getTime() + SLOT_MINUTES * 60 * 1000
+                              );
+                        return start < slot.end && end > slot.start;
+                      });
 
-                        overlapsWithOther[a.id] = false;
-
-                        for (let j = 0; j < doctorAppointments.length; j++) {
-                          if (i === j) continue;
-                          const b = doctorAppointments[j];
-                          const bStart =
-                            new Date(b.scheduledAt).getTime();
-                          const bEnd =
-                            b.endAt &&
-                            !Number.isNaN(new Date(b.endAt).getTime())
-                              ? new Date(b.endAt).getTime()
-                              : bStart + SLOT_MINUTES * 60 * 1000;
-
-                          if (aStart < bEnd && aEnd > bStart) {
-                            overlapsWithOther[a.id] = true;
-                            break;
+                      return (
+                        <div
+                          key={index}
+                          onClick={() =>
+                            isNonWorking
+                              ? undefined
+                              : handleCellClick(slotStartMin, appsInThisSlot)
                           }
-                        }
-                      }
+                          style={{
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            top:
+                              (slotStartMin / totalMinutes) *
+                              columnHeightPx,
+                            height: slotHeight,
+                            borderBottom: "1px solid #f0f0f0",
+                            backgroundColor: isNonWorking
+                              ? "#ffc26b"
+                              : index % 2 === 0
+                              ? "#ffffff"
+                              : "#fafafa",
+                            cursor: isNonWorking
+                              ? "not-allowed"
+                              : "pointer",
+                          }}
+                        />
+                      );
+                    })}
 
                       /* Appointment blocks */
                       return doctorAppointments.map((a) => {
@@ -3410,7 +3398,144 @@ if (appsInThisSlot.length > 0) {
           </div>
         )}
       </section>
+{
+                      const overlapsWithOther: Record<number, boolean> = {};
 
+                      for (let i = 0; i < doctorAppointments.length; i++) {
+                        const a = doctorAppointments[i];
+                        const aStart = new Date(a.scheduledAt).getTime();
+                        const aEnd =
+                          a.endAt &&
+                          !Number.isNaN(new Date(a.endAt).getTime())
+                            ? new Date(a.endAt).getTime()
+                            : aStart + SLOT_MINUTES * 60 * 1000;
+
+                        overlapsWithOther[a.id] = false;
+
+                        for (let j = 0; j < doctorAppointments.length; j++) {
+                          if (i === j) continue;
+                          const b = doctorAppointments[j];
+                          const bStart = new Date(
+                            b.scheduledAt
+                          ).getTime();
+                          const bEnd =
+                            b.endAt &&
+                            !Number.isNaN(new Date(b.endAt).getTime())
+                              ? new Date(b.endAt).getTime()
+                              : bStart + SLOT_MINUTES * 60 * 1000;
+
+                          if (aStart < bEnd && aEnd > bStart) {
+                            overlapsWithOther[a.id] = true;
+                            break;
+                          }
+                        }
+                      }
+
+                      return doctorAppointments.map((a) => {
+                        const start = new Date(a.scheduledAt);
+                        if (Number.isNaN(start.getTime())) return null;
+                        const end =
+                          a.endAt &&
+                          !Number.isNaN(new Date(a.endAt).getTime())
+                            ? new Date(a.endAt)
+                            : new Date(
+                                start.getTime() +
+                                  SLOT_MINUTES * 60 * 1000
+                              );
+
+                        const clampedStart = new Date(
+                          Math.max(start.getTime(), firstSlot.getTime())
+                        );
+                        const clampedEnd = new Date(
+                          Math.min(end.getTime(), lastSlot.getTime())
+                        );
+                        const startMin =
+                          (clampedStart.getTime() - firstSlot.getTime()) /
+                          60000;
+                        const endMin =
+                          (clampedEnd.getTime() - firstSlot.getTime()) /
+                          60000;
+
+                        if (endMin <= 0 || startMin >= totalMinutes) {
+                          return null;
+                        }
+
+                        const top =
+                          (startMin / totalMinutes) * columnHeightPx;
+                        const height =
+                          ((endMin - startMin) / totalMinutes) *
+                          columnHeightPx;
+
+                        const lane = laneById[a.id] ?? 0;
+                        const hasOverlap = overlapsWithOther[a.id];
+
+                        const widthPercent = hasOverlap ? 50 : 100;
+                        const leftPercent = hasOverlap
+                          ? lane === 0
+                            ? 0
+                            : 50
+                          : 0;
+
+                        return (
+                          <div
+                            key={a.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDetailsModalState({
+                                open: true,
+                                doctor: doc,
+                                slotLabel: "",
+                                slotTime: "",
+                                date: filterDate,
+                                appointments: [a],
+                              });
+                            }}
+                            style={{
+                              position: "absolute",
+                              left: `${leftPercent}%`,
+                              width: `${widthPercent}%`,
+                              top,
+                              height: Math.max(height, 18),
+                              padding: "1px 3px",
+                              boxSizing: "border-box",
+                              backgroundColor: getStatusColor(a.status),
+                              borderRadius: 4,
+                              border: "1px solid rgba(0,0,0,0.08)",
+                              fontSize: 11,
+                              lineHeight: 1.2,
+                              color:
+                                a.status === "completed" ||
+                                a.status === "cancelled"
+                                  ? "#ffffff"
+                                  : "#111827",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              textAlign: "center",
+                              overflow: "hidden",
+                              wordBreak: "break-word",
+                              boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+                              cursor: "pointer",
+                            }}
+                            title={`${formatPatientLabel(
+                              a.patient,
+                              a.patientId
+                            )} (${formatStatus(a.status)})`}
+                          >
+                            {`${formatGridShortLabel(a)} (${formatStatus(
+                              a.status
+                            )})`}
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </section>
       {/* Day-grouped calendar (unchanged from your original) */}
       {/* ... and the raw table + modals, same as before ... */}
       {/* Keep your existing bottom sections exactly as they were. */}
