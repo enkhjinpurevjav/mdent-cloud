@@ -51,5 +51,50 @@ return res.json(result);
     return res.status(500).json({ error: "Failed to load encounter" });
   }
 });
+// PUT /api/encounters/:id/services
+// Body: { items: { serviceId: number; quantity?: number; toothCode?: string | null }[] }
+router.put("/:id/services", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
 
+    const { items } = req.body || {};
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: "items must be an array" });
+    }
+
+    await prisma.$transaction(async (trx) => {
+      // Remove old services for this encounter
+      await trx.encounterService.deleteMany({
+        where: { encounterId },
+      });
+
+      // Insert new ones
+      for (const item of items) {
+        if (!item.serviceId) continue;
+        await trx.encounterService.create({
+          data: {
+            encounterId,
+            serviceId: item.serviceId,
+            quantity: item.quantity ?? 1,
+            toothCode: item.toothCode ?? null,
+          },
+        });
+      }
+    });
+
+    const updated = await prisma.encounterService.findMany({
+      where: { encounterId },
+      include: { service: true },
+      orderBy: { id: "asc" },
+    });
+
+    return res.json(updated);
+  } catch (err) {
+    console.error("PUT /api/encounters/:id/services error:", err);
+    return res.status(500).json({ error: "Failed to save services" });
+  }
+});
 export default router;
