@@ -709,8 +709,33 @@ function QuickAppointmentModal({
     notes: "",
   });
   const [error, setError] = useState("");
+
   const [patientResults, setPatientResults] = useState<PatientLite[]>([]);
   const [patientSearchLoading, setPatientSearchLoading] = useState(false);
+  const [searchDebounceTimer, setSearchDebounceTimer] =
+    useState<NodeJS.Timeout | null>(null);
+
+  // time slot options
+  const [popupStartSlots, setPopupStartSlots] = useState<
+    { label: string; value: string }[]
+  >([]);
+  const [popupEndSlots, setPopupEndSlots] = useState<
+    { label: string; value: string }[]
+  >([]);
+
+  // quick new patient (same as inline form but local to this modal)
+  const [showQuickPatientModal, setShowQuickPatientModal] = useState(false);
+  const [quickPatientForm, setQuickPatientForm] = useState<{
+    name: string;
+    phone: string;
+    branchId: string;
+  }>({
+    name: "",
+    phone: "",
+    branchId: "",
+  });
+  const [quickPatientError, setQuickPatientError] = useState("");
+  const [quickPatientSaving, setQuickPatientSaving] = useState(false);
   const [searchDebounceTimer, setSearchDebounceTimer] =
     useState<NodeJS.Timeout | null>(null);
 
@@ -928,6 +953,91 @@ const [popupEndSlots, setPopupEndSlots] = useState<
     setError("");
   };
 
+  const handleQuickPatientChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setQuickPatientForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleQuickPatientSave = async () => {
+    setQuickPatientError("");
+
+    if (!quickPatientForm.name.trim() || !quickPatientForm.phone.trim()) {
+      setQuickPatientError("Нэр болон утас заавал бөглөнө үү.");
+      return;
+    }
+
+    const branchIdFromModal = quickPatientForm.branchId
+      ? Number(quickPatientForm.branchId)
+      : null;
+    const branchIdFromForm = form.branchId
+      ? Number(form.branchId)
+      : null;
+
+    const branchIdForPatient = !Number.isNaN(branchIdFromModal ?? NaN)
+      ? branchIdFromModal
+      : branchIdFromForm;
+
+    if (!branchIdForPatient || Number.isNaN(branchIdForPatient)) {
+      setQuickPatientError(
+        "Шинэ үйлчлүүлэгч бүртгэхийн өмнө салбар сонгоно уу."
+      );
+      return;
+    }
+
+    setQuickPatientSaving(true);
+
+    try {
+      const payload = {
+        name: quickPatientForm.name.trim(),
+        phone: quickPatientForm.phone.trim(),
+        branchId: branchIdForPatient,
+        bookNumber: "",
+      };
+
+      const res = await fetch("/api/patients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data || typeof data.id !== "number") {
+        setQuickPatientError(
+          (data && (data as any).error) ||
+            "Шинэ үйлчлүүлэгч бүртгэх үед алдаа гарлаа."
+        );
+        setQuickPatientSaving(false);
+        return;
+      }
+
+      const p: PatientLite = {
+        id: data.id,
+        name: data.name,
+        ovog: data.ovog ?? null,
+        regNo: data.regNo ?? "",
+        phone: data.phone ?? null,
+        patientBook: data.patientBook || null,
+      };
+
+      // fill into this modal's form
+      setForm((prev) => ({
+        ...prev,
+        patientId: p.id,
+        patientQuery: formatPatientSearchLabel(p),
+      }));
+
+      setQuickPatientForm({ name: "", phone: "", branchId: "" });
+      setShowQuickPatientModal(false);
+    } catch (e) {
+      console.error(e);
+      setQuickPatientError("Сүлжээгээ шалгана уу.");
+    } finally {
+      setQuickPatientSaving(false);
+    }
+  };
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -1084,35 +1194,59 @@ const [popupEndSlots, setPopupEndSlots] = useState<
           }}
         >
           {/* Patient */}
-          <div
-            style={{
-              gridColumn: "1 / -1",
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-            }}
-          >
-            <label>Үйлчлүүлэгч</label>
-            <input
-              name="patientQuery"
-              placeholder="РД, овог, нэр эсвэл утас..."
-              value={form.patientQuery}
-              onChange={handleChange}
-              autoComplete="off"
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            />
-            {patientSearchLoading && (
-              <span
-                style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}
-              >
-                Үйлчлүүлэгч хайж байна...
-              </span>
-            )}
-          </div>
+<div
+  style={{
+    gridColumn: "1 / -1",
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  }}
+>
+  <label>Үйлчлүүлэгч</label>
+  <div style={{ display: "flex", gap: 6 }}>
+    <input
+      name="patientQuery"
+      placeholder="РД, овог, нэр эсвэл утас..."
+      value={form.patientQuery}
+      onChange={handleChange}
+      autoComplete="off"
+      style={{
+        flex: 1,
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "6px 8px",
+      }}
+    />
+    <button
+      type="button"
+      onClick={() => {
+        setShowQuickPatientModal(true);
+        setQuickPatientError("");
+        setQuickPatientForm((prev) => ({
+          ...prev,
+          branchId: prev.branchId || form.branchId,
+        }));
+      }}
+      style={{
+        padding: "0 10px",
+        borderRadius: 6,
+        border: "1px solid #16a34a",
+        background: "#dcfce7",
+        color: "#166534",
+        fontWeight: 600,
+        cursor: "pointer",
+      }}
+      title="Шинэ үйлчлэгч хурдан бүртгэх"
+    >
+      +
+    </button>
+  </div>
+  {patientSearchLoading && (
+    <span style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+      Үйлчлүүлэгч хайж байна...
+    </span>
+  )}
+</div>
 
           {patientResults.length > 0 && (
             <div
@@ -1326,6 +1460,174 @@ const [popupEndSlots, setPopupEndSlots] = useState<
               Хадгалах
             </button>
           </div>
+
+                    {/* Quick new patient modal (inside appointment quick popup) */}
+          {showQuickPatientModal && (
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(0,0,0,0.3)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 60, // above this popup
+              }}
+            >
+              <div
+                style={{
+                  background: "white",
+                  borderRadius: 8,
+                  padding: 16,
+                  width: 340,
+                  boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+                  fontSize: 13,
+                }}
+              >
+                <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 15 }}>
+                  Шинэ үйлчлүүлэгч хурдан бүртгэх
+                </h3>
+                <p
+                  style={{
+                    marginTop: 0,
+                    marginBottom: 12,
+                    color: "#6b7280",
+                  }}
+                >
+                  Зөвхөн нэр, утас болон салбарыг бүртгэнэ. Дэлгэрэнгүй
+                  мэдээллийг дараа нь &quot;Үйлчлүүлэгчийн бүртгэл&quot;
+                  хэсгээс засварлана.
+                </p>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                  }}
+                >
+                  <label
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                    }}
+                  >
+                    Нэр
+                    <input
+                      name="name"
+                      value={quickPatientForm.name}
+                      onChange={handleQuickPatientChange}
+                      placeholder="Ж: Батболд"
+                      style={{
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "6px 8px",
+                      }}
+                    />
+                  </label>
+                  <label
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                    }}
+                  >
+                    Утас
+                    <input
+                      name="phone"
+                      value={quickPatientForm.phone}
+                      onChange={handleQuickPatientChange}
+                      placeholder="Ж: 99112233"
+                      style={{
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "6px 8px",
+                      }}
+                    />
+                  </label>
+                  <label
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                    }}
+                  >
+                    Салбар
+                    <select
+                      name="branchId"
+                      value={quickPatientForm.branchId}
+                      onChange={handleQuickPatientChange}
+                      style={{
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "6px 8px",
+                      }}
+                    >
+                      <option value="">Сонгох</option>
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {quickPatientError && (
+                    <div
+                      style={{
+                        color: "#b91c1c",
+                        fontSize: 12,
+                      }}
+                    >
+                      {quickPatientError}
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: 8,
+                      marginTop: 8,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!quickPatientSaving) {
+                          setShowQuickPatientModal(false);
+                          setQuickPatientError("");
+                        }
+                      }}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        background: "#f9fafb",
+                        cursor: quickPatientSaving ? "default" : "pointer",
+                      }}
+                    >
+                      Болих
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleQuickPatientSave}
+                      disabled={quickPatientSaving}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 6,
+                        border: "none",
+                        background: "#16a34a",
+                        color: "white",
+                        cursor: quickPatientSaving ? "default" : "pointer",
+                      }}
+                    >
+                      {quickPatientSaving ? "Хадгалж байна..." : "Хадгалах"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        
         </form>
       </div>
     </div>
