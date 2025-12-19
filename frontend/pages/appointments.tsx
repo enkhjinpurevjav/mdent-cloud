@@ -2848,6 +2848,15 @@ export default function AppointmentsPage() {
     isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
   const isNonWorking = !isWorkingHour || isWeekendLunch;
 
+// DEBUG: see which cells are considered working/non-working
+  console.log("CELL RENDER", {
+    doctorId: doc.id,
+    doctorName: doc.name,
+    time: slotTimeStr,
+    isNonWorking,
+  });
+                    
+
   // Appointments for THIS doctor that intersect THIS 30-min slot
   const appsInThisSlot = doctorAppointments.filter((a) => {
     const start = new Date(a.scheduledAt);
