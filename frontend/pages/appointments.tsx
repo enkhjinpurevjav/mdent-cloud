@@ -1920,37 +1920,36 @@ const [dayEndSlots, setDayEndSlots] = useState<
   };
 
   const countAppointmentsInSlot = (slotStartDate: Date) => {
-    if (!form.doctorId) return 0;
-    const doctorIdNum = Number(form.doctorId);
+  if (!form.doctorId) return 0;
+  const doctorIdNum = Number(form.doctorId);
 
-    const slotStart = new Date(slotStartDate);
-    const slotEnd = new Date(
-      slotStart.getTime() + SLOT_MINUTES * 60 * 1000
-    );
+  const slotStart = new Date(slotStartDate);
+  const slotEnd = new Date(
+    slotStart.getTime() + SLOT_MINUTES * 60 * 1000
+  );
 
-    
   return appointments.filter((a) => {
-  if (a.doctorId !== doctorIdNum) return false;
-  if (selectedBranchId && String(a.branchId) !== selectedBranchId)
-    return false;
+    if (a.doctorId !== doctorIdNum) return false;
+    if (selectedBranchId && String(a.branchId) !== selectedBranchId)
+      return false;
 
-  // NEW: ignore cancelled appointments in capacity calculation
-  if (a.status === "cancelled") return false;
+    // Ignore cancelled appointments in capacity calculation
+    if (a.status === "cancelled") return false;
 
-  const start = new Date(a.scheduledAt);
-  if (Number.isNaN(start.getTime())) return false;
+    const start = new Date(a.scheduledAt);
+    if (Number.isNaN(start.getTime())) return false;
 
-  const end =
-    a.endAt && !Number.isNaN(new Date(a.endAt).getTime()))
-      ? new Date(a.endAt)
-      : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+    const end =
+      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+        ? new Date(a.endAt)
+        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
 
-  const dayStr = start.toISOString().slice(0, 10);
-  if (dayStr !== form.date) return false;
+    const dayStr = start.toISOString().slice(0, 10);
+    if (dayStr !== form.date) return false;
 
-  return start < slotEnd && end > slotStart;
-}).length;
-  };
+    return start < slotEnd && end > slotStart;
+  }).length;
+};
 
   const handleQuickPatientChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
