@@ -12,39 +12,40 @@ router.get("/:id", async (req, res) => {
     }
 
     const encounter = await prisma.encounter.findUnique({
-      where: { id },
+  where: { id },
+  include: {
+    patientBook: {
       include: {
-        patientBook: {
-          include: {
-            patient: {
-              include: {
-                branch: true,
-              },
-            },
-          },
-        },
-        doctor: true,
-        // Use the actual relation field name from schema.prisma
-        diagnoses: {
-          include: {
-            diagnosis: true,
-          },
-          orderBy: { createdAt: "asc" },
+        patient: {
+          include: { branch: true },
         },
       },
-    });
+    },
+    doctor: true,
+    diagnoses: {
+      include: { diagnosis: true },
+      orderBy: { createdAt: "asc" },
+    },
+    encounterServices: {
+      include: {
+        service: true, // this is your central Service model
+      },
+      orderBy: { id: "asc" },
+    },
+    // chartTeeth: true, // later for tooth chart
+  },
+});
 
-    if (!encounter) {
-      return res.status(404).json({ error: "Encounter not found" });
-    }
+if (!encounter) {
+  return res.status(404).json({ error: "Encounter not found" });
+}
 
-    // Rename diagnoses -> encounterDiagnoses to match frontend type
-    const result = {
-      ...encounter,
-      encounterDiagnoses: encounter.diagnoses,
-    };
+const result = {
+  ...encounter,
+  encounterDiagnoses: encounter.diagnoses,
+};
 
-    return res.json(result);
+return res.json(result);
   } catch (err) {
     console.error("GET /api/encounters/:id error:", err);
     return res.status(500).json({ error: "Failed to load encounter" });
