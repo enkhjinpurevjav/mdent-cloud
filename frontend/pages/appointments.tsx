@@ -2520,7 +2520,7 @@ export default function AppointmentsPage() {
       case "confirmed":
         return "#bbf7d0";
       case "ongoing":
-        return "#f9d89b";
+        return "#1889fc";
       case "cancelled":
         return "#9d9d9d";
       default:
