@@ -229,6 +229,11 @@ function formatStatus(status: string): string {
   }
 }
 
+// ✅ Helper: is this appointment in “Явагдаж байна” state?
+function isOngoing(status: string) {
+  return status === "ongoing";
+}
+
 /**
  * Helper: return YYYY-MM-DD for an appointment in local time.
  */
@@ -349,6 +354,8 @@ function AppointmentDetailsModal({
   appointments,
   onStatusUpdated,
 }: AppointmentDetailsModalProps) {
+  const router = useRouter(); // ✅ use router HERE
+
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingStatus, setEditingStatus] = useState<string>("");
   const [saving, setSaving] = useState(false);
@@ -414,7 +421,35 @@ function AppointmentDetailsModal({
       setSaving(false);
     }
   };
+const handleStartEncounter = async (a: Appointment) => {
+    try {
+      setError("");
+      const res = await fetch(`/api/appointments/${a.id}/start-encounter`, {
+        method: "POST",
+      });
 
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok || !data || typeof data.encounterId !== "number") {
+        console.error("start-encounter failed", res.status, data);
+        setError(
+          (data && data.error) ||
+            "Үзлэг эхлүүлэх үед алдаа гарлаа. Төлөв нь 'Явагдаж байна' эсэхийг шалгана уу."
+        );
+        return;
+      }
+
+      router.push(`/encounters/${data.encounterId}`);
+    } catch (e) {
+      console.error("start-encounter network error", e);
+      setError("Үзлэг эхлүүлэхэд сүлжээний алдаа гарлаа.");
+    }
+  };
   return (
     <div
       style={{
@@ -487,68 +522,7 @@ function AppointmentDetailsModal({
           </div>
         </div>
 
-        {appointments.length === 0 ? (
-          <div style={{ color: "#6b7280" }}>Энэ цагт захиалга алга.</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {appointments.map((a) => {
-              const start = new Date(a.scheduledAt);
-              const end =
-                a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-                  ? new Date(a.endAt)
-                  : null;
-
-              const isEditing = editingId === a.id;
-
-              return (
-                <div
-                  key={a.id}
-                  style={{
-                    borderRadius: 6,
-                    border: "1px solid #e5e7eb",
-                    padding: 8,
-                    background: "#f9fafb",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: 4,
-                    }}
-                  >
-                    <div style={{ fontWeight: 500 }}>
-                      {formatPatientLabel(a.patient, a.patientId)}
-                    </div>
-                    {!isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => handleStartEdit(a)}
-                        style={{
-                          fontSize: 11,
-                          padding: "2px 8px",
-                          borderRadius: 999,
-                          border: "1px solid #2563eb",
-                          background: "#eff6ff",
-                          color: "#1d4ed8",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Засах
-                      </button>
-                    )}
-                  </div>
-
-                  {!isEditing ? (
-                    <div style={{ color: "#4b5563" }}>
-                      <div>
-                        <strong>Төлөв:</strong> {formatStatus(a.status)}
-                      </div>
-                      <div>
-                        <strong>Утас:</strong> {a.patient?.phone || "-"}
-                      </div>
-                    </div>
+                {appointments.length === 0 ? (
                   ) : (
                     <div
                       style={{
