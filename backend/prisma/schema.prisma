@@ -175,29 +175,27 @@ bookings Booking[]   // <-- NEW, all bookings for this patient
 
 model ChartTooth {
   id          Int        @id @default(autoincrement())
-  
-  /// FDI tooth code (e.g., "11", "26", "85")
+
+  /// FDI tooth code (e.g. "11", "26", "85")
   toothCode   String
 
-  status      String?     // General tooth condition/status
-  notes       String?     // Free-form notes
+  /// General tooth condition/status (optional, e.g. "Healthy", "Caries")
+  status      String?
+  /// Free-form note for this tooth in this encounter
+  notes       String?
 
   encounterId Int
   encounter   Encounter  @relation(fields: [encounterId], references: [id])
 
-  /// Link multiple diagnoses to specific teeth
-  diagnoses   EncounterDiagnosis[]
-
-  /// Link multiple services to specific teeth
-  services    EncounterService[]
-
-  chartNotes  ChartNote[] // Related notes for the tooth
+  chartNotes  ChartNote[]
 }
+
 model ChartNote {
   id           Int        @id @default(autoincrement())
   chartToothId Int
   description  String
   createdAt    DateTime   @default(now())
+
   chartTooth   ChartTooth @relation(fields: [chartToothId], references: [id])
 }
 // Appointment model
