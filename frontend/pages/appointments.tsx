@@ -1928,24 +1928,28 @@ const [dayEndSlots, setDayEndSlots] = useState<
       slotStart.getTime() + SLOT_MINUTES * 60 * 1000
     );
 
-    return appointments.filter((a) => {
-      if (a.doctorId !== doctorIdNum) return false;
-      if (selectedBranchId && String(a.branchId) !== selectedBranchId)
-        return false;
+    
+  return appointments.filter((a) => {
+  if (a.doctorId !== doctorIdNum) return false;
+  if (selectedBranchId && String(a.branchId) !== selectedBranchId)
+    return false;
 
-      const start = new Date(a.scheduledAt);
-      if (Number.isNaN(start.getTime())) return false;
+  // NEW: ignore cancelled appointments in capacity calculation
+  if (a.status === "cancelled") return false;
 
-      const end =
-        a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-          ? new Date(a.endAt)
-          : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+  const start = new Date(a.scheduledAt);
+  if (Number.isNaN(start.getTime())) return false;
 
-      const dayStr = start.toISOString().slice(0, 10);
-      if (dayStr !== form.date) return false;
+  const end =
+    a.endAt && !Number.isNaN(new Date(a.endAt).getTime()))
+      ? new Date(a.endAt)
+      : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
 
-      return start < slotEnd && end > slotStart;
-    }).length;
+  const dayStr = start.toISOString().slice(0, 10);
+  if (dayStr !== form.date) return false;
+
+  return start < slotEnd && end > slotStart;
+}).length;
   };
 
   const handleQuickPatientChange = (
