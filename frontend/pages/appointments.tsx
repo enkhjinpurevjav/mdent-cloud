@@ -2403,8 +2403,9 @@ export default function AppointmentsPage() {
     setFilterBranchId(branchId);
   };
 
-  // Prefer scheduledDoctors. If none, fall back to doctors who actually have
-// appointments on this date so the grid is still visible.
+// Prefer scheduledDoctors (doctors with DoctorSchedule for this day/branch).
+// If none, fall back to doctors who actually have appointments on this date,
+// so the grid is still visible.
 const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
   if (scheduledDoctors.length > 0) {
     return scheduledDoctors;
@@ -2422,7 +2423,7 @@ const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
       if (!baseDoc) continue;
       byDoctor[a.doctorId] = {
         ...baseDoc,
-        schedules: [],
+        schedules: [], // no schedule info, but enough for the grid
       };
     }
   }
