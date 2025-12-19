@@ -25,12 +25,12 @@ router.get("/:id", async (req, res) => {
           },
         },
         doctor: true,
-        // Relation field on Encounter in schema.prisma
+        // Relation on Encounter in schema.prisma
         diagnoses: {
           include: { diagnosis: true },
           orderBy: { createdAt: "asc" },
         },
-        // Relation field on Encounter in schema.prisma
+        // Relation on Encounter in schema.prisma
         encounterServices: {
           include: {
             service: true,
@@ -64,24 +64,28 @@ router.get("/:id", async (req, res) => {
  * Body: { items: { diagnosisId, selectedProblemIds, note }[] }
  */
 router.put("/:id/diagnoses", async (req, res) => {
-  try {
-    const encounterId = Number(req.params.id);
-    if (!encounterId || Number.isNaN(encounterId)) {
-      return res.status(400).json({ error: "Invalid encounter id" });
-    }
+  const encounterId = Number(req.params.id);
+  if (!encounterId || Number.isNaN(encounterId)) {
+    return res.status(400).json({ error: "Invalid encounter id" });
+  }
 
-    const { items } = req.body || {};
-    if (!Array.isArray(items)) {
-      return res.status(400).json({ error: "items must be an array" });
-    }
+  const { items } = req.body || {};
+  if (!Array.isArray(items)) {
+    return res.status(400).json({ error: "items must be an array" });
+  }
+
+  try {
+    // Hard delete outside transaction as a safety net
+    await prisma.encounterDiagnosis.deleteMany({
+      where: { encounterId },
+    });
 
     await prisma.$transaction(async (trx) => {
-      // 1) Remove all existing diagnoses for this encounter
+      // Just in case, delete again at transaction level.
       await trx.encounterDiagnosis.deleteMany({
         where: { encounterId },
       });
 
-      // 2) Recreate from payload
       for (const item of items) {
         if (!item.diagnosisId) continue;
 
@@ -112,7 +116,7 @@ router.put("/:id/diagnoses", async (req, res) => {
 /**
  * PUT /api/encounters/:id/services
  * Replaces all EncounterService rows for this encounter.
- * Body: { items: { serviceId, quantity?, toothCode? }[] }
+ * Body: { items: { serviceId, quantity? }[] }
  * NOTE: toothCode is currently ignored because EncounterService has no such field.
  */
 router.put("/:id/services", async (req, res) => {
@@ -149,7 +153,6 @@ router.put("/:id/services", async (req, res) => {
             serviceId: item.serviceId,
             quantity: item.quantity ?? 1,
             price: svc.price, // REQUIRED field on EncounterService
-            // toothCode is not stored yet; add to schema later if needed
           },
         });
       }
