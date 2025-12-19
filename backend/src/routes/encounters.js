@@ -3,7 +3,7 @@ import prisma from "../db.js";
 
 const router = express.Router();
 
-// NEW: GET /api/encounters/:id (detailed view for admin)
+// GET /api/encounters/:id (detailed view for admin)
 router.get("/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -24,7 +24,8 @@ router.get("/:id", async (req, res) => {
           },
         },
         doctor: true,
-        encounterDiagnoses: {
+        // Use the actual relation field name from schema.prisma
+        diagnoses: {
           include: {
             diagnosis: true,
           },
@@ -37,10 +38,16 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ error: "Encounter not found" });
     }
 
-    res.json(encounter);
+    // Rename diagnoses -> encounterDiagnoses to match frontend type
+    const result = {
+      ...encounter,
+      encounterDiagnoses: encounter.diagnoses,
+    };
+
+    return res.json(result);
   } catch (err) {
     console.error("GET /api/encounters/:id error:", err);
-    res.status(500).json({ error: "Failed to load encounter" });
+    return res.status(500).json({ error: "Failed to load encounter" });
   }
 });
 
