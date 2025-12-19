@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { prisma } from "../prisma";
+import prisma from "../db.js";
 
 const router = Router();
 
@@ -7,15 +7,13 @@ const router = Router();
 router.get("/encounters/:id/diagnoses", async (req, res) => {
   try {
     const encounterId = Number(req.params.id);
-    if (!encounterId) {
+    if (!encounterId || Number.isNaN(encounterId)) {
       return res.status(400).json({ error: "Encounter ID буруу." });
     }
 
     const rows = await prisma.encounterDiagnosis.findMany({
       where: { encounterId },
-      include: {
-        diagnosis: true,
-      },
+      include: { diagnosis: true },
       orderBy: { createdAt: "asc" },
     });
 
@@ -30,23 +28,30 @@ router.get("/encounters/:id/diagnoses", async (req, res) => {
 router.put("/encounters/:id/diagnoses", async (req, res) => {
   try {
     const encounterId = Number(req.params.id);
-    if (!encounterId) {
+    if (!encounterId || Number.isNaN(encounterId)) {
       return res.status(400).json({ error: "Encounter ID буруу." });
     }
 
     const body = req.body || {};
-    const items = (body.items as any[]) || [];
+    const items = Array.isArray(body.items) ? body.items : [];
 
     // Example item: { diagnosisId: number, selectedProblemIds: number[], note?: string }
     const cleaned = items
       .filter((it) => it && typeof it.diagnosisId === "number")
-      .map((it) => ({
-        diagnosisId: it.diagnosisId as number,
-        selectedProblemIds: Array.isArray(it.selectedProblemIds)
-          ? it.selectedProblemIds.map((id: any) => Number(id)).filter((n: any) => !Number.isNaN(n))
-          : [],
-        note: typeof it.note === "string" && it.note.trim() ? it.note.trim() : null,
-      }));
+      .map((it) => {
+        const diagnosisId = Number(it.diagnosisId);
+        const selectedProblemIds = Array.isArray(it.selectedProblemIds)
+          ? it.selectedProblemIds
+              .map((id) => Number(id))
+              .filter((n) => !Number.isNaN(n))
+          : [];
+        const note =
+          typeof it.note === "string" && it.note.trim()
+            ? it.note.trim()
+            : null;
+
+        return { diagnosisId, selectedProblemIds, note };
+      });
 
     await prisma.$transaction([
       prisma.encounterDiagnosis.deleteMany({ where: { encounterId } }),
