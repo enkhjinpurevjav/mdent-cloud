@@ -185,14 +185,15 @@ model Appointment {
   endAt       DateTime?   // Дуусах цаг (шинэ)
   status      String    @default("booked")
   notes       String?
-// NEW: back relation to Encounter
-  encounter    Encounter?
+
 
   patient     Patient   @relation(fields: [patientId], references: [id])
   doctor      User?     @relation(fields: [doctorId], references: [id])
   branch      Branch    @relation(fields: [branchId], references: [id])
 
   @@index([branchId, scheduledAt])
+// Back relation to Encounter (1 appointment → 0 or 1 encounter)
+  encounter    Encounter?
 }
 
 model Booking {
@@ -264,8 +265,9 @@ model Encounter {
   visitDate          DateTime
   notes              String?
 
-  appointmentId      Int?      // <— NEW, optional link to Appointment
-  appointment        Appointment? @relation(fields: [appointmentId], references: [id])
+ // Link to Appointment (1:1)
+  appointmentId     Int?         @unique
+  appointment       Appointment? @relation(fields: [appointmentId], references: [id])
 
   patientBook        PatientBook   @relation(fields: [patientBookId], references: [id])
   doctor             User          @relation("DoctorEncounters", fields: [doctorId], references: [id])
