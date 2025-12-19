@@ -297,6 +297,16 @@ function computeAppointmentLanesForDayAndDoctor(
   return result;
 }
 
+/**
+ * For absolute positioning: minutes from (clinic) day start.
+ */
+function getMinutesFromDayStart(date: Date, clinicDay: Date) {
+  const d = new Date(date);
+  const startOfDay = new Date(clinicDay);
+  startOfDay.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.round((d.getTime() - startOfDay.getTime()) / 60000));
+}
+
 // ==== Appointment Details Modal ====
 // ... (unchanged code below here until AppointmentsPage) ...
 
@@ -2395,13 +2405,11 @@ export default function AppointmentsPage() {
 
   const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
 
-  // ===== NEW: build lane map for selected date (per doctor) =====
-  // laneById[appointmentId] = 0 | 1
+  // ===== lane map for selected date (per doctor) =====
   const laneById: Record<number, 0 | 1> = React.useMemo(() => {
     const map: Record<number, 0 | 1> = {};
     const dayKey = filterDate;
 
-    // group by doctorId on this day
     const byDoctor: Record<number, Appointment[]> = {};
     for (const a of appointments) {
       if (!a.doctorId) continue;
@@ -2411,7 +2419,7 @@ export default function AppointmentsPage() {
       byDoctor[a.doctorId].push(a);
     }
 
-    for (const [docIdStr, list] of Object.entries(byDoctor)) {
+    for (const list of Object.values(byDoctor)) {
       const lanes = computeAppointmentLanesForDayAndDoctor(list);
       for (const [idStr, lane] of Object.entries(lanes)) {
         map[Number(idStr)] = lane;
@@ -2421,8 +2429,30 @@ export default function AppointmentsPage() {
     return map;
   }, [appointments, filterDate]);
 
-  // Helper functions for merged blocks in grid
+  // total minutes in visible clinic day for positioning
+  const firstSlot = timeSlots[0]?.start ?? selectedDay;
+  const lastSlot = timeSlots[timeSlots.length - 1]?.end ?? selectedDay;
+  const totalMinutes =
+    (lastSlot.getTime() - firstSlot.getTime()) / 60000 || 1;
+
+  const columnHeightPx = 60 * (totalMinutes / 60); // 60px per hour baseline
+
   const slotsPerHour = 60 / SLOT_MINUTES;
+
+  const getStatusColor = (status: string): string => {
+    switch (status) {
+      case "completed":
+        return "#fb6190";
+      case "confirmed":
+        return "#bbf7d0";
+      case "ongoing":
+        return "#f9d89b";
+      case "cancelled":
+        return "#9d9d9d";
+      default:
+        return "#77f9fe";
+    }
+  };
 
   return (
     <main
@@ -2433,166 +2463,8 @@ export default function AppointmentsPage() {
         fontFamily: "sans-serif",
       }}
     >
-      <h1 style={{ fontSize: 20, marginBottom: 8 }}>Цаг захиалга</h1>
-      <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
-        Өвчтөн, эмч, салбарын цаг захиалгуудыг харах, нэмэх, удирдах.
-      </p>
-
-      {/* Branch view tabs */}
-      <section
-        style={{
-          marginBottom: 12,
-          display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
-          borderBottom: "1px solid #e5e7eb",
-          paddingBottom: 8,
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => handleBranchTabClick("")}
-          style={{
-            padding: "6px 12px",
-            borderRadius: 999,
-            border: "1px solid transparent",
-            backgroundColor: activeBranchTab === "" ? "#2563eb" : "transparent",
-            color: activeBranchTab === "" ? "#ffffff" : "#374151",
-            fontSize: 13,
-            cursor: "pointer",
-          }}
-        >
-          Бүх салбар
-        </button>
-        {branches.map((b) => {
-          const idStr = String(b.id);
-          const isActive = activeBranchTab === idStr;
-          return (
-            <button
-              key={b.id}
-              type="button"
-              onClick={() => handleBranchTabClick(idStr)}
-              style={{
-                padding: "6px 12px",
-                borderRadius: 999,
-                border: isActive ? "1px solid #2563eb" : "1px solid #d1d5db",
-                backgroundColor: isActive ? "#eff6ff" : "#ffffff",
-                color: isActive ? "#1d4ed8" : "#374151",
-                fontSize: 13,
-                cursor: "pointer",
-              }}
-            >
-              {b.name}
-            </button>
-          );
-        })}
-      </section>
-
-      {/* Filters card */}
-      <section
-        style={{
-          marginBottom: 16,
-          padding: 12,
-          borderRadius: 8,
-          border: "1px solid #e5e7eb",
-          background: "#f9fafb",
-          fontSize: 13,
-        }}
-      >
-        <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: 16 }}>
-          Шүүлтүүр
-        </h2>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 12,
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label>Огноо</label>
-            <input
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            />
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label>Салбар</label>
-            <select
-              value={filterBranchId}
-              onChange={(e) => {
-                const value = e.target.value;
-                setFilterBranchId(value);
-                setActiveBranchTab(value);
-              }}
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            >
-              <option value="">Бүх салбар</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label>Эмч</label>
-            <select
-              value={filterDoctorId}
-              onChange={(e) => setFilterDoctorId(e.target.value)}
-              style={{
-                borderRadius: 6,
-                border: "1px солид #d1d5db",
-                padding: "6px 8px",
-              }}
-            >
-              <option value="">Бүх эмч</option>
-              {doctors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {formatDoctorName(d)}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </section>
-
-      {/* Create form card */}
-      <section
-        ref={formSectionRef as any}
-        style={{
-          marginBottom: 24,
-          padding: 16,
-          borderRadius: 8,
-          border: "1px солид #e5e7eb",
-          background: "white",
-        }}
-      >
-        <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: 16 }}>
-          Шинэ цаг захиалах
-        </h2>
-        <AppointmentForm
-          branches={branches}
-          doctors={doctors}
-          scheduledDoctors={scheduledDoctors}
-          appointments={appointments}
-          selectedDate={filterDate}
-          selectedBranchId={filterBranchId}
-          onCreated={(a) => setAppointments((prev) => [a, ...prev])}
-        />
-      </section>
+      {/* header, branch tabs, filters, create form, etc – KEEP your existing JSX here */}
+      {/* ... */}
 
       {error && (
         <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
@@ -2600,7 +2472,7 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Time grid by doctor with merged blocks */}
+      {/* Time grid by doctor – NEW implementation */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
@@ -2620,7 +2492,7 @@ export default function AppointmentsPage() {
         ) : (
           <div
             style={{
-              border: "1px солид #ddd",
+              border: "1px solid #ddd",
               borderRadius: 8,
               overflow: "hidden",
               fontSize: 12,
@@ -2632,7 +2504,7 @@ export default function AppointmentsPage() {
                 display: "grid",
                 gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
                 backgroundColor: "#f5f5f5",
-                borderBottom: "1px солид #ddd",
+                borderBottom: "1px solid #ddd",
               }}
             >
               <div style={{ padding: 8, fontWeight: "bold" }}>Цаг</div>
@@ -2647,7 +2519,7 @@ export default function AppointmentsPage() {
                       padding: 8,
                       fontWeight: "bold",
                       textAlign: "center",
-                      borderLeft: "1px солид #ddd",
+                      borderLeft: "1px solid #ddd",
                     }}
                   >
                     <div>{formatDoctorName(doc)}</div>
@@ -2665,563 +2537,254 @@ export default function AppointmentsPage() {
               })}
             </div>
 
-            {/* Time rows */}
-            <div>
-              {timeSlots.map((slot, rowIndex) => (
-                <div
-                  key={rowIndex}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
-                    borderBottom: "1px солид #f0f0f0",
-                    minHeight: 48,
-                  }}
-                >
-                  {/* Time label column */}
+            {/* Body: time labels + doctor columns */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+              }}
+            >
+              {/* Time labels / background grid */}
+              <div
+                style={{
+                  borderRight: "1px solid #ddd",
+                  position: "relative",
+                  height: columnHeightPx,
+                }}
+              >
+                {timeSlots.map((slot, index) => {
+                  const slotStartMin =
+                    (slot.start.getTime() - firstSlot.getTime()) / 60000;
+                  const slotHeight = (SLOT_MINUTES / totalMinutes) * columnHeightPx;
+
+                  return (
+                    <div
+                      key={index}
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        right: 0,
+                        top: (slotStartMin / totalMinutes) * columnHeightPx,
+                        height: slotHeight,
+                        borderBottom: "1px solid #f0f0f0",
+                        paddingLeft: 6,
+                        display: "flex",
+                        alignItems: "center",
+                        fontSize: 11,
+                        backgroundColor:
+                          index % 2 === 0 ? "#fafafa" : "#ffffff",
+                      }}
+                    >
+                      {slot.label}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Doctor columns */}
+              {gridDoctors.map((doc) => {
+                const doctorAppointments = appointments.filter(
+                  (a) =>
+                    a.doctorId === doc.id &&
+                    getAppointmentDayKey(a) === filterDate
+                );
+
+                const handleCellClick = (
+                  clickedMinutes: number,
+                  existingApps: Appointment[]
+                ) => {
+                  const slotTime = new Date(firstSlot.getTime() + clickedMinutes * 60000);
+                  const slotTimeStr = getSlotTimeString(slotTime);
+
+                  if (existingApps.length === 0) {
+                    setQuickModalState({
+                      open: true,
+                      doctorId: doc.id,
+                      date: filterDate,
+                      time: slotTimeStr,
+                    });
+                  } else {
+                    setDetailsModalState({
+                      open: true,
+                      doctor: doc,
+                      slotLabel: slotTimeStr,
+                      slotTime: slotTimeStr,
+                      date: filterDate,
+                      appointments: existingApps,
+                    });
+                  }
+                };
+
+                return (
                   <div
+                    key={doc.id}
                     style={{
-                      padding: 6,
-                      borderRight: "1px солид #ddd",
-                      backgroundColor:
-                        rowIndex % 2 === 0 ? "#fafafa" : "#ffffff",
+                      borderLeft: "1px solid #f0f0f0",
+                      position: "relative",
+                      height: columnHeightPx,
+                      backgroundColor: "#ffffff",
                     }}
                   >
-                    {slot.label}
-                  </div>
+                    {/* background stripes */}
+                    {timeSlots.map((slot, index) => {
+                      const slotStartMin =
+                        (slot.start.getTime() - firstSlot.getTime()) / 60000;
+                      const slotHeight =
+                        (SLOT_MINUTES / totalMinutes) * columnHeightPx;
 
-                  {/* Doctor columns */}
-                  {gridDoctors.map((doc) => {
-                    // All appointments for this doctor that intersect THIS 30‑min slot
-                    const appsForCell = appointments.filter((a) => {
-                      if (a.doctorId !== doc.id) return false;
+                      const slotTimeStr = getSlotTimeString(slot.start);
+                      const schedules = (doc as any).schedules || [];
+                      const isWorkingHour = schedules.some((s: any) =>
+                        isTimeWithinRange(
+                          slotTimeStr,
+                          s.startTime,
+                          s.endTime
+                        )
+                      );
+                      const weekdayIndex = slot.start.getDay();
+                      const isWeekend =
+                        weekdayIndex === 0 || weekdayIndex === 6;
+                      const isWeekendLunch =
+                        isWeekend &&
+                        isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+                      const isNonWorking = !isWorkingHour || isWeekendLunch;
 
-                      const start = new Date(a.scheduledAt);
-                      if (Number.isNaN(start.getTime())) return false;
+                      const overlappedApps = doctorAppointments.filter((a) => {
+                        const start = new Date(a.scheduledAt);
+                        if (Number.isNaN(start.getTime())) return false;
+                        const end =
+                          a.endAt &&
+                          !Number.isNaN(new Date(a.endAt).getTime())
+                            ? new Date(a.endAt)
+                            : new Date(
+                                start.getTime() +
+                                  SLOT_MINUTES * 60 * 1000
+                              );
+                        return start < slot.end && end > slot.start;
+                      });
 
-                      const end =
-                        a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-                          ? new Date(a.endAt)
-                          : new Date(
-                              start.getTime() + SLOT_MINUTES * 60 * 1000
-                            );
-
-                      const slotStart = slot.start;
-                      const slotEnd = slot.end;
-
-                      // colour every slot that this appointment overlaps
-                      return start < slotEnd && end > slotStart;
-                    });
-
-                    const slotTimeStr = getSlotTimeString(slot.start);
-                    const schedules = (doc as any).schedules || [];
-
-                    const isWorkingHour = schedules.some((s: any) =>
-                      isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
-                    );
-                    const weekdayIndex = slot.start.getDay();
-                    const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
-                    const isWeekendLunch =
-                      isWeekend &&
-                      isTimeWithinRange(slotTimeStr, "14:00", "15:00");
-                    const isNonWorking = !isWorkingHour || isWeekendLunch;
-
-                    // Base background: only appointments colour a slot
-                    let baseBg = "#ffffff";
-                    if (appsForCell.length === 1) {
-                      const status = appsForCell[0].status;
-                      baseBg =
-                        status === "completed"
-                          ? "#fb6190"
-                          : status === "confirmed"
-                          ? "#bbf7d0"
-                          : status === "ongoing"
-                          ? "#f9d89b"
-                          : status === "cancelled"
-                          ? "#9d9d9d"
-                          : "#77f9fe";
-                    }
-
-                    const handleCellClick = () => {
-                      if (isNonWorking) return;
-                      if (appsForCell.length === 0) {
-                        setQuickModalState({
-                          open: true,
-                          doctorId: doc.id,
-                          date: filterDate,
-                          time: slotTimeStr,
-                        });
-                      } else {
-                        setDetailsModalState({
-                          open: true,
-                          doctor: doc,
-                          slotLabel: slot.label,
-                          slotTime: slotTimeStr,
-                          date: filterDate,
-                          appointments: appsForCell,
-                        });
-                      }
-                    };
-
-                    // 0 APPOINTMENTS → just baseBg
-                    if (appsForCell.length === 0) {
                       return (
                         <div
-                          key={doc.id}
-                          onClick={handleCellClick}
+                          key={index}
+                          onClick={() =>
+                            handleCellClick(slotStartMin, overlappedApps)
+                          }
                           style={{
-                            borderLeft: "1px solid #f0f0f0",
-                            backgroundColor: baseBg,
-                            cursor: isNonWorking ? "not-allowed" : "pointer",
-                            minHeight: 28,
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            top: (slotStartMin / totalMinutes) * columnHeightPx,
+                            height: slotHeight,
+                            borderBottom: "1px solid #f0f0f0",
+                            backgroundColor: isNonWorking
+                              ? "#f3f4f6"
+                              : index % 2 === 0
+                              ? "#ffffff"
+                              : "#fafafa",
+                            cursor: isNonWorking
+                              ? "not-allowed"
+                              : "pointer",
                           }}
                         />
                       );
-                    }
+                    })}
 
-                    // === NEW: use laneById to render up to 2 lanes consistently ===
-                    const byLane: { [lane: number]: Appointment[] } = {
-                      0: [],
-                      1: [],
-                    };
-                    for (const a of appsForCell) {
-                      const lane = laneById[a.id] ?? 0;
-                      byLane[lane].push(a);
-                    }
+                    {/* Appointment blocks */}
+                    {doctorAppointments.map((a) => {
+                      const start = new Date(a.scheduledAt);
+                      if (Number.isNaN(start.getTime())) return null;
+                      const end =
+                        a.endAt &&
+                        !Number.isNaN(new Date(a.endAt).getTime())
+                          ? new Date(a.endAt)
+                          : new Date(
+                              start.getTime() +
+                                SLOT_MINUTES * 60 * 1000
+                            );
 
-                    // For now, if more than one appointment in same lane
-                    // for this 30min slot, show only the earliest (to keep UI simple)
-                    const lane0App =
-                      byLane[0].length > 0
-                        ? byLane[0].slice().sort(
-                            (a, b) =>
-                              new Date(a.scheduledAt).getTime() -
-                              new Date(b.scheduledAt).getTime()
-                          )[0]
-                        : null;
-                    const lane1App =
-                      byLane[1].length > 0
-                        ? byLane[1].slice().sort(
-                            (a, b) =>
-                              new Date(a.scheduledAt).getTime() -
-                              new Date(b.scheduledAt).getTime()
-                          )[0]
-                        : null;
+                      // clamp to visible range
+                      const clampedStart = new Date(
+                        Math.max(start.getTime(), firstSlot.getTime())
+                      );
+                      const clampedEnd = new Date(
+                        Math.min(end.getTime(), lastSlot.getTime())
+                      );
+                      const startMin =
+                        (clampedStart.getTime() - firstSlot.getTime()) /
+                        60000;
+                      const endMin =
+                        (clampedEnd.getTime() - firstSlot.getTime()) / 60000;
 
-                    const laneBg = (a: Appointment): string => {
-                      switch (a.status) {
-                        case "completed":
-                          return "#fb6190";
-                        case "confirmed":
-                          return "#bbf7d0";
-                        case "ongoing":
-                          return "#f9d89b";
-                        case "cancelled":
-                          return "#9d9d9d";
-                        default:
-                          return "#77f9fe";
+                      if (endMin <= 0 || startMin >= totalMinutes) {
+                        return null;
                       }
-                    };
 
-                    // Only 1 lane has something → behave like previous "1 appointment" case
-                    const nonNullApps = [lane0App, lane1App].filter(
-                      Boolean
-                    ) as Appointment[];
-                    if (nonNullApps.length === 1) {
-                      const a = nonNullApps[0];
-                      const bg = laneBg(a);
+                      const top = (startMin / totalMinutes) * columnHeightPx;
+                      const height =
+                        ((endMin - startMin) / totalMinutes) *
+                        columnHeightPx;
+
+                      const lane = laneById[a.id] ?? 0;
+                      const widthPercent = 50;
+                      const leftPercent = lane === 0 ? 0 : 50;
 
                       return (
                         <div
-                          key={doc.id}
-                          onClick={handleCellClick}
+                          key={a.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDetailsModalState({
+                              open: true,
+                              doctor: doc,
+                              slotLabel: "",
+                              slotTime: "",
+                              date: filterDate,
+                              appointments: [a],
+                            });
+                          }}
                           style={{
-                            borderLeft: "1px solid #f0f0f0",
-                            backgroundColor: bg,
-                            cursor: isNonWorking ? "not-allowed" : "pointer",
+                            position: "absolute",
+                            left: `${leftPercent}%`,
+                            width: `${widthPercent}%`,
+                            top,
+                            height: Math.max(height, 18),
+                            padding: "1px 3px",
+                            boxSizing: "border-box",
+                            backgroundColor: getStatusColor(a.status),
+                            borderRadius: 4,
+                            fontSize: 11,
+                            lineHeight: 1.2,
+                            color:
+                              a.status === "completed" ||
+                              a.status === "cancelled"
+                                ? "#ffffff"
+                                : "#111827",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            minHeight: 28,
-                            padding: "1px 3px",
+                            textAlign: "center",
+                            overflow: "hidden",
+                            wordBreak: "break-word",
+                            boxShadow:
+                              "0 1px 2px rgba(0,0,0,0.2)",
+                            cursor: "pointer",
                           }}
                           title={`${formatPatientLabel(
                             a.patient,
                             a.patientId
                           )} (${formatStatus(a.status)})`}
                         >
-                          <span
-                            style={{
-                              borderRadius: 4,
-                              padding: "1px 4px",
-                              maxWidth: "100%",
-                              whiteSpace: "normal",
-                              wordBreak: "break-word",
-                              overflowWrap: "anywhere",
-                              fontSize: 11,
-                              lineHeight: 1.2,
-                              textAlign: "center",
-                            }}
-                          >
-                            {`${formatGridShortLabel(a)} (${formatStatus(
-                              a.status
-                            )})`}
-                          </span>
+                          {`${formatGridShortLabel(a)} (${formatStatus(
+                            a.status
+                          )})`}
                         </div>
                       );
-                    }
-
-                    // Both lanes have an appointment in this slot → 2-lane layout, stable downwards
-                    return (
-                      <div
-                        key={doc.id}
-                        onClick={handleCellClick}
-                        style={{
-                          borderLeft: "1px solid #f0f0f0",
-                          backgroundColor: baseBg,
-                          cursor: isNonWorking ? "not-allowed" : "pointer",
-                          display: "flex",
-                          flexDirection: "row",
-                          alignItems: "stretch",
-                          minHeight: 28,
-                          padding: 0,
-                        }}
-                      >
-                        {/* LEFT HALF (lane 0) */}
-                        {lane0App && (
-                          <div
-                            style={{
-                              flex: 1,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              padding: "1px 3px",
-                              backgroundColor: laneBg(lane0App),
-                              whiteSpace: "normal",
-                              wordBreak: "break-word",
-                              overflowWrap: "anywhere",
-                              fontSize: 11,
-                              lineHeight: 1.2,
-                              textAlign: "center",
-                            }}
-                            title={`${formatPatientLabel(
-                              lane0App.patient,
-                              lane0App.patientId
-                            )} (${formatStatus(lane0App.status)})`}
-                          >
-                            {`${formatGridShortLabel(
-                              lane0App
-                            )} (${formatStatus(lane0App.status)})`}
-                          </div>
-                        )}
-
-                        {/* RIGHT HALF (lane 1) */}
-                        {lane1App && (
-                          <div
-                            style={{
-                              flex: 1,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              padding: "1px 3px",
-                              backgroundColor: laneBg(lane1App),
-                              whiteSpace: "normal",
-                              wordBreak: "break-word",
-                              overflowWrap: "anywhere",
-                              fontSize: 11,
-                              lineHeight: 1.2,
-                              textAlign: "center",
-                              borderLeft: "1px solid rgba(255,255,255,0.4)",
-                            }}
-                            title={`${formatPatientLabel(
-                              lane1App.patient,
-                              lane1App.patientId
-                            )} (${formatStatus(lane1App.status)})`}
-                          >
-                            {`${formatGridShortLabel(
-                              lane1App
-                            )} (${formatStatus(lane1App.status)})`}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* Day-grouped calendar */}
-      <section style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 8 }}>Календарь (өдрөөр)</h2>
-        {groupedAppointments.length === 0 && (
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
-            Цаг захиалга алга.
-          </div>
-        )}
-        <div
-          style={{
-            display: "flex",
-            gap: 16,
-            overflowX: "auto",
-            paddingBottom: 8,
-            justifyContent: "flex-start",
-          }}
-        >
-          {groupedAppointments.map(([date, apps]) => (
-            <div
-              key={date}
-              style={{
-                minWidth: 260,
-                maxWidth: 320,
-                border: "1px солид #e5e7eb",
-                borderRadius: 8,
-                padding: 10,
-                backgroundColor: "#ffffff",
-              }}
-            >
-              <div
-                style={{
-                  fontWeight: 600,
-                  marginBottom: 8,
-                  fontSize: 13,
-                  color: "#111827",
-                }}
-              >
-                {formatDateYmdDots(new Date(date))}
-              </div>
-              {apps
-                .slice()
-                .sort(
-                  (a, b) =>
-                    new Date(a.scheduledAt).getTime() -
-                    new Date(b.scheduledAt).getTime()
-                )
-                .map((a) => {
-                  const start = new Date(a.scheduledAt);
-                  const end =
-                    a.endAt &&
-                    !Number.isNaN(new Date(a.endAt).getTime())
-                      ? new Date(a.endAt)
-                      : null;
-
-                  return (
-                    <div
-                      key={a.id}
-                      style={{
-                        marginBottom: 6,
-                        padding: 6,
-                        borderRadius: 4,
-                        backgroundColor:
-                          a.status === "completed"
-                            ? "#e0f7e9"
-                            : a.status === "ongoing"
-                            ? "#fff4e0"
-                            : a.status === "cancelled"
-                            ? "#fde0e0"
-                            : "#e6f0ff",
-                        fontSize: 12,
-                      }}
-                    >
-                      <div style={{ fontWeight: 500 }}>
-                        {start.toLocaleTimeString("mn-MN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: false,
-                        })}
-                        {end
-                          ? ` – ${end.toLocaleTimeString("mn-MN", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hour12: false,
-                            })}`
-                          : ""}
-                        {" — "}
-                        {formatPatientLabel(a.patient, a.patientId)}
-                      </div>
-                      <div>
-                        Эмч: {formatDoctorName(a.doctor)} | Салбар:{" "}
-                        {a.branch?.name ?? a.branchId}
-                      </div>
-                      <div>Тайлбар: {a.notes || "-"}</div>
-                      <div>Төлөв: {formatStatus(a.status)}</div>
-                    </div>
-                  );
-                })}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Raw table */}
-      <section>
-        <h2 style={{ fontSize: 16, marginBottom: 8 }}>
-          Бүгдийг жагсаалтаар харах
-        </h2>
-        {appointments.length === 0 ? (
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
-            Цаг захиалга алга.
-          </div>
-        ) : (
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              marginTop: 4,
-              fontSize: 13,
-            }}
-          >
-            <thead>
-              <tr>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px солид #ddd",
-                    padding: 6,
-                  }}
-                >
-                  ID
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px солид #ddd",
-                    padding: 6,
-                  }}
-                >
-                  Өвчтөн
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px солид #ddd",
-                    padding: 6,
-                  }}
-                >
-                  Салбар
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px солид #ddd",
-                    padding: 6,
-                  }}
-                >
-                  Эмч
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px солид #ddd",
-                    padding: 6,
-                  }}
-                >
-                  Огноо / цаг
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px солид #ddd",
-                    padding: 6,
-                  }}
-                >
-                  Төлөв
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px солид #ddd",
-                    padding: 6,
-                  }}
-                >
-                  Тэмдэглэл
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {appointments.map((a) => {
-                const start = new Date(a.scheduledAt);
-                const end =
-                  a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-                    ? new Date(a.endAt)
-                    : null;
-
-                return (
-                  <tr key={a.id}>
-                    <td
-                      style={{
-                        borderBottom: "1px солид #f0f0f0",
-                        padding: 6,
-                      }}
-                    >
-                      {a.id}
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px солид #f0f0f0",
-                        padding: 6,
-                      }}
-                    >
-                      {formatPatientLabel(a.patient, a.patientId)}
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px солид #f0f0f0",
-                        padding: 6,
-                      }}
-                    >
-                      {a.branch?.name ?? a.branchId}
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px солид #f0f0f0",
-                        padding: 6,
-                      }}
-                    >
-                      {formatDoctorName(a.doctor ?? null)}
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px солид #f0f0f0",
-                        padding: 6,
-                      }}
-                    >
-                      {formatDateYmdDots(start)}{" "}
-                      {start.toLocaleTimeString("mn-MN", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false,
-                      })}
-                      {end
-                        ? ` – ${end.toLocaleTimeString("mn-MN", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: false,
-                          })}`
-                        : ""}
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px солид #f0f0f0",
-                        padding: 6,
-                      }}
-                    >
-                      {formatStatus(a.status)}
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px солид #f0f0f0",
-                        padding: 6,
-                      }}
-                    >
-                      {a.notes || "-"}
-                    </td>
-                  </tr>
+                    })}
+                  </div>
                 );
               })}
-            </tbody>
-          </table>
+            </div>
+          </div>
         )}
       </section>
 
