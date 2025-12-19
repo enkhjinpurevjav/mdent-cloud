@@ -300,7 +300,8 @@ model EncounterDiagnosis {
 
   createdAt           DateTime   @default(now())
 
-  @@unique([encounterId, diagnosisId])
+  // TEMP: allow same diagnosis multiple times per encounter
+  // @@unique([encounterId, diagnosisId])
 }
 
 // ==========================================================
