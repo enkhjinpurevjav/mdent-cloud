@@ -35,7 +35,6 @@ router.put("/encounters/:id/diagnoses", async (req, res) => {
     const body = req.body || {};
     const items = Array.isArray(body.items) ? body.items : [];
 
-    // Example item: { diagnosisId: number, selectedProblemIds: number[], note?: string }
     const cleaned = items
       .filter((it) => it && typeof it.diagnosisId === "number")
       .map((it) => {
