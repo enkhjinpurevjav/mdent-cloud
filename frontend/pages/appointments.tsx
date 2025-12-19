@@ -2633,46 +2633,21 @@ const [dayEndSlots, setDayEndSlots] = useState<
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>([]);
-  const [error, setError] = useState("");
-  const [nowPosition, setNowPosition] = useState<number | null>(null);
-  const [hasMounted, setHasMounted] = useState(false);
+const [branches, setBranches] = useState<Branch[]>([]);
+const [doctors, setDoctors] = useState<Doctor[]>([]);
+const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>([]);
+const [error, setError] = useState("");
+const [nowPosition, setNowPosition] = useState<number | null>(null);
+const [hasMounted, setHasMounted] = useState(false);
   
-    useEffect(() => {
-    // only show the line for the selected day
-    const updateNowPosition = () => {
-      const now = new Date();
-
-      const selectedDayKey = filterDate;
-      const nowKey = now.toISOString().slice(0, 10);
-      if (nowKey !== selectedDayKey) {
-        setNowPosition(null);
-        return;
-      }
-
-      // clamp between firstSlot and lastSlot
-      const clamped =
-        Math.min(Math.max(now.getTime(), firstSlot.getTime()), lastSlot.getTime());
-
-      const minutesFromStart = (clamped - firstSlot.getTime()) / 60000;
-      const pos = (minutesFromStart / totalMinutes) * columnHeightPx;
-
-      setNowPosition(pos);
-    };
-
-    updateNowPosition();
-    const id = setInterval(updateNowPosition, 60_000); // update every minute
-    return () => clearInterval(id);
-  }, [filterDate, firstSlot.getTime(), lastSlot.getTime(), totalMinutes, columnHeightPx]);
+    
   
   useEffect(() => {
     setHasMounted(true);
   }, []);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const [filterDate, setFilterDate] = useState<string>(todayStr);
+  *const todayStr = new Date().toISOString().slice(0, 10);
+  *const [filterDate, setFilterDate] = useState<string>(todayStr);
   const [filterBranchId, setFilterBranchId] = useState<string>("");
   const [filterDoctorId, setFilterDoctorId] = useState<string>("");
 
@@ -2841,7 +2816,35 @@ export default function AppointmentsPage() {
     (lastSlot.getTime() - firstSlot.getTime()) / 60000 || 1;
 
   const columnHeightPx = 60 * (totalMinutes / 60); // 60px per hour
+useEffect(() => {
+  const updateNowPosition = () => {
+    const now = new Date();
 
+    const selectedDayKey = filterDate;
+    const nowKey = now.toISOString().slice(0, 10);
+
+    // Only show the line when viewing today
+    if (nowKey !== selectedDayKey) {
+      setNowPosition(null);
+      return;
+    }
+
+    // Clamp between firstSlot and lastSlot
+    const clamped = Math.min(
+      Math.max(now.getTime(), firstSlot.getTime()),
+      lastSlot.getTime()
+    );
+
+    const minutesFromStart = (clamped - firstSlot.getTime()) / 60000;
+    const pos = (minutesFromStart / totalMinutes) * columnHeightPx;
+
+    setNowPosition(pos);
+  };
+
+  updateNowPosition();
+  const id = setInterval(updateNowPosition, 60_000);
+  return () => clearInterval(id);
+}, [filterDate, firstSlot, lastSlot, totalMinutes, columnHeightPx]);
   const getStatusColor = (status: string): string => {
     switch (status) {
       case "completed":
