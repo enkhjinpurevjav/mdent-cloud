@@ -2782,45 +2782,43 @@ export default function AppointmentsPage() {
               </div>
 
                             {/* Doctor columns */}
-              {gridDoctors.map((doc) => {
-                const doctorAppointments = appointments.filter(
-                  (a) =>
-                    a.doctorId === doc.id &&
-                    getAppointmentDayKey(a) === filterDate
-                );
-
-                const handleCellClick = (
-  clickedMinutes: number,
-  existingApps: Appointment[]
-) => {
-  const slotTime = new Date(firstSlot.getTime() + clickedMinutes * 60000);
-  const slotTimeStr = getSlotTimeString(slotTime);
-
-  // Only apps that belong to THIS doctor & day (defensive)
-  const validApps = existingApps.filter(
-    (a) => a.doctorId === doc.id && getAppointmentDayKey(a) === filterDate
+             {gridDoctors.map((doc) => {
+  const doctorAppointments = appointments.filter(
+    (a) =>
+      a.doctorId === doc.id &&
+      getAppointmentDayKey(a) === filterDate
   );
 
-  if (validApps.length === 2) {
-    // Slot already has 2 appointments → show details
-    setDetailsModalState({
-      open: true,
-      doctor: doc,
-      slotLabel: slotTimeStr,
-      slotTime: slotTimeStr,
-      date: filterDate,
-      appointments: validApps,
-    });
-  } else {
-    // 0 or 1 appointment in this slot: treat as available → quick-create
-    setQuickModalState({
-      open: true,
-      doctorId: doc.id,
-      date: filterDate,
-      time: slotTimeStr,
-    });
-  }
-};
+  const handleCellClick = (
+    clickedMinutes: number,
+    existingApps: Appointment[]
+  ) => {
+    const slotTime = new Date(firstSlot.getTime() + clickedMinutes * 60000);
+    const slotTimeStr = getSlotTimeString(slotTime);
+
+    const validApps = existingApps.filter(
+      (a) => a.doctorId === doc.id && getAppointmentDayKey(a) === filterDate
+    );
+
+    // IMPORTANT: capacity logic
+    if (validApps.length === 2) {
+      setDetailsModalState({
+        open: true,
+        doctor: doc,
+        slotLabel: slotTimeStr,
+        slotTime: slotTimeStr,
+        date: filterDate,
+        appointments: validApps,
+      });
+    } else {
+      setQuickModalState({
+        open: true,
+        doctorId: doc.id,
+        date: filterDate,
+        time: slotTimeStr,
+      });
+    }
+  };
 
                 return (
                   <div
@@ -2852,39 +2850,23 @@ export default function AppointmentsPage() {
 
   // Appointments for THIS doctor that intersect THIS 30-min slot
   const appsInThisSlot = doctorAppointments.filter((a) => {
-  const start = new Date(a.scheduledAt);
-  if (Number.isNaN(start.getTime())) return false;
-  const end =
-    a.endAt &&
-    !Number.isNaN(new Date(a.endAt).getTime())
-      ? new Date(a.endAt)
-      : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
-  return start < slot.end && end > slot.start;
-});
-
-// DEBUG:
-if (appsInThisSlot.length > 0) {
-  console.log("SLOT HAS APPS", {
-    doctorId: doc.id,
-    doctorName: doc.name,
-    slot: slotTimeStr,
-    apps: appsInThisSlot.map((a) => ({
-      id: a.id,
-      patient: a.patient?.name,
-      start: a.scheduledAt,
-      end: a.endAt,
-    })),
+    const start = new Date(a.scheduledAt);
+    if (Number.isNaN(start.getTime())) return false;
+    const end =
+      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+        ? new Date(a.endAt)
+        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+    return start < slot.end && end > slot.start;
   });
-}
-                    
+
   return (
-  <div
-    key={index}
-    onClick={() =>
-      isNonWorking
-        ? undefined
-        : handleCellClick(slotStartMin, appsInThisSlot)
-    }
+    <div
+      key={index}
+      onClick={() =>
+        isNonWorking
+          ? undefined
+          : handleCellClick(slotStartMin, appsInThisSlot)
+      }
       style={{
         position: "absolute",
         left: 0,
