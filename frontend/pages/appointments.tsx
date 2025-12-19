@@ -2749,7 +2749,7 @@ export default function AppointmentsPage() {
                 })}
               </div>
 
-              {/* Doctor columns */}
+                            {/* Doctor columns */}
               {gridDoctors.map((doc) => {
                 const doctorAppointments = appointments.filter(
                   (a) =>
@@ -2827,8 +2827,7 @@ export default function AppointmentsPage() {
                           !Number.isNaN(new Date(a.endAt).getTime())
                             ? new Date(a.endAt)
                             : new Date(
-                                start.getTime() +
-                                  SLOT_MINUTES * 60 * 1000
+                                start.getTime() + SLOT_MINUTES * 60 * 1000
                               );
                         return start < slot.end && end > slot.start;
                       });
@@ -2843,7 +2842,8 @@ export default function AppointmentsPage() {
                             position: "absolute",
                             left: 0,
                             right: 0,
-                            top: (slotStartMin / totalMinutes) * columnHeightPx,
+                            top:
+                              (slotStartMin / totalMinutes) * columnHeightPx,
                             height: slotHeight,
                             borderBottom: "1px solid #f0f0f0",
                             backgroundColor: isNonWorking
@@ -2857,132 +2857,140 @@ export default function AppointmentsPage() {
                           }}
                         />
                       );
-                    // Build a quick map: does this appointment ever overlap with another
-// for this doctor on this day?
-const overlapsWithOther: Record<number, boolean> = {};
-for (let i = 0; i < doctorAppointments.length; i++) {
-  const a = doctorAppointments[i];
-  const aStart = new Date(a.scheduledAt).getTime();
-  const aEnd =
-    a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-      ? new Date(a.endAt).getTime()
-      : aStart + SLOT_MINUTES * 60 * 1000;
-
-  overlapsWithOther[a.id] = false;
-
-  for (let j = 0; j < doctorAppointments.length; j++) {
-    if (i === j) continue;
-    const b = doctorAppointments[j];
-    const bStart = new Date(b.scheduledAt).getTime();
-    const bEnd =
-      b.endAt && !Number.isNaN(new Date(b.endAt).getTime())
-        ? new Date(b.endAt).getTime()
-        : bStart + SLOT_MINUTES * 60 * 1000;
-
-    // intervals overlap?
-    if (aStart < bEnd && aEnd > bStart) {
-      overlapsWithOther[a.id] = true;
-      break;
-    }
-  }
-}
                     })}
 
+                    {/* Build a map: does this appointment ever overlap another
+                        appointment for this doctor on this day? */}
+                    {(() => {
+                      const overlapsWithOther: Record<number, boolean> = {};
 
-                    
-                    {/* Appointment blocks */}
-                    {doctorAppointments.map((a) => {
-                      const start = new Date(a.scheduledAt);
-                      if (Number.isNaN(start.getTime())) return null;
-                      const end =
-                        a.endAt &&
-                        !Number.isNaN(new Date(a.endAt).getTime())
-                          ? new Date(a.endAt)
-                          : new Date(
-                              start.getTime() +
-                                SLOT_MINUTES * 60 * 1000
-                            );
+                      for (let i = 0; i < doctorAppointments.length; i++) {
+                        const a = doctorAppointments[i];
+                        const aStart = new Date(a.scheduledAt).getTime();
+                        const aEnd =
+                          a.endAt &&
+                          !Number.isNaN(new Date(a.endAt).getTime())
+                            ? new Date(a.endAt).getTime()
+                            : aStart + SLOT_MINUTES * 60 * 1000;
 
-                      const clampedStart = new Date(
-                        Math.max(start.getTime(), firstSlot.getTime())
-                      );
-                      const clampedEnd = new Date(
-                        Math.min(end.getTime(), lastSlot.getTime())
-                      );
-                      const startMin =
-                        (clampedStart.getTime() - firstSlot.getTime()) /
-                        60000;
-                      const endMin =
-                        (clampedEnd.getTime() - firstSlot.getTime()) / 60000;
+                        overlapsWithOther[a.id] = false;
 
-                      if (endMin <= 0 || startMin >= totalMinutes) {
-                        return null;
+                        for (let j = 0; j < doctorAppointments.length; j++) {
+                          if (i === j) continue;
+                          const b = doctorAppointments[j];
+                          const bStart =
+                            new Date(b.scheduledAt).getTime();
+                          const bEnd =
+                            b.endAt &&
+                            !Number.isNaN(new Date(b.endAt).getTime())
+                              ? new Date(b.endAt).getTime()
+                              : bStart + SLOT_MINUTES * 60 * 1000;
+
+                          if (aStart < bEnd && aEnd > bStart) {
+                            overlapsWithOther[a.id] = true;
+                            break;
+                          }
+                        }
                       }
 
-                      const top = (startMin / totalMinutes) * columnHeightPx;
-                      const height =
-                        ((endMin - startMin) / totalMinutes) *
-                        columnHeightPx;
+                      /* Appointment blocks */
+                      return doctorAppointments.map((a) => {
+                        const start = new Date(a.scheduledAt);
+                        if (Number.isNaN(start.getTime())) return null;
+                        const end =
+                          a.endAt &&
+                          !Number.isNaN(new Date(a.endAt).getTime())
+                            ? new Date(a.endAt)
+                            : new Date(
+                                start.getTime() +
+                                  SLOT_MINUTES * 60 * 1000
+                              );
 
-                      const lane = laneById[a.id] ?? 0;
-const hasOverlap = overlapsWithOther[a.id];
+                        const clampedStart = new Date(
+                          Math.max(start.getTime(), firstSlot.getTime())
+                        );
+                        const clampedEnd = new Date(
+                          Math.min(end.getTime(), lastSlot.getTime())
+                        );
+                        const startMin =
+                          (clampedStart.getTime() - firstSlot.getTime()) /
+                          60000;
+                        const endMin =
+                          (clampedEnd.getTime() - firstSlot.getTime()) / 60000;
 
-// If this appointment NEVER overlaps any other one for this doctor/day,
-// use full width. Only split into 2 lanes when there is an actual overlap.
-const widthPercent = hasOverlap ? 50 : 100;
-const leftPercent = hasOverlap ? (lane === 0 ? 0 : 50) : 0;
+                        if (endMin <= 0 || startMin >= totalMinutes) {
+                          return null;
+                        }
 
-                      return (
-                        <div
-                          key={a.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDetailsModalState({
-                              open: true,
-                              doctor: doc,
-                              slotLabel: "",
-                              slotTime: "",
-                              date: filterDate,
-                              appointments: [a],
-                            });
-                          }}
-                          style={{
-                            position: "absolute",
-                            left: `${leftPercent}%`,
-                            width: `${widthPercent}%`,
-                            top,
-                            height: Math.max(height, 18),
-                            padding: "1px 3px",
-                            boxSizing: "border-box",
-                            backgroundColor: getStatusColor(a.status),
-                            borderRadius: 4,
-                            fontSize: 11,
-                            lineHeight: 1.2,
-                            color:
-                              a.status === "completed" ||
-                              a.status === "cancelled"
-                                ? "#ffffff"
-                                : "#111827",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            textAlign: "center",
-                            overflow: "hidden",
-                            wordBreak: "break-word",
-                            boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
-                            cursor: "pointer",
-                          }}
-                          title={`${formatPatientLabel(
-                            a.patient,
-                            a.patientId
-                          )} (${formatStatus(a.status)})`}
-                        >
-                          {`${formatGridShortLabel(a)} (${formatStatus(
-                            a.status
-                          )})`}
-                        </div>
-                      );
-                    })}
+                        const top =
+                          (startMin / totalMinutes) * columnHeightPx;
+                        const height =
+                          ((endMin - startMin) / totalMinutes) *
+                          columnHeightPx;
+
+                        const lane = laneById[a.id] ?? 0;
+                        const hasOverlap = overlapsWithOther[a.id];
+
+                        // full width if no overlaps, split in 2 lanes if overlaps
+                        const widthPercent = hasOverlap ? 50 : 100;
+                        const leftPercent = hasOverlap
+                          ? lane === 0
+                            ? 0
+                            : 50
+                          : 0;
+
+                        return (
+                          <div
+                            key={a.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDetailsModalState({
+                                open: true,
+                                doctor: doc,
+                                slotLabel: "",
+                                slotTime: "",
+                                date: filterDate,
+                                appointments: [a],
+                              });
+                            }}
+                            style={{
+                              position: "absolute",
+                              left: `${leftPercent}%`,
+                              width: `${widthPercent}%`,
+                              top,
+                              height: Math.max(height, 18),
+                              padding: "1px 3px",
+                              boxSizing: "border-box",
+                              backgroundColor: getStatusColor(a.status),
+                              borderRadius: 4,
+                              fontSize: 11,
+                              lineHeight: 1.2,
+                              color:
+                                a.status === "completed" ||
+                                a.status === "cancelled"
+                                  ? "#ffffff"
+                                  : "#111827",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              textAlign: "center",
+                              overflow: "hidden",
+                              wordBreak: "break-word",
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+                              cursor: "pointer",
+                            }}
+                            title={`${formatPatientLabel(
+                              a.patient,
+                              a.patientId
+                            )} (${formatStatus(a.status)})`}
+                          >
+                            {`${formatGridShortLabel(a)} (${formatStatus(
+                              a.status
+                            )})`}
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 );
               })}
