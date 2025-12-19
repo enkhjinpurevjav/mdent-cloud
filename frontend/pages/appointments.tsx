@@ -2857,8 +2857,39 @@ export default function AppointmentsPage() {
                           }}
                         />
                       );
+                    // Build a quick map: does this appointment ever overlap with another
+// for this doctor on this day?
+const overlapsWithOther: Record<number, boolean> = {};
+for (let i = 0; i < doctorAppointments.length; i++) {
+  const a = doctorAppointments[i];
+  const aStart = new Date(a.scheduledAt).getTime();
+  const aEnd =
+    a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+      ? new Date(a.endAt).getTime()
+      : aStart + SLOT_MINUTES * 60 * 1000;
+
+  overlapsWithOther[a.id] = false;
+
+  for (let j = 0; j < doctorAppointments.length; j++) {
+    if (i === j) continue;
+    const b = doctorAppointments[j];
+    const bStart = new Date(b.scheduledAt).getTime();
+    const bEnd =
+      b.endAt && !Number.isNaN(new Date(b.endAt).getTime())
+        ? new Date(b.endAt).getTime()
+        : bStart + SLOT_MINUTES * 60 * 1000;
+
+    // intervals overlap?
+    if (aStart < bEnd && aEnd > bStart) {
+      overlapsWithOther[a.id] = true;
+      break;
+    }
+  }
+}
                     })}
 
+
+                    
                     {/* Appointment blocks */}
                     {doctorAppointments.map((a) => {
                       const start = new Date(a.scheduledAt);
@@ -2894,8 +2925,12 @@ export default function AppointmentsPage() {
                         columnHeightPx;
 
                       const lane = laneById[a.id] ?? 0;
-                      const widthPercent = 50;
-                      const leftPercent = lane === 0 ? 0 : 50;
+const hasOverlap = overlapsWithOther[a.id];
+
+// If this appointment NEVER overlaps any other one for this doctor/day,
+// use full width. Only split into 2 lanes when there is an actual overlap.
+const widthPercent = hasOverlap ? 50 : 100;
+const leftPercent = hasOverlap ? (lane === 0 ? 0 : 50) : 0;
 
                       return (
                         <div
