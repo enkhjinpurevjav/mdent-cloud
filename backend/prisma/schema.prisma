@@ -234,6 +234,27 @@ model PatientBook {
   encounters Encounter[]
 }
 
+model Diagnosis {
+  id          Int                  @id @default(autoincrement())
+  code        String               @unique
+  name        String               // Short name/title
+  description String?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  problems    DiagnosisProblem[]
+  encounters  EncounterDiagnosis[]
+}
+
+model DiagnosisProblem {
+  id           Int        @id @default(autoincrement())
+  diagnosisId  Int
+  label        String
+  order        Int        @default(0)
+  active       Boolean    @default(true)
+
+  diagnosis    Diagnosis  @relation(fields: [diagnosisId], references: [id])
+}
 model Encounter {
   id                 Int           @id @default(autoincrement())
   patientBookId      Int
@@ -255,6 +276,25 @@ model Encounter {
 
   // Services performed in this encounter
   encounterServices  EncounterService[]
+
+diagnoses     EncounterDiagnosis[]
+
+}
+
+model EncounterDiagnosis {
+  id                  Int        @id @default(autoincrement())
+  encounterId         Int
+  diagnosisId         Int
+  // List of problem IDs from DiagnosisProblem for this encounter
+  selectedProblemIds  Json?      // e.g. [1,3,5]
+  note                String?
+
+  encounter           Encounter  @relation(fields: [encounterId], references: [id])
+  diagnosis           Diagnosis  @relation(fields: [diagnosisId], references: [id])
+
+  createdAt           DateTime   @default(now())
+
+  @@unique([encounterId, diagnosisId])
 }
 
 // ==========================================================
