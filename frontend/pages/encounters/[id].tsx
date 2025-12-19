@@ -340,7 +340,7 @@ export default function EncounterAdminPage() {
           fontFamily: "sans-serif",
         }}
       >
-        <h1>Уулзалтын дэлгэрэнгүй</h1>
+        <h1>Үзлэгийн дэлгэрэнгүй</h1>
         <div style={{ color: "red" }}>ID буруу байна.</div>
       </main>
     );
@@ -356,7 +356,7 @@ export default function EncounterAdminPage() {
       }}
     >
       <h1 style={{ fontSize: 20, marginBottom: 12 }}>
-        Уулзалтын дэлгэрэнгүй (ID: {encounterId})
+        Үзлэгийн дэлгэрэнгүй (ID: {encounterId})
       </h1>
 
       {encounterLoading && <div>Ачаалж байна...</div>}
