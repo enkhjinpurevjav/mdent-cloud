@@ -675,7 +675,7 @@ function AppointmentDetailsModal({
   );
 }
 
-QuickAppointmentModal
+
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -1061,40 +1061,50 @@ QuickAppointmentModal
             </select>
           </div>
 
-          {/* Start time */}
+                    {/* Start time */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label>Эхлэх цаг</label>
             <select
-    name="startTime"
-    value={form.startTime}
-    onChange={handleChange}
-    required
-    style={{ ... }}
-  >
-    <option value="">Эхлэх цаг сонгох</option>
-    {popupStartSlots.map((slot) => (
-      <option key={slot.value} value={slot.value}>
-        {slot.label}
-      </option>
-    ))}
-  </select>
+              name="startTime"
+              value={form.startTime}
+              onChange={handleChange}
+              required
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            >
+              <option value="">Эхлэх цаг сонгох</option>
+              {popupStartSlots.map((slot) => (
+                <option key={slot.value} value={slot.value}>
+                  {slot.label}
+                </option>
+              ))}
+            </select>
+          </div>
 
-  End time select:
-
-  <select
-    name="endTime"
-    value={form.endTime}
-    onChange={handleChange}
-    required
-    style={{ ... }}
-  >
-    <option value="">Дуусах цаг сонгох</option>
-    {popupEndSlots.map((slot) => (
-      <option key={slot.value} value={slot.value}>
-        {slot.label}
-      </option>
-    ))}
-  </select>
+          {/* End time */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Дуусах цаг</label>
+            <select
+              name="endTime"
+              value={form.endTime}
+              onChange={handleChange}
+              required
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            >
+              <option value="">Дуусах цаг сонгох</option>
+              {popupEndSlots.map((slot) => (
+                <option key={slot.value} value={slot.value}>
+                  {slot.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Status */}
@@ -1904,44 +1914,56 @@ useEffect(() => {
         />
       </div>
 
-      {/* Start time */}
+            {/* Start time */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Эхлэх цаг</label>
         <select
-    name="startTime"
-    value={form.startTime}
-    onChange={(e) => {
-      handleChange(e);
-      setError("");
-    }}
-    required
-    style={{ ... }}
-  >
-    <option value="">Эхлэх цаг сонгох</option>
-    {dayStartSlots.map((slot) => (
-      <option key={slot.value} value={slot.value}>
-        {slot.label}
-      </option>
-    ))}
-  </select>
+          name="startTime"
+          value={form.startTime}
+          onChange={(e) => {
+            handleChange(e);
+            setError("");
+          }}
+          required
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Эхлэх цаг сонгох</option>
+          {dayStartSlots.map((slot) => (
+            <option key={slot.value} value={slot.value}>
+              {slot.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
-  <select
-    name="endTime"
-    value={form.endTime}
-    onChange={(e) => {
-      handleChange(e);
-      setError("");
-    }}
-    required
-    style={{ ... }}
-  >
-    <option value="">Дуусах цаг сонгох</option>
-    {dayEndSlots.map((slot) => (
-      <option key={slot.value} value={slot.value}>
-        {slot.label}
-      </option>
-    ))}
-  </select>
+      {/* End time */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Дуусах цаг</label>
+        <select
+          name="endTime"
+          value={form.endTime}
+          onChange={(e) => {
+            handleChange(e);
+            setError("");
+          }}
+          required
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Дуусах цаг сонгох</option>
+          {dayEndSlots.map((slot) => (
+            <option key={slot.value} value={slot.value}>
+              {slot.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Status */}
