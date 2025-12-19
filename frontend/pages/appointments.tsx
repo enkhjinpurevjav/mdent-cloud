@@ -297,18 +297,9 @@ function computeAppointmentLanesForDayAndDoctor(
   return result;
 }
 
-/**
- * For absolute positioning: minutes from (clinic) day start.
- */
-function getMinutesFromDayStart(date: Date, clinicDay: Date) {
-  const d = new Date(date);
-  const startOfDay = new Date(clinicDay);
-  startOfDay.setHours(0, 0, 0, 0);
-  return Math.max(0, Math.round((d.getTime() - startOfDay.getTime()) / 60000));
-}
 
 // ==== Appointment Details Modal ====
-// ... (unchanged code below here until AppointmentsPage) ...
+
 
 type AppointmentDetailsModalProps = {
   open: boolean;
@@ -2403,37 +2394,30 @@ export default function AppointmentsPage() {
     setFilterBranchId(branchId);
   };
 
-// Prefer scheduledDoctors (doctors with DoctorSchedule for this day/branch).
-// If none, fall back to doctors who actually have appointments on this date,
-// so the grid is still visible.
-const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
-  if (scheduledDoctors.length > 0) {
-    return scheduledDoctors;
-  }
+  // gridDoctors with fallback when no schedules
+  const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
+    if (scheduledDoctors.length > 0) return scheduledDoctors;
 
-  const dayKey = filterDate;
-  const byDoctor: Record<number, ScheduledDoctor> = {};
+    const dayKey = filterDate;
+    const byDoctor: Record<number, ScheduledDoctor> = {};
 
-  for (const a of appointments) {
-    if (!a.doctorId) continue;
-    if (getAppointmentDayKey(a) !== dayKey) continue;
+    for (const a of appointments) {
+      if (!a.doctorId) continue;
+      if (getAppointmentDayKey(a) !== dayKey) continue;
 
-    if (!byDoctor[a.doctorId]) {
-      const baseDoc = doctors.find((d) => d.id === a.doctorId);
-      if (!baseDoc) continue;
-      byDoctor[a.doctorId] = {
-        ...baseDoc,
-        schedules: [], // no schedule info, but enough for the grid
-      };
+      if (!byDoctor[a.doctorId]) {
+        const baseDoc = doctors.find((d) => d.id === a.doctorId);
+        if (!baseDoc) continue;
+        byDoctor[a.doctorId] = { ...baseDoc, schedules: [] };
+      }
     }
-  }
 
-  return Object.values(byDoctor).sort((a, b) =>
-    (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase())
-  );
-}, [scheduledDoctors, appointments, doctors, filterDate]);
+    return Object.values(byDoctor).sort((a, b) =>
+      (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase())
+    );
+  }, [scheduledDoctors, appointments, doctors, filterDate]);
 
-  // ===== lane map for selected date (per doctor) =====
+  // lane map
   const laneById: Record<number, 0 | 1> = React.useMemo(() => {
     const map: Record<number, 0 | 1> = {};
     const dayKey = filterDate;
@@ -2442,7 +2426,6 @@ const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
     for (const a of appointments) {
       if (!a.doctorId) continue;
       if (getAppointmentDayKey(a) !== dayKey) continue;
-
       if (!byDoctor[a.doctorId]) byDoctor[a.doctorId] = [];
       byDoctor[a.doctorId].push(a);
     }
@@ -2457,15 +2440,13 @@ const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
     return map;
   }, [appointments, filterDate]);
 
-  // total minutes in visible clinic day for positioning
+  // total minutes for vertical positioning
   const firstSlot = timeSlots[0]?.start ?? selectedDay;
   const lastSlot = timeSlots[timeSlots.length - 1]?.end ?? selectedDay;
   const totalMinutes =
     (lastSlot.getTime() - firstSlot.getTime()) / 60000 || 1;
 
-  const columnHeightPx = 60 * (totalMinutes / 60); // 60px per hour baseline
-
-  const slotsPerHour = 60 / SLOT_MINUTES;
+  const columnHeightPx = 60 * (totalMinutes / 60); // 60px per hour
 
   const getStatusColor = (status: string): string => {
     switch (status) {
@@ -2491,8 +2472,166 @@ const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
         fontFamily: "sans-serif",
       }}
     >
-      {/* header, branch tabs, filters, create form, etc – KEEP your existing JSX here */}
-      {/* ... */}
+      <h1 style={{ fontSize: 20, marginBottom: 8 }}>Цаг захиалга</h1>
+      <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
+        Өвчтөн, эмч, салбарын цаг захиалгуудыг харах, нэмэх, удирдах.
+      </p>
+
+      {/* Branch view tabs */}
+      <section
+        style={{
+          marginBottom: 12,
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          borderBottom: "1px solid #e5e7eb",
+          paddingBottom: 8,
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => handleBranchTabClick("")}
+          style={{
+            padding: "6px 12px",
+            borderRadius: 999,
+            border: "1px solid transparent",
+            backgroundColor: activeBranchTab === "" ? "#2563eb" : "transparent",
+            color: activeBranchTab === "" ? "#ffffff" : "#374151",
+            fontSize: 13,
+            cursor: "pointer",
+          }}
+        >
+          Бүх салбар
+        </button>
+        {branches.map((b) => {
+          const idStr = String(b.id);
+          const isActive = activeBranchTab === idStr;
+          return (
+            <button
+              key={b.id}
+              type="button"
+              onClick={() => handleBranchTabClick(idStr)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 999,
+                border: isActive ? "1px solid #2563eb" : "1px solid #d1d5db",
+                backgroundColor: isActive ? "#eff6ff" : "#ffffff",
+                color: isActive ? "#1d4ed8" : "#374151",
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              {b.name}
+            </button>
+          );
+        })}
+      </section>
+
+      {/* Filters card */}
+      <section
+        style={{
+          marginBottom: 16,
+          padding: 12,
+          borderRadius: 8,
+          border: "1px solid #e5e7eb",
+          background: "#f9fafb",
+          fontSize: 13,
+        }}
+      >
+        <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: 16 }}>
+          Шүүлтүүр
+        </h2>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 12,
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Огноо</label>
+            <input
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            />
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Салбар</label>
+            <select
+              value={filterBranchId}
+              onChange={(e) => {
+                const value = e.target.value;
+                setFilterBranchId(value);
+                setActiveBranchTab(value);
+              }}
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            >
+              <option value="">Бүх салбар</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Эмч</label>
+            <select
+              value={filterDoctorId}
+              onChange={(e) => setFilterDoctorId(e.target.value)}
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            >
+              <option value="">Бүх эмч</option>
+              {doctors.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {formatDoctorName(d)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </section>
+
+      {/* Create form card */}
+      <section
+        ref={formSectionRef as any}
+        style={{
+          marginBottom: 24,
+          padding: 16,
+          borderRadius: 8,
+          border: "1px solid #e5e7eb",
+          background: "white",
+        }}
+      >
+        <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: 16 }}>
+          Шинэ цаг захиалах
+        </h2>
+        <AppointmentForm
+          branches={branches}
+          doctors={doctors}
+          scheduledDoctors={scheduledDoctors}
+          appointments={appointments}
+          selectedDate={filterDate}
+          selectedBranchId={filterBranchId}
+          onCreated={(a) => setAppointments((prev) => [a, ...prev])}
+        />
+      </section>
 
       {error && (
         <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
@@ -2500,7 +2639,7 @@ const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
         </div>
       )}
 
-      {/* Time grid by doctor – NEW implementation */}
+      {/* Time grid by doctor – NEW implementation with absolute positioning */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
@@ -2583,7 +2722,8 @@ const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
                 {timeSlots.map((slot, index) => {
                   const slotStartMin =
                     (slot.start.getTime() - firstSlot.getTime()) / 60000;
-                  const slotHeight = (SLOT_MINUTES / totalMinutes) * columnHeightPx;
+                  const slotHeight =
+                    (SLOT_MINUTES / totalMinutes) * columnHeightPx;
 
                   return (
                     <div
@@ -2621,7 +2761,9 @@ const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
                   clickedMinutes: number,
                   existingApps: Appointment[]
                 ) => {
-                  const slotTime = new Date(firstSlot.getTime() + clickedMinutes * 60000);
+                  const slotTime = new Date(
+                    firstSlot.getTime() + clickedMinutes * 60000
+                  );
                   const slotTimeStr = getSlotTimeString(slotTime);
 
                   if (existingApps.length === 0) {
@@ -2653,7 +2795,7 @@ const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
                       backgroundColor: "#ffffff",
                     }}
                   >
-                    {/* background stripes */}
+                    {/* background stripes & click areas */}
                     {timeSlots.map((slot, index) => {
                       const slotStartMin =
                         (slot.start.getTime() - firstSlot.getTime()) / 60000;
@@ -2730,7 +2872,6 @@ const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
                                 SLOT_MINUTES * 60 * 1000
                             );
 
-                      // clamp to visible range
                       const clampedStart = new Date(
                         Math.max(start.getTime(), firstSlot.getTime())
                       );
@@ -2793,8 +2934,7 @@ const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
                             textAlign: "center",
                             overflow: "hidden",
                             wordBreak: "break-word",
-                            boxShadow:
-                              "0 1px 2px rgba(0,0,0,0.2)",
+                            boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
                             cursor: "pointer",
                           }}
                           title={`${formatPatientLabel(
@@ -2816,7 +2956,10 @@ const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
         )}
       </section>
 
-      {/* Modals */}
+      {/* Day-grouped calendar (unchanged from your original) */}
+      {/* ... and the raw table + modals, same as before ... */}
+      {/* Keep your existing bottom sections exactly as they were. */}
+
       <AppointmentDetailsModal
         open={detailsModalState.open}
         onClose={() =>
