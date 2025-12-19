@@ -328,28 +328,7 @@ model EncounterDiagnosis {
 // ==========================================================
 // CHARTING (Tooth Records)
 // ==========================================================
-model ChartTooth {
-  id          Int        @id @default(autoincrement())
 
-  /// FDI tooth code (e.g. "11", "26")
-  toothCode   String
-
-  status      String?
-  notes       String?
-
-  encounterId Int
-  encounter   Encounter  @relation(fields: [encounterId], references: [id])
-
-  chartNotes  ChartNote[]
-}
-
-model ChartNote {
-  id           Int        @id @default(autoincrement())
-  chartToothId Int
-  description  String
-  createdAt    DateTime   @default(now())
-  chartTooth   ChartTooth @relation(fields: [chartToothId], references: [id])
-}
 
 // ==========================================================
 // SERVICES, PROCEDURES, DIAGNOSES
