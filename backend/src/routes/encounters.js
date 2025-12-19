@@ -75,19 +75,44 @@ router.put("/:id/diagnoses", async (req, res) => {
   }
 
   try {
-    // Hard delete outside transaction as a safety net
-    await prisma.encounterDiagnosis.deleteMany({
+    console.log("PUT /encounters/%d/diagnoses payload:", encounterId, items);
+
+    // Safety net delete
+    const deletedOutside = await prisma.encounterDiagnosis.deleteMany({
       where: { encounterId },
     });
+    console.log(
+      "Deleted outside transaction for encounter %d: %d rows",
+      encounterId,
+      deletedOutside.count
+    );
 
     await prisma.$transaction(async (trx) => {
-      // Just in case, delete again at transaction level.
-      await trx.encounterDiagnosis.deleteMany({
+      const deletedInside = await trx.encounterDiagnosis.deleteMany({
         where: { encounterId },
       });
+      console.log(
+        "Deleted inside transaction for encounter %d: %d rows",
+        encounterId,
+        deletedInside.count
+      );
 
       for (const item of items) {
         if (!item.diagnosisId) continue;
+
+        console.log(
+          "Creating EncounterDiagnosis row:",
+          JSON.stringify(
+            {
+              encounterId,
+              diagnosisId: item.diagnosisId,
+              selectedProblemIds: item.selectedProblemIds ?? [],
+              note: item.note ?? null,
+            },
+            null,
+            2
+          )
+        );
 
         await trx.encounterDiagnosis.create({
           data: {
