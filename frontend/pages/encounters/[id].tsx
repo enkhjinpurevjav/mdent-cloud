@@ -101,6 +101,13 @@ type EditableDiagnosis = {
   note: string;
 };
 
+type ChartToothRow = {
+  id?: number;
+  toothCode: string;
+  status?: string | null;
+  notes?: string | null;
+};
+
 function formatDateTime(iso: string) {
   try {
     const d = new Date(iso);
