@@ -2769,16 +2769,8 @@ export default function AppointmentsPage() {
     (a) => a.doctorId === doc.id && getAppointmentDayKey(a) === filterDate
   );
 
-  if (validApps.length === 0) {
-    // Behave as empty cell: quick-create new appointment
-    setQuickModalState({
-      open: true,
-      doctorId: doc.id,
-      date: filterDate,
-      time: slotTimeStr,
-    });
-  } else {
-    // There is at least one appointment for this doctor in this slot
+  if (validApps.length === 2) {
+    // Slot already has 2 appointments → show details
     setDetailsModalState({
       open: true,
       doctor: doc,
@@ -2786,6 +2778,14 @@ export default function AppointmentsPage() {
       slotTime: slotTimeStr,
       date: filterDate,
       appointments: validApps,
+    });
+  } else {
+    // 0 or 1 appointment in this slot: treat as available → quick-create
+    setQuickModalState({
+      open: true,
+      doctorId: doc.id,
+      date: filterDate,
+      time: slotTimeStr,
     });
   }
 };
@@ -2820,15 +2820,15 @@ export default function AppointmentsPage() {
 
   // Appointments for THIS doctor that intersect THIS 30-min slot
   const appsInThisSlot = doctorAppointments.filter((a) => {
-    const start = new Date(a.scheduledAt);
-    if (Number.isNaN(start.getTime())) return false;
-    const end =
-      a.endAt &&
-      !Number.isNaN(new Date(a.endAt).getTime())
-        ? new Date(a.endAt)
-        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
-    return start < slot.end && end > slot.start;
-  });
+  const start = new Date(a.scheduledAt);
+  if (Number.isNaN(start.getTime())) return false;
+  const end =
+    a.endAt &&
+    !Number.isNaN(new Date(a.endAt).getTime())
+      ? new Date(a.endAt)
+      : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+  return start < slot.end && end > slot.start;
+});
 
 // DEBUG:
 if (appsInThisSlot.length > 0) {
@@ -2846,13 +2846,13 @@ if (appsInThisSlot.length > 0) {
 }
                     
   return (
-    <div
-      key={index}
-      onClick={() =>
-        isNonWorking
-          ? undefined
-          : handleCellClick(slotStartMin, appsInThisSlot)
-      }
+  <div
+    key={index}
+    onClick={() =>
+      isNonWorking
+        ? undefined
+        : handleCellClick(slotStartMin, appsInThisSlot)
+    }
       style={{
         position: "absolute",
         left: 0,
