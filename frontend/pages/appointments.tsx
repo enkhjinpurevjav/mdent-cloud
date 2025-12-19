@@ -3031,31 +3031,33 @@ if (appsInThisSlot.length > 0) {
                               });
                             }}
                             style={{
-                              position: "absolute",
-                              left: `${leftPercent}%`,
-                              width: `${widthPercent}%`,
-                              top,
-                              height: Math.max(height, 18),
-                              padding: "1px 3px",
-                              boxSizing: "border-box",
-                              backgroundColor: getStatusColor(a.status),
-                              borderRadius: 4,
-                              fontSize: 11,
-                              lineHeight: 1.2,
-                              color:
-                                a.status === "completed" ||
-                                a.status === "cancelled"
-                                  ? "#ffffff"
-                                  : "#111827",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              textAlign: "center",
-                              overflow: "hidden",
-                              wordBreak: "break-word",
-                              boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
-                              cursor: "pointer",
-                            }}
+  position: "absolute",
+  left: `${leftPercent}%`,
+  width: `${widthPercent}%`,
+  top,
+  height: Math.max(height, 18),
+  padding: "1px 3px",
+  boxSizing: "border-box",
+  backgroundColor: getStatusColor(a.status),
+  borderRadius: 4,
+  // subtle border and inner separation
+  border: "1px solid rgba(0,0,0,0.08)",
+  fontSize: 11,
+  lineHeight: 1.2,
+  color:
+    a.status === "completed" || a.status === "cancelled"
+      ? "#ffffff"
+      : "#111827",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  textAlign: "center",
+  overflow: "hidden",
+  wordBreak: "break-word",
+  // slightly stronger shadow so each cell stands out
+  boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+  cursor: "pointer",
+}}
                             title={`${formatPatientLabel(
                               a.patient,
                               a.patientId
