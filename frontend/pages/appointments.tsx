@@ -676,6 +676,7 @@ type QuickAppointmentModalProps = {
   defaultTime: string; // HH:MM
   branches: Branch[];
   doctors: Doctor[];
+  scheduledDoctors: ScheduledDoctor[];
   appointments: Appointment[];
   onCreated: (a: Appointment) => void;
 };
@@ -688,6 +689,7 @@ function QuickAppointmentModal({
   defaultTime,
   branches,
   doctors,
+  scheduledDoctors,
   appointments,
   onCreated,
 }: QuickAppointmentModalProps) {
@@ -757,11 +759,9 @@ const [popupEndSlots, setPopupEndSlots] = useState<
   // Filter by doctor schedule if doctorId is selected
   if (form.doctorId) {
     const doctorIdNum = Number(form.doctorId);
-    const docWithSchedule = (doctors as any[]).find(
-      (d) => d.id === doctorIdNum
-    ) as ScheduledDoctor | undefined;
+    const doc = scheduledDoctors.find((sd) => sd.id === doctorIdNum);
+    const schedules = doc?.schedules || [];
 
-    const schedules = docWithSchedule?.schedules || [];
     if (schedules.length > 0) {
       slots = slots.filter((slot) => {
         const tStr = getSlotTimeString(slot.start);
@@ -780,7 +780,6 @@ const [popupEndSlots, setPopupEndSlots] = useState<
   setPopupStartSlots(startOptions);
   setPopupEndSlots(endOptions);
 
-  // Reset start/end if current value isn’t valid anymore
   if (
     form.startTime &&
     !startOptions.some((s) => s.value === form.startTime)
@@ -790,7 +789,7 @@ const [popupEndSlots, setPopupEndSlots] = useState<
   if (form.endTime && !endOptions.some((s) => s.value === form.endTime)) {
     setForm((prev) => ({ ...prev, endTime: "" }));
   }
-}, [form.date, form.doctorId, doctors]);
+}, [form.date, form.doctorId, scheduledDoctors]);
 
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
@@ -3104,19 +3103,20 @@ if (appsInThisSlot.length > 0) {
         }}
       />
 
-      <QuickAppointmentModal
-        open={quickModalState.open}
-        onClose={() =>
-          setQuickModalState((prev) => ({ ...prev, open: false }))
-        }
-        defaultDoctorId={quickModalState.doctorId}
-        defaultDate={quickModalState.date}
-        defaultTime={quickModalState.time}
-        branches={branches}
-        doctors={doctors}
-        appointments={appointments}
-        onCreated={(a) => setAppointments((prev) => [a, ...prev])}
-      />
+     <QuickAppointmentModal
+  open={quickModalState.open}
+  onClose={() =>
+    setQuickModalState((prev) => ({ ...prev, open: false }))
+  }
+  defaultDoctorId={quickModalState.doctorId}
+  defaultDate={quickModalState.date}
+  defaultTime={quickModalState.time}
+  branches={branches}
+  doctors={doctors}
+  scheduledDoctors={scheduledDoctors}
+  appointments={appointments}
+  onCreated={(a) => setAppointments((prev) => [a, ...prev])}
+/>
     </main>
   );
 }
