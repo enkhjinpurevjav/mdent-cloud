@@ -675,7 +675,100 @@ function AppointmentDetailsModal({
   );
 }
 
+// ==== Quick Appointment Modal (with start/end, default 30min) ====
 
+type QuickAppointmentModalProps = {
+  open: boolean;
+  onClose: () => void;
+  defaultDoctorId?: number;
+  defaultDate: string; // YYYY-MM-DD
+  defaultTime: string; // HH:MM
+  branches: Branch[];
+  doctors: Doctor[];
+  appointments: Appointment[];
+  onCreated: (a: Appointment) => void;
+};
+
+function QuickAppointmentModal({
+  open,
+  onClose,
+  defaultDoctorId,
+  defaultDate,
+  defaultTime,
+  branches,
+  doctors,
+  appointments,
+  onCreated,
+}: QuickAppointmentModalProps) {
+  const [form, setForm] = useState({
+    patientQuery: "",
+    patientId: null as number | null,
+    doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
+    branchId: branches.length ? String(branches[0].id) : "",
+    date: defaultDate,
+    startTime: defaultTime,
+    endTime: addMinutesToTimeString(defaultTime, SLOT_MINUTES),
+    status: "booked",
+    notes: "",
+  });
+  const [error, setError] = useState("");
+  const [patientResults, setPatientResults] = useState<PatientLite[]>([]);
+  const [patientSearchLoading, setPatientSearchLoading] = useState(false);
+  const [searchDebounceTimer, setSearchDebounceTimer] =
+    useState<NodeJS.Timeout | null>(null);
+
+  // NEW: separate start/end slot arrays for the popup
+  const [popupStartSlots, setPopupStartSlots] = useState<
+    { label: string; value: string }[]
+  >([]);
+  const [popupEndSlots, setPopupEndSlots] = useState<
+    { label: string; value: string }[]
+  >([]);
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (!open) return;
+    setForm((prev) => ({
+      ...prev,
+      doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
+      date: defaultDate,
+      startTime: defaultTime,
+      endTime: addMinutesToTimeString(defaultTime, SLOT_MINUTES),
+      patientId: null,
+      patientQuery: "",
+    }));
+    setError("");
+    setPatientResults([]);
+  }, [open, defaultDoctorId, defaultDate, defaultTime]);
+
+  // Build start/end options when date changes
+  useEffect(() => {
+    if (!form.date) {
+      setPopupStartSlots([]);
+      setPopupEndSlots([]);
+      return;
+    }
+    const [y, m, d] = form.date.split("-").map(Number);
+    if (!y || !m || !d) {
+      setPopupStartSlots([]);
+      setPopupEndSlots([]);
+      return;
+    }
+    const day = new Date(y, (m || 1) - 1, d || 1);
+    const { startOptions, endOptions } = buildStartEndOptionsForDay(day);
+    setPopupStartSlots(startOptions);
+    setPopupEndSlots(endOptions);
+  }, [form.date]);
+
+  // Default branch
+  useEffect(() => {
+    if (!form.branchId && branches.length > 0) {
+      setForm((prev) => ({
+        ...prev,
+        branchId: String(branches[0].id),
+      }));
+    }
+  }, [branches, form.branchId]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -1061,7 +1154,7 @@ function AppointmentDetailsModal({
             </select>
           </div>
 
-                    {/* Start time */}
+                     {/* Start time */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label>Эхлэх цаг</label>
             <select
@@ -2977,19 +3070,7 @@ if (appsInThisSlot.length > 0) {
         }}
       />
 
-      <QuickAppointmentModal
-        open={quickModalState.open}
-        onClose={() =>
-          setQuickModalState((prev) => ({ ...prev, open: false }))
-        }
-        defaultDoctorId={quickModalState.doctorId}
-        defaultDate={quickModalState.date}
-        defaultTime={quickModalState.time}
-        branches={branches}
-        doctors={doctors}
-        appointments={appointments}
-        onCreated={(a) => setAppointments((prev) => [a, ...prev])}
-      />
+      
     </main>
   );
 }
