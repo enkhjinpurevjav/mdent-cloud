@@ -237,5 +237,91 @@ router.patch("/:id", async (req, res) => {
     res.status(500).json({ error: "failed to update appointment" });
   }
 });
+router.post("/:id/start-encounter", async (req, res) => {
+  try {
+    const apptId = Number(req.params.id);
+    if (!apptId || Number.isNaN(apptId)) {
+      return res.status(400).json({ error: "Invalid appointment id" });
+    }
 
+    // 1) Load appointment with patient + patientBook
+    const appt = await prisma.appointment.findUnique({
+      where: { id: apptId },
+      include: {
+        patient: {
+          include: {
+            patientBook: true,
+          },
+        },
+        branch: true,
+        doctor: true,
+      },
+    });
+
+    if (!appt) {
+      return res.status(404).json({ error: "Appointment not found" });
+    }
+
+    // 2) Only allow when status is "ongoing" (Явагдаж байна)
+    if (appt.status !== "ongoing") {
+      return res.status(400).json({
+        error:
+          'Зөвхөн "Явагдаж байна" (ongoing) төлөвтэй цаг дээр үзлэг эхлүүлэх боломжтой.',
+      });
+    }
+
+    if (!appt.patient) {
+      return res
+        .status(400)
+        .json({ error: "Appointment has no patient linked" });
+    }
+
+    if (!appt.doctorId) {
+      return res.status(400).json({
+        error: "Энэ цаг дээр эмч сонгоогүй тул үзлэг эхлүүлэх боломжгүй.",
+      });
+    }
+
+    const patient = appt.patient;
+
+    // 3) Ensure patient has a PatientBook
+    let book = patient.patientBook;
+    if (!book) {
+      // If you want strict behavior, you could return 400 instead of auto-creating.
+      // For now we auto-create an empty bookNumber; you can later implement a generator.
+      book = await prisma.patientBook.create({
+        data: {
+          patientId: patient.id,
+          bookNumber: String(patient.id), // TODO: replace with proper generator
+        },
+      });
+    }
+
+    // 4) Find latest Encounter for this appointment, if any
+    let encounter = await prisma.encounter.findFirst({
+      where: { appointmentId: appt.id },
+      orderBy: { id: "desc" },
+    });
+
+    // 5) If none, create new Encounter
+    if (!encounter) {
+      encounter = await prisma.encounter.create({
+        data: {
+          patientBookId: book.id,
+          doctorId: appt.doctorId,
+          visitDate: appt.scheduledAt,
+          notes: null,
+          appointmentId: appt.id,
+        },
+      });
+    }
+
+    return res.json({ encounterId: encounter.id });
+  } catch (err) {
+    console.error("Error in POST /api/appointments/:id/start-encounter:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to start or open encounter for appointment" });
+  }
+});
 export default router;
