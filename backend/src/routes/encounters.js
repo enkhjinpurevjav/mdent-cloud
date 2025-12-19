@@ -3,37 +3,45 @@ import prisma from "../db.js";
 
 const router = express.Router();
 
-// GET /api/encounters - list all encounters
-router.get("/", async (req, res) => {
+// NEW: GET /api/encounters/:id (detailed view for admin)
+router.get("/:id", async (req, res) => {
   try {
-    const encounters = await prisma.encounter.findMany({
-      orderBy: { id: "asc" },
-      include: { patientBook: true, doctor: true }
-    });
-    res.json(encounters);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to fetch encounters" });
-  }
-});
+    const id = Number(req.params.id);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
 
-// POST /api/encounters - add new encounter
-router.post("/", async (req, res) => {
-  const { patientBookId, doctorId, visitDate, notes } = req.body;
-  if (!patientBookId || !doctorId || !visitDate) {
-    return res.status(400).json({ error: "Missing required fields" });
-  }
-  try {
-    const encounter = await prisma.encounter.create({
-      data: { patientBookId, doctorId, visitDate, notes }
+    const encounter = await prisma.encounter.findUnique({
+      where: { id },
+      include: {
+        patientBook: {
+          include: {
+            patient: {
+              include: {
+                branch: true,
+              },
+            },
+          },
+        },
+        doctor: true,
+        encounterDiagnoses: {
+          include: {
+            diagnosis: true,
+          },
+          orderBy: { createdAt: "asc" },
+        },
+      },
     });
-    res.status(201).json(encounter);
+
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    res.json(encounter);
   } catch (err) {
-    console.error("POST /api/encounters error:", err); // Already logs server-side
-    // CHANGE: Give full error details in output for debugging
-    res.status(500).json({ error: err.message, details: err });
+    console.error("GET /api/encounters/:id error:", err);
+    res.status(500).json({ error: "Failed to load encounter" });
   }
 });
 
 export default router;
-
-
