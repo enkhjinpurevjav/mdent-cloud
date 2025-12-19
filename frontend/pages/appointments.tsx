@@ -3039,7 +3039,7 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Time grid by doctor */}
+            {/* Time grid by doctor */}
       <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, marginBottom: 4 }}>
           Өдрийн цагийн хүснэгт (эмчээр)
@@ -3127,7 +3127,7 @@ export default function AppointmentsPage() {
                       left: 0,
                       right: 0,
                       top: nowPosition,
-                      borderTop: "2px dashed #ef4444", // or solid
+                      borderTop: "2px dashed #ef4444",
                       zIndex: 5,
                     }}
                   />
@@ -3215,6 +3215,36 @@ export default function AppointmentsPage() {
                   }
                 };
 
+                // Precompute overlaps for this doctor's appointments
+                const overlapsWithOther: Record<number, boolean> = {};
+                for (let i = 0; i < doctorAppointments.length; i++) {
+                  const a = doctorAppointments[i];
+                  const aStart = new Date(a.scheduledAt).getTime();
+                  const aEnd =
+                    a.endAt &&
+                    !Number.isNaN(new Date(a.endAt).getTime())
+                      ? new Date(a.endAt).getTime()
+                      : aStart + SLOT_MINUTES * 60 * 1000;
+
+                  overlapsWithOther[a.id] = false;
+
+                  for (let j = 0; j < doctorAppointments.length; j++) {
+                    if (i === j) continue;
+                    const b = doctorAppointments[j];
+                    const bStart = new Date(b.scheduledAt).getTime();
+                    const bEnd =
+                      b.endAt &&
+                      !Number.isNaN(new Date(b.endAt).getTime())
+                        ? new Date(b.endAt).getTime()
+                        : bStart + SLOT_MINUTES * 60 * 1000;
+
+                    if (aStart < bEnd && aEnd > bStart) {
+                      overlapsWithOther[a.id] = true;
+                      break;
+                    }
+                  }
+                }
+
                 return (
                   <div
                     key={doc.id}
@@ -3242,7 +3272,8 @@ export default function AppointmentsPage() {
                         )
                       );
                       const weekdayIndex = slot.start.getDay();
-                      const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
+                      const isWeekend =
+                        weekdayIndex === 0 || weekdayIndex === 6;
                       const isWeekendLunch =
                         isWeekend &&
                         isTimeWithinRange(slotTimeStr, "14:00", "15:00");
@@ -3291,244 +3322,102 @@ export default function AppointmentsPage() {
                       );
                     })}
 
-                      /* Appointment blocks */
-                      return doctorAppointments.map((a) => {
-                        const start = new Date(a.scheduledAt);
-                        if (Number.isNaN(start.getTime())) return null;
-                        const end =
-                          a.endAt &&
-                          !Number.isNaN(new Date(a.endAt).getTime())
-                            ? new Date(a.endAt)
-                            : new Date(
-                                start.getTime() +
-                                  SLOT_MINUTES * 60 * 1000
-                              );
+                    {/* Appointment blocks */}
+                    {doctorAppointments.map((a) => {
+                      const start = new Date(a.scheduledAt);
+                      if (Number.isNaN(start.getTime())) return null;
+                      const end =
+                        a.endAt &&
+                        !Number.isNaN(new Date(a.endAt).getTime())
+                          ? new Date(a.endAt)
+                          : new Date(
+                              start.getTime() + SLOT_MINUTES * 60 * 1000
+                            );
 
-                        const clampedStart = new Date(
-                          Math.max(start.getTime(), firstSlot.getTime())
-                        );
-                        const clampedEnd = new Date(
-                          Math.min(end.getTime(), lastSlot.getTime())
-                        );
-                        const startMin =
-                          (clampedStart.getTime() - firstSlot.getTime()) /
-                          60000;
-                        const endMin =
-                          (clampedEnd.getTime() - firstSlot.getTime()) / 60000;
+                      const clampedStart = new Date(
+                        Math.max(start.getTime(), firstSlot.getTime())
+                      );
+                      const clampedEnd = new Date(
+                        Math.min(end.getTime(), lastSlot.getTime())
+                      );
+                      const startMin =
+                        (clampedStart.getTime() - firstSlot.getTime()) /
+                        60000;
+                      const endMin =
+                        (clampedEnd.getTime() - firstSlot.getTime()) / 60000;
 
-                        if (endMin <= 0 || startMin >= totalMinutes) {
-                          return null;
-                        }
-
-                        const top =
-                          (startMin / totalMinutes) * columnHeightPx;
-                        const height =
-                          ((endMin - startMin) / totalMinutes) *
-                          columnHeightPx;
-
-                        const lane = laneById[a.id] ?? 0;
-                        const hasOverlap = overlapsWithOther[a.id];
-
-                        // full width if no overlaps, split in 2 lanes if overlaps
-                        const widthPercent = hasOverlap ? 50 : 100;
-                        const leftPercent = hasOverlap
-                          ? lane === 0
-                            ? 0
-                            : 50
-                          : 0;
-
-                        return (
-                          <div
-                            key={a.id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDetailsModalState({
-                                open: true,
-                                doctor: doc,
-                                slotLabel: "",
-                                slotTime: "",
-                                date: filterDate,
-                                appointments: [a],
-                              });
-                            }}
-                            style={{
-  position: "absolute",
-  left: `${leftPercent}%`,
-  width: `${widthPercent}%`,
-  top,
-  height: Math.max(height, 18),
-  padding: "1px 3px",
-  boxSizing: "border-box",
-  backgroundColor: getStatusColor(a.status),
-  borderRadius: 4,
-  // subtle border and inner separation
-  border: "1px solid rgba(0,0,0,0.08)",
-  fontSize: 11,
-  lineHeight: 1.2,
-  color:
-    a.status === "completed" || a.status === "cancelled"
-      ? "#ffffff"
-      : "#111827",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  textAlign: "center",
-  overflow: "hidden",
-  wordBreak: "break-word",
-  // slightly stronger shadow so each cell stands out
-  boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
-  cursor: "pointer",
-}}
-                            title={`${formatPatientLabel(
-                              a.patient,
-                              a.patientId
-                            )} (${formatStatus(a.status)})`}
-                          >
-                            {`${formatGridShortLabel(a)} (${formatStatus(
-                              a.status
-                            )})`}
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-      </section>
-{
-                      const overlapsWithOther: Record<number, boolean> = {};
-
-                      for (let i = 0; i < doctorAppointments.length; i++) {
-                        const a = doctorAppointments[i];
-                        const aStart = new Date(a.scheduledAt).getTime();
-                        const aEnd =
-                          a.endAt &&
-                          !Number.isNaN(new Date(a.endAt).getTime())
-                            ? new Date(a.endAt).getTime()
-                            : aStart + SLOT_MINUTES * 60 * 1000;
-
-                        overlapsWithOther[a.id] = false;
-
-                        for (let j = 0; j < doctorAppointments.length; j++) {
-                          if (i === j) continue;
-                          const b = doctorAppointments[j];
-                          const bStart = new Date(
-                            b.scheduledAt
-                          ).getTime();
-                          const bEnd =
-                            b.endAt &&
-                            !Number.isNaN(new Date(b.endAt).getTime())
-                              ? new Date(b.endAt).getTime()
-                              : bStart + SLOT_MINUTES * 60 * 1000;
-
-                          if (aStart < bEnd && aEnd > bStart) {
-                            overlapsWithOther[a.id] = true;
-                            break;
-                          }
-                        }
+                      if (endMin <= 0 || startMin >= totalMinutes) {
+                        return null;
                       }
 
-                      return doctorAppointments.map((a) => {
-                        const start = new Date(a.scheduledAt);
-                        if (Number.isNaN(start.getTime())) return null;
-                        const end =
-                          a.endAt &&
-                          !Number.isNaN(new Date(a.endAt).getTime())
-                            ? new Date(a.endAt)
-                            : new Date(
-                                start.getTime() +
-                                  SLOT_MINUTES * 60 * 1000
-                              );
+                      const top =
+                        (startMin / totalMinutes) * columnHeightPx;
+                      const height =
+                        ((endMin - startMin) / totalMinutes) *
+                        columnHeightPx;
 
-                        const clampedStart = new Date(
-                          Math.max(start.getTime(), firstSlot.getTime())
-                        );
-                        const clampedEnd = new Date(
-                          Math.min(end.getTime(), lastSlot.getTime())
-                        );
-                        const startMin =
-                          (clampedStart.getTime() - firstSlot.getTime()) /
-                          60000;
-                        const endMin =
-                          (clampedEnd.getTime() - firstSlot.getTime()) /
-                          60000;
+                      const lane = laneById[a.id] ?? 0;
+                      const hasOverlap = overlapsWithOther[a.id];
 
-                        if (endMin <= 0 || startMin >= totalMinutes) {
-                          return null;
-                        }
+                      const widthPercent = hasOverlap ? 50 : 100;
+                      const leftPercent = hasOverlap
+                        ? lane === 0
+                          ? 0
+                          : 50
+                        : 0;
 
-                        const top =
-                          (startMin / totalMinutes) * columnHeightPx;
-                        const height =
-                          ((endMin - startMin) / totalMinutes) *
-                          columnHeightPx;
-
-                        const lane = laneById[a.id] ?? 0;
-                        const hasOverlap = overlapsWithOther[a.id];
-
-                        const widthPercent = hasOverlap ? 50 : 100;
-                        const leftPercent = hasOverlap
-                          ? lane === 0
-                            ? 0
-                            : 50
-                          : 0;
-
-                        return (
-                          <div
-                            key={a.id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDetailsModalState({
-                                open: true,
-                                doctor: doc,
-                                slotLabel: "",
-                                slotTime: "",
-                                date: filterDate,
-                                appointments: [a],
-                              });
-                            }}
-                            style={{
-                              position: "absolute",
-                              left: `${leftPercent}%`,
-                              width: `${widthPercent}%`,
-                              top,
-                              height: Math.max(height, 18),
-                              padding: "1px 3px",
-                              boxSizing: "border-box",
-                              backgroundColor: getStatusColor(a.status),
-                              borderRadius: 4,
-                              border: "1px solid rgba(0,0,0,0.08)",
-                              fontSize: 11,
-                              lineHeight: 1.2,
-                              color:
-                                a.status === "completed" ||
-                                a.status === "cancelled"
-                                  ? "#ffffff"
-                                  : "#111827",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              textAlign: "center",
-                              overflow: "hidden",
-                              wordBreak: "break-word",
-                              boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
-                              cursor: "pointer",
-                            }}
-                            title={`${formatPatientLabel(
-                              a.patient,
-                              a.patientId
-                            )} (${formatStatus(a.status)})`}
-                          >
-                            {`${formatGridShortLabel(a)} (${formatStatus(
-                              a.status
-                            )})`}
-                          </div>
-                        );
-                      });
-                    })()}
+                      return (
+                        <div
+                          key={a.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDetailsModalState({
+                              open: true,
+                              doctor: doc,
+                              slotLabel: "",
+                              slotTime: "",
+                              date: filterDate,
+                              appointments: [a],
+                            });
+                          }}
+                          style={{
+                            position: "absolute",
+                            left: `${leftPercent}%`,
+                            width: `${widthPercent}%`,
+                            top,
+                            height: Math.max(height, 18),
+                            padding: "1px 3px",
+                            boxSizing: "border-box",
+                            backgroundColor: getStatusColor(a.status),
+                            borderRadius: 4,
+                            border: "1px solid rgba(0,0,0,0.08)",
+                            fontSize: 11,
+                            lineHeight: 1.2,
+                            color:
+                              a.status === "completed" ||
+                              a.status === "cancelled"
+                                ? "#ffffff"
+                                : "#111827",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            textAlign: "center",
+                            overflow: "hidden",
+                            wordBreak: "break-word",
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+                            cursor: "pointer",
+                          }}
+                          title={`${formatPatientLabel(
+                            a.patient,
+                            a.patientId
+                          )} (${formatStatus(a.status)})`}
+                        >
+                          {`${formatGridShortLabel(a)} (${formatStatus(
+                            a.status
+                          )})`}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -3540,7 +3429,7 @@ export default function AppointmentsPage() {
       {/* ... and the raw table + modals, same as before ... */}
       {/* Keep your existing bottom sections exactly as they were. */}
 
-      <AppointmentDetailsModal
+     <AppointmentDetailsModal
         open={detailsModalState.open}
         onClose={() =>
           setDetailsModalState((prev) => ({ ...prev, open: false }))
@@ -3563,20 +3452,20 @@ export default function AppointmentsPage() {
         }}
       />
 
-     <QuickAppointmentModal
-  open={quickModalState.open}
-  onClose={() =>
-    setQuickModalState((prev) => ({ ...prev, open: false }))
-  }
-  defaultDoctorId={quickModalState.doctorId}
-  defaultDate={quickModalState.date}
-  defaultTime={quickModalState.time}
-  branches={branches}
-  doctors={doctors}
-  scheduledDoctors={scheduledDoctors}
-  appointments={appointments}
-  onCreated={(a) => setAppointments((prev) => [a, ...prev])}
-/>
+      <QuickAppointmentModal
+        open={quickModalState.open}
+        onClose={() =>
+          setQuickModalState((prev) => ({ ...prev, open: false }))
+        }
+        defaultDoctorId={quickModalState.doctorId}
+        defaultDate={quickModalState.date}
+        defaultTime={quickModalState.time}
+        branches={branches}
+        doctors={doctors}
+        scheduledDoctors={scheduledDoctors}
+        appointments={appointments}
+        onCreated={(a) => setAppointments((prev) => [a, ...prev])}
+      />
     </main>
   );
 }
