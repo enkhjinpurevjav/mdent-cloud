@@ -1994,57 +1994,57 @@ const [dayEndSlots, setDayEndSlots] = useState<
         />
       </div>
 
-      {/* Start time */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Эхлэх цаг</label>
-        <select
-          name="startTime"
-          value={form.startTime}
-          onChange={(e) => {
-            handleChange(e);
-            setError("");
-          }}
-          required
-          style={{
-            borderRadius: 6,
-            border: "1px солид #d1d5db",
-            padding: "6px 8px",
-          }}
-        >
-          <option value="">Эхлэх цаг сонгох</option>
-          {daySlots.map((slot) => (
-            <option key={slot.value} value={slot.value}>
-              {slot.label}
-            </option>
-          ))}
-        </select>
-      </div>
+     {/* Start time */}
+<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+  <label>Эхлэх цаг</label>
+  <select
+    name="startTime"
+    value={form.startTime}
+    onChange={(e) => {
+      handleChange(e);
+      setError("");
+    }}
+    required
+    style={{
+      borderRadius: 6,
+      border: "1px солид #d1d5db",
+      padding: "6px 8px",
+    }}
+  >
+    <option value="">Эхлэх цаг сонгох</option>
+    {dayStartSlots.map((slot) => (
+      <option key={slot.value} value={slot.value}>
+        {slot.label}
+      </option>
+    ))}
+  </select>
+</div>
 
-      {/* End time */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Дуусах цаг</label>
-        <select
-          name="endTime"
-          value={form.endTime}
-          onChange={(e) => {
-            handleChange(e);
-            setError("");
-          }}
-          required
-          style={{
-            borderRadius: 6,
-            border: "1px солид #d1d5db",
-            padding: "6px 8px",
-          }}
-        >
-          <option value="">Дуусах цаг сонгох</option>
-          {daySlots.map((slot) => (
-            <option key={slot.value} value={slot.value}>
-              {slot.label}
-            </option>
-          ))}
-        </select>
-      </div>
+{/* End time */}
+<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+  <label>Дуусах цаг</label>
+  <select
+    name="endTime"
+    value={form.endTime}
+    onChange={(e) => {
+      handleChange(e);
+      setError("");
+    }}
+    required
+    style={{
+      borderRadius: 6,
+      border: "1px солид #d1d5db",
+      padding: "6px 8px",
+    }}
+  >
+    <option value="">Дуусах цаг сонгох</option>
+    {dayEndSlots.map((slot) => (
+      <option key={slot.value} value={slot.value}>
+        {slot.label}
+      </option>
+    ))}
+  </select>
+</div>
 
       {/* Status */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
