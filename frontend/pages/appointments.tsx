@@ -3115,10 +3115,11 @@ export default function AppointmentsPage() {
                             {/* Doctor columns */}
               {gridDoctors.map((doc) => {
                 const doctorAppointments = appointments.filter(
-                  (a) =>
-                    a.doctorId === doc.id &&
-                    getAppointmentDayKey(a) === filterDate
-                );
+  (a) =>
+    a.doctorId === doc.id &&
+    getAppointmentDayKey(a) === filterDate &&
+    a.status !== "cancelled"        // <--- add this
+);
 
                 const handleCellClick = (
   clickedMinutes: number,
