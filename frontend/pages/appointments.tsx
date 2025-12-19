@@ -1338,9 +1338,12 @@ function AppointmentForm({
   const [quickPatientError, setQuickPatientError] = useState("");
   const [quickPatientSaving, setQuickPatientSaving] = useState(false);
 
-  const [daySlots, setDaySlots] = useState<{ label: string; value: string }[]>(
-    []
-  );
+  const [dayStartSlots, setDayStartSlots] = useState<
+  { label: string; value: string }[]
+>([]);
+const [dayEndSlots, setDayEndSlots] = useState<
+  { label: string; value: string }[]
+>([]);
 
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
@@ -1361,45 +1364,61 @@ function AppointmentForm({
   }, [selectedBranchId]);
 
   useEffect(() => {
-    if (!form.date) {
-      setDaySlots([]);
-      return;
-    }
-    const [year, month, day] = form.date.split("-").map(Number);
-    if (!year || !month || !day) {
-      setDaySlots([]);
-      return;
-    }
-    const d = new Date(year, (month || 1) - 1, day || 1);
-    let slots = generateTimeSlotsForDay(d).map((s) => ({
-      label: s.label,
-      value: getSlotTimeString(s.start),
-      start: s.start,
-    }));
+  if (!form.date) {
+    setDayStartSlots([]);
+    setDayEndSlots([]);
+    return;
+  }
+  const [year, month, day] = form.date.split("-").map(Number);
+  if (!year || !month || !day) {
+    setDayStartSlots([]);
+    setDayEndSlots([]);
+    return;
+  }
+  const d = new Date(year, (month || 1) - 1, day || 1);
 
-    if (form.doctorId) {
-      const doctorIdNum = Number(form.doctorId);
-      const doc = scheduledDoctors.find((sd) => sd.id === doctorIdNum);
-      const schedules = doc?.schedules || [];
-      if (schedules.length > 0) {
-        slots = slots.filter((slot) => {
-          const tStr = getSlotTimeString(slot.start);
-          return schedules.some((s: any) =>
-            isTimeWithinRange(tStr, s.startTime, s.endTime)
-          );
-        });
-      }
-    }
+  // Build raw slots with both start and end
+  let slots = generateTimeSlotsForDay(d).map((s) => ({
+    label: s.label,
+    start: s.start,
+    end: s.end,
+    value: getSlotTimeString(s.start),
+  }));
 
-    setDaySlots(slots.map(({ label, value }) => ({ label, value })));
+  // Filter by doctor schedule if a doctor is selected
+  if (form.doctorId) {
+    const doctorIdNum = Number(form.doctorId);
+    const doc = scheduledDoctors.find((sd) => sd.id === doctorIdNum);
+    const schedules = doc?.schedules || [];
+    if (schedules.length > 0) {
+      slots = slots.filter((slot) => {
+        const tStr = getSlotTimeString(slot.start);
+        return schedules.some((s: any) =>
+          isTimeWithinRange(tStr, s.startTime, s.endTime)
+        );
+      });
+    }
+  }
 
-    if (form.startTime && !slots.some((s) => s.value === form.startTime)) {
-      setForm((prev) => ({ ...prev, startTime: "" }));
-    }
-    if (form.endTime && !slots.some((s) => s.value === form.endTime)) {
-      setForm((prev) => ({ ...prev, endTime: "" }));
-    }
-  }, [form.date, form.doctorId, scheduledDoctors]);
+  // Start options: from slot.start (same as before)
+  const startOptions = slots.map(({ label, value }) => ({ label, value }));
+
+  // End options: from slot.end (this is what adds 21:00)
+  const endOptions = Array.from(
+    new Set(slots.map((s) => getSlotTimeString(s.end)))
+  ).map((t) => ({ label: t, value: t }));
+
+  setDayStartSlots(startOptions);
+  setDayEndSlots(endOptions);
+
+  // Reset start/end if current value no longer valid
+  if (form.startTime && !startOptions.some((s) => s.value === form.startTime)) {
+    setForm((prev) => ({ ...prev, startTime: "" }));
+  }
+  if (form.endTime && !endOptions.some((s) => s.value === form.endTime)) {
+    setForm((prev) => ({ ...prev, endTime: "" }));
+  }
+}, [form.date, form.doctorId, scheduledDoctors]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
