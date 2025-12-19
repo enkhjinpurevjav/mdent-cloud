@@ -104,6 +104,19 @@ function pad2(n: number) {
   return n.toString().padStart(2, "0");
 }
 
+function buildStartEndOptionsForDay(day: Date) {
+  const slots = generateTimeSlotsForDay(day);
+  const startOptions = slots.map((s) => ({
+    label: s.label,
+    value: getSlotTimeString(s.start), // e.g. 09:00
+  }));
+  // unique end times, sorted in slot order
+  const endOptions = Array.from(
+    new Set(slots.map((s) => getSlotTimeString(s.end))) // e.g. 09:30 ... 21:00
+  ).map((t) => ({ label: t, value: t }));
+  return { startOptions, endOptions };
+}
+
 function getSlotTimeString(date: Date): string {
   // "HH:MM" in local time
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
@@ -708,9 +721,12 @@ function QuickAppointmentModal({
   const [searchDebounceTimer, setSearchDebounceTimer] =
     useState<NodeJS.Timeout | null>(null);
 
-  const [popupSlots, setPopupSlots] = useState<
-    { label: string; value: string }[]
-  >([]);
+  const [popupStartSlots, setPopupStartSlots] = useState<
+  { label: string; value: string }[]
+>([]);
+const [popupEndSlots, setPopupEndSlots] = useState<
+  { label: string; value: string }[]
+>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -728,22 +744,22 @@ function QuickAppointmentModal({
   }, [open, defaultDoctorId, defaultDate, defaultTime]);
 
   useEffect(() => {
-    if (!form.date) {
-      setPopupSlots([]);
-      return;
-    }
-    const [y, m, d] = form.date.split("-").map(Number);
-    if (!y || !m || !d) {
-      setPopupSlots([]);
-      return;
-    }
-    const day = new Date(y, (m || 1) - 1, d || 1);
-    const slots = generateTimeSlotsForDay(day).map((s) => ({
-      label: s.label,
-      value: getSlotTimeString(s.start),
-    }));
-    setPopupSlots(slots);
-  }, [form.date]);
+  if (!form.date) {
+    setPopupStartSlots([]);
+    setPopupEndSlots([]);
+    return;
+  }
+  const [y, m, d] = form.date.split("-").map(Number);
+  if (!y || !m || !d) {
+    setPopupStartSlots([]);
+    setPopupEndSlots([]);
+    return;
+  }
+  const day = new Date(y, (m || 1) - 1, d || 1);
+  const { startOptions, endOptions } = buildStartEndOptionsForDay(day);
+  setPopupStartSlots(startOptions);
+  setPopupEndSlots(endOptions);
+}, [form.date]);
 
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
@@ -1141,47 +1157,39 @@ function QuickAppointmentModal({
           {/* Start time */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label>Эхлэх цаг</label>
-            <select
-              name="startTime"
-              value={form.startTime}
-              onChange={handleChange}
-              required
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            >
-              <option value="">Эхлэх цаг сонгох</option>
-              {popupSlots.map((slot) => (
-                <option key={slot.value} value={slot.value}>
-                  {slot.label}
-                </option>
-              ))}
-            </select>
+            <<select
+  name="startTime"
+  value={form.startTime}
+  onChange={handleChange}
+  required
+  ...
+>
+  <option value="">Эхлэх цаг сонгох</option>
+  {popupStartSlots.map((slot) => (
+    <option key={slot.value} value={slot.value}>
+      {slot.label}
+    </option>
+  ))}
+</select>
           </div>
 
           {/* End time */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label>Дуусах цаг</label>
             <select
-              name="endTime"
-              value={form.endTime}
-              onChange={handleChange}
-              required
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            >
-              <option value="">Дуусах цаг сонгох</option>
-              {popupSlots.map((slot) => (
-                <option key={slot.value} value={slot.value}>
-                  {slot.label}
-                </option>
-              ))}
-            </select>
+  name="endTime"
+  value={form.endTime}
+  onChange={handleChange}
+  required
+  ...
+>
+  <option value="">Дуусах цаг сонгох</option>
+  {popupEndSlots.map((slot) => (
+    <option key={slot.value} value={slot.value}>
+      {slot.label}
+    </option>
+  ))}
+</select>
           </div>
 
           {/* Status */}
@@ -1338,9 +1346,12 @@ function AppointmentForm({
   const [quickPatientError, setQuickPatientError] = useState("");
   const [quickPatientSaving, setQuickPatientSaving] = useState(false);
 
-  const [daySlots, setDaySlots] = useState<{ label: string; value: string }[]>(
-    []
-  );
+  const [dayStartSlots, setDayStartSlots] = useState<
+  { label: string; value: string }[]
+>([]);
+const [dayEndSlots, setDayEndSlots] = useState<
+  { label: string; value: string }[]
+>([]);
 
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
@@ -1360,46 +1371,58 @@ function AppointmentForm({
     }
   }, [selectedBranchId]);
 
-  useEffect(() => {
-    if (!form.date) {
-      setDaySlots([]);
-      return;
-    }
-    const [year, month, day] = form.date.split("-").map(Number);
-    if (!year || !month || !day) {
-      setDaySlots([]);
-      return;
-    }
-    const d = new Date(year, (month || 1) - 1, day || 1);
-    let slots = generateTimeSlotsForDay(d).map((s) => ({
-      label: s.label,
-      value: getSlotTimeString(s.start),
-      start: s.start,
-    }));
+useEffect(() => {
+  if (!form.date) {
+    setDayStartSlots([]);
+    setDayEndSlots([]);
+    return;
+  }
+  const [year, month, day] = form.date.split("-").map(Number);
+  if (!year || !month || !day) {
+    setDayStartSlots([]);
+    setDayEndSlots([]);
+    return;
+  }
+  const d = new Date(year, (month || 1) - 1, day || 1);
 
-    if (form.doctorId) {
-      const doctorIdNum = Number(form.doctorId);
-      const doc = scheduledDoctors.find((sd) => sd.id === doctorIdNum);
-      const schedules = doc?.schedules || [];
-      if (schedules.length > 0) {
-        slots = slots.filter((slot) => {
-          const tStr = getSlotTimeString(slot.start);
-          return schedules.some((s: any) =>
-            isTimeWithinRange(tStr, s.startTime, s.endTime)
-          );
-        });
-      }
-    }
+  let slots = generateTimeSlotsForDay(d).map((s) => ({
+    label: s.label,
+    start: s.start,
+    end: s.end,
+    value: getSlotTimeString(s.start),
+  }));
 
-    setDaySlots(slots.map(({ label, value }) => ({ label, value })));
+  if (form.doctorId) {
+    const doctorIdNum = Number(form.doctorId);
+    const doc = scheduledDoctors.find((sd) => sd.id === doctorIdNum);
+    const schedules = doc?.schedules || [];
+    if (schedules.length > 0) {
+      slots = slots.filter((slot) => {
+        const tStr = getSlotTimeString(slot.start);
+        return schedules.some((s: any) =>
+          isTimeWithinRange(tStr, s.startTime, s.endTime)
+        );
+      });
+    }
+  }
 
-    if (form.startTime && !slots.some((s) => s.value === form.startTime)) {
-      setForm((prev) => ({ ...prev, startTime: "" }));
-    }
-    if (form.endTime && !slots.some((s) => s.value === form.endTime)) {
-      setForm((prev) => ({ ...prev, endTime: "" }));
-    }
-  }, [form.date, form.doctorId, scheduledDoctors]);
+  // build separate start/end options
+  const startOptions = slots.map(({ label, value }) => ({ label, value }));
+  const endOptions = Array.from(
+    new Set(slots.map((s) => getSlotTimeString(s.end)))
+  ).map((t) => ({ label: t, value: t }));
+
+  setDayStartSlots(startOptions);
+  setDayEndSlots(endOptions);
+
+  // keep existing selected times only if they’re still valid
+  if (form.startTime && !startOptions.some((s) => s.value === form.startTime)) {
+    setForm((prev) => ({ ...prev, startTime: "" }));
+  }
+  if (form.endTime && !endOptions.some((s) => s.value === form.endTime)) {
+    setForm((prev) => ({ ...prev, endTime: "" }));
+  }
+}, [form.date, form.doctorId, scheduledDoctors]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -1979,52 +2002,38 @@ function AppointmentForm({
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Эхлэх цаг</label>
         <select
-          name="startTime"
-          value={form.startTime}
-          onChange={(e) => {
-            handleChange(e);
-            setError("");
-          }}
-          required
-          style={{
-            borderRadius: 6,
-            border: "1px солид #d1d5db",
-            padding: "6px 8px",
-          }}
-        >
-          <option value="">Эхлэх цаг сонгох</option>
-          {daySlots.map((slot) => (
-            <option key={slot.value} value={slot.value}>
-              {slot.label}
-            </option>
-          ))}
-        </select>
+  name="startTime"
+  value={form.startTime}
+  onChange={handleChange}
+  required
+  ...
+>
+  <option value="">Эхлэх цаг сонгох</option>
+  {popupStartSlots.map((slot) => (
+    <option key={slot.value} value={slot.value}>
+      {slot.label}
+    </option>
+  ))}
+</select>
       </div>
 
       {/* End time */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Дуусах цаг</label>
         <select
-          name="endTime"
-          value={form.endTime}
-          onChange={(e) => {
-            handleChange(e);
-            setError("");
-          }}
-          required
-          style={{
-            borderRadius: 6,
-            border: "1px солид #d1d5db",
-            padding: "6px 8px",
-          }}
-        >
-          <option value="">Дуусах цаг сонгох</option>
-          {daySlots.map((slot) => (
-            <option key={slot.value} value={slot.value}>
-              {slot.label}
-            </option>
-          ))}
-        </select>
+  name="endTime"
+  value={form.endTime}
+  onChange={handleChange}
+  required
+  ...
+>
+  <option value="">Дуусах цаг сонгох</option>
+  {popupEndSlots.map((slot) => (
+    <option key={slot.value} value={slot.value}>
+      {slot.label}
+    </option>
+  ))}
+</select>
       </div>
 
       {/* Status */}
