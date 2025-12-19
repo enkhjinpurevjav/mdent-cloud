@@ -708,9 +708,12 @@ function QuickAppointmentModal({
   const [searchDebounceTimer, setSearchDebounceTimer] =
     useState<NodeJS.Timeout | null>(null);
 
-  const [popupSlots, setPopupSlots] = useState<
-    { label: string; value: string }[]
-  >([]);
+  const [popupStartSlots, setPopupStartSlots] = useState<
+  { label: string; value: string }[]
+>([]);
+const [popupEndSlots, setPopupEndSlots] = useState<
+  { label: string; value: string }[]
+>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -728,22 +731,34 @@ function QuickAppointmentModal({
   }, [open, defaultDoctorId, defaultDate, defaultTime]);
 
   useEffect(() => {
-    if (!form.date) {
-      setPopupSlots([]);
-      return;
-    }
-    const [y, m, d] = form.date.split("-").map(Number);
-    if (!y || !m || !d) {
-      setPopupSlots([]);
-      return;
-    }
-    const day = new Date(y, (m || 1) - 1, d || 1);
-    const slots = generateTimeSlotsForDay(day).map((s) => ({
-      label: s.label,
-      value: getSlotTimeString(s.start),
-    }));
-    setPopupSlots(slots);
-  }, [form.date]);
+  if (!form.date) {
+    setPopupStartSlots([]);
+    setPopupEndSlots([]);
+    return;
+  }
+  const [y, m, d] = form.date.split("-").map(Number);
+  if (!y || !m || !d) {
+    setPopupStartSlots([]);
+    setPopupEndSlots([]);
+    return;
+  }
+  const day = new Date(y, (m || 1) - 1, d || 1);
+
+  // Build 30-min slots for the chosen day
+  const slots = generateTimeSlotsForDay(day);
+
+  const startOptions = slots.map((s) => ({
+    label: s.label,
+    value: getSlotTimeString(s.start), // 09:00 ... 20:30
+  }));
+
+  const endOptions = Array.from(
+    new Set(slots.map((s) => getSlotTimeString(s.end))) // 09:30 ... 21:00
+  ).map((t) => ({ label: t, value: t }));
+
+  setPopupStartSlots(startOptions);
+  setPopupEndSlots(endOptions);
+}, [form.date]);
 
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
@@ -1139,50 +1154,50 @@ function QuickAppointmentModal({
           </div>
 
           {/* Start time */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label>Эхлэх цаг</label>
-            <select
-              name="startTime"
-              value={form.startTime}
-              onChange={handleChange}
-              required
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            >
-              <option value="">Эхлэх цаг сонгох</option>
-              {popupSlots.map((slot) => (
-                <option key={slot.value} value={slot.value}>
-                  {slot.label}
-                </option>
-              ))}
-            </select>
-          </div>
+<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+  <label>Эхлэх цаг</label>
+  <select
+    name="startTime"
+    value={form.startTime}
+    onChange={handleChange}
+    required
+    style={{
+      borderRadius: 6,
+      border: "1px solid #d1d5db",
+      padding: "6px 8px",
+    }}
+  >
+    <option value="">Эхлэх цаг сонгох</option>
+    {popupStartSlots.map((slot) => (
+      <option key={slot.value} value={slot.value}>
+        {slot.label}
+      </option>
+    ))}
+  </select>
+</div>
 
-          {/* End time */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label>Дуусах цаг</label>
-            <select
-              name="endTime"
-              value={form.endTime}
-              onChange={handleChange}
-              required
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            >
-              <option value="">Дуусах цаг сонгох</option>
-              {popupSlots.map((slot) => (
-                <option key={slot.value} value={slot.value}>
-                  {slot.label}
-                </option>
-              ))}
-            </select>
-          </div>
+{/* End time */}
+<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+  <label>Дуусах цаг</label>
+  <select
+    name="endTime"
+    value={form.endTime}
+    onChange={handleChange}
+    required
+    style={{
+      borderRadius: 6,
+      border: "1px solid #d1d5db",
+      padding: "6px 8px",
+    }}
+  >
+    <option value="">Дуусах цаг сонгох</option>
+    {popupEndSlots.map((slot) => (
+      <option key={slot.value} value={slot.value}>
+        {slot.label}
+      </option>
+    ))}
+  </select>
+</div>
 
           {/* Status */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
