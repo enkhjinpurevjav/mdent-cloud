@@ -2403,7 +2403,34 @@ export default function AppointmentsPage() {
     setFilterBranchId(branchId);
   };
 
-  const gridDoctors: ScheduledDoctor[] = scheduledDoctors;
+  // Prefer scheduledDoctors. If none, fall back to doctors who actually have
+// appointments on this date so the grid is still visible.
+const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
+  if (scheduledDoctors.length > 0) {
+    return scheduledDoctors;
+  }
+
+  const dayKey = filterDate;
+  const byDoctor: Record<number, ScheduledDoctor> = {};
+
+  for (const a of appointments) {
+    if (!a.doctorId) continue;
+    if (getAppointmentDayKey(a) !== dayKey) continue;
+
+    if (!byDoctor[a.doctorId]) {
+      const baseDoc = doctors.find((d) => d.id === a.doctorId);
+      if (!baseDoc) continue;
+      byDoctor[a.doctorId] = {
+        ...baseDoc,
+        schedules: [],
+      };
+    }
+  }
+
+  return Object.values(byDoctor).sort((a, b) =>
+    (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase())
+  );
+}, [scheduledDoctors, appointments, doctors, filterDate]);
 
   // ===== lane map for selected date (per doctor) =====
   const laneById: Record<number, 0 | 1> = React.useMemo(() => {
