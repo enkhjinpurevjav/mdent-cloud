@@ -2520,12 +2520,12 @@ export default function AppointmentsPage() {
       case "confirmed":
         return "#bbf7d0";
       case "ongoing":
-        return "#1889fc";
-      case "cancelled":
         return "#9d9d9d";
+      case "cancelled":
+        return "#1889fc";
       default:
         return "#77f9fe";
-    }
+    } 
   };
 
   return (
