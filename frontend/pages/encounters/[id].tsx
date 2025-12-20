@@ -811,33 +811,7 @@ export default function EncounterAdminPage() {
               </div>
             )}
 
-            <div
-              style={{
-                marginTop: 12,
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 8,
-              }}
-            >
-              <button
-                type="button"
-                onClick={handleSaveChartTeeth}
-                disabled={chartSaving}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 6,
-                  border: "none",
-                  background: "#0ea5e9",
-                  color: "white",
-                  cursor: "pointer",
-                  fontSize: 14,
-                }}
-              >
-                {chartSaving
-                  ? "Шүдний диаграм хадгалж байна..."
-                  : "Шүдний диаграм хадгалах"}
-              </button>
-            </div>
+           
           </section>
 
           {/* Diagnoses */}
