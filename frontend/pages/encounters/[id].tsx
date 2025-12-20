@@ -144,14 +144,14 @@ export default function EncounterAdminPage() {
   const [encounterLoading, setEncounterLoading] = useState(false);
   const [encounterError, setEncounterError] = useState("");
 
+  // We keep diagnoses types/state in case you use them elsewhere,
+  // but we will not render the "Онош тавих" section.
   const [allDiagnoses, setAllDiagnoses] = useState<Diagnosis[]>([]);
   const [dxLoading, setDxLoading] = useState(false);
   const [dxError, setDxError] = useState("");
-
   const [problemsByDiagnosis, setProblemsByDiagnosis] = useState<
     Record<number, DiagnosisProblem[]>
   >({});
-
   const [rows, setRows] = useState<EditableDiagnosis[]>([]);
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -209,7 +209,7 @@ export default function EncounterAdminPage() {
 
         setEncounter(data);
 
-        // Initialize editable diagnosis rows from server data
+        // Initialize editable diagnosis rows from server data (kept for now)
         const initialRows: EditableDiagnosis[] =
           Array.isArray(data.encounterDiagnoses) &&
           data.encounterDiagnoses.length > 0
@@ -249,7 +249,7 @@ export default function EncounterAdminPage() {
     load();
   }, [encounterId]);
 
-  // Load all diagnoses (for dropdown)
+  // Load all diagnoses (for possible future use)
   useEffect(() => {
     const loadDx = async () => {
       setDxLoading(true);
@@ -315,139 +315,6 @@ export default function EncounterAdminPage() {
     loadChart();
   }, [encounterId]);
 
-  // Helper: load problems for a diagnosis once and cache
-  const ensureProblemsLoaded = async (diagnosisId: number) => {
-    if (problemsByDiagnosis[diagnosisId]) return;
-    try {
-      const res = await fetch(`/api/diagnoses/${diagnosisId}/problems`);
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-      if (!res.ok || !Array.isArray(data)) {
-        throw new Error((data && data.error) || "Алдаа гарлаа");
-      }
-      setProblemsByDiagnosis((prev) => ({
-        ...prev,
-        [diagnosisId]: data,
-      }));
-    } catch (err) {
-      console.error("Failed to load problems:", err);
-      // Silent; page still usable, just no checklist
-    }
-  };
-
-  // Add a new empty diagnosis row
-  const addDiagnosisRow = () => {
-    setRows((prev) => [
-      ...prev,
-      {
-        diagnosisId: 0,
-        diagnosis: undefined,
-        selectedProblemIds: [],
-        note: "",
-      },
-    ]);
-  };
-
-  const removeDiagnosisRow = (index: number) => {
-    setRows((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleDiagnosisChange = async (index: number, diagnosisId: number) => {
-    const dx = allDiagnoses.find((d) => d.id === diagnosisId);
-    setRows((prev) =>
-      prev.map((row, i) =>
-        i === index
-          ? {
-              diagnosisId,
-              diagnosis: dx,
-              selectedProblemIds: [],
-              note: row.note,
-            }
-          : row
-      )
-    );
-    if (diagnosisId) {
-      await ensureProblemsLoaded(diagnosisId);
-    }
-  };
-
-  const toggleProblem = (index: number, problemId: number) => {
-    setRows((prev) =>
-      prev.map((row, i) => {
-        if (i !== index) return row;
-        const exists = row.selectedProblemIds.includes(problemId);
-        return {
-          ...row,
-          selectedProblemIds: exists
-            ? row.selectedProblemIds.filter((id) => id !== problemId)
-            : [...row.selectedProblemIds, problemId],
-        };
-      })
-    );
-  };
-
-  const handleNoteChange = (index: number, value: string) => {
-    setRows((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, note: value } : row))
-    );
-  };
-
-  const handleSaveDiagnoses = async () => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
-    setSaveError("");
-    setSaving(true);
-    try {
-      const payload = {
-        items: rows
-          .filter((r) => r.diagnosisId)
-          .map((r) => ({
-            diagnosisId: r.diagnosisId,
-            selectedProblemIds: r.selectedProblemIds,
-            note: r.note || null,
-          })),
-      };
-
-      const res = await fetch(`/api/encounters/${encounterId}/diagnoses`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-
-      if (!res.ok) {
-        throw new Error((data && data.error) || "Хадгалах үед алдаа гарлаа");
-      }
-
-      if (data && Array.isArray(data)) {
-        setRows(
-          data.map((r: any) => ({
-            diagnosisId: r.diagnosisId,
-            diagnosis: r.diagnosis,
-            selectedProblemIds: Array.isArray(r.selectedProblemIds)
-              ? (r.selectedProblemIds as number[])
-              : [],
-            note: r.note || "",
-          }))
-        );
-      }
-    } catch (err: any) {
-      console.error("Failed to save diagnoses:", err);
-      setSaveError(err.message || "Хадгалах үед алдаа гарлаа");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   // --- Services helpers ---
 
   const addServiceRow = () => {
@@ -500,7 +367,7 @@ export default function EncounterAdminPage() {
           .map((s) => ({
             serviceId: s.serviceId,
             quantity: s.quantity || 1,
-            toothCode: s.toothCode || null, // not used by backend yet
+            toothCode: s.toothCode || null,
           })),
       };
 
@@ -983,225 +850,6 @@ export default function EncounterAdminPage() {
             </div>
           </section>
 
-          {/* Diagnosis editor */}
-          <section
-            style={{
-              marginTop: 16,
-              padding: 16,
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              background: "#ffffff",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 8,
-              }}
-            >
-              <h2 style={{ fontSize: 16, margin: 0 }}>Онош тавих</h2>
-              <button
-                type="button"
-                onClick={addDiagnosisRow}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 6,
-                  border: "1px solid #2563eb",
-                  background: "#eff6ff",
-                  color: "#2563eb",
-                  cursor: "pointer",
-                  fontSize: 13,
-                }}
-              >
-                + Онош нэмэх
-              </button>
-            </div>
-
-            {dxError && (
-              <div style={{ color: "red", marginBottom: 8 }}>{dxError}</div>
-            )}
-
-            {rows.length === 0 && (
-              <div style={{ color: "#6b7280", fontSize: 13 }}>
-                Одоогоор онош сонгоогүй байна. Дээрх “Онош нэмэх” товчоор онош
-                нэмнэ үү.
-              </div>
-            )}
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {rows.map((row, index) => {
-                const problems = problemsByDiagnosis[row.diagnosisId] || [];
-                return (
-                  <div
-                    key={index}
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: 8,
-                      padding: 12,
-                      background: "#f9fafb",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 8,
-                        alignItems: "center",
-                        marginBottom: 8,
-                      }}
-                    >
-                      <select
-                        value={row.diagnosisId || ""}
-                        onChange={async (e) => {
-                          const val = Number(e.target.value) || 0;
-                          await handleDiagnosisChange(index, val);
-                        }}
-                        style={{
-                          flex: 1,
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "6px 8px",
-                        }}
-                      >
-                        <option value="">Онош сонгох...</option>
-                        {allDiagnoses.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.code} – {d.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => removeDiagnosisRow(index)}
-                        style={{
-                          padding: "4px 10px",
-                          borderRadius: 6,
-                          border: "1px solid #dc2626",
-                          background: "#fef2f2",
-                          color: "#b91c1c",
-                          cursor: "pointer",
-                          fontSize: 12,
-                        }}
-                      >
-                        Устгах
-                      </button>
-                    </div>
-
-                    {/* Problems checklist */}
-                    {row.diagnosisId ? (
-                      <>
-                        {problems.length === 0 ? (
-                          <div
-                            style={{
-                              color: "#6b7280",
-                              fontSize: 12,
-                              marginBottom: 8,
-                            }}
-                          >
-                            Энэ оношид тохирсон проблем бүртгээгүй байна
-                            (оношийн тохиргооноос нэмнэ).
-                          </div>
-                        ) : (
-                          <div
-                            style={{
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: 8,
-                              marginBottom: 8,
-                            }}
-                          >
-                            {problems.map((p) => {
-                              const checked =
-                                row.selectedProblemIds.includes(p.id);
-                              return (
-                                <label
-                                  key={p.id}
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 4,
-                                    padding: "4px 8px",
-                                    borderRadius: 999,
-                                    border: checked
-                                      ? "1px solid #16a34a"
-                                      : "1px solid #d1d5db",
-                                    background: checked
-                                      ? "#dcfce7"
-                                      : "#ffffff",
-                                    fontSize: 12,
-                                  }}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() =>
-                                      toggleProblem(index, p.id)
-                                    }
-                                  />
-                                  {p.label}
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </>
-                    ) : null}
-
-                    {/* Note */}
-                    <textarea
-                      placeholder="Энэ оношид холбогдох тэмдэглэл (сонголттой)"
-                      value={row.note}
-                      onChange={(e) =>
-                        handleNoteChange(index, e.target.value)
-                      }
-                      rows={2}
-                      style={{
-                        width: "100%",
-                        borderRadius: 6,
-                        border: "1px solid #d1d5db",
-                        padding: "6px 8px",
-                        fontSize: 13,
-                        resize: "vertical",
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-
-            {saveError && (
-              <div style={{ color: "red", marginTop: 8 }}>{saveError}</div>
-            )}
-
-            <div
-              style={{
-                marginTop: 12,
-                display: "flex",
-                justifyContent: "flex-end",
-              }}
-            >
-              <button
-                type="button"
-                onClick={handleSaveDiagnoses}
-                disabled={saving}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 6,
-                  border: "none",
-                  background: "#16a34a",
-                  color: "#ffffff",
-                  cursor: "pointer",
-                  fontSize: 14,
-                }}
-              >
-                {saving ? "Хадгалж байна..." : "Онош хадгалах"}
-              </button>
-            </div>
-          </section>
-
-
-      
           {/* Services / Treatments */}
           <section
             style={{
