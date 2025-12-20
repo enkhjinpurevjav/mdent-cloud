@@ -1129,46 +1129,74 @@ const handleFinishEncounter = async () => {
               })}
             </div>
 
-            {saveError && (
-              <div style={{ color: "red", marginTop: 8 }}>{saveError}</div>
-            )}
+          {saveError && (
+  <div style={{ color: "red", marginTop: 8 }}>{saveError}</div>
+)}
 
-            <div
-              style={{
-                marginTop: 12,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <div style={{ fontSize: 13, color: "#111827" }}>
-                Нийт үйлчилгээний урьдчилсан дүн:{" "}
-                <strong>
-                  {totalDiagnosisServicesPrice.toLocaleString("mn-MN")}₮
-                </strong>{" "}
-                <span style={{ fontSize: 11, color: "#6b7280" }}>
-                  (Эмчийн сонгосон онош, үйлчилгээний дагуу. Төлбөрийн касс дээр
-                  эцэслэнэ.)
-                </span>
-              </div>
+<div
+  style={{
+    marginTop: 12,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+  }}
+>
+  <div style={{ fontSize: 13, color: "#111827" }}>
+    Нийт үйлчилгээний урьдчилсан дүн:{" "}
+    <strong>
+      {totalDiagnosisServicesPrice.toLocaleString("mn-MN")}₮
+    </strong>{" "}
+    <span style={{ fontSize: 11, color: "#6b7280" }}>
+      (Эмчийн сонгосон онош, үйлчилгээний дагуу. Төлбөрийн касс дээр
+      эцэслэнэ.)
+    </span>
+  </div>
 
-              <button
-                type="button"
-                onClick={handleSaveDiagnoses}
-                disabled={saving}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 6,
-                  border: "none",
-                  background: "#16a34a",
-                  color: "#ffffff",
-                  cursor: "pointer",
-                  fontSize: 14,
-                }}
-              >
-                {saving ? "Хадгалж байна..." : "Онош хадгалах"}
-              </button>
-            </div>
+  <div
+    style={{
+      display: "flex",
+      gap: 8,
+      alignItems: "center",
+    }}
+  >
+    <button
+      type="button"
+      onClick={handleSaveDiagnoses}
+      disabled={saving || finishing}
+      style={{
+        padding: "8px 16px",
+        borderRadius: 6,
+        border: "none",
+        background: "#16a34a",
+        color: "#ffffff",
+        cursor: "pointer",
+        fontSize: 14,
+      }}
+    >
+      {saving ? "Хадгалж байна..." : "Зөвхөн онош хадгалах"}
+    </button>
+
+    <button
+      type="button"
+      onClick={handleFinishEncounter}
+      disabled={saving || finishing}
+      style={{
+        padding: "8px 16px",
+        borderRadius: 6,
+        border: "none",
+        background: "#2563eb",
+        color: "#ffffff",
+        cursor: "pointer",
+        fontSize: 14,
+      }}
+    >
+      {finishing
+        ? "Дуусгаж байна..."
+        : "Үзлэг дуусгах / Төлбөрт шилжүүлэх"}
+    </button>
+  </div>
+</div>
           </section>
         </>
       )}
