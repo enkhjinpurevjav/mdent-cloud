@@ -49,7 +49,7 @@ type EncounterDiagnosisRow = {
   selectedProblemIds: number[] | null;
   note?: string | null;
   diagnosis: Diagnosis;
-  toothCode?: string | null; // now: comma-separated list like "11, 21, 22" or "ALL"
+  toothCode?: string | null; // comma-separated list like "11, 21, 22" or "ALL"
 };
 
 type ServiceCategory =
@@ -75,14 +75,6 @@ type Service = {
   serviceBranches?: ServiceBranch[];
 };
 
-type EncounterServiceRow = {
-  id?: number;
-  serviceId: number;
-  service?: Service;
-  quantity: number;
-  toothCode?: string | null;
-};
-
 type Encounter = {
   id: number;
   patientBookId: number;
@@ -92,7 +84,6 @@ type Encounter = {
   patientBook: PatientBook;
   doctor: Doctor | null;
   encounterDiagnoses: EncounterDiagnosisRow[];
-  encounterServices?: EncounterServiceRow[];
 };
 
 type EditableDiagnosis = {
@@ -131,7 +122,7 @@ function formatDoctorName(d: Doctor | null) {
 
 // stringify array of tooth codes to "11, 21, 22"
 function stringifyToothList(list: string[]): string {
-  return Array.from(new Set(list)) // dedupe
+  return Array.from(new Set(list))
     .sort((a, b) => a.localeCompare(b))
     .join(", ");
 }
@@ -160,15 +151,11 @@ export default function EncounterAdminPage() {
   const [saving, setSaving] = useState(false);
   const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
 
-  // Services (still stored separately, built from diagnosis rows)
+  // Services catalog (for selecting per-diagnosis service)
   const [allServices, setAllServices] = useState<Service[]>([]);
-  const [services, setServices] = useState<EncounterServiceRow[]>([]);
-  const [servicesError, setServicesError] = useState("");
-  const [servicesSaving, setServicesSaving] = useState(false);
 
   // Tooth chart selection (per active diagnosis row)
   const [selectedTeeth, setSelectedTeeth] = useState<string[]>([]);
-  const [chartLoading, setChartLoading] = useState(false);
   const [chartError, setChartError] = useState("");
   const [toothMode, setToothMode] = useState<"ADULT" | "CHILD">("ADULT");
   const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null);
@@ -185,7 +172,10 @@ export default function EncounterAdminPage() {
         setAllServices(data);
       } catch (err: any) {
         console.error("Failed to load services:", err);
-        setServicesError(err.message || "Үйлчилгээ ачаалахад алдаа гарлаа.");
+        // For doctor view, just show a small error in diagnoses section
+        setChartError(
+          err.message || "Үйлчилгээний жагсаалт ачаалахад алдаа гарлаа."
+        );
       }
     };
     loadServices();
@@ -229,19 +219,6 @@ export default function EncounterAdminPage() {
               }))
             : [];
         setRows(initialRows);
-
-        const initialServices: EncounterServiceRow[] =
-          Array.isArray(data.encounterServices) &&
-          data.encounterServices.length > 0
-            ? data.encounterServices.map((s: any) => ({
-                id: s.id,
-                serviceId: s.serviceId,
-                service: s.service,
-                quantity: s.quantity ?? 1,
-                toothCode: s.toothCode ?? null,
-              }))
-            : [];
-        setServices(initialServices);
       } catch (err: any) {
         console.error("Failed to load encounter:", err);
         setEncounterError(err.message || "Алдаа гарлаа");
@@ -332,9 +309,6 @@ export default function EncounterAdminPage() {
       if (index < prev) return prev - 1;
       return prev;
     });
-
-    // Also remove related services row(s) by same toothCode after next save:
-    // we enforce link at save-time by regenerating services from rows.
   };
 
   const handleDiagnosisChange = async (index: number, diagnosisId: number) => {
@@ -440,74 +414,6 @@ export default function EncounterAdminPage() {
         );
       }
 
-      // Build services from diagnosis rows with a service selected
-      const newServices: EncounterServiceRow[] = rows
-        .filter(
-          (r) =>
-            r.serviceId &&
-            r.toothCode &&
-            r.toothCode.trim()
-        )
-        .map((r) => ({
-          serviceId: r.serviceId as number,
-          quantity:
-            r.serviceQuantity && r.serviceQuantity > 0
-              ? r.serviceQuantity
-              : 1,
-          toothCode: r.toothCode!.trim(),
-        }));
-
-      setServices(newServices);
-
-      // Optionally, auto-save services now:
-      if (newServices.length > 0) {
-        try {
-          const servicesPayload = {
-            items: newServices.map((s) => ({
-              serviceId: s.serviceId,
-              quantity: s.quantity || 1,
-              toothCode: s.toothCode || null,
-            })),
-          };
-
-          const sRes = await fetch(
-            `/api/encounters/${encounterId}/services`,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(servicesPayload),
-            }
-          );
-
-          const sData = await sRes.json().catch(() => null);
-          if (!sRes.ok) {
-            throw new Error(
-              sData?.error || "Үйлчилгээ хадгалахад алдаа гарлаа."
-            );
-          }
-
-          if (Array.isArray(sData)) {
-            setServices(
-              sData.map((s: any) => ({
-                id: s.id,
-                serviceId: s.serviceId,
-                service: s.service,
-                quantity: s.quantity ?? 1,
-                toothCode: s.toothCode ?? null,
-              }))
-            );
-          }
-        } catch (err: any) {
-          console.error("Failed to auto-save services:", err);
-          setServicesError(
-            err.message || "Үйлчилгээ хадгалахад алдаа гарлаа."
-          );
-        }
-      } else {
-        // If no services linked, clear services
-        setServices([]);
-      }
-
       setSelectedTeeth([]);
       setActiveRowIndex(null);
     } catch (err: any) {
@@ -515,92 +421,6 @@ export default function EncounterAdminPage() {
       setSaveError(err.message || "Хадгалах үед алдаа гарлаа");
     } finally {
       setSaving(false);
-    }
-  };
-
-  // --- Services helpers (manual changes still allowed if you want) ---
-
-  const addServiceRow = () => {
-    setServices((prev) => [
-      ...prev,
-      { serviceId: 0, service: undefined, quantity: 1, toothCode: "" },
-    ]);
-  };
-
-  const removeServiceRow = (index: number) => {
-    setServices((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleServiceChange = (
-    index: number,
-    field: "serviceId" | "quantity",
-    value: any
-  ) => {
-    setServices((prev) =>
-      prev.map((row, i) => {
-        if (i !== index) return row;
-        if (field === "serviceId") {
-          const sid = Number(value) || 0;
-          const svc = allServices.find((s) => s.id === sid);
-          return { ...row, serviceId: sid, service: svc || undefined };
-        }
-        if (field === "quantity") {
-          const q = Number(value) || 1;
-          return { ...row, quantity: q };
-        }
-        return row;
-      })
-    );
-  };
-
-  const totalServicePrice = services.reduce((sum, s) => {
-    const svc = s.service || allServices.find((x) => x.id === s.serviceId);
-    const price = svc?.price ?? 0;
-    return sum + price * (s.quantity || 1);
-  }, 0);
-
-  const handleSaveServices = async () => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
-    setServicesError("");
-    setServicesSaving(true);
-    try {
-      const payload = {
-        items: services
-          .filter((s) => s.serviceId)
-          .map((s) => ({
-            serviceId: s.serviceId,
-            quantity: s.quantity || 1,
-            toothCode: s.toothCode || null,
-          })),
-      };
-
-      const res = await fetch(`/api/encounters/${encounterId}/services`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(data?.error || "Үйлчилгээ хадгалахад алдаа гарлаа.");
-      }
-
-      if (Array.isArray(data)) {
-        setServices(
-          data.map((s: any) => ({
-            id: s.id,
-            serviceId: s.serviceId,
-            service: s.service,
-            quantity: s.quantity ?? 1,
-            toothCode: s.toothCode ?? null,
-          }))
-        );
-      }
-    } catch (err: any) {
-      console.error("Failed to save services:", err);
-      setServicesError(err.message || "Үйлчилгээ хадгалахад алдаа гарлаа.");
-    } finally {
-      setServicesSaving(false);
     }
   };
 
@@ -626,40 +446,40 @@ export default function EncounterAdminPage() {
 
   const isToothSelected = (code: string) => selectedTeeth.includes(code);
 
- const updateActiveRowToothList = (nextTeeth: string[]) => {
-  if (activeRowIndex === null) {
-    if (nextTeeth.length === 0) return;
-    const idx = createDiagnosisRow(nextTeeth);
-    setActiveRowIndex(idx);
-    return;
-  }
+  const updateActiveRowToothList = (nextTeeth: string[]) => {
+    if (activeRowIndex === null) {
+      if (nextTeeth.length === 0) return;
+      const idx = createDiagnosisRow(nextTeeth);
+      setActiveRowIndex(idx);
+      return;
+    }
 
-  setRows((prev) =>
-    prev.map((row, i) =>
-      i === activeRowIndex
-        ? { ...row, toothCode: stringifyToothList(nextTeeth) }
-        : row
-    )
-  );
+    setRows((prev) =>
+      prev.map((row, i) =>
+        i === activeRowIndex
+          ? { ...row, toothCode: stringifyToothList(nextTeeth) }
+          : row
+      )
+    );
 
-  if (nextTeeth.length === 0) {
-    setRows((prev) => {
-      const row = prev[activeRowIndex!];
-      const isEmpty =
-        row.diagnosisId === 0 &&
-        (row.note || "").trim() === "" &&
-        (row.selectedProblemIds?.length ?? 0) === 0 &&
-        !row.serviceId;
-      if (!isEmpty) {
-        return prev.map((r, i) =>
-          i === activeRowIndex ? { ...r, toothCode: "" } : r
-        );
-      }
-      return prev.filter((_, i) => i !== activeRowIndex);
-    });
-    setActiveRowIndex(null);
-  }
-};
+    if (nextTeeth.length === 0) {
+      setRows((prev) => {
+        const row = prev[activeRowIndex!];
+        const isEmpty =
+          row.diagnosisId === 0 &&
+          (row.note || "").trim() === "" &&
+          (row.selectedProblemIds?.length ?? 0) === 0 &&
+          !row.serviceId;
+        if (!isEmpty) {
+          return prev.map((r, i) =>
+            i === activeRowIndex ? { ...r, toothCode: "" } : r
+          );
+        }
+        return prev.filter((_, i) => i !== activeRowIndex);
+      });
+      setActiveRowIndex(null);
+    }
+  };
 
   const toggleToothSelection = (code: string) => {
     setSelectedTeeth((prev) => {
@@ -673,6 +493,16 @@ export default function EncounterAdminPage() {
       return next;
     });
   };
+
+  // --- Derived: total price of services chosen per diagnosis (for doctor's info only) ---
+  const totalDiagnosisServicesPrice = rows.reduce((sum, r) => {
+    if (!r.serviceId) return sum;
+    const svc = allServices.find((x) => x.id === r.serviceId);
+    const price = svc?.price ?? 0;
+    const qty =
+      r.serviceQuantity && r.serviceQuantity > 0 ? r.serviceQuantity : 1;
+    return sum + price * qty;
+  }, 0);
 
   // --- Render ---
 
@@ -808,15 +638,8 @@ export default function EncounterAdminPage() {
               </div>
             </div>
 
-            {chartLoading && (
-              <div style={{ fontSize: 13 }}>
-                Шүдний диаграм ачааллаж байна...
-              </div>
-            )}
-            {!chartLoading && chartError && (
-              <div style={{ color: "red", marginBottom: 8 }}>
-                {chartError}
-              </div>
+            {chartError && (
+              <div style={{ color: "red", marginBottom: 8 }}>{chartError}</div>
             )}
 
             <div
@@ -905,9 +728,8 @@ export default function EncounterAdminPage() {
               <div>
                 <h2 style={{ fontSize: 16, margin: 0 }}>Онош тавих</h2>
                 <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Нэг мөр = нэг онош, олон шүдэнд хамаарч болно. Хадгалсны дараа
-                  доорх “Үйлчилгээ / эмчилгээ” хэсэгт холбогдох үйлчилгээний мөр
-                  автоматаар үүснэ.
+                  Нэг мөр = нэг онош, олон шүдэнд хамаарч болно. Шүдний код,
+                  онош болон үйлчилгээний дагуу урьдчилсан дүн доор харагдана.
                 </div>
               </div>
             </div>
@@ -1284,9 +1106,21 @@ export default function EncounterAdminPage() {
               style={{
                 marginTop: 12,
                 display: "flex",
-                justifyContent: "flex-end",
+                justifyContent: "space-between",
+                alignItems: "center",
               }}
             >
+              <div style={{ fontSize: 13, color: "#111827" }}>
+                Нийт үйлчилгээний урьдчилсан дүн:{" "}
+                <strong>
+                  {totalDiagnosisServicesPrice.toLocaleString("mn-MN")}₮
+                </strong>{" "}
+                <span style={{ fontSize: 11, color: "#6b7280" }}>
+                  (Эмчийн сонгосон онош, үйлчилгээний дагуу. Төлбөрийн касс дээр
+                  эцэслэнэ.)
+                </span>
+              </div>
+
               <button
                 type="button"
                 onClick={handleSaveDiagnoses}
@@ -1302,205 +1136,6 @@ export default function EncounterAdminPage() {
                 }}
               >
                 {saving ? "Хадгалж байна..." : "Онош хадгалах"}
-              </button>
-            </div>
-          </section>
-
-          {/* Services */}
-          <section
-            style={{
-              marginTop: 16,
-              padding: 16,
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              background: "#ffffff",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 8,
-              }}
-            >
-              <div>
-                <h2 style={{ fontSize: 16, margin: 0 }}>
-                  Үйлчилгээ / эмчилгээ
-                </h2>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Онош хадгалах үед дээрх онош бүрт сонгосон үйлчилгээ энд нэг
-                  мөрөөр үүснэ. Шүдний кодыг оношоос автоматаар авна.
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={addServiceRow}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 6,
-                  border: "1px solid #2563eb",
-                  background: "#eff6ff",
-                  color: "#2563eb",
-                  cursor: "pointer",
-                  fontSize: 13,
-                }}
-              >
-                + Үйлчилгээ нэмэх
-              </button>
-            </div>
-
-            {servicesError && (
-              <div style={{ color: "red", marginBottom: 8 }}>
-                {servicesError}
-              </div>
-            )}
-
-            {services.length === 0 && (
-              <div
-                style={{ color: "#6b7280", fontSize: 13, marginBottom: 8 }}
-              >
-                Одоогоор үйлчилгээ сонгоогүй байна. Дээрх оношид үйлчилгээ сонгож
-                хадгалах эсвэл “Үйлчилгээ нэмэх” товчоос нэмэлт үйлчилгээ
-                оруулна уу.
-              </div>
-            )}
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {services.map((s, index) => (
-                <div
-                  key={index}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "minmax(220px, 2fr) 80px 160px auto",
-                    gap: 8,
-                    alignItems: "center",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 8,
-                    padding: 8,
-                    background: "#f9fafb",
-                  }}
-                >
-                  <select
-                    value={s.serviceId || ""}
-                    onChange={(e) =>
-                      handleServiceChange(index, "serviceId", e.target.value)
-                    }
-                    style={{
-                      borderRadius: 6,
-                      border: "1px solid #d1d5db",
-                      padding: "6px 8px",
-                    }}
-                  >
-                    <option value="">Үйлчилгээ сонгох...</option>
-                    {allServices.map((svc) => (
-                      <option key={svc.id} value={svc.id}>
-                        {svc.code ? `${svc.code} — ` : ""}
-                        {svc.name} (
-                        {svc.price.toLocaleString("mn-MN")}
-                        ₮)
-                      </option>
-                    ))}
-                  </select>
-
-                  <input
-                    type="number"
-                    min={1}
-                    value={s.quantity || 1}
-                    onChange={(e) =>
-                      handleServiceChange(index, "quantity", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      borderRadius: 6,
-                      border: "1px solid #d1d5db",
-                      padding: "6px 8px",
-                    }}
-                  />
-
-                  <input
-                    placeholder="Шүдний код (оношоос автоматаар ирсэн)"
-                    value={s.toothCode || ""}
-                    readOnly
-                    style={{
-                      width: "100%",
-                      borderRadius: 6,
-                      border: "1px solid #d1d5db",
-                      padding: "6px 8px",
-                      background: "#f9fafb",
-                      color: "#6b7280",
-                    }}
-                  />
-
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 8,
-                    }}
-                  >
-                    <span style={{ fontSize: 13, color: "#111827" }}>
-                      {(() => {
-                        const svc =
-                          s.service ||
-                          allServices.find((x) => x.id === s.serviceId);
-                        const price = svc?.price ?? 0;
-                        return (
-                          (price * (s.quantity || 1)).toLocaleString("mn-MN") +
-                          "₮"
-                        );
-                      })()}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removeServiceRow(index)}
-                      style={{
-                        padding: "4px 8px",
-                        borderRadius: 6,
-                        border: "1px solid #dc2626",
-                        background: "#fef2f2",
-                        color: "#b91c1c",
-                        cursor: "pointer",
-                        fontSize: 12,
-                      }}
-                    >
-                      Устгах
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div
-              style={{
-                marginTop: 12,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <div style={{ fontSize: 14, fontWeight: 600 }}>
-                Нийт дүн: {totalServicePrice.toLocaleString("mn-MN")}₮
-              </div>
-              <button
-                type="button"
-                onClick={handleSaveServices}
-                disabled={servicesSaving}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 6,
-                  border: "none",
-                  background: "#2563eb",
-                  color: "#ffffff",
-                  cursor: "pointer",
-                  fontSize: 14,
-                }}
-              >
-                {servicesSaving
-                  ? "Үйлчилгээ хадгалж байна..."
-                  : "Үйлчилгээ хадгалах"}
               </button>
             </div>
           </section>
