@@ -336,4 +336,33 @@ const encounter = await prisma.encounter.findUnique({
     // chartTeeth can be loaded separately via chart-teeth endpoints
   },
 });
+router.post("/:id/billing", async (req, res) => {
+  const encounterId = Number(req.params.id);
+  if (!encounterId || Number.isNaN(encounterId)) {
+    return res.status(400).json({ error: "Invalid encounter id" });
+  }
+
+  const { items } = req.body || {};
+  if (!Array.isArray(items)) {
+    return res.status(400).json({ error: "items must be an array" });
+  }
+
+  try {
+    // ... totalAmount + cleanItems logic ...
+
+    const encounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },   // ← FIXED here
+      include: { invoice: true },
+    });
+
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    // rest of billing logic...
+  } catch (err) {
+    console.error("POST /api/encounters/:id/billing error:", err);
+    return res.status(500).json({ error: "Failed to save billing" });
+  }
+});
 export default router;
