@@ -134,7 +134,7 @@ export default function EncounterAdminPage() {
     () => (typeof id === "string" ? Number(id) : NaN),
     [id]
   );
-
+const [finishing, setFinishing] = useState(false);
   const [encounter, setEncounter] = useState<Encounter | null>(null);
   const [encounterLoading, setEncounterLoading] = useState(false);
   const [encounterError, setEncounterError] = useState("");
