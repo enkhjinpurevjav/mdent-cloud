@@ -331,25 +331,20 @@ export default function EncounterAdminPage() {
   };
 
   const addDiagnosisRowForTooth = (toothCode: string) => {
-    setRows((prev) => {
-      // if there is already a row for this tooth, don't add another automatically
-      const hasRowForTooth = prev.some(
-        (r) => r.toothCode && r.toothCode.trim() === toothCode
-      );
-      if (hasRowForTooth) return prev;
-
-      return [
-        ...prev,
-        {
-          diagnosisId: 0,
-          diagnosis: undefined,
-          selectedProblemIds: [],
-          note: "",
-          toothCode,
-        },
-      ];
-    });
-  };
+  setRows((prev) => {
+    // allow multiple diagnoses per tooth; don't block duplicates
+    return [
+      ...prev,
+      {
+        diagnosisId: 0,
+        diagnosis: undefined,
+        selectedProblemIds: [],
+        note: "",
+        toothCode,
+      },
+    ];
+  });
+};
 
   const removeDiagnosisRow = (index: number) => {
     setRows((prev) => prev.filter((_, i) => i !== index));
@@ -570,19 +565,27 @@ export default function EncounterAdminPage() {
   const isToothSelected = (code: string) => selectedTeeth.includes(code);
 
   const toggleToothSelection = (code: string) => {
-    setSelectedTeeth((prev) => {
-      if (prev.includes(code)) {
-        const next = prev.filter((c) => c !== code);
-        setCurrentTooth((cur) => (cur === code ? null : cur));
-        return next;
-      } else {
-        setCurrentTooth(code);
-        // auto-create diagnosis row for this tooth if none exists yet
-        addDiagnosisRowForTooth(code);
-        return [...prev, code];
-      }
-    });
-  };
+  setSelectedTeeth((prev) => {
+    if (prev.includes(code)) {
+      // Deselect tooth: remove from selectedTeeth AND remove its diagnoses
+      const next = prev.filter((c) => c !== code);
+      setCurrentTooth((cur) => (cur === code ? null : cur));
+
+      setRows((rowsPrev) =>
+        rowsPrev.filter(
+          (r) => !(r.toothCode && r.toothCode.trim() === code)
+        )
+      );
+
+      return next;
+    } else {
+      // Select tooth: add to selectedTeeth and create an empty diagnosis row for it
+      setCurrentTooth(code);
+      addDiagnosisRowForTooth(code);
+      return [...prev, code];
+    }
+  });
+};
 
   const handleSaveChartTeeth = async () => {
     if (!encounterId || Number.isNaN(encounterId)) return;
