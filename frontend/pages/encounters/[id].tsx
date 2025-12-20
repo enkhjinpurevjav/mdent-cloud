@@ -134,7 +134,8 @@ export default function EncounterAdminPage() {
     () => (typeof id === "string" ? Number(id) : NaN),
     [id]
   );
-
+// which diagnosis row currently shows suggestions
+  const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
   const [encounter, setEncounter] = useState<Encounter | null>(null);
   const [encounterLoading, setEncounterLoading] = useState(false);
   const [encounterError, setEncounterError] = useState("");
@@ -884,49 +885,146 @@ export default function EncounterAdminPage() {
                     }}
                   >
                     <div
-                      style={{
-                        display: "flex",
-                        gap: 8,
-                        alignItems: "center",
-                        marginBottom: 8,
-                      }}
-                    >
-                      <select
-                        value={row.diagnosisId || ""}
-                        onChange={async (e) => {
-                          const val = Number(e.target.value) || 0;
-                          await handleDiagnosisChange(index, val);
-                        }}
-                        style={{
-                          flex: 1,
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "6px 8px",
-                        }}
-                      >
-                        <option value="">Онош сонгох...</option>
-                        {allDiagnoses.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.code} – {d.name}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => removeDiagnosisRow(index)}
-                        style={{
-                          padding: "4px 10px",
-                          borderRadius: 6,
-                          border: "1px solid #dc2626",
-                          background: "#fef2f2",
-                          color: "#b91c1c",
-                          cursor: "pointer",
-                          fontSize: 12,
-                        }}
-                      >
-                        Устгах
-                      </button>
-                    </div>
+  style={{
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    marginBottom: 8,
+  }}
+>
+  <div
+    style={{
+      display: "flex",
+      gap: 8,
+      alignItems: "center",
+    }}
+  >
+    <div style={{ position: "relative", flex: 1 }}>
+      <input
+        placeholder="Онош бичиж хайх (ж: K04.1, пульпит...)"
+        value={
+          row.diagnosis
+            ? `${row.diagnosis.code} – ${row.diagnosis.name}`
+            : ""
+        }
+        onChange={(e) => {
+          const q = e.target.value.toLowerCase();
+          // open suggestion list when user types
+          setOpenDxIndex(index);
+
+          // do NOT immediately change diagnosisId; suggestions come below
+          // but if they clear the input, reset the row
+          if (!q.trim()) {
+            setRows((prev) =>
+              prev.map((r, i) =>
+                i === index
+                  ? {
+                      ...r,
+                      diagnosisId: 0,
+                      diagnosis: undefined,
+                      selectedProblemIds: [],
+                    }
+                  : r
+              )
+            );
+          }
+        }}
+        onFocus={() => setOpenDxIndex(index)}
+        style={{
+          width: "100%",
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "6px 8px",
+          fontSize: 13,
+        }}
+      />
+
+      {/* Suggestions dropdown */}
+      {openDxIndex === index && allDiagnoses.length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            maxHeight: 220,
+            overflowY: "auto",
+            marginTop: 4,
+            background: "white",
+            borderRadius: 6,
+            boxShadow:
+              "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
+            zIndex: 20,
+            fontSize: 13,
+          }}
+        >
+          {allDiagnoses
+            .filter((d) => {
+              const hay = `${d.code} ${d.name}`.toLowerCase();
+              const currentText = row.diagnosis
+                ? `${row.diagnosis.code} – ${row.diagnosis.name}`.toLowerCase()
+                : "";
+              // if input is empty show first ~30 items
+              if (!currentText.trim()) return true;
+              const q = currentText.toLowerCase();
+              return hay.includes(q);
+            })
+            .slice(0, 50) // limit to avoid huge list
+            .map((d) => (
+              <div
+                key={d.id}
+                onMouseDown={async (e) => {
+                  e.preventDefault();
+                  await handleDiagnosisChange(index, d.id);
+                  setOpenDxIndex(null);
+                }}
+                style={{
+                  padding: "6px 8px",
+                  cursor: "pointer",
+                  borderBottom: "1px solid #f3f4f6",
+                  background:
+                    row.diagnosisId === d.id ? "#eff6ff" : "white",
+                }}
+              >
+                <div style={{ fontWeight: 500 }}>
+                  {d.code} – {d.name}
+                </div>
+                {d.description && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "#6b7280",
+                      marginTop: 2,
+                    }}
+                  >
+                    {d.description}
+                  </div>
+                )}
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+
+    <button
+      type="button"
+      onClick={() => removeDiagnosisRow(index)}
+      style={{
+        padding: "4px 10px",
+        borderRadius: 6,
+        border: "1px solid #dc2626",
+        background: "#fef2f2",
+        color: "#b91c1c",
+        cursor: "pointer",
+        fontSize: 12,
+        height: 32,
+        alignSelf: "flex-start",
+      }}
+    >
+      Устгах
+    </button>
+  </div>
+</div>
 
                     <div
                       style={{
