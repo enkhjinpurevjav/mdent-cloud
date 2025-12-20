@@ -423,7 +423,38 @@ const [finishing, setFinishing] = useState(false);
       setSaving(false);
     }
   };
+const handleFinishEncounter = async () => {
+  if (!encounterId || Number.isNaN(encounterId)) return;
+  setFinishing(true);
+  setSaveError("");
+  try {
+    // 1) Save diagnoses (await to catch any error)
+    await handleSaveDiagnoses();
 
+    // 2) Mark appointment as ready_to_pay
+    const res = await fetch(`/api/encounters/${encounterId}/finish`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(
+        data?.error || "Үзлэг дууссан төлөвт шилжүүлэхэд алдаа гарлаа."
+      );
+    }
+
+    // Optionally: you could show a toast or redirect
+    // e.g. router.push("/appointments");
+  } catch (err: any) {
+    console.error("Failed to finish encounter:", err);
+    setSaveError(
+      err.message || "Үзлэг дууссан төлөвт шилжүүлэхэд алдаа гарлаа."
+    );
+  } finally {
+    setFinishing(false);
+  }
+};
   // --- Tooth chart helpers ---
 
   const ADULT_TEETH: string[] = [
