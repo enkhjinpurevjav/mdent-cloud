@@ -55,6 +55,10 @@ router.get("/:id", async (req, res) => {
   }
 });
 
+
+
+
+
 /**
  * PUT /api/encounters/:id/diagnoses
  * Replaces all EncounterDiagnosis rows for this encounter.
@@ -255,5 +259,44 @@ router.put("/:id/chart-teeth", async (req, res) => {
     return res.status(500).json({ error: "Failed to save tooth chart" });
   }
 });
+/**
+ * PUT /api/encounters/:id/finish
+ * Marks the linked appointment as "ready_to_pay" after the doctor finishes.
+ */
+router.put("/:id/finish", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
 
+    const encounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      include: { appointment: true },
+    });
+
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    if (!encounter.appointmentId || !encounter.appointment) {
+      // No linked appointment -> nothing to update
+      return res.json({ ok: true, updatedAppointment: null });
+    }
+
+    const appt = await prisma.appointment.update({
+      where: { id: encounter.appointmentId },
+      data: {
+        status: "ready_to_pay", // Төлбөр төлөх
+      },
+    });
+
+    return res.json({ ok: true, updatedAppointment: appt });
+  } catch (err) {
+    console.error("PUT /api/encounters/:id/finish error:", err);
+    return res.status(500).json({
+      error: "Үзлэг дууссаны төлөв шинэчлэх үед алдаа гарлаа.",
+    });
+  }
+});
 export default router;
