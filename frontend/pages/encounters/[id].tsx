@@ -95,6 +95,14 @@ type Encounter = {
   encounterServices?: EncounterServiceRow[];
 };
 
+type EditableDiagnosis = {
+  diagnosisId: number;
+  diagnosis?: Diagnosis;
+  selectedProblemIds: number[];
+  note: string;
+  toothCode?: string;
+};
+
 type ChartToothRow = {
   id?: number;
   toothCode: string;
@@ -136,6 +144,18 @@ export default function EncounterAdminPage() {
   const [encounter, setEncounter] = useState<Encounter | null>(null);
   const [encounterLoading, setEncounterLoading] = useState(false);
   const [encounterError, setEncounterError] = useState("");
+
+  // Diagnoses master + encounter diagnoses (we won't render the editor yet,
+  // but we keep the data and logic ready for future steps)
+  const [allDiagnoses, setAllDiagnoses] = useState<Diagnosis[]>([]);
+  const [dxLoading, setDxLoading] = useState(false);
+  const [dxError, setDxError] = useState("");
+  const [problemsByDiagnosis, setProblemsByDiagnosis] = useState<
+    Record<number, DiagnosisProblem[]>
+  >({});
+  const [rows, setRows] = useState<EditableDiagnosis[]>([]);
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   // Services state
   const [allServices, setAllServices] = useState<Service[]>([]);
@@ -192,6 +212,22 @@ export default function EncounterAdminPage() {
 
         setEncounter(data);
 
+        // Initialize editable diagnosis rows from server data
+        const initialRows: EditableDiagnosis[] =
+          Array.isArray(data.encounterDiagnoses) &&
+          data.encounterDiagnoses.length > 0
+            ? data.encounterDiagnoses.map((r: EncounterDiagnosisRow) => ({
+                diagnosisId: r.diagnosisId,
+                diagnosis: r.diagnosis,
+                selectedProblemIds: Array.isArray(r.selectedProblemIds)
+                  ? (r.selectedProblemIds as number[])
+                  : [],
+                note: r.note || "",
+                toothCode: r.toothCode || "",
+              }))
+            : [];
+        setRows(initialRows);
+
         // Initialize services rows from server data
         const initialServices: EncounterServiceRow[] =
           Array.isArray(data.encounterServices) &&
@@ -216,6 +252,35 @@ export default function EncounterAdminPage() {
 
     load();
   }, [encounterId]);
+
+  // Load all diagnoses (for future on-page use)
+  useEffect(() => {
+    const loadDx = async () => {
+      setDxLoading(true);
+      setDxError("");
+      try {
+        const res = await fetch("/api/diagnoses");
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          data = null;
+        }
+        if (!res.ok || !Array.isArray(data)) {
+          throw new Error((data && data.error) || "Алдаа гарлаа");
+        }
+        setAllDiagnoses(data);
+      } catch (err: any) {
+        console.error("Failed to load diagnoses:", err);
+        setDxError(err.message || "Алдаа гарлаа");
+        setAllDiagnoses([]);
+      } finally {
+        setDxLoading(false);
+      }
+    };
+
+    loadDx();
+  }, []);
 
   // Load tooth chart for this encounter
   useEffect(() => {
@@ -252,6 +317,153 @@ export default function EncounterAdminPage() {
 
     loadChart();
   }, [encounterId]);
+
+  // --- Diagnoses helpers (backend wiring ready; UI not rendered yet) ---
+
+  const ensureProblemsLoaded = async (diagnosisId: number) => {
+    if (problemsByDiagnosis[diagnosisId]) return;
+    try {
+      const res = await fetch(`/api/diagnoses/${diagnosisId}/problems`);
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+      if (!res.ok || !Array.isArray(data)) {
+        throw new Error((data && data.error) || "Алдаа гарлаа");
+      }
+      setProblemsByDiagnosis((prev) => ({
+        ...prev,
+        [diagnosisId]: data,
+      }));
+    } catch (err) {
+      console.error("Failed to load problems:", err);
+    }
+  };
+
+  const addDiagnosisRow = () => {
+    setRows((prev) => [
+      ...prev,
+      {
+        diagnosisId: 0,
+        diagnosis: undefined,
+        selectedProblemIds: [],
+        note: "",
+        toothCode: "",
+      },
+    ]);
+  };
+
+  const removeDiagnosisRow = (index: number) => {
+    setRows((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDiagnosisChange = async (index: number, diagnosisId: number) => {
+    const dx = allDiagnoses.find((d) => d.id === diagnosisId);
+    setRows((prev) =>
+      prev.map((row, i) =>
+        i === index
+          ? {
+              diagnosisId,
+              diagnosis: dx,
+              selectedProblemIds: [],
+              note: row.note,
+              toothCode: row.toothCode,
+            }
+          : row
+      )
+    );
+    if (diagnosisId) {
+      await ensureProblemsLoaded(diagnosisId);
+    }
+  };
+
+  const toggleProblem = (index: number, problemId: number) => {
+    setRows((prev) =>
+      prev.map((row, i) => {
+        if (i !== index) return row;
+        const exists = row.selectedProblemIds.includes(problemId);
+        return {
+          ...row,
+          selectedProblemIds: exists
+            ? row.selectedProblemIds.filter((id) => id !== problemId)
+            : [...row.selectedProblemIds, problemId],
+        };
+      })
+    );
+  };
+
+  const handleNoteChange = (index: number, value: string) => {
+    setRows((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, note: value } : row))
+    );
+  };
+
+  const handleDxToothCodeChange = (index: number, value: string) => {
+    setRows((prev) =>
+      prev.map((row, i) =>
+        i === index ? { ...row, toothCode: value } : row
+      )
+    );
+  };
+
+  const handleSaveDiagnoses = async () => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+    setSaveError("");
+    setSaving(true);
+    try {
+      const payload = {
+        items: rows
+          .filter((r) => r.diagnosisId)
+          .map((r) => ({
+            diagnosisId: r.diagnosisId,
+            selectedProblemIds: r.selectedProblemIds,
+            note: r.note || null,
+            toothCode:
+              r.toothCode && r.toothCode.trim()
+                ? r.toothCode.trim()
+                : null,
+          })),
+      };
+
+      const res = await fetch(`/api/encounters/${encounterId}/diagnoses`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok) {
+        throw new Error((data && data.error) || "Хадгалах үед алдаа гарлаа");
+      }
+
+      if (data && Array.isArray(data)) {
+        setRows(
+          data.map((r: any) => ({
+            diagnosisId: r.diagnosisId,
+            diagnosis: r.diagnosis,
+            selectedProblemIds: Array.isArray(r.selectedProblemIds)
+              ? (r.selectedProblemIds as number[])
+              : [],
+            note: r.note || "",
+            toothCode: r.toothCode || "",
+          }))
+        );
+      }
+    } catch (err: any) {
+      console.error("Failed to save diagnoses:", err);
+      setSaveError(err.message || "Хадгалах үед алдаа гарлаа");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // --- Services helpers ---
 
@@ -372,10 +584,7 @@ export default function EncounterAdminPage() {
     });
   };
 
-  const handleToothFieldChange = (
-    index: number,
-    value: string
-  ) => {
+  const handleToothFieldChange = (index: number, value: string) => {
     setChartTeeth((prev) =>
       prev.map((t, i) =>
         i === index
@@ -419,12 +628,12 @@ export default function EncounterAdminPage() {
         );
       }
 
-      const rows: ChartToothRow[] = data.map((t: any) => ({
+      const rowsMapped: ChartToothRow[] = data.map((t: any) => ({
         id: t.id,
         toothCode: t.toothCode,
         notes: t.notes || "",
       }));
-      setChartTeeth(rows);
+      setChartTeeth(rowsMapped);
     } catch (err: any) {
       console.error("Failed to save tooth chart:", err);
       setChartError(err.message || "Шүдний диаграм хадгалахад алдаа гарлаа.");
@@ -432,6 +641,8 @@ export default function EncounterAdminPage() {
       setChartSaving(false);
     }
   };
+
+  // --- Render ---
 
   if (!encounterId || Number.isNaN(encounterId)) {
     return (
