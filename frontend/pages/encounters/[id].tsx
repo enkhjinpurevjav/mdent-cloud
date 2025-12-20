@@ -145,8 +145,7 @@ export default function EncounterAdminPage() {
   const [encounterLoading, setEncounterLoading] = useState(false);
   const [encounterError, setEncounterError] = useState("");
 
-  // Diagnoses master + encounter diagnoses (we won't render the editor yet,
-  // but we keep the data and logic ready for future steps)
+  // Diagnoses master + editable rows
   const [allDiagnoses, setAllDiagnoses] = useState<Diagnosis[]>([]);
   const [dxLoading, setDxLoading] = useState(false);
   const [dxError, setDxError] = useState("");
@@ -253,7 +252,7 @@ export default function EncounterAdminPage() {
     load();
   }, [encounterId]);
 
-  // Load all diagnoses (for future on-page use)
+  // Load all diagnoses
   useEffect(() => {
     const loadDx = async () => {
       setDxLoading(true);
@@ -282,7 +281,7 @@ export default function EncounterAdminPage() {
     loadDx();
   }, []);
 
-  // Load tooth chart for this encounter
+  // Load tooth chart
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
 
@@ -318,7 +317,7 @@ export default function EncounterAdminPage() {
     loadChart();
   }, [encounterId]);
 
-  // --- Diagnoses helpers (backend wiring ready; UI not rendered yet) ---
+  // --- Diagnoses helpers ---
 
   const ensureProblemsLoaded = async (diagnosisId: number) => {
     if (problemsByDiagnosis[diagnosisId]) return;
@@ -963,6 +962,251 @@ export default function EncounterAdminPage() {
                 {chartSaving
                   ? "Шүдний диаграм хадгалж байна..."
                   : "Шүдний диаграм хадгалах"}
+              </button>
+            </div>
+          </section>
+
+          {/* Diagnosis editor */}
+          <section
+            style={{
+              marginTop: 16,
+              padding: 16,
+              borderRadius: 8,
+              border: "1px solid #e5e7eb",
+              background: "#ffffff",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
+              <h2 style={{ fontSize: 16, margin: 0 }}>Онош тавих</h2>
+              <button
+                type="button"
+                onClick={addDiagnosisRow}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: "1px solid #2563eb",
+                  background: "#eff6ff",
+                  color: "#2563eb",
+                  cursor: "pointer",
+                  fontSize: 13,
+                }}
+              >
+                + Онош нэмэх
+              </button>
+            </div>
+
+            {dxError && (
+              <div style={{ color: "red", marginBottom: 8 }}>{dxError}</div>
+            )}
+
+            {rows.length === 0 && (
+              <div style={{ color: "#6b7280", fontSize: 13 }}>
+                Одоогоор онош сонгоогүй байна. Дээрх “Онош нэмэх” товчоор онош
+                нэмнэ үү.
+              </div>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {rows.map((row, index) => {
+                const problems = problemsByDiagnosis[row.diagnosisId] || [];
+                return (
+                  <div
+                    key={index}
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 8,
+                      padding: 12,
+                      background: "#f9fafb",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                        marginBottom: 8,
+                      }}
+                    >
+                      <select
+                        value={row.diagnosisId || ""}
+                        onChange={async (e) => {
+                          const val = Number(e.target.value) || 0;
+                          await handleDiagnosisChange(index, val);
+                        }}
+                        style={{
+                          flex: 1,
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "6px 8px",
+                        }}
+                      >
+                        <option value="">Онош сонгох...</option>
+                        {allDiagnoses.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.code} – {d.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => removeDiagnosisRow(index)}
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: 6,
+                          border: "1px solid #dc2626",
+                          background: "#fef2f2",
+                          color: "#b91c1c",
+                          cursor: "pointer",
+                          fontSize: 12,
+                        }}
+                      >
+                        Устгах
+                      </button>
+                    </div>
+
+                    {/* Tooth code for this diagnosis */}
+                    <div
+                      style={{
+                        marginBottom: 8,
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                      }}
+                    >
+                      <input
+                        placeholder="Шүдний код (ж: 11, 26, 85) — сонголттой"
+                        value={row.toothCode || ""}
+                        onChange={(e) =>
+                          handleDxToothCodeChange(index, e.target.value)
+                        }
+                        style={{
+                          maxWidth: 200,
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "6px 8px",
+                          fontSize: 12,
+                        }}
+                      />
+                      <span style={{ fontSize: 11, color: "#6b7280" }}>
+                        Хоосон байж болно (ерөнхий онош).
+                      </span>
+                    </div>
+
+                    {/* Problems checklist */}
+                    {row.diagnosisId ? (
+                      <>
+                        {problems.length === 0 ? (
+                          <div
+                            style={{
+                              color: "#6b7280",
+                              fontSize: 12,
+                              marginBottom: 8,
+                            }}
+                          >
+                            Энэ оношид тохирсон зовиур бүртгээгүй байна
+                            (оношийн тохиргооноос нэмнэ).
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 8,
+                              marginBottom: 8,
+                            }}
+                          >
+                            {problems.map((p) => {
+                              const checked =
+                                row.selectedProblemIds.includes(p.id);
+                              return (
+                                <label
+                                  key={p.id}
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                    padding: "4px 8px",
+                                    borderRadius: 999,
+                                    border: checked
+                                      ? "1px solid #16a34a"
+                                      : "1px solid #d1d5db",
+                                    background: checked
+                                      ? "#dcfce7"
+                                      : "#ffffff",
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() =>
+                                      toggleProblem(index, p.id)
+                                    }
+                                  />
+                                  {p.label}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    ) : null}
+
+                    {/* Note */}
+                    <textarea
+                      placeholder="Энэ оношид холбогдох тэмдэглэл (сонголттой)"
+                      value={row.note}
+                      onChange={(e) =>
+                        handleNoteChange(index, e.target.value)
+                      }
+                      rows={2}
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "6px 8px",
+                        fontSize: 13,
+                        resize: "vertical",
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            {saveError && (
+              <div style={{ color: "red", marginTop: 8 }}>{saveError}</div>
+            )}
+
+            <div
+              style={{
+                marginTop: 12,
+                display: "flex",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleSaveDiagnoses}
+                disabled={saving}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: "#16a34a",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  fontSize: 14,
+                }}
+              >
+                {saving ? "Хадгалж байна..." : "Онош хадгалах"}
               </button>
             </div>
           </section>
