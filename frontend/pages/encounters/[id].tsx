@@ -49,6 +49,7 @@ type EncounterDiagnosisRow = {
   selectedProblemIds: number[] | null;
   note?: string | null;
   diagnosis: Diagnosis;
+  toothCode?: string | null;
 };
 
 type ServiceCategory =
@@ -94,17 +95,9 @@ type Encounter = {
   encounterServices?: EncounterServiceRow[];
 };
 
-type EditableDiagnosis = {
-  diagnosisId: number;
-  diagnosis?: Diagnosis;
-  selectedProblemIds: number[];
-  note: string;
-};
-
 type ChartToothRow = {
   id?: number;
   toothCode: string;
-  status?: string | null;
   notes?: string | null;
 };
 
@@ -144,18 +137,6 @@ export default function EncounterAdminPage() {
   const [encounterLoading, setEncounterLoading] = useState(false);
   const [encounterError, setEncounterError] = useState("");
 
-  // We keep diagnoses types/state in case you use them elsewhere,
-  // but we will not render the "Онош тавих" section.
-  const [allDiagnoses, setAllDiagnoses] = useState<Diagnosis[]>([]);
-  const [dxLoading, setDxLoading] = useState(false);
-  const [dxError, setDxError] = useState("");
-  const [problemsByDiagnosis, setProblemsByDiagnosis] = useState<
-    Record<number, DiagnosisProblem[]>
-  >({});
-  const [rows, setRows] = useState<EditableDiagnosis[]>([]);
-  const [saveError, setSaveError] = useState("");
-  const [saving, setSaving] = useState(false);
-
   // Services state
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [services, setServices] = useState<EncounterServiceRow[]>([]);
@@ -168,6 +149,8 @@ export default function EncounterAdminPage() {
   const [chartError, setChartError] = useState("");
   const [chartSaving, setChartSaving] = useState(false);
   const [toothMode, setToothMode] = useState<"ADULT" | "CHILD">("ADULT");
+
+  // --- Load data ---
 
   // Load master services catalog
   useEffect(() => {
@@ -209,21 +192,6 @@ export default function EncounterAdminPage() {
 
         setEncounter(data);
 
-        // Initialize editable diagnosis rows from server data (kept for now)
-        const initialRows: EditableDiagnosis[] =
-          Array.isArray(data.encounterDiagnoses) &&
-          data.encounterDiagnoses.length > 0
-            ? data.encounterDiagnoses.map((r: EncounterDiagnosisRow) => ({
-                diagnosisId: r.diagnosisId,
-                diagnosis: r.diagnosis,
-                selectedProblemIds: Array.isArray(r.selectedProblemIds)
-                  ? (r.selectedProblemIds as number[])
-                  : [],
-                note: r.note || "",
-              }))
-            : [];
-        setRows(initialRows);
-
         // Initialize services rows from server data
         const initialServices: EncounterServiceRow[] =
           Array.isArray(data.encounterServices) &&
@@ -249,35 +217,6 @@ export default function EncounterAdminPage() {
     load();
   }, [encounterId]);
 
-  // Load all diagnoses (for possible future use)
-  useEffect(() => {
-    const loadDx = async () => {
-      setDxLoading(true);
-      setDxError("");
-      try {
-        const res = await fetch("/api/diagnoses");
-        let data: any = null;
-        try {
-          data = await res.json();
-        } catch {
-          data = null;
-        }
-        if (!res.ok || !Array.isArray(data)) {
-          throw new Error((data && data.error) || "Алдаа гарлаа");
-        }
-        setAllDiagnoses(data);
-      } catch (err: any) {
-        console.error("Failed to load diagnoses:", err);
-        setDxError(err.message || "Алдаа гарлаа");
-        setAllDiagnoses([]);
-      } finally {
-        setDxLoading(false);
-      }
-    };
-
-    loadDx();
-  }, []);
-
   // Load tooth chart for this encounter
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
@@ -299,7 +238,6 @@ export default function EncounterAdminPage() {
         const rows: ChartToothRow[] = data.map((t: any) => ({
           id: t.id,
           toothCode: t.toothCode,
-          status: t.status || "",
           notes: t.notes || "",
         }));
         setChartTeeth(rows);
@@ -404,17 +342,17 @@ export default function EncounterAdminPage() {
   // --- Tooth chart helpers ---
 
   const ADULT_TEETH: string[] = [
-    "11","12","13","14","15","16","17","18",
-    "21","22","23","24","25","26","27","28",
-    "31","32","33","34","35","36","37","38",
-    "41","42","43","44","45","46","47","48",
+    "11", "12", "13", "14", "15", "16", "17", "18",
+    "21", "22", "23", "24", "25", "26", "27", "28",
+    "31", "32", "33", "34", "35", "36", "37", "38",
+    "41", "42", "43", "44", "45", "46", "47", "48",
   ];
 
   const CHILD_TEETH: string[] = [
-    "51","52","53","54","55",
-    "61","62","63","64","65",
-    "71","72","73","74","75",
-    "81","82","83","84","85",
+    "51", "52", "53", "54", "55",
+    "61", "62", "63", "64", "65",
+    "71", "72", "73", "74", "75",
+    "81", "82", "83", "84", "85",
   ];
 
   const toggleToothMode = (mode: "ADULT" | "CHILD") => {
@@ -430,13 +368,12 @@ export default function EncounterAdminPage() {
       if (exists) {
         return prev.filter((t) => t.toothCode !== code);
       }
-      return [...prev, { toothCode: code, status: "", notes: "" }];
+      return [...prev, { toothCode: code, notes: "" }];
     });
   };
 
   const handleToothFieldChange = (
     index: number,
-    field: "status" | "notes",
     value: string
   ) => {
     setChartTeeth((prev) =>
@@ -444,7 +381,7 @@ export default function EncounterAdminPage() {
         i === index
           ? {
               ...t,
-              [field]: value,
+              notes: value,
             }
           : t
       )
@@ -459,7 +396,6 @@ export default function EncounterAdminPage() {
       const payload = {
         teeth: chartTeeth.map((t) => ({
           toothCode: t.toothCode,
-          status: t.status || null,
           notes: t.notes || null,
         })),
       };
@@ -486,7 +422,6 @@ export default function EncounterAdminPage() {
       const rows: ChartToothRow[] = data.map((t: any) => ({
         id: t.id,
         toothCode: t.toothCode,
-        status: t.status || "",
         notes: t.notes || "",
       }));
       setChartTeeth(rows);
@@ -641,7 +576,7 @@ export default function EncounterAdminPage() {
               </div>
             )}
 
-            {/* Simple FDI layout as pill buttons */}
+            {/* Teeth pills */}
             <div
               style={{
                 display: "flex",
@@ -691,7 +626,7 @@ export default function EncounterAdminPage() {
               </div>
             </div>
 
-            {/* Selected teeth list with status + notes */}
+            {/* Selected teeth list */}
             {chartTeeth.length === 0 ? (
               <div style={{ fontSize: 13, color: "#6b7280" }}>
                 Одоогоор шүд сонгоогүй байна.
@@ -772,49 +707,20 @@ export default function EncounterAdminPage() {
                         </button>
                       </div>
 
-                      <div
+                      <input
+                        placeholder="Шүдний тэмдэглэл (сонголттой)"
+                        value={t.notes || ""}
+                        onChange={(e) =>
+                          handleToothFieldChange(index, e.target.value)
+                        }
                         style={{
-                          display: "grid",
-                          gridTemplateColumns:
-                            "minmax(120px, 1fr) minmax(180px, 2fr)",
-                          gap: 8,
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "6px 8px",
+                          fontSize: 12,
+                          width: "100%",
                         }}
-                      >
-                        <input
-                          placeholder="Төлөв (ж: Эрүүл, Цоорсон...)"
-                          value={t.status || ""}
-                          onChange={(e) =>
-                            handleToothFieldChange(
-                              index,
-                              "status",
-                              e.target.value
-                            )
-                          }
-                          style={{
-                            borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            padding: "6px 8px",
-                            fontSize: 12,
-                          }}
-                        />
-                        <input
-                          placeholder="Тэмдэглэл (сонголттой)"
-                          value={t.notes || ""}
-                          onChange={(e) =>
-                            handleToothFieldChange(
-                              index,
-                              "notes",
-                              e.target.value
-                            )
-                          }
-                          style={{
-                            borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            padding: "6px 8px",
-                            fontSize: 12,
-                          }}
-                        />
-                      </div>
+                      />
                     </div>
                   ))}
               </div>
@@ -954,7 +860,7 @@ export default function EncounterAdminPage() {
                   />
 
                   <input
-                    placeholder="Шүдний код (ж: 11, 26, 85)"
+                    placeholder="Шүдний код (ж: 11, 26, 85) эсвэл хоосон"
                     value={s.toothCode || ""}
                     onChange={(e) =>
                       handleServiceChange(index, "toothCode", e.target.value)
