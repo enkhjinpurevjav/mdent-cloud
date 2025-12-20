@@ -5,7 +5,7 @@ const router = express.Router();
 
 /**
  * GET /api/encounters/:id
- * Detailed encounter view for admin page.
+ * Detailed encounter view for admin page / billing.
  */
 router.get("/:id", async (req, res) => {
   try {
@@ -35,6 +35,18 @@ router.get("/:id", async (req, res) => {
           },
           orderBy: { id: "asc" },
         },
+        invoice: {
+          include: {
+            invoiceItems: {
+              include: {
+                procedure: true,
+              },
+              orderBy: { id: "asc" },
+            },
+            payment: true,
+            eBarimtReceipt: true,
+          },
+        },
         // chartTeeth can be loaded separately via chart-teeth endpoints
       },
     });
@@ -54,10 +66,6 @@ router.get("/:id", async (req, res) => {
     return res.status(500).json({ error: "Failed to load encounter" });
   }
 });
-
-
-
-
 
 /**
  * PUT /api/encounters/:id/diagnoses
@@ -84,7 +92,6 @@ router.put("/:id/diagnoses", async (req, res) => {
 
   try {
     await prisma.$transaction(async (trx) => {
-      // delete all existing diagnoses for this encounter
       await trx.encounterDiagnosis.deleteMany({
         where: { encounterId },
       });
@@ -147,7 +154,6 @@ router.put("/:id/services", async (req, res) => {
 
   try {
     await prisma.$transaction(async (trx) => {
-      // delete existing services for this encounter
       await trx.encounterService.deleteMany({
         where: { encounterId },
       });
@@ -155,7 +161,6 @@ router.put("/:id/services", async (req, res) => {
       for (const item of items) {
         if (!item.serviceId) continue;
 
-        // look up current service price
         const svc = await trx.service.findUnique({
           where: { id: item.serviceId },
           select: { price: true },
@@ -188,7 +193,6 @@ router.put("/:id/services", async (req, res) => {
 
 /**
  * GET /api/encounters/:id/chart-teeth
- * Returns all ChartTooth rows for this encounter (with ChartNote).
  */
 router.get("/:id/chart-teeth", async (req, res) => {
   try {
@@ -214,8 +218,6 @@ router.get("/:id/chart-teeth", async (req, res) => {
 
 /**
  * PUT /api/encounters/:id/chart-teeth
- * Replaces all ChartTooth rows for this encounter.
- * Body: { teeth: { toothCode: string; status?: string; notes?: string }[] }
  */
 router.put("/:id/chart-teeth", async (req, res) => {
   try {
@@ -259,6 +261,7 @@ router.put("/:id/chart-teeth", async (req, res) => {
     return res.status(500).json({ error: "Failed to save tooth chart" });
   }
 });
+
 /**
  * PUT /api/encounters/:id/finish
  * Marks the linked appointment as "ready_to_pay" after the doctor finishes.
@@ -280,14 +283,13 @@ router.put("/:id/finish", async (req, res) => {
     }
 
     if (!encounter.appointmentId || !encounter.appointment) {
-      // No linked appointment -> nothing to update
       return res.json({ ok: true, updatedAppointment: null });
     }
 
     const appt = await prisma.appointment.update({
       where: { id: encounter.appointmentId },
       data: {
-        status: "ready_to_pay", // Төлбөр төлөх
+        status: "ready_to_pay",
       },
     });
 
@@ -300,42 +302,11 @@ router.put("/:id/finish", async (req, res) => {
   }
 });
 
-const encounter = await prisma.encounter.findUnique({
-  where: { id },
-  include: {
-    patientBook: {
-      include: {
-        patient: {
-          include: { branch: true },
-        },
-      },
-    },
-    doctor: true,
-    diagnoses: {
-      include: { diagnosis: true },
-      orderBy: { createdAt: "asc" },
-    },
-    encounterServices: {
-      include: {
-        service: true,
-      },
-      orderBy: { id: "asc" },
-    },
-    invoice: {
-      include: {
-        invoiceItems: {
-          include: {
-            procedure: true,
-          },
-          orderBy: { id: "asc" },
-        },
-        payment: true,
-        eBarimtReceipt: true,
-      },
-    },
-    // chartTeeth can be loaded separately via chart-teeth endpoints
-  },
-});
+/**
+ * POST /api/encounters/:id/billing
+ *
+ * Simple first version: calculates total from items and upserts Invoice.
+ */
 router.post("/:id/billing", async (req, res) => {
   const encounterId = Number(req.params.id);
   if (!encounterId || Number.isNaN(encounterId)) {
@@ -348,10 +319,22 @@ router.post("/:id/billing", async (req, res) => {
   }
 
   try {
-    // ... totalAmount + cleanItems logic ...
+    let totalAmount = 0;
+
+    for (const raw of items) {
+      const serviceId = Number(raw.serviceId);
+      const qty = Number(raw.quantity) || 1;
+      const basePrice = Number(raw.price) || 0;
+      const discountAmount = Number(raw.discountAmount) || 0;
+
+      if (!serviceId) continue;
+
+      const lineTotal = Math.max(basePrice * qty - discountAmount, 0);
+      totalAmount += lineTotal;
+    }
 
     const encounter = await prisma.encounter.findUnique({
-      where: { id: encounterId },   // ← FIXED here
+      where: { id: encounterId },
       include: { invoice: true },
     });
 
@@ -359,10 +342,34 @@ router.post("/:id/billing", async (req, res) => {
       return res.status(404).json({ error: "Encounter not found" });
     }
 
-    // rest of billing logic...
+    let invoice = encounter.invoice;
+
+    if (!invoice) {
+      invoice = await prisma.invoice.create({
+        data: {
+          encounterId,
+          totalAmount,
+          status: "pending",
+        },
+      });
+    } else {
+      invoice = await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          totalAmount,
+        },
+      });
+    }
+
+    return res.json({
+      ok: true,
+      invoice,
+      totalAmount,
+    });
   } catch (err) {
     console.error("POST /api/encounters/:id/billing error:", err);
     return res.status(500).json({ error: "Failed to save billing" });
   }
 });
+
 export default router;
