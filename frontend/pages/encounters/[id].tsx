@@ -626,40 +626,40 @@ export default function EncounterAdminPage() {
 
   const isToothSelected = (code: string) => selectedTeeth.includes(code);
 
-  const updateActiveRowToothList = (nextTeeth: string[]) => {
-    אם (activeRowIndex === null) {
-      if (nextTeeth.length === 0) return;
-      const idx = createDiagnosisRow(nextTeeth);
-      setActiveRowIndex(idx);
-      return;
-    }
+ const updateActiveRowToothList = (nextTeeth: string[]) => {
+  if (activeRowIndex === null) {
+    if (nextTeeth.length === 0) return;
+    const idx = createDiagnosisRow(nextTeeth);
+    setActiveRowIndex(idx);
+    return;
+  }
 
-    setRows((prev) =>
-      prev.map((row, i) =>
-        i === activeRowIndex
-          ? { ...row, toothCode: stringifyToothList(nextTeeth) }
-          : row
-      )
-    );
+  setRows((prev) =>
+    prev.map((row, i) =>
+      i === activeRowIndex
+        ? { ...row, toothCode: stringifyToothList(nextTeeth) }
+        : row
+    )
+  );
 
-    if (nextTeeth.length === 0) {
-      setRows((prev) => {
-        const row = prev[activeRowIndex!];
-        const isEmpty =
-          row.diagnosisId === 0 &&
-          (row.note || "").trim() === "" &&
-          (row.selectedProblemIds?.length ?? 0) === 0 &&
-          !row.serviceId;
-        if (!isEmpty) {
-          return prev.map((r, i) =>
-            i === activeRowIndex ? { ...r, toothCode: "" } : r
-          );
-        }
-        return prev.filter((_, i) => i !== activeRowIndex);
-      });
-      setActiveRowIndex(null);
-    }
-  };
+  if (nextTeeth.length === 0) {
+    setRows((prev) => {
+      const row = prev[activeRowIndex!];
+      const isEmpty =
+        row.diagnosisId === 0 &&
+        (row.note || "").trim() === "" &&
+        (row.selectedProblemIds?.length ?? 0) === 0 &&
+        !row.serviceId;
+      if (!isEmpty) {
+        return prev.map((r, i) =>
+          i === activeRowIndex ? { ...r, toothCode: "" } : r
+        );
+      }
+      return prev.filter((_, i) => i !== activeRowIndex);
+    });
+    setActiveRowIndex(null);
+  }
+};
 
   const toggleToothSelection = (code: string) => {
     setSelectedTeeth((prev) => {
