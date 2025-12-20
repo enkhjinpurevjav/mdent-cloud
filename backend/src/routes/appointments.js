@@ -10,6 +10,7 @@ const ALLOWED_STATUSES = [
   "booked",
   "confirmed",
   "ongoing",
+  "ready_to_pay", // Төлбөр төлөх
   "completed",
   "cancelled",
 ];
