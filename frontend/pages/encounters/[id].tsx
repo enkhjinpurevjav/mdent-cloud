@@ -49,7 +49,7 @@ type EncounterDiagnosisRow = {
   selectedProblemIds: number[] | null;
   note?: string | null;
   diagnosis: Diagnosis;
-  toothCode?: string | null; // will now hold comma-separated list like "11, 21, 22"
+  toothCode?: string | null; // now: comma-separated list like "11, 21, 22" or "ALL"
 };
 
 type ServiceCategory =
@@ -101,6 +101,8 @@ type EditableDiagnosis = {
   selectedProblemIds: number[];
   note: string;
   toothCode?: string; // comma-separated list of tooth codes
+  serviceId?: number; // one service per diagnosis
+  serviceQuantity?: number;
 };
 
 function formatDateTime(iso: string) {
@@ -127,18 +129,9 @@ function formatDoctorName(d: Doctor | null) {
   return d.email;
 }
 
-// Helper: convert comma-separated toothCode string to array of codes
-function parseToothList(value?: string | null): string[] {
-  if (!value) return [];
-  return value
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-// Helper: stringify array of tooth codes to "11, 21, 22"
+// stringify array of tooth codes to "11, 21, 22"
 function stringifyToothList(list: string[]): string {
-  return Array.from(new Set(list)) // ensure uniqueness
+  return Array.from(new Set(list)) // dedupe
     .sort((a, b) => a.localeCompare(b))
     .join(", ");
 }
@@ -165,23 +158,19 @@ export default function EncounterAdminPage() {
   const [rows, setRows] = useState<EditableDiagnosis[]>([]);
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
-
-  // Suggestion dropdown for diagnosis search
   const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
 
-  // Services
+  // Services (still stored separately, built from diagnosis rows)
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [services, setServices] = useState<EncounterServiceRow[]>([]);
   const [servicesError, setServicesError] = useState("");
   const [servicesSaving, setServicesSaving] = useState(false);
 
-  // Tooth chart (selector only, per active diagnosis row)
+  // Tooth chart selection (per active diagnosis row)
   const [selectedTeeth, setSelectedTeeth] = useState<string[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [chartError, setChartError] = useState("");
   const [toothMode, setToothMode] = useState<"ADULT" | "CHILD">("ADULT");
-
-  // Index of the row linked to current selectedTeeth (multi-tooth per онош)
   const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null);
 
   // --- Load master services ---
@@ -235,6 +224,8 @@ export default function EncounterAdminPage() {
                   : [],
                 note: r.note || "",
                 toothCode: r.toothCode || "",
+                serviceId: undefined,
+                serviceQuantity: undefined,
               }))
             : [];
         setRows(initialRows);
@@ -316,7 +307,6 @@ export default function EncounterAdminPage() {
     }
   };
 
-  // Create a new diagnosis row, initially empty, optionally with tooth list
   const createDiagnosisRow = (initialTeeth: string[]): number => {
     const index = rows.length;
     const toothCode = stringifyToothList(initialTeeth);
@@ -326,6 +316,8 @@ export default function EncounterAdminPage() {
       selectedProblemIds: [],
       note: "",
       toothCode,
+      serviceId: undefined,
+      serviceQuantity: undefined,
     };
     setRows((prev) => [...prev, newRow]);
     return index;
@@ -337,10 +329,12 @@ export default function EncounterAdminPage() {
     setActiveRowIndex((prev) => {
       if (prev === null) return prev;
       if (prev === index) return null;
-      // If we remove a row before current active index, shift left
       if (index < prev) return prev - 1;
       return prev;
     });
+
+    // Also remove related services row(s) by same toothCode after next save:
+    // we enforce link at save-time by regenerating services from rows.
   };
 
   const handleDiagnosisChange = async (index: number, diagnosisId: number) => {
@@ -389,7 +383,6 @@ export default function EncounterAdminPage() {
         i === index ? { ...row, toothCode: value } : row
       )
     );
-    // Manual edit does not change chart selection; chart is only a helper.
   };
 
   const handleSaveDiagnoses = async () => {
@@ -417,32 +410,104 @@ export default function EncounterAdminPage() {
         body: JSON.stringify(payload),
       });
 
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
+      const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        throw new Error((data && data.error) || "Хадгалах үед алдаа гарлаа");
+        throw new Error(data?.error || "Хадгалах үед алдаа гарлаа");
       }
 
-      if (data && Array.isArray(data)) {
-        setRows(
-          data.map((r: any) => ({
-            diagnosisId: r.diagnosisId,
-            diagnosis: r.diagnosis,
-            selectedProblemIds: Array.isArray(r.selectedProblemIds)
-              ? (r.selectedProblemIds as number[])
-              : [],
-            note: r.note || "",
-            toothCode: r.toothCode || "",
-          }))
+      if (Array.isArray(data)) {
+        // keep service selections by matching toothCode + diagnosisId when possible
+        setRows((prevRows) =>
+          data.map((r: any) => {
+            const match = prevRows.find(
+              (x) =>
+                x.diagnosisId === r.diagnosisId &&
+                (x.toothCode || "") === (r.toothCode || "")
+            );
+            return {
+              diagnosisId: r.diagnosisId,
+              diagnosis: r.diagnosis,
+              selectedProblemIds: Array.isArray(r.selectedProblemIds)
+                ? (r.selectedProblemIds as number[])
+                : [],
+              note: r.note || "",
+              toothCode: r.toothCode || "",
+              serviceId: match?.serviceId,
+              serviceQuantity: match?.serviceQuantity,
+            } as EditableDiagnosis;
+          })
         );
       }
 
-      // After saving, clear current selection so doctor can start new онош
+      // Build services from diagnosis rows with a service selected
+      const newServices: EncounterServiceRow[] = rows
+        .filter(
+          (r) =>
+            r.serviceId &&
+            r.toothCode &&
+            r.toothCode.trim()
+        )
+        .map((r) => ({
+          serviceId: r.serviceId as number,
+          quantity:
+            r.serviceQuantity && r.serviceQuantity > 0
+              ? r.serviceQuantity
+              : 1,
+          toothCode: r.toothCode!.trim(),
+        }));
+
+      setServices(newServices);
+
+      // Optionally, auto-save services now:
+      if (newServices.length > 0) {
+        try {
+          const servicesPayload = {
+            items: newServices.map((s) => ({
+              serviceId: s.serviceId,
+              quantity: s.quantity || 1,
+              toothCode: s.toothCode || null,
+            })),
+          };
+
+          const sRes = await fetch(
+            `/api/encounters/${encounterId}/services`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(servicesPayload),
+            }
+          );
+
+          const sData = await sRes.json().catch(() => null);
+          if (!sRes.ok) {
+            throw new Error(
+              sData?.error || "Үйлчилгээ хадгалахад алдаа гарлаа."
+            );
+          }
+
+          if (Array.isArray(sData)) {
+            setServices(
+              sData.map((s: any) => ({
+                id: s.id,
+                serviceId: s.serviceId,
+                service: s.service,
+                quantity: s.quantity ?? 1,
+                toothCode: s.toothCode ?? null,
+              }))
+            );
+          }
+        } catch (err: any) {
+          console.error("Failed to auto-save services:", err);
+          setServicesError(
+            err.message || "Үйлчилгээ хадгалахад алдаа гарлаа."
+          );
+        }
+      } else {
+        // If no services linked, clear services
+        setServices([]);
+      }
+
       setSelectedTeeth([]);
       setActiveRowIndex(null);
     } catch (err: any) {
@@ -453,7 +518,7 @@ export default function EncounterAdminPage() {
     }
   };
 
-  // --- Services helpers ---
+  // --- Services helpers (manual changes still allowed if you want) ---
 
   const addServiceRow = () => {
     setServices((prev) => [
@@ -468,7 +533,7 @@ export default function EncounterAdminPage() {
 
   const handleServiceChange = (
     index: number,
-    field: "serviceId" | "quantity" | "toothCode",
+    field: "serviceId" | "quantity",
     value: any
   ) => {
     setServices((prev) =>
@@ -483,7 +548,7 @@ export default function EncounterAdminPage() {
           const q = Number(value) || 1;
           return { ...row, quantity: q };
         }
-        return { ...row, toothCode: value };
+        return row;
       })
     );
   };
@@ -562,15 +627,13 @@ export default function EncounterAdminPage() {
   const isToothSelected = (code: string) => selectedTeeth.includes(code);
 
   const updateActiveRowToothList = (nextTeeth: string[]) => {
-    if (activeRowIndex === null) {
+    אם (activeRowIndex === null) {
       if (nextTeeth.length === 0) return;
-      // Create new row for this group of teeth
       const idx = createDiagnosisRow(nextTeeth);
       setActiveRowIndex(idx);
       return;
     }
 
-    // Update existing active row
     setRows((prev) =>
       prev.map((row, i) =>
         i === activeRowIndex
@@ -579,21 +642,19 @@ export default function EncounterAdminPage() {
       )
     );
 
-    // If no teeth left for this row and row is still "empty", remove it
     if (nextTeeth.length === 0) {
       setRows((prev) => {
-        const row = prev[activeRowIndex];
+        const row = prev[activeRowIndex!];
         const isEmpty =
           row.diagnosisId === 0 &&
-          row.note.trim() === "" &&
-          (row.selectedProblemIds?.length ?? 0) === 0;
+          (row.note || "").trim() === "" &&
+          (row.selectedProblemIds?.length ?? 0) === 0 &&
+          !row.serviceId;
         if (!isEmpty) {
-          // Keep row but clear its toothCode field
           return prev.map((r, i) =>
             i === activeRowIndex ? { ...r, toothCode: "" } : r
           );
         }
-        // Remove row entirely
         return prev.filter((_, i) => i !== activeRowIndex);
       });
       setActiveRowIndex(null);
@@ -817,9 +878,9 @@ export default function EncounterAdminPage() {
             </div>
 
             <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>
-              Шүдийг дарж сонгох үед тухайн шүднүүдэд зориулсан оношийн мөр
-              доорх хэсэгт үүснэ. Олон шүд сонгоход нэг онош нь бүгдэд нь
-              хамаарна.
+              Шүдийг дарж сонгох үед тухайн шүднүүдэд зориулсан нэг оношийн мөр
+              доорх хэсэгт үүснэ. Нэг онош нь олон шүдэнд (эсвэл Бүх шүд)
+              хамаарч болно.
             </div>
           </section>
 
@@ -844,8 +905,9 @@ export default function EncounterAdminPage() {
               <div>
                 <h2 style={{ fontSize: 16, margin: 0 }}>Онош тавих</h2>
                 <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Шүд сонгоход тухайн шүднүүдэд зориулагдсан нэг оношийн мөр
-                  үүснэ. Нэг онош нь олон шүдэнд хамаарч болно.
+                  Нэг мөр = нэг онош, олон шүдэнд хамаарч болно. Хадгалсны дараа
+                  доорх “Үйлчилгээ / эмчилгээ” хэсэгт холбогдох үйлчилгээний мөр
+                  автоматаар үүснэ.
                 </div>
               </div>
             </div>
@@ -874,7 +936,7 @@ export default function EncounterAdminPage() {
                       background: "#f9fafb",
                     }}
                   >
-                    {/* Diagnosis search input + suggestions */}
+                    {/* Diagnosis search */}
                     <div
                       style={{
                         display: "flex",
@@ -902,7 +964,6 @@ export default function EncounterAdminPage() {
                               const text = e.target.value;
                               setOpenDxIndex(index);
                               if (!text.trim()) {
-                                // clear diagnosis on empty
                                 setRows((prev) =>
                                   prev.map((r, i) =>
                                     i === index
@@ -927,7 +988,6 @@ export default function EncounterAdminPage() {
                             }}
                           />
 
-                          {/* Suggestions dropdown */}
                           {openDxIndex === index &&
                             allDiagnoses.length > 0 && (
                               <div
@@ -1020,13 +1080,14 @@ export default function EncounterAdminPage() {
                       </div>
                     </div>
 
-                    {/* Tooth list (comma-separated) */}
+                    {/* Tooth list */}
                     <div
                       style={{
                         marginBottom: 8,
                         display: "flex",
                         gap: 8,
                         alignItems: "center",
+                        flexWrap: "wrap",
                       }}
                     >
                       <input
@@ -1046,6 +1107,90 @@ export default function EncounterAdminPage() {
                       <span style={{ fontSize: 11, color: "#6b7280" }}>
                         Шүдний диаграмаас автоматаар бөглөгдөнө, засах
                         боломжтой.
+                      </span>
+                    </div>
+
+                    {/* Service for this diagnosis */}
+                    <div
+                      style={{
+                        marginBottom: 8,
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <select
+                        value={row.serviceId || ""}
+                        onChange={(e) => {
+                          const sid = Number(e.target.value) || 0;
+                          setRows((prev) =>
+                            prev.map((r, i) =>
+                              i === index
+                                ? {
+                                    ...r,
+                                    serviceId: sid || undefined,
+                                    serviceQuantity:
+                                      sid &&
+                                      (!r.serviceQuantity ||
+                                        r.serviceQuantity < 1)
+                                        ? 1
+                                        : r.serviceQuantity,
+                                  }
+                                : r
+                            )
+                          );
+                        }}
+                        style={{
+                          minWidth: 220,
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "6px 8px",
+                          fontSize: 13,
+                        }}
+                      >
+                        <option value="">Үйлчилгээ сонгохгүй</option>
+                        {allServices.map((svc) => (
+                          <option key={svc.id} value={svc.id}>
+                            {svc.code ? `${svc.code} — ` : ""}
+                            {svc.name} (
+                            {svc.price.toLocaleString("mn-MN")}
+                            ₮)
+                          </option>
+                        ))}
+                      </select>
+
+                      <input
+                        type="number"
+                        min={1}
+                        placeholder="Тоо"
+                        value={
+                          row.serviceQuantity ??
+                          (row.serviceId ? 1 : "")
+                        }
+                        onChange={(e) => {
+                          const q = Number(e.target.value) || 1;
+                          setRows((prev) =>
+                            prev.map((r, i) =>
+                              i === index
+                                ? { ...r, serviceQuantity: q }
+                                : r
+                            )
+                          );
+                        }}
+                        disabled={!row.serviceId}
+                        style={{
+                          width: 80,
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "6px 8px",
+                          fontSize: 13,
+                          opacity: row.serviceId ? 1 : 0.6,
+                        }}
+                      />
+
+                      <span style={{ fontSize: 11, color: "#6b7280" }}>
+                        Энэ оношид хамаарах үйлчилгээ (сонголттой).
                       </span>
                     </div>
 
@@ -1179,7 +1324,15 @@ export default function EncounterAdminPage() {
                 marginBottom: 8,
               }}
             >
-              <h2 style={{ fontSize: 16, margin: 0 }}>Үйлчилгээ / эмчилгээ</h2>
+              <div>
+                <h2 style={{ fontSize: 16, margin: 0 }}>
+                  Үйлчилгээ / эмчилгээ
+                </h2>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  Онош хадгалах үед дээрх онош бүрт сонгосон үйлчилгээ энд нэг
+                  мөрөөр үүснэ. Шүдний кодыг оношоос автоматаар авна.
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={addServiceRow}
@@ -1207,8 +1360,9 @@ export default function EncounterAdminPage() {
               <div
                 style={{ color: "#6b7280", fontSize: 13, marginBottom: 8 }}
               >
-                Одоогоор үйлчилгээ сонгоогүй байна. Дээрх “Үйлчилгээ нэмэх”
-                товчоор эмчилгээ нэмнэ үү.
+                Одоогоор үйлчилгээ сонгоогүй байна. Дээрх оношид үйлчилгээ сонгож
+                хадгалах эсвэл “Үйлчилгээ нэмэх” товчоос нэмэлт үйлчилгээ
+                оруулна уу.
               </div>
             )}
 
@@ -1218,7 +1372,8 @@ export default function EncounterAdminPage() {
                   key={index}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "minmax(220px, 2fr) 80px 130px auto",
+                    gridTemplateColumns:
+                      "minmax(220px, 2fr) 80px 160px auto",
                     gap: 8,
                     alignItems: "center",
                     border: "1px solid #e5e7eb",
@@ -1265,16 +1420,16 @@ export default function EncounterAdminPage() {
                   />
 
                   <input
-                    placeholder="Шүдний код (ж: 11, 26, 85) эсвэл хоосон"
+                    placeholder="Шүдний код (оношоос автоматаар ирсэн)"
                     value={s.toothCode || ""}
-                    onChange={(e) =>
-                      handleServiceChange(index, "toothCode", e.target.value)
-                    }
+                    readOnly
                     style={{
                       width: "100%",
                       borderRadius: 6,
                       border: "1px solid #d1d5db",
                       padding: "6px 8px",
+                      background: "#f9fafb",
+                      color: "#6b7280",
                     }}
                   />
 
