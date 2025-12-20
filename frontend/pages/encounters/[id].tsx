@@ -156,14 +156,14 @@ export default function EncounterAdminPage() {
   const [servicesError, setServicesError] = useState("");
   const [servicesSaving, setServicesSaving] = useState(false);
 
-  // Tooth chart (only selection, no notes)
+  // Tooth chart (selector only)
   const [selectedTeeth, setSelectedTeeth] = useState<string[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [chartError, setChartError] = useState("");
   const [chartSaving, setChartSaving] = useState(false);
   const [toothMode, setToothMode] = useState<"ADULT" | "CHILD">("ADULT");
 
-  // Currently active tooth for diagnoses
+  // Active tooth for diagnoses
   const [currentTooth, setCurrentTooth] = useState<string | null>(null);
 
   // --- Load master services ---
@@ -274,7 +274,7 @@ export default function EncounterAdminPage() {
     loadDx();
   }, []);
 
-  // --- Load tooth chart selections from backend (optional) ---
+  // --- Load previously saved tooth selections (from ChartTooth) ---
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
 
@@ -292,8 +292,8 @@ export default function EncounterAdminPage() {
         if (!res.ok || !Array.isArray(data)) {
           throw new Error((data && data.error) || "Алдаа гарлаа");
         }
-        const teethCodes = data.map((t: any) => t.toothCode as string);
-        setSelectedTeeth(teethCodes);
+        const toothCodes = data.map((t: any) => t.toothCode as string);
+        setSelectedTeeth(toothCodes);
       } catch (err: any) {
         console.error("Failed to load tooth chart:", err);
         setChartError(err.message || "Шүдний диаграм ачаалахад алдаа гарлаа.");
@@ -330,17 +330,25 @@ export default function EncounterAdminPage() {
     }
   };
 
-  const addDiagnosisRow = () => {
-    setRows((prev) => [
-      ...prev,
-      {
-        diagnosisId: 0,
-        diagnosis: undefined,
-        selectedProblemIds: [],
-        note: "",
-        toothCode: currentTooth || "",
-      },
-    ]);
+  const addDiagnosisRowForTooth = (toothCode: string) => {
+    setRows((prev) => {
+      // if there is already a row for this tooth, don't add another automatically
+      const hasRowForTooth = prev.some(
+        (r) => r.toothCode && r.toothCode.trim() === toothCode
+      );
+      if (hasRowForTooth) return prev;
+
+      return [
+        ...prev,
+        {
+          diagnosisId: 0,
+          diagnosis: undefined,
+          selectedProblemIds: [],
+          note: "",
+          toothCode,
+        },
+      ];
+    });
   };
 
   const removeDiagnosisRow = (index: number) => {
@@ -569,6 +577,8 @@ export default function EncounterAdminPage() {
         return next;
       } else {
         setCurrentTooth(code);
+        // auto-create diagnosis row for this tooth if none exists yet
+        addDiagnosisRowForTooth(code);
         return [...prev, code];
       }
     });
@@ -678,7 +688,7 @@ export default function EncounterAdminPage() {
             )}
           </section>
 
-          {/* Tooth chart as selector only */}
+          {/* Tooth chart selector */}
           <section
             style={{
               marginTop: 0,
@@ -788,14 +798,13 @@ export default function EncounterAdminPage() {
             </div>
 
             <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>
-              Дээрх кодоос шүдийг дарж сонгоно уу. Сонгогдсон шүднүүдэд онош
-              тавихдаа доорх хэсэгт шүдний кодыг ашиглана.
+              Шүдийг дарж сонгох үед тухайн шүдэнд онош тавих мөр автоматаар
+              доорх хэсэгт үүснэ.
             </div>
 
             {currentTooth && (
               <div style={{ fontSize: 12, color: "#2563eb" }}>
-                Идэвхтэй шүд: <strong>{currentTooth}</strong> — “Онош нэмэх”
-                дарахад энэ код автоматаар орно.
+                Идэвхтэй шүд: <strong>{currentTooth}</strong>
               </div>
             )}
 
@@ -848,28 +857,11 @@ export default function EncounterAdminPage() {
             >
               <div>
                 <h2 style={{ fontSize: 16, margin: 0 }}>Онош тавих</h2>
-                {currentTooth && (
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>
-                    Шинэ онош нэмэхэд шүдний код:{" "}
-                    <strong>{currentTooth}</strong>
-                  </div>
-                )}
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  Шүд сонгоход тухайн шүдэнд зориулсан оношийн мөр энд үүснэ.
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={addDiagnosisRow}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 6,
-                  border: "1px solid #2563eb",
-                  background: "#eff6ff",
-                  color: "#2563eb",
-                  cursor: "pointer",
-                  fontSize: 13,
-                }}
-              >
-                + Онош нэмэх
-              </button>
+              {/* button removed – rows are created automatically from tooth chart */}
             </div>
 
             {dxError && (
@@ -878,8 +870,8 @@ export default function EncounterAdminPage() {
 
             {rows.length === 0 && (
               <div style={{ color: "#6b7280", fontSize: 13 }}>
-                Одоогоор онош сонгоогүй байна. Дээрх “Онош нэмэх” товчоор онош
-                нэмнэ үү.
+                Одоогоор оношийн мөр алга байна. Дээрх шүдний диаграмаас шүд
+                сонгоход автоматаар оношийн мөр үүснэ.
               </div>
             )}
 
@@ -950,7 +942,7 @@ export default function EncounterAdminPage() {
                       }}
                     >
                       <input
-                        placeholder="Шүдний код (ж: 11, 26, 85) — сонголттой"
+                        placeholder="Шүдний код (ж: 11, 26, 85)"
                         value={row.toothCode || ""}
                         onChange={(e) =>
                           handleDxToothCodeChange(index, e.target.value)
@@ -964,7 +956,8 @@ export default function EncounterAdminPage() {
                         }}
                       />
                       <span style={{ fontSize: 11, color: "#6b7280" }}>
-                        Хоосон байж болно (ерөнхий онош).
+                        Шүдний диаграмаас автоматаар бөглөгдөнө, засах
+                        боломжтой.
                       </span>
                     </div>
 
