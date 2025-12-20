@@ -103,12 +103,6 @@ type EditableDiagnosis = {
   toothCode?: string;
 };
 
-type ChartToothRow = {
-  id?: number;
-  toothCode: string;
-  notes?: string | null;
-};
-
 function formatDateTime(iso: string) {
   try {
     const d = new Date(iso);
@@ -162,14 +156,14 @@ export default function EncounterAdminPage() {
   const [servicesError, setServicesError] = useState("");
   const [servicesSaving, setServicesSaving] = useState(false);
 
-  // Tooth chart
-  const [chartTeeth, setChartTeeth] = useState<ChartToothRow[]>([]);
+  // Tooth chart (only selection, no notes)
+  const [selectedTeeth, setSelectedTeeth] = useState<string[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [chartError, setChartError] = useState("");
   const [chartSaving, setChartSaving] = useState(false);
   const [toothMode, setToothMode] = useState<"ADULT" | "CHILD">("ADULT");
 
-  // NEW: currently active tooth from chart
+  // Currently active tooth for diagnoses
   const [currentTooth, setCurrentTooth] = useState<string | null>(null);
 
   // --- Load master services ---
@@ -280,7 +274,7 @@ export default function EncounterAdminPage() {
     loadDx();
   }, []);
 
-  // --- Load tooth chart ---
+  // --- Load tooth chart selections from backend (optional) ---
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
 
@@ -298,16 +292,12 @@ export default function EncounterAdminPage() {
         if (!res.ok || !Array.isArray(data)) {
           throw new Error((data && data.error) || "Алдаа гарлаа");
         }
-        const rows: ChartToothRow[] = data.map((t: any) => ({
-          id: t.id,
-          toothCode: t.toothCode,
-          notes: t.notes || "",
-        }));
-        setChartTeeth(rows);
+        const teethCodes = data.map((t: any) => t.toothCode as string);
+        setSelectedTeeth(teethCodes);
       } catch (err: any) {
         console.error("Failed to load tooth chart:", err);
         setChartError(err.message || "Шүдний диаграм ачаалахад алдаа гарлаа.");
-        setChartTeeth([]);
+        setSelectedTeeth([]);
       } finally {
         setChartLoading(false);
       }
@@ -340,7 +330,6 @@ export default function EncounterAdminPage() {
     }
   };
 
-  // NEW: when adding a diagnosis, pre-fill toothCode with currentTooth
   const addDiagnosisRow = () => {
     setRows((prev) => [
       ...prev,
@@ -570,36 +559,19 @@ export default function EncounterAdminPage() {
     setToothMode(mode);
   };
 
-  const isToothSelected = (code: string) =>
-    chartTeeth.some((t) => t.toothCode === code);
+  const isToothSelected = (code: string) => selectedTeeth.includes(code);
 
-  // UPDATED: also manage currentTooth
   const toggleToothSelection = (code: string) => {
-    setChartTeeth((prev) => {
-      const exists = prev.find((t) => t.toothCode === code);
-      if (exists) {
-        const next = prev.filter((t) => t.toothCode !== code);
-        // if we remove the active tooth, clear currentTooth
+    setSelectedTeeth((prev) => {
+      if (prev.includes(code)) {
+        const next = prev.filter((c) => c !== code);
         setCurrentTooth((cur) => (cur === code ? null : cur));
         return next;
+      } else {
+        setCurrentTooth(code);
+        return [...prev, code];
       }
-      // add new tooth and make it current
-      setCurrentTooth(code);
-      return [...prev, { toothCode: code, notes: "" }];
     });
-  };
-
-  const handleToothFieldChange = (index: number, value: string) => {
-    setChartTeeth((prev) =>
-      prev.map((t, i) =>
-        i === index
-          ? {
-              ...t,
-              notes: value,
-            }
-          : t
-      )
-    );
   };
 
   const handleSaveChartTeeth = async () => {
@@ -608,9 +580,9 @@ export default function EncounterAdminPage() {
     setChartSaving(true);
     try {
       const payload = {
-        teeth: chartTeeth.map((t) => ({
-          toothCode: t.toothCode,
-          notes: t.notes || null,
+        teeth: selectedTeeth.map((code) => ({
+          toothCode: code,
+          notes: null,
         })),
       };
 
@@ -620,25 +592,12 @@ export default function EncounterAdminPage() {
         body: JSON.stringify(payload),
       });
 
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-
+      const data = await res.json().catch(() => null);
       if (!res.ok || !Array.isArray(data)) {
         throw new Error(
           (data && data.error) || "Шүдний диаграм хадгалахад алдаа гарлаа"
         );
       }
-
-      const rowsMapped: ChartToothRow[] = data.map((t: any) => ({
-        id: t.id,
-        toothCode: t.toothCode,
-        notes: t.notes || "",
-      }));
-      setChartTeeth(rowsMapped);
     } catch (err: any) {
       console.error("Failed to save tooth chart:", err);
       setChartError(err.message || "Шүдний диаграм хадгалахад алдаа гарлаа.");
@@ -719,7 +678,7 @@ export default function EncounterAdminPage() {
             )}
           </section>
 
-          {/* Tooth chart */}
+          {/* Tooth chart as selector only */}
           <section
             style={{
               marginTop: 0,
@@ -792,163 +751,51 @@ export default function EncounterAdminPage() {
               </div>
             )}
 
-            {/* Teeth pills */}
             <div
               style={{
                 display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                marginBottom: 12,
+                flexWrap: "wrap",
+                gap: 6,
+                marginBottom: 8,
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 6,
-                }}
-              >
-                {(toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH).map(
-                  (code) => {
-                    const selected = isToothSelected(code);
-                    return (
-                      <button
-                        key={code}
-                        type="button"
-                        onClick={() => toggleToothSelection(code)}
-                        style={{
-                          minWidth: 34,
-                          padding: "4px 6px",
-                          borderRadius: 999,
-                          border: selected
-                            ? "1px solid #16a34a"
-                            : "1px solid #d1d5db",
-                          background: selected ? "#dcfce7" : "white",
-                          color: selected ? "#166534" : "#111827",
-                          fontSize: 12,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {code}
-                      </button>
-                    );
-                  }
-                )}
-              </div>
-
-              <div style={{ fontSize: 11, color: "#6b7280" }}>
-                Дээрх кодоос шүдийг дарж сонгоно уу. Нэг шүдийг дахин дарвал
-                устгах болно.
-              </div>
-
-              {currentTooth && (
-                <div style={{ fontSize: 12, color: "#2563eb" }}>
-                  Идэвхтэй шүд: <strong>{currentTooth}</strong> — шинэ онош
-                  нэмэхэд автоматаар энэ шүдний код орно.
-                </div>
+              {(toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH).map(
+                (code) => {
+                  const selected = isToothSelected(code);
+                  return (
+                    <button
+                      key={code}
+                      type="button"
+                      onClick={() => toggleToothSelection(code)}
+                      style={{
+                        minWidth: 34,
+                        padding: "4px 6px",
+                        borderRadius: 999,
+                        border: selected
+                          ? "1px solid #16a34a"
+                          : "1px solid #d1d5db",
+                        background: selected ? "#dcfce7" : "white",
+                        color: selected ? "#166534" : "#111827",
+                        fontSize: 12,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {code}
+                    </button>
+                  );
+                }
               )}
             </div>
 
-            {/* Selected teeth list */}
-            {chartTeeth.length === 0 ? (
-              <div style={{ fontSize: 13, color: "#6b7280" }}>
-                Одоогоор шүд сонгоогүй байна.
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 8,
-                }}
-              >
-                {chartTeeth
-                  .slice()
-                  .sort((a, b) => a.toothCode.localeCompare(b.toothCode))
-                  .map((t, index) => (
-                    <div
-                      key={t.toothCode}
-                      style={{
-                        border: "1px solid #e5e7eb",
-                        borderRadius: 8,
-                        padding: 8,
-                        background: "#f9fafb",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          marginBottom: 6,
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontWeight: 600,
-                            fontSize: 13,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              width: 24,
-                              height: 24,
-                              borderRadius: "999px",
-                              background: "#2563eb",
-                              color: "white",
-                              fontSize: 12,
-                            }}
-                          >
-                            {t.toothCode}
-                          </span>
-                          <span>Шүд</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setChartTeeth((prev) =>
-                              prev.filter((x) => x.toothCode !== t.toothCode)
-                            );
-                            setCurrentTooth((cur) =>
-                              cur === t.toothCode ? null : cur
-                            );
-                          }}
-                          style={{
-                            padding: "2px 8px",
-                            borderRadius: 6,
-                            border: "1px solid #dc2626",
-                            background: "#fef2f2",
-                            color: "#b91c1c",
-                            cursor: "pointer",
-                            fontSize: 11,
-                          }}
-                        >
-                          Устгах
-                        </button>
-                      </div>
+            <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>
+              Дээрх кодоос шүдийг дарж сонгоно уу. Сонгогдсон шүднүүдэд онош
+              тавихдаа доорх хэсэгт шүдний кодыг ашиглана.
+            </div>
 
-                      <input
-                        placeholder="Шүдний тэмдэглэл (сонголттой)"
-                        value={t.notes || ""}
-                        onChange={(e) =>
-                          handleToothFieldChange(index, e.target.value)
-                        }
-                        style={{
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "6px 8px",
-                          fontSize: 12,
-                          width: "100%",
-                        }}
-                      />
-                    </div>
-                  ))}
+            {currentTooth && (
+              <div style={{ fontSize: 12, color: "#2563eb" }}>
+                Идэвхтэй шүд: <strong>{currentTooth}</strong> — “Онош нэмэх”
+                дарахад энэ код автоматаар орно.
               </div>
             )}
 
@@ -957,7 +804,6 @@ export default function EncounterAdminPage() {
                 marginTop: 12,
                 display: "flex",
                 justifyContent: "flex-end",
-                alignItems: "center",
                 gap: 8,
               }}
             >
@@ -1004,7 +850,7 @@ export default function EncounterAdminPage() {
                 <h2 style={{ fontSize: 16, margin: 0 }}>Онош тавих</h2>
                 {currentTooth && (
                   <div style={{ fontSize: 12, color: "#6b7280" }}>
-                    Шинэ онош нэмэхэд шүдний код автомат:{" "}
+                    Шинэ онош нэмэхэд шүдний код:{" "}
                     <strong>{currentTooth}</strong>
                   </div>
                 )}
