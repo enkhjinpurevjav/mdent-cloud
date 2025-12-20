@@ -221,6 +221,8 @@ function formatStatus(status: string): string {
       return "Баталгаажсан";
     case "ongoing":
       return "Явагдаж байна";
+    case "ready_to_pay":
+      return "Төлбөр төлөх";
     case "completed":
       return "Дууссан";
     case "cancelled":
