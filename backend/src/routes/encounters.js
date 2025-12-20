@@ -299,4 +299,41 @@ router.put("/:id/finish", async (req, res) => {
     });
   }
 });
+
+const encounter = await prisma.encounter.findUnique({
+  where: { id },
+  include: {
+    patientBook: {
+      include: {
+        patient: {
+          include: { branch: true },
+        },
+      },
+    },
+    doctor: true,
+    diagnoses: {
+      include: { diagnosis: true },
+      orderBy: { createdAt: "asc" },
+    },
+    encounterServices: {
+      include: {
+        service: true,
+      },
+      orderBy: { id: "asc" },
+    },
+    invoice: {
+      include: {
+        invoiceItems: {
+          include: {
+            procedure: true,
+          },
+          orderBy: { id: "asc" },
+        },
+        payment: true,
+        eBarimtReceipt: true,
+      },
+    },
+    // chartTeeth can be loaded separately via chart-teeth endpoints
+  },
+});
 export default router;
