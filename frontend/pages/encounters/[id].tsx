@@ -49,7 +49,7 @@ type EncounterDiagnosisRow = {
   selectedProblemIds: number[] | null;
   note?: string | null;
   diagnosis: Diagnosis;
-  toothCode?: string | null;
+  toothCode?: string | null; // will now hold comma-separated list like "11, 21, 22"
 };
 
 type ServiceCategory =
@@ -100,7 +100,7 @@ type EditableDiagnosis = {
   diagnosis?: Diagnosis;
   selectedProblemIds: number[];
   note: string;
-  toothCode?: string;
+  toothCode?: string; // comma-separated list of tooth codes
 };
 
 function formatDateTime(iso: string) {
@@ -127,6 +127,22 @@ function formatDoctorName(d: Doctor | null) {
   return d.email;
 }
 
+// Helper: convert comma-separated toothCode string to array of codes
+function parseToothList(value?: string | null): string[] {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+// Helper: stringify array of tooth codes to "11, 21, 22"
+function stringifyToothList(list: string[]): string {
+  return Array.from(new Set(list)) // ensure uniqueness
+    .sort((a, b) => a.localeCompare(b))
+    .join(", ");
+}
+
 export default function EncounterAdminPage() {
   const router = useRouter();
   const { id } = router.query;
@@ -134,8 +150,7 @@ export default function EncounterAdminPage() {
     () => (typeof id === "string" ? Number(id) : NaN),
     [id]
   );
-// which diagnosis row currently shows suggestions
-  const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
+
   const [encounter, setEncounter] = useState<Encounter | null>(null);
   const [encounterLoading, setEncounterLoading] = useState(false);
   const [encounterError, setEncounterError] = useState("");
@@ -151,21 +166,23 @@ export default function EncounterAdminPage() {
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Suggestion dropdown for diagnosis search
+  const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
+
   // Services
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [services, setServices] = useState<EncounterServiceRow[]>([]);
   const [servicesError, setServicesError] = useState("");
   const [servicesSaving, setServicesSaving] = useState(false);
 
-  // Tooth chart (selector only)
+  // Tooth chart (selector only, per active diagnosis row)
   const [selectedTeeth, setSelectedTeeth] = useState<string[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [chartError, setChartError] = useState("");
-  const [chartSaving, setChartSaving] = useState(false);
   const [toothMode, setToothMode] = useState<"ADULT" | "CHILD">("ADULT");
 
-  // Active tooth for diagnoses
-  const [currentTooth, setCurrentTooth] = useState<string | null>(null);
+  // Index of the row linked to current selectedTeeth (multi-tooth per онош)
+  const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null);
 
   // --- Load master services ---
   useEffect(() => {
@@ -275,38 +292,6 @@ export default function EncounterAdminPage() {
     loadDx();
   }, []);
 
-  // --- Load previously saved tooth selections (from ChartTooth) ---
-  useEffect(() => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
-
-    const loadChart = async () => {
-      setChartLoading(true);
-      setChartError("");
-      try {
-        const res = await fetch(`/api/encounters/${encounterId}/chart-teeth`);
-        let data: any = null;
-        try {
-          data = await res.json();
-        } catch {
-          data = null;
-        }
-        if (!res.ok || !Array.isArray(data)) {
-          throw new Error((data && data.error) || "Алдаа гарлаа");
-        }
-        const toothCodes = data.map((t: any) => t.toothCode as string);
-        setSelectedTeeth(toothCodes);
-      } catch (err: any) {
-        console.error("Failed to load tooth chart:", err);
-        setChartError(err.message || "Шүдний диаграм ачаалахад алдаа гарлаа.");
-        setSelectedTeeth([]);
-      } finally {
-        setChartLoading(false);
-      }
-    };
-
-    loadChart();
-  }, [encounterId]);
-
   // --- Diagnoses helpers ---
 
   const ensureProblemsLoaded = async (diagnosisId: number) => {
@@ -331,24 +316,31 @@ export default function EncounterAdminPage() {
     }
   };
 
-  const addDiagnosisRowForTooth = (toothCode: string) => {
-  setRows((prev) => {
-    // allow multiple diagnoses per tooth; don't block duplicates
-    return [
-      ...prev,
-      {
-        diagnosisId: 0,
-        diagnosis: undefined,
-        selectedProblemIds: [],
-        note: "",
-        toothCode,
-      },
-    ];
-  });
-};
+  // Create a new diagnosis row, initially empty, optionally with tooth list
+  const createDiagnosisRow = (initialTeeth: string[]): number => {
+    const index = rows.length;
+    const toothCode = stringifyToothList(initialTeeth);
+    const newRow: EditableDiagnosis = {
+      diagnosisId: 0,
+      diagnosis: undefined,
+      selectedProblemIds: [],
+      note: "",
+      toothCode,
+    };
+    setRows((prev) => [...prev, newRow]);
+    return index;
+  };
 
   const removeDiagnosisRow = (index: number) => {
     setRows((prev) => prev.filter((_, i) => i !== index));
+    setOpenDxIndex((prev) => (prev === index ? null : prev));
+    setActiveRowIndex((prev) => {
+      if (prev === null) return prev;
+      if (prev === index) return null;
+      // If we remove a row before current active index, shift left
+      if (index < prev) return prev - 1;
+      return prev;
+    });
   };
 
   const handleDiagnosisChange = async (index: number, diagnosisId: number) => {
@@ -357,11 +349,10 @@ export default function EncounterAdminPage() {
       prev.map((row, i) =>
         i === index
           ? {
+              ...row,
               diagnosisId,
               diagnosis: dx,
               selectedProblemIds: [],
-              note: row.note,
-              toothCode: row.toothCode,
             }
           : row
       )
@@ -398,6 +389,7 @@ export default function EncounterAdminPage() {
         i === index ? { ...row, toothCode: value } : row
       )
     );
+    // Manual edit does not change chart selection; chart is only a helper.
   };
 
   const handleSaveDiagnoses = async () => {
@@ -449,6 +441,10 @@ export default function EncounterAdminPage() {
           }))
         );
       }
+
+      // After saving, clear current selection so doctor can start new онош
+      setSelectedTeeth([]);
+      setActiveRowIndex(null);
     } catch (err: any) {
       console.error("Failed to save diagnoses:", err);
       setSaveError(err.message || "Хадгалах үед алдаа гарлаа");
@@ -565,59 +561,56 @@ export default function EncounterAdminPage() {
 
   const isToothSelected = (code: string) => selectedTeeth.includes(code);
 
-  const toggleToothSelection = (code: string) => {
-  setSelectedTeeth((prev) => {
-    if (prev.includes(code)) {
-      // Deselect tooth: remove from selectedTeeth AND remove its diagnoses
-      const next = prev.filter((c) => c !== code);
-      setCurrentTooth((cur) => (cur === code ? null : cur));
-
-      setRows((rowsPrev) =>
-        rowsPrev.filter(
-          (r) => !(r.toothCode && r.toothCode.trim() === code)
-        )
-      );
-
-      return next;
-    } else {
-      // Select tooth: add to selectedTeeth and create an empty diagnosis row for it
-      setCurrentTooth(code);
-      addDiagnosisRowForTooth(code);
-      return [...prev, code];
+  const updateActiveRowToothList = (nextTeeth: string[]) => {
+    if (activeRowIndex === null) {
+      if (nextTeeth.length === 0) return;
+      // Create new row for this group of teeth
+      const idx = createDiagnosisRow(nextTeeth);
+      setActiveRowIndex(idx);
+      return;
     }
-  });
-};
 
-  const handleSaveChartTeeth = async () => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
-    setChartError("");
-    setChartSaving(true);
-    try {
-      const payload = {
-        teeth: selectedTeeth.map((code) => ({
-          toothCode: code,
-          notes: null,
-        })),
-      };
+    // Update existing active row
+    setRows((prev) =>
+      prev.map((row, i) =>
+        i === activeRowIndex
+          ? { ...row, toothCode: stringifyToothList(nextTeeth) }
+          : row
+      )
+    );
 
-      const res = await fetch(`/api/encounters/${encounterId}/chart-teeth`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+    // If no teeth left for this row and row is still "empty", remove it
+    if (nextTeeth.length === 0) {
+      setRows((prev) => {
+        const row = prev[activeRowIndex];
+        const isEmpty =
+          row.diagnosisId === 0 &&
+          row.note.trim() === "" &&
+          (row.selectedProblemIds?.length ?? 0) === 0;
+        if (!isEmpty) {
+          // Keep row but clear its toothCode field
+          return prev.map((r, i) =>
+            i === activeRowIndex ? { ...r, toothCode: "" } : r
+          );
+        }
+        // Remove row entirely
+        return prev.filter((_, i) => i !== activeRowIndex);
       });
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok || !Array.isArray(data)) {
-        throw new Error(
-          (data && data.error) || "Шүдний диаграм хадгалахад алдаа гарлаа"
-        );
-      }
-    } catch (err: any) {
-      console.error("Failed to save tooth chart:", err);
-      setChartError(err.message || "Шүдний диаграм хадгалахад алдаа гарлаа.");
-    } finally {
-      setChartSaving(false);
+      setActiveRowIndex(null);
     }
+  };
+
+  const toggleToothSelection = (code: string) => {
+    setSelectedTeeth((prev) => {
+      let next: string[];
+      if (prev.includes(code)) {
+        next = prev.filter((c) => c !== code);
+      } else {
+        next = [...prev, code];
+      }
+      updateActiveRowToothList(next);
+      return next;
+    });
   };
 
   // --- Render ---
@@ -766,71 +759,68 @@ export default function EncounterAdminPage() {
             )}
 
             <div
-  style={{
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 6,
-    marginBottom: 8,
-  }}
->
-  {(toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH).map((code) => {
-    const selected = isToothSelected(code);
-    return (
-      <button
-        key={code}
-        type="button"
-        onClick={() => toggleToothSelection(code)}
-        style={{
-          minWidth: 34,
-          padding: "4px 6px",
-          borderRadius: 999,
-          border: selected ? "1px solid #16a34a" : "1px solid #d1d5db",
-          background: selected ? "#dcfce7" : "white",
-          color: selected ? "#166534" : "#111827",
-          fontSize: 12,
-          cursor: "pointer",
-        }}
-      >
-        {code}
-      </button>
-    );
-  })}
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 6,
+                marginBottom: 8,
+              }}
+            >
+              {(toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH).map(
+                (code) => {
+                  const selected = isToothSelected(code);
+                  return (
+                    <button
+                      key={code}
+                      type="button"
+                      onClick={() => toggleToothSelection(code)}
+                      style={{
+                        minWidth: 34,
+                        padding: "4px 6px",
+                        borderRadius: 999,
+                        border: selected
+                          ? "1px solid #16a34a"
+                          : "1px solid #d1d5db",
+                        background: selected ? "#dcfce7" : "white",
+                        color: selected ? "#166534" : "#111827",
+                        fontSize: 12,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {code}
+                    </button>
+                  );
+                }
+              )}
 
-  {/* Extra pill for whole mouth */}
-  <button
-    key="ALL"
-    type="button"
-    onClick={() => toggleToothSelection("ALL")}
-    style={{
-      minWidth: 60,
-      padding: "4px 10px",
-      borderRadius: 999,
-      border: isToothSelected("ALL")
-        ? "1px solid #16a34a"
-        : "1px solid #d1d5db",
-      background: isToothSelected("ALL") ? "#dcfce7" : "white",
-      color: isToothSelected("ALL") ? "#166534" : "#111827",
-      fontSize: 12,
-      cursor: "pointer",
-      marginLeft: 12,
-    }}
-  >
-    Бүх шүд
-  </button>
-</div>
-
-            <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>
-              Шүдийг дарж сонгох үед тухайн шүдэнд онош тавих мөр автоматаар
-              доорх хэсэгт үүснэ.
+              {/* Whole mouth pill */}
+              <button
+                key="ALL"
+                type="button"
+                onClick={() => toggleToothSelection("ALL")}
+                style={{
+                  minWidth: 60,
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  border: isToothSelected("ALL")
+                    ? "1px solid #16a34a"
+                    : "1px solid #d1d5db",
+                  background: isToothSelected("ALL") ? "#dcfce7" : "white",
+                  color: isToothSelected("ALL") ? "#166534" : "#111827",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  marginLeft: 12,
+                }}
+              >
+                Бүх шүд
+              </button>
             </div>
 
-            {currentTooth && (
-              <div style={{ fontSize: 12, color: "#2563eb" }}>
-                Идэвхтэй шүд: <strong>{currentTooth}</strong>
-              </div>
-            )}
-
-           
+            <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>
+              Шүдийг дарж сонгох үед тухайн шүднүүдэд зориулсан оношийн мөр
+              доорх хэсэгт үүснэ. Олон шүд сонгоход нэг онош нь бүгдэд нь
+              хамаарна.
+            </div>
           </section>
 
           {/* Diagnoses */}
@@ -854,10 +844,10 @@ export default function EncounterAdminPage() {
               <div>
                 <h2 style={{ fontSize: 16, margin: 0 }}>Онош тавих</h2>
                 <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Шүд сонгоход тухайн шүдэнд зориулсан оношийн мөр энд үүснэ.
+                  Шүд сонгоход тухайн шүднүүдэд зориулагдсан нэг оношийн мөр
+                  үүснэ. Нэг онош нь олон шүдэнд хамаарч болно.
                 </div>
               </div>
-              {/* button removed – rows are created automatically from tooth chart */}
             </div>
 
             {dxError && (
@@ -884,148 +874,153 @@ export default function EncounterAdminPage() {
                       background: "#f9fafb",
                     }}
                   >
+                    {/* Diagnosis search input + suggestions */}
                     <div
-  style={{
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-    marginBottom: 8,
-  }}
->
-  <div
-    style={{
-      display: "flex",
-      gap: 8,
-      alignItems: "center",
-    }}
-  >
-    <div style={{ position: "relative", flex: 1 }}>
-      <input
-        placeholder="Онош бичиж хайх (ж: K04.1, пульпит...)"
-        value={
-          row.diagnosis
-            ? `${row.diagnosis.code} – ${row.diagnosis.name}`
-            : ""
-        }
-        onChange={(e) => {
-          const q = e.target.value.toLowerCase();
-          // open suggestion list when user types
-          setOpenDxIndex(index);
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          alignItems: "center",
+                        }}
+                      >
+                        <div style={{ position: "relative", flex: 1 }}>
+                          <input
+                            placeholder="Онош бичиж хайх (ж: K04.1, пульпит...)"
+                            value={
+                              row.diagnosis
+                                ? `${row.diagnosis.code} – ${row.diagnosis.name}`
+                                : ""
+                            }
+                            onChange={(e) => {
+                              const text = e.target.value;
+                              setOpenDxIndex(index);
+                              if (!text.trim()) {
+                                // clear diagnosis on empty
+                                setRows((prev) =>
+                                  prev.map((r, i) =>
+                                    i === index
+                                      ? {
+                                          ...r,
+                                          diagnosisId: 0,
+                                          diagnosis: undefined,
+                                          selectedProblemIds: [],
+                                        }
+                                      : r
+                                  )
+                                );
+                              }
+                            }}
+                            onFocus={() => setOpenDxIndex(index)}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "6px 8px",
+                              fontSize: 13,
+                            }}
+                          />
 
-          // do NOT immediately change diagnosisId; suggestions come below
-          // but if they clear the input, reset the row
-          if (!q.trim()) {
-            setRows((prev) =>
-              prev.map((r, i) =>
-                i === index
-                  ? {
-                      ...r,
-                      diagnosisId: 0,
-                      diagnosis: undefined,
-                      selectedProblemIds: [],
-                    }
-                  : r
-              )
-            );
-          }
-        }}
-        onFocus={() => setOpenDxIndex(index)}
-        style={{
-          width: "100%",
-          borderRadius: 6,
-          border: "1px solid #d1d5db",
-          padding: "6px 8px",
-          fontSize: 13,
-        }}
-      />
+                          {/* Suggestions dropdown */}
+                          {openDxIndex === index &&
+                            allDiagnoses.length > 0 && (
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  top: "100%",
+                                  left: 0,
+                                  right: 0,
+                                  maxHeight: 220,
+                                  overflowY: "auto",
+                                  marginTop: 4,
+                                  background: "white",
+                                  borderRadius: 6,
+                                  boxShadow:
+                                    "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
+                                  zIndex: 20,
+                                  fontSize: 13,
+                                }}
+                              >
+                                {allDiagnoses
+                                  .filter((d) => {
+                                    const label = row.diagnosis
+                                      ? `${row.diagnosis.code} – ${row.diagnosis.name}`
+                                      : "";
+                                    const q = label.toLowerCase();
+                                    if (!q.trim()) return true;
+                                    const hay = `${d.code} ${d.name}`.toLowerCase();
+                                    return hay.includes(q);
+                                  })
+                                  .slice(0, 50)
+                                  .map((d) => (
+                                    <div
+                                      key={d.id}
+                                      onMouseDown={async (e) => {
+                                        e.preventDefault();
+                                        await handleDiagnosisChange(
+                                          index,
+                                          d.id
+                                        );
+                                        setOpenDxIndex(null);
+                                      }}
+                                      style={{
+                                        padding: "6px 8px",
+                                        cursor: "pointer",
+                                        borderBottom:
+                                          "1px solid #f3f4f6",
+                                        background:
+                                          row.diagnosisId === d.id
+                                            ? "#eff6ff"
+                                            : "white",
+                                      }}
+                                    >
+                                      <div style={{ fontWeight: 500 }}>
+                                        {d.code} – {d.name}
+                                      </div>
+                                      {d.description && (
+                                        <div
+                                          style={{
+                                            fontSize: 11,
+                                            color: "#6b7280",
+                                            marginTop: 2,
+                                          }}
+                                        >
+                                          {d.description}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                        </div>
 
-      {/* Suggestions dropdown */}
-      {openDxIndex === index && allDiagnoses.length > 0 && (
-        <div
-          style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            right: 0,
-            maxHeight: 220,
-            overflowY: "auto",
-            marginTop: 4,
-            background: "white",
-            borderRadius: 6,
-            boxShadow:
-              "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
-            zIndex: 20,
-            fontSize: 13,
-          }}
-        >
-          {allDiagnoses
-            .filter((d) => {
-              const hay = `${d.code} ${d.name}`.toLowerCase();
-              const currentText = row.diagnosis
-                ? `${row.diagnosis.code} – ${row.diagnosis.name}`.toLowerCase()
-                : "";
-              // if input is empty show first ~30 items
-              if (!currentText.trim()) return true;
-              const q = currentText.toLowerCase();
-              return hay.includes(q);
-            })
-            .slice(0, 50) // limit to avoid huge list
-            .map((d) => (
-              <div
-                key={d.id}
-                onMouseDown={async (e) => {
-                  e.preventDefault();
-                  await handleDiagnosisChange(index, d.id);
-                  setOpenDxIndex(null);
-                }}
-                style={{
-                  padding: "6px 8px",
-                  cursor: "pointer",
-                  borderBottom: "1px solid #f3f4f6",
-                  background:
-                    row.diagnosisId === d.id ? "#eff6ff" : "white",
-                }}
-              >
-                <div style={{ fontWeight: 500 }}>
-                  {d.code} – {d.name}
-                </div>
-                {d.description && (
-                  <div
-                    style={{
-                      fontSize: 11,
-                      color: "#6b7280",
-                      marginTop: 2,
-                    }}
-                  >
-                    {d.description}
-                  </div>
-                )}
-              </div>
-            ))}
-        </div>
-      )}
-    </div>
+                        <button
+                          type="button"
+                          onClick={() => removeDiagnosisRow(index)}
+                          style={{
+                            padding: "4px 10px",
+                            borderRadius: 6,
+                            border: "1px solid #dc2626",
+                            background: "#fef2f2",
+                            color: "#b91c1c",
+                            cursor: "pointer",
+                            fontSize: 12,
+                            height: 32,
+                            alignSelf: "flex-start",
+                          }}
+                        >
+                          Устгах
+                        </button>
+                      </div>
+                    </div>
 
-    <button
-      type="button"
-      onClick={() => removeDiagnosisRow(index)}
-      style={{
-        padding: "4px 10px",
-        borderRadius: 6,
-        border: "1px solid #dc2626",
-        background: "#fef2f2",
-        color: "#b91c1c",
-        cursor: "pointer",
-        fontSize: 12,
-        height: 32,
-        alignSelf: "flex-start",
-      }}
-    >
-      Устгах
-    </button>
-  </div>
-</div>
-
+                    {/* Tooth list (comma-separated) */}
                     <div
                       style={{
                         marginBottom: 8,
@@ -1035,13 +1030,13 @@ export default function EncounterAdminPage() {
                       }}
                     >
                       <input
-                        placeholder="Шүдний код (ж: 11, 26, 85)"
+                        placeholder="Шүдний код (ж: 11, 21, 22) эсвэл Бүх шүд"
                         value={row.toothCode || ""}
                         onChange={(e) =>
                           handleDxToothCodeChange(index, e.target.value)
                         }
                         style={{
-                          maxWidth: 200,
+                          maxWidth: 260,
                           borderRadius: 6,
                           border: "1px solid #d1d5db",
                           padding: "6px 8px",
@@ -1054,6 +1049,7 @@ export default function EncounterAdminPage() {
                       </span>
                     </div>
 
+                    {/* Problems */}
                     {row.diagnosisId ? (
                       <>
                         {problems.length === 0 ? (
@@ -1113,6 +1109,7 @@ export default function EncounterAdminPage() {
                       </>
                     ) : null}
 
+                    {/* Note */}
                     <textarea
                       placeholder="Энэ оношид холбогдох тэмдэглэл (сонголттой)"
                       value={row.note}
