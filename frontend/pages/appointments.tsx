@@ -455,6 +455,38 @@ function AppointmentDetailsModal({
     }
   };
 
+  
+const handleViewEncounterForPayment = async (a: Appointment) => {
+  try {
+    setError("");
+    const res = await fetch(`/api/appointments/${a.id}/encounter`, {
+      method: "GET",
+    });
+
+    let data: any = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+
+    if (!res.ok || !data || typeof data.encounterId !== "number") {
+      console.error("get encounter for payment failed", res.status, data);
+      setError(
+        (data && data.error) ||
+          "Үзлэгийн мэдээлэл авах үед алдаа гарлаа."
+      );
+      return;
+    }
+
+    // For now: open the encounter in read-only mode.
+    // Later you can change this to a dedicated payment page, e.g. /payments/[id]
+    router.push(`/encounters/${data.encounterId}?mode=readonly`);
+  } catch (e) {
+    console.error("view-encounter-for-payment network error", e);
+    setError("Үзлэгийн мэдээлэл авах үед сүлжээний алдаа гарлаа.");
+  }
+};
   return (
     <div
       style={{
@@ -607,40 +639,60 @@ function AppointmentDetailsModal({
 </div>
 
                       <div
-                        style={{
-                          marginTop: 6,
-                          display: "flex",
-                          gap: 8,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        {canStartEncounter ? (
-                          <button
-                            type="button"
-                            onClick={() => handleStartEncounter(a)}
-                            style={{
-                              padding: "4px 10px",
-                              borderRadius: 6,
-                              border: "1px solid #16a34a",
-                              background: "#dcfce7",
-                              color: "#166534",
-                              fontSize: 12,
-                              cursor: "pointer",
-                            }}
-                          >
-                            Үзлэг эхлүүлэх / үргэлжлүүлэх
-                          </button>
-                        ) : (
-                          <span
-                            style={{
-                              fontSize: 11,
-                              color: "#9ca3af",
-                            }}
-                          >
-                            Үзлэгийг зөвхөн “Явагдаж байна” төлөвтэй үед эхлүүлнэ.
-                          </span>
-                        )}
-                      </div>
+  style={{
+    marginTop: 6,
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  }}
+>
+  {canStartEncounter && (
+    <button
+      type="button"
+      onClick={() => handleStartEncounter(a)}
+      style={{
+        padding: "4px 10px",
+        borderRadius: 6,
+        border: "1px solid #16a34a",
+        background: "#dcfce7",
+        color: "#166534",
+        fontSize: 12,
+        cursor: "pointer",
+      }}
+    >
+      Үзлэг эхлүүлэх / үргэлжлүүлэх
+    </button>
+  )}
+
+  {a.status === "ready_to_pay" && (
+    <button
+      type="button"
+      onClick={() => handleViewEncounterForPayment(a)}
+      style={{
+        padding: "4px 10px",
+        borderRadius: 6,
+        border: "1px solid #f59e0b",
+        background: "#fef3c7",
+        color: "#92400e",
+        fontSize: 12,
+        cursor: "pointer",
+      }}
+    >
+      Төлбөр авах / Үзлэг харах
+    </button>
+  )}
+
+  {!canStartEncounter && a.status !== "ready_to_pay" && (
+    <span
+      style={{
+        fontSize: 11,
+        color: "#9ca3af",
+      }}
+    >
+      Үзлэгийг зөвхөн “Явагдаж байна” төлөвтэй үед эхлүүлнэ.
+    </span>
+  )}
+</div>
                     </>
                   ) : (
                     <div
