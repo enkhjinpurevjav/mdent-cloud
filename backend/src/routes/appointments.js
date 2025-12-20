@@ -325,4 +325,32 @@ router.post("/:id/start-encounter", async (req, res) => {
       .json({ error: "Failed to start or open encounter for appointment" });
   }
 });
+
+router.get("/:id/encounter", async (req, res) => {
+  try {
+    const apptId = Number(req.params.id);
+    if (!apptId || Number.isNaN(apptId)) {
+      return res.status(400).json({ error: "Invalid appointment id" });
+    }
+
+    const encounter = await prisma.encounter.findFirst({
+      where: { appointmentId: apptId },
+      orderBy: { id: "desc" },
+      select: { id: true },
+    });
+
+    if (!encounter) {
+      return res
+        .status(404)
+        .json({ error: "Үзлэг олдсонгүй. Эмч үзлэг эхлүүлээгүй байна." });
+    }
+
+    return res.json({ encounterId: encounter.id });
+  } catch (err) {
+    console.error("GET /api/appointments/:id/encounter error:", err);
+    return res
+      .status(500)
+      .json({ error: "Үзлэгийн мэдээлэл авах үед алдаа гарлаа." });
+  }
+});
 export default router;
