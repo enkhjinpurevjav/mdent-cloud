@@ -145,7 +145,7 @@ export default function EncounterAdminPage() {
   const [encounterLoading, setEncounterLoading] = useState(false);
   const [encounterError, setEncounterError] = useState("");
 
-  // Diagnoses master + editable rows
+  // Diagnoses
   const [allDiagnoses, setAllDiagnoses] = useState<Diagnosis[]>([]);
   const [dxLoading, setDxLoading] = useState(false);
   const [dxError, setDxError] = useState("");
@@ -156,22 +156,23 @@ export default function EncounterAdminPage() {
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Services state
+  // Services
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [services, setServices] = useState<EncounterServiceRow[]>([]);
   const [servicesError, setServicesError] = useState("");
   const [servicesSaving, setServicesSaving] = useState(false);
 
-  // Tooth chart state
+  // Tooth chart
   const [chartTeeth, setChartTeeth] = useState<ChartToothRow[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [chartError, setChartError] = useState("");
   const [chartSaving, setChartSaving] = useState(false);
   const [toothMode, setToothMode] = useState<"ADULT" | "CHILD">("ADULT");
 
-  // --- Load data ---
+  // NEW: currently active tooth from chart
+  const [currentTooth, setCurrentTooth] = useState<string | null>(null);
 
-  // Load master services catalog
+  // --- Load master services ---
   useEffect(() => {
     const loadServices = async () => {
       try {
@@ -189,7 +190,7 @@ export default function EncounterAdminPage() {
     loadServices();
   }, []);
 
-  // Load encounter
+  // --- Load encounter ---
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
 
@@ -211,7 +212,6 @@ export default function EncounterAdminPage() {
 
         setEncounter(data);
 
-        // Initialize editable diagnosis rows from server data
         const initialRows: EditableDiagnosis[] =
           Array.isArray(data.encounterDiagnoses) &&
           data.encounterDiagnoses.length > 0
@@ -227,7 +227,6 @@ export default function EncounterAdminPage() {
             : [];
         setRows(initialRows);
 
-        // Initialize services rows from server data
         const initialServices: EncounterServiceRow[] =
           Array.isArray(data.encounterServices) &&
           data.encounterServices.length > 0
@@ -252,7 +251,7 @@ export default function EncounterAdminPage() {
     load();
   }, [encounterId]);
 
-  // Load all diagnoses
+  // --- Load all diagnoses ---
   useEffect(() => {
     const loadDx = async () => {
       setDxLoading(true);
@@ -281,7 +280,7 @@ export default function EncounterAdminPage() {
     loadDx();
   }, []);
 
-  // Load tooth chart
+  // --- Load tooth chart ---
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
 
@@ -341,6 +340,7 @@ export default function EncounterAdminPage() {
     }
   };
 
+  // NEW: when adding a diagnosis, pre-fill toothCode with currentTooth
   const addDiagnosisRow = () => {
     setRows((prev) => [
       ...prev,
@@ -349,7 +349,7 @@ export default function EncounterAdminPage() {
         diagnosis: undefined,
         selectedProblemIds: [],
         note: "",
-        toothCode: "",
+        toothCode: currentTooth || "",
       },
     ]);
   };
@@ -573,12 +573,18 @@ export default function EncounterAdminPage() {
   const isToothSelected = (code: string) =>
     chartTeeth.some((t) => t.toothCode === code);
 
+  // UPDATED: also manage currentTooth
   const toggleToothSelection = (code: string) => {
     setChartTeeth((prev) => {
       const exists = prev.find((t) => t.toothCode === code);
       if (exists) {
-        return prev.filter((t) => t.toothCode !== code);
+        const next = prev.filter((t) => t.toothCode !== code);
+        // if we remove the active tooth, clear currentTooth
+        setCurrentTooth((cur) => (cur === code ? null : cur));
+        return next;
       }
+      // add new tooth and make it current
+      setCurrentTooth(code);
       return [...prev, { toothCode: code, notes: "" }];
     });
   };
@@ -679,7 +685,7 @@ export default function EncounterAdminPage() {
 
       {encounter && (
         <>
-          {/* Encounter header info */}
+          {/* Encounter header */}
           <section
             style={{
               marginBottom: 16,
@@ -713,7 +719,7 @@ export default function EncounterAdminPage() {
             )}
           </section>
 
-          {/* Tooth Chart */}
+          {/* Tooth chart */}
           <section
             style={{
               marginTop: 0,
@@ -834,6 +840,13 @@ export default function EncounterAdminPage() {
                 Дээрх кодоос шүдийг дарж сонгоно уу. Нэг шүдийг дахин дарвал
                 устгах болно.
               </div>
+
+              {currentTooth && (
+                <div style={{ fontSize: 12, color: "#2563eb" }}>
+                  Идэвхтэй шүд: <strong>{currentTooth}</strong> — шинэ онош
+                  нэмэхэд автоматаар энэ шүдний код орно.
+                </div>
+              )}
             </div>
 
             {/* Selected teeth list */}
@@ -902,6 +915,9 @@ export default function EncounterAdminPage() {
                             setChartTeeth((prev) =>
                               prev.filter((x) => x.toothCode !== t.toothCode)
                             );
+                            setCurrentTooth((cur) =>
+                              cur === t.toothCode ? null : cur
+                            );
                           }}
                           style={{
                             padding: "2px 8px",
@@ -966,7 +982,7 @@ export default function EncounterAdminPage() {
             </div>
           </section>
 
-          {/* Diagnosis editor */}
+          {/* Diagnoses */}
           <section
             style={{
               marginTop: 16,
@@ -984,7 +1000,15 @@ export default function EncounterAdminPage() {
                 marginBottom: 8,
               }}
             >
-              <h2 style={{ fontSize: 16, margin: 0 }}>Онош тавих</h2>
+              <div>
+                <h2 style={{ fontSize: 16, margin: 0 }}>Онош тавих</h2>
+                {currentTooth && (
+                  <div style={{ fontSize: 12, color: "#6b7280" }}>
+                    Шинэ онош нэмэхэд шүдний код автомат:{" "}
+                    <strong>{currentTooth}</strong>
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={addDiagnosisRow}
@@ -1071,7 +1095,6 @@ export default function EncounterAdminPage() {
                       </button>
                     </div>
 
-                    {/* Tooth code for this diagnosis */}
                     <div
                       style={{
                         marginBottom: 8,
@@ -1099,7 +1122,6 @@ export default function EncounterAdminPage() {
                       </span>
                     </div>
 
-                    {/* Problems checklist */}
                     {row.diagnosisId ? (
                       <>
                         {problems.length === 0 ? (
@@ -1159,7 +1181,6 @@ export default function EncounterAdminPage() {
                       </>
                     ) : null}
 
-                    {/* Note */}
                     <textarea
                       placeholder="Энэ оношид холбогдох тэмдэглэл (сонголттой)"
                       value={row.note}
@@ -1211,7 +1232,7 @@ export default function EncounterAdminPage() {
             </div>
           </section>
 
-          {/* Services / Treatments */}
+          {/* Services */}
           <section
             style={{
               marginTop: 16,
