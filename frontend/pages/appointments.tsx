@@ -651,11 +651,12 @@ function AppointmentDetailsModal({
                           }}
                         >
                           <option value="booked">Захиалсан</option>
-                          <option value="confirmed">Баталгаажсан</option>
-                          <option value="ongoing">Явагдаж байна</option>
-                          <option value="completed">Дууссан</option>
-                          <option value="cancelled">Цуцалсан</option>
-                        </select>
+  <option value="confirmed">Баталгаажсан</option>
+  <option value="ongoing">Явагдаж байна</option>
+  <option value="ready_to_pay">Төлбөр төлөх</option>
+  <option value="completed">Дууссан</option>
+  <option value="cancelled">Цуцалсан</option>
+</select>
                       </label>
                       <button
                         type="button"
@@ -1450,10 +1451,11 @@ function QuickAppointmentModal({
               }}
             >
               <option value="booked">Захиалсан</option>
-              <option value="confirmed">Баталгаажсан</option>
-              <option value="ongoing">Явагдаж байна</option>
-              <option value="completed">Дууссан</option>
-              <option value="cancelled">Цуцалсан</option>
+  <option value="confirmed">Баталгаажсан</option>
+  <option value="ongoing">Явагдаж байна</option>
+  <option value="ready_to_pay">Төлбөр төлөх</option>
+  <option value="completed">Дууссан</option>
+  <option value="cancelled">Цуцалсан</option>
             </select>
           </div>
 
@@ -2482,11 +2484,12 @@ const [dayEndSlots, setDayEndSlots] = useState<
             padding: "6px 8px",
           }}
         >
-          <option value="booked">Захиалсан</option>
-          <option value="confirmed">Баталгаажсан</option>
-          <option value="ongoing">Явагдаж байна</option>
-          <option value="completed">Дууссан</option>
-          <option value="cancelled">Цуцалсан</option>
+          <<option value="booked">Захиалсан</option>
+  <option value="confirmed">Баталгаажсан</option>
+  <option value="ongoing">Явагдаж байна</option>
+  <option value="ready_to_pay">Төлбөр төлөх</option>
+  <option value="completed">Дууссан</option>
+  <option value="cancelled">Цуцалсан</option>
         </select>
       </div>
 
