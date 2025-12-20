@@ -734,7 +734,7 @@ export default function EncounterAdminPage() {
                     cursor: "pointer",
                   }}
                 >
-                  Насанд хүрэгч
+                  Байнгын шүд
                 </button>
                 <button
                   type="button"
@@ -749,7 +749,7 @@ export default function EncounterAdminPage() {
                     cursor: "pointer",
                   }}
                 >
-                  Хүүхэд
+                  Сүүн шүд
                 </button>
               </div>
             </div>
