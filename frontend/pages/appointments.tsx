@@ -455,6 +455,37 @@ function AppointmentDetailsModal({
     }
   };
 
+const handleViewEncounterForPayment = async (a: Appointment) => {
+  try {
+    setError("");
+    const res = await fetch(`/api/appointments/${a.id}/encounter`, {
+      method: "GET",
+    });
+
+    let data: any = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+
+    if (!res.ok || !data || typeof data.encounterId !== "number") {
+      console.error("get encounter for payment failed", res.status, data);
+      setError(
+        (data && data.error) ||
+          "Үзлэгийн мэдээлэл авах үед алдаа гарлаа."
+      );
+      return;
+    }
+
+    router.push(`/billing/${data.encounterId}`);
+  } catch (e) {
+    console.error("view-encounter-for-payment network error", e);
+    setError("Үзлэгийн мэдээлэл авах үед сүлжээний алдаа гарлаа.");
+  }
+};
+
+
   
 const handleViewEncounterForPayment = async (a: Appointment) => {
   try {
