@@ -665,10 +665,46 @@ export default function EncounterAdminPage() {
         <div style={{ color: "red", marginBottom: 12 }}>{encounterError}</div>
       )}
 
+      {encounter && (
+        <>
+          {/* Encounter header info */}
+          <section
+            style={{
+              marginBottom: 16,
+              padding: 16,
+              borderRadius: 8,
+              border: "1px solid #e5e7eb",
+              background: "#ffffff",
+            }}
+          >
+            <div style={{ marginBottom: 4 }}>
+              <strong>Үйлчлүүлэгч:</strong>{" "}
+              {formatPatientName(encounter.patientBook.patient)} (Карт:{" "}
+              {encounter.patientBook.bookNumber})
+            </div>
+            <div style={{ marginBottom: 4 }}>
+              <strong>Салбар:</strong>{" "}
+              {encounter.patientBook.patient.branch
+                ? encounter.patientBook.patient.branch.name
+                : "-"}
+            </div>
+            <div style={{ marginBottom: 4 }}>
+              <strong>Эмч:</strong> {formatDoctorName(encounter.doctor)}
+            </div>
+            <div style={{ marginBottom: 4 }}>
+              <strong>Огноо:</strong> {formatDateTime(encounter.visitDate)}
+            </div>
+            {encounter.notes && (
+              <div style={{ marginTop: 4 }}>
+                <strong>Тэмдэглэл:</strong> {encounter.notes}
+              </div>
+            )}
+          </section>
+
           {/* Tooth Chart */}
           <section
             style={{
-              marginTop: 16,
+              marginTop: 0,
               padding: 16,
               borderRadius: 8,
               border: "1px solid #e5e7eb",
