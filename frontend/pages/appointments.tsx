@@ -2319,7 +2319,7 @@ const [dayEndSlots, setDayEndSlots] = useState<
           style={{
             gridColumn: "1 / -1",
             borderRadius: 6,
-            border: "1px солид #e5e7eb",
+            border: "1px solid #e5e7eb",
             background: "#ffffff",
             maxHeight: 220,
             overflowY: "auto",
@@ -2336,7 +2336,7 @@ const [dayEndSlots, setDayEndSlots] = useState<
                 textAlign: "left",
                 padding: "6px 8px",
                 border: "none",
-                borderBottom: "1px солид #f3f4f6",
+                borderBottom: "1px solid #f3f4f6",
                 background: "white",
                 cursor: "pointer",
                 fontSize: 12,
@@ -2432,7 +2432,7 @@ const [dayEndSlots, setDayEndSlots] = useState<
     required
     style={{
       borderRadius: 6,
-      border: "1px солид #d1d5db",
+      border: "1px solid #d1d5db",
       padding: "6px 8px",
     }}
   >
@@ -2458,7 +2458,7 @@ const [dayEndSlots, setDayEndSlots] = useState<
     required
     style={{
       borderRadius: 6,
-      border: "1px солид #d1d5db",
+      border: "1px solid #d1d5db",
       padding: "6px 8px",
     }}
   >
@@ -2480,7 +2480,7 @@ const [dayEndSlots, setDayEndSlots] = useState<
           onChange={handleChange}
           style={{
             borderRadius: 6,
-            border: "1px солид #d1d5db",
+            border: "1px solid #d1d5db",
             padding: "6px 8px",
           }}
         >
@@ -2510,7 +2510,7 @@ const [dayEndSlots, setDayEndSlots] = useState<
           onChange={handleChange}
           style={{
             borderRadius: 6,
-            border: "1px солид #d1d5db",
+            border: "1px solid #d1d5db",
             padding: "6px 8px",
           }}
         />
@@ -2597,7 +2597,7 @@ const [dayEndSlots, setDayEndSlots] = useState<
                   placeholder="Ж: Батболд"
                   style={{
                     borderRadius: 6,
-                    border: "1px солид #d1d5db",
+                    border: "1px solid #d1d5db",
                     padding: "6px 8px",
                   }}
                 />
@@ -2617,7 +2617,7 @@ const [dayEndSlots, setDayEndSlots] = useState<
                   placeholder="Ж: 99112233"
                   style={{
                     borderRadius: 6,
-                    border: "1px солид #d1d5db",
+                    border: "1px solid #d1d5db",
                     padding: "6px 8px",
                   }}
                 />
@@ -2636,7 +2636,7 @@ const [dayEndSlots, setDayEndSlots] = useState<
                   onChange={handleQuickPatientChange}
                   style={{
                     borderRadius: 6,
-                    border: "1px солид #d1d5db",
+                    border: "1px solid #d1d5db",
                     padding: "6px 8px",
                   }}
                 >
@@ -2677,7 +2677,7 @@ const [dayEndSlots, setDayEndSlots] = useState<
                   style={{
                     padding: "6px 12px",
                     borderRadius: 6,
-                    border: "1px солид #d1d5db",
+                    border: "1px solid #d1d5db",
                     background: "#f9fafb",
                     cursor: quickPatientSaving ? "default" : "pointer",
                   }}
