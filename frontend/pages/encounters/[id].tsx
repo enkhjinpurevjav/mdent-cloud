@@ -765,40 +765,58 @@ export default function EncounterAdminPage() {
             )}
 
             <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 6,
-                marginBottom: 8,
-              }}
-            >
-              {(toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH).map(
-                (code) => {
-                  const selected = isToothSelected(code);
-                  return (
-                    <button
-                      key={code}
-                      type="button"
-                      onClick={() => toggleToothSelection(code)}
-                      style={{
-                        minWidth: 34,
-                        padding: "4px 6px",
-                        borderRadius: 999,
-                        border: selected
-                          ? "1px solid #16a34a"
-                          : "1px solid #d1d5db",
-                        background: selected ? "#dcfce7" : "white",
-                        color: selected ? "#166534" : "#111827",
-                        fontSize: 12,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {code}
-                    </button>
-                  );
-                }
-              )}
-            </div>
+  style={{
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 8,
+  }}
+>
+  {(toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH).map((code) => {
+    const selected = isToothSelected(code);
+    return (
+      <button
+        key={code}
+        type="button"
+        onClick={() => toggleToothSelection(code)}
+        style={{
+          minWidth: 34,
+          padding: "4px 6px",
+          borderRadius: 999,
+          border: selected ? "1px solid #16a34a" : "1px solid #d1d5db",
+          background: selected ? "#dcfce7" : "white",
+          color: selected ? "#166534" : "#111827",
+          fontSize: 12,
+          cursor: "pointer",
+        }}
+      >
+        {code}
+      </button>
+    );
+  })}
+
+  {/* Extra pill for whole mouth */}
+  <button
+    key="ALL"
+    type="button"
+    onClick={() => toggleToothSelection("ALL")}
+    style={{
+      minWidth: 60,
+      padding: "4px 10px",
+      borderRadius: 999,
+      border: isToothSelected("ALL")
+        ? "1px solid #16a34a"
+        : "1px solid #d1d5db",
+      background: isToothSelected("ALL") ? "#dcfce7" : "white",
+      color: isToothSelected("ALL") ? "#166534" : "#111827",
+      fontSize: 12,
+      cursor: "pointer",
+      marginLeft: 12,
+    }}
+  >
+    Бүх шүд
+  </button>
+</div>
 
             <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>
               Шүдийг дарж сонгох үед тухайн шүдэнд онош тавих мөр автоматаар
