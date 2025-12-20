@@ -2484,7 +2484,7 @@ const [dayEndSlots, setDayEndSlots] = useState<
             padding: "6px 8px",
           }}
         >
-          <<option value="booked">Захиалсан</option>
+          <option value="booked">Захиалсан</option>
   <option value="confirmed">Баталгаажсан</option>
   <option value="ongoing">Явагдаж байна</option>
   <option value="ready_to_pay">Төлбөр төлөх</option>
