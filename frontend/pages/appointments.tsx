@@ -583,14 +583,28 @@ function AppointmentDetailsModal({
 
                   {!isEditing ? (
                     <>
-                      <div style={{ color: "#4b5563" }}>
-                        <div>
-                          <strong>Төлөв:</strong> {formatStatus(a.status)}
-                        </div>
-                        <div>
-                          <strong>Утас:</strong> {a.patient?.phone || "-"}
-                        </div>
-                      </div>
+                     <div style={{ color: "#4b5563" }}>
+  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <strong>Төлөв:</strong> {formatStatus(a.status)}
+    {a.status === "ready_to_pay" && (
+      <span
+        style={{
+          padding: "2px 6px",
+          borderRadius: 999,
+          background: "#f97316", // orange
+          color: "white",
+          fontSize: 10,
+          fontWeight: 600,
+        }}
+      >
+        Төлбөр авах
+      </span>
+    )}
+  </div>
+  <div>
+    <strong>Утас:</strong> {a.patient?.phone || "-"}
+  </div>
+</div>
 
                       <div
                         style={{
