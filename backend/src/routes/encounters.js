@@ -58,7 +58,14 @@ router.get("/:id", async (req, res) => {
 /**
  * PUT /api/encounters/:id/diagnoses
  * Replaces all EncounterDiagnosis rows for this encounter.
- * Body: { items: { diagnosisId, selectedProblemIds, note }[] }
+ * Body: {
+ *   items: {
+ *     diagnosisId: number;
+ *     selectedProblemIds?: number[];
+ *     note?: string | null;
+ *     toothCode?: string | null;
+ *   }[]
+ * }
  */
 router.put("/:id/diagnoses", async (req, res) => {
   const encounterId = Number(req.params.id);
@@ -81,12 +88,25 @@ router.put("/:id/diagnoses", async (req, res) => {
       for (const item of items) {
         if (!item.diagnosisId) continue;
 
+        const selectedProblemIds = Array.isArray(item.selectedProblemIds)
+          ? item.selectedProblemIds
+              .map((id) => Number(id))
+              .filter((n) => !Number.isNaN(n))
+          : [];
+
+        const toothCode =
+          typeof item.toothCode === "string" && item.toothCode.trim()
+            ? item.toothCode.trim()
+            : null;
+
         await trx.encounterDiagnosis.create({
           data: {
             encounterId,
             diagnosisId: item.diagnosisId,
-            selectedProblemIds: item.selectedProblemIds ?? [],
+            selectedProblemIds:
+              selectedProblemIds.length > 0 ? selectedProblemIds : [],
             note: item.note ?? null,
+            toothCode,
           },
         });
       }
