@@ -2928,19 +2928,21 @@ export default function AppointmentsPage() {
   }, [filterDate, firstSlot, lastSlot, totalMinutes, columnHeightPx]);
 
   const getStatusColor = (status: string): string => {
-    switch (status) {
-      case "completed":
-        return "#fb6190";
-      case "confirmed":
-        return "#bbf7d0";
-      case "ongoing":
-        return "#9d9d9d";
-      case "cancelled":
-        return "#1889fc";
-      default:
-        return "#77f9fe";
-    }
-  };
+  switch (status) {
+    case "completed":
+      return "#fb6190";
+    case "confirmed":
+      return "#bbf7d0";
+    case "ongoing":
+      return "#9d9d9d";
+    case "ready_to_pay":
+      return "#facc15"; // bright yellow for "pay attention"
+    case "cancelled":
+      return "#1889fc";
+    default:
+      return "#77f9fe";
+  }
+};
 
   return (
     <main
