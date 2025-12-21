@@ -49,7 +49,7 @@ type EncounterDiagnosisRow = {
   selectedProblemIds: number[] | null;
   note?: string | null;
   diagnosis: Diagnosis;
-  toothCode?: string | null; // comma-separated list like "11, 21, 22" or "ALL"
+  toothCode?: string | null;
 };
 
 type ServiceCategory =
@@ -75,6 +75,15 @@ type Service = {
   serviceBranches?: ServiceBranch[];
 };
 
+type EncounterService = {
+  id: number;
+  encounterId: number;
+  serviceId: number;
+  quantity: number;
+  price: number;
+  service: Service;
+};
+
 type Encounter = {
   id: number;
   patientBookId: number;
@@ -84,6 +93,7 @@ type Encounter = {
   patientBook: PatientBook;
   doctor: Doctor | null;
   encounterDiagnoses: EncounterDiagnosisRow[];
+  encounterServices: EncounterService[];
 };
 
 type EditableDiagnosis = {
@@ -91,9 +101,10 @@ type EditableDiagnosis = {
   diagnosis?: Diagnosis;
   selectedProblemIds: number[];
   note: string;
-  toothCode?: string; // comma-separated list of tooth codes
-  serviceId?: number; // one service per diagnosis
+  toothCode?: string;
+  serviceId?: number;
   serviceQuantity?: number;
+  searchText?: string;
 };
 
 function formatDateTime(iso: string) {
@@ -134,7 +145,8 @@ export default function EncounterAdminPage() {
     () => (typeof id === "string" ? Number(id) : NaN),
     [id]
   );
-const [finishing, setFinishing] = useState(false);
+
+  const [finishing, setFinishing] = useState(false);
   const [encounter, setEncounter] = useState<Encounter | null>(null);
   const [encounterLoading, setEncounterLoading] = useState(false);
   const [encounterError, setEncounterError] = useState("");
@@ -151,10 +163,11 @@ const [finishing, setFinishing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
 
-  // Services catalog (for selecting per-diagnosis service)
+  // Services catalog
   const [allServices, setAllServices] = useState<Service[]>([]);
+  const [servicesLoadError, setServicesLoadError] = useState("");
 
-  // Tooth chart selection (per active diagnosis row)
+  // Tooth chart selection
   const [selectedTeeth, setSelectedTeeth] = useState<string[]>([]);
   const [chartError, setChartError] = useState("");
   const [toothMode, setToothMode] = useState<"ADULT" | "CHILD">("ADULT");
@@ -165,15 +178,14 @@ const [finishing, setFinishing] = useState(false);
     const loadServices = async () => {
       try {
         const res = await fetch("/api/services?onlyActive=true");
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
         if (!res.ok || !Array.isArray(data)) {
           throw new Error(data?.error || "Алдаа гарлаа");
         }
         setAllServices(data);
       } catch (err: any) {
         console.error("Failed to load services:", err);
-        // For doctor view, just show a small error in diagnoses section
-        setChartError(
+        setServicesLoadError(
           err.message || "Үйлчилгээний жагсаалт ачаалахад алдаа гарлаа."
         );
       }
@@ -181,7 +193,7 @@ const [finishing, setFinishing] = useState(false);
     loadServices();
   }, []);
 
-  // --- Load encounter ---
+  // --- Load encounter (diagnoses + services) ---
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
 
@@ -203,6 +215,7 @@ const [finishing, setFinishing] = useState(false);
 
         setEncounter(data);
 
+        // Initialize diagnoses from encounterDiagnoses
         const initialRows: EditableDiagnosis[] =
           Array.isArray(data.encounterDiagnoses) &&
           data.encounterDiagnoses.length > 0
@@ -216,8 +229,29 @@ const [finishing, setFinishing] = useState(false);
                 toothCode: r.toothCode || "",
                 serviceId: undefined,
                 serviceQuantity: undefined,
+                searchText: r.diagnosis
+                  ? `${r.diagnosis.code} – ${r.diagnosis.name}`
+                  : "",
               }))
             : [];
+
+        // Pre-fill per-diagnosis services roughly by index / toothCode match (best effort)
+        if (
+          Array.isArray(data.encounterServices) &&
+          data.encounterServices.length > 0 &&
+          initialRows.length > 0
+        ) {
+          // Later you may want a better mapping (e.g. store diagnosisId in EncounterService)
+          const services = data.encounterServices as EncounterService[];
+          // Simple: attach first few services to first few diagnoses
+          for (let i = 0; i < initialRows.length && i < services.length; i++) {
+            const svc = services[i];
+            initialRows[i].serviceId = svc.serviceId;
+            initialRows[i].serviceQuantity =
+              svc.quantity && svc.quantity > 0 ? svc.quantity : 1;
+          }
+        }
+
         setRows(initialRows);
       } catch (err: any) {
         console.error("Failed to load encounter:", err);
@@ -295,6 +329,7 @@ const [finishing, setFinishing] = useState(false);
       toothCode,
       serviceId: undefined,
       serviceQuantity: undefined,
+      searchText: "",
     };
     setRows((prev) => [...prev, newRow]);
     return index;
@@ -321,6 +356,7 @@ const [finishing, setFinishing] = useState(false);
               diagnosisId,
               diagnosis: dx,
               selectedProblemIds: [],
+              searchText: dx ? `${dx.code} – ${dx.name}` : "",
             }
           : row
       )
@@ -409,6 +445,9 @@ const [finishing, setFinishing] = useState(false);
               toothCode: r.toothCode || "",
               serviceId: match?.serviceId,
               serviceQuantity: match?.serviceQuantity,
+              searchText: r.diagnosis
+                ? `${r.diagnosis.code} – ${r.diagnosis.name}`
+                : "",
             } as EditableDiagnosis;
           })
         );
@@ -423,52 +462,149 @@ const [finishing, setFinishing] = useState(false);
       setSaving(false);
     }
   };
-const handleFinishEncounter = async () => {
-  if (!encounterId || Number.isNaN(encounterId)) return;
-  setFinishing(true);
-  setSaveError("");
-  try {
-    // 1) Save diagnoses (await to catch any error)
-    await handleSaveDiagnoses();
 
-    // 2) Mark appointment as ready_to_pay
-    const res = await fetch(`/api/encounters/${encounterId}/finish`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-    });
+  // --- Save services: keep EncounterService in sync ---
 
-    const data = await res.json().catch(() => null);
-    if (!res.ok) {
-      throw new Error(
-        data?.error || "Үзлэг дууссан төлөвт шилжүүлэхэд алдаа гарлаа."
+  const handleSaveServices = async () => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+
+    // Build items from rows that have a service selected
+    const items = rows
+      .filter((r) => r.serviceId)
+      .map((r) => ({
+        serviceId: r.serviceId as number,
+        quantity:
+          r.serviceQuantity && r.serviceQuantity > 0
+            ? r.serviceQuantity
+            : 1,
+      }));
+
+    try {
+      const res = await fetch(`/api/encounters/${encounterId}/services`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          data?.error || "Үйлчилгээ хадгалахад алдаа гарлаа."
+        );
+      }
+
+      // Optionally update encounter.encounterServices in local state
+      if (Array.isArray(data)) {
+        setEncounter((prev) =>
+          prev
+            ? {
+                ...prev,
+                encounterServices: data,
+              }
+            : prev
+        );
+      }
+    } catch (err: any) {
+      console.error("Failed to save services:", err);
+      setSaveError(
+        err.message || "Үйлчилгээ хадгалахад алдаа гарлаа."
       );
     }
+  };
 
-    // Optionally: you could show a toast or redirect
-    // e.g. router.push("/appointments");
-  } catch (err: any) {
-    console.error("Failed to finish encounter:", err);
-    setSaveError(
-      err.message || "Үзлэг дууссан төлөвт шилжүүлэхэд алдаа гарлаа."
-    );
-  } finally {
-    setFinishing(false);
-  }
-};
+  const handleFinishEncounter = async () => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+    setFinishing(true);
+    setSaveError("");
+    try {
+      // 1) Save diagnoses
+      await handleSaveDiagnoses();
+      // 2) Save services
+      await handleSaveServices();
+
+      // 3) Mark appointment as ready_to_pay
+      const res = await fetch(`/api/encounters/${encounterId}/finish`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          data?.error || "Үзлэг дууссан төлөвт шилжүүлэхэд алдаа гарлаа."
+        );
+      }
+
+      // Optionally redirect to appointments or billing
+      // router.push("/appointments");
+    } catch (err: any) {
+      console.error("Failed to finish encounter:", err);
+      setSaveError(
+        err.message || "Үзлэг дууссан төлөвт шилжүүлэхэд алдаа гарлаа."
+      );
+    } finally {
+      setFinishing(false);
+    }
+  };
+
   // --- Tooth chart helpers ---
 
   const ADULT_TEETH: string[] = [
-    "11", "12", "13", "14", "15", "16", "17", "18",
-    "21", "22", "23", "24", "25", "26", "27", "28",
-    "31", "32", "33", "34", "35", "36", "37", "38",
-    "41", "42", "43", "44", "45", "46", "47", "48",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15",
+    "16",
+    "17",
+    "18",
+    "21",
+    "22",
+    "23",
+    "24",
+    "25",
+    "26",
+    "27",
+    "28",
+    "31",
+    "32",
+    "33",
+    "34",
+    "35",
+    "36",
+    "37",
+    "38",
+    "41",
+    "42",
+    "43",
+    "44",
+    "45",
+    "46",
+    "47",
+    "48",
   ];
 
   const CHILD_TEETH: string[] = [
-    "51", "52", "53", "54", "55",
-    "61", "62", "63", "64", "65",
-    "71", "72", "73", "74", "75",
-    "81", "82", "83", "84", "85",
+    "51",
+    "52",
+    "53",
+    "54",
+    "55",
+    "61",
+    "62",
+    "63",
+    "64",
+    "65",
+    "71",
+    "72",
+    "73",
+    "74",
+    "75",
+    "81",
+    "82",
+    "83",
+    "84",
+    "85",
   ];
 
   const toggleToothMode = (mode: "ADULT" | "CHILD") => {
@@ -525,7 +661,7 @@ const handleFinishEncounter = async () => {
     });
   };
 
-  // --- Derived: total price of services chosen per diagnosis (for doctor's info only) ---
+  // --- Derived: total price of services chosen per diagnosis ---
   const totalDiagnosisServicesPrice = rows.reduce((sum, r) => {
     if (!r.serviceId) return sum;
     const svc = allServices.find((x) => x.id === r.serviceId);
@@ -568,7 +704,9 @@ const handleFinishEncounter = async () => {
 
       {encounterLoading && <div>Ачаалж байна...</div>}
       {!encounterLoading && encounterError && (
-        <div style={{ color: "red", marginBottom: 12 }}>{encounterError}</div>
+        <div style={{ color: "red", marginBottom: 12 }}>
+          {encounterError}
+        </div>
       )}
 
       {encounter && (
@@ -768,6 +906,11 @@ const handleFinishEncounter = async () => {
             {dxError && (
               <div style={{ color: "red", marginBottom: 8 }}>{dxError}</div>
             )}
+            {servicesLoadError && (
+              <div style={{ color: "red", marginBottom: 8 }}>
+                {servicesLoadError}
+              </div>
+            )}
 
             {rows.length === 0 && (
               <div style={{ color: "#6b7280", fontSize: 13 }}>
@@ -808,28 +951,27 @@ const handleFinishEncounter = async () => {
                         <div style={{ position: "relative", flex: 1 }}>
                           <input
                             placeholder="Онош бичиж хайх (ж: K04.1, пульпит...)"
-                            value={
-                              row.diagnosis
-                                ? `${row.diagnosis.code} – ${row.diagnosis.name}`
-                                : ""
-                            }
+                            value={row.searchText ?? ""}
                             onChange={(e) => {
                               const text = e.target.value;
                               setOpenDxIndex(index);
-                              if (!text.trim()) {
-                                setRows((prev) =>
-                                  prev.map((r, i) =>
-                                    i === index
-                                      ? {
-                                          ...r,
-                                          diagnosisId: 0,
-                                          diagnosis: undefined,
-                                          selectedProblemIds: [],
-                                        }
-                                      : r
-                                  )
-                                );
-                              }
+                              setRows((prev) =>
+                                prev.map((r, i) =>
+                                  i === index
+                                    ? {
+                                        ...r,
+                                        searchText: text,
+                                        ...(text.trim()
+                                          ? {}
+                                          : {
+                                              diagnosisId: 0,
+                                              diagnosis: undefined,
+                                              selectedProblemIds: [],
+                                            }),
+                                      }
+                                    : r
+                                )
+                              );
                             }}
                             onFocus={() => setOpenDxIndex(index)}
                             style={{
@@ -862,10 +1004,9 @@ const handleFinishEncounter = async () => {
                               >
                                 {allDiagnoses
                                   .filter((d) => {
-                                    const label = row.diagnosis
-                                      ? `${row.diagnosis.code} – ${row.diagnosis.name}`
-                                      : "";
-                                    const q = label.toLowerCase();
+                                    const q = (
+                                      row.searchText || ""
+                                    ).toLowerCase();
                                     if (!q.trim()) return true;
                                     const hay = `${d.code} ${d.name}`.toLowerCase();
                                     return hay.includes(q);
@@ -1129,74 +1270,77 @@ const handleFinishEncounter = async () => {
               })}
             </div>
 
-          {saveError && (
-  <div style={{ color: "red", marginTop: 8 }}>{saveError}</div>
-)}
+            {saveError && (
+              <div style={{ color: "red", marginTop: 8 }}>{saveError}</div>
+            )}
 
-<div
-  style={{
-    marginTop: 12,
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-  }}
->
-  <div style={{ fontSize: 13, color: "#111827" }}>
-    Нийт үйлчилгээний урьдчилсан дүн:{" "}
-    <strong>
-      {totalDiagnosisServicesPrice.toLocaleString("mn-MN")}₮
-    </strong>{" "}
-    <span style={{ fontSize: 11, color: "#6b7280" }}>
-      (Эмчийн сонгосон онош, үйлчилгээний дагуу. Төлбөрийн касс дээр
-      эцэслэнэ.)
-    </span>
-  </div>
+            <div
+              style={{
+                marginTop: 12,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div style={{ fontSize: 13, color: "#111827" }}>
+                Нийт үйлчилгээний урьдчилсан дүн:{" "}
+                <strong>
+                  {totalDiagnosisServicesPrice.toLocaleString("mn-MN")}₮
+                </strong>{" "}
+                <span style={{ fontSize: 11, color: "#6b7280" }}>
+                  (Эмчийн сонгосон онош, үйлчилгээний дагуу. Төлбөрийн касс
+                  дээр эцэслэнэ.)
+                </span>
+              </div>
 
-  <div
-    style={{
-      display: "flex",
-      gap: 8,
-      alignItems: "center",
-    }}
-  >
-    <button
-      type="button"
-      onClick={handleSaveDiagnoses}
-      disabled={saving || finishing}
-      style={{
-        padding: "8px 16px",
-        borderRadius: 6,
-        border: "none",
-        background: "#16a34a",
-        color: "#ffffff",
-        cursor: "pointer",
-        fontSize: 14,
-      }}
-    >
-      {saving ? "Хадгалж байна..." : "Зөвхөн онош хадгалах"}
-    </button>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleSaveDiagnoses();
+                    await handleSaveServices();
+                  }}
+                  disabled={saving || finishing}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: "#16a34a",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    fontSize: 14,
+                  }}
+                >
+                  {saving ? "Хадгалж байна..." : "Зөвхөн онош хадгалах"}
+                </button>
 
-    <button
-      type="button"
-      onClick={handleFinishEncounter}
-      disabled={saving || finishing}
-      style={{
-        padding: "8px 16px",
-        borderRadius: 6,
-        border: "none",
-        background: "#2563eb",
-        color: "#ffffff",
-        cursor: "pointer",
-        fontSize: 14,
-      }}
-    >
-      {finishing
-        ? "Дуусгаж байна..."
-        : "Үзлэг дуусгах / Төлбөрт шилжүүлэх"}
-    </button>
-  </div>
-</div>
+                <button
+                  type="button"
+                  onClick={handleFinishEncounter}
+                  disabled={saving || finishing}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: "#2563eb",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    fontSize: 14,
+                  }}
+                >
+                  {finishing
+                    ? "Дуусгаж байна..."
+                    : "Үзлэг дуусгах / Төлбөрт шилжүүлэх"}
+                </button>
+              </div>
+            </div>
           </section>
         </>
       )}
