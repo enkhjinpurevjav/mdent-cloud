@@ -5,6 +5,26 @@ import path from "path";
 
 const router = express.Router();
 
+// --- Media upload config ---
+const uploadDir = process.env.MEDIA_UPLOAD_DIR || "/data/media";
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || "";
+    const base = path
+      .basename(file.originalname, ext)
+      .replace(/\s+/g, "_")
+      .replace(/[^a-zA-Z0-9_\-]/g, "");
+    const ts = Date.now();
+    cb(null, `${base}_${ts}${ext}`);
+  },
+});
+
+const upload = multer({ storage });
+
 /**
  * GET /api/encounters/:id
  * Detailed encounter view for admin page / billing.
@@ -78,15 +98,6 @@ router.get("/:id", async (req, res) => {
 
 /**
  * PUT /api/encounters/:id/diagnoses
- * Replaces all EncounterDiagnosis rows for this encounter.
- * Body: {
- *   items: {
- *     diagnosisId: number;
- *     selectedProblemIds?: number[];
- *     note?: string | null;
- *     toothCode?: string | null;
- *   }[]
- * }
  */
 router.put("/:id/diagnoses", async (req, res) => {
   const encounterId = Number(req.params.id);
@@ -147,8 +158,6 @@ router.put("/:id/diagnoses", async (req, res) => {
 
 /**
  * PUT /api/encounters/:id/services
- * Replaces all EncounterService rows for this encounter.
- * Body: { items: { serviceId, quantity? }[] }
  */
 router.put("/:id/services", async (req, res) => {
   const encounterId = Number(req.params.id);
@@ -202,20 +211,6 @@ router.put("/:id/services", async (req, res) => {
 
 /**
  * PUT /api/encounters/:id/prescription
- *
- * Replaces the Prescription + PrescriptionItem rows for this encounter.
- * Body: {
- *   items: {
- *     drugName: string;
- *     durationDays: number;
- *     quantityPerTake: number;
- *     frequencyPerDay: number;
- *     note?: string | null;
- *   }[]
- * }
- *
- * - Max 3 items are persisted (extra are ignored).
- * - If items is empty or all invalid, any existing prescription is deleted.
  */
 router.put("/:id/prescription", async (req, res) => {
   const encounterId = Number(req.params.id);
@@ -248,7 +243,6 @@ router.put("/:id/prescription", async (req, res) => {
       return res.status(404).json({ error: "Encounter not found" });
     }
 
-    // Normalize + filter items (max 3, non-empty drugName)
     const normalized = items
       .map((raw) => ({
         drugName:
@@ -264,7 +258,6 @@ router.put("/:id/prescription", async (req, res) => {
       .filter((it) => it.drugName.length > 0)
       .slice(0, 3);
 
-    // If no valid items -> delete existing prescription (if any) and return null
     if (normalized.length === 0) {
       if (encounter.prescription) {
         await prisma.prescriptionItem.deleteMany({
@@ -291,9 +284,8 @@ router.put("/:id/prescription", async (req, res) => {
         }`.trim()
       : null;
 
-    const diagnosisSummary = ""; // can be filled later from EncounterDiagnosis
+    const diagnosisSummary = "";
 
-    // Upsert prescription + items in a transaction
     const updatedPrescription = await prisma.$transaction(async (trx) => {
       let prescription = encounter.prescription;
 
@@ -304,8 +296,7 @@ router.put("/:id/prescription", async (req, res) => {
             doctorNameSnapshot,
             patientNameSnapshot,
             diagnosisSummary,
-            clinicNameSnapshot:
-              patient?.branch?.name || null,
+            clinicNameSnapshot: patient?.branch?.name || null,
           },
         });
       } else {
@@ -315,8 +306,7 @@ router.put("/:id/prescription", async (req, res) => {
             doctorNameSnapshot,
             patientNameSnapshot,
             diagnosisSummary,
-            clinicNameSnapshot:
-              patient?.branch?.name || null,
+            clinicNameSnapshot: patient?.branch?.name || null,
           },
         });
 
@@ -332,8 +322,7 @@ router.put("/:id/prescription", async (req, res) => {
             prescriptionId: prescription.id,
             order: i + 1,
             drugName: it.drugName,
-            durationDays:
-              it.durationDays > 0 ? it.durationDays : 1,
+            durationDays: it.durationDays > 0 ? it.durationDays : 1,
             quantityPerTake:
               it.quantityPerTake > 0 ? it.quantityPerTake : 1,
             frequencyPerDay:
@@ -435,7 +424,6 @@ router.put("/:id/chart-teeth", async (req, res) => {
 
 /**
  * PUT /api/encounters/:id/finish
- * Marks the linked appointment as "ready_to_pay" after the doctor finishes.
  */
 router.put("/:id/finish", async (req, res) => {
   try {
@@ -475,8 +463,6 @@ router.put("/:id/finish", async (req, res) => {
 
 /**
  * POST /api/encounters/:id/billing
- *
- * Simple first version: calculates total from items and upserts Invoice.
  */
 router.post("/:id/billing", async (req, res) => {
   const encounterId = Number(req.params.id);
@@ -543,8 +529,9 @@ router.post("/:id/billing", async (req, res) => {
   }
 });
 
-
-// GET /api/encounters/:id/media
+/**
+ * GET /api/encounters/:id/media
+ */
 router.get("/:id/media", async (req, res) => {
   try {
     const encounterId = Number(req.params.id);
@@ -553,7 +540,7 @@ router.get("/:id/media", async (req, res) => {
     }
 
     const { type } = req.query;
-    const where = { encounterId };        // ✅ plain JS
+    const where = { encounterId };
     if (typeof type === "string" && type.trim()) {
       where.type = type.trim();
     }
@@ -570,23 +557,47 @@ router.get("/:id/media", async (req, res) => {
   }
 });
 
-// --- Media upload config ---
-const uploadDir = process.env.MEDIA_UPLOAD_DIR || "/data/media";
+/**
+ * POST /api/encounters/:id/media
+ */
+router.post(
+  "/:id/media",
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      const encounterId = Number(req.params.id);
+      if (!encounterId || Number.isNaN(encounterId)) {
+        return res.status(400).json({ error: "Invalid encounter id" });
+      }
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || "";
-    const base = path
-      .basename(file.originalname, ext)
-      .replace(/\s+/g, "_")
-      .replace(/[^a-zA-Z0-9_\-]/g, "");
-    const ts = Date.now();
-    cb(null, `${base}_${ts}${ext}`);
-  },
-});
+      if (!req.file) {
+        return res.status(400).json({ error: "file is required" });
+      }
 
-const upload = multer({ storage });
+      const { toothCode, type } = req.body || {};
+      const mediaType =
+        typeof type === "string" && type.trim() ? type.trim() : "XRAY";
+
+      const publicPath = `/media/${path.basename(req.file.path)}`;
+
+      const media = await prisma.media.create({
+        data: {
+          encounterId,
+          filePath: publicPath,
+          toothCode:
+            typeof toothCode === "string" && toothCode.trim()
+              ? toothCode.trim()
+              : null,
+          type: mediaType,
+        },
+      });
+
+      return res.status(201).json(media);
+    } catch (err) {
+      console.error("POST /api/encounters/:id/media error:", err);
+      return res.status(500).json({ error: "Failed to upload media" });
+    }
+  }
+);
+
 export default router;
