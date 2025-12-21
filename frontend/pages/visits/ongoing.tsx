@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
-import AdminLayout from "../../components/AdminLayout";
-import AppointmentFiltersBar from "../../components/AppointmentFiltersBar";
+import AdminLayout from "../../components/AdminLayout"; // or "../../src/components/AdminLayout" if that's your structure
+import AppointmentFiltersBar from "../../components/AppointmentFiltersBar"; // or "../../src/components/..."
 import {
   AppointmentFilters,
   AppointmentRow,
-} from "../../types/appointments";
+} from "../../src/types/appointments"; // adjust to "../../types/appointments" if not under src
 
 export default function OngoingVisitsPage() {
   const today = new Date().toISOString().slice(0, 10);
@@ -22,7 +22,8 @@ export default function OngoingVisitsPage() {
     const params = new URLSearchParams();
     params.set("dateFrom", filters.dateFrom);
     params.set("dateTo", filters.dateTo);
-    params.set("status", filters.status || "ONGOING");
+    // status is typed as AppointmentStatus | "ALL" | undefined → cast to string
+    params.set("status", (filters.status ?? "ONGOING") as string);
     if (filters.branchId) params.set("branchId", filters.branchId);
     if (filters.search) params.set("search", filters.search);
 
@@ -68,7 +69,9 @@ export default function OngoingVisitsPage() {
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
-                <td style={{ padding: 8 }}>{new Date(row.startTime).toLocaleTimeString()}</td>
+                <td style={{ padding: 8 }}>
+                  {new Date(row.startTime).toLocaleTimeString()}
+                </td>
                 <td style={{ padding: 8 }}>{row.patientName}</td>
                 <td style={{ padding: 8 }}>{row.branchName}</td>
                 <td style={{ padding: 8 }}>{row.doctorName}</td>
