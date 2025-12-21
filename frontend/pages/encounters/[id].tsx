@@ -1124,30 +1124,29 @@ export default function EncounterAdminPage() {
   {/* Service search input */}
   <div style={{ position: "relative", minWidth: 260, flex: "0 0 auto" }}>
     <input
-      placeholder="Үйлчилгээний нэр эсвэл кодоор хайх..."
-      value={row.serviceSearchText ?? ""}
-      onChange={(e) => {
-        const text = e.target.value;
-        setRows((prev) =>
-          prev.map((r, i) =>
-            i === index
-              ? {
-                  ...r,
-                  serviceSearchText: text,
-                  ...(text.trim()
-                    ? {}
-                    : {
-                        serviceId: undefined,
-                        serviceQuantity: undefined,
-                      }),
-                }
-              : r
-          )
-        );
-      }}
-      onFocus={() => {
-        // nothing special; dropdown is always filtered by text
-      }}
+  placeholder="Үйлчилгээний нэр эсвэл кодоор хайх..."
+  value={row.serviceSearchText ?? ""}
+  onChange={(e) => {
+    const text = e.target.value;
+    setOpenServiceIndex(index);
+    setRows((prev) =>
+      prev.map((r, i) =>
+        i === index
+          ? {
+              ...r,
+              serviceSearchText: text,
+              ...(text.trim()
+                ? {}
+                : {
+                    serviceId: undefined,
+                    serviceQuantity: undefined,
+                  }),
+            }
+          : r
+      )
+    );
+  }}
+  onFocus={() => setOpenServiceIndex(index)}
       style={{
         width: "100%",
         borderRadius: 6,
@@ -1159,7 +1158,9 @@ export default function EncounterAdminPage() {
     />
 
     {/* Service dropdown */}
-    {allServices.length > 0 && (row.serviceSearchText || "").length > 0 && (
+    {allServices.length > 0 &&
+  openServiceIndex === index &&
+  (row.serviceSearchText || "").length > 0 && (
       <div
         style={{
           position: "absolute",
@@ -1189,23 +1190,24 @@ export default function EncounterAdminPage() {
             <div
               key={svc.id}
               onMouseDown={(e) => {
-                e.preventDefault();
-                setRows((prev) =>
-                  prev.map((r, i) =>
-                    i === index
-                      ? {
-                          ...r,
-                          serviceId: svc.id,
-                          serviceQuantity:
-                            r.serviceQuantity && r.serviceQuantity > 0
-                              ? r.serviceQuantity
-                              : 1,
-                          serviceSearchText: svc.name,
-                        }
-                      : r
-                  )
-                );
-              }}
+  e.preventDefault();
+  setRows((prev) =>
+    prev.map((r, i) =>
+      i === index
+        ? {
+            ...r,
+            serviceId: svc.id,
+            serviceQuantity:
+              r.serviceQuantity && r.serviceQuantity > 0
+                ? r.serviceQuantity
+                : 1,
+            serviceSearchText: svc.name, // keep visible
+          }
+        : r
+    )
+  );
+  setOpenServiceIndex(null);       // ← hide dropdown
+}}
               style={{
                 padding: "6px 8px",
                 cursor: "pointer",
@@ -1258,9 +1260,7 @@ export default function EncounterAdminPage() {
     }}
   />
 
-  <span style={{ fontSize: 11, color: "#6b7280" }}>
-    Энэ оношид хамаарах үйлчилгээ (сонголттой).
-  </span>
+  
 </div>
 
                     {/* Problems */}
