@@ -541,4 +541,30 @@ router.post("/:id/billing", async (req, res) => {
   }
 });
 
+
+// GET /api/encounters/:id/media
+router.get("/:id/media", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
+
+    const { type } = req.query;
+    const where: any = { encounterId };
+    if (typeof type === "string" && type.trim()) {
+      where.type = type.trim();
+    }
+
+    const media = await prisma.media.findMany({
+      where,
+      orderBy: { id: "asc" },
+    });
+
+    return res.json(media);
+  } catch (err) {
+    console.error("GET /api/encounters/:id/media error:", err);
+    return res.status(500).json({ error: "Failed to load media" });
+  }
+});
 export default router;
