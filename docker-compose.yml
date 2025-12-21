@@ -9,8 +9,6 @@ services:
       - RUN_SEED=false
       - DATABASE_URL=${DATABASE_URL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      # Optional: override upload dir via env if you ever change it
-      # - MEDIA_UPLOAD_DIR=/data/media
     depends_on:
       - postgres
     networks:
@@ -25,7 +23,6 @@ services:
     ports:
       - "8081:8080"
     volumes:
-      # NEW: persistent volume for X-ray / media uploads
       - media_data:/data/media
 
   frontend:
@@ -41,6 +38,8 @@ services:
       timeout: 5s
       retries: 3
       start_period: 25s
+    volumes:
+      - /root/mdent-cloud/frontend/public:/app/public:ro
 
   postgres:
     image: postgres:16
@@ -83,4 +82,4 @@ volumes:
   caddy_data:
   caddy_config:
   pg_data:
-  media_data:   # NEW: named volume for uploads
+  media_data:
