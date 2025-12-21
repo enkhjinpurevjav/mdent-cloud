@@ -461,6 +461,24 @@ model Prescription {
 
   items      PrescriptionItem[]
 }
+
+model PrescriptionItem {
+  id             Int          @id @default(autoincrement())
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id])
+  prescriptionId Int
+
+  order          Int          // 1..3, for consistent print order
+
+  drugName       String       // free text or chosen from med list
+  durationDays   Int          // e.g. 7
+  quantityPerTake Int         // e.g. 1 tab
+  frequencyPerDay Int         // e.g. 3 times/day
+  note           String?      // optional extra info
+
+  @@index([prescriptionId])
+}
+
+
 model EBarimtReceipt {
   id            Int      @id @default(autoincrement())
   invoiceId     Int      @unique
