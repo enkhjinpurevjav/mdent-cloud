@@ -182,7 +182,7 @@ export default function AdminLayout({ children }: Props) {
           style={{
             height: 64,
             // Dark navy similar to the logo background
-            background: "#050B16",
+            background: "#061325",
             color: "white",
             display: "flex",
             alignItems: "center",
