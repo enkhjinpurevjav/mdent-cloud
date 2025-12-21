@@ -105,6 +105,7 @@ type EditableDiagnosis = {
   serviceId?: number;
   serviceQuantity?: number;
   searchText?: string;
+  serviceSearchText?: string; // NEW
 };
 
 function formatDateTime(iso: string) {
@@ -217,23 +218,24 @@ export default function EncounterAdminPage() {
 
         // Initialize diagnoses from encounterDiagnoses
         const initialRows: EditableDiagnosis[] =
-          Array.isArray(data.encounterDiagnoses) &&
-          data.encounterDiagnoses.length > 0
-            ? data.encounterDiagnoses.map((r: EncounterDiagnosisRow) => ({
-                diagnosisId: r.diagnosisId,
-                diagnosis: r.diagnosis,
-                selectedProblemIds: Array.isArray(r.selectedProblemIds)
-                  ? (r.selectedProblemIds as number[])
-                  : [],
-                note: r.note || "",
-                toothCode: r.toothCode || "",
-                serviceId: undefined,
-                serviceQuantity: undefined,
-                searchText: r.diagnosis
-                  ? `${r.diagnosis.code} – ${r.diagnosis.name}`
-                  : "",
-              }))
-            : [];
+  Array.isArray(data.encounterDiagnoses) &&
+  data.encounterDiagnoses.length > 0
+    ? data.encounterDiagnoses.map((r: EncounterDiagnosisRow) => ({
+        diagnosisId: r.diagnosisId,
+        diagnosis: r.diagnosis,
+        selectedProblemIds: Array.isArray(r.selectedProblemIds)
+          ? (r.selectedProblemIds as number[])
+          : [],
+        note: r.note || "",
+        toothCode: r.toothCode || "",
+        serviceId: undefined,
+        serviceQuantity: undefined,
+        searchText: r.diagnosis
+          ? `${r.diagnosis.code} – ${r.diagnosis.name}`
+          : "",
+        serviceSearchText: "", // will fill later if needed
+      }))
+    : [];
 
         // Pre-fill per-diagnosis services roughly by index / toothCode match (best effort)
         if (
@@ -322,15 +324,16 @@ export default function EncounterAdminPage() {
     const index = rows.length;
     const toothCode = stringifyToothList(initialTeeth);
     const newRow: EditableDiagnosis = {
-      diagnosisId: 0,
-      diagnosis: undefined,
-      selectedProblemIds: [],
-      note: "",
-      toothCode,
-      serviceId: undefined,
-      serviceQuantity: undefined,
-      searchText: "",
-    };
+  diagnosisId: 0,
+  diagnosis: undefined,
+  selectedProblemIds: [],
+  note: "",
+  toothCode,
+  serviceId: undefined,
+  serviceQuantity: undefined,
+  searchText: "",
+  serviceSearchText: "",
+};
     setRows((prev) => [...prev, newRow]);
     return index;
   };
@@ -436,19 +439,22 @@ export default function EncounterAdminPage() {
                 (x.toothCode || "") === (r.toothCode || "")
             );
             return {
-              diagnosisId: r.diagnosisId,
-              diagnosis: r.diagnosis,
-              selectedProblemIds: Array.isArray(r.selectedProblemIds)
-                ? (r.selectedProblemIds as number[])
-                : [],
-              note: r.note || "",
-              toothCode: r.toothCode || "",
-              serviceId: match?.serviceId,
-              serviceQuantity: match?.serviceQuantity,
-              searchText: r.diagnosis
-                ? `${r.diagnosis.code} – ${r.diagnosis.name}`
-                : "",
-            } as EditableDiagnosis;
+  diagnosisId: r.diagnosisId,
+  diagnosis: r.diagnosis,
+  selectedProblemIds: Array.isArray(r.selectedProblemIds)
+    ? (r.selectedProblemIds as number[])
+    : [],
+  note: r.note || "",
+  toothCode: r.toothCode || "",
+  serviceId: match?.serviceId,
+  serviceQuantity: match?.serviceQuantity,
+  searchText: r.diagnosis
+    ? `${r.diagnosis.code} – ${r.diagnosis.name}`
+    : "",
+  serviceSearchText: match?.serviceId
+    ? allServices.find((s) => s.id === match.serviceId)?.name || ""
+    : "",
+} as EditableDiagnosis;
           })
         );
       }
@@ -1106,87 +1112,156 @@ export default function EncounterAdminPage() {
 
                     {/* Service for this diagnosis */}
                     <div
-                      style={{
-                        marginBottom: 8,
-                        display: "flex",
-                        gap: 8,
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <select
-                        value={row.serviceId || ""}
-                        onChange={(e) => {
-                          const sid = Number(e.target.value) || 0;
-                          setRows((prev) =>
-                            prev.map((r, i) =>
-                              i === index
-                                ? {
-                                    ...r,
-                                    serviceId: sid || undefined,
-                                    serviceQuantity:
-                                      sid &&
-                                      (!r.serviceQuantity ||
-                                        r.serviceQuantity < 1)
-                                        ? 1
-                                        : r.serviceQuantity,
-                                  }
-                                : r
-                            )
-                          );
-                        }}
-                        style={{
-                          minWidth: 220,
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "6px 8px",
-                          fontSize: 13,
-                        }}
-                      >
-                        <option value="">Үйлчилгээ сонгохгүй</option>
-                        {allServices.map((svc) => (
-                          <option key={svc.id} value={svc.id}>
-                            {svc.code ? `${svc.code} — ` : ""}
-                            {svc.name} (
-                            {svc.price.toLocaleString("mn-MN")}
-                            ₮)
-                          </option>
-                        ))}
-                      </select>
+  style={{
+    marginBottom: 8,
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+    flexWrap: "wrap",
+    position: "relative",
+  }}
+>
+  {/* Service search input */}
+  <div style={{ position: "relative", minWidth: 260, flex: "0 0 auto" }}>
+    <input
+      placeholder="Үйлчилгээний нэр эсвэл кодоор хайх..."
+      value={row.serviceSearchText ?? ""}
+      onChange={(e) => {
+        const text = e.target.value;
+        setRows((prev) =>
+          prev.map((r, i) =>
+            i === index
+              ? {
+                  ...r,
+                  serviceSearchText: text,
+                  ...(text.trim()
+                    ? {}
+                    : {
+                        serviceId: undefined,
+                        serviceQuantity: undefined,
+                      }),
+                }
+              : r
+          )
+        );
+      }}
+      onFocus={() => {
+        // nothing special; dropdown is always filtered by text
+      }}
+      style={{
+        width: "100%",
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "6px 8px",
+        fontSize: 13,
+        background: "#ffffff",
+      }}
+    />
 
-                      <input
-                        type="number"
-                        min={1}
-                        placeholder="Тоо"
-                        value={
-                          row.serviceQuantity ??
-                          (row.serviceId ? 1 : "")
+    {/* Service dropdown */}
+    {allServices.length > 0 && (row.serviceSearchText || "").length > 0 && (
+      <div
+        style={{
+          position: "absolute",
+          top: "100%",
+          left: 0,
+          right: 0,
+          maxHeight: 220,
+          overflowY: "auto",
+          marginTop: 4,
+          background: "white",
+          borderRadius: 6,
+          boxShadow:
+            "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
+          zIndex: 15,
+          fontSize: 13,
+        }}
+      >
+        {allServices
+          .filter((svc) => {
+            const q = (row.serviceSearchText || "").toLowerCase();
+            if (!q.trim()) return true;
+            const hay = `${svc.code || ""} ${svc.name}`.toLowerCase();
+            return hay.includes(q);
+          })
+          .slice(0, 50)
+          .map((svc) => (
+            <div
+              key={svc.id}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setRows((prev) =>
+                  prev.map((r, i) =>
+                    i === index
+                      ? {
+                          ...r,
+                          serviceId: svc.id,
+                          serviceQuantity:
+                            r.serviceQuantity && r.serviceQuantity > 0
+                              ? r.serviceQuantity
+                              : 1,
+                          serviceSearchText: svc.name,
                         }
-                        onChange={(e) => {
-                          const q = Number(e.target.value) || 1;
-                          setRows((prev) =>
-                            prev.map((r, i) =>
-                              i === index
-                                ? { ...r, serviceQuantity: q }
-                                : r
-                            )
-                          );
-                        }}
-                        disabled={!row.serviceId}
-                        style={{
-                          width: 80,
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "6px 8px",
-                          fontSize: 13,
-                          opacity: row.serviceId ? 1 : 0.6,
-                        }}
-                      />
+                      : r
+                  )
+                );
+              }}
+              style={{
+                padding: "6px 8px",
+                cursor: "pointer",
+                borderBottom: "1px solid #f3f4f6",
+                background:
+                  row.serviceId === svc.id ? "#eff6ff" : "white",
+              }}
+            >
+              <div style={{ fontWeight: 500 }}>
+                {svc.code ? `${svc.code} — ` : ""}
+                {svc.name}
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "#6b7280",
+                  marginTop: 2,
+                }}
+              >
+                Үнэ: {svc.price.toLocaleString("mn-MN")}₮
+              </div>
+            </div>
+          ))}
+      </div>
+    )}
+  </div>
 
-                      <span style={{ fontSize: 11, color: "#6b7280" }}>
-                        Энэ оношид хамаарах үйлчилгээ (сонголттой).
-                      </span>
-                    </div>
+  {/* Quantity */}
+  <input
+    type="number"
+    min={1}
+    placeholder="Тоо"
+    value={row.serviceQuantity ?? (row.serviceId ? 1 : "")}
+    onChange={(e) => {
+      const q = Number(e.target.value) || 1;
+      setRows((prev) =>
+        prev.map((r, i) =>
+          i === index ? { ...r, serviceQuantity: q } : r
+        )
+      );
+    }}
+    disabled={!row.serviceId}
+    style={{
+      width: 80,
+      borderRadius: 6,
+      border: "1px solid #d1d5db",
+      padding: "6px 8px",
+      fontSize: 13,
+      opacity: row.serviceId ? 1 : 0.6,
+    }}
+  />
+
+  <span style={{ fontSize: 11, color: "#6b7280" }}>
+    Энэ оношид хамаарах үйлчилгээ (сонголттой).
+  </span>
+</div>
 
                     {/* Problems */}
                     {row.diagnosisId ? (
