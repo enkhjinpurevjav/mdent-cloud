@@ -19,6 +19,6 @@
     "jsonwebtoken": "^9.0.2",
     "pino": "^9.3.2",
     "prisma": "^5.18.0",
-    "multer": "^1.4.5-lts.1"  // <-- add this line
+    "multer": "^1.4.5-lts.1"   
   }
 }
