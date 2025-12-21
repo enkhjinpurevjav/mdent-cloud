@@ -551,7 +551,7 @@ router.get("/:id/media", async (req, res) => {
     }
 
     const { type } = req.query;
-    const where: any = { encounterId };
+    const where = { encounterId };        // ✅ plain JS
     if (typeof type === "string" && type.trim()) {
       where.type = type.trim();
     }
