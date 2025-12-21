@@ -314,6 +314,7 @@ model Encounter {
 
   // Generated invoice for this encounter
   invoice            Invoice?
+  prescription       Prescription?
 
   // Attached media (photos, X-rays, docs)
   media              Media[]
