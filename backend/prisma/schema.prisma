@@ -445,6 +445,22 @@ model Payment {
   invoice   Invoice  @relation(fields: [invoiceId], references: [id])
 }
 
+model Prescription {
+  id          Int                 @id @default(autoincrement())
+  encounter   Encounter           @relation(fields: [encounterId], references: [id])
+  encounterId Int                 @unique
+
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  // optional snapshot fields for printing stability
+  doctorNameSnapshot   String? 
+  patientNameSnapshot  String?
+  diagnosisSummary     String?
+  clinicNameSnapshot   String?
+
+  items      PrescriptionItem[]
+}
 model EBarimtReceipt {
   id            Int      @id @default(autoincrement())
   invoiceId     Int      @unique
