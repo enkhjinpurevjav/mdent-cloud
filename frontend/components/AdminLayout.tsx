@@ -16,7 +16,7 @@ const mainNav: NavItem[] = [
   { label: "Хянах самбар", href: "/", icon: "🏠" },
 
   // Appointments
-  { label: "Цаг захиалга (хуучин)", href: "/appointments", icon: "📅" },
+  { label: "Цаг захиалга", href: "/appointments", icon: "📅" },
 
   // Patients / encounters
   { label: "Үйлчлүүлэгчид", href: "/patients", icon: "👤" },
