@@ -569,4 +569,24 @@ router.get("/:id/media", async (req, res) => {
     return res.status(500).json({ error: "Failed to load media" });
   }
 });
+
+// --- Media upload config ---
+const uploadDir = process.env.MEDIA_UPLOAD_DIR || "/data/media";
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || "";
+    const base = path
+      .basename(file.originalname, ext)
+      .replace(/\s+/g, "_")
+      .replace(/[^a-zA-Z0-9_\-]/g, "");
+    const ts = Date.now();
+    cb(null, `${base}_${ts}${ext}`);
+  },
+});
+
+const upload = multer({ storage });
 export default router;
