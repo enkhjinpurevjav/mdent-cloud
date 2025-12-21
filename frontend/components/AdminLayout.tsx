@@ -187,7 +187,16 @@ export default function AdminLayout({ children }: Props) {
             padding: "0 20px",
           }}
         >
-          <div style={{ fontWeight: 600, fontSize: 16 }}>M Dent Software Solution</div>
+          <div className="flex items-center gap-2">
+  <img
+    src="/logo-mdent.png"
+    alt="M Dent Software logo"
+    className="h-8 w-8 object-contain"
+  />
+  <span className="font-semibold">
+    M Dent Software Solution
+  </span>
+</div>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <button
               type="button"
