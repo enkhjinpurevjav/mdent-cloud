@@ -15,8 +15,7 @@ type NavItem = {
 const mainNav: NavItem[] = [
   { label: "Хянах самбар", href: "/", icon: "🏠" },
 
-  // Appointments 
- 
+  // Appointments
   { label: "Цаг захиалга (хуучин)", href: "/appointments", icon: "📅" },
 
   // Patients / encounters
@@ -80,6 +79,7 @@ export default function AdminLayout({ children }: Props) {
             gap: 12,
           }}
         >
+          {/* Circle avatar with "M" */}
           <div
             style={{
               width: 40,
@@ -96,6 +96,8 @@ export default function AdminLayout({ children }: Props) {
           >
             M
           </div>
+
+          {/* User / clinic info */}
           <div style={{ lineHeight: 1.3 }}>
             <div style={{ fontSize: 14, fontWeight: 600 }}>Admin</div>
             <div style={{ fontSize: 12, color: "#6b7280" }}>
@@ -187,17 +189,37 @@ export default function AdminLayout({ children }: Props) {
             padding: "0 20px",
           }}
         >
-          <div className="flex items-center gap-2">
-  <img
-    src="/logo-mdent.png"
-    alt="M Dent Software logo"
-    className="h-8 w-8 object-contain"
-  />
-  <span className="font-semibold">
-    M Dent Software Solution
-  </span>
-</div>
+          {/* LEFT: logo + product name */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <img
+              src="/logo-mdent.png"
+              alt="M Dent Software logo"
+              style={{
+                height: 32,
+                width: 32,
+                objectFit: "contain",
+                display: "block",
+              }}
+            />
+            <span
+              style={{
+                fontWeight: 600,
+                fontSize: 18,
+              }}
+            >
+              M Dent Software Solution
+            </span>
+          </div>
+
+          {/* RIGHT: notification + user */}
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            {/* Notification bell */}
             <button
               type="button"
               style={{
@@ -225,6 +247,8 @@ export default function AdminLayout({ children }: Props) {
                 }}
               />
             </button>
+
+            {/* User pill */}
             <div
               style={{
                 display: "flex",
