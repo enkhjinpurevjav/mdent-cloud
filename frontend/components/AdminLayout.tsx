@@ -41,13 +41,16 @@ export default function AdminLayout({ children }: Props) {
   const router = useRouter();
   const currentPath = router.pathname;
 
-  // helper: is current link active?
+  const [visitsOpen, setVisitsOpen] = useState(true); // default open
+
   const isActive = (href: string) => {
-    if (href === "/") {
-      return currentPath === "/";
-    }
+    if (!href) return false;
+    if (href === "/") return currentPath === "/";
     return currentPath === href || currentPath.startsWith(href + "/");
   };
+
+  const isInVisitsGroup =
+    currentPath.startsWith("/visits/") || currentPath === "/visits";
 
   return (
     <div
@@ -106,7 +109,7 @@ export default function AdminLayout({ children }: Props) {
           </div>
         </div>
 
-        {/* Navigation */}
+       {/* Navigation */}
         <nav
           style={{
             flex: 1,
@@ -127,7 +130,88 @@ export default function AdminLayout({ children }: Props) {
           </div>
 
           {mainNav.map((item) => {
+            // Handle Үзлэг group specially
+            if (item.label === "Үзлэг" && item.children) {
+              return (
+                <div key="visits-group">
+                  {/* Parent row (click to toggle) */}
+                  <button
+                    type="button"
+                    onClick={() => setVisitsOpen((open) => !open)}
+                    style={{
+                      width: "100%",
+                      border: "none",
+                      background: "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "8px 12px",
+                      margin: "2px 4px",
+                      borderRadius: 8,
+                      cursor: "pointer",
+                      fontSize: 14,
+                      color: isInVisitsGroup ? "#111827" : "#374151",
+                      fontWeight: isInVisitsGroup ? 600 : 500,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <span style={{ width: 18, textAlign: "center" }}>
+                        {item.icon ?? "•"}
+                      </span>
+                      <span>{item.label}</span>
+                    </div>
+                    <span style={{ fontSize: 12 }}>
+                      {visitsOpen ? "▾" : "▸"}
+                    </span>
+                  </button>
+
+                  {/* Children */}
+                  {visitsOpen &&
+                    item.children.map((child) => {
+                      const active = isActive(child.href!);
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href!}
+                          legacyBehavior
+                        >
+                          <a
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              padding: "6px 12px 6px 32px",
+                              margin: "2px 4px",
+                              borderRadius: 8,
+                              textDecoration: "none",
+                              fontSize: 13,
+                              color: active ? "#111827" : "#4b5563",
+                              background: active ? "#e5f0ff" : "transparent",
+                              fontWeight: active ? 600 : 400,
+                            }}
+                          >
+                            <span style={{ width: 18, textAlign: "center" }}>
+                              {child.icon ?? "•"}
+                            </span>
+                            <span>{child.label}</span>
+                          </a>
+                        </Link>
+                      );
+                    })}
+                </div>
+              );
+            }
+
+            // Normal single link items
+            if (!item.href) return null;
             const active = isActive(item.href);
+
             return (
               <Link key={item.href} href={item.href} legacyBehavior>
                 <a
@@ -155,17 +239,17 @@ export default function AdminLayout({ children }: Props) {
           })}
         </nav>
 
-        {/* Sidebar footer (info) */}
-<div
-  style={{
-    padding: "10px 12px",
-    borderTop: "1px solid #e5e7eb",
-    fontSize: 12,
-    color: "#6b7280",
-  }}
->
-  <div>Copyright © 2025 - M Peak LLC</div>
-</div>
+        {/* Sidebar footer */}
+        <div
+          style={{
+            padding: "10px 12px",
+            borderTop: "1px solid #e5e7eb",
+            fontSize: 12,
+            color: "#6b7280",
+          }}
+        >
+          <div>Copyright © 2025 - M Peak LLC</div>
+        </div>
       </aside>
 
       {/* RIGHT SIDE: TOP BAR + PAGE CONTENT */}
