@@ -9,6 +9,8 @@ services:
       - RUN_SEED=false
       - DATABASE_URL=${DATABASE_URL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      # Optional: override upload dir via env if you ever change it
+      # - MEDIA_UPLOAD_DIR=/data/media
     depends_on:
       - postgres
     networks:
@@ -21,7 +23,10 @@ services:
       retries: 3
       start_period: 25s
     ports:
-       - "8081:8080"
+      - "8081:8080"
+    volumes:
+      # NEW: persistent volume for X-ray / media uploads
+      - media_data:/data/media
 
   frontend:
     build:
@@ -78,3 +83,4 @@ volumes:
   caddy_data:
   caddy_config:
   pg_data:
+  media_data:   # NEW: named volume for uploads
