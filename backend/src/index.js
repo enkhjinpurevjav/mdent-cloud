@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import pino from "pino";
+import path from "path"; // NEW
 import prisma from "./db.js";
 
 import branchesRouter from "./routes/branches.js";
@@ -36,6 +37,10 @@ app.use(
     credentials: true,
   })
 );
+
+// NEW: serve uploaded media files
+const mediaDir = process.env.MEDIA_UPLOAD_DIR || "/data/media";
+app.use("/media", express.static(mediaDir));
 
 // Health (non-API path)
 app.get("/health", async (_req, res) => {
