@@ -47,6 +47,13 @@ router.get("/:id", async (req, res) => {
             eBarimtReceipt: true,
           },
         },
+        prescription: {
+          include: {
+            items: {
+              orderBy: { order: "asc" },
+            },
+          },
+        },
         // chartTeeth can be loaded separately via chart-teeth endpoints
       },
     });
@@ -188,6 +195,168 @@ router.put("/:id/services", async (req, res) => {
   } catch (err) {
     console.error("PUT /api/encounters/:id/services error:", err);
     return res.status(500).json({ error: "Failed to save services" });
+  }
+});
+
+/**
+ * PUT /api/encounters/:id/prescription
+ *
+ * Replaces the Prescription + PrescriptionItem rows for this encounter.
+ * Body: {
+ *   items: {
+ *     drugName: string;
+ *     durationDays: number;
+ *     quantityPerTake: number;
+ *     frequencyPerDay: number;
+ *     note?: string | null;
+ *   }[]
+ * }
+ *
+ * - Max 3 items are persisted (extra are ignored).
+ * - If items is empty or all invalid, any existing prescription is deleted.
+ */
+router.put("/:id/prescription", async (req, res) => {
+  const encounterId = Number(req.params.id);
+  if (!encounterId || Number.isNaN(encounterId)) {
+    return res.status(400).json({ error: "Invalid encounter id" });
+  }
+
+  const { items } = req.body || {};
+  if (!Array.isArray(items)) {
+    return res.status(400).json({ error: "items must be an array" });
+  }
+
+  try {
+    const encounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      include: {
+        patientBook: {
+          include: {
+            patient: true,
+          },
+        },
+        doctor: true,
+        prescription: {
+          include: { items: true },
+        },
+      },
+    });
+
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    // Normalize + filter items (max 3, non-empty drugName)
+    const normalized = items
+      .map((raw) => ({
+        drugName:
+          typeof raw.drugName === "string" ? raw.drugName.trim() : "",
+        durationDays: Number(raw.durationDays) || 1,
+        quantityPerTake: Number(raw.quantityPerTake) || 1,
+        frequencyPerDay: Number(raw.frequencyPerDay) || 1,
+        note:
+          typeof raw.note === "string" && raw.note.trim()
+            ? raw.note.trim()
+            : null,
+      }))
+      .filter((it) => it.drugName.length > 0)
+      .slice(0, 3);
+
+    // If no valid items -> delete existing prescription (if any) and return null
+    if (normalized.length === 0) {
+      if (encounter.prescription) {
+        await prisma.prescriptionItem.deleteMany({
+          where: { prescriptionId: encounter.prescription.id },
+        });
+        await prisma.prescription.delete({
+          where: { id: encounter.prescription.id },
+        });
+      }
+      return res.json({ prescription: null });
+    }
+
+    const patient = encounter.patientBook?.patient;
+    const doctor = encounter.doctor;
+
+    const doctorNameSnapshot = doctor
+      ? (doctor.name && doctor.name.trim()) ||
+        (doctor.email || "").split("@")[0]
+      : null;
+
+    const patientNameSnapshot = patient
+      ? `${patient.ovog ? patient.ovog.charAt(0) + ". " : ""}${
+          patient.name || ""
+        }`.trim()
+      : null;
+
+    const diagnosisSummary = ""; // can be filled later from EncounterDiagnosis
+
+    // Upsert prescription + items in a transaction
+    const updatedPrescription = await prisma.$transaction(async (trx) => {
+      let prescription = encounter.prescription;
+
+      if (!prescription) {
+        prescription = await trx.prescription.create({
+          data: {
+            encounterId,
+            doctorNameSnapshot,
+            patientNameSnapshot,
+            diagnosisSummary,
+            clinicNameSnapshot:
+              patient?.branch?.name || null,
+          },
+        });
+      } else {
+        prescription = await trx.prescription.update({
+          where: { id: prescription.id },
+          data: {
+            doctorNameSnapshot,
+            patientNameSnapshot,
+            diagnosisSummary,
+            clinicNameSnapshot:
+              patient?.branch?.name || null,
+          },
+        });
+
+        await trx.prescriptionItem.deleteMany({
+          where: { prescriptionId: prescription.id },
+        });
+      }
+
+      for (let i = 0; i < normalized.length; i++) {
+        const it = normalized[i];
+        await trx.prescriptionItem.create({
+          data: {
+            prescriptionId: prescription.id,
+            order: i + 1,
+            drugName: it.drugName,
+            durationDays:
+              it.durationDays > 0 ? it.durationDays : 1,
+            quantityPerTake:
+              it.quantityPerTake > 0 ? it.quantityPerTake : 1,
+            frequencyPerDay:
+              it.frequencyPerDay > 0 ? it.frequencyPerDay : 1,
+            note: it.note,
+          },
+        });
+      }
+
+      return trx.prescription.findUnique({
+        where: { id: prescription.id },
+        include: {
+          items: {
+            orderBy: { order: "asc" },
+          },
+        },
+      });
+    });
+
+    return res.json({ prescription: updatedPrescription });
+  } catch (err) {
+    console.error("PUT /api/encounters/:id/prescription error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to save prescription" });
   }
 });
 
