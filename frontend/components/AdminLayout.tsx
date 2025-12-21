@@ -9,31 +9,58 @@ type Props = {
 type NavItem = {
   label: string;
   href: string;
-  icon?: string; // simple emoji / placeholder for now
+  icon?: string; // simple icon placeholder
 };
 
 const mainNav: NavItem[] = [
-  { label: "Хянах самбар", href: "/dashboard", icon: "🏠" },
-  { label: "Цаг захиалга", href: "/appointments", icon: "🗓" },
-  { label: "Үзлэгүүд", href: "/encounters", icon: "🦷" },
+  { label: "Хянах самбар", href: "/", icon: "🏠" },
+
+  // Appointments / bookings
+  { label: "Цаг (шинэ)", href: "/bookings", icon: "🗓" },
+  { label: "Цаг захиалга (хуучин)", href: "/appointments", icon: "📅" },
+
+  // Patients / encounters
   { label: "Үйлчлүүлэгчид", href: "/patients", icon: "👤" },
-  { label: "Ажилтнууд", href: "/staff", icon: "👥" },
+
+  // Users
+  { label: "Ажилтнууд", href: "/users", icon: "👥" },
+  { label: "Эмч нар", href: "/users/doctors", icon: "🩺" },
+  { label: "Сувилагч", href: "/users/nurses", icon: "💉" },
+  { label: "Ресепшн", href: "/users/reception", icon: "📞" },
+  { label: "Бусад ажилтан", href: "/users/staff", icon: "🏢" },
+
+  // Clinic config
+  { label: "Салбарууд", href: "/branches", icon: "🏥" },
+  { label: "Үйлчилгээ", href: "/services", icon: "🧾" },
+  { label: "Онош", href: "/diagnoses", icon: "🩻" },
+
+  // Reports
+  { label: "Тайлан", href: "/reports", icon: "📊" },
 ];
 
 export default function AdminLayout({ children }: Props) {
   const router = useRouter();
   const currentPath = router.pathname;
 
+  // helper: is current link active?
+  const isActive = (href: string) => {
+    if (href === "/") {
+      return currentPath === "/";
+    }
+    return currentPath === href || currentPath.startsWith(href + "/");
+  };
+
   return (
     <div
       style={{
         display: "flex",
         minHeight: "100vh",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
-        background: "#f3f4f6", // gray-100
+        fontFamily:
+          'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        background: "#f3f4f6",
       }}
     >
-      {/* Sidebar */}
+      {/* LEFT SIDEBAR */}
       <aside
         style={{
           width: 240,
@@ -71,7 +98,9 @@ export default function AdminLayout({ children }: Props) {
           </div>
           <div style={{ lineHeight: 1.3 }}>
             <div style={{ fontSize: 14, fontWeight: 600 }}>Admin</div>
-            <div style={{ fontSize: 12, color: "#6b7280" }}>Mon Family Dental</div>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              Mon Family Dental
+            </div>
           </div>
         </div>
 
@@ -92,11 +121,11 @@ export default function AdminLayout({ children }: Props) {
               marginBottom: 4,
             }}
           >
-            Хэрэглэгчийн мэдээлэл
+            Цэс
           </div>
 
           {mainNav.map((item) => {
-            const active = currentPath === item.href || currentPath.startsWith(item.href + "/");
+            const active = isActive(item.href);
             return (
               <Link key={item.href} href={item.href} legacyBehavior>
                 <a
@@ -124,7 +153,7 @@ export default function AdminLayout({ children }: Props) {
           })}
         </nav>
 
-        {/* Footer (branch selector / settings placeholder) */}
+        {/* Sidebar footer (branch/info placeholder) */}
         <div
           style={{
             padding: "10px 12px",
@@ -137,7 +166,7 @@ export default function AdminLayout({ children }: Props) {
         </div>
       </aside>
 
-      {/* Main content area */}
+      {/* RIGHT SIDE: TOP BAR + PAGE CONTENT */}
       <div
         style={{
           flex: 1,
@@ -218,7 +247,7 @@ export default function AdminLayout({ children }: Props) {
           </div>
         </header>
 
-        {/* Page content */}
+        {/* Page content area */}
         <main
           style={{
             flex: 1,
