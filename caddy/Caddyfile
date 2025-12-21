@@ -1,21 +1,34 @@
 {
+  # Change to a real email for Let's Encrypt
   email youremail@domain.com
 }
 
+# Main web app for staff and managers
 mdent.cloud, www.mdent.cloud, app.mdent.cloud {
   encode gzip
-  reverse_proxy frontend:3000
+
+  # Media files (X‑rays, photos, documents) → backend
+  handle_path /media/* {
+    reverse_proxy mdent-cloud-backend-1:8080
+  }
+
+  # Everything else → frontend (Next.js)
+  handle {
+    reverse_proxy frontend:3000
+  }
 }
 
+# Booking / doctor UI (if using a separate "book" app)
 book.mdent.cloud {
   encode gzip
   reverse_proxy frontend:3000
 }
 
+# Public API domain
 api.mdent.cloud {
   encode gzip
 
-  # Handle CORS preflight OPTIONS requests directly
+  # CORS preflight for /api/* (OPTIONS)
   @cors_preflight {
     method OPTIONS
     path /api/*
@@ -32,15 +45,17 @@ api.mdent.cloud {
     respond "" 204
   }
 
-  # Proxy actual requests to the backend
-  reverse_proxy mdent-cloud-backend-1:8080
+  # All other requests → backend API
+  handle {
+    reverse_proxy mdent-cloud-backend-1:8080
 
-  # Inject CORS headers into all proxied responses (for non-OPTIONS requests)
-  header {
-    Access-Control-Allow-Origin https://mdent.cloud
-    Access-Control-Allow-Methods GET,POST,PUT,PATCH,DELETE,OPTIONS
-    Access-Control-Allow-Headers Authorization,Content-Type
-    Access-Control-Allow-Credentials true
-    Access-Control-Max-Age 86400
+    # CORS headers for normal API responses
+    header {
+      Access-Control-Allow-Origin https://mdent.cloud
+      Access-Control-Allow-Methods GET,POST,PUT,PATCH,DELETE,OPTIONS
+      Access-Control-Allow-Headers Authorization,Content-Type
+      Access-Control-Allow-Credentials true
+      Access-Control-Max-Age 86400
+    }
   }
 }
