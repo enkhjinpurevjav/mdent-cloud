@@ -60,7 +60,7 @@ type Encounter = {
 };
 
 type BillingItem = {
-  id: number; // local row id
+  id: number; // local row id for React mapping
   encounterServiceId: number | null;
   serviceId: number;
   name: string;
@@ -89,7 +89,8 @@ function formatPatientName(p: Patient) {
 
 function formatDoctorName(d: Doctor | null) {
   if (!d) return "-";
-  if (d.name && d.name.trim()) return d.name;
+  const name = d.name?.trim();
+  if (name) return name;
   return d.email;
 }
 
@@ -131,6 +132,7 @@ export default function BillingPage() {
 
         setEncounter(data);
 
+        // Initialize billing rows from EncounterService
         const rows: BillingItem[] = Array.isArray(data.encounterServices)
           ? data.encounterServices.map((es: any, idx: number) => ({
               id: idx + 1,
@@ -158,12 +160,15 @@ export default function BillingPage() {
 
   const handleItemChange = (
     id: number,
-    field: "quantity" | "basePrice" | "discountAmount",
+    field: "name" | "quantity" | "basePrice" | "discountAmount",
     value: string
   ) => {
     setBillingItems((prev) =>
       prev.map((row) => {
         if (row.id !== id) return row;
+        if (field === "name") {
+          return { ...row, name: value };
+        }
         const num = Number(value.replace(/\s/g, "")) || 0;
         if (field === "quantity") {
           return { ...row, quantity: num > 0 ? num : 1 };
@@ -224,10 +229,10 @@ export default function BillingPage() {
     try {
       const payload = {
         items: billingItems
-          .filter((r) => r.serviceId)
+          .filter((r) => r.serviceId || r.name.trim())
           .map((r) => ({
             encounterServiceId: r.encounterServiceId,
-            serviceId: r.serviceId,
+            serviceId: r.serviceId || 0,
             price: r.basePrice,
             quantity: r.quantity,
             discountAmount: r.discountAmount,
@@ -391,12 +396,35 @@ export default function BillingPage() {
               </div>
             )}
 
+            {/* Column headers */}
+            {billingItems.length > 0 && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "2fr 80px 120px 120px 120px auto",
+                  gap: 8,
+                  alignItems: "center",
+                  padding: "4px 8px",
+                  marginTop: 8,
+                  fontSize: 11,
+                  color: "#6b7280",
+                }}
+              >
+                <div>Үйлчилгээ</div>
+                <div style={{ textAlign: "center" }}>Тоо хэмжээ</div>
+                <div style={{ textAlign: "center" }}>Нэгж үнэ</div>
+                <div style={{ textAlign: "center" }}>Хөнгөлөлт</div>
+                <div style={{ textAlign: "right" }}>Мөрийн дүн</div>
+                <div />
+              </div>
+            )}
+
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
                 gap: 8,
-                marginTop: 8,
+                marginTop: 4,
               }}
             >
               {billingItems.map((row) => {
@@ -419,32 +447,51 @@ export default function BillingPage() {
                       background: "#f9fafb",
                     }}
                   >
+                    {/* Service name + ID */}
                     <div>
-                      <div
+                      <input
+                        type="text"
+                        value={row.name}
+                        onChange={(e) =>
+                          handleItemChange(
+                            row.id,
+                            "name",
+                            e.target.value
+                          )
+                        }
+                        placeholder="Үйлчилгээний нэр (Service)"
                         style={{
+                          width: "100%",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
                           fontSize: 13,
-                          fontWeight: 500,
                           marginBottom: 2,
+                          background: "#ffffff",
                         }}
-                      >
-                        {row.name || "Үйлчилгээний нэр (Service)"}
-                      </div>
+                      />
                       <div
                         style={{
                           fontSize: 11,
                           color: "#6b7280",
                         }}
                       >
-                        Service ID: {row.serviceId || "-"}
+                        Service ID:{" "}
+                        {row.serviceId || "- (одоогоор сонгоогдоогүй)"}
                       </div>
                     </div>
 
+                    {/* Quantity */}
                     <input
                       type="number"
                       min={1}
                       value={row.quantity}
                       onChange={(e) =>
-                        handleItemChange(row.id, "quantity", e.target.value)
+                        handleItemChange(
+                          row.id,
+                          "quantity",
+                          e.target.value
+                        )
                       }
                       style={{
                         width: "100%",
@@ -452,15 +499,21 @@ export default function BillingPage() {
                         border: "1px solid #d1d5db",
                         padding: "4px 6px",
                         fontSize: 13,
+                        textAlign: "center",
                       }}
                     />
 
+                    {/* Unit price */}
                     <input
                       type="number"
                       min={0}
                       value={row.basePrice}
                       onChange={(e) =>
-                        handleItemChange(row.id, "basePrice", e.target.value)
+                        handleItemChange(
+                          row.id,
+                          "basePrice",
+                          e.target.value
+                        )
                       }
                       style={{
                         width: "100%",
@@ -468,9 +521,11 @@ export default function BillingPage() {
                         border: "1px solid #d1d5db",
                         padding: "4px 6px",
                         fontSize: 13,
+                        textAlign: "right",
                       }}
                     />
 
+                    {/* Discount */}
                     <input
                       type="number"
                       min={0}
@@ -488,9 +543,11 @@ export default function BillingPage() {
                         border: "1px solid #d1d5db",
                         padding: "4px 6px",
                         fontSize: 13,
+                        textAlign: "right",
                       }}
                     />
 
+                    {/* Line total */}
                     <div
                       style={{
                         fontSize: 13,
@@ -501,6 +558,7 @@ export default function BillingPage() {
                       {lineTotal.toLocaleString("mn-MN")}₮
                     </div>
 
+                    {/* Remove button */}
                     <button
                       type="button"
                       onClick={() => handleRemoveRow(row.id)}
