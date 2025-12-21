@@ -84,6 +84,22 @@ type EncounterService = {
   service: Service;
 };
 
+type PrescriptionItem = {
+  id: number;
+  order: number;
+  drugName: string;
+  durationDays: number;
+  quantityPerTake: number;
+  frequencyPerDay: number;
+  note?: string | null;
+};
+
+type Prescription = {
+  id: number;
+  encounterId: number;
+  items: PrescriptionItem[];
+};
+
 type Encounter = {
   id: number;
   patientBookId: number;
@@ -94,6 +110,7 @@ type Encounter = {
   doctor: Doctor | null;
   encounterDiagnoses: EncounterDiagnosisRow[];
   encounterServices: EncounterService[];
+  prescription?: Prescription | null;
 };
 
 type EditableDiagnosis = {
@@ -105,6 +122,15 @@ type EditableDiagnosis = {
   serviceId?: number;
   searchText?: string;
   serviceSearchText?: string;
+};
+
+type EditablePrescriptionItem = {
+  id?: number;
+  drugName: string;
+  durationDays: number | null;
+  quantityPerTake: number | null;
+  frequencyPerDay: number | null;
+  note: string;
 };
 
 function formatDateTime(iso: string) {
@@ -131,7 +157,6 @@ function formatDoctorName(d: Doctor | null) {
   return d.email;
 }
 
-// stringify array of tooth codes to "11, 21, 22"
 function stringifyToothList(list: string[]): string {
   return Array.from(new Set(list))
     .sort((a, b) => a.localeCompare(b))
@@ -163,7 +188,7 @@ export default function EncounterAdminPage() {
   const [saving, setSaving] = useState(false);
   const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
 
-  // Services catalog
+  // Services
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [servicesLoadError, setServicesLoadError] = useState("");
   const [openServiceIndex, setOpenServiceIndex] = useState<number | null>(
@@ -175,6 +200,13 @@ export default function EncounterAdminPage() {
   const [chartError, setChartError] = useState("");
   const [toothMode, setToothMode] = useState<"ADULT" | "CHILD">("ADULT");
   const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null);
+
+  // Prescription
+  const [prescriptionItems, setPrescriptionItems] = useState<
+    EditablePrescriptionItem[]
+  >([]);
+  const [prescriptionSaving, setPrescriptionSaving] = useState(false);
+  const [prescriptionError, setPrescriptionError] = useState("");
 
   // --- Load master services ---
   useEffect(() => {
@@ -196,7 +228,7 @@ export default function EncounterAdminPage() {
     loadServices();
   }, []);
 
-  // --- Load encounter (diagnoses + services) ---
+  // --- Load encounter (diagnoses + services + prescription) ---
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
 
@@ -251,6 +283,24 @@ export default function EncounterAdminPage() {
         }
 
         setRows(initialRows);
+
+        // Prescription hydrate
+        if (data.prescription && Array.isArray(data.prescription.items)) {
+          setPrescriptionItems(
+            data.prescription.items
+              .sort((a: any, b: any) => a.order - b.order)
+              .map((it: any) => ({
+                id: it.id,
+                drugName: it.drugName || "",
+                durationDays: it.durationDays ?? null,
+                quantityPerTake: it.quantityPerTake ?? null,
+                frequencyPerDay: it.frequencyPerDay ?? null,
+                note: it.note || "",
+              }))
+          );
+        } else {
+          setPrescriptionItems([]);
+        }
       } catch (err: any) {
         console.error("Failed to load encounter:", err);
         setEncounterError(err.message || "Алдаа гарлаа");
@@ -463,7 +513,7 @@ export default function EncounterAdminPage() {
     }
   };
 
-  // --- Save services: keep EncounterService in sync ---
+  // --- Save services ---
 
   const handleSaveServices = async () => {
     if (!encounterId || Number.isNaN(encounterId)) return;
@@ -472,7 +522,7 @@ export default function EncounterAdminPage() {
       .filter((r) => r.serviceId)
       .map((r) => ({
         serviceId: r.serviceId as number,
-        quantity: 1, // ALWAYS 1 per diagnosis/service
+        quantity: 1,
       }));
 
     try {
@@ -507,6 +557,86 @@ export default function EncounterAdminPage() {
     }
   };
 
+  // --- Prescription save ---
+
+  const savePrescription = async () => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+    setPrescriptionError("");
+    setPrescriptionSaving(true);
+
+    try {
+      const filtered = prescriptionItems
+        .map((it) => ({
+          ...it,
+          drugName: it.drugName.trim(),
+        }))
+        .filter((it) => it.drugName.length > 0)
+        .slice(0, 3);
+
+      const payload =
+        filtered.length === 0
+          ? { items: [] }
+          : {
+              items: filtered.map((it) => ({
+                drugName: it.drugName,
+                durationDays:
+                  it.durationDays && it.durationDays > 0
+                    ? it.durationDays
+                    : 1,
+                quantityPerTake:
+                  it.quantityPerTake && it.quantityPerTake > 0
+                    ? it.quantityPerTake
+                    : 1,
+                frequencyPerDay:
+                  it.frequencyPerDay && it.frequencyPerDay > 0
+                    ? it.frequencyPerDay
+                    : 1,
+                note: it.note?.trim() || null,
+              })),
+            };
+
+      const res = await fetch(
+        `/api/encounters/${encounterId}/prescription`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          data?.error || "Жор хадгалахад алдаа гарлаа."
+        );
+      }
+
+      if (data && data.prescription && Array.isArray(data.prescription.items)) {
+        setPrescriptionItems(
+          data.prescription.items
+            .sort((a: any, b: any) => a.order - b.order)
+            .map((it: any) => ({
+              id: it.id,
+              drugName: it.drugName || "",
+              durationDays: it.durationDays ?? null,
+              quantityPerTake: it.quantityPerTake ?? null,
+              frequencyPerDay: it.frequencyPerDay ?? null,
+              note: it.note || "",
+            }))
+        );
+      } else {
+        setPrescriptionItems([]);
+      }
+    } catch (err: any) {
+      console.error("save prescription failed", err);
+      setPrescriptionError(
+        err.message || "Жор хадгалахад алдаа гарлаа."
+      );
+    } finally {
+      setPrescriptionSaving(false);
+    }
+  };
+
   const handleFinishEncounter = async () => {
     if (!encounterId || Number.isNaN(encounterId)) return;
     setFinishing(true);
@@ -514,6 +644,7 @@ export default function EncounterAdminPage() {
     try {
       await handleSaveDiagnoses();
       await handleSaveServices();
+      await savePrescription();
 
       const res = await fetch(`/api/encounters/${encounterId}/finish`, {
         method: "PUT",
@@ -536,7 +667,7 @@ export default function EncounterAdminPage() {
     }
   };
 
-  // --- Tooth chart helpers ---
+  // Tooth helpers
 
   const ADULT_TEETH: string[] = [
     "11",
@@ -650,15 +781,12 @@ export default function EncounterAdminPage() {
     });
   };
 
-  // --- Derived: total price of services chosen per diagnosis ---
   const totalDiagnosisServicesPrice = rows.reduce((sum, r) => {
     if (!r.serviceId) return sum;
     const svc = allServices.find((x) => x.id === r.serviceId);
     const price = svc?.price ?? 0;
-    return sum + price; // quantity is always 1
+    return sum + price;
   }, 0);
-
-  // --- Render ---
 
   if (!encounterId || Number.isNaN(encounterId)) {
     return (
@@ -732,7 +860,7 @@ export default function EncounterAdminPage() {
             )}
           </section>
 
-          {/* Tooth chart selector */}
+          {/* Tooth chart */}
           <section
             style={{
               marginTop: 0,
@@ -833,7 +961,6 @@ export default function EncounterAdminPage() {
                 }
               )}
 
-              {/* Whole mouth pill */}
               <button
                 key="ALL"
                 type="button"
@@ -863,7 +990,7 @@ export default function EncounterAdminPage() {
             </div>
           </section>
 
-          {/* Diagnoses */}
+          {/* Diagnoses + services + prescription */}
           <section
             style={{
               marginTop: 16,
@@ -1123,9 +1250,7 @@ export default function EncounterAdminPage() {
                                       serviceSearchText: text,
                                       ...(text.trim()
                                         ? {}
-                                        : {
-                                            serviceId: undefined,
-                                          }),
+                                        : { serviceId: undefined }),
                                     }
                                   : r
                               )
@@ -1312,6 +1437,7 @@ export default function EncounterAdminPage() {
               <div style={{ color: "red", marginTop: 8 }}>{saveError}</div>
             )}
 
+            {/* Totals + buttons */}
             <div
               style={{
                 marginTop: 12,
@@ -1344,8 +1470,9 @@ export default function EncounterAdminPage() {
                   onClick={async () => {
                     await handleSaveDiagnoses();
                     await handleSaveServices();
+                    await savePrescription();
                   }}
-                  disabled={saving || finishing}
+                  disabled={saving || finishing || prescriptionSaving}
                   style={{
                     padding: "8px 16px",
                     borderRadius: 6,
@@ -1356,13 +1483,15 @@ export default function EncounterAdminPage() {
                     fontSize: 14,
                   }}
                 >
-                  {saving ? "Хадгалж байна..." : "Зөвхөн онош хадгалах"}
+                  {saving || prescriptionSaving
+                    ? "Хадгалж байна..."
+                    : "Зөвхөн онош хадгалах"}
                 </button>
 
                 <button
                   type="button"
                   onClick={handleFinishEncounter}
-                  disabled={saving || finishing}
+                  disabled={saving || finishing || prescriptionSaving}
                   style={{
                     padding: "8px 16px",
                     borderRadius: 6,
@@ -1377,6 +1506,279 @@ export default function EncounterAdminPage() {
                     ? "Дуусгаж байна..."
                     : "Үзлэг дуусгах / Төлбөрт шилжүүлэх"}
                 </button>
+              </div>
+            </div>
+
+            {/* Prescription section */}
+            <div
+              style={{
+                marginTop: 16,
+                paddingTop: 12,
+                borderTop: "1px dashed #e5e7eb",
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: 14,
+                  margin: 0,
+                  marginBottom: 6,
+                }}
+              >
+                Эмийн жор (ихдээ 3 эм)
+              </h3>
+              <p
+                style={{
+                  marginTop: 0,
+                  marginBottom: 6,
+                  fontSize: 12,
+                  color: "#6b7280",
+                }}
+              >
+                Өвчтөнд өгөх эмийн нэр, тун, хэрэглэх давтамж болон хоногийг
+                бөглөнө үү. Жор бичихгүй бол энэ хэсгийг хоосон орхиж болно.
+              </p>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "40px 2fr 80px 80px 80px 1.5fr 60px",
+                  gap: 6,
+                  alignItems: "center",
+                  fontSize: 12,
+                  marginBottom: 4,
+                  padding: "4px 0",
+                  color: "#6b7280",
+                }}
+              >
+                <div>№</div>
+                <div>Эмийн нэр / тун / хэлбэр</div>
+                <div style={{ textAlign: "center" }}>Нэг удаад</div>
+                <div style={{ textAlign: "center" }}>Өдөрт</div>
+                <div style={{ textAlign: "center" }}>Хэд хоног</div>
+                <div>Тэмдэглэл</div>
+                <div />
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
+                {prescriptionItems.map((it, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "40px 2fr 80px 80px 80px 1.5fr 60px",
+                      gap: 6,
+                      alignItems: "center",
+                    }}
+                  >
+                    <div>{idx + 1}</div>
+                    <input
+                      value={it.drugName}
+                      onChange={(e) =>
+                        setPrescriptionItems((prev) =>
+                          prev.map((p, i) =>
+                            i === idx
+                              ? { ...p, drugName: e.target.value }
+                              : p
+                          )
+                        )
+                      }
+                      placeholder="Ж: Амоксициллин 500мг таб."
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "4px 6px",
+                        fontSize: 12,
+                      }}
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      value={it.quantityPerTake ?? ""}
+                      onChange={(e) =>
+                        setPrescriptionItems((prev) =>
+                          prev.map((p, i) =>
+                            i === idx
+                              ? {
+                                  ...p,
+                                  quantityPerTake:
+                                    Number(e.target.value) || 1,
+                                }
+                              : p
+                          )
+                        )
+                      }
+                      placeholder="1"
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "4px 6px",
+                        fontSize: 12,
+                        textAlign: "center",
+                      }}
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      value={it.frequencyPerDay ?? ""}
+                      onChange={(e) =>
+                        setPrescriptionItems((prev) =>
+                          prev.map((p, i) =>
+                            i === idx
+                              ? {
+                                  ...p,
+                                  frequencyPerDay:
+                                    Number(e.target.value) || 1,
+                                }
+                              : p
+                          )
+                        )
+                      }
+                      placeholder="3"
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "4px 6px",
+                        fontSize: 12,
+                        textAlign: "center",
+                      }}
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      value={it.durationDays ?? ""}
+                      onChange={(e) =>
+                        setPrescriptionItems((prev) =>
+                          prev.map((p, i) =>
+                            i === idx
+                              ? {
+                                  ...p,
+                                  durationDays:
+                                    Number(e.target.value) || 1,
+                                }
+                              : p
+                          )
+                        )
+                      }
+                      placeholder="7"
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "4px 6px",
+                        fontSize: 12,
+                        textAlign: "center",
+                      }}
+                    />
+                    <input
+                      value={it.note}
+                      onChange={(e) =>
+                        setPrescriptionItems((prev) =>
+                          prev.map((p, i) =>
+                            i === idx
+                              ? { ...p, note: e.target.value }
+                              : p
+                          )
+                        )
+                      }
+                      placeholder="Ж: Хоолны дараа"
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "4px 6px",
+                        fontSize: 12,
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPrescriptionItems((prev) =>
+                          prev.filter((_, i) => i !== idx)
+                        )
+                      }
+                      style={{
+                        padding: "4px 6px",
+                        borderRadius: 6,
+                        border: "1px solid #dc2626",
+                        background: "#fef2f2",
+                        color: "#b91c1c",
+                        cursor: "pointer",
+                        fontSize: 11,
+                      }}
+                    >
+                      Устгах
+                    </button>
+                  </div>
+                ))}
+
+                {prescriptionItems.length === 0 && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "#6b7280",
+                      marginTop: 4,
+                    }}
+                  >
+                    Жор бичээгүй байна. Хэрвээ эмийн жор шаардлагатай бол
+                    доорх &quot;Эм нэмэх&quot; товчоор эм нэмнэ үү.
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (prescriptionItems.length >= 3) return;
+                    setPrescriptionItems((prev) => [
+                      ...prev,
+                      {
+                        drugName: "",
+                        durationDays: null,
+                        quantityPerTake: null,
+                        frequencyPerDay: null,
+                        note: "",
+                      },
+                    ]);
+                  }}
+                  disabled={prescriptionItems.length >= 3}
+                  style={{
+                    marginTop: 4,
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #2563eb",
+                    background: "#eff6ff",
+                    color: "#2563eb",
+                    cursor:
+                      prescriptionItems.length >= 3
+                        ? "default"
+                        : "pointer",
+                    fontSize: 12,
+                    alignSelf: "flex-start",
+                  }}
+                >
+                  + Эм нэмэх
+                </button>
+
+                {prescriptionError && (
+                  <div
+                    style={{
+                      color: "#b91c1c",
+                      fontSize: 12,
+                      marginTop: 4,
+                    }}
+                  >
+                    {prescriptionError}
+                  </div>
+                )}
               </div>
             </div>
           </section>
