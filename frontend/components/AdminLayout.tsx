@@ -155,17 +155,17 @@ export default function AdminLayout({ children }: Props) {
           })}
         </nav>
 
-        {/* Sidebar footer (branch/info placeholder) */}
-        <div
-          style={{
-            padding: "10px 12px",
-            borderTop: "1px solid #e5e7eb",
-            fontSize: 12,
-            color: "#6b7280",
-          }}
-        >
-          <div>Салбар: Төв салбар</div>
-        </div>
+        {/* Sidebar footer (info) */}
+<div
+  style={{
+    padding: "10px 12px",
+    borderTop: "1px solid #e5e7eb",
+    fontSize: 12,
+    color: "#6b7280",
+  }}
+>
+  <div>Copyright © 2025 - M Peak LLC</div>
+</div>
       </aside>
 
       {/* RIGHT SIDE: TOP BAR + PAGE CONTENT */}
