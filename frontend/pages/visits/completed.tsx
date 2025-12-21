@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
-import AdminLayout from "../../components/AdminLayout";
+import AdminLayout from "../../components/AdminLayout"; // or "../../src/components/AdminLayout"
 import AppointmentFiltersBar from "../../components/AppointmentFiltersBar";
 import {
   AppointmentFilters,
   AppointmentRow,
-} from "../../types/appointments";
+} from "../../src/types/appointments"; // or "../../types/appointments" if not under src
 
 export default function CompletedVisitsPage() {
   const today = new Date().toISOString().slice(0, 10);
@@ -22,7 +22,8 @@ export default function CompletedVisitsPage() {
     const params = new URLSearchParams();
     params.set("dateFrom", filters.dateFrom);
     params.set("dateTo", filters.dateTo);
-    params.set("status", filters.status || "COMPLETED");
+    // make sure we always pass a string
+    params.set("status", (filters.status ?? "COMPLETED") as string);
     if (filters.branchId) params.set("branchId", filters.branchId);
     if (filters.search) params.set("search", filters.search);
 
@@ -73,7 +74,9 @@ export default function CompletedVisitsPage() {
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
-                <td style={{ padding: 8 }}>{new Date(row.startTime).toLocaleTimeString()}</td>
+                <td style={{ padding: 8 }}>
+                  {new Date(row.startTime).toLocaleTimeString()}
+                </td>
                 <td style={{ padding: 8 }}>{row.patientName}</td>
                 <td style={{ padding: 8 }}>{row.branchName}</td>
                 <td style={{ padding: 8 }}>{row.doctorName}</td>
