@@ -1,35 +1,33 @@
 {
-  # Change to a real email for Let's Encrypt
   email youremail@domain.com
 }
 
-# Main web app for staff and managers
+# Main web + media
 mdent.cloud, www.mdent.cloud, app.mdent.cloud {
   encode gzip
 
-  # Media files (X‑rays, photos, documents) → backend
+  # Explicit matcher for media
   @media path /media/*
   handle @media {
     reverse_proxy backend:8080
   }
 
-  # Everything else → frontend (Next.js)
+  # Everything else -> frontend
   handle {
     reverse_proxy frontend:3000
   }
 }
 
-# Booking / doctor UI (if using a separate "book" app)
+# Booking / doctor UI
 book.mdent.cloud {
   encode gzip
   reverse_proxy frontend:3000
 }
 
-# Public API domain
+# Public API
 api.mdent.cloud {
   encode gzip
 
-  # CORS preflight for /api/* (OPTIONS)
   @cors_preflight {
     method OPTIONS
     path /api/*
@@ -46,11 +44,9 @@ api.mdent.cloud {
     respond "" 204
   }
 
-  # All other requests → backend API
   handle {
     reverse_proxy backend:8080
 
-    # CORS headers for normal API responses
     header {
       Access-Control-Allow-Origin https://mdent.cloud
       Access-Control-Allow-Methods GET,POST,PUT,PATCH,DELETE,OPTIONS
