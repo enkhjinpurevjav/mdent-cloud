@@ -15,8 +15,8 @@ type NavItem = {
 const mainNav: NavItem[] = [
   { label: "Хянах самбар", href: "/", icon: "🏠" },
 
-  // Appointments / bookings
-  { label: "Цаг (шинэ)", href: "/bookings", icon: "🗓" },
+  // Appointments 
+ 
   { label: "Цаг захиалга (хуучин)", href: "/appointments", icon: "📅" },
 
   // Patients / encounters
