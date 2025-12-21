@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 
@@ -8,8 +8,9 @@ type Props = {
 
 type NavItem = {
   label: string;
-  href: string;
+  href?: string;
   icon?: string; // simple icon placeholder
+  children?: NavItem[];
 };
 
 const mainNav: NavItem[] = [
@@ -17,6 +18,17 @@ const mainNav: NavItem[] = [
 
   // Appointments
   { label: "Цаг захиалга", href: "/appointments", icon: "📅" },
+
+  // NEW: Үзлэг group with 3 sub‑items
+  {
+    label: "Үзлэг",
+    icon: "📋",
+    children: [
+      { label: "Цаг захиалсан", href: "/visits/booked", icon: "🕒" },
+      { label: "Үзлэг хийж буй", href: "/visits/ongoing", icon: "⏱" },
+      { label: "Дууссан", href: "/visits/completed", icon: "✅" },
+    ],
+  },
 
   // Patients / encounters
   { label: "Үйлчлүүлэгчид", href: "/patients", icon: "👤" },
@@ -43,7 +55,7 @@ export default function AdminLayout({ children }: Props) {
 
   const [visitsOpen, setVisitsOpen] = useState(true); // default open
 
-  const isActive = (href: string) => {
+  const isActive = (href?: string) => {
     if (!href) return false;
     if (href === "/") return currentPath === "/";
     return currentPath === href || currentPath.startsWith(href + "/");
@@ -109,7 +121,7 @@ export default function AdminLayout({ children }: Props) {
           </div>
         </div>
 
-       {/* Navigation */}
+        {/* Navigation */}
         <nav
           style={{
             flex: 1,
@@ -174,7 +186,7 @@ export default function AdminLayout({ children }: Props) {
                   {/* Children */}
                   {visitsOpen &&
                     item.children.map((child) => {
-                      const active = isActive(child.href!);
+                      const active = isActive(child.href);
                       return (
                         <Link
                           key={child.href}
@@ -261,11 +273,10 @@ export default function AdminLayout({ children }: Props) {
           minWidth: 0,
         }}
       >
-                {/* Top bar */}
+        {/* Top bar */}
         <header
           style={{
             height: 64,
-            // Dark navy similar to the logo background
             background: "#061325",
             color: "white",
             display: "flex",
@@ -286,7 +297,7 @@ export default function AdminLayout({ children }: Props) {
               src="/logo-mdent.png"
               alt="M Dent Software logo"
               style={{
-                height: 44,        // bigger logo
+                height: 44, // bigger logo
                 width: 44,
                 objectFit: "contain",
                 display: "block",
@@ -298,11 +309,12 @@ export default function AdminLayout({ children }: Props) {
                 fontSize: 22,
               }}
             >
-              <span style={{ color: "#f97316" }}>M</span> Dent Software Solution
+              <span style={{ color: "#f97316" }}>M</span> Dent Software
+              Solution
             </span>
           </div>
 
-          {/* RIGHT: notification + user (unchanged) */}
+          {/* RIGHT: notification + user */}
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <button
               type="button"
