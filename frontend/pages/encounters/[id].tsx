@@ -1735,50 +1735,66 @@ export default function EncounterAdminPage() {
                 )}
 
                 <button
-                  type="button"
-                  onClick={() => {
-                    if (prescriptionItems.length >= 3) return;
-                    setPrescriptionItems((prev) => [
-                      ...prev,
-                      {
-                        drugName: "",
-                        durationDays: null,
-                        quantityPerTake: null,
-                        frequencyPerDay: null,
-                        note: "",
-                      },
-                    ]);
-                  }}
-                  disabled={prescriptionItems.length >= 3}
-                  style={{
-                    marginTop: 4,
-                    padding: "4px 10px",
-                    borderRadius: 6,
-                    border: "1px solid #2563eb",
-                    background: "#eff6ff",
-                    color: "#2563eb",
-                    cursor:
-                      prescriptionItems.length >= 3
-                        ? "default"
-                        : "pointer",
-                    fontSize: 12,
-                    alignSelf: "flex-start",
-                  }}
-                >
-                  + Эм нэмэх
-                </button>
+  type="button"
+  onClick={() => {
+    if (prescriptionItems.length >= 3) return;
+    setPrescriptionItems((prev) => [
+      ...prev,
+      {
+        drugName: "",
+        durationDays: null,
+        quantityPerTake: null,
+        frequencyPerDay: null,
+        note: "",
+      },
+    ]);
+  }}
+  disabled={prescriptionItems.length >= 3}
+  style={{
+    marginTop: 4,
+    padding: "4px 10px",
+    borderRadius: 6,
+    border: "1px solid #2563eb",
+    background: "#eff6ff",
+    color: "#2563eb",
+    cursor: prescriptionItems.length >= 3 ? "default" : "pointer",
+    fontSize: 12,
+    alignSelf: "flex-start",
+  }}
+>
+  + Эм нэмэх
+</button>
 
-                {prescriptionError && (
-                  <div
-                    style={{
-                      color: "#b91c1c",
-                      fontSize: 12,
-                      marginTop: 4,
-                    }}
-                  >
-                    {prescriptionError}
-                  </div>
-                )}
+<button
+  type="button"
+  onClick={savePrescription}
+  disabled={prescriptionSaving}
+  style={{
+    marginTop: 4,
+    marginLeft: 8,
+    padding: "4px 10px",
+    borderRadius: 6,
+    border: "1px solid #16a34a",
+    background: "#ecfdf3",
+    color: "#166534",
+    cursor: prescriptionSaving ? "default" : "pointer",
+    fontSize: 12,
+  }}
+>
+  {prescriptionSaving ? "Жор хадгалж байна..." : "Жор хадгалах"}
+</button>
+
+{prescriptionError && (
+  <div
+    style={{
+      color: "#b91c1c",
+      fontSize: 12,
+      marginTop: 4,
+    }}
+  >
+    {prescriptionError}
+  </div>
+)}
               </div>
             </div>
           </section>
