@@ -243,6 +243,7 @@ router.put("/:id/prescription", async (req, res) => {
       return res.status(404).json({ error: "Encounter not found" });
     }
 
+    // Normalize + filter items (max 3, non-empty drugName)
     const normalized = items
       .map((raw) => ({
         drugName:
@@ -258,6 +259,7 @@ router.put("/:id/prescription", async (req, res) => {
       .filter((it) => it.drugName.length > 0)
       .slice(0, 3);
 
+    // If no valid items -> delete existing prescription (if any) and return null
     if (normalized.length === 0) {
       if (encounter.prescription) {
         await prisma.prescriptionItem.deleteMany({
@@ -284,8 +286,9 @@ router.put("/:id/prescription", async (req, res) => {
         }`.trim()
       : null;
 
-    const diagnosisSummary = "";
+    const diagnosisSummary = ""; // can be filled later from EncounterDiagnosis
 
+    // Upsert prescription + items in a transaction
     const updatedPrescription = await prisma.$transaction(async (trx) => {
       let prescription = encounter.prescription;
 
@@ -563,16 +566,6 @@ router.get("/:id/media", async (req, res) => {
 router.post(
   "/:id/media",
   upload.single("file"),
-  async (req, res) => {
-    try {
-      const encounterId = Number(req.params.id);
-      if (!encounterId || Number.isNaN(encounterId)) {
-        return res.status(400).json({ error: "Invalid encounter id" });
-      }
-
-router.post(
-  "/:id/media",
-  upload.single("file"),          // field name MUST be "file"
   async (req, res) => {
     try {
       const encounterId = Number(req.params.id);
