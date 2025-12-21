@@ -111,6 +111,16 @@ export default function BillingPage() {
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState("");
 
+  // Service selector state
+  const [serviceModalOpen, setServiceModalOpen] = useState(false);
+  const [serviceModalRowId, setServiceModalRowId] = useState<number | null>(
+    null
+  );
+  const [services, setServices] = useState<Service[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [servicesError, setServicesError] = useState("");
+  const [serviceQuery, setServiceQuery] = useState("");
+
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
 
@@ -193,18 +203,18 @@ export default function BillingPage() {
       billingItems.length === 0
         ? 1
         : Math.max(...billingItems.map((r) => r.id)) + 1;
-    setBillingItems((prev) => [
-      ...prev,
-      {
-        id: nextId,
-        encounterServiceId: null,
-        serviceId: 0,
-        name: "",
-        basePrice: 0,
-        quantity: 1,
-        discountAmount: 0,
-      },
-    ]);
+    const newRow: BillingItem = {
+      id: nextId,
+      encounterServiceId: null,
+      serviceId: 0,
+      name: "",
+      basePrice: 0,
+      quantity: 1,
+      discountAmount: 0,
+    };
+    setBillingItems((prev) => [...prev, newRow]);
+    // Immediately open service picker for this new row
+    openServiceModalForRow(nextId);
   };
 
   const totalBeforeDiscount = billingItems.reduce(
@@ -266,6 +276,86 @@ export default function BillingPage() {
       setSaving(false);
     }
   };
+
+  // ---- Service modal logic ----
+
+  const loadServices = async () => {
+    if (services.length > 0 || servicesLoading) return;
+    setServicesLoading(true);
+    setServicesError("");
+    try {
+      const res = await fetch("/api/services");
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          (data && data.error) || "Үйлчилгээний жагсаалт ачаалахад алдаа гарлаа."
+        );
+      }
+
+      const list: Service[] = Array.isArray(data)
+        ? data
+        : Array.isArray((data as any).services)
+        ? (data as any).services
+        : [];
+
+      setServices(list);
+    } catch (err: any) {
+      console.error("Failed to load services:", err);
+      setServicesError(
+        err.message || "Үйлчилгээний жагсаалт ачаалахад алдаа гарлаа."
+      );
+    } finally {
+      setServicesLoading(false);
+    }
+  };
+
+  const openServiceModalForRow = (rowId: number) => {
+    setServiceModalRowId(rowId);
+    setServiceModalOpen(true);
+    setServiceQuery("");
+    void loadServices();
+  };
+
+  const closeServiceModal = () => {
+    setServiceModalOpen(false);
+    setServiceModalRowId(null);
+    setServiceQuery("");
+  };
+
+  const handleSelectServiceForRow = (svc: Service) => {
+    if (serviceModalRowId == null) return;
+    setBillingItems((prev) =>
+      prev.map((row) =>
+        row.id === serviceModalRowId
+          ? {
+              ...row,
+              serviceId: svc.id,
+              name: svc.name,
+              basePrice: svc.price,
+            }
+          : row
+      )
+    );
+    closeServiceModal();
+  };
+
+  const filteredServices = useMemo(() => {
+    const q = serviceQuery.trim().toLowerCase();
+    if (!q) return services;
+    return services.filter((s) => {
+      const name = (s.name || "").toLowerCase();
+      const code = (s.code || "").toLowerCase();
+      return name.includes(q) || code.includes(q);
+    });
+  }, [services, serviceQuery]);
+
+  // ---------------------------
 
   if (!encounterId || Number.isNaN(encounterId)) {
     return (
@@ -447,17 +537,13 @@ export default function BillingPage() {
                       background: "#f9fafb",
                     }}
                   >
-                    {/* Service name + ID */}
+                    {/* Service name + ID + choose button */}
                     <div>
                       <input
                         type="text"
                         value={row.name}
                         onChange={(e) =>
-                          handleItemChange(
-                            row.id,
-                            "name",
-                            e.target.value
-                          )
+                          handleItemChange(row.id, "name", e.target.value)
                         }
                         placeholder="Үйлчилгээний нэр (Service)"
                         style={{
@@ -466,18 +552,39 @@ export default function BillingPage() {
                           border: "1px solid #d1d5db",
                           padding: "4px 6px",
                           fontSize: 13,
-                          marginBottom: 2,
+                          marginBottom: 4,
                           background: "#ffffff",
                         }}
                       />
                       <div
                         style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
                           fontSize: 11,
                           color: "#6b7280",
                         }}
                       >
-                        Service ID:{" "}
-                        {row.serviceId || "- (одоогоор сонгоогдоогүй)"}
+                        <span>
+                          Service ID:{" "}
+                          {row.serviceId || "- (одоогоор сонгоогдоогүй)"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => openServiceModalForRow(row.id)}
+                          style={{
+                            marginLeft: 8,
+                            padding: "2px 6px",
+                            borderRadius: 999,
+                            border: "1px solid #2563eb",
+                            background: "#eff6ff",
+                            color: "#2563eb",
+                            cursor: "pointer",
+                            fontSize: 11,
+                          }}
+                        >
+                          Үйлчилгээ сонгох
+                        </button>
                       </div>
                     </div>
 
@@ -649,6 +756,136 @@ export default function BillingPage() {
             </div>
           </section>
         </>
+      )}
+
+      {/* Service picker modal */}
+      {serviceModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 80,
+          }}
+          onClick={closeServiceModal}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 480,
+              maxWidth: "95vw",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              background: "#ffffff",
+              borderRadius: 8,
+              boxShadow: "0 14px 40px rgba(0,0,0,0.25)",
+              padding: 16,
+              fontSize: 13,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: 15 }}>Үйлчилгээ сонгох</h3>
+              <button
+                type="button"
+                onClick={closeServiceModal}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  fontSize: 18,
+                  lineHeight: 1,
+                }}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ marginBottom: 8 }}>
+              <input
+                type="text"
+                value={serviceQuery}
+                onChange={(e) => setServiceQuery(e.target.value)}
+                placeholder="Нэр эсвэл кодоор хайх..."
+                style={{
+                  width: "100%",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "6px 8px",
+                  fontSize: 13,
+                }}
+              />
+            </div>
+
+            {servicesLoading && (
+              <div style={{ fontSize: 12, color: "#6b7280" }}>
+                Үйлчилгээнүүдийг ачаалж байна...
+              </div>
+            )}
+            {servicesError && (
+              <div style={{ fontSize: 12, color: "#b91c1c" }}>
+                {servicesError}
+              </div>
+            )}
+
+            {!servicesLoading && !servicesError && filteredServices.length === 0 && (
+              <div style={{ fontSize: 12, color: "#6b7280" }}>
+                Хайлтад тохирох үйлчилгээ олдсонгүй.
+              </div>
+            )}
+
+            <div
+              style={{
+                marginTop: 8,
+                borderRadius: 6,
+                border: "1px solid #e5e7eb",
+                maxHeight: 320,
+                overflowY: "auto",
+              }}
+            >
+              {filteredServices.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => handleSelectServiceForRow(s)}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "6px 8px",
+                    border: "none",
+                    borderBottom: "1px solid #f3f4f6",
+                    background: "#ffffff",
+                    cursor: "pointer",
+                    fontSize: 13,
+                  }}
+                >
+                  <div style={{ fontWeight: 500 }}>{s.name}</div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "#6b7280",
+                      marginTop: 2,
+                    }}
+                  >
+                    Код: {s.code || "-"} • Үнэ:{" "}
+                    {s.price.toLocaleString("mn-MN")}₮
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );
