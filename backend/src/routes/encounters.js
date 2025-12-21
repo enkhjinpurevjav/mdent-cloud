@@ -570,6 +570,16 @@ router.post(
         return res.status(400).json({ error: "Invalid encounter id" });
       }
 
+router.post(
+  "/:id/media",
+  upload.single("file"),          // field name MUST be "file"
+  async (req, res) => {
+    try {
+      const encounterId = Number(req.params.id);
+      if (!encounterId || Number.isNaN(encounterId)) {
+        return res.status(400).json({ error: "Invalid encounter id" });
+      }
+
       if (!req.file) {
         return res.status(400).json({ error: "file is required" });
       }
