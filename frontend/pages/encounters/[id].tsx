@@ -103,7 +103,6 @@ type EditableDiagnosis = {
   note: string;
   toothCode?: string;
   serviceId?: number;
-  serviceQuantity?: number;
   searchText?: string;
   serviceSearchText?: string;
 };
@@ -219,7 +218,6 @@ export default function EncounterAdminPage() {
 
         setEncounter(data);
 
-        // Initialize diagnoses from encounterDiagnoses
         const initialRows: EditableDiagnosis[] =
           Array.isArray(data.encounterDiagnoses) &&
           data.encounterDiagnoses.length > 0
@@ -232,7 +230,6 @@ export default function EncounterAdminPage() {
                 note: r.note || "",
                 toothCode: r.toothCode || "",
                 serviceId: undefined,
-                serviceQuantity: undefined,
                 searchText: r.diagnosis
                   ? `${r.diagnosis.code} – ${r.diagnosis.name}`
                   : "",
@@ -240,7 +237,6 @@ export default function EncounterAdminPage() {
               }))
             : [];
 
-        // Pre-fill per-diagnosis services roughly by index (best effort)
         if (
           Array.isArray(data.encounterServices) &&
           data.encounterServices.length > 0 &&
@@ -250,8 +246,6 @@ export default function EncounterAdminPage() {
           for (let i = 0; i < initialRows.length && i < services.length; i++) {
             const svc = services[i];
             initialRows[i].serviceId = svc.serviceId;
-            initialRows[i].serviceQuantity =
-              svc.quantity && svc.quantity > 0 ? svc.quantity : 1;
             initialRows[i].serviceSearchText = svc.service?.name || "";
           }
         }
@@ -332,7 +326,6 @@ export default function EncounterAdminPage() {
       note: "",
       toothCode,
       serviceId: undefined,
-      serviceQuantity: undefined,
       searchText: "",
       serviceSearchText: "",
     };
@@ -432,7 +425,6 @@ export default function EncounterAdminPage() {
       }
 
       if (Array.isArray(data)) {
-        // keep service selections by matching toothCode + diagnosisId when possible
         setRows((prevRows) =>
           data.map((r: any) => {
             const match = prevRows.find(
@@ -452,7 +444,6 @@ export default function EncounterAdminPage() {
               note: r.note || "",
               toothCode: r.toothCode || "",
               serviceId: match?.serviceId,
-              serviceQuantity: match?.serviceQuantity,
               searchText: r.diagnosis
                 ? `${r.diagnosis.code} – ${r.diagnosis.name}`
                 : "",
@@ -477,15 +468,11 @@ export default function EncounterAdminPage() {
   const handleSaveServices = async () => {
     if (!encounterId || Number.isNaN(encounterId)) return;
 
-    // Build items from rows that have a service selected
     const items = rows
       .filter((r) => r.serviceId)
       .map((r) => ({
         serviceId: r.serviceId as number,
-        quantity:
-          r.serviceQuantity && r.serviceQuantity > 0
-            ? r.serviceQuantity
-            : 1,
+        quantity: 1, // ALWAYS 1 per diagnosis/service
       }));
 
     try {
@@ -502,7 +489,6 @@ export default function EncounterAdminPage() {
         );
       }
 
-      // Optionally update encounter.encounterServices in local state
       if (Array.isArray(data)) {
         setEncounter((prev) =>
           prev
@@ -526,12 +512,9 @@ export default function EncounterAdminPage() {
     setFinishing(true);
     setSaveError("");
     try {
-      // 1) Save diagnoses
       await handleSaveDiagnoses();
-      // 2) Save services
       await handleSaveServices();
 
-      // 3) Mark appointment as ready_to_pay
       const res = await fetch(`/api/encounters/${encounterId}/finish`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -672,9 +655,7 @@ export default function EncounterAdminPage() {
     if (!r.serviceId) return sum;
     const svc = allServices.find((x) => x.id === r.serviceId);
     const price = svc?.price ?? 0;
-    const qty =
-      r.serviceQuantity && r.serviceQuantity > 0 ? r.serviceQuantity : 1;
-    return sum + price * qty;
+    return sum + price; // quantity is always 1
   }, 0);
 
   // --- Render ---
@@ -1144,7 +1125,6 @@ export default function EncounterAdminPage() {
                                         ? {}
                                         : {
                                             serviceId: undefined,
-                                            serviceQuantity: undefined,
                                           }),
                                     }
                                   : r
@@ -1203,11 +1183,6 @@ export default function EncounterAdminPage() {
                                             ? {
                                                 ...r,
                                                 serviceId: svc.id,
-                                                serviceQuantity:
-                                                  r.serviceQuantity &&
-                                                  r.serviceQuantity > 0
-                                                    ? r.serviceQuantity
-                                                    : 1,
                                                 serviceSearchText:
                                                   svc.name,
                                               }
@@ -1249,34 +1224,6 @@ export default function EncounterAdminPage() {
                             </div>
                           )}
                       </div>
-
-                      <input
-                        type="number"
-                        min={1}
-                        placeholder="Тоо"
-                        value={
-                          row.serviceQuantity ?? (row.serviceId ? 1 : "")
-                        }
-                        onChange={(e) => {
-                          const q = Number(e.target.value) || 1;
-                          setRows((prev) =>
-                            prev.map((r, i) =>
-                              i === index
-                                ? { ...r, serviceQuantity: q }
-                                : r
-                            )
-                          );
-                        }}
-                        disabled={!row.serviceId}
-                        style={{
-                          width: 80,
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "6px 8px",
-                          fontSize: 13,
-                          opacity: row.serviceId ? 1 : 0.6,
-                        }}
-                      />
                     </div>
 
                     {/* Problems */}
