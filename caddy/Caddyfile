@@ -8,8 +8,9 @@ mdent.cloud, www.mdent.cloud, app.mdent.cloud {
   encode gzip
 
   # Media files (X‑rays, photos, documents) → backend
-  handle_path /media/* {
-    reverse_proxy mdent-cloud-backend-1:8080
+  @media path /media/*
+  handle @media {
+    reverse_proxy backend:8080
   }
 
   # Everything else → frontend (Next.js)
@@ -47,7 +48,7 @@ api.mdent.cloud {
 
   # All other requests → backend API
   handle {
-    reverse_proxy mdent-cloud-backend-1:8080
+    reverse_proxy backend:8080
 
     # CORS headers for normal API responses
     header {
