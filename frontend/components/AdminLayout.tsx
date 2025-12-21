@@ -187,7 +187,7 @@ export default function AdminLayout({ children }: Props) {
             padding: "0 20px",
           }}
         >
-          <div style={{ fontWeight: 600, fontSize: 16 }}>M Dent Clinic</div>
+          <div style={{ fontWeight: 600, fontSize: 16 }}>M Dent Software Solution</div>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <button
               type="button"
