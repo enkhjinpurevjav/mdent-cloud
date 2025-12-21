@@ -359,41 +359,41 @@ export default function EncounterAdminPage() {
     loadDx();
   }, []);
 
-  // --- Load media (X-rays / photos) for this encounter ---
-  useEffect(() => {
+  // --- Helper: reload media list from backend ---
+  const reloadMedia = async () => {
     if (!encounterId || Number.isNaN(encounterId)) return;
-
-    const loadMedia = async () => {
-      setMediaLoading(true);
-      setMediaError("");
+    setMediaLoading(true);
+    setMediaError("");
+    try {
+      const res = await fetch(
+        `/api/encounters/${encounterId}/media?type=XRAY`
+      );
+      let data: any = null;
       try {
-        const res = await fetch(
-          `/api/encounters/${encounterId}/media?type=XRAY`
-        );
-        let data: any = null;
-        try {
-          data = await res.json();
-        } catch {
-          data = null;
-        }
-
-        if (!res.ok || !Array.isArray(data)) {
-          throw new Error((data && data.error) || "Медиа ачаалахад алдаа гарлаа");
-        }
-
-        setMedia(data as EncounterMedia[]);
-      } catch (err: any) {
-        console.error("Failed to load media:", err);
-        setMediaError(
-          err.message || "Медиа (рентген зураг) ачаалахад алдаа гарлаа."
-        );
-        setMedia([]);
-      } finally {
-        setMediaLoading(false);
+        data = await res.json();
+      } catch {
+        data = null;
       }
-    };
 
-    loadMedia();
+      if (!res.ok || !Array.isArray(data)) {
+        throw new Error((data && data.error) || "Медиа ачаалахад алдаа гарлаа");
+      }
+
+      setMedia(data as EncounterMedia[]);
+    } catch (err: any) {
+      console.error("Failed to load media:", err);
+      setMediaError(
+        err.message || "Медиа (рентген зураг) ачаалахад алдаа гарлаа."
+      );
+      setMedia([]);
+    } finally {
+      setMediaLoading(false);
+    }
+  };
+
+  // --- Load media on first render / when encounterId changes ---
+  useEffect(() => {
+    void reloadMedia();
   }, [encounterId]);
 
   // --- Diagnoses helpers ---
@@ -745,18 +745,11 @@ export default function EncounterAdminPage() {
         throw new Error(data?.error || "Зураг хадгалахад алдаа гарлаа.");
       }
 
-      // Backend returns created media row; append
+      // Backend returns created media row; append and/or refresh
       if (data && data.id) {
         setMedia((prev) => [data as EncounterMedia, ...prev]);
       } else {
-        // Fallback: reload media list
-        const reload = await fetch(
-          `/api/encounters/${encounterId}/media?type=XRAY`
-        );
-        const list = await reload.json().catch(() => []);
-        if (Array.isArray(list)) {
-          setMedia(list as EncounterMedia[]);
-        }
+        await reloadMedia();
       }
     } catch (err: any) {
       console.error("Media upload failed:", err);
@@ -1089,7 +1082,7 @@ export default function EncounterAdminPage() {
             </div>
           </section>
 
-          {/* Media / X-ray images */}
+          {/* Media / X-ray images (placed above prescription section) */}
           <section
             style={{
               marginTop: 16,
@@ -1115,34 +1108,60 @@ export default function EncounterAdminPage() {
                 </div>
               </div>
 
-              <label
+              <div
                 style={{
-                  display: "inline-flex",
+                  display: "flex",
+                  gap: 8,
                   alignItems: "center",
-                  padding: "6px 12px",
-                  borderRadius: 6,
-                  border: "1px solid #2563eb",
-                  background: "#eff6ff",
-                  color: "#2563eb",
-                  fontSize: 12,
-                  cursor: uploadingMedia ? "default" : "pointer",
                 }}
               >
-                {uploadingMedia ? "Хуулж байна..." : "+ Зураг нэмэх"}
-                <input
-                  type="file"
-                  accept="image/*"
-                  style={{ display: "none" }}
-                  disabled={uploadingMedia}
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      void handleMediaUpload(file);
-                      e.target.value = "";
-                    }
+                <label
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #2563eb",
+                    background: "#eff6ff",
+                    color: "#2563eb",
+                    fontSize: 12,
+                    cursor: uploadingMedia ? "default" : "pointer",
                   }}
-                />
-              </label>
+                >
+                  {uploadingMedia ? "Хуулж байна..." : "+ Зураг нэмэх"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    disabled={uploadingMedia}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        void handleMediaUpload(file);
+                        e.target.value = "";
+                      }
+                    }}
+                  />
+                </label>
+
+                {/* Refresh images button */}
+                <button
+                  type="button"
+                  onClick={() => void reloadMedia()}
+                  disabled={mediaLoading}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #6b7280",
+                    background: "#f3f4f6",
+                    color: "#374151",
+                    fontSize: 12,
+                    cursor: mediaLoading ? "default" : "pointer",
+                  }}
+                >
+                  {mediaLoading ? "Шинэчилж байна..." : "Зураг шинэчлэх"}
+                </button>
+              </div>
             </div>
 
             {mediaLoading && (
@@ -1251,7 +1270,7 @@ export default function EncounterAdminPage() {
             <div
               style={{
                 display: "flex",
-                justifyContent: "space-between",
+                justifyContent: "space_between",
                 alignItems: "center",
                 marginBottom: 8,
               }}
