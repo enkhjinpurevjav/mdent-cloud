@@ -177,16 +177,17 @@ export default function AdminLayout({ children }: Props) {
           minWidth: 0,
         }}
       >
-        {/* Top bar */}
+                {/* Top bar */}
         <header
           style={{
-            height: 56,
-            background: "#1d4ed8",
+            height: 64,
+            // Dark navy similar to the logo background
+            background: "#050B16",
             color: "white",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "0 20px",
+            padding: "0 24px",
           }}
         >
           {/* LEFT: logo + product name */}
@@ -194,15 +195,15 @@ export default function AdminLayout({ children }: Props) {
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 8,
+              gap: 12,
             }}
           >
             <img
               src="/logo-mdent.png"
               alt="M Dent Software logo"
               style={{
-                height: 32,
-                width: 32,
+                height: 44,        // bigger logo
+                width: 44,
                 objectFit: "contain",
                 display: "block",
               }}
@@ -210,16 +211,15 @@ export default function AdminLayout({ children }: Props) {
             <span
               style={{
                 fontWeight: 600,
-                fontSize: 18,
+                fontSize: 22,
               }}
             >
               M Dent Software Solution
             </span>
           </div>
 
-          {/* RIGHT: notification + user */}
+          {/* RIGHT: notification + user (unchanged) */}
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            {/* Notification bell */}
             <button
               type="button"
               style={{
@@ -228,7 +228,7 @@ export default function AdminLayout({ children }: Props) {
                 height: 32,
                 borderRadius: "999px",
                 border: "none",
-                background: "rgba(15,23,42,0.25)",
+                background: "rgba(15,23,42,0.4)",
                 color: "white",
                 cursor: "pointer",
               }}
@@ -248,7 +248,6 @@ export default function AdminLayout({ children }: Props) {
               />
             </button>
 
-            {/* User pill */}
             <div
               style={{
                 display: "flex",
