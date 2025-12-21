@@ -133,6 +133,19 @@ type EditablePrescriptionItem = {
   note: string;
 };
 
+// --- Media / X-ray types ---
+
+type EncounterMediaType = "XRAY" | "PHOTO" | "DOCUMENT";
+
+type EncounterMedia = {
+  id: number;
+  encounterId: number;
+  filePath: string; // e.g. "/media/filename.jpg"
+  toothCode?: string | null;
+  type: EncounterMediaType;
+  createdAt?: string;
+};
+
 function formatDateTime(iso: string) {
   try {
     const d = new Date(iso);
@@ -191,9 +204,7 @@ export default function EncounterAdminPage() {
   // Services
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [servicesLoadError, setServicesLoadError] = useState("");
-  const [openServiceIndex, setOpenServiceIndex] = useState<number | null>(
-    null
-  );
+  const [openServiceIndex, setOpenServiceIndex] = useState<number | null>(null);
 
   // Tooth chart selection
   const [selectedTeeth, setSelectedTeeth] = useState<string[]>([]);
@@ -207,6 +218,12 @@ export default function EncounterAdminPage() {
   >([]);
   const [prescriptionSaving, setPrescriptionSaving] = useState(false);
   const [prescriptionError, setPrescriptionError] = useState("");
+
+  // Media (X-rays / photos)
+  const [media, setMedia] = useState<EncounterMedia[]>([]);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaError, setMediaError] = useState("");
+  const [uploadingMedia, setUploadingMedia] = useState(false);
 
   // --- Load master services ---
   useEffect(() => {
@@ -341,6 +358,43 @@ export default function EncounterAdminPage() {
 
     loadDx();
   }, []);
+
+  // --- Load media (X-rays / photos) for this encounter ---
+  useEffect(() => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+
+    const loadMedia = async () => {
+      setMediaLoading(true);
+      setMediaError("");
+      try {
+        const res = await fetch(
+          `/api/encounters/${encounterId}/media?type=XRAY`
+        );
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          data = null;
+        }
+
+        if (!res.ok || !Array.isArray(data)) {
+          throw new Error((data && data.error) || "Медиа ачаалахад алдаа гарлаа");
+        }
+
+        setMedia(data as EncounterMedia[]);
+      } catch (err: any) {
+        console.error("Failed to load media:", err);
+        setMediaError(
+          err.message || "Медиа (рентген зураг) ачаалахад алдаа гарлаа."
+        );
+        setMedia([]);
+      } finally {
+        setMediaLoading(false);
+      }
+    };
+
+    loadMedia();
+  }, [encounterId]);
 
   // --- Diagnoses helpers ---
 
@@ -667,6 +721,51 @@ export default function EncounterAdminPage() {
     }
   };
 
+  // --- Media upload handler ---
+
+  const handleMediaUpload = async (file: File) => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+    setUploadingMedia(true);
+    setMediaError("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      // Use currently selected teeth as toothCode (optional)
+      formData.append("toothCode", selectedTeeth.join(",") || "");
+      formData.append("type", "XRAY");
+
+      const res = await fetch(`/api/encounters/${encounterId}/media`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || "Зураг хадгалахад алдаа гарлаа.");
+      }
+
+      // Backend returns created media row; append
+      if (data && data.id) {
+        setMedia((prev) => [data as EncounterMedia, ...prev]);
+      } else {
+        // Fallback: reload media list
+        const reload = await fetch(
+          `/api/encounters/${encounterId}/media?type=XRAY`
+        );
+        const list = await reload.json().catch(() => []);
+        if (Array.isArray(list)) {
+          setMedia(list as EncounterMedia[]);
+        }
+      }
+    } catch (err: any) {
+      console.error("Media upload failed:", err);
+      setMediaError(err.message || "Зураг хадгалахад алдаа гарлаа.");
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
   // Tooth helpers
 
   const ADULT_TEETH: string[] = [
@@ -988,6 +1087,155 @@ export default function EncounterAdminPage() {
               доорх хэсэгт үүснэ. Нэг онош нь олон шүдэнд (эсвэл Бүх шүд)
               хамаарч болно.
             </div>
+          </section>
+
+          {/* Media / X-ray images */}
+          <section
+            style={{
+              marginTop: 16,
+              marginBottom: 16,
+              padding: 16,
+              borderRadius: 8,
+              border: "1px solid #e5e7eb",
+              background: "#ffffff",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
+              <div>
+                <h2 style={{ fontSize: 16, margin: 0 }}>Рентген / зураг</h2>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  Энэ үзлэгт холбоотой рентген болон бусад зургууд.
+                </div>
+              </div>
+
+              <label
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: "1px solid #2563eb",
+                  background: "#eff6ff",
+                  color: "#2563eb",
+                  fontSize: 12,
+                  cursor: uploadingMedia ? "default" : "pointer",
+                }}
+              >
+                {uploadingMedia ? "Хуулж байна..." : "+ Зураг нэмэх"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  disabled={uploadingMedia}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      void handleMediaUpload(file);
+                      e.target.value = "";
+                    }
+                  }}
+                />
+              </label>
+            </div>
+
+            {mediaLoading && (
+              <div style={{ fontSize: 13 }}>Зураг ачаалж байна...</div>
+            )}
+
+            {mediaError && (
+              <div style={{ color: "red", fontSize: 13, marginBottom: 8 }}>
+                {mediaError}
+              </div>
+            )}
+
+            {!mediaLoading && media.length === 0 && !mediaError && (
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                Одоогоор энэ үзлэгт зураг хадгалаагүй байна.
+              </div>
+            )}
+
+            {media.length > 0 && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "repeat(auto-fill, minmax(120px, 1fr))",
+                  gap: 12,
+                  marginTop: 8,
+                }}
+              >
+                {media.map((m) => {
+                  const href = m.filePath.startsWith("http")
+                    ? m.filePath
+                    : m.filePath.startsWith("/")
+                    ? m.filePath
+                    : `/${m.filePath}`;
+                  return (
+                    <a
+                      key={m.id}
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        textDecoration: "none",
+                        color: "#111827",
+                        borderRadius: 8,
+                        border: "1px solid #e5e7eb",
+                        overflow: "hidden",
+                        background: "#f9fafb",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "100%",
+                          aspectRatio: "4 / 3",
+                          overflow: "hidden",
+                          background: "#111827",
+                        }}
+                      >
+                        <img
+                          src={href}
+                          alt={m.toothCode || "Рентген зураг"}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            display: "block",
+                          }}
+                        />
+                      </div>
+                      <div
+                        style={{
+                          padding: 6,
+                          fontSize: 11,
+                          borderTop: "1px solid #e5e7eb",
+                          background: "#ffffff",
+                        }}
+                      >
+                        <div>
+                          {m.type === "XRAY" ? "Рентген" : "Зураг"}{" "}
+                          {m.toothCode ? `(${m.toothCode})` : ""}
+                        </div>
+                        {m.createdAt && (
+                          <div style={{ color: "#6b7280", marginTop: 2 }}>
+                            {formatDateTime(m.createdAt)}
+                          </div>
+                        )}
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
           </section>
 
           {/* Diagnoses + services + prescription */}
@@ -1735,66 +1983,71 @@ export default function EncounterAdminPage() {
                 )}
 
                 <button
-  type="button"
-  onClick={() => {
-    if (prescriptionItems.length >= 3) return;
-    setPrescriptionItems((prev) => [
-      ...prev,
-      {
-        drugName: "",
-        durationDays: null,
-        quantityPerTake: null,
-        frequencyPerDay: null,
-        note: "",
-      },
-    ]);
-  }}
-  disabled={prescriptionItems.length >= 3}
-  style={{
-    marginTop: 4,
-    padding: "4px 10px",
-    borderRadius: 6,
-    border: "1px solid #2563eb",
-    background: "#eff6ff",
-    color: "#2563eb",
-    cursor: prescriptionItems.length >= 3 ? "default" : "pointer",
-    fontSize: 12,
-    alignSelf: "flex-start",
-  }}
->
-  + Эм нэмэх
-</button>
+                  type="button"
+                  onClick={() => {
+                    if (prescriptionItems.length >= 3) return;
+                    setPrescriptionItems((prev) => [
+                      ...prev,
+                      {
+                        drugName: "",
+                        durationDays: null,
+                        quantityPerTake: null,
+                        frequencyPerDay: null,
+                        note: "",
+                      },
+                    ]);
+                  }}
+                  disabled={prescriptionItems.length >= 3}
+                  style={{
+                    marginTop: 4,
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #2563eb",
+                    background: "#eff6ff",
+                    color: "#2563eb",
+                    cursor:
+                      prescriptionItems.length >= 3
+                        ? "default"
+                        : "pointer",
+                    fontSize: 12,
+                    alignSelf: "flex-start",
+                  }}
+                >
+                  + Эм нэмэх
+                </button>
 
-<button
-  type="button"
-  onClick={savePrescription}
-  disabled={prescriptionSaving}
-  style={{
-    marginTop: 4,
-    marginLeft: 8,
-    padding: "4px 10px",
-    borderRadius: 6,
-    border: "1px solid #16a34a",
-    background: "#ecfdf3",
-    color: "#166534",
-    cursor: prescriptionSaving ? "default" : "pointer",
-    fontSize: 12,
-  }}
->
-  {prescriptionSaving ? "Жор хадгалж байна..." : "Жор хадгалах"}
-</button>
+                <button
+                  type="button"
+                  onClick={savePrescription}
+                  disabled={prescriptionSaving}
+                  style={{
+                    marginTop: 4,
+                    marginLeft: 8,
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #16a34a",
+                    background: "#ecfdf3",
+                    color: "#166534",
+                    cursor: prescriptionSaving ? "default" : "pointer",
+                    fontSize: 12,
+                  }}
+                >
+                  {prescriptionSaving
+                    ? "Жор хадгалж байна..."
+                    : "Жор хадгалах"}
+                </button>
 
-{prescriptionError && (
-  <div
-    style={{
-      color: "#b91c1c",
-      fontSize: 12,
-      marginTop: 4,
-    }}
-  >
-    {prescriptionError}
-  </div>
-)}
+                {prescriptionError && (
+                  <div
+                    style={{
+                      color: "#b91c1c",
+                      fontSize: 12,
+                      marginTop: 4,
+                    }}
+                  >
+                    {prescriptionError}
+                  </div>
+                )}
               </div>
             </div>
           </section>
