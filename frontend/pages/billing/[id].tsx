@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useMemo as useReactMemo } from "react";
 import { useRouter } from "next/router";
 
 type Branch = {
@@ -49,6 +49,23 @@ type Invoice = {
   status: string;
 };
 
+// --- Prescription types (added) ---
+type PrescriptionItem = {
+  id: number;
+  order: number;
+  drugName: string;
+  durationDays: number;
+  quantityPerTake: number;
+  frequencyPerDay: number;
+  note?: string | null;
+};
+
+type Prescription = {
+  id: number;
+  encounterId: number;
+  items: PrescriptionItem[];
+};
+
 type Encounter = {
   id: number;
   visitDate: string;
@@ -57,6 +74,7 @@ type Encounter = {
   doctor: Doctor | null;
   encounterServices: EncounterService[];
   invoice?: Invoice | null;
+  prescription?: Prescription | null; // added
 };
 
 type BillingItem = {
@@ -213,7 +231,6 @@ export default function BillingPage() {
       discountAmount: 0,
     };
     setBillingItems((prev) => [...prev, newRow]);
-    // Immediately open service picker for this new row
     openServiceModalForRow(nextId);
   };
 
@@ -345,7 +362,7 @@ export default function BillingPage() {
     closeServiceModal();
   };
 
-  const filteredServices = useMemo(() => {
+  const filteredServices = useReactMemo(() => {
     const q = serviceQuery.trim().toLowerCase();
     if (!q) return services;
     return services.filter((s) => {
@@ -755,6 +772,102 @@ export default function BillingPage() {
               </button>
             </div>
           </section>
+
+          {/* Prescription summary (read-only) */}
+          <section
+            style={{
+              marginTop: 16,
+              padding: 16,
+              borderRadius: 8,
+              border: "1px solid #e5e7eb",
+              background: "#ffffff",
+            }}
+          >
+            <h2 style={{ fontSize: 16, margin: 0, marginBottom: 8 }}>
+              Эмийн жор (эмчийн бичсэн)
+            </h2>
+
+            {!encounter.prescription ||
+            !encounter.prescription.items ||
+            encounter.prescription.items.length === 0 ? (
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                Энэ үзлэгт эмийн жор бичигдээгүй байна.
+              </div>
+            ) : (
+              <>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "40px 2fr 80px 80px 80px 1.5fr",
+                    gap: 6,
+                    alignItems: "center",
+                    fontSize: 12,
+                    marginBottom: 4,
+                    paddingBottom: 4,
+                    borderBottom: "1px solid #e5e7eb",
+                    color: "#6b7280",
+                  }}
+                >
+                  <div>№</div>
+                  <div>Эмийн нэр / тун / хэлбэр</div>
+                  <div style={{ textAlign: "center" }}>Нэг удаад</div>
+                  <div style={{ textAlign: "center" }}>Өдөрт</div>
+                  <div style={{ textAlign: "center" }}>Хэд хоног</div>
+                  <div>Тэмдэглэл</div>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                    fontSize: 12,
+                  }}
+                >
+                  {encounter.prescription.items
+                    .slice()
+                    .sort((a: any, b: any) => a.order - b.order)
+                    .map((it: PrescriptionItem, idx: number) => (
+                      <div
+                        key={it.id ?? idx}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "40px 2fr 80px 80px 80px 1.5fr",
+                          gap: 6,
+                          alignItems: "center",
+                        }}
+                      >
+                        <div>{it.order ?? idx + 1}</div>
+                        <div>{it.drugName}</div>
+                        <div style={{ textAlign: "center" }}>
+                          {it.quantityPerTake}x
+                        </div>
+                        <div style={{ textAlign: "center" }}>
+                          {it.frequencyPerDay} / өдөр
+                        </div>
+                        <div style={{ textAlign: "center" }}>
+                          {it.durationDays} хоног
+                        </div>
+                        <div>{it.note || "-"}</div>
+                      </div>
+                    ))}
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 11,
+                    color: "#6b7280",
+                  }}
+                >
+                  Жор хэвлэх үйлдлийг дараа нь тусдаа хуудсаар дизайн хийж
+                  нэмнэ. Одоогоор зөвхөн харахад зориулсан хэсэг.
+                </div>
+              </>
+            )}
+          </section>
         </>
       )}
 
@@ -838,11 +951,13 @@ export default function BillingPage() {
               </div>
             )}
 
-            {!servicesLoading && !servicesError && filteredServices.length === 0 && (
-              <div style={{ fontSize: 12, color: "#6b7280" }}>
-                Хайлтад тохирох үйлчилгээ олдсонгүй.
-              </div>
-            )}
+            {!servicesLoading &&
+              !servicesError &&
+              filteredServices.length === 0 && (
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  Хайлтад тохирох үйлчилгээ олдсонгүй.
+                </div>
+              )}
 
             <div
               style={{
