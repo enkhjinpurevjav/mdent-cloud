@@ -2,19 +2,21 @@
   email youremail@domain.com
 }
 
-# Main web + media
+# Main web app + media
 mdent.cloud, www.mdent.cloud, app.mdent.cloud {
   encode gzip
 
-  # Explicit matcher for media
-  @media path /media/*
-  handle @media {
-    reverse_proxy backend:8080
-  }
+  # 1) Media must be handled FIRST
+  route {
+    @media path /media/*
+    handle @media {
+      reverse_proxy backend:8080
+    }
 
-  # Everything else -> frontend
-  handle {
-    reverse_proxy frontend:3000
+    # 2) Fallback: everything else to frontend
+    handle {
+      reverse_proxy frontend:3000
+    }
   }
 }
 
