@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
-import AdminLayout from "../../components/AdminLayout";
+import AdminLayout from "../../components/AdminLayout"; // adjust to ../../src/components/... if needed
 import AppointmentFiltersBar from "../../components/AppointmentFiltersBar";
 import {
   AppointmentFilters,
   AppointmentRow,
-} from "../../types/appointments";
+} from "../../types/appointments"; // or "../../src/types/appointments"
 
 export default function BookedVisitsPage() {
   const today = new Date().toISOString().slice(0, 10);
@@ -20,18 +20,15 @@ export default function BookedVisitsPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // TODO: replace with real API
-    // build query string for future /api/appointments
     const params = new URLSearchParams();
     params.set("dateFrom", filters.dateFrom);
     params.set("dateTo", filters.dateTo);
-    params.set("status", filters.status || "BOOKED");
+    params.set("status", (filters.status ?? "BOOKED") as string);
     if (filters.includeCancelled) params.set("includeCancelled", "true");
     if (filters.branchId) params.set("branchId", filters.branchId);
     if (filters.search) params.set("search", filters.search);
 
     setLoading(true);
-    // placeholder: use local fake for now
     fetch(`/api/appointments?${params.toString()}`)
       .then((r) => r.json())
       .then((data) => setRows(data))
@@ -53,7 +50,7 @@ export default function BookedVisitsPage() {
           { value: "BOOKED", label: "Цаг захиалсан" },
           { value: "CANCELLED", label: "Цуцлагдсан" },
         ]}
-        branches={[] /* TODO: load from /api/branches */}
+        branches={[]}
       />
 
       {loading ? (
@@ -72,13 +69,15 @@ export default function BookedVisitsPage() {
               <th style={{ textAlign: "left", padding: 8 }}>Өвчтөн</th>
               <th style={{ textAlign: "left", padding: 8 }}>Салбар</th>
               <th style={{ textAlign: "left", padding: 8 }}>Эмч</th>
-              <th style={{ textAlign: "left", padding: 8 }}>Төлөв</th>
+              <th style={{ textAlign: "left", padding: 8 }}>Տөлөв</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
-                <td style={{ padding: 8 }}>{new Date(row.startTime).toLocaleTimeString()}</td>
+                <td style={{ padding: 8 }}>
+                  {new Date(row.startTime).toLocaleTimeString()}
+                </td>
                 <td style={{ padding: 8 }}>{row.patientName}</td>
                 <td style={{ padding: 8 }}>{row.branchName}</td>
                 <td style={{ padding: 8 }}>{row.doctorName}</td>
