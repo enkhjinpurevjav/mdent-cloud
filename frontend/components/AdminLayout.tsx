@@ -214,7 +214,7 @@ export default function AdminLayout({ children }: Props) {
                 fontSize: 22,
               }}
             >
-              M Dent Software Solution
+              <span style={{ color: "#f97316" }}>M</span> Dent Software Solution
             </span>
           </div>
 
