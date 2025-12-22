@@ -15,8 +15,24 @@ export default function CompletedVisitsPage() {
   });
 
   const [rows, setRows] = useState<AppointmentRow[]>([]);
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Load branches
+  useEffect(() => {
+    fetch("/api/branches")
+      .then((r) => r.json())
+      .then((data) => {
+        const mapped = (data || []).map((b: any) => ({
+          id: String(b.id),
+          name: b.name as string,
+        }));
+        setBranches(mapped);
+      })
+      .catch(() => setBranches([]));
+  }, []);
+
+  // Load completed/cancelled appointments
   useEffect(() => {
     const params = new URLSearchParams();
     params.set("dateFrom", filters.dateFrom);
@@ -28,7 +44,7 @@ export default function CompletedVisitsPage() {
     setLoading(true);
     fetch(`/api/appointments?${params.toString()}`)
       .then((r) => r.json())
-      .then((data) => setRows(data))
+      .then((data) => setRows(Array.isArray(data) ? data : []))
       .catch(() => setRows([]))
       .finally(() => setLoading(false));
   }, [filters]);
@@ -47,7 +63,7 @@ export default function CompletedVisitsPage() {
           { value: "COMPLETED", label: "Дууссан" },
           { value: "CANCELLED", label: "Цуцлагдсан" },
         ]}
-        branches={[] /* TODO: load from /api/branches */}
+        branches={branches}
       />
 
       {loading ? (
@@ -76,7 +92,9 @@ export default function CompletedVisitsPage() {
             {rows.map((row) => (
               <tr key={row.id}>
                 <td style={{ padding: 8 }}>
-                  {new Date(row.startTime).toLocaleTimeString()}
+                  {row.startTime
+                    ? new Date(row.startTime).toLocaleTimeString()
+                    : ""}
                 </td>
                 <td style={{ padding: 8 }}>{row.patientName}</td>
                 <td style={{ padding: 8 }}>{row.regNo}</td>
