@@ -193,7 +193,7 @@ router.get("/", async (req, res) => {
     }
 
     // ----------------- Query DB -----------------
-    const appointments = await prisma.appointment.findMany({
+        const appointments = await prisma.appointment.findMany({
       where,
       orderBy: { scheduledAt: "asc" },
       include: {
@@ -207,7 +207,7 @@ router.get("/", async (req, res) => {
       },
     });
 
-    // ----------------- Shape for frontend AppointmentRow -----------------
+    // ----------------- Shape for new frontend Appointment type -----------------
     const rows = appointments.map((a) => {
       const patient = a.patient;
       const doctor = a.doctor;
@@ -216,18 +216,43 @@ router.get("/", async (req, res) => {
       const doctorName =
         doctor && (doctor.name || doctor.ovog)
           ? [doctor.ovog, doctor.name].filter(Boolean).join(" ")
-          : "";
+          : null;
 
       return {
         id: a.id,
-        patientName: patient ? patient.name : "",
-        regNo: patient ? patient.regNo || "" : "",
-        branchName: branch ? branch.name : "",
+        branchId: a.branchId,
+        doctorId: a.doctorId,
+        patientId: a.patientId,
+
+        // flat fields for quick labels
+        patientName: patient ? patient.name : null,
+        patientRegNo: patient ? patient.regNo || null : null,
+        patientPhone: patient ? patient.phone || null : null,
+
         doctorName,
-        // Keep lowercase values here; frontend can map to its TS enum
+        doctorOvog: doctor ? doctor.ovog || null : null,
+
+        scheduledAt: a.scheduledAt.toISOString(),
+        endAt: a.endAt ? a.endAt.toISOString() : null,
         status: a.status,
-        startTime: a.scheduledAt ? a.scheduledAt.toISOString() : null,
-        endTime: a.endAt ? a.endAt.toISOString() : null,
+        notes: a.notes || null,
+
+        // nested objects used by the details modal & labels
+        patient: patient
+          ? {
+              id: patient.id,
+              name: patient.name,
+              regNo: patient.regNo || null,
+              phone: patient.phone || null,
+              patientBook: patient.patientBook || null,
+            }
+          : null,
+        branch: branch
+          ? {
+              id: branch.id,
+              name: branch.name,
+            }
+          : null,
       };
     });
 
