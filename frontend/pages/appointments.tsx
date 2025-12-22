@@ -3078,12 +3078,6 @@ const totalCompletedPatientsForDay = useMemo(() => {
       fontFamily: "sans-serif",
     }}
   >
-     
-        <h1 style={{ fontSize: 20, marginBottom: 8 }}>Цаг захиалга</h1>
-        <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
-          Өвчтөн, эмч, салбарын цаг захиалгуудыг харах, нэмэх, удирдах.
-        </p>
-
 <h1 style={{ fontSize: 20, margin: "4px 0 8px" }}>Цаг захиалга</h1>
 <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 12 }}>
   Өвчтөн, эмч, салбарын цаг захиалгуудыг харах, нэмэх, удирдах.
@@ -3440,31 +3434,35 @@ const totalCompletedPatientsForDay = useMemo(() => {
       )}
 
             {/* Time grid by doctor */}
-      <section style={{ marginBottom: 24 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 4 }}>
-          Өдрийн цагийн хүснэгт (эмчээр)
-        </h2>
-        <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
-          {formatDateYmdDots(selectedDay)}
-        </div>
+     <section style={{ marginBottom: 24 }}>
+  <h2 style={{ fontSize: 16, marginBottom: 4 }}>
+    Өдрийн цагийн хүснэгт (эмчээр)
+  </h2>
+  <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
+    {formatDateYmdDots(selectedDay)}
+  </div>
 
-        {!hasMounted ? (
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
-            Цагийн хүснэгтийг ачаалж байна...
-          </div>
-        ) : gridDoctors.length === 0 ? (
-          <div style={{ color: "#6b7280", fontSize: 13 }}>
-            Энэ өдөр ажиллах эмчийн хуваарь алга.
-          </div>
-        ) : (
-          <div
-            style={{
-              border: "1px solid #ddd",
-              borderRadius: 8,
-              overflow: "hidden",
-              fontSize: 12,
-            }}
-          >
+  {!hasMounted ? (
+    <div style={{ color: "#6b7280", fontSize: 13 }}>
+      Цагийн хүснэгтийг ачаалж байна...
+    </div>
+  ) : timeSlots.length === 0 ? (
+    <div style={{ color: "#6b7280", fontSize: 13 }}>
+      Энэ өдөрт цагийн интервал тодорхойлогдоогүй байна.
+    </div>
+  ) : gridDoctors.length === 0 ? (
+    <div style={{ color: "#6b7280", fontSize: 13 }}>
+      Энэ өдөр ажиллах эмчийн хуваарь алга.
+    </div>
+  ) : (
+    <div
+      style={{
+        border: "1px solid #ddd",
+        borderRadius: 8,
+        overflow: "hidden",
+        fontSize: 12,
+      }}
+    >
             {/* Header row */}
             <div
               style={{
