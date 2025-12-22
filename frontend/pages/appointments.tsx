@@ -55,8 +55,10 @@ type Appointment = {
   patient?: {
     id: number;
     name: string;
+    ovog?: string | null;
     regNo?: string | null;
     phone?: string | null;
+    patientBook?: { bookNumber?: string | null } | null;
     [key: string]: any;
   } | null;
   branch?: { id: number; name: string } | null;
