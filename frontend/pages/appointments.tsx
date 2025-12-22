@@ -652,9 +652,7 @@ function AppointmentDetailsModal({
                       marginBottom: 4,
                     }}
                   >
-                    <div style={{ fontWeight: 500 }}>
-                      {formatPatientLabel(a.patient, a.patientId)}
-                    </div>
+                  
                     {!isEditing && (
                       <button
                         type="button"
