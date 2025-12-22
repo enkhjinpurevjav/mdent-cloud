@@ -165,25 +165,35 @@ function formatPatientLabel(
 }
 
 function formatGridShortLabel(a: Appointment): string {
-  // 1) Try nested patient object
   const p = a.patient as any;
 
-  // Name: from nested patient, then from flat patientName
+  // 1) Name: nested patient.name, then flat patientName
   const rawName = (p?.name ?? a.patientName ?? "").toString().trim();
-  // Ovog: from nested patient.ovog, then from flat patientOvog
-  const rawOvog = (p?.ovog ?? a.patientOvog ?? "").toString().trim();
 
-  // Book number: try nested patient.patientBook.bookNumber,
-  // then any flat patientBook.bookNumber, then a.patientBook, etc.
-  let rawBookNumber: string = "";
+  // 2) Ovog (овог): nested patient.ovog, then flat patientOvog, then doctor-like fields as last resort
+  const rawOvog = (
+    p?.ovog ??
+    a.patientOvog ??
+    (a as any).ovog ??
+    ""
+  )
+    .toString()
+    .trim();
+
+  // 3) Book number candidates:
+  //    - nested patient.patientBook.bookNumber
+  //    - nested patient.bookNumber
+  //    - flat patientBookNumber
+  //    - flat bookNumber
+  let rawBookNumber = "";
   if (p?.patientBook?.bookNumber != null) {
     rawBookNumber = String(p.patientBook.bookNumber).trim();
-  } else if (p?.patientBook != null) {
-    rawBookNumber = String(p.patientBook).trim();
-  } else if ((a as any).patientBook?.bookNumber != null) {
-    rawBookNumber = String((a as any).patientBook.bookNumber).trim();
-  } else if ((a as any).patientBook != null) {
-    rawBookNumber = String((a as any).patientBook).trim();
+  } else if (p?.bookNumber != null) {
+    rawBookNumber = String(p.bookNumber).trim();
+  } else if ((a as any).patientBookNumber != null) {
+    rawBookNumber = String((a as any).patientBookNumber).trim();
+  } else if ((a as any).bookNumber != null) {
+    rawBookNumber = String((a as any).bookNumber).trim();
   }
 
   // Build "Э.Маргад" style name
