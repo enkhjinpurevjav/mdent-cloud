@@ -3087,7 +3087,7 @@ const totalCompletedPatientsForDay = useMemo(() => {
   >
 <h1 style={{ fontSize: 20, margin: "4px 0 8px" }}>Цаг захиалга</h1>
 <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 12 }}>
-  Өвчтөн, эмч, салбарын цаг захиалгуудыг харах, нэмэх, удирдах.
+  Эмч, үйлчлүүлэгч, салбарын цаг захиалгыг харах болон удирдах хэсэг
 </p>
 
 {/* NEW: Daily stats cards (colored) */}
@@ -3151,7 +3151,7 @@ const totalCompletedPatientsForDay = useMemo(() => {
       {totalAppointmentsForDay}
     </div>
     <div style={{ fontSize: 11, color: "#6b7280" }}>
-      {formatDateYmdDots(selectedDay)} өдрийн бүх төлөвтэй цаг захиалга.
+      {formatDateYmdDots(selectedDay)} өдрийн нийт цаг захиалга
     </div>
   </div>
 
@@ -3207,7 +3207,7 @@ const totalCompletedPatientsForDay = useMemo(() => {
       {totalScheduledDoctorsForDay}
     </div>
     <div style={{ fontSize: 11, color: "#6b7280" }}>
-      Сонгосон өдөрт ажиллахаар товлогдсон эмч.
+      Сонгосон өдөрт ажиллаж буй эмч
     </div>
   </div>
 
@@ -3264,7 +3264,7 @@ const totalCompletedPatientsForDay = useMemo(() => {
     </div>
     <div style={{ fontSize: 11, color: "#6b7280" }}>
       {formatDateYmdDots(selectedDay)} өдөр &quot;Дууссан&quot; төлөвтэй
-      үзлэг хийлгэсэн өвчтөн.
+      үйлчлүүлэгч
     </div>
   </div>
 
@@ -3322,7 +3322,7 @@ const totalCompletedPatientsForDay = useMemo(() => {
         : dailyRevenue.toLocaleString("mn-MN") + " ₮"}
     </div>
     <div style={{ fontSize: 11, color: "#6b7280" }}>
-      Сонгосон өдрийн төлбөр төлөгдсөн нийт орлого.
+      Сонгосон өдрийн нийт борлуулалтын орлого
     </div>
   </div>
 </section>
