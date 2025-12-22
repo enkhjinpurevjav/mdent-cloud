@@ -667,7 +667,7 @@ function AppointmentDetailsModal({
                           cursor: "pointer",
                         }}
                       >
-                        Засах
+                        Төлөв засах
                       </button>
                     )}
                   </div>
