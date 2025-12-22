@@ -2759,8 +2759,11 @@ export default function AppointmentsPage() {
     []
   );
   const [error, setError] = useState("");
-  const [nowPosition, setNowPosition] = useState<number | null>(null);
-  const [hasMounted, setHasMounted] = useState(false);
+const [nowPosition, setNowPosition] = useState<number | null>(null);
+const [hasMounted, setHasMounted] = useState(false);
+
+// NEW: per‑day revenue
+const [dailyRevenue, setDailyRevenue] = useState<number | null>(null);
 
   // filters
   const [filterDate, setFilterDate] = useState<string>(todayStr);
@@ -2871,6 +2874,33 @@ export default function AppointmentsPage() {
     (lastSlot.getTime() - firstSlot.getTime()) / 60000 || 1;
   const columnHeightPx = 60 * (totalMinutes / 60);
 
+// ---- Load daily revenue for selected date + branch ----
+useEffect(() => {
+  const loadRevenue = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (filterDate) params.set("date", filterDate);
+      if (filterBranchId) params.set("branchId", filterBranchId);
+
+      const res = await fetch(`/api/reports/daily-revenue?${params.toString()}`);
+      if (!res.ok) {
+        setDailyRevenue(null);
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      if (!data || typeof data.total !== "number") {
+        setDailyRevenue(null);
+        return;
+      }
+      setDailyRevenue(data.total);
+    } catch {
+      setDailyRevenue(null);
+    }
+  };
+
+  loadRevenue();
+}, [filterDate, filterBranchId]);
+  
   // current time line
   useEffect(() => {
     const updateNow = () => {
@@ -2941,6 +2971,51 @@ export default function AppointmentsPage() {
     return map;
   }, [appointments, filterDate]);
 
+// ---- Daily stats (for selected date & branch) ----
+const dayKey = filterDate;
+
+// All appointments for this day (and branch, if selected)
+const dayAppointments = useMemo(
+  () =>
+    appointments.filter((a) => {
+      if (a.scheduledAt.slice(0, 10) !== dayKey) return false;
+      if (filterBranchId && String(a.branchId) !== filterBranchId) return false;
+      return true;
+    }),
+  [appointments, dayKey, filterBranchId]
+);
+
+// 1) Нийт цаг захиалга – all appointments for the day
+const totalAppointmentsForDay = dayAppointments.length;
+
+// 2) Хуваарьт эмчийн тоо – unique doctors who have schedule or appointments that day
+const totalScheduledDoctorsForDay = useMemo(() => {
+  const ids = new Set<number>();
+
+  // from scheduledDoctors list (already filtered by date & branch in your loader)
+  scheduledDoctors.forEach((d) => ids.add(d.id));
+
+  // fallback: if no scheduledDoctors were loaded, derive from appointments
+  if (ids.size === 0) {
+    dayAppointments.forEach((a) => {
+      if (a.doctorId != null) ids.add(a.doctorId);
+    });
+  }
+
+  return ids.size;
+}, [scheduledDoctors, dayAppointments]);
+
+// 3) Үйлчлүүлэгчдийн тоо – unique patients with completed appointments that day
+const totalCompletedPatientsForDay = useMemo(() => {
+  const ids = new Set<number>();
+  dayAppointments.forEach((a) => {
+    if (a.status === "completed" && a.patientId != null) {
+      ids.add(a.patientId);
+    }
+  });
+  return ids.size;
+}, [dayAppointments]);
+  
   const [detailsModalState, setDetailsModalState] = useState<{
     open: boolean;
     doctor?: Doctor | null;
@@ -3008,7 +3083,141 @@ export default function AppointmentsPage() {
           Өвчтөн, эмч, салбарын цаг захиалгуудыг харах, нэмэх, удирдах.
         </p>
 
+<h1 style={{ fontSize: 20, margin: "4px 0 8px" }}>Цаг захиалга</h1>
+<p style={{ color: "#6b7280", fontSize: 13, marginBottom: 12 }}>
+  Өвчтөн, эмч, салбарын цаг захиалгуудыг харах, нэмэх, удирдах.
+</p>
 
+{/* NEW: Daily stats cards */}
+<section
+  style={{
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+    gap: 12,
+    marginBottom: 16,
+  }}
+>
+  {/* Нийт цаг захиалга */}
+  <div
+    style={{
+      background: "#ffffff",
+      borderRadius: 8,
+      border: "1px solid #e5e7eb",
+      padding: 12,
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+    }}
+  >
+    <div
+      style={{
+        fontSize: 11,
+        textTransform: "uppercase",
+        color: "#6b7280",
+        fontWeight: 600,
+      }}
+    >
+      Нийт цаг захиалга
+    </div>
+    <div style={{ fontSize: 22, fontWeight: 700 }}>
+      {totalAppointmentsForDay}
+    </div>
+    <div style={{ fontSize: 11, color: "#9ca3af" }}>
+      {formatDateYmdDots(selectedDay)} өдрийн бүх төлөвтэй цаг захиалга.
+    </div>
+  </div>
+
+  {/* Хуваарьт эмчийн тоо */}
+  <div
+    style={{
+      background: "#ffffff",
+      borderRadius: 8,
+      border: "1px solid #e5e7eb",
+      padding: 12,
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+    }}
+  >
+    <div
+      style={{
+        fontSize: 11,
+        textTransform: "uppercase",
+        color: "#6b7280",
+        fontWeight: 600,
+      }}
+    >
+      Хуваарьт эмчийн тоо
+    </div>
+    <div style={{ fontSize: 22, fontWeight: 700 }}>
+      {totalScheduledDoctorsForDay}
+    </div>
+    <div style={{ fontSize: 11, color: "#9ca3af" }}>
+      Сонгосон өдөрт ажиллахаар товлогдсон эмч.
+    </div>
+  </div>
+
+  {/* Үйлчлүүлэгчдийн тоо (completed) */}
+  <div
+    style={{
+      background: "#ffffff",
+      borderRadius: 8,
+      border: "1px solid #e5e7eb",
+      padding: 12,
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+    }}
+  >
+    <div
+      style={{
+        fontSize: 11,
+        textTransform: "uppercase",
+        color: "#6b7280",
+        fontWeight: 600,
+      }}
+    >
+      Үйлчлүүлэгчдийн тоо
+    </div>
+    <div style={{ fontSize: 22, fontWeight: 700 }}>
+      {totalCompletedPatientsForDay}
+    </div>
+    <div style={{ fontSize: 11, color: "#9ca3af" }}>
+      {formatDateYmdDots(selectedDay)} өдөрт &quot;Дууссан&quot; төлөвтэй
+      үзлэг хийлгэсэн өвчтөн.
+    </div>
+  </div>
+
+  {/* Борлуулалтын орлого */}
+  <div
+    style={{
+      background: "#ffffff",
+      borderRadius: 8,
+      border: "1px solid #e5e7eb",
+      padding: 12,
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+    }}
+  >
+    <div
+      style={{
+        fontSize: 11,
+        textTransform: "uppercase",
+        color: "#6b7280",
+        fontWeight: 600,
+      }}
+    >
+      Борлуулалтын орлого
+    </div>
+    <div style={{ fontSize: 22, fontWeight: 700 }}>
+      {dailyRevenue == null ? "—" : dailyRevenue.toLocaleString("mn-MN")}
+    </div>
+    <div style={{ fontSize: 11, color: "#9ca3af" }}>
+      Сонгосон өдрийн төлбөр төлөгдсөн нийт орлого.
+    </div>
+  </div>
+</section>
      
 
       {/* Filters card */}
