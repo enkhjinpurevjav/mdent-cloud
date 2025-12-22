@@ -6,11 +6,13 @@ type Branch = {
 };
 
 type ServiceCategory =
-  | "GENERAL_DENTISTRY"
-  | "IMPLANTS"
-  | "ORTHODONTICS"
-  | "COSMETIC_DENTISTRY"
-  | "CHILDRENS";
+  | "ORTHODONTIC_TREATMENT"
+  | "IMAGING"
+  | "DEFECT_CORRECTION"
+  | "ADULT_TREATMENT"
+  | "WHITENING"
+  | "CHILD_TREATMENT"
+  | "SURGERY";
 
 type ServiceBranch = {
   branchId: number;
@@ -29,11 +31,13 @@ type Service = {
 };
 
 const SERVICE_CATEGORY_LABELS: Record<ServiceCategory, string> = {
-  GENERAL_DENTISTRY: "Ерөнхий шүдний эмчилгээ",
-  IMPLANTS: "Имплант",
-  ORTHODONTICS: "Шүдний гажиг засал",
-  COSMETIC_DENTISTRY: "Гоо сайхны шүдний эмчилгээ",
-  CHILDRENS: "Хүүхдийн шүдний эмчилгээ",
+  ORTHODONTIC_TREATMENT: "Гажиг заслын эмчилгээ",
+  IMAGING: "Зураг авах",
+  DEFECT_CORRECTION: "Согог засал",
+  ADULT_TREATMENT: "Том хүний эмчилгээ",
+  WHITENING: "Цайруулалт",
+  CHILD_TREATMENT: "Хүүхдийн эмчилгээ",
+  SURGERY: "Мэс засал",
 };
 
 // Special value for "add new category" UX in select
