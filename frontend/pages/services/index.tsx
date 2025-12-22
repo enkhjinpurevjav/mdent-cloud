@@ -40,9 +40,6 @@ const SERVICE_CATEGORY_LABELS: Record<ServiceCategory, string> = {
   SURGERY: "Мэс засал",
 };
 
-// Special value for "add new category" UX in select
-const NEW_CATEGORY_VALUE = "__NEW_CATEGORY__";
-
 export default function ServicesPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -67,10 +64,6 @@ export default function ServicesPage() {
   });
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  // NEW: create-form "custom category" label (UI only for now)
-  const [customCategoryMode, setCustomCategoryMode] = useState(false);
-  const [customCategoryLabel, setCustomCategoryLabel] = useState("");
 
   // edit state
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -191,7 +184,7 @@ export default function ServicesPage() {
       const payload = {
         name: form.name,
         price: Number(form.price),
-        category: form.category, // still using enum
+        category: form.category,
         description: form.description || undefined,
         code: form.code || undefined,
         isActive: form.isActive,
@@ -220,8 +213,6 @@ export default function ServicesPage() {
           branchIds: [],
           isActive: true,
         });
-        setCustomCategoryMode(false);
-        setCustomCategoryLabel("");
         setFormError("");
         setPage(1);
       } else {
@@ -385,20 +376,20 @@ export default function ServicesPage() {
     setCollapsedCategories((prev) => ({ ...prev, [cat]: !prev[cat] }));
 
   const servicesByCategory = useMemo(() => {
-  const groups: Record<ServiceCategory, Service[]> = {
-    ORTHODONTIC_TREATMENT: [],
-    IMAGING: [],
-    DEFECT_CORRECTION: [],
-    ADULT_TREATMENT: [],
-    WHITENING: [],
-    CHILD_TREATMENT: [],
-    SURGERY: [],
-  };
-  pagedServices.forEach((s) => {
-    groups[s.category].push(s);
-  });
-  return groups;
-}, [pagedServices]);
+    const groups: Record<ServiceCategory, Service[]> = {
+      ORTHODONTIC_TREATMENT: [],
+      IMAGING: [],
+      DEFECT_CORRECTION: [],
+      ADULT_TREATMENT: [],
+      WHITENING: [],
+      CHILD_TREATMENT: [],
+      SURGERY: [],
+    };
+    pagedServices.forEach((s) => {
+      groups[s.category].push(s);
+    });
+    return groups;
+  }, [pagedServices]);
 
   return (
     <main
@@ -485,35 +476,18 @@ export default function ServicesPage() {
               />
             </div>
 
-            {/* Category with "add new" option */}
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <label>Категори</label>
               <select
-                value={
-                  customCategoryMode
-                    ? NEW_CATEGORY_VALUE
-                    : form.category || ""
+                value={form.category || ""}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    category: e.target.value
+                      ? (e.target.value as ServiceCategory)
+                      : "",
+                  }))
                 }
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === NEW_CATEGORY_VALUE) {
-  setCustomCategoryMode(true);
-  // default backend category when custom label used
-  setForm((f) => ({
-    ...f,
-    category: "ORTHODONTIC_TREATMENT",
-  }));
-} else {
-                    setCustomCategoryMode(false);
-                    setCustomCategoryLabel("");
-                    setForm((f) => ({
-                      ...f,
-                      category: value
-                        ? (value as ServiceCategory)
-                        : "",
-                    }));
-                  }
-                }}
                 required
                 style={{
                   borderRadius: 6,
@@ -529,39 +503,8 @@ export default function ServicesPage() {
                     </option>
                   )
                 )}
-                <option value={NEW_CATEGORY_VALUE}>
-                  + Шинэ категори нэмэх…
-                </option>
               </select>
             </div>
-
-            {customCategoryMode && (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                }}
-              >
-                <label>Шинэ категори (зөвхөн нэр)</label>
-                <input
-                  placeholder="Ж: Эрхтэн шилжүүлэн суулгалт"
-                  value={customCategoryLabel}
-                  onChange={(e) =>
-                    setCustomCategoryLabel(e.target.value)
-                  }
-                  style={{
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "6px 8px",
-                  }}
-                />
-                <span style={{ fontSize: 11, color: "#6b7280" }}>
-                  Одоогоор системийн үндсэн ангилал нь өөрчлөгдөхгүй,
-                  зөвхөн тайлбар/тайлан дээр хэрэглэгдэх нэр.
-                </span>
-              </div>
-            )}
 
             <div
               style={{
@@ -857,11 +800,411 @@ export default function ServicesPage() {
                   background: "#ffffff",
                 }}
               >
-                {/* (existing table and edit rows unchanged) */}
-                {/* ... your existing table body as in previous file ... */}
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: 14,
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      {[
+                        "#",
+                        "Код",
+                        "Нэр",
+                        "Категори",
+                        "Үнэ (₮)",
+                        "Салбарууд",
+                        "Төлөв",
+                        "Үйлдэл",
+                      ].map((label) => (
+                        <th
+                          key={label}
+                          style={{
+                            position: "sticky",
+                            top: 0,
+                            background: "#f9fafb",
+                            textAlign:
+                              label === "Үнэ (₮)" ? "right" : "left",
+                            borderBottom: "1px solid #ddd",
+                            padding: 8,
+                            zIndex: 1,
+                          }}
+                        >
+                          {label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(
+                      Object.entries(servicesByCategory) as [
+                        ServiceCategory,
+                        Service[]
+                      ][]
+                    ).map(([category, list]) => {
+                      if (!list.length) return null;
+                      const isCollapsed = !!collapsedCategories[category];
+                      const label =
+                        SERVICE_CATEGORY_LABELS[category] || category;
+
+                      return (
+                        <React.Fragment key={category}>
+                          {/* Category header row */}
+                          <tr>
+                            <td
+                              colSpan={8}
+                              style={{
+                                background: "#f3f4f6",
+                                borderBottom: "1px solid #e5e7eb",
+                                padding: 8,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                fontSize: 13,
+                              }}
+                              onClick={() => toggleCategory(category)}
+                            >
+                              {isCollapsed ? "▶" : "▼"} {label}{" "}
+                              <span
+                                style={{
+                                  color: "#6b7280",
+                                  fontWeight: 400,
+                                }}
+                              >
+                                ({list.length})
+                              </span>
+                            </td>
+                          </tr>
+
+                          {!isCollapsed &&
+                            list.map((s, index) => {
+                              const isEditing = editingId === s.id;
+
+                              if (isEditing) {
+                                return (
+                                  <tr key={s.id}>
+                                    <td
+                                      style={{
+                                        borderBottom: "1px solid #f0f0f0",
+                                        padding: 8,
+                                      }}
+                                    >
+                                      {(safePage - 1) * pageSize +
+                                        index +
+                                        1}
+                                    </td>
+                                    <td
+                                      style={{
+                                        borderBottom: "1px solid #f0f0f0",
+                                        padding: 8,
+                                      }}
+                                    >
+                                      <input
+                                        name="code"
+                                        value={editForm.code}
+                                        onChange={handleEditChange}
+                                        style={{ width: "100%" }}
+                                        placeholder="Код"
+                                      />
+                                    </td>
+                                    <td
+                                      style={{
+                                        borderBottom: "1px solid #f0f0f0",
+                                        padding: 8,
+                                      }}
+                                    >
+                                      <input
+                                        name="name"
+                                        value={editForm.name}
+                                        onChange={handleEditChange}
+                                        style={{ width: "100%" }}
+                                        placeholder="Нэр"
+                                      />
+                                    </td>
+                                    <td
+                                      style={{
+                                        borderBottom: "1px solid #f0f0f0",
+                                        padding: 8,
+                                      }}
+                                    >
+                                      <select
+                                        name="category"
+                                        value={editForm.category}
+                                        onChange={handleEditChange}
+                                        style={{ width: "100%" }}
+                                      >
+                                        <option value="">
+                                          Категори
+                                        </option>
+                                        {Object.entries(
+                                          SERVICE_CATEGORY_LABELS
+                                        ).map(([value, label]) => (
+                                          <option
+                                            key={value}
+                                            value={value}
+                                          >
+                                            {label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </td>
+                                    <td
+                                      style={{
+                                        borderBottom: "1px solid #f0f0f0",
+                                        padding: 8,
+                                        textAlign: "right",
+                                      }}
+                                    >
+                                      <input
+                                        name="price"
+                                        type="number"
+                                        value={editForm.price}
+                                        onChange={handleEditChange}
+                                        style={{
+                                          width: "100%",
+                                          textAlign: "right",
+                                        }}
+                                        placeholder="Үнэ"
+                                      />
+                                    </td>
+                                    <td
+                                      style={{
+                                        borderBottom: "1px solid #f0f0f0",
+                                        padding: 8,
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          flexWrap: "wrap",
+                                          gap: 4,
+                                        }}
+                                      >
+                                        {branches.map((b) => (
+                                          <label
+                                            key={b.id}
+                                            style={{
+                                              display: "inline-flex",
+                                              alignItems: "center",
+                                              gap: 4,
+                                              border:
+                                                "1px solid #ddd",
+                                              borderRadius: 4,
+                                              padding: "2px 6px",
+                                              fontSize: 12,
+                                            }}
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={editForm.branchIds.includes(
+                                                b.id
+                                              )}
+                                              onChange={() =>
+                                                toggleEditBranch(b.id)
+                                              }
+                                            />
+                                            {b.name}
+                                          </label>
+                                        ))}
+                                      </div>
+                                    </td>
+                                    <td
+                                      style={{
+                                        borderBottom: "1px solid #f0f0f0",
+                                        padding: 8,
+                                        textAlign: "center",
+                                      }}
+                                    >
+                                      <label
+                                        style={{ fontSize: 13 }}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          name="isActive"
+                                          checked={
+                                            editForm.isActive
+                                          }
+                                          onChange={handleEditChange}
+                                        />{" "}
+                                        Идэвхтэй
+                                      </label>
+                                    </td>
+                                    <td
+                                      style={{
+                                        borderBottom: "1px solid #f0f0f0",
+                                        padding: 8,
+                                        whiteSpace: "nowrap",
+                                      }}
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() => saveEdit(s.id)}
+                                        style={{
+                                          marginRight: 8,
+                                          padding: "2px 6px",
+                                          fontSize: 12,
+                                        }}
+                                      >
+                                        Хадгалах
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={cancelEdit}
+                                        style={{
+                                          padding: "2px 6px",
+                                          fontSize: 12,
+                                        }}
+                                      >
+                                        Цуцлах
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              }
+
+                              return (
+                                <tr key={s.id}>
+                                  <td
+                                    style={{
+                                      borderBottom:
+                                        "1px solid #f0f0f0",
+                                      padding: 8,
+                                    }}
+                                  >
+                                    {(safePage - 1) * pageSize +
+                                      index +
+                                      1}
+                                  </td>
+                                  <td
+                                    style={{
+                                      borderBottom:
+                                        "1px solid #f0f0f0",
+                                      padding: 8,
+                                    }}
+                                  >
+                                    {s.code || "-"}
+                                  </td>
+                                  <td
+                                    style={{
+                                      borderBottom:
+                                        "1px solid #f0f0f0",
+                                      padding: 8,
+                                    }}
+                                  >
+                                    {s.name}
+                                  </td>
+                                  <td
+                                    style={{
+                                      borderBottom:
+                                        "1px solid #f0f0f0",
+                                      padding: 8,
+                                    }}
+                                  >
+                                    {SERVICE_CATEGORY_LABELS[
+                                      s.category
+                                    ] || s.category}
+                                  </td>
+                                  <td
+                                    style={{
+                                      borderBottom:
+                                        "1px solid #f0f0f0",
+                                      padding: 8,
+                                      textAlign: "right",
+                                    }}
+                                  >
+                                    {s.price.toLocaleString(
+                                      "mn-MN"
+                                    )}
+                                  </td>
+                                  <td
+                                    style={{
+                                      borderBottom:
+                                        "1px solid #f0f0f0",
+                                      padding: 8,
+                                    }}
+                                  >
+                                    {s.serviceBranches?.length
+                                      ? s.serviceBranches
+                                          .map(
+                                            (sb) =>
+                                              sb.branch.name
+                                          )
+                                          .join(", ")
+                                      : "-"}
+                                  </td>
+                                  <td
+                                    style={{
+                                      borderBottom:
+                                        "1px solid #f0f0f0",
+                                      padding: 8,
+                                      textAlign: "center",
+                                    }}
+                                  >
+                                    {s.isActive
+                                      ? "Идэвхтэй"
+                                      : "Идэвхгүй"}
+                                  </td>
+                                  <td
+                                    style={{
+                                      borderBottom:
+                                        "1px solid #f0f0f0",
+                                      padding: 8,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => startEdit(s)}
+                                      style={{
+                                        marginRight: 8,
+                                        padding: "2px 6px",
+                                        fontSize: 12,
+                                      }}
+                                    >
+                                      Засах
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        deleteService(s.id)
+                                      }
+                                      style={{
+                                        padding: "2px 6px",
+                                        fontSize: 12,
+                                        color: "#b91c1c",
+                                        borderColor: "#b91c1c",
+                                      }}
+                                    >
+                                      Устгах
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </React.Fragment>
+                      );
+                    })}
+
+                    {filteredServices.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={8}
+                          style={{
+                            textAlign: "center",
+                            color: "#888",
+                            padding: 12,
+                          }}
+                        >
+                          Өгөгдөл алга
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
 
-              {/* Pagination (unchanged) */}
+              {/* Pagination */}
               {filteredServices.length > pageSize && (
                 <div
                   style={{
