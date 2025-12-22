@@ -584,12 +584,20 @@ function AppointmentDetailsModal({
                   </div>
                 </div>
 
-                <div style={{ alignSelf: "flex-start" }}>
+                                <div style={{ alignSelf: "flex-start" }}>
                   <button
                     type="button"
                     onClick={() => {
-                      if (a.patientId) {
-                        router.push(`/patients/${a.patientId}`);
+                      const p = a.patient as any;
+                      const bookNumber =
+                        p?.patientBook?.bookNumber != null
+                          ? String(p.patientBook.bookNumber).trim()
+                          : "";
+
+                      if (bookNumber) {
+                        router.push(
+                          `/patients/${encodeURIComponent(bookNumber)}`
+                        );
                       }
                     }}
                     style={{
@@ -599,10 +607,8 @@ function AppointmentDetailsModal({
                       background: "#eff6ff",
                       color: "#1d4ed8",
                       fontSize: 12,
-                      cursor: a.patientId ? "pointer" : "default",
-                      opacity: a.patientId ? 1 : 0.6,
+                      cursor: "pointer",
                     }}
-                    disabled={!a.patientId}
                   >
                     Дэлгэрэнгүй
                   </button>
