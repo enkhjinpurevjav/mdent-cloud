@@ -89,11 +89,18 @@ type TimeSlot = {
 
 function generateTimeSlotsForDay(day: Date): TimeSlot[] {
   const slots: TimeSlot[] = [];
-  const startHour = 9;
-  const endHour = 21; // up to 21:00
+
+  const weekday = day.getDay(); // 0 = Sun, 6 = Sat
+
+  // Visual working window
+  // Weekdays: 09:00–21:00
+  // Weekends: 10:00–19:00
+  const startHour = weekday === 0 || weekday === 6 ? 10 : 9;
+  const endHour = weekday === 0 || weekday === 6 ? 19 : 21;
 
   const d = new Date(day);
   d.setHours(startHour, 0, 0, 0);
+
   while (d.getHours() < endHour) {
     const start = new Date(d);
     d.setMinutes(d.getMinutes() + SLOT_MINUTES);
@@ -101,9 +108,10 @@ function generateTimeSlotsForDay(day: Date): TimeSlot[] {
     slots.push({
       start,
       end,
-      label: getSlotTimeString(start), // provide label
+      label: getSlotTimeString(start),
     });
   }
+
   return slots;
 }
 
