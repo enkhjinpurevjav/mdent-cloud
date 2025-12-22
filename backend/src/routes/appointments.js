@@ -18,18 +18,15 @@ const ALLOWED_STATUSES = [
   "ready_to_pay", // Төлбөр төлөхөд бэлэн
   "completed",
   "cancelled",
-] as const;
-type AllowedStatus = (typeof ALLOWED_STATUSES)[number];
+];
 
 /**
  * Normalize frontend status (e.g. "BOOKED", "READY_TO_PAY") to DB value
  * (e.g. "booked", "ready_to_pay").
  */
-function normalizeStatusForDb(
-  raw?: string | null
-): AllowedStatus | undefined {
+function normalizeStatusForDb(raw) {
   if (!raw) return undefined;
-  const v = raw.trim().toLowerCase();
+  const v = String(raw).trim().toLowerCase();
 
   switch (v) {
     case "booked":
@@ -57,7 +54,7 @@ function normalizeStatusForDb(
  * Parse a clinic-local date string (YYYY-MM-DD) into [startOfDay, endOfDay].
  * We rely on server local timezone (Ubuntu VPS, Asia/Ulaanbaatar).
  */
-function parseClinicDay(value: string) {
+function parseClinicDay(value) {
   const [y, m, d] = String(value).split("-").map(Number);
   if (!y || !m || !d) return null;
   const localStart = new Date(y, m - 1, d, 0, 0, 0, 0);
@@ -82,6 +79,10 @@ function parseClinicDay(value: string) {
  *  - doctorId=number
  *  - patientId=number
  *  - search=string             (patient name / regNo / phone)
+ *
+ * Response:
+ *  Array of rows shaped for frontend AppointmentRow:
+ *  - id, patientName, regNo, branchName, doctorName, status, startTime, endTime
  */
 router.get("/", async (req, res) => {
   try {
@@ -95,19 +96,9 @@ router.get("/", async (req, res) => {
       status,
       includeCancelled,
       search,
-    } = req.query as {
-      date?: string;
-      dateFrom?: string;
-      dateTo?: string;
-      branchId?: string;
-      doctorId?: string;
-      patientId?: string;
-      status?: string;
-      includeCancelled?: string;
-      search?: string;
-    };
+    } = req.query || {};
 
-    const where: any = {};
+    const where = {};
 
     // ----------------- Branch / doctor / patient filters -----------------
     if (branchId) {
@@ -127,7 +118,7 @@ router.get("/", async (req, res) => {
 
     // ----------------- Date / date range filter -----------------
     if (dateFrom || dateTo) {
-      const range: any = {};
+      const range = {};
 
       if (dateFrom) {
         const parsed = parseClinicDay(dateFrom);
@@ -161,7 +152,7 @@ router.get("/", async (req, res) => {
     // ----------------- Status + includeCancelled logic -----------------
     const normalized = normalizeStatusForDb(status);
 
-    if (status && status.toUpperCase() !== "ALL") {
+    if (status && String(status).toUpperCase() !== "ALL") {
       if (normalized === "booked" && includeCancelled === "true") {
         // Цаг захиалсан list: booked + cancelled
         where.status = { in: ["booked", "cancelled"] };
@@ -176,6 +167,7 @@ router.get("/", async (req, res) => {
     // ----------------- Text search on patient -----------------
     if (search && search.trim() !== "") {
       const s = search.trim();
+      // Prisma relation filter: appointment where patient matches OR conditions
       where.patient = {
         OR: [
           {
@@ -215,9 +207,31 @@ router.get("/", async (req, res) => {
       },
     });
 
-    // For now we return the full appointment objects.
-    // Frontend /visits pages map these to AppointmentRow types.
-    res.json(appointments);
+    // ----------------- Shape for frontend AppointmentRow -----------------
+    const rows = appointments.map((a) => {
+      const patient = a.patient;
+      const doctor = a.doctor;
+      const branch = a.branch;
+
+      const doctorName =
+        doctor && (doctor.name || doctor.ovog)
+          ? [doctor.ovog, doctor.name].filter(Boolean).join(" ")
+          : "";
+
+      return {
+        id: a.id,
+        patientName: patient ? patient.name : "",
+        regNo: patient ? patient.regNo || "" : "",
+        branchName: branch ? branch.name : "",
+        doctorName,
+        // Keep lowercase values here; frontend can map to its TS enum
+        status: a.status,
+        startTime: a.scheduledAt ? a.scheduledAt.toISOString() : null,
+        endTime: a.endAt ? a.endAt.toISOString() : null,
+      };
+    });
+
+    res.json(rows);
   } catch (err) {
     console.error("Error fetching appointments:", err);
     res.status(500).json({ error: "failed to fetch appointments" });
@@ -277,7 +291,7 @@ router.post("/", async (req, res) => {
     }
 
     // Optional endAt
-    let endDate: Date | null = null;
+    let endDate = null;
     if (endAt !== undefined && endAt !== null && endAt !== "") {
       const tmp = new Date(endAt);
       if (Number.isNaN(tmp.getTime())) {
@@ -292,7 +306,7 @@ router.post("/", async (req, res) => {
     }
 
     // Normalize and validate status
-    let normalizedStatus: AllowedStatus = "booked";
+    let normalizedStatus = "booked";
     if (typeof status === "string" && status.trim()) {
       const maybe = normalizeStatusForDb(status);
       if (!maybe) {
@@ -371,7 +385,7 @@ router.patch("/:id", async (req, res) => {
     });
 
     res.json(appt);
-  } catch (err: any) {
+  } catch (err) {
     console.error("Error updating appointment:", err);
     if (err.code === "P2025") {
       // Prisma: record not found
