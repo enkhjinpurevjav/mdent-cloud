@@ -587,13 +587,13 @@ export default function PatientsPage() {
               marginBottom: 6,
             }}
           >
-            ЭР ҮЙЛЧЛҮҮЛЭГЧИД
+            ЭРЭГТЭЙ ҮЙЛЧЛҮҮЛЭГЧИД
           </div>
           <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>
             {totalMale}
           </div>
           <div style={{ fontSize: 12, color: "#4b5563" }}>
-            Хүйс талбарт &quot;эр&quot; гэж тэмдэглэгдсэн үйлчлүүлэгчид
+            Нийт эрэгтэй үйлчлүүлэгчдийн тоо
           </div>
         </div>
 
@@ -616,13 +616,13 @@ export default function PatientsPage() {
               marginBottom: 6,
             }}
           >
-            ЭМ ҮЙЛЧЛҮҮЛЭГЧИД
+            ЭМЭГТЭЙ ҮЙЛЧЛҮҮЛЭГЧИД
           </div>
           <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>
             {totalFemale}
           </div>
           <div style={{ fontSize: 12, color: "#4b5563" }}>
-            Хүйс талбарт &quot;эм&quot; гэж тэмдэглэгдсэн үйлчлүүлэгчид
+            Нийт эмэгтэй үйлчлүүлэгчдийн тоо
           </div>
         </div>
 
@@ -645,13 +645,13 @@ export default function PatientsPage() {
               marginBottom: 6,
             }}
           >
-            ХҮҮХДҮҮД (≤17 НАС)
+            ХҮҮХЭД
           </div>
           <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>
             {totalKids}
           </div>
           <div style={{ fontSize: 12, color: "#4b5563" }}>
-            Төрсөн огноо дээрээс тооцсон 17 ба түүнээс доош насныхан
+            17 ба түүнээс доош насны хүүхдийн тоо
           </div>
         </div>
       </section>
