@@ -4,32 +4,112 @@ import prisma from "../db.js";
 const router = express.Router();
 
 /**
- * Allowed appointment statuses (must match frontend options)
+ * Allowed appointment statuses (must match frontend + DB values)
+ *
+ * NOTE:
+ * - These are the actual lowercase strings stored in Appointment.status.
+ * - Frontend uses uppercase enums (BOOKED, ONGOING, etc.) which are normalized
+ *   to these values via normalizeStatusForDb().
  */
 const ALLOWED_STATUSES = [
   "booked",
   "confirmed",
   "ongoing",
-  "ready_to_pay", // Төлбөр төлөх
+  "ready_to_pay", // Төлбөр төлөхөд бэлэн
   "completed",
   "cancelled",
-];
+] as const;
+type AllowedStatus = (typeof ALLOWED_STATUSES)[number];
+
+/**
+ * Normalize frontend status (e.g. "BOOKED", "READY_TO_PAY") to DB value
+ * (e.g. "booked", "ready_to_pay").
+ */
+function normalizeStatusForDb(
+  raw?: string | null
+): AllowedStatus | undefined {
+  if (!raw) return undefined;
+  const v = raw.trim().toLowerCase();
+
+  switch (v) {
+    case "booked":
+    case "pending":
+      return "booked";
+    case "confirmed":
+      return "confirmed";
+    case "ongoing":
+      return "ongoing";
+    case "ready_to_pay":
+    case "readytopay":
+    case "ready-to-pay":
+      return "ready_to_pay";
+    case "completed":
+      return "completed";
+    case "cancelled":
+    case "canceled":
+      return "cancelled";
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Parse a clinic-local date string (YYYY-MM-DD) into [startOfDay, endOfDay].
+ * We rely on server local timezone (Ubuntu VPS, Asia/Ulaanbaatar).
+ */
+function parseClinicDay(value: string) {
+  const [y, m, d] = String(value).split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const localStart = new Date(y, m - 1, d, 0, 0, 0, 0);
+  const localEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
+  return { localStart, localEnd };
+}
 
 /**
  * GET /api/appointments
  *
- * Optional query parameters:
- *  - date=YYYY-MM-DD       → filter by calendar date (server timezone, using 00:00–23:59)
- *  - branchId=number       → filter by branch
- *  - doctorId=number       → filter by doctor
- *  - patientId=number      → filter by patient
+ * Used by:
+ *  - Appointment calendar
+ *  - Үзлэг pages (Цаг захиалсан, Үзлэг хийж буй, Дууссан)
+ *
+ * Query parameters:
+ *  - status=BOOKED|ONGOING|COMPLETED|CANCELLED|READY_TO_PAY|CONFIRMED|ALL
+ *  - date=YYYY-MM-DD           (legacy: single day)
+ *  - dateFrom=YYYY-MM-DD       (start of range)
+ *  - dateTo=YYYY-MM-DD         (end of range)
+ *  - includeCancelled=true     (for booked list: booked + cancelled)
+ *  - branchId=number
+ *  - doctorId=number
+ *  - patientId=number
+ *  - search=string             (patient name / regNo / phone)
  */
 router.get("/", async (req, res) => {
   try {
-    const { date, branchId, doctorId, patientId } = req.query;
+    const {
+      date,
+      dateFrom,
+      dateTo,
+      branchId,
+      doctorId,
+      patientId,
+      status,
+      includeCancelled,
+      search,
+    } = req.query as {
+      date?: string;
+      dateFrom?: string;
+      dateTo?: string;
+      branchId?: string;
+      doctorId?: string;
+      patientId?: string;
+      status?: string;
+      includeCancelled?: string;
+      search?: string;
+    };
 
-    const where = {};
+    const where: any = {};
 
+    // ----------------- Branch / doctor / patient filters -----------------
     if (branchId) {
       const parsed = Number(branchId);
       if (!Number.isNaN(parsed)) where.branchId = parsed;
@@ -45,22 +125,82 @@ router.get("/", async (req, res) => {
       if (!Number.isNaN(parsed)) where.patientId = parsed;
     }
 
-    if (date) {
-  // Expecting YYYY-MM-DD; interpret this as a LOCAL clinic date (Asia/Ulaanbaatar)
-  const [y, m, d] = String(date).split("-").map(Number);
-  if (!y || !m || !d) {
-    return res.status(400).json({ error: "Invalid date format" });
-  }
+    // ----------------- Date / date range filter -----------------
+    if (dateFrom || dateTo) {
+      const range: any = {};
 
-  // Build local start/end of day (server's local timezone)
-  const localStart = new Date(y, m - 1, d, 0, 0, 0, 0);
-  const localEnd   = new Date(y, m - 1, d, 23, 59, 59, 999);
+      if (dateFrom) {
+        const parsed = parseClinicDay(dateFrom);
+        if (!parsed) {
+          return res.status(400).json({ error: "Invalid dateFrom format" });
+        }
+        range.gte = parsed.localStart;
+      }
 
-  // These Date objects already represent exact instants in time (UTC internally),
-  // so we can use them directly in the Prisma range.
-  where.scheduledAt = { gte: localStart, lte: localEnd };
-}
+      if (dateTo) {
+        const parsed = parseClinicDay(dateTo);
+        if (!parsed) {
+          return res.status(400).json({ error: "Invalid dateTo format" });
+        }
+        range.lte = parsed.localEnd;
+      }
 
+      where.scheduledAt = range;
+    } else if (date) {
+      // Legacy single-day mode
+      const parsed = parseClinicDay(date);
+      if (!parsed) {
+        return res.status(400).json({ error: "Invalid date format" });
+      }
+      where.scheduledAt = {
+        gte: parsed.localStart,
+        lte: parsed.localEnd,
+      };
+    }
+
+    // ----------------- Status + includeCancelled logic -----------------
+    const normalized = normalizeStatusForDb(status);
+
+    if (status && status.toUpperCase() !== "ALL") {
+      if (normalized === "booked" && includeCancelled === "true") {
+        // Цаг захиалсан list: booked + cancelled
+        where.status = { in: ["booked", "cancelled"] };
+      } else if (normalized && ALLOWED_STATUSES.includes(normalized)) {
+        where.status = normalized;
+      } else {
+        return res.status(400).json({ error: "Invalid status value" });
+      }
+    }
+    // If status missing or "ALL", we don't filter by status.
+
+    // ----------------- Text search on patient -----------------
+    if (search && search.trim() !== "") {
+      const s = search.trim();
+      where.patient = {
+        OR: [
+          {
+            name: {
+              contains: s,
+              mode: "insensitive",
+            },
+          },
+          {
+            regNo: {
+              contains: s,
+              mode: "insensitive",
+            },
+          },
+          {
+            phone: {
+              contains: s,
+              mode: "insensitive",
+            },
+          },
+        ],
+      };
+    }
+
+    // ----------------- Query DB -----------------
     const appointments = await prisma.appointment.findMany({
       where,
       orderBy: { scheduledAt: "asc" },
@@ -75,6 +215,8 @@ router.get("/", async (req, res) => {
       },
     });
 
+    // For now we return the full appointment objects.
+    // Frontend /visits pages map these to AppointmentRow types.
     res.json(appointments);
   } catch (err) {
     console.error("Error fetching appointments:", err);
@@ -101,7 +243,7 @@ router.post("/", async (req, res) => {
       doctorId,
       branchId,
       scheduledAt,
-      endAt, // NEW
+      endAt,
       status,
       notes,
     } = req.body || {};
@@ -134,8 +276,8 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "scheduledAt is invalid date" });
     }
 
-    // NEW: optional endAt
-    let endDate = null;
+    // Optional endAt
+    let endDate: Date | null = null;
     if (endAt !== undefined && endAt !== null && endAt !== "") {
       const tmp = new Date(endAt);
       if (Number.isNaN(tmp.getTime())) {
@@ -150,13 +292,13 @@ router.post("/", async (req, res) => {
     }
 
     // Normalize and validate status
-    const normalizedStatus =
-      typeof status === "string" && status.trim()
-        ? status.trim()
-        : "booked";
-
-    if (!ALLOWED_STATUSES.includes(normalizedStatus)) {
-      return res.status(400).json({ error: "invalid status" });
+    let normalizedStatus: AllowedStatus = "booked";
+    if (typeof status === "string" && status.trim()) {
+      const maybe = normalizeStatusForDb(status);
+      if (!maybe) {
+        return res.status(400).json({ error: "invalid status" });
+      }
+      normalizedStatus = maybe;
     }
 
     const appt = await prisma.appointment.create({
@@ -165,7 +307,7 @@ router.post("/", async (req, res) => {
         doctorId: parsedDoctorId,
         branchId: parsedBranchId,
         scheduledAt: scheduledDate,
-        endAt: endDate, // can be null
+        endAt: endDate,
         status: normalizedStatus,
         notes: notes || null,
       },
@@ -193,7 +335,7 @@ router.post("/", async (req, res) => {
  * Currently used to update status only (from Цагийн дэлгэрэнгүй modal).
  *
  * Body:
- *  - status (string, required; one of ALLOWED_STATUSES)
+ *  - status (string, required; one of ALLOWED_STATUSES or uppercase equivalent)
  */
 router.patch("/:id", async (req, res) => {
   try {
@@ -207,8 +349,8 @@ router.patch("/:id", async (req, res) => {
       return res.status(400).json({ error: "status is required" });
     }
 
-    const normalizedStatus = status.trim();
-    if (!ALLOWED_STATUSES.includes(normalizedStatus)) {
+    const normalizedStatus = normalizeStatusForDb(status);
+    if (!normalizedStatus) {
       return res.status(400).json({ error: "invalid status" });
     }
 
@@ -229,7 +371,7 @@ router.patch("/:id", async (req, res) => {
     });
 
     res.json(appt);
-  } catch (err) {
+  } catch (err: any) {
     console.error("Error updating appointment:", err);
     if (err.code === "P2025") {
       // Prisma: record not found
@@ -238,6 +380,13 @@ router.patch("/:id", async (req, res) => {
     res.status(500).json({ error: "failed to update appointment" });
   }
 });
+
+/**
+ * POST /api/appointments/:id/start-encounter
+ *
+ * Starts (or re-opens) an Encounter for this appointment.
+ * Only allowed when appointment.status === "ongoing".
+ */
 router.post("/:id/start-encounter", async (req, res) => {
   try {
     const apptId = Number(req.params.id);
@@ -288,12 +437,11 @@ router.post("/:id/start-encounter", async (req, res) => {
     // 3) Ensure patient has a PatientBook
     let book = patient.patientBook;
     if (!book) {
-      // If you want strict behavior, you could return 400 instead of auto-creating.
-      // For now we auto-create an empty bookNumber; you can later implement a generator.
+      // TODO: replace bookNumber logic with proper generator if needed
       book = await prisma.patientBook.create({
         data: {
           patientId: patient.id,
-          bookNumber: String(patient.id), // TODO: replace with proper generator
+          bookNumber: String(patient.id),
         },
       });
     }
@@ -326,6 +474,11 @@ router.post("/:id/start-encounter", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/appointments/:id/encounter
+ *
+ * Returns the latest Encounter ID linked to this appointment, if any.
+ */
 router.get("/:id/encounter", async (req, res) => {
   try {
     const apptId = Number(req.params.id);
@@ -353,4 +506,5 @@ router.get("/:id/encounter", async (req, res) => {
       .json({ error: "Үзлэгийн мэдээлэл авах үед алдаа гарлаа." });
   }
 });
+
 export default router;
