@@ -2980,8 +2980,6 @@ useEffect(() => {
 const dayKey = filterDate;
 
 // All appointments for this day (and branch, if selected)
-const dayKey = filterDate;
-
 const dayAppointments = useMemo(
   () =>
     appointments.filter((a) => {
