@@ -385,18 +385,20 @@ export default function ServicesPage() {
     setCollapsedCategories((prev) => ({ ...prev, [cat]: !prev[cat] }));
 
   const servicesByCategory = useMemo(() => {
-    const groups: Record<ServiceCategory, Service[]> = {
-      GENERAL_DENTISTRY: [],
-      IMPLANTS: [],
-      ORTHODONTICS: [],
-      COSMETIC_DENTISTRY: [],
-      CHILDRENS: [],
-    };
-    pagedServices.forEach((s) => {
-      groups[s.category].push(s);
-    });
-    return groups;
-  }, [pagedServices]);
+  const groups: Record<ServiceCategory, Service[]> = {
+    ORTHODONTIC_TREATMENT: [],
+    IMAGING: [],
+    DEFECT_CORRECTION: [],
+    ADULT_TREATMENT: [],
+    WHITENING: [],
+    CHILD_TREATMENT: [],
+    SURGERY: [],
+  };
+  pagedServices.forEach((s) => {
+    groups[s.category].push(s);
+  });
+  return groups;
+}, [pagedServices]);
 
   return (
     <main
@@ -495,13 +497,13 @@ export default function ServicesPage() {
                 onChange={(e) => {
                   const value = e.target.value;
                   if (value === NEW_CATEGORY_VALUE) {
-                    setCustomCategoryMode(true);
-                    // default backend category when custom label used
-                    setForm((f) => ({
-                      ...f,
-                      category: "GENERAL_DENTISTRY",
-                    }));
-                  } else {
+  setCustomCategoryMode(true);
+  // default backend category when custom label used
+  setForm((f) => ({
+    ...f,
+    category: "ORTHODONTIC_TREATMENT",
+  }));
+} else {
                     setCustomCategoryMode(false);
                     setCustomCategoryLabel("");
                     setForm((f) => ({
