@@ -3366,25 +3366,32 @@ const totalCompletedPatientsForDay = useMemo(() => {
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label>Салбар</label>
             <select
-              value={filterBranchId}
-              onChange={(e) => {
-                const value = e.target.value;
-                setFilterBranchId(value);
-                setActiveBranchTab(value);
-              }}
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            >
-              <option value="">Бүх салбар</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+  value={filterBranchId}
+  onChange={(e) => {
+    const value = e.target.value;
+    setFilterBranchId(value);
+    setActiveBranchTab(value);
+
+    const query = value ? { branchId: value } : {};
+    router.push(
+      { pathname: "/appointments", query },
+      undefined,
+      { shallow: true }
+    );
+  }}
+  style={{
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    padding: "6px 8px",
+  }}
+>
+  <option value="">Бүх салбар</option>
+  {branches.map((b) => (
+    <option key={b.id} value={b.id}>
+      {b.name}
+    </option>
+  ))}
+</select>
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
