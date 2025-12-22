@@ -164,24 +164,17 @@ function formatPatientLabel(
   return parts.join(" ");
 }
 
+// frontend helper (already in your file)
 function formatGridShortLabel(a: Appointment): string {
   const p = a.patient as any;
-
-  // Name: nested patient.name then flat patientName
   const name = (p?.name ?? a.patientName ?? "").toString().trim();
-
-  // Book number: nested patient.patientBook.bookNumber if present
   const bookNumber =
     p?.patientBook?.bookNumber != null
       ? String(p.patientBook.bookNumber).trim()
       : "";
 
   if (!name && !bookNumber) return "";
-
-  if (name && bookNumber) {
-    return `${name} (${bookNumber})`;
-  }
-
+  if (name && bookNumber) return `${name} (${bookNumber})`;
   return name || `(${bookNumber})`;
 }
 
