@@ -1,6 +1,7 @@
 import express from "express";
 import prisma from "../db.js";
 
+const router = express.Router();
 
 /**
  * Allowed appointment statuses (must match frontend + DB values)
