@@ -14,7 +14,7 @@ type NavItem = {
 };
 
 const mainNav: NavItem[] = [
-  { label: "Хянах самбар", href: "/", icon: "🏠" },
+  
 
   // NOTE: Цаг захиалга is now rendered as a dynamic group below
   // so we don't list it here as a simple item.
