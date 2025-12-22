@@ -43,6 +43,7 @@ type Appointment = {
   doctorId: number | null;
   patientId: number | null;
   patientName: string | null;
+  patientOvog?: string | null;  
   patientRegNo: string | null;
   patientPhone: string | null;
   doctorName: string | null;
@@ -162,7 +163,7 @@ function formatPatientLabel(
 }
 
 function formatGridShortLabel(a: Appointment): string {
-  // Prefer nested patient object if present
+  // Prefer nested patient info if available
   const p = a.patient;
 
   const name = (p?.name || a.patientName || "").trim();
@@ -172,16 +173,16 @@ function formatGridShortLabel(a: Appointment): string {
       ? String(p.patientBook.bookNumber).trim()
       : "";
 
-  // Build "Э.Маргад" style name
+  // Build "Э.Маргад" style display name
   let displayName = name;
   if (ovog) {
     const first = ovog.charAt(0).toUpperCase();
     displayName = `${first}.${name}`;
   }
 
-  if (!displayName) return ""; // fallback, shouldn't normally happen
+  if (!displayName) return ""; // fall back if we somehow have no name
 
-  // Add картын дугаар in brackets when available
+  // Attach картын дугаар if present
   if (bookNumber) {
     return `${displayName} (${bookNumber})`;
   }
