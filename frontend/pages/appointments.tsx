@@ -1,4 +1,3 @@
-import { useRouter } from "next/router";
 import React, {
   useCallback,
   useEffect,
@@ -6,7 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { useRouter } from "next/router"; // NEW
+import { useRouter } from "next/router";
 import AdminLayout from "../components/AdminLayout";
 
 // ========== TYPES ==========
@@ -2726,7 +2725,7 @@ const [dayEndSlots, setDayEndSlots] = useState<
 // ==== Page ====
 
 export default function AppointmentsPage() {
-  const router = useRouter(); // NEW
+  const router = useRouter();
 
   // branchId from URL: /appointments?branchId=1
   const branchIdFromQuery =
@@ -2746,8 +2745,6 @@ export default function AppointmentsPage() {
 
   // filters
   const [filterDate, setFilterDate] = useState<string>(todayStr);
-
-  // IMPORTANT: initialize from branchIdFromQuery
   const [filterBranchId, setFilterBranchId] = useState<string>(
     branchIdFromQuery || ""
   );
@@ -2758,121 +2755,47 @@ export default function AppointmentsPage() {
     branchIdFromQuery || ""
   );
 
-  // ... keep the rest of your existing state declarations unchanged
-
-    useEffect(() => {
-    // When user clicks another branch in the sidebar, URL branchId changes.
-    if (branchIdFromQuery && branchIdFromQuery !== filterBranchId) {
-      setFilterBranchId(branchIdFromQuery);
-      setActiveBranchTab(branchIdFromQuery);
-    }
-    if (!branchIdFromQuery && filterBranchId !== "") {
-      // Back to "Бүх салбар"
-      setFilterBranchId("");
-      setActiveBranchTab("");
-    }
-  }, [branchIdFromQuery, filterBranchId]);
-  
-  const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>(
-    []
-  );
-
-  // BEFORE in your code you had something like:
-  // const [selectedBranchId, setSelectedBranchId] = useState<string>("");
-  // const [activeBranchTab, setActiveBranchTab] = useState<string>("");
-  //
-  // Now we initialize both from branchIdFromQuery so the left-menu links work.
-  const [selectedBranchId, setSelectedBranchId] = useState<string>(
-    branchIdFromQuery || ""
-  ); // "" = Бүх салбар
-  const [activeBranchTab, setActiveBranchTab] = useState<string>(
-    branchIdFromQuery || ""
-  );
-
-  const [selectedDate, setSelectedDate] = useState<string>(today);
-  const [filterBranchId, setFilterBranchId] = useState<string>("");
-  const [filterDoctorId, setFilterDoctorId] = useState<string>("");
-  const [filterStatus, setFilterStatus] = useState<string>("ALL");
-  const [searchQuery, setSearchQuery] = useState<string>("");
-
-  const [loadingMeta, setLoadingMeta] = useState(false);
-  const [loadingAppointments, setLoadingAppointments] = useState(false);
-  const [loadingSchedule, setLoadingSchedule] = useState(false);
-
-  const [metaError, setMetaError] = useState<string | null>(null);
-  const [appointmentsError, setAppointmentsError] = useState<string | null>(
-    null
-  );
-  const [scheduleError, setScheduleError] = useState<string | null>(null);
-
-  // ===== NEW: keep state in sync when URL branchId changes =====
-  useEffect(() => {
-    // When user clicks a different branch in the left menu, Next.js changes
-    // ?branchId=... in the URL; update local state so calendar follows.
-    if (branchIdFromQuery && branchIdFromQuery !== selectedBranchId) {
-      setSelectedBranchId(branchIdFromQuery);
-      setActiveBranchTab(branchIdFromQuery);
-      setFilterBranchId(branchIdFromQuery);
-    }
-
-    if (!branchIdFromQuery && selectedBranchId !== "") {
-      // When going back to /appointments (Бүх салбар)
-      setSelectedBranchId("");
-      setActiveBranchTab("");
-      setFilterBranchId("");
-    }
-  }, [branchIdFromQuery, selectedBranchId]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [scheduledDoctors, setScheduledDoctors] =
-    useState<ScheduledDoctor[]>([]);
-  const [error, setError] = useState("");
-  const [nowPosition, setNowPosition] = useState<number | null>(null);
-  const [hasMounted, setHasMounted] = useState(false);
+  const formSectionRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     setHasMounted(true);
   }, []);
 
-  // FIX: removed stray "*" characters here
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const [filterDate, setFilterDate] = useState<string>(todayStr);
-  const [filterBranchId, setFilterBranchId] = useState<string>("");
-  const [filterDoctorId, setFilterDoctorId] = useState<string>("");
+  // keep state in sync when URL branchId changes (from left menu)
+  useEffect(() => {
+    if (branchIdFromQuery && branchIdFromQuery !== filterBranchId) {
+      setFilterBranchId(branchIdFromQuery);
+      setActiveBranchTab(branchIdFromQuery);
+    }
+    if (!branchIdFromQuery && filterBranchId !== "") {
+      setFilterBranchId("");
+      setActiveBranchTab("");
+    }
+  }, [branchIdFromQuery, filterBranchId]);
 
-  const [activeBranchTab, setActiveBranchTab] = useState<string>("");
+  // ---- load meta (branches, doctors) ----
+  useEffect(() => {
+    async function loadMeta() {
+      try {
+        setError("");
+        const [branchesRes, doctorsRes] = await Promise.all([
+          fetch("/api/branches"),
+          fetch("/api/doctors"),
+        ]);
+        const branchesData = await branchesRes.json().catch(() => []);
+        const doctorsData = await doctorsRes.json().catch(() => []);
+        setBranches(branchesData || []);
+        setDoctors(doctorsData || []);
+      } catch (e) {
+        console.error(e);
+        setError("Мета мэдээлэл ачаалж чадсангүй.");
+      }
+    }
+    loadMeta();
+  }, []);
 
-  const groupedAppointments = groupByDate(appointments);
-  const selectedDay = getDateFromYMD(filterDate);
-  const timeSlots = generateTimeSlotsForDay(selectedDay);
-
-  const [detailsModalState, setDetailsModalState] = useState<{
-    open: boolean;
-    doctor?: Doctor | null;
-    slotLabel?: string;
-    slotTime?: string;
-    date?: string;
-    appointments: Appointment[];
-  }>({
-    open: false,
-    appointments: [],
-  });
-
-  const [quickModalState, setQuickModalState] = useState<{
-    open: boolean;
-    doctorId?: number;
-    date: string;
-    time: string;
-  }>({
-    open: false,
-    date: todayStr,
-    time: "09:00",
-  });
-
-  const formSectionRef = useRef<HTMLElement | null>(null);
-
-  const loadAppointments = async () => {
+  // ---- load appointments ----
+  const loadAppointments = useCallback(async () => {
     try {
       setError("");
       const params = new URLSearchParams();
@@ -2881,65 +2804,80 @@ export default function AppointmentsPage() {
       if (filterDoctorId) params.set("doctorId", filterDoctorId);
 
       const res = await fetch(`/api/appointments?${params.toString()}`);
-      const data = await res.json();
+      const data = await res.json().catch(() => []);
       if (!res.ok || !Array.isArray(data)) {
         throw new Error("failed");
       }
       setAppointments(data);
-    } catch {
+    } catch (e) {
+      console.error(e);
       setError("Цаг захиалгуудыг ачаалах үед алдаа гарлаа.");
     }
-  };
-
-  const loadScheduledDoctors = async () => {
-    // [...]
-  };
-
-  useEffect(() => {
-    const loadMeta = async () => {
-      setLoadingMeta(true);
-      setMetaError(null);
-      try {
-        const [branchesRes] = await Promise.all([
-          fetch("/api/branches"),
-          // ... any other meta endpoints
-        ]);
-        const branchesData = await branchesRes.json().catch(() => []);
-        setBranches(branchesData || []);
-      } catch (e) {
-        console.error(e);
-        setMetaError("Мета мэдээлэл ачаалж чадсангүй.");
-      } finally {
-        setLoadingMeta(false);
-      }
-    };
-
-    loadMeta();
-  }, []);
+  }, [filterDate, filterBranchId, filterDoctorId]);
 
   useEffect(() => {
     loadAppointments();
-  }, [selectedBranchId, selectedDate, filterStatus, searchQuery]);
+  }, [loadAppointments]);
+
+  // ---- load scheduled doctors ----
+  const loadScheduledDoctors = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (filterBranchId) params.set("branchId", filterBranchId);
+      if (filterDate) params.set("date", filterDate);
+
+      const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
+      const data = await res.json().catch(() => []);
+      if (!res.ok || !Array.isArray(data)) return;
+      setScheduledDoctors(data);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [filterBranchId, filterDate]);
 
   useEffect(() => {
     loadScheduledDoctors();
-  }, [selectedBranchId, selectedDate]);
+  }, [loadScheduledDoctors]);
 
-    const handleBranchTabClick = (branchId: string) => {
-    setActiveBranchTab(branchId);
-    setFilterBranchId(branchId);
+  // grid helpers
+  const selectedDay = useMemo(() => getDateFromYMD(filterDate), [filterDate]);
+  const timeSlots = useMemo(
+    () => generateTimeSlotsForDay(selectedDay),
+    [selectedDay]
+  );
 
-    // keep URL in sync so sidebar highlight works
-    const query = branchId ? { branchId } : {};
-    router.push(
-      { pathname: "/appointments", query },
-      undefined,
-      { shallow: true }
-    );
-  };
+  const firstSlot = timeSlots[0]?.start ?? selectedDay;
+  const lastSlot = timeSlots[timeSlots.length - 1]?.end ?? selectedDay;
+  const totalMinutes =
+    (lastSlot.getTime() - firstSlot.getTime()) / 60000 || 1;
+  const columnHeightPx = 60 * (totalMinutes / 60);
 
-  // gridDoctors with fallback when no schedules
-  const gridDoctors: ScheduledDoctor[] = React.useMemo(() => {
+  // current time line
+  useEffect(() => {
+    const updateNow = () => {
+      const now = new Date();
+      const nowKey = now.toISOString().slice(0, 10);
+      if (nowKey !== filterDate) {
+        setNowPosition(null);
+        return;
+      }
+
+      const clamped = Math.min(
+        Math.max(now.getTime(), firstSlot.getTime()),
+        lastSlot.getTime()
+      );
+      const minutesFromStart = (clamped - firstSlot.getTime()) / 60000;
+      const pos = (minutesFromStart / totalMinutes) * columnHeightPx;
+      setNowPosition(pos);
+    };
+
+    updateNow();
+    const id = setInterval(updateNow, 60_000);
+    return () => clearInterval(id);
+  }, [filterDate, firstSlot, lastSlot, totalMinutes, columnHeightPx]);
+
+  // gridDoctors with fallback
+  const gridDoctors: ScheduledDoctor[] = useMemo(() => {
     if (scheduledDoctors.length > 0) return scheduledDoctors;
 
     const dayKey = filterDate;
@@ -2962,7 +2900,7 @@ export default function AppointmentsPage() {
   }, [scheduledDoctors, appointments, doctors, filterDate]);
 
   // lane map
-  const laneById: Record<number, 0 | 1> = React.useMemo(() => {
+  const laneById: Record<number, 0 | 1> = useMemo(() => {
     const map: Record<number, 0 | 1> = {};
     const dayKey = filterDate;
 
@@ -2984,44 +2922,40 @@ export default function AppointmentsPage() {
     return map;
   }, [appointments, filterDate]);
 
-  // total minutes for vertical positioning
- const firstSlot = timeSlots[0]?.start ?? selectedDay;
-  const lastSlot = timeSlots[timeSlots.length - 1]?.end ?? selectedDay;
-  const totalMinutes =
-    (lastSlot.getTime() - firstSlot.getTime()) / 60000 || 1;
+  const [detailsModalState, setDetailsModalState] = useState<{
+    open: boolean;
+    doctor?: Doctor | null;
+    slotLabel?: string;
+    slotTime?: string;
+    date?: string;
+    appointments: Appointment[];
+  }>({
+    open: false,
+    appointments: [],
+  });
 
-  const columnHeightPx = 60 * (totalMinutes / 60); // 60px per hour
+  const [quickModalState, setQuickModalState] = useState<{
+    open: boolean;
+    doctorId?: number;
+    date: string;
+    time: string;
+  }>({
+    open: false,
+    date: filterDate,
+    time: "09:00",
+  });
 
-  // Current time line: compute vertical position
-  useEffect(() => {
-    const updateNowPosition = () => {
-      const now = new Date();
+  const handleBranchTabClick = (branchId: string) => {
+    setActiveBranchTab(branchId);
+    setFilterBranchId(branchId);
 
-      const selectedDayKey = filterDate;
-      const nowKey = now.toISOString().slice(0, 10);
-
-      // Only show the line when viewing today
-      if (nowKey !== selectedDayKey) {
-        setNowPosition(null);
-        return;
-      }
-
-      // Clamp between firstSlot and lastSlot
-      const clamped = Math.min(
-        Math.max(now.getTime(), firstSlot.getTime()),
-        lastSlot.getTime()
-      );
-
-      const minutesFromStart = (clamped - firstSlot.getTime()) / 60000;
-      const pos = (minutesFromStart / totalMinutes) * columnHeightPx;
-
-      setNowPosition(pos);
-    };
-
-    updateNowPosition();
-    const id = setInterval(updateNowPosition, 60_000);
-    return () => clearInterval(id);
-  }, [filterDate, firstSlot, lastSlot, totalMinutes, columnHeightPx]);
+    const query = branchId ? { branchId } : {};
+    router.push(
+      { pathname: "/appointments", query },
+      undefined,
+      { shallow: true }
+    );
+  };
 
   const getStatusColor = (status: string): string => {
     switch (status) {
@@ -3032,7 +2966,7 @@ export default function AppointmentsPage() {
       case "ongoing":
         return "#9d9d9d";
       case "ready_to_pay":
-        return "#facc15"; // bright yellow for "pay attention"
+        return "#facc15";
       case "cancelled":
         return "#1889fc";
       default:
@@ -3050,6 +2984,7 @@ export default function AppointmentsPage() {
           fontFamily: "sans-serif",
         }}
       >
+     
         <h1 style={{ fontSize: 20, marginBottom: 8 }}>Цаг захиалга</h1>
         <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
           Өвчтөн, эмч, салбарын цаг захиалгуудыг харах, нэмэх, удирдах.
@@ -3646,5 +3581,6 @@ export default function AppointmentsPage() {
         onCreated={(a) => setAppointments((prev) => [a, ...prev])}
       />
     </main>
+    </AdminLayout>
   );
 }
