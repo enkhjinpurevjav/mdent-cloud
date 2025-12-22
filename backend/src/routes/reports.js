@@ -731,4 +731,54 @@ router.get("/branches", async (req, res) => {
   }
 });
 
+router.get("/daily-revenue", async (req, res) => {
+  try {
+    const { date, branchId } = req.query;
+
+    if (!date || typeof date !== "string") {
+      return res.status(400).json({ error: "date is required (YYYY-MM-DD)" });
+    }
+
+    const [y, m, d] = date.split("-").map(Number);
+    if (!y || !m || !d) {
+      return res.status(400).json({ error: "invalid date format" });
+    }
+
+    const start = new Date(y, m - 1, d, 0, 0, 0, 0);
+    const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+
+    const whereInvoice = {
+      status: "paid", // adjust if your invoice status field differs
+      createdAt: {
+        gte: start,
+        lte: end,
+      },
+    };
+
+    if (branchId) {
+      const bid = Number(branchId);
+      if (!Number.isNaN(bid)) {
+        whereInvoice.branchId = bid;
+      }
+    }
+
+    // Assuming Invoice has: totalAmount, branchId, createdAt, status
+    const result = await prisma.invoice.aggregate({
+      _sum: {
+        totalAmount: true,
+      },
+      where: whereInvoice,
+    });
+
+    const total = result._sum.totalAmount || 0;
+
+    return res.json({ total });
+  } catch (err) {
+    console.error("GET /api/reports/daily-revenue error:", err);
+    return res
+      .status(500)
+      .json({ error: "failed to compute daily revenue" });
+  }
+});
+
 export default router;
