@@ -139,10 +139,15 @@ function isTimeWithinRange(time: string, startTime: string, endTime: string) {
 
 function formatDoctorName(d?: Doctor | null) {
   if (!d) return "";
-  if (d.ovog || d.name) {
-    return [d.ovog, d.name].filter(Boolean).join(" ");
+  const name = (d.name || "").trim();
+  const ovog = (d.ovog || "").trim();
+  if (!name && !ovog) return "";
+
+  if (ovog) {
+    const first = ovog.charAt(0).toUpperCase();
+    return `${first}.${name}`;
   }
-  return "";
+  return name;
 }
 
 function formatPatientLabel(
@@ -3348,7 +3353,7 @@ const totalCompletedPatientsForDay = useMemo(() => {
         }}
       >
         <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: 16 }}>
-          Шүүлтүүр
+          Шүүлт
         </h2>
         <div
           style={{
@@ -3429,7 +3434,7 @@ const totalCompletedPatientsForDay = useMemo(() => {
             {/* Time grid by doctor */}
      <section style={{ marginBottom: 24 }}>
   <h2 style={{ fontSize: 16, marginBottom: 4 }}>
-    Өдрийн цагийн хүснэгт (эмчээр)
+    Өдрийн цагийн хүснэгт
   </h2>
   <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
     {formatDateYmdDots(selectedDay)}
@@ -3448,14 +3453,13 @@ const totalCompletedPatientsForDay = useMemo(() => {
       Энэ өдөр ажиллах эмчийн хуваарь алга.
     </div>
   ) : (
-    <div
+        <div
       style={{
         border: "1px solid #ddd",
         borderRadius: 8,
         fontSize: 12,
-        overflowX: "auto", // allow horizontal scroll for many doctors
-        overflowY: "auto", // allow vertical scroll for long days
-        maxHeight: 650,    // optional: limit height, use scroll instead of huge page
+        overflowX: "auto",   // allow horizontal scroll when many doctors
+        overflowY: "visible", // full vertical view, no scrolling/clipping
       }}
     >
             {/* Header row */}
