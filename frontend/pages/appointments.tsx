@@ -64,7 +64,9 @@ type Appointment = {
 function groupByDate(appointments: Appointment[]) {
   const map: Record<string, Appointment[]> = {};
   for (const a of appointments) {
-    const key = a.scheduledAt.slice(0, 10);
+    const scheduled = a.scheduledAt;
+    if (!scheduled) continue;
+    const key = scheduled.slice(0, 10);
     if (!map[key]) map[key] = [];
     map[key].push(a);
   }
@@ -198,7 +200,9 @@ function isOngoing(status: string) {
 }
 
 function getAppointmentDayKey(a: Appointment): string {
-  return a.scheduledAt.slice(0, 10);
+  const scheduled = a.scheduledAt;
+  if (!scheduled || typeof scheduled !== "string") return "";
+  return scheduled.slice(0, 10);
 }
 
 /**
@@ -2976,10 +2980,15 @@ useEffect(() => {
 const dayKey = filterDate;
 
 // All appointments for this day (and branch, if selected)
+const dayKey = filterDate;
+
 const dayAppointments = useMemo(
   () =>
     appointments.filter((a) => {
-      if (a.scheduledAt.slice(0, 10) !== dayKey) return false;
+      const scheduled = a.scheduledAt;
+      if (!scheduled) return false;
+      const key = scheduled.slice(0, 10);
+      if (key !== dayKey) return false;
       if (filterBranchId && String(a.branchId) !== filterBranchId) return false;
       return true;
     }),
