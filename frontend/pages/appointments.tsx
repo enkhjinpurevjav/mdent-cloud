@@ -2997,7 +2997,7 @@ export default function AppointmentsPage() {
   <main
     style={{
       maxWidth: 1100,
-      margin: "40px auto",
+      margin: "16px auto",
       padding: 24,
       fontFamily: "sans-serif",
     }}
