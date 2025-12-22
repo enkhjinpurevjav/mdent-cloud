@@ -167,15 +167,28 @@ function formatPatientLabel(
 // frontend helper (already in your file)
 function formatGridShortLabel(a: Appointment): string {
   const p = a.patient as any;
-  const name = (p?.name ?? a.patientName ?? "").toString().trim();
-  const bookNumber =
+
+  const rawName = (p?.name ?? a.patientName ?? "").toString().trim();
+  const rawOvog = (p?.ovog ?? a.patientOvog ?? "").toString().trim();
+
+  const rawBookNumber =
     p?.patientBook?.bookNumber != null
       ? String(p.patientBook.bookNumber).trim()
       : "";
 
-  if (!name && !bookNumber) return "";
-  if (name && bookNumber) return `${name} (${bookNumber})`;
-  return name || `(${bookNumber})`;
+  let displayName = rawName;
+  if (rawOvog) {
+    const first = rawOvog.charAt(0).toUpperCase();
+    displayName = `${first}.${rawName}`;
+  }
+
+  if (!displayName) return "";
+
+  if (rawBookNumber) {
+    return `${displayName} (${rawBookNumber})`;
+  }
+
+  return displayName;
 }
 
 function formatPatientSearchLabel(p: PatientLite): string {
