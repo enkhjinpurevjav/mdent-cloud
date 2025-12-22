@@ -2,7 +2,12 @@ import express from "express";
 import prisma from "../db.js";
 
 const router = express.Router();
-
+const ovog = (p?.ovog ?? "").toString().trim();
+let displayName = name;
+if (ovog) {
+  const first = ovog.charAt(0).toUpperCase();
+  displayName = `${first}.${name}`;
+}
 /**
  * Allowed appointment statuses (must match frontend + DB values)
  *
