@@ -3088,11 +3088,11 @@ const totalCompletedPatientsForDay = useMemo(() => {
   Өвчтөн, эмч, салбарын цаг захиалгуудыг харах, нэмэх, удирдах.
 </p>
 
-{/* NEW: Daily stats cards */}
+{/* NEW: Daily stats cards (colored) */}
 <section
   style={{
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
     gap: 12,
     marginBottom: 16,
   }}
@@ -3100,29 +3100,55 @@ const totalCompletedPatientsForDay = useMemo(() => {
   {/* Нийт цаг захиалга */}
   <div
     style={{
-      background: "#ffffff",
-      borderRadius: 8,
-      border: "1px solid #e5e7eb",
+      background: "linear-gradient(90deg,#eff6ff,#ffffff)",
+      borderRadius: 12,
+      border: "1px solid #dbeafe",
+      boxShadow: "0 8px 16px rgba(15,23,42,0.06)",
       padding: 12,
       display: "flex",
       flexDirection: "column",
-      gap: 4,
+      gap: 8,
     }}
   >
     <div
       style={{
-        fontSize: 11,
-        textTransform: "uppercase",
-        color: "#6b7280",
-        fontWeight: 600,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
       }}
     >
-      Нийт цаг захиалга
+      <div
+        style={{
+          fontSize: 11,
+          textTransform: "uppercase",
+          color: "#1d4ed8",
+          fontWeight: 700,
+          letterSpacing: 0.5,
+        }}
+      >
+        Нийт цаг захиалга
+      </div>
+      <div
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: "999px",
+          background:
+            "radial-gradient(circle at 30% 30%,#bfdbfe,#1d4ed8)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "white",
+          fontSize: 16,
+        }}
+      >
+        📅
+      </div>
     </div>
-    <div style={{ fontSize: 22, fontWeight: 700 }}>
+    <div style={{ fontSize: 26, fontWeight: 700, color: "#111827" }}>
       {totalAppointmentsForDay}
     </div>
-    <div style={{ fontSize: 11, color: "#9ca3af" }}>
+    <div style={{ fontSize: 11, color: "#6b7280" }}>
       {formatDateYmdDots(selectedDay)} өдрийн бүх төлөвтэй цаг захиалга.
     </div>
   </div>
@@ -3130,29 +3156,55 @@ const totalCompletedPatientsForDay = useMemo(() => {
   {/* Хуваарьт эмчийн тоо */}
   <div
     style={{
-      background: "#ffffff",
-      borderRadius: 8,
-      border: "1px solid #e5e7eb",
+      background: "linear-gradient(90deg,#fef9c3,#ffffff)",
+      borderRadius: 12,
+      border: "1px solid #facc15",
+      boxShadow: "0 8px 16px rgba(15,23,42,0.06)",
       padding: 12,
       display: "flex",
       flexDirection: "column",
-      gap: 4,
+      gap: 8,
     }}
   >
     <div
       style={{
-        fontSize: 11,
-        textTransform: "uppercase",
-        color: "#6b7280",
-        fontWeight: 600,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
       }}
     >
-      Хуваарьт эмчийн тоо
+      <div
+        style={{
+          fontSize: 11,
+          textTransform: "uppercase",
+          color: "#b45309",
+          fontWeight: 700,
+          letterSpacing: 0.5,
+        }}
+      >
+        Хуваарьт эмчийн тоо
+      </div>
+      <div
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: "999px",
+          background:
+            "radial-gradient(circle at 30% 30%,#fde68a,#f59e0b)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "white",
+          fontSize: 16,
+        }}
+      >
+        🩺
+      </div>
     </div>
-    <div style={{ fontSize: 22, fontWeight: 700 }}>
+    <div style={{ fontSize: 26, fontWeight: 700, color: "#111827" }}>
       {totalScheduledDoctorsForDay}
     </div>
-    <div style={{ fontSize: 11, color: "#9ca3af" }}>
+    <div style={{ fontSize: 11, color: "#6b7280" }}>
       Сонгосон өдөрт ажиллахаар товлогдсон эмч.
     </div>
   </div>
@@ -3160,30 +3212,56 @@ const totalCompletedPatientsForDay = useMemo(() => {
   {/* Үйлчлүүлэгчдийн тоо (completed) */}
   <div
     style={{
-      background: "#ffffff",
-      borderRadius: 8,
-      border: "1px solid #e5e7eb",
+      background: "linear-gradient(90deg,#fee2e2,#ffffff)",
+      borderRadius: 12,
+      border: "1px solid #fecaca",
+      boxShadow: "0 8px 16px rgba(15,23,42,0.06)",
       padding: 12,
       display: "flex",
       flexDirection: "column",
-      gap: 4,
+      gap: 8,
     }}
   >
     <div
       style={{
-        fontSize: 11,
-        textTransform: "uppercase",
-        color: "#6b7280",
-        fontWeight: 600,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
       }}
     >
-      Үйлчлүүлэгчдийн тоо
+      <div
+        style={{
+          fontSize: 11,
+          textTransform: "uppercase",
+          color: "#b91c1c",
+          fontWeight: 700,
+          letterSpacing: 0.5,
+        }}
+      >
+        Үйлчлүүлэгчдийн тоо
+      </div>
+      <div
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: "999px",
+          background:
+            "radial-gradient(circle at 30% 30%,#fecaca,#ef4444)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "white",
+          fontSize: 16,
+        }}
+      >
+        🧍
+      </div>
     </div>
-    <div style={{ fontSize: 22, fontWeight: 700 }}>
+    <div style={{ fontSize: 26, fontWeight: 700, color: "#111827" }}>
       {totalCompletedPatientsForDay}
     </div>
-    <div style={{ fontSize: 11, color: "#9ca3af" }}>
-      {formatDateYmdDots(selectedDay)} өдөрт &quot;Дууссан&quot; төлөвтэй
+    <div style={{ fontSize: 11, color: "#6b7280" }}>
+      {formatDateYmdDots(selectedDay)} өдөр &quot;Дууссан&quot; төлөвтэй
       үзлэг хийлгэсэн өвчтөн.
     </div>
   </div>
@@ -3191,29 +3269,57 @@ const totalCompletedPatientsForDay = useMemo(() => {
   {/* Борлуулалтын орлого */}
   <div
     style={{
-      background: "#ffffff",
-      borderRadius: 8,
-      border: "1px solid #e5e7eb",
+      background: "linear-gradient(90deg,#dcfce7,#ffffff)",
+      borderRadius: 12,
+      border: "1px solid #bbf7d0",
+      boxShadow: "0 8px 16px rgba(15,23,42,0.06)",
       padding: 12,
       display: "flex",
       flexDirection: "column",
-      gap: 4,
+      gap: 8,
     }}
   >
     <div
       style={{
-        fontSize: 11,
-        textTransform: "uppercase",
-        color: "#6b7280",
-        fontWeight: 600,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
       }}
     >
-      Борлуулалтын орлого
+      <div
+        style={{
+          fontSize: 11,
+          textTransform: "uppercase",
+          color: "#15803d",
+          fontWeight: 700,
+          letterSpacing: 0.5,
+        }}
+      >
+        Борлуулалтын орлого
+      </div>
+      <div
+        style={{
+          width: 30,
+          height: 30,
+          borderRadius: "999px",
+          background:
+            "radial-gradient(circle at 30% 30%,#bbf7d0,#22c55e)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "white",
+          fontSize: 16,
+        }}
+      >
+        💰
+      </div>
     </div>
-    <div style={{ fontSize: 22, fontWeight: 700 }}>
-      {dailyRevenue == null ? "—" : dailyRevenue.toLocaleString("mn-MN")}
+    <div style={{ fontSize: 26, fontWeight: 700, color: "#111827" }}>
+      {dailyRevenue == null
+        ? "—"
+        : dailyRevenue.toLocaleString("mn-MN") + " ₮"}
     </div>
-    <div style={{ fontSize: 11, color: "#9ca3af" }}>
+    <div style={{ fontSize: 11, color: "#6b7280" }}>
       Сонгосон өдрийн төлбөр төлөгдсөн нийт орлого.
     </div>
   </div>
