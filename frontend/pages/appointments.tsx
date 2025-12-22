@@ -3409,7 +3409,7 @@ const totalCompletedPatientsForDay = useMemo(() => {
         </div>
       </section>
 
-     
+      
 
             {/* Time grid by doctor */}
      <section style={{ marginBottom: 24 }}>
@@ -3547,7 +3547,36 @@ const totalCompletedPatientsForDay = useMemo(() => {
                   );
                 })}
               </div>
+{/* Create form card */}
+      <section
+        ref={formSectionRef as any}
+        style={{
+          marginBottom: 24,
+          padding: 16,
+          borderRadius: 8,
+          border: "1px solid #e5e7eb",
+          background: "white",
+        }}
+      >
+        <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: 16 }}>
+          Шинэ цаг захиалах
+        </h2>
+        <AppointmentForm
+          branches={branches}
+          doctors={doctors}
+          scheduledDoctors={scheduledDoctors}
+          appointments={appointments}
+          selectedDate={filterDate}
+          selectedBranchId={filterBranchId}
+          onCreated={(a) => setAppointments((prev) => [a, ...prev])}
+        />
+      </section>
 
+      {error && (
+        <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
+          {error}
+        </div>
+      )}
               {/* Doctor columns */}
               {gridDoctors.map((doc) => {
                 const doctorAppointments = appointments.filter(
@@ -3801,36 +3830,6 @@ const totalCompletedPatientsForDay = useMemo(() => {
           </div>
         )}
       </section>
-     {/* Create form card */}
-      <section
-        ref={formSectionRef as any}
-        style={{
-          marginBottom: 24,
-          padding: 16,
-          borderRadius: 8,
-          border: "1px solid #e5e7eb",
-          background: "white",
-        }}
-      >
-        <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: 16 }}>
-          Шинэ цаг захиалах
-        </h2>
-        <AppointmentForm
-          branches={branches}
-          doctors={doctors}
-          scheduledDoctors={scheduledDoctors}
-          appointments={appointments}
-          selectedDate={filterDate}
-          selectedBranchId={filterBranchId}
-          onCreated={(a) => setAppointments((prev) => [a, ...prev])}
-        />
-      </section>
-
-      {error && (
-        <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
-          {error}
-        </div>
-      )}
       {/* Day-grouped calendar (unchanged from your original) */}
       {/* ... and the raw table + modals, same as before ... */}
       {/* Keep your existing bottom sections exactly as they were. */}
