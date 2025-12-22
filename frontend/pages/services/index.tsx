@@ -88,7 +88,7 @@ export default function ServicesPage() {
 
   // pagination
   const [page, setPage] = useState(1);
-  const pageSize = 20;
+  const pageSize = 30;
 
   const buildQuery = () => {
     const params = new URLSearchParams();
