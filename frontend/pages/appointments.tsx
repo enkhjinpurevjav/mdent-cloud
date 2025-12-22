@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { useRouter } from "next/router";
 import AdminLayout from "../components/AdminLayout";
+const SLOT_MINUTES = 30;
 
 // ========== TYPES ==========
 type Branch = {
@@ -23,8 +24,7 @@ type Doctor = {
 };
 
 type ScheduledDoctor = Doctor & {
-  scheduleStart: string;
-  scheduleEnd: string;
+  schedules?: DoctorScheduleDay[];
 };
 
 type PatientLite = {
@@ -32,6 +32,9 @@ type PatientLite = {
   regNo: string | null;
   name: string;
   phone: string | null;
+  // allow optional extra fields we attach
+  ovog?: string | null;
+  patientBook?: any;
 };
 
 type Appointment = {
@@ -79,6 +82,7 @@ type DoctorScheduleDay = {
 type TimeSlot = {
   start: Date;
   end: Date;
+  label: string; // add label
 };
 
 function generateTimeSlotsForDay(day: Date): TimeSlot[] {
@@ -90,9 +94,13 @@ function generateTimeSlotsForDay(day: Date): TimeSlot[] {
   d.setHours(startHour, 0, 0, 0);
   while (d.getHours() < endHour) {
     const start = new Date(d);
-    d.setMinutes(d.getMinutes() + 30);
+    d.setMinutes(d.getMinutes() + SLOT_MINUTES);
     const end = new Date(d);
-    slots.push({ start, end });
+    slots.push({
+      start,
+      end,
+      label: getSlotTimeString(start), // provide label
+    });
   }
   return slots;
 }
