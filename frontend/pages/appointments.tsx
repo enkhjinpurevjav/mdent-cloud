@@ -162,6 +162,7 @@ function formatPatientSearchLabel(p: PatientLite): string {
 
 function getDateFromYMD(ymd: string): Date {
   const [y, m, d] = ymd.split("-").map(Number);
+  if (!y || !m || !d) return new Date(); // fallback to today
   return new Date(y, m - 1, d);
 }
 
