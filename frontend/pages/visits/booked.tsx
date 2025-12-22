@@ -16,8 +16,25 @@ export default function BookedVisitsPage() {
   });
 
   const [rows, setRows] = useState<AppointmentRow[]>([]);
+  const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Load branches once for the dropdown
+  useEffect(() => {
+    fetch("/api/branches")
+      .then((r) => r.json())
+      .then((data) => {
+        // backend returns branch.id as number; coerce to string for the filter
+        const mapped = (data || []).map((b: any) => ({
+          id: String(b.id),
+          name: b.name as string,
+        }));
+        setBranches(mapped);
+      })
+      .catch(() => setBranches([]));
+  }, []);
+
+  // Load appointments when filters change
   useEffect(() => {
     const params = new URLSearchParams();
     params.set("dateFrom", filters.dateFrom);
@@ -30,7 +47,8 @@ export default function BookedVisitsPage() {
     setLoading(true);
     fetch(`/api/appointments?${params.toString()}`)
       .then((r) => r.json())
-      .then((data) => setRows(data))
+      // backend already returns AppointmentRow-like objects
+      .then((data) => setRows(Array.isArray(data) ? data : []))
       .catch(() => setRows([]))
       .finally(() => setLoading(false));
   }, [filters]);
@@ -49,7 +67,7 @@ export default function BookedVisitsPage() {
           { value: "BOOKED", label: "Цаг захиалсан" },
           { value: "CANCELLED", label: "Цуцлагдсан" },
         ]}
-        branches={[] /* TODO: load from /api/branches */}
+        branches={branches}
       />
 
       {loading ? (
@@ -78,7 +96,9 @@ export default function BookedVisitsPage() {
             {rows.map((row) => (
               <tr key={row.id}>
                 <td style={{ padding: 8 }}>
-                  {new Date(row.startTime).toLocaleTimeString()}
+                  {row.startTime
+                    ? new Date(row.startTime).toLocaleTimeString()
+                    : ""}
                 </td>
                 <td style={{ padding: 8 }}>{row.patientName}</td>
                 <td style={{ padding: 8 }}>{row.regNo}</td>
