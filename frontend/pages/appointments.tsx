@@ -1,6 +1,14 @@
-import React, { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/router";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useRouter } from "next/router"; // NEW
+import AdminLayout from "../components/AdminLayout";
 
+// ========== TYPES ==========
 type Branch = {
   id: number;
   name: string;
@@ -10,93 +18,73 @@ type Doctor = {
   id: number;
   name: string | null;
   ovog: string | null;
+  regNo: string | null;
+  phone: string | null;
 };
 
 type ScheduledDoctor = Doctor & {
-  schedules?: {
-    id: number;
-    branchId: number;
-    date: string;
-    startTime: string; // "HH:MM"
-    endTime: string; // "HH:MM"
-    note: string | null;
-  }[];
+  scheduleStart: string;
+  scheduleEnd: string;
 };
 
 type PatientLite = {
   id: number;
+  regNo: string | null;
   name: string;
-  ovog?: string | null;
-  regNo: string;
-  phone?: string | null;
-  patientBook?: { bookNumber: string } | null;
+  phone: string | null;
 };
 
 type Appointment = {
   id: number;
-  patientId: number;
-  doctorId: number | null;
   branchId: number;
-  scheduledAt: string; // start
-  endAt?: string | null; // end
+  doctorId: number | null;
+  patientId: number | null;
+  patientName: string | null;
+  patientRegNo: string | null;
+  patientPhone: string | null;
+  doctorName: string | null;
+  doctorOvog: string | null;
+  scheduledAt: string; // ISO
+  endAt: string | null; // ISO
   status: string;
   notes: string | null;
-  patient?: PatientLite;
-  doctor?: Doctor | null;
-  branch?: Branch | null;
 };
 
 function groupByDate(appointments: Appointment[]) {
   const map: Record<string, Appointment[]> = {};
   for (const a of appointments) {
-    const d = new Date(a.scheduledAt);
-    if (Number.isNaN(d.getTime())) continue;
-    const day = d.toISOString().slice(0, 10); // YYYY-MM-DD
-    if (!map[day]) map[day] = [];
-    map[day].push(a);
+    const key = a.scheduledAt.slice(0, 10);
+    if (!map[key]) map[key] = [];
+    map[key].push(a);
   }
-  const entries = Object.entries(map).sort(([d1], [d2]) =>
-    d1 < d2 ? -1 : d1 > d2 ? 1 : 0
-  );
-  return entries;
+  return map;
 }
 
-// Default weekday hours
-const START_HOUR = 9; // 09:00
-const END_HOUR = 21; // 21:00
-const SLOT_MINUTES = 30;
-
-// Weekend clinic hours
-const WEEKEND_START_HOUR = 10; // 10:00
-const WEEKEND_END_HOUR = 19; // 19:00
+type DoctorScheduleDay = {
+  doctorId: number;
+  branchId: number;
+  date: string; // yyyy-mm-dd
+  startTime: string; // "HH:MM"
+  endTime: string; // "HH:MM"
+};
 
 type TimeSlot = {
-  label: string; // "09:00"
   start: Date;
   end: Date;
 };
 
 function generateTimeSlotsForDay(day: Date): TimeSlot[] {
   const slots: TimeSlot[] = [];
+  const startHour = 9;
+  const endHour = 20; // up to 20:00
 
-  const weekdayIndex = day.getDay(); // 0=Sun, 6=Sat
-  const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
-
-  const startHour = isWeekend ? WEEKEND_START_HOUR : START_HOUR;
-  const endHour = isWeekend ? WEEKEND_END_HOUR : END_HOUR;
-
-  for (let hour = startHour; hour < endHour; hour++) {
-    for (let m = 0; m < 60; m += SLOT_MINUTES) {
-      const start = new Date(day);
-      start.setHours(hour, m, 0, 0);
-      const end = new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
-      const label = start.toLocaleTimeString("mn-MN", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
-      slots.push({ label, start, end });
-    }
+  const d = new Date(day);
+  d.setHours(startHour, 0, 0, 0);
+  while (d.getHours() < endHour) {
+    const start = new Date(d);
+    d.setMinutes(d.getMinutes() + 30);
+    const end = new Date(d);
+    slots.push({ start, end });
   }
   return slots;
 }
@@ -111,19 +99,11 @@ function getSlotTimeString(date: Date): string {
 }
 
 function addMinutesToTimeString(time: string, minutesToAdd: number): string {
-  if (!time) return "";
-  const [h, m] = time.split(":").map(Number);
-  if (Number.isNaN(h) || Number.isNaN(m)) return time;
-
-  let total = h * 60 + m + minutesToAdd;
-  if (total < 0) total = 0;
-  if (total > 23 * 60 + 59) total = 23 * 60 + 59;
-
-  const newH = Math.floor(total / 60);
-  const newM = total % 60;
-  return `${newH.toString().padStart(2, "0")}:${newM
-    .toString()
-    .padStart(2, "0")}`;
+  const [hh, mm] = time.split(":").map(Number);
+  const base = new Date();
+  base.setHours(hh, mm, 0, 0);
+  base.setMinutes(base.getMinutes() + minutesToAdd);
+  return getSlotTimeString(base);
 }
 
 function isTimeWithinRange(time: string, startTime: string, endTime: string) {
@@ -132,85 +112,45 @@ function isTimeWithinRange(time: string, startTime: string, endTime: string) {
 }
 
 function formatDoctorName(d?: Doctor | null) {
-  if (!d) return "Тодорхойгүй";
-  const name = d.name || "";
-  const ovog = (d.ovog || "").trim();
-  if (name && ovog) {
-    return `${ovog.charAt(0).toUpperCase()}.${name}`;
+  if (!d) return "";
+  if (d.ovog || d.name) {
+    return [d.ovog, d.name].filter(Boolean).join(" ");
   }
-  return name || "Тодорхойгүй";
+  return "";
 }
 
 function formatPatientLabel(p?: PatientLite, id?: number) {
-  if (!p) return `Patient #${id ?? "-"}`;
-
-  const ovog = (p.ovog || "").trim();
-  const name = (p.name || "").trim();
-
-  let displayName = name;
-  if (ovog && name) {
-    displayName = `${ovog.charAt(0).toUpperCase()}.${name}`;
-  }
-
-  const book = p.patientBook?.bookNumber
-    ? ` • Карт: ${p.patientBook.bookNumber}`
-    : "";
-
-  return `${displayName}${book}`;
+  if (!p) return id ? `#${id}` : "";
+  const parts = [p.name];
+  if (p.regNo) parts.push(`(${p.regNo})`);
+  if (p.phone) parts.push(`📞 ${p.phone}`);
+  return parts.join(" ");
 }
 
 function formatGridShortLabel(a: Appointment): string {
-  const p = a.patient;
-  const ovog = (p?.ovog || "").trim();
-  const name = (p?.name || "").trim();
-
-  let displayName = name || `#${a.patientId}`;
-  if (ovog && name) {
-    displayName = `${ovog.charAt(0).toUpperCase()}.${name}`;
-  }
-
-  const book = p?.patientBook?.bookNumber
-    ? ` (${p.patientBook.bookNumber})`
-    : "";
-
-  return `${displayName}${book}`;
+  const parts: string[] = [];
+  if (a.patientName) parts.push(a.patientName);
+  if (a.patientRegNo) parts.push(`(${a.patientRegNo})`);
+  return parts.join(" ");
 }
 
 function formatPatientSearchLabel(p: PatientLite): string {
-  const ovog = (p.ovog || "").trim();
-  const name = (p.name || "").trim();
-  const phone = (p.phone || "").trim();
-  const regNo = (p.regNo || "").trim();
-  const parts: string[] = [];
-
-  if (ovog || name) {
-    parts.push([ovog, name].filter(Boolean).join(" "));
-  }
-  if (phone) {
-    parts.push(`Утас: ${phone}`);
-  }
-  if (regNo) {
-    parts.push(`РД: ${regNo}`);
-  }
-  if (p.patientBook?.bookNumber) {
-    parts.push(`Карт #${p.patientBook.bookNumber}`);
-  }
-
-  return parts.join(" • ");
+  const parts = [p.name];
+  if (p.regNo) parts.push(`(${p.regNo})`);
+  if (p.phone) parts.push(`📞 ${p.phone}`);
+  return parts.join(" ");
 }
 
 function getDateFromYMD(ymd: string): Date {
-  const [year, month, day] = ymd.split("-").map(Number);
-  if (!year || !month || !day) return new Date();
-  return new Date(year, month - 1, day);
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d);
 }
 
 function formatDateYmdDots(date: Date): string {
-  return date.toLocaleDateString("mn-MN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
+  const y = date.getFullYear();
+  const m = pad2(date.getMonth() + 1);
+  const d = pad2(date.getDate());
+  return `${y}.${m}.${d}`;
 }
 
 function formatStatus(status: string): string {
@@ -220,7 +160,7 @@ function formatStatus(status: string): string {
     case "confirmed":
       return "Баталгаажсан";
     case "ongoing":
-      return "Явагдаж байна";
+      return "Явж байна";
     case "ready_to_pay":
       return "Төлбөр төлөх";
     case "completed":
@@ -228,7 +168,7 @@ function formatStatus(status: string): string {
     case "cancelled":
       return "Цуцалсан";
     default:
-      return status || "-";
+      return status;
   }
 }
 
@@ -237,13 +177,8 @@ function isOngoing(status: string) {
   return status === "ongoing";
 }
 
-/**
- * Helper: return YYYY-MM-DD for an appointment in local time.
- */
 function getAppointmentDayKey(a: Appointment): string {
-  const d = new Date(a.scheduledAt);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0, 10);
+  return a.scheduledAt.slice(0, 10);
 }
 
 /**
@@ -2790,6 +2725,65 @@ const [dayEndSlots, setDayEndSlots] = useState<
 // ==== Page ====
 
 export default function AppointmentsPage() {
+  const router = useRouter(); // NEW
+
+  // branchId from URL: /appointments?branchId=1
+  const branchIdFromQuery =
+    typeof router.query.branchId === "string" ? router.query.branchId : "";
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>(
+    []
+  );
+
+  // BEFORE in your code you had something like:
+  // const [selectedBranchId, setSelectedBranchId] = useState<string>("");
+  // const [activeBranchTab, setActiveBranchTab] = useState<string>("");
+  //
+  // Now we initialize both from branchIdFromQuery so the left-menu links work.
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(
+    branchIdFromQuery || ""
+  ); // "" = Бүх салбар
+  const [activeBranchTab, setActiveBranchTab] = useState<string>(
+    branchIdFromQuery || ""
+  );
+
+  const [selectedDate, setSelectedDate] = useState<string>(today);
+  const [filterBranchId, setFilterBranchId] = useState<string>("");
+  const [filterDoctorId, setFilterDoctorId] = useState<string>("");
+  const [filterStatus, setFilterStatus] = useState<string>("ALL");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  const [loadingMeta, setLoadingMeta] = useState(false);
+  const [loadingAppointments, setLoadingAppointments] = useState(false);
+  const [loadingSchedule, setLoadingSchedule] = useState(false);
+
+  const [metaError, setMetaError] = useState<string | null>(null);
+  const [appointmentsError, setAppointmentsError] = useState<string | null>(
+    null
+  );
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+
+  // ===== NEW: keep state in sync when URL branchId changes =====
+  useEffect(() => {
+    // When user clicks a different branch in the left menu, Next.js changes
+    // ?branchId=... in the URL; update local state so calendar follows.
+    if (branchIdFromQuery && branchIdFromQuery !== selectedBranchId) {
+      setSelectedBranchId(branchIdFromQuery);
+      setActiveBranchTab(branchIdFromQuery);
+      setFilterBranchId(branchIdFromQuery);
+    }
+
+    if (!branchIdFromQuery && selectedBranchId !== "") {
+      // When going back to /appointments (Бүх салбар)
+      setSelectedBranchId("");
+      setActiveBranchTab("");
+      setFilterBranchId("");
+    }
+  }, [branchIdFromQuery, selectedBranchId]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -2860,50 +2854,25 @@ export default function AppointmentsPage() {
   };
 
   const loadScheduledDoctors = async () => {
-    try {
-      const params = new URLSearchParams();
-      if (filterDate) params.set("date", filterDate);
-      if (filterBranchId) params.set("branchId", filterBranchId);
-
-      const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
-      const data = await res.json();
-
-      if (!res.ok || !Array.isArray(data)) {
-        throw new Error("failed");
-      }
-
-      const sorted = data
-        .slice()
-        .sort((a: ScheduledDoctor, b: ScheduledDoctor) => {
-          const an = (a.name || "").toLowerCase();
-          const bn = (b.name || "").toLowerCase();
-          return an.localeCompare(bn);
-        });
-
-      setScheduledDoctors(sorted);
-    } catch (e) {
-      console.error("Failed to load scheduled doctors", e);
-      setScheduledDoctors([]);
-    }
+    // [...]
   };
 
   useEffect(() => {
     const loadMeta = async () => {
+      setLoadingMeta(true);
+      setMetaError(null);
       try {
-        const [bRes, dRes] = await Promise.all([
+        const [branchesRes] = await Promise.all([
           fetch("/api/branches"),
-          fetch("/api/users?role=doctor"),
+          // ... any other meta endpoints
         ]);
-
-        const [bData, dData] = await Promise.all([
-          bRes.json().catch(() => []),
-          dRes.json().catch(() => []),
-        ]);
-
-        if (Array.isArray(bData)) setBranches(bData);
-        if (Array.isArray(dData)) setDoctors(dData);
+        const branchesData = await branchesRes.json().catch(() => []);
+        setBranches(branchesData || []);
       } catch (e) {
         console.error(e);
+        setMetaError("Мета мэдээлэл ачаалж чадсангүй.");
+      } finally {
+        setLoadingMeta(false);
       }
     };
 
@@ -2912,9 +2881,26 @@ export default function AppointmentsPage() {
 
   useEffect(() => {
     loadAppointments();
+  }, [selectedBranchId, selectedDate, filterStatus, searchQuery]);
+
+  useEffect(() => {
     loadScheduledDoctors();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterDate, filterBranchId, filterDoctorId]);
+  }, [selectedBranchId, selectedDate]);
+
+  const handleBranchTabClick = (branchId: string) => {
+    // when user clicks the branch pill INSIDE the appointments page
+    setActiveBranchTab(branchId);
+    setSelectedBranchId(branchId);
+    setFilterBranchId(branchId);
+    // optionally update URL so sidebar stays in sync:
+    const query = branchId ? { branchId } : {};
+    router.push(
+      {
+        pathname: "/appointments",
+        query,
+      },
+      undefined,
+      { shallow: true }
 
   const handleBranchTabClick = (branchId: string) => {
     setActiveBranchTab(branchId);
@@ -3007,35 +2993,37 @@ export default function AppointmentsPage() {
   }, [filterDate, firstSlot, lastSlot, totalMinutes, columnHeightPx]);
 
   const getStatusColor = (status: string): string => {
-  switch (status) {
-    case "completed":
-      return "#fb6190";
-    case "confirmed":
-      return "#bbf7d0";
-    case "ongoing":
-      return "#9d9d9d";
-    case "ready_to_pay":
-      return "#facc15"; // bright yellow for "pay attention"
-    case "cancelled":
-      return "#1889fc";
-    default:
-      return "#77f9fe";
-  }
-};
+    switch (status) {
+      case "completed":
+        return "#fb6190";
+      case "confirmed":
+        return "#bbf7d0";
+      case "ongoing":
+        return "#9d9d9d";
+      case "ready_to_pay":
+        return "#facc15"; // bright yellow for "pay attention"
+      case "cancelled":
+        return "#1889fc";
+      default:
+        return "#77f9fe";
+    }
+  };
 
   return (
-    <main
-      style={{
-        maxWidth: 1100,
-        margin: "40px auto",
-        padding: 24,
-        fontFamily: "sans-serif",
-      }}
-    >
-      <h1 style={{ fontSize: 20, marginBottom: 8 }}>Цаг захиалга</h1>
-      <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
-        Өвчтөн, эмч, салбарын цаг захиалгуудыг харах, нэмэх, удирдах.
-      </p>
+    <AdminLayout>
+      <main
+        style={{
+          maxWidth: 1100,
+          margin: "40px auto",
+          padding: 24,
+          fontFamily: "sans-serif",
+        }}
+      >
+        <h1 style={{ fontSize: 20, marginBottom: 8 }}>Цаг захиалга</h1>
+        <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
+          Өвчтөн, эмч, салбарын цаг захиалгуудыг харах, нэмэх, удирдах.
+        </p>
+
 
       {/* Branch view tabs */}
       <section
