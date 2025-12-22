@@ -540,17 +540,78 @@ function AppointmentDetailsModal({
           </button>
         </div>
 
-        <div style={{ marginBottom: 8, color: "#4b5563" }}>
-          <div>
-            <strong>Огноо:</strong>{" "}
-            {date ? formatDateYmdDots(new Date(date)) : "-"}
-          </div>
-          <div>
-            <strong>Цаг:</strong> {slotLabel || slotTime || "-"}
-          </div>
-          <div>
-            <strong>Эмч:</strong> {formatDoctorName(doctor ?? null)}
-          </div>
+                {/* Patient summary header */}
+        <div
+          style={{
+            marginBottom: 8,
+            color: "#4b5563",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          {appointments.length > 0 ? (() => {
+            const a = appointments[0];
+            const p = a.patient as any;
+
+            const name = (p?.name ?? a.patientName ?? "").toString().trim();
+            const ovog = (p?.ovog ?? a.patientOvog ?? "").toString().trim();
+            const phone = (p?.phone ?? a.patientPhone ?? "").toString().trim();
+            const bookNumber =
+              p?.patientBook?.bookNumber != null
+                ? String(p.patientBook.bookNumber).trim()
+                : "";
+
+            let displayName = name;
+            if (ovog) {
+              const first = ovog.charAt(0).toUpperCase();
+              displayName = `${first}.${name}`;
+            }
+
+            return (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <div>
+                    <strong>Үйлчлүүлэгч:</strong>{" "}
+                    {displayName || "-"}
+                  </div>
+                  <div>
+                    <span>📞 {phone || "-"}</span>
+                  </div>
+                  <div>
+                    <strong>Картын дугаар:</strong>{" "}
+                    {bookNumber || "-"}
+                  </div>
+                </div>
+
+                <div style={{ alignSelf: "flex-start" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (a.patientId) {
+                        router.push(`/patients/${a.patientId}`);
+                      }
+                    }}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      border: "1px solid #2563eb",
+                      background: "#eff6ff",
+                      color: "#1d4ed8",
+                      fontSize: 12,
+                      cursor: a.patientId ? "pointer" : "default",
+                      opacity: a.patientId ? 1 : 0.6,
+                    }}
+                    disabled={!a.patientId}
+                  >
+                    Дэлгэрэнгүй
+                  </button>
+                </div>
+              </>
+            );
+          })() : (
+            <div>Үйлчлүүлэгчийн мэдээлэл алга.</div>
+          )}
         </div>
 
         {appointments.length === 0 ? (
