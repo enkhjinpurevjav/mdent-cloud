@@ -44,10 +44,18 @@ type Appointment = {
   patientPhone: string | null;
   doctorName: string | null;
   doctorOvog: string | null;
-  scheduledAt: string; // ISO
-  endAt: string | null; // ISO
+  scheduledAt: string;
+  endAt: string | null;
   status: string;
   notes: string | null;
+  patient?: {
+    id: number;
+    name: string;
+    regNo?: string | null;
+    phone?: string | null;
+    [key: string]: any;
+  } | null;
+  branch?: { id: number; name: string } | null;
 };
 
 function groupByDate(appointments: Appointment[]) {
@@ -119,7 +127,10 @@ function formatDoctorName(d?: Doctor | null) {
   return "";
 }
 
-function formatPatientLabel(p?: PatientLite, id?: number) {
+function formatPatientLabel(
+  p?: { name: string; regNo?: string | null; phone?: string | null } | null,
+  id?: number
+) {
   if (!p) return id ? `#${id}` : "";
   const parts = [p.name];
   if (p.regNo) parts.push(`(${p.regNo})`);
