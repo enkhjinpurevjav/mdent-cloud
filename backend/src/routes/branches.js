@@ -58,7 +58,7 @@ router.patch("/:id", async (req, res) => {
     }
 
     const { name, address } = req.body || {};
-    const data: any = {};
+    const data = {};
 
     if (typeof name === "string" && name.trim()) {
       data.name = name.trim();
