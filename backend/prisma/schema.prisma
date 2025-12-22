@@ -35,11 +35,13 @@ enum UserRole {
 }
 
 enum ServiceCategory {
-  GENERAL_DENTISTRY
-  IMPLANTS
-  ORTHODONTICS
-  COSMETIC_DENTISTRY
-  CHILDRENS
+  ORTHODONTIC_TREATMENT   // гажиг заслын эмчилгээ
+  IMAGING                 // зураг авах
+  DEFECT_CORRECTION       // согог засал
+  ADULT_TREATMENT         // том хүний эмчилгээ
+  WHITENING               // цайруулалт
+  CHILD_TREATMENT         // хүүхдийн эмчилгээ
+  SURGERY                 // мэс засал
 }
 
 // ==========================================================
