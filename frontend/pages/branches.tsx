@@ -7,6 +7,16 @@ type Branch = {
   createdAt?: string;
 };
 
+function formatDateYmdDots(value?: string): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate());
+  return `${y}.${m}.${day}`;
+}
+
 function BranchForm({ onSuccess }: { onSuccess: (b: Branch) => void }) {
   const [form, setForm] = useState({
     name: "",
@@ -334,7 +344,7 @@ export default function BranchesPage() {
                   </th>
                   <th style={{ ...thStyle }}>Нэр</th>
                   <th style={{ ...thStyle }}>Хаяг</th>
-                  <th style={{ ...thStyle }}>Үүссэн огноо</th>
+                  <th style={{ ...thStyle }}>Үүсгэсэн огноо</th>
                   <th
                     style={{
                       ...thStyle,
@@ -397,11 +407,9 @@ export default function BranchesPage() {
                       </td>
 
                       {/* CreatedAt */}
-                      <td style={tdStyle}>
-                        {b.createdAt
-                          ? new Date(b.createdAt).toLocaleString("mn-MN")
-                          : ""}
-                      </td>
+                     <td style={tdStyle}>
+  {formatDateYmdDots(b.createdAt)}
+</td>
 
                       {/* Actions */}
                       <td
