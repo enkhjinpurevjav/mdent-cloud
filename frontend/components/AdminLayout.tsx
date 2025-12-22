@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 
@@ -16,10 +16,10 @@ type NavItem = {
 const mainNav: NavItem[] = [
   { label: "Хянах самбар", href: "/", icon: "🏠" },
 
-  // Appointments
-  { label: "Цаг захиалга", href: "/appointments", icon: "📅" },
+  // NOTE: Цаг захиалга is now rendered as a dynamic group below
+  // so we don't list it here as a simple item.
 
-  // NEW: Үзлэг group with 3 sub‑items
+  // Үзлэг group with 3 sub‑items
   {
     label: "Үзлэг",
     icon: "📋",
@@ -53,7 +53,9 @@ export default function AdminLayout({ children }: Props) {
   const router = useRouter();
   const currentPath = router.pathname;
 
-  const [visitsOpen, setVisitsOpen] = useState(true); // default open
+  const [visitsOpen, setVisitsOpen] = useState(true); // Үзлэг group
+  const [appointmentsOpen, setAppointmentsOpen] = useState(true); // Цаг захиалга group
+  const [branchItems, setBranchItems] = useState<{ id: string; name: string }[]>([]);
 
   const isActive = (href?: string) => {
     if (!href) return false;
@@ -63,6 +65,28 @@ export default function AdminLayout({ children }: Props) {
 
   const isInVisitsGroup =
     currentPath.startsWith("/visits/") || currentPath === "/visits";
+
+  // For appointments group, consider any /appointments route as "in group"
+  const isInAppointmentsGroup =
+    currentPath === "/appointments" || currentPath.startsWith("/appointments/");
+
+  // Load branches once for Цаг захиалга submenu
+  useEffect(() => {
+    fetch("/api/branches")
+      .then((r) => r.json())
+      .then((data) => {
+        const mapped = (data || []).map((b: any) => ({
+          id: String(b.id),
+          name: b.name as string,
+        }));
+        setBranchItems(mapped);
+      })
+      .catch(() => setBranchItems([]));
+  }, []);
+
+  // Helper to know which branchId is active (from query)
+  const activeBranchId =
+    typeof router.query.branchId === "string" ? router.query.branchId : "";
 
   return (
     <div
@@ -141,6 +165,142 @@ export default function AdminLayout({ children }: Props) {
             Цэс
           </div>
 
+          {/* Хянах самбар */}
+          <div style={{ marginBottom: 4 }}>
+            <Link href="/" legacyBehavior>
+              <a
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "8px 12px",
+                  margin: "2px 4px",
+                  borderRadius: 8,
+                  textDecoration: "none",
+                  fontSize: 14,
+                  color: isActive("/") ? "#111827" : "#374151",
+                  background: isActive("/") ? "#e5f0ff" : "transparent",
+                  fontWeight: isActive("/") ? 600 : 400,
+                }}
+              >
+                <span style={{ width: 18, textAlign: "center" }}>🏠</span>
+                <span>Хянах самбар</span>
+              </a>
+            </Link>
+          </div>
+
+          {/* Цаг захиалга group with dynamic branches */}
+          <div style={{ marginBottom: 4 }}>
+            <button
+              type="button"
+              onClick={() => setAppointmentsOpen((open) => !open)}
+              style={{
+                width: "100%",
+                border: "none",
+                background: "transparent",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "8px 12px",
+                margin: "2px 4px",
+                borderRadius: 8,
+                cursor: "pointer",
+                fontSize: 14,
+                color: isInAppointmentsGroup ? "#111827" : "#374151",
+                fontWeight: isInAppointmentsGroup ? 600 : 500,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <span style={{ width: 18, textAlign: "center" }}>📅</span>
+                <span>Цаг захиалга</span>
+              </div>
+              <span style={{ fontSize: 12 }}>
+                {appointmentsOpen ? "▾" : "▸"}
+              </span>
+            </button>
+
+            {appointmentsOpen && (
+              <div style={{ marginLeft: 24, marginTop: 4 }}>
+                {/* Бүх салбар */}
+                <div style={{ marginBottom: 2 }}>
+                  <Link href="/appointments" legacyBehavior>
+                    <a
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "6px 8px",
+                        borderRadius: 6,
+                        textDecoration: "none",
+                        fontSize: 13,
+                        color:
+                          currentPath === "/appointments" && !activeBranchId
+                            ? "#1d4ed8"
+                            : "#4b5563",
+                        backgroundColor:
+                          currentPath === "/appointments" && !activeBranchId
+                            ? "#eff6ff"
+                            : "transparent",
+                        fontWeight:
+                          currentPath === "/appointments" && !activeBranchId
+                            ? 600
+                            : 400,
+                      }}
+                    >
+                      <span style={{ width: 18, textAlign: "center" }}>📅</span>
+                      <span>Бүх салбар</span>
+                    </a>
+                  </Link>
+                </div>
+
+                {/* One submenu item per branch (auto-updates when new branches are added) */}
+                {branchItems.map((b) => {
+                  const href = `/appointments?branchId=${encodeURIComponent(
+                    b.id
+                  )}`;
+                  const isActiveBranch =
+                    currentPath === "/appointments" &&
+                    activeBranchId === b.id;
+
+                  return (
+                    <div key={b.id} style={{ marginBottom: 2 }}>
+                      <Link href={href} legacyBehavior>
+                        <a
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "6px 8px",
+                            borderRadius: 6,
+                            textDecoration: "none",
+                            fontSize: 13,
+                            color: isActiveBranch ? "#1d4ed8" : "#4b5563",
+                            backgroundColor: isActiveBranch
+                              ? "#eff6ff"
+                              : "transparent",
+                            fontWeight: isActiveBranch ? 600 : 400,
+                          }}
+                        >
+                          <span style={{ width: 18, textAlign: "center" }}>
+                            🏥
+                          </span>
+                          <span>{b.name}</span>
+                        </a>
+                      </Link>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Rest of nav: Үзлэг group + normal items from mainNav */}
           {mainNav.map((item) => {
             // Handle Үзлэг group specially
             if (item.label === "Үзлэг" && item.children) {
@@ -297,7 +457,7 @@ export default function AdminLayout({ children }: Props) {
               src="/logo-mdent.png"
               alt="M Dent Software logo"
               style={{
-                height: 44, // bigger logo
+                height: 44,
                 width: 44,
                 objectFit: "contain",
                 display: "block",
