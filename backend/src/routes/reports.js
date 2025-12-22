@@ -731,6 +731,7 @@ router.get("/branches", async (req, res) => {
   }
 });
 
+// GET /api/reports/daily-revenue?date=YYYY-MM-DD&branchId=optional
 router.get("/daily-revenue", async (req, res) => {
   try {
     const { date, branchId } = req.query;
@@ -744,25 +745,33 @@ router.get("/daily-revenue", async (req, res) => {
       return res.status(400).json({ error: "invalid date format" });
     }
 
+    // Same local-day logic as in appointments.js (parseClinicDay)
     const start = new Date(y, m - 1, d, 0, 0, 0, 0);
     const end = new Date(y, m - 1, d, 23, 59, 59, 999);
 
     const whereInvoice = {
-      status: "paid", // adjust if your invoice status field differs
       createdAt: {
         gte: start,
         lte: end,
       },
+      // adjust this if you use a different "paid" status string
+      status: "paid",
     };
 
     if (branchId) {
       const bid = Number(branchId);
       if (!Number.isNaN(bid)) {
-        whereInvoice.branchId = bid;
+        // Filter by branch through Encounter -> PatientBook -> Patient -> branchId
+        whereInvoice.encounter = {
+          patientBook: {
+            patient: {
+              branchId: bid,
+            },
+          },
+        };
       }
     }
 
-    // Assuming Invoice has: totalAmount, branchId, createdAt, status
     const result = await prisma.invoice.aggregate({
       _sum: {
         totalAmount: true,
@@ -771,7 +780,6 @@ router.get("/daily-revenue", async (req, res) => {
     });
 
     const total = result._sum.totalAmount || 0;
-
     return res.json({ total });
   } catch (err) {
     console.error("GET /api/reports/daily-revenue error:", err);
