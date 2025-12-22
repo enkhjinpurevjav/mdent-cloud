@@ -2993,16 +2993,15 @@ export default function AppointmentsPage() {
     }
   };
 
-  return (
-    <AdminLayout>
-      <main
-        style={{
-          maxWidth: 1100,
-          margin: "40px auto",
-          padding: 24,
-          fontFamily: "sans-serif",
-        }}
-      >
+ return (
+  <main
+    style={{
+      maxWidth: 1100,
+      margin: "40px auto",
+      padding: 24,
+      fontFamily: "sans-serif",
+    }}
+  >
      
         <h1 style={{ fontSize: 20, marginBottom: 8 }}>Цаг захиалга</h1>
         <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
@@ -3600,6 +3599,6 @@ export default function AppointmentsPage() {
         onCreated={(a) => setAppointments((prev) => [a, ...prev])}
       />
     </main>
-    </AdminLayout>
+  
   );
 }
