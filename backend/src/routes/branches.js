@@ -1,10 +1,15 @@
-// backend/src/routes/branches.js
 import express from "express";
 import prisma from "../db.js";
 
 const router = express.Router();
 
-// GET /api/branches
+/**
+ * GET /api/branches
+ *
+ * Returns branches ordered by id. Frontend typically uses:
+ *  - id
+ *  - name
+ */
 router.get("/", async (_req, res) => {
   try {
     const branches = await prisma.branch.findMany({
@@ -17,10 +22,16 @@ router.get("/", async (_req, res) => {
   }
 });
 
-// POST /api/branches
+/**
+ * POST /api/branches
+ *
+ * Body:
+ *  - name (string, required)
+ *  - address (string, optional)
+ */
 router.post("/", async (req, res) => {
   try {
-    const { name, address } = req.body;
+    const { name, address } = req.body || {};
 
     if (!name) {
       return res.status(400).json({ error: "name is required" });
