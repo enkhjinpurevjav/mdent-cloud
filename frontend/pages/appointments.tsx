@@ -1,3 +1,4 @@
+import { useRouter } from "next/router";
 import React, {
   useCallback,
   useEffect,
@@ -2731,10 +2732,47 @@ export default function AppointmentsPage() {
   const branchIdFromQuery =
     typeof router.query.branchId === "string" ? router.query.branchId : "";
 
-  const today = new Date().toISOString().slice(0, 10);
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>(
+    []
+  );
+  const [error, setError] = useState("");
+  const [nowPosition, setNowPosition] = useState<number | null>(null);
+  const [hasMounted, setHasMounted] = useState(false);
+
+  // filters
+  const [filterDate, setFilterDate] = useState<string>(todayStr);
+
+  // IMPORTANT: initialize from branchIdFromQuery
+  const [filterBranchId, setFilterBranchId] = useState<string>(
+    branchIdFromQuery || ""
+  );
+  const [filterDoctorId, setFilterDoctorId] = useState<string>("");
+
+  // top pills
+  const [activeBranchTab, setActiveBranchTab] = useState<string>(
+    branchIdFromQuery || ""
+  );
+
+  // ... keep the rest of your existing state declarations unchanged
+
+    useEffect(() => {
+    // When user clicks another branch in the sidebar, URL branchId changes.
+    if (branchIdFromQuery && branchIdFromQuery !== filterBranchId) {
+      setFilterBranchId(branchIdFromQuery);
+      setActiveBranchTab(branchIdFromQuery);
+    }
+    if (!branchIdFromQuery && filterBranchId !== "") {
+      // Back to "Бүх салбар"
+      setFilterBranchId("");
+      setActiveBranchTab("");
+    }
+  }, [branchIdFromQuery, filterBranchId]);
+  
   const [scheduledDoctors, setScheduledDoctors] = useState<ScheduledDoctor[]>(
     []
   );
@@ -2887,24 +2925,17 @@ export default function AppointmentsPage() {
     loadScheduledDoctors();
   }, [selectedBranchId, selectedDate]);
 
-  const handleBranchTabClick = (branchId: string) => {
-    // when user clicks the branch pill INSIDE the appointments page
+    const handleBranchTabClick = (branchId: string) => {
     setActiveBranchTab(branchId);
-    setSelectedBranchId(branchId);
     setFilterBranchId(branchId);
-    // optionally update URL so sidebar stays in sync:
+
+    // keep URL in sync so sidebar highlight works
     const query = branchId ? { branchId } : {};
     router.push(
-      {
-        pathname: "/appointments",
-        query,
-      },
+      { pathname: "/appointments", query },
       undefined,
       { shallow: true }
-
-  const handleBranchTabClick = (branchId: string) => {
-    setActiveBranchTab(branchId);
-    setFilterBranchId(branchId);
+    );
   };
 
   // gridDoctors with fallback when no schedules
