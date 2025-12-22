@@ -90,7 +90,7 @@ type TimeSlot = {
 function generateTimeSlotsForDay(day: Date): TimeSlot[] {
   const slots: TimeSlot[] = [];
   const startHour = 9;
-  const endHour = 20; // up to 20:00
+  const endHour = 21; // up to 21:00
 
   const d = new Date(day);
   d.setHours(startHour, 0, 0, 0);
