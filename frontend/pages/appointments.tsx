@@ -162,10 +162,31 @@ function formatPatientLabel(
 }
 
 function formatGridShortLabel(a: Appointment): string {
-  const parts: string[] = [];
-  if (a.patientName) parts.push(a.patientName);
-  if (a.patientRegNo) parts.push(`(${a.patientRegNo})`);
-  return parts.join(" ");
+  // Prefer nested patient object if present
+  const p = a.patient;
+
+  const name = (p?.name || a.patientName || "").trim();
+  const ovog = (p?.ovog || "").trim();
+  const bookNumber =
+    p?.patientBook?.bookNumber != null
+      ? String(p.patientBook.bookNumber).trim()
+      : "";
+
+  // Build "Э.Маргад" style name
+  let displayName = name;
+  if (ovog) {
+    const first = ovog.charAt(0).toUpperCase();
+    displayName = `${first}.${name}`;
+  }
+
+  if (!displayName) return ""; // fallback, shouldn't normally happen
+
+  // Add картын дугаар in brackets when available
+  if (bookNumber) {
+    return `${displayName} (${bookNumber})`;
+  }
+
+  return displayName;
 }
 
 function formatPatientSearchLabel(p: PatientLite): string {
