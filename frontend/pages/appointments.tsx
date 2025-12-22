@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react";
 import { useRouter } from "next/router";
-import AdminLayout from "../components/AdminLayout";
+
 const SLOT_MINUTES = 30;
 
 // ========== TYPES ==========
