@@ -167,50 +167,22 @@ function formatPatientLabel(
 function formatGridShortLabel(a: Appointment): string {
   const p = a.patient as any;
 
-  // 1) Name: nested patient.name, then flat patientName
-  const rawName = (p?.name ?? a.patientName ?? "").toString().trim();
+  // Name: nested patient.name then flat patientName
+  const name = (p?.name ?? a.patientName ?? "").toString().trim();
 
-  // 2) Ovog (овог): nested patient.ovog, then flat patientOvog, then doctor-like fields as last resort
-  const rawOvog = (
-    p?.ovog ??
-    a.patientOvog ??
-    (a as any).ovog ??
-    ""
-  )
-    .toString()
-    .trim();
+  // Book number: nested patient.patientBook.bookNumber if present
+  const bookNumber =
+    p?.patientBook?.bookNumber != null
+      ? String(p.patientBook.bookNumber).trim()
+      : "";
 
-  // 3) Book number candidates:
-  //    - nested patient.patientBook.bookNumber
-  //    - nested patient.bookNumber
-  //    - flat patientBookNumber
-  //    - flat bookNumber
-  let rawBookNumber = "";
-  if (p?.patientBook?.bookNumber != null) {
-    rawBookNumber = String(p.patientBook.bookNumber).trim();
-  } else if (p?.bookNumber != null) {
-    rawBookNumber = String(p.bookNumber).trim();
-  } else if ((a as any).patientBookNumber != null) {
-    rawBookNumber = String((a as any).patientBookNumber).trim();
-  } else if ((a as any).bookNumber != null) {
-    rawBookNumber = String((a as any).bookNumber).trim();
+  if (!name && !bookNumber) return "";
+
+  if (name && bookNumber) {
+    return `${name} (${bookNumber})`;
   }
 
-  // Build "Э.Маргад" style name
-  let displayName = rawName;
-  if (rawOvog) {
-    const first = rawOvog.charAt(0).toUpperCase();
-    displayName = `${first}.${rawName}`;
-  }
-
-  if (!displayName) return "";
-
-  // Attach картын дугаар if present
-  if (rawBookNumber) {
-    return `${displayName} (${rawBookNumber})`;
-  }
-
-  return displayName;
+  return name || `(${bookNumber})`;
 }
 
 function formatPatientSearchLabel(p: PatientLite): string {
