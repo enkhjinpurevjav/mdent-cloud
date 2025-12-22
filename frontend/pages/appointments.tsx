@@ -3444,17 +3444,20 @@ const totalCompletedPatientsForDay = useMemo(() => {
       style={{
         border: "1px solid #ddd",
         borderRadius: 8,
-        overflow: "hidden",
         fontSize: 12,
+        overflowX: "auto", // allow horizontal scroll for many doctors
+        overflowY: "auto", // allow vertical scroll for long days
+        maxHeight: 650,    // optional: limit height, use scroll instead of huge page
       }}
     >
             {/* Header row */}
-            <div
+                        <div
               style={{
                 display: "grid",
-                gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+                gridTemplateColumns: `80px repeat(${gridDoctors.length}, 180px)`,
                 backgroundColor: "#f5f5f5",
                 borderBottom: "1px solid #ddd",
+                minWidth: 80 + gridDoctors.length * 180, // ensure horizontal scroll
               }}
             >
               <div style={{ padding: 8, fontWeight: "bold" }}>Цаг</div>
@@ -3488,10 +3491,10 @@ const totalCompletedPatientsForDay = useMemo(() => {
             </div>
 
             {/* Body: time labels + doctor columns */}
-            <div
+                       <div
               style={{
                 display: "grid",
-                gridTemplateColumns: `80px repeat(${gridDoctors.length}, 1fr)`,
+                gridTemplateColumns: `80px repeat(${gridDoctors.length}, 180px)`,
               }}
             >
               {/* CURRENT TIME LINE */}
