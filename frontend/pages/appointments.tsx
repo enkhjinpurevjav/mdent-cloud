@@ -3009,55 +3009,7 @@ export default function AppointmentsPage() {
         </p>
 
 
-      {/* Branch view tabs */}
-      <section
-        style={{
-          marginBottom: 12,
-          display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
-          borderBottom: "1px solid #e5e7eb",
-          paddingBottom: 8,
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => handleBranchTabClick("")}
-          style={{
-            padding: "6px 12px",
-            borderRadius: 999,
-            border: "1px solid transparent",
-            backgroundColor: activeBranchTab === "" ? "#2563eb" : "transparent",
-            color: activeBranchTab === "" ? "#ffffff" : "#374151",
-            fontSize: 13,
-            cursor: "pointer",
-          }}
-        >
-          Бүх салбар
-        </button>
-        {branches.map((b) => {
-          const idStr = String(b.id);
-          const isActive = activeBranchTab === idStr;
-          return (
-            <button
-              key={b.id}
-              type="button"
-              onClick={() => handleBranchTabClick(idStr)}
-              style={{
-                padding: "6px 12px",
-                borderRadius: 999,
-                border: isActive ? "1px solid #2563eb" : "1px solid #d1d5db",
-                backgroundColor: isActive ? "#eff6ff" : "#ffffff",
-                color: isActive ? "#1d4ed8" : "#374151",
-                fontSize: 13,
-                cursor: "pointer",
-              }}
-            >
-              {b.name}
-            </button>
-          );
-        })}
-      </section>
+     
 
       {/* Filters card */}
       <section
