@@ -15,6 +15,8 @@ type Patient = {
   branch?: Branch;
   patientBook?: { bookNumber: string } | null;
   createdAt?: string;
+  gender?: string | null;
+  birthDate?: string | null;
 };
 
 function PatientRegisterForm({
@@ -128,164 +130,260 @@ function PatientRegisterForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
-      <h2>Шинэ үйлчлүүлэгч бүртгэх</h2>
-
-      <div
+    <section
+      style={{
+        marginTop: 8,
+        marginBottom: 16,
+        padding: 16,
+        borderRadius: 8,
+        border: "1px solid #e5e7eb",
+        background: "#ffffff",
+      }}
+    >
+      <h2 style={{ margin: 0, fontSize: 16, marginBottom: 8 }}>
+        Шинэ үйлчлүүлэгч бүртгэх
+      </h2>
+      <p
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 8,
-          marginTop: 8,
-          marginBottom: 8,
+          margin: 0,
+          marginBottom: 12,
+          color: "#6b7280",
+          fontSize: 12,
         }}
       >
-        <input
-          name="ovog"
-          placeholder="Овог (сонголттой)"
-          value={form.ovog}
-          onChange={handleChange}
-        />
-        <input
-          name="name"
-          placeholder="Нэр (заавал)"
-          value={form.name}
-          onChange={handleChange}
-          required
-        />
-        <input
-          name="regNo"
-          placeholder="Регистрийн дугаар (сонголттой)"
-          value={form.regNo}
-          onChange={handleChange}
-        />
-        <input
-          name="phone"
-          placeholder="Утасны дугаар (заавал)"
-          value={form.phone}
-          onChange={handleChange}
-          required
-        />
+        Зөвхөн нэр, утас, бүртгэсэн салбар заавал. Бусад мэдээллийг дараа нь
+        профайлаас засварлаж болно.
+      </p>
 
-        {/* Gender: optional radio, but only эр/эм when set */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 13, fontWeight: 500 }}>Хүйс</label>
-          <div
+      <form onSubmit={handleSubmit}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 10,
+            marginTop: 4,
+            marginBottom: 10,
+            fontSize: 13,
+          }}
+        >
+          <input
+            name="ovog"
+            placeholder="Овог (сонголттой)"
+            value={form.ovog}
+            onChange={handleChange}
             style={{
-              display: "flex",
-              gap: 12,
-              alignItems: "center",
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
+          <input
+            name="name"
+            placeholder="Нэр (заавал)"
+            value={form.name}
+            onChange={handleChange}
+            required
+            style={{
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
+          <input
+            name="regNo"
+            placeholder="Регистрийн дугаар (сонголттой)"
+            value={form.regNo}
+            onChange={handleChange}
+            style={{
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
+          <input
+            name="phone"
+            placeholder="Утасны дугаар (заавал)"
+            value={form.phone}
+            onChange={handleChange}
+            required
+            style={{
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
+
+          {/* Gender */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>Хүйс</label>
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                alignItems: "center",
+                fontSize: 13,
+              }}
+            >
+              <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <input
+                  type="radio"
+                  name="gender"
+                  value="эр"
+                  checked={form.gender === "эр"}
+                  onChange={() => handleGenderChange("эр")}
+                />
+                <span>Эр</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <input
+                  type="radio"
+                  name="gender"
+                  value="эм"
+                  checked={form.gender === "эм"}
+                  onChange={() => handleGenderChange("эм")}
+                />
+                <span>Эм</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <input
+                  type="radio"
+                  name="gender"
+                  value=""
+                  checked={form.gender === ""}
+                  onChange={() => handleGenderChange("")}
+                />
+                <span>Хоосон</span>
+              </label>
+            </div>
+            <span style={{ fontSize: 11, color: "#6b7280" }}>
+              Хүйсийг дараа нь профайлаас өөрчилж болно. Хоосон орхиж бас
+              болно.
+            </span>
+          </div>
+
+          {/* Citizenship */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>Иргэншил</label>
+            <input
+              name="citizenship"
+              placeholder="Монгол"
+              value={form.citizenship}
+              onChange={handleChange}
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            />
+            <span style={{ fontSize: 11, color: "#6b7280" }}>
+              Анхдагч утга нь &quot;Монгол&quot;. Шаардлагатай бол өөр улсын
+              нэрийг оруулж болно.
+            </span>
+          </div>
+
+          {/* Emergency phone */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>
+              Яаралтай үед холбоо барих утас
+            </label>
+            <input
+              name="emergencyPhone"
+              placeholder="Ж: 99112233"
+              value={form.emergencyPhone}
+              onChange={handleChange}
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            />
+          </div>
+
+          {/* Branch selection */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>
+              Бүртгэсэн салбар (заавал)
+            </label>
+            <select
+              name="branchId"
+              value={form.branchId}
+              onChange={handleChange}
+              required
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            >
+              <option value="">Салбар сонгох</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Optional manual book number */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 13, fontWeight: 500 }}>
+              Картын дугаар (сонголттой)
+            </label>
+            <input
+              name="bookNumber"
+              placeholder="Ж: 123456"
+              value={form.bookNumber}
+              onChange={handleChange}
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            />
+            <span style={{ fontSize: 11, color: "#6b7280" }}>
+              Хоосон орхивол систем хамгийн сүүлийн дугаараас +1 автоматаар
+              үүсгэнэ. 1-6 оронтой зөвхөн тоо байх ёстой.
+            </span>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          {error && (
+            <div
+              style={{
+                color: "#b91c1c",
+                fontSize: 12,
+                marginRight: "auto",
+              }}
+            >
+              {error}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={submitting}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: "none",
+              background: "#2563eb",
+              color: "#ffffff",
+              cursor: submitting ? "default" : "pointer",
               fontSize: 13,
             }}
           >
-            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <input
-                type="radio"
-                name="gender"
-                value="эр"
-                checked={form.gender === "эр"}
-                onChange={() => handleGenderChange("эр")}
-              />
-              <span>Эр</span>
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <input
-                type="radio"
-                name="gender"
-                value="эм"
-                checked={form.gender === "эм"}
-                onChange={() => handleGenderChange("эм")}
-              />
-              <span>Эм</span>
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <input
-                type="radio"
-                name="gender"
-                value=""
-                checked={form.gender === ""}
-                onChange={() => handleGenderChange("")}
-              />
-              <span>Хоосон</span>
-            </label>
-          </div>
-          <span style={{ fontSize: 11, color: "#6b7280" }}>
-            Хүйсийг дараа нь профайлаас өөрчилж болно. Хоосон орхиж бас болно.
-          </span>
+            {submitting ? "Бүртгэж байна..." : "Бүртгэх"}
+          </button>
         </div>
-
-        {/* Citizenship: default Монгол but editable */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 13, fontWeight: 500 }}>Иргэншил</label>
-          <input
-            name="citizenship"
-            placeholder="Монгол"
-            value={form.citizenship}
-            onChange={handleChange}
-          />
-          <span style={{ fontSize: 11, color: "#6b7280" }}>
-            Анхдагч утга нь &quot;Монгол&quot;. Шаардлагатай бол өөр улсын нэрийг
-            оруулж болно.
-          </span>
-        </div>
-
-        {/* Emergency phone */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 13, fontWeight: 500 }}>
-            Яаралтай үед холбоо барих утас
-          </label>
-          <input
-            name="emergencyPhone"
-            placeholder="Ж: 99112233"
-            value={form.emergencyPhone}
-            onChange={handleChange}
-          />
-        </div>
-
-        {/* Branch selection (required) */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 13, fontWeight: 500 }}>
-            Бүртгэсэн салбар (заавал)
-          </label>
-          <select
-            name="branchId"
-            value={form.branchId}
-            onChange={handleChange}
-            required
-          >
-            <option value="">Салбар сонгох</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Optional manual book number */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 13, fontWeight: 500 }}>
-            Картын дугаар (сонголттой)
-          </label>
-          <input
-            name="bookNumber"
-            placeholder="Ж: 123456"
-            value={form.bookNumber}
-            onChange={handleChange}
-          />
-          <span style={{ fontSize: 11, color: "#6b7280" }}>
-            Хоосон орхивол систем хамгийн сүүлийн дугаараас +1 автоматаар
-            үүсгэнэ. 1-6 оронтой зөвхөн тоо байх ёстой.
-          </span>
-        </div>
-      </div>
-
-      <button type="submit" disabled={submitting}>
-        {submitting ? "Бүртгэж байна..." : "Бүртгэх"}
-      </button>
-
-      {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
-    </form>
+      </form>
+    </section>
   );
 }
 
@@ -328,7 +426,6 @@ export default function PatientsPage() {
 
       setBranches(bData);
 
-      // Sort by card number descending (numeric), fallback by name
       const sortedPatients = [...pData].sort((a: Patient, b: Patient) => {
         const aNum = a.patientBook?.bookNumber
           ? parseInt(a.patientBook.bookNumber, 10)
@@ -338,7 +435,7 @@ export default function PatientsPage() {
           : 0;
 
         if (!Number.isNaN(aNum) && !Number.isNaN(bNum) && aNum !== bNum) {
-          return bNum - aNum; // DESC by card number
+          return bNum - aNum;
         }
 
         const aName = `${a.ovog || ""} ${a.name || ""}`.toString();
@@ -385,25 +482,179 @@ export default function PatientsPage() {
     });
   };
 
+  // ---- Summary metrics ----
+
+  const totalPatients = patients.length;
+  const totalMale = patients.filter((p) => p.gender === "эр").length;
+  const totalFemale = patients.filter((p) => p.gender === "эм").length;
+
+  // helper to compute age from birthDate iso string
+  const calcAge = (birthDate?: string | null): number | null => {
+    if (!birthDate) return null;
+    const d = new Date(birthDate);
+    if (Number.isNaN(d.getTime())) return null;
+    const now = new Date();
+    let age = now.getFullYear() - d.getFullYear();
+    const m = now.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  // kids: age <= 17
+  const totalKids = patients.filter((p) => {
+    const age = calcAge((p as any).birthDate);
+    return age !== null && age <= 17;
+  }).length;
+
   return (
     <main
       style={{
-        maxWidth: 900,
-        margin: "40px auto",
+        maxWidth: 1000,
+        margin: "16px auto",
         padding: 24,
         fontFamily: "sans-serif",
       }}
     >
-      <h1>Үйлчлүүлэгчийн бүртгэл</h1>
+      <h1 style={{ fontSize: 20, margin: "4px 0 8px" }}>
+        Үйлчлүүлэгчийн бүртгэл
+      </h1>
       <p style={{ color: "#555", marginBottom: 4 }}>
-        Хурдан бүртгэх — зөвхөн нэр, утас, салбар заавал. Бусад мэдээллийг
-        дараа нь нөхөж бөглөж болно.
+        Хурдан бүртгэх — зөвхөн нэр, утас, салбар заавал. Бусад мэдээллийг дараа
+        нь нөхөж бөглөж болно.
       </p>
       <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
         <strong>Бүртгэсэн салбар</strong> нь тухайн үйлчлүүлэгчийн үндсэн /
         анх бүртгэгдсэн салбар юм. Үйлчлүүлэгч бусад салбарт очсон ч үзлэгийн
         салбар нь цаг авах үед тусад нь сонгогдоно.
       </p>
+
+      {/* Summary cards row */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        {/* 1. Total patients */}
+        <div
+          style={{
+            borderRadius: 16,
+            padding: 14,
+            background: "#e0ebff",
+            boxShadow: "0 4px 12px rgba(37, 99, 235, 0.12)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: 0.5,
+              color: "#1d4ed8",
+              textTransform: "uppercase",
+              marginBottom: 6,
+            }}
+          >
+            НИЙТ ҮЙЛЧЛҮҮЛЭГЧИД
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>
+            {totalPatients}
+          </div>
+          <div style={{ fontSize: 12, color: "#4b5563" }}>
+            Системд бүртгэлтэй нийт үйлчлүүлэгчийн тоо
+          </div>
+        </div>
+
+        {/* 2. Male */}
+        <div
+          style={{
+            borderRadius: 16,
+            padding: 14,
+            background: "#fef9c3",
+            boxShadow: "0 4px 12px rgba(234, 179, 8, 0.12)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: 0.5,
+              color: "#b45309",
+              textTransform: "uppercase",
+              marginBottom: 6,
+            }}
+          >
+            ЭР ҮЙЛЧЛҮҮЛЭГЧИД
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>
+            {totalMale}
+          </div>
+          <div style={{ fontSize: 12, color: "#4b5563" }}>
+            Хүйс талбарт &quot;эр&quot; гэж тэмдэглэгдсэн үйлчлүүлэгчид
+          </div>
+        </div>
+
+        {/* 3. Female */}
+        <div
+          style={{
+            borderRadius: 16,
+            padding: 14,
+            background: "#fee2e2",
+            boxShadow: "0 4px 12px rgba(239, 68, 68, 0.12)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: 0.5,
+              color: "#b91c1c",
+              textTransform: "uppercase",
+              marginBottom: 6,
+            }}
+          >
+            ЭМ ҮЙЛЧЛҮҮЛЭГЧИД
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>
+            {totalFemale}
+          </div>
+          <div style={{ fontSize: 12, color: "#4b5563" }}>
+            Хүйс талбарт &quot;эм&quot; гэж тэмдэглэгдсэн үйлчлүүлэгчид
+          </div>
+        </div>
+
+        {/* 4. Kids (≤17) */}
+        <div
+          style={{
+            borderRadius: 16,
+            padding: 14,
+            background: "#dcfce7",
+            boxShadow: "0 4px 12px rgba(34, 197, 94, 0.12)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: 0.5,
+              color: "#15803d",
+              textTransform: "uppercase",
+              marginBottom: 6,
+            }}
+          >
+            ХҮҮХДҮҮД (≤17 НАС)
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 700, marginBottom: 4 }}>
+            {totalKids}
+          </div>
+          <div style={{ fontSize: 12, color: "#4b5563" }}>
+            Төрсөн огноо дээрээс тооцсон 17 ба түүнээс доош насныхан
+          </div>
+        </div>
+      </section>
 
       <PatientRegisterForm
         branches={branches}
@@ -417,11 +668,7 @@ export default function PatientsPage() {
                 ? parseInt(b.patientBook.bookNumber, 10)
                 : 0;
 
-              if (
-                !Number.isNaN(aNum) &&
-                !Number.isNaN(bNum) &&
-                aNum !== bNum
-              ) {
+              if (!Number.isNaN(aNum) && !Number.isNaN(bNum) && aNum !== bNum) {
                 return bNum - aNum;
               }
 
@@ -433,6 +680,7 @@ export default function PatientsPage() {
         }}
       />
 
+      {/* Search section */}
       <section
         style={{
           marginBottom: 16,
@@ -447,7 +695,13 @@ export default function PatientsPage() {
           placeholder="Нэр, РД, утасгаар хайх"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ width: "100%", padding: 8 }}
+          style={{
+            width: "100%",
+            padding: 8,
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            fontSize: 13,
+          }}
         />
       </section>
 
@@ -465,78 +719,20 @@ export default function PatientsPage() {
         >
           <thead>
             <tr>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                #
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Овог
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Нэр
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                РД
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Утас
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Үүсгэсэн
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Бүртгэсэн салбар
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Үйлдэл
-              </th>
+              {["#", "Овог", "Нэр", "РД", "Утас", "Үүсгэсэн", "Бүртгэсэн салбар", "Үйлдэл"].map(
+                (label) => (
+                  <th
+                    key={label}
+                    style={{
+                      textAlign: "left",
+                      borderBottom: "1px solid #ddd",
+                      padding: 8,
+                    }}
+                  >
+                    {label}
+                  </th>
+                )
+              )}
             </tr>
           </thead>
           <tbody>
