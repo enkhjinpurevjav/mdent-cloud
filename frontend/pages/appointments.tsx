@@ -1998,6 +1998,23 @@ function AppointmentForm({
       setForm((prev) => ({ ...prev, endTime: "" }));
     }
   }, [form.date, form.doctorId, scheduledDoctors]);
+// When branch changes in the form, reset dependent fields
+  useEffect(() => {
+    if (!form.branchId) return;
+
+    setForm((prev) => ({
+      ...prev,
+      doctorId: "",
+      startTime: "",
+      endTime: "",
+      patientQuery: "",
+      notes: "",
+      // keep date & status as is
+    }));
+    setSelectedPatientId(null);
+    setPatientResults([]);
+    setError("");
+  }, [form.branchId]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
