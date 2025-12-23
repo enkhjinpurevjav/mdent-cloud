@@ -59,6 +59,7 @@ export default function AdminLayout({ children }: Props) {
   const [visitsOpen, setVisitsOpen] = useState(true); // Үзлэг group
   const [appointmentsOpen, setAppointmentsOpen] = useState(true); // Цаг захиалга group
   const [branchItems, setBranchItems] = useState<{ id: string; name: string }[]>([]);
+    const [staffOpen, setStaffOpen] = useState(true);
 
   const isActive = (href?: string) => {
     if (!href) return false;
@@ -66,8 +67,11 @@ export default function AdminLayout({ children }: Props) {
     return currentPath === href || currentPath.startsWith(href + "/");
   };
 
-  const isInVisitsGroup =
+    const isInVisitsGroup =
     currentPath.startsWith("/visits/") || currentPath === "/visits";
+
+  const isInStaffGroup =
+    currentPath.startsWith("/users/") || currentPath === "/users";
 
   // For appointments group, consider any /appointments route as "in group"
   const isInAppointmentsGroup =
@@ -345,9 +349,46 @@ export default function AdminLayout({ children }: Props) {
                       {visitsOpen ? "▾" : "▸"}
                     </span>
                   </button>
+if (item.label === "Ажилтнууд" && item.children) {
+              return (
+                <div key="staff-group">
+                  <button
+                    type="button"
+                    onClick={() => setStaffOpen((open) => !open)}
+                    style={{
+                      width: "100%",
+                      border: "none",
+                      background: "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "8px 12px",
+                      margin: "2px 4px",
+                      borderRadius: 8,
+                      cursor: "pointer",
+                      fontSize: 14,
+                      color: isInStaffGroup ? "#111827" : "#374151",
+                      fontWeight: isInStaffGroup ? 600 : 500,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <span style={{ width: 18, textAlign: "center" }}>
+                        {item.icon ?? "•"}
+                      </span>
+                      <span>{item.label}</span>
+                    </div>
+                    <span style={{ fontSize: 12 }}>
+                      {staffOpen ? "▾" : "▸"}
+                    </span>
+                  </button>
 
-                  {/* Children */}
-                  {visitsOpen &&
+                  {staffOpen &&
                     item.children.map((child) => {
                       const active = isActive(child.href);
                       return (
@@ -382,6 +423,36 @@ export default function AdminLayout({ children }: Props) {
                 </div>
               );
             }
+
+            // Normal single link items
+            if (!item.href) return null;
+            const active = isActive(item.href);
+
+            return (
+              <Link key={item.href} href={item.href} legacyBehavior>
+                <a
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 12px",
+                    margin: "2px 4px",
+                    borderRadius: 8,
+                    textDecoration: "none",
+                    fontSize: 14,
+                    color: active ? "#111827" : "#374151",
+                    background: active ? "#e5f0ff" : "transparent",
+                    fontWeight: active ? 600 : 400,
+                  }}
+                >
+                  <span style={{ width: 18, textAlign: "center" }}>
+                    {item.icon ?? "•"}
+                  </span>
+                  <span>{item.label}</span>
+                </a>
+              </Link>
+            );
+          })}
 
             // Normal single link items
             if (!item.href) return null;
