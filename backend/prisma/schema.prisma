@@ -79,6 +79,11 @@ model Branch {
 
   // NEW: Receptionist many-to-many assignment
   receptionBranches  ReceptionBranch[]
+
+// NEW for nurses
+  nurseSchedules     NurseSchedule[]
+  nurseBranches      NurseBranch[]
+
 }
 
 // ==========================================================
@@ -126,6 +131,10 @@ model User {
   // NEW: Receptionist multi-branch + schedules
   receptionSchedules ReceptionSchedule[]
   receptionBranches  ReceptionBranch[]
+
+// NEW for nurses
+  nurseSchedules     NurseSchedule[]
+  nurseBranches      NurseBranch[]
 
   // Appointments where this user is the doctor
   appointments       Appointment[]
@@ -584,4 +593,32 @@ model ReceptionSchedule {
   @@index([receptionId, date])
   @@index([branchId, date])
   @@unique([receptionId, branchId, date])
+}
+
+model NurseBranch {
+  id       Int    @id @default(autoincrement())
+  nurseId  Int
+  branchId Int
+
+  nurse  User   @relation(fields: [nurseId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([nurseId, branchId])
+}
+
+model NurseSchedule {
+  id       Int      @id @default(autoincrement())
+  nurseId  Int
+  branchId Int
+  date     DateTime
+  startTime String
+  endTime   String
+  note      String?
+
+  nurse  User   @relation(fields: [nurseId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
+
+  @@index([nurseId, date])
+  @@index([branchId, date])
+  @@unique([nurseId, branchId, date])
 }
