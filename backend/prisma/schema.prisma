@@ -88,14 +88,28 @@ model User {
   id                 Int              @id @default(autoincrement())
   email              String           @unique
   password           String
+
+  /// Father’s name for all users
   ovog               String?
+
+  /// Given name
   name               String?
+
   role               UserRole         @default(receptionist)
+
+  /// Legacy single-branch assignment
   branchId           Int?
   branch             Branch?          @relation(fields: [branchId], references: [id])
+
   createdAt          DateTime         @default(now())
+
+  // Encounters where this user is the doctor
   encounters         Encounter[]      @relation("DoctorEncounters")
-  phone              String?
+
+  // Contact
+  phone              String?          // employee phone (optional)
+
+  // Advanced Doctor/Nurse Info
   regNo              String?          @unique
   licenseNumber      String?          @unique
   licenseExpiryDate  DateTime?
@@ -103,19 +117,50 @@ model User {
   stampImagePath     String?
   idPhotoPath        String?
 
-  // Per-day work schedules across branches
+  // Per-day work schedules across branches (doctors)
   doctorSchedules    DoctorSchedule[]
+
+  // Many-to-many doctor-to-branch assignment
   doctorBranches     DoctorBranch[]
 
-  // NEW: Receptionist relations
+  // NEW: Receptionist multi-branch + schedules
   receptionSchedules ReceptionSchedule[]
   receptionBranches  ReceptionBranch[]
 
+  // Appointments where this user is the doctor
   appointments       Appointment[]
+
+  // Bookings for this user as doctor
   bookings           Booking[]
 
-  // KEEP THIS:
-  calendarOrder      Int?             // column already exists in DB
+  // KEEP this if you still use calendarOrder in frontend
+  calendarOrder      Int?
+}
+
+// Join table for many-to-many between Doctor (User) and Branch
+model DoctorBranch {
+  id        Int    @id @default(autoincrement())
+
+  doctorId  Int
+  branchId  Int
+
+  doctor    User   @relation(fields: [doctorId], references: [id])
+  branch    Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([doctorId, branchId])
+}
+
+// NEW: Join table for many-to-many between Receptionist (User) and Branch
+model ReceptionBranch {
+  id           Int    @id @default(autoincrement())
+
+  receptionId  Int
+  branchId     Int
+
+  reception    User   @relation(fields: [receptionId], references: [id])
+  branch       Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([receptionId, branchId])
 }
 
 // ==========================================================
@@ -511,18 +556,6 @@ model DoctorSchedule {
   @@index([doctorId, date])
   @@index([branchId, date])
   @@unique([doctorId, branchId, date])
-}
-
-model ReceptionBranch {
-  id           Int    @id @default(autoincrement())
-
-  receptionId  Int
-  branchId     Int
-
-  reception    User   @relation(fields: [receptionId], references: [id])
-  branch       Branch @relation(fields: [branchId], references: [id])
-
-  @@unique([receptionId, branchId])
 }
 
 // ==========================================================
