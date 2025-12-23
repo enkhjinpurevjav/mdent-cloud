@@ -1,13 +1,12 @@
-/*** file: frontend/pages/users/nurse.tsx ***/
 import React, { useEffect, useState } from "react";
-import UsersTabs from "../components/UsersTabs";
+import UsersTabs from "../../components/UsersTabs";
 
 type Branch = {
   id: number;
   name: string;
 };
 
-type Nurse = {
+type Receptionist = {
   id: number;
   email: string;
   name?: string | null;
@@ -21,12 +20,12 @@ type Nurse = {
   createdAt?: string;
 };
 
-function NurseForm({
+function ReceptionForm({
   branches,
   onSuccess,
 }: {
   branches: Branch[];
-  onSuccess: (u: Nurse) => void;
+  onSuccess: (u: Receptionist) => void;
 }) {
   const [form, setForm] = useState({
     email: "",
@@ -39,6 +38,7 @@ function NurseForm({
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -57,6 +57,7 @@ function NurseForm({
     });
   };
 
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -71,7 +72,7 @@ function NurseForm({
         password: form.password,
         name: form.name || undefined,
         ovog: form.ovog || undefined,
-        role: "nurse",
+        role: "receptionist",
         branchId: primaryBranchId,
         phone: form.phone || undefined,
       };
@@ -99,7 +100,7 @@ function NurseForm({
         return;
       }
 
-      const createdUser = data as Nurse;
+      const createdUser = data as Receptionist;
 
       if (form.branchIds.length > 0) {
         try {
@@ -141,8 +142,7 @@ function NurseForm({
         phone: "",
         branchIds: [],
       });
-    } catch (err) {
-      console.error(err);
+    } catch {
       setError("Сүлжээгээ шалгана уу");
     } finally {
       setSubmitting(false);
@@ -151,7 +151,7 @@ function NurseForm({
 
   return (
     <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
-      <h2>Шинэ сувилагч бүртгэх</h2>
+      <h2>Шинэ ресепшн бүртгэх</h2>
 
       <div
         style={{
@@ -247,12 +247,13 @@ function NurseForm({
   );
 }
 
-export default function NursePage() {
-  const [users, setUsers] = useState<Nurse[]>([]);
+export default function ReceptionPage() {
+  const [users, setUsers] = useState<Receptionist[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // summary cards state
   const [summary, setSummary] = useState<{
     total: number;
     workingToday: number;
@@ -266,7 +267,7 @@ export default function NursePage() {
         setBranches(data);
       }
     } catch {
-      // ignore
+      // ignore; main error handling below
     }
   };
 
@@ -274,7 +275,7 @@ export default function NursePage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/users?role=nurse");
+      const res = await fetch("/api/users?role=receptionist");
       let data: any = null;
       try {
         data = await res.json();
@@ -304,12 +305,14 @@ export default function NursePage() {
 
   const loadSummary = async () => {
     try {
-      const usersRes = await fetch("/api/users?role=nurse");
+      // 1) get total number of receptionists (existing logic)
+      const usersRes = await fetch("/api/users?role=receptionist");
       const usersData = await usersRes.json().catch(() => null);
       const total =
         usersRes.ok && Array.isArray(usersData) ? usersData.length : 0;
 
-      const todayRes = await fetch("/api/users/nurses/today");
+      // 2) get "working today" count from new endpoint
+      const todayRes = await fetch("/api/users/receptions/today");
       const todayData = await todayRes.json().catch(() => null);
       const workingToday =
         todayRes.ok && todayData && typeof todayData.count === "number"
@@ -337,9 +340,9 @@ export default function NursePage() {
         fontFamily: "sans-serif",
       }}
     >
-      <h1>Сувилагч</h1>
+      <h1>Ресепшн</h1>
       <p style={{ color: "#555", marginBottom: 16 }}>
-        Сувилагч ажилчдыг бүртгэх, салбарт хуваарьлах, жагсаалтаар харах.
+        Ресепшн ажилчдыг бүртгэх, салбарт хуваарьлах, жагсаалтаар харах.
       </p>
 
       <UsersTabs />
@@ -372,7 +375,7 @@ export default function NursePage() {
               marginBottom: 4,
             }}
           >
-            Нийт сувилагч
+            Нийт ресепшн
           </div>
           <div
             style={{
@@ -385,7 +388,7 @@ export default function NursePage() {
             {summary ? summary.total : "—"}
           </div>
           <div style={{ fontSize: 11, color: "#6b7280" }}>
-            Системд бүртгэлтэй нийт сувилагч ажилчдын тоо.
+            Системд бүртгэлтэй нийт ресепшн ажилчдын тоо.
           </div>
         </div>
 
@@ -408,7 +411,7 @@ export default function NursePage() {
               marginBottom: 4,
             }}
           >
-            Өнөөдөр ажиллаж буй сувилагч
+            Өнөөдөр ажиллаж буй ресепшн
           </div>
           <div
             style={{
@@ -421,12 +424,12 @@ export default function NursePage() {
             {summary ? summary.workingToday : "—"}
           </div>
           <div style={{ fontSize: 11, color: "#6b7280" }}>
-            Өнөөдрийн ажлын хуваарьт орсон сувилагчдын тоо.
+            Өнөөдрийн ажлын хуваарьт орсон ресепшнүүдийн тоо.
           </div>
         </div>
       </section>
 
-      <NurseForm
+      <ReceptionForm
         branches={branches}
         onSuccess={(u) => {
           setUsers((prev) => [u, ...prev]);
@@ -593,7 +596,7 @@ export default function NursePage() {
                   }}
                 >
                   <a
-                    href={`/users/nurse/${u.id}`}
+                    href={`/users/reception/${u.id}`}
                     style={{
                       padding: "2px 6px",
                       fontSize: 12,
