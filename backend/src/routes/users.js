@@ -1303,7 +1303,8 @@ router.get("/nurses/today", async (req, res) => {
       if (Number.isNaN(bid)) {
         return res.status(400).json({ error: "Invalid branchId" });
       }
-      (whereSchedule as any).branchId = bid;
+      // plain JS assignment, no "as any"
+      whereSchedule.branchId = bid;
     }
 
     const schedules = await prisma.nurseSchedule.findMany({
@@ -1327,7 +1328,7 @@ router.get("/nurses/today", async (req, res) => {
       return res.json({ count: 0, items: [] });
     }
 
-    const map = new Map<number, any>();
+    const map = new Map();
     for (const s of schedules) {
       if (!map.has(s.nurseId)) {
         map.set(s.nurseId, {
@@ -1362,5 +1363,4 @@ router.get("/nurses/today", async (req, res) => {
       .json({ error: "Failed to fetch today's nurses" });
   }
 });
-
 export default router;
