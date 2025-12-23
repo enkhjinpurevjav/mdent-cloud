@@ -126,8 +126,8 @@ function NurseForm({
           ) {
             createdUser.branches = branchesData.branches;
           }
-        } catch (err) {
-          console.error("Failed to assign multiple branches", err);
+        } catch (e) {
+          console.error("Failed to assign multiple branches", e);
         }
       }
 
@@ -152,6 +152,7 @@ function NurseForm({
   return (
     <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
       <h2>Шинэ сувилагч бүртгэх</h2>
+
       <div
         style={{
           display: "grid",
@@ -203,6 +204,7 @@ function NurseForm({
           required
         />
       </div>
+
       <div style={{ marginBottom: 8 }}>
         <div style={{ marginBottom: 4, fontWeight: 500 }}>Салбар сонгох</div>
         <div
@@ -246,10 +248,28 @@ function NurseForm({
 }
 
 export default function NursesPage() {
-  const [users, setUsers] = useState<Nurse[]>([]);
+  const [nurses, setNurses] = useState<Nurse[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // editing state
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<{
+    name: string;
+    ovog: string;
+    regNo: string;
+    phone: string;
+    branchId: number | null;
+    editBranchIds: number[];
+  }>({
+    name: "",
+    ovog: "",
+    regNo: "",
+    phone: "",
+    branchId: null,
+    editBranchIds: [],
+  });
 
   const loadBranches = async () => {
     try {
@@ -263,7 +283,7 @@ export default function NursesPage() {
     }
   };
 
-  const loadUsers = async () => {
+  const loadNurses = async () => {
     setLoading(true);
     setError("");
     try {
@@ -280,7 +300,7 @@ export default function NursesPage() {
       }
 
       // sort by name only (alphabetically, Mongolian)
-      setUsers(
+      setNurses(
         [...data].sort((a, b) => {
           const aName = (a.name || "").toString();
           const bName = (b.name || "").toString();
@@ -290,7 +310,7 @@ export default function NursesPage() {
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Сүлжээгээ шалгана уу");
-      setUsers([]);
+      setNurses([]);
     } finally {
       setLoading(false);
     }
@@ -298,8 +318,173 @@ export default function NursesPage() {
 
   useEffect(() => {
     loadBranches();
-    loadUsers();
+    loadNurses();
   }, []);
+
+  const startEdit = (u: Nurse) => {
+    setEditingId(u.id);
+
+    const currentBranchIds =
+      Array.isArray(u.branches) && u.branches.length > 0
+        ? u.branches.map((b) => b.id)
+        : u.branch
+        ? [u.branch.id]
+        : [];
+
+    setEditForm({
+      name: u.name || "",
+      ovog: u.ovog || "",
+      regNo: u.regNo || "",
+      phone: u.phone || "",
+      branchId: u.branchId ?? (u.branch ? u.branch.id : null),
+      editBranchIds: currentBranchIds,
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const handleEditChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+    setEditForm((prev) => ({
+      ...prev,
+      [name]:
+        name === "branchId"
+          ? value
+            ? Number(value)
+            : null
+          : value,
+    }));
+  };
+
+  const handleEditBranchToggle = (branchId: number) => {
+    setEditForm((prev) => {
+      const exists = prev.editBranchIds.includes(branchId);
+      const next = exists
+        ? prev.editBranchIds.filter((id) => id !== branchId)
+        : [...prev.editBranchIds, branchId];
+
+      const nextPrimary = next.length > 0 ? next[0] : null;
+
+      return {
+        ...prev,
+        editBranchIds: next,
+        branchId: nextPrimary,
+      };
+    });
+  };
+
+  const saveEdit = async (id: number) => {
+    try {
+      const payload: any = {
+        name: editForm.name || null,
+        ovog: editForm.ovog || null,
+        regNo: editForm.regNo || null,
+        phone: editForm.phone || null,
+        branchId: editForm.branchId || null,
+      };
+
+      const res = await fetch(`/api/users/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      let userData: any = null;
+      try {
+        userData = await res.json();
+      } catch {
+        userData = null;
+      }
+
+      if (!res.ok || !userData || !userData.id) {
+        alert((userData && userData.error) || "Хадгалах үед алдаа гарлаа");
+        return;
+      }
+
+      const branchesPayload = { branchIds: editForm.editBranchIds };
+
+      const resBranches = await fetch(`/api/users/${id}/branches`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(branchesPayload),
+      });
+
+      let branchesResult: any = null;
+      try {
+        branchesResult = await resBranches.json();
+      } catch {
+        branchesResult = null;
+      }
+
+      if (!resBranches.ok) {
+        alert(
+          (branchesResult && branchesResult.error) ||
+            "Салбар хадгалах үед алдаа гарлаа"
+        );
+        return;
+      }
+
+      const updatedBranches =
+        branchesResult && Array.isArray(branchesResult.branches)
+          ? branchesResult.branches
+          : userData.branches || [];
+
+      setNurses((prev) =>
+        prev.map((u) =>
+          u.id === id
+            ? {
+                ...u,
+                name: userData.name,
+                ovog: userData.ovog,
+                regNo: userData.regNo,
+                phone: userData.phone,
+                branchId: userData.branchId,
+                branch: userData.branch,
+                branches: updatedBranches,
+              }
+            : u
+        )
+      );
+      setEditingId(null);
+    } catch (err) {
+      console.error(err);
+      alert("Сүлжээгээ шалгана уу");
+    }
+  };
+
+  const deleteUser = async (id: number) => {
+    const ok = window.confirm(
+      "Та энэхүү сувилагч ажилтныг устгахдаа итгэлтэй байна уу?"
+    );
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: "DELETE",
+      });
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok) {
+        alert((data && data.error) || "Устгах үед алдаа гарлаа");
+        return;
+      }
+
+      setNurses((prev) => prev.filter((u) => u.id !== id));
+    } catch (err) {
+      console.error(err);
+      alert("Сүлжээгээ шалгана уу");
+    }
+  };
 
   return (
     <main
@@ -310,9 +495,9 @@ export default function NursesPage() {
         fontFamily: "sans-serif",
       }}
     >
-      <h1>Сувилагчид</h1>
+      <h1>Сувилагч</h1>
       <p style={{ color: "#555", marginBottom: 16 }}>
-        Сувилагчдыг бүртгэх, салбарт хуваарьлах, жагсаалтаар харах.
+        Сувилагч ажилчдыг бүртгэх, салбарт хуваарьлах, жагсаалтаар харах.
       </p>
 
       <UsersTabs />
@@ -320,11 +505,11 @@ export default function NursesPage() {
       <NurseForm
         branches={branches}
         onSuccess={(u) => {
-          setUsers((prev) => [u, ...prev]);
+          setNurses((prev) => [u, ...prev]);
         }}
       />
 
-      {loading && <div>Ачааллаж байна...</div>}
+      {loading && <div>Ачааллиж байна...</div>}
       {!loading && error && <div style={{ color: "red" }}>{error}</div>}
 
       {!loading && !error && (
@@ -338,6 +523,7 @@ export default function NursesPage() {
         >
           <thead>
             <tr>
+              {/* # constant number column */}
               <th
                 style={{
                   textAlign: "left",
@@ -408,97 +594,250 @@ export default function NursesPage() {
                   padding: 8,
                 }}
               >
-                Профайл
+                Үйлдэл
               </th>
             </tr>
           </thead>
           <tbody>
-            {users.map((u, index) => (
-              <tr key={u.id}>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {index + 1}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {u.ovog || "-"}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {u.name || "-"}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {u.email}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {u.regNo || "-"}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {u.phone || "-"}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {Array.isArray(u.branches) && u.branches.length > 0
-                    ? u.branches.map((b) => b.name).join(", ")
-                    : u.branch
-                    ? u.branch.name
-                    : "-"}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  <a
-                    href={`/users/nurses/${u.id}`}
+            {nurses.map((u, index) => {
+              const isEditing = editingId === u.id;
+
+              if (isEditing) {
+                return (
+                  <tr key={u.id}>
+                    {/* # */}
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      {index + 1}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      <input
+                        name="ovog"
+                        value={editForm.ovog}
+                        onChange={handleEditChange}
+                        style={{ width: "100%" }}
+                      />
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      <input
+                        name="name"
+                        value={editForm.name}
+                        onChange={handleEditChange}
+                        style={{ width: "100%" }}
+                      />
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      {u.email}
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      <input
+                        name="regNo"
+                        value={editForm.regNo}
+                        onChange={handleEditChange}
+                        style={{ width: "100%" }}
+                      />
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      <input
+                        name="phone"
+                        value={editForm.phone}
+                        onChange={handleEditChange}
+                        style={{ width: "100%" }}
+                      />
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 4,
+                        }}
+                      >
+                        {branches.map((b) => (
+                          <label
+                            key={b.id}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              border: "1px solid #ddd",
+                              borderRadius: 4,
+                              padding: "2px 6px",
+                              fontSize: 12,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={editForm.editBranchIds.includes(b.id)}
+                              onChange={() => handleEditBranchToggle(b.id)}
+                            />
+                            {b.name}
+                          </label>
+                        ))}
+                      </div>
+                    </td>
+                    <td
+                      style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        padding: 8,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => saveEdit(u.id)}
+                        style={{
+                          marginRight: 8,
+                          padding: "2px 6px",
+                          fontSize: 12,
+                        }}
+                      >
+                        Хадгалах
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEdit}
+                        style={{ padding: "2px 6px", fontSize: 12 }}
+                      >
+                        Цуцлах
+                      </button>
+                    </td>
+                  </tr>
+                );
+              }
+
+              return (
+                <tr key={u.id}>
+                  {/* # */}
+                  <td
                     style={{
-                      padding: "2px 6px",
-                      fontSize: 12,
-                      borderRadius: 4,
-                      border: "1px solid #2563eb",
-                      color: "#2563eb",
-                      textDecoration: "none",
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
                     }}
                   >
-                    Профайл
-                  </a>
-                </td>
-              </tr>
-            ))}
-            {users.length === 0 && (
+                    {index + 1}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.ovog || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.name || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.email}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.regNo || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {u.phone || "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                    }}
+                  >
+                    {Array.isArray(u.branches) && u.branches.length > 0
+                      ? u.branches.map((b) => b.name).join(", ")
+                      : u.branch
+                      ? u.branch.name
+                      : "-"}
+                  </td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => startEdit(u)}
+                      style={{
+                        marginRight: 8,
+                        padding: "2px 6px",
+                        fontSize: 12,
+                      }}
+                    >
+                      Засах
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteUser(u.id)}
+                      style={{
+                        padding: "2px 6px",
+                        fontSize: 12,
+                        color: "#b91c1c",
+                        borderColor: "#b91c1c",
+                      }}
+                    >
+                      Устгах
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {nurses.length === 0 && (
               <tr>
                 <td
                   colSpan={8}
