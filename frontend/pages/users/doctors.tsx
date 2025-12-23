@@ -80,7 +80,6 @@ function DoctorForm({
       if (form.regNo.trim()) {
         payload.regNo = form.regNo.trim();
       }
-
       if (form.phone.trim()) {
         payload.phone = form.phone.trim();
       }
@@ -106,6 +105,7 @@ function DoctorForm({
 
       const createdDoctor = data as Doctor;
 
+      // assign multiple branches
       if (form.branchIds.length > 0) {
         try {
           const resBranches = await fetch(
@@ -130,8 +130,8 @@ function DoctorForm({
           ) {
             createdDoctor.branches = branchesData.branches;
           }
-        } catch (e) {
-          console.error("Failed to assign multiple branches", e);
+        } catch (err) {
+          console.error("Failed to assign multiple branches", err);
         }
       }
 
@@ -207,6 +207,7 @@ function DoctorForm({
           required
         />
       </div>
+
       <div style={{ marginBottom: 8 }}>
         <div style={{ marginBottom: 4, fontWeight: 500 }}>Салбар сонгох</div>
         <div
@@ -268,7 +269,7 @@ export default function DoctorsPage() {
         setBranches(data);
       }
     } catch {
-      // ignore here
+      // ignore
     }
   };
 
@@ -347,6 +348,7 @@ export default function DoctorsPage() {
 
       <UsersTabs />
 
+      {/* summary cards */}
       <section
         style={{
           display: "grid",
@@ -450,41 +452,71 @@ export default function DoctorsPage() {
         >
           <thead>
             <tr>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>#</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Овог</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Нэр</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>РД</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Утас</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Салбар</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Дараалал</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Дэлгэрэнгүй</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                #
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                Овог
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                Нэр
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                РД
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                Утас
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                Салбар
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                Дараалал
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                Дэлгэрэнгүй
+              </th>
             </tr>
           </thead>
           <tbody>
             {doctors.map((d, index) => (
               <tr key={d.id}>
-                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>{index + 1}</td>
-                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>{d.ovog || "-"}</td>
-                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>{d.name || "-"}</td>
-                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>{d.regNo || "-"}</td>
-                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>{d.phone || "-"}</td>
-                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                  {index + 1}
+                </td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                  {d.ovog || "-"}
+                </td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                  {d.name || "-"}
+                </td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                  {d.regNo || "-"}
+                </td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                  {d.phone || "-"}
+                </td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                   {Array.isArray(d.branches) && d.branches.length > 0
                     ? d.branches.map((b) => b.name).join(", ")
                     : d.branch
                     ? d.branch.name
                     : "-"}
                 </td>
-                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                   <input
                     type="number"
-                    value={typeof d.calendarOrder === "number" ? d.calendarOrder : 0}
+                    value={
+                      typeof d.calendarOrder === "number" ? d.calendarOrder : 0
+                    }
                     onChange={async (e) => {
                       const value = parseInt(e.target.value, 10) || 0;
 
                       setDoctors((prev) =>
                         prev.map((doc) =>
-                          doc.id === d.id ? { ...doc, calendarOrder: value } : doc
+                          doc.id === d.id
+                            ? { ...doc, calendarOrder: value }
+                            : doc
                         )
                       );
 
@@ -495,7 +527,10 @@ export default function DoctorsPage() {
                           body: JSON.stringify({ calendarOrder: value }),
                         });
                         if (!res.ok) {
-                          console.error("Failed to update calendarOrder for doctor", d.id);
+                          console.error(
+                            "Failed to update calendarOrder for doctor",
+                            d.id
+                          );
                         } else {
                           setDoctors((prev) =>
                             [...prev].sort((a, b) => {
