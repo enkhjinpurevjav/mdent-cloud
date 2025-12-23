@@ -1280,4 +1280,87 @@ router.get("/receptions/today", async (req, res) => {
   }
 });
 
+router.get("/nurses/today", async (req, res) => {
+  try {
+    const { branchId } = req.query;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const start = new Date(today);
+    const end = new Date(today);
+    end.setDate(end.getDate() + 1);
+
+    const whereSchedule = {
+      date: {
+        gte: start,
+        lt: end,
+      },
+    };
+
+    if (branchId) {
+      const bid = Number(branchId);
+      if (Number.isNaN(bid)) {
+        return res.status(400).json({ error: "Invalid branchId" });
+      }
+      (whereSchedule as any).branchId = bid;
+    }
+
+    const schedules = await prisma.nurseSchedule.findMany({
+      where: whereSchedule,
+      include: {
+        branch: { select: { id: true, name: true } },
+        nurse: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            ovog: true,
+            phone: true,
+          },
+        },
+      },
+      orderBy: [{ startTime: "asc" }],
+    });
+
+    if (!schedules.length) {
+      return res.json({ count: 0, items: [] });
+    }
+
+    const map = new Map<number, any>();
+    for (const s of schedules) {
+      if (!map.has(s.nurseId)) {
+        map.set(s.nurseId, {
+          nurseId: s.nurseId,
+          name: s.nurse.name,
+          ovog: s.nurse.ovog,
+          email: s.nurse.email,
+          phone: s.nurse.phone || null,
+          schedules: [],
+        });
+      }
+      const entry = map.get(s.nurseId);
+      entry.schedules.push({
+        id: s.id,
+        branch: s.branch,
+        date: s.date.toISOString().slice(0, 10),
+        startTime: s.startTime,
+        endTime: s.endTime,
+        note: s.note,
+      });
+    }
+
+    const items = Array.from(map.values());
+    return res.json({
+      count: items.length,
+      items,
+    });
+  } catch (err) {
+    console.error("GET /api/users/nurses/today error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch today's nurses" });
+  }
+});
+
 export default router;
