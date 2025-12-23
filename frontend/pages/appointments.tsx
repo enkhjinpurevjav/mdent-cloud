@@ -1881,6 +1881,7 @@ function AppointmentForm({
   selectedDate,
   selectedBranchId,
   onCreated,
+  onBranchChange, // NEW
 }: AppointmentFormProps) {
   const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
@@ -2453,6 +2454,7 @@ function AppointmentForm({
           onChange={(e) => {
             handleChange(e);
             setError("");
+            onBranchChange(e.target.value);
           }}
           required
           style={{
@@ -3971,7 +3973,19 @@ const totalCompletedPatientsForDay = useMemo(() => {
           selectedDate={filterDate}
           selectedBranchId={filterBranchId}
           onCreated={(a) => setAppointments((prev) => [a, ...prev])}
-        />
+        onBranchChange={(branchId) => {
+      // mirror to top filter + grid
+      setFilterBranchId(branchId);
+      setActiveBranchTab(branchId);
+
+      const query = branchId ? { branchId } : {};
+      router.push(
+        { pathname: "/appointments", query },
+        undefined,
+        { shallow: true }
+      );
+    }}
+  />
       </section>
 
       {error && (
