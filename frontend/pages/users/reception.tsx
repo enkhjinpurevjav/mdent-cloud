@@ -79,7 +79,6 @@ function ReceptionForm({
         payload.regNo = form.regNo.trim();
       }
 
-      // 1) create receptionist
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -101,7 +100,6 @@ function ReceptionForm({
 
       const createdUser = data as Receptionist;
 
-      // 2) assign multiple branches via /api/users/:id/branches
       if (form.branchIds.length > 0) {
         try {
           const resBranches = await fetch(
@@ -205,7 +203,6 @@ function ReceptionForm({
         />
       </div>
 
-      {/* Multi-branch selection */}
       <div style={{ marginBottom: 8 }}>
         <div style={{ marginBottom: 4, fontWeight: 500 }}>Салбар сонгох</div>
         <div
@@ -340,140 +337,87 @@ export default function ReceptionPage() {
         >
           <thead>
             <tr>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
                 #
               </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
                 Овог
               </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
                 Нэр
               </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
                 И-мэйл
               </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
                 РД
               </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
                 Утас
               </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
                 Салбар
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                Профайл
               </th>
             </tr>
           </thead>
           <tbody>
             {users.map((u, index) => (
               <tr key={u.id}>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                   {index + 1}
                 </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                   {u.ovog || "-"}
                 </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                   {u.name || "-"}
                 </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
+                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>
                   {u.email}
                 </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
+                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>
                   {u.regNo || "-"}
                 </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
+                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>
                   {u.phone || "-"}
                 </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid #f0f0f0",
-                    padding: 8,
-                  }}
-                >
+                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>
                   {Array.isArray(u.branches) && u.branches.length > 0
                     ? u.branches.map((b) => b.name).join(", ")
                     : u.branch
                     ? u.branch.name
                     : "-"}
                 </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <a
+                    href={`/users/reception/${u.id}`}
+                    style={{
+                      padding: "2px 6px",
+                      fontSize: 12,
+                      borderRadius: 4,
+                      border: "1px solid #2563eb",
+                      color: "#2563eb",
+                      textDecoration: "none",
+                    }}
+                  >
+                    Профайл
+                  </a>
+                </td>
               </tr>
             ))}
             {users.length === 0 && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{
                     textAlign: "center",
                     color: "#888",
