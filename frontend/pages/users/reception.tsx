@@ -101,7 +101,7 @@ function ReceptionForm({
 
       const createdUser = data as Receptionist;
 
-      // 2) assign multiple branches via /api/users/:id/branches (optional at create time)
+      // 2) assign multiple branches via /api/users/:id/branches
       if (form.branchIds.length > 0) {
         try {
           const resBranches = await fetch(
@@ -153,7 +153,7 @@ function ReceptionForm({
     <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
       <h2>Шинэ ресепшн бүртгэх</h2>
 
-            <div
+      <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
@@ -254,6 +254,12 @@ export default function ReceptionPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Summary for cards on top
+  const [summary, setSummary] = useState<{
+    total: number;
+    workingToday: number;
+  } | null>(null);
+
   // editing state
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<{
@@ -317,9 +323,27 @@ export default function ReceptionPage() {
     }
   };
 
+  const loadSummary = async () => {
+    try {
+      const res = await fetch("/api/staff/summary?role=receptionist");
+      const data = await res.json().catch(() => null);
+      if (res.ok && data && typeof data.total === "number") {
+        setSummary({
+          total: data.total,
+          workingToday: data.workingToday || 0,
+        });
+      } else {
+        setSummary(null);
+      }
+    } catch {
+      setSummary(null);
+    }
+  };
+
   useEffect(() => {
     loadBranches();
     loadUsers();
+    loadSummary();
   }, []);
 
   const startEdit = (u: Receptionist) => {
@@ -481,6 +505,7 @@ export default function ReceptionPage() {
       }
 
       setUsers((prev) => prev.filter((u) => u.id !== id));
+      loadSummary();
     } catch (err) {
       console.error(err);
       alert("Сүлжээгээ шалгана уу");
@@ -503,10 +528,93 @@ export default function ReceptionPage() {
 
       <UsersTabs />
 
+      {/* Summary cards – like doctors/patients */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        <div
+          style={{
+            background: "linear-gradient(90deg,#eff6ff,#ffffff)",
+            borderRadius: 12,
+            border: "1px solid #dbeafe",
+            padding: 12,
+            boxShadow: "0 4px 10px rgba(15,23,42,0.08)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              textTransform: "uppercase",
+              color: "#1d4ed8",
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              marginBottom: 4,
+            }}
+          >
+            Нийт ресепшн
+          </div>
+          <div
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              color: "#111827",
+              marginBottom: 4,
+            }}
+          >
+            {summary ? summary.total : "—"}
+          </div>
+          <div style={{ fontSize: 11, color: "#6b7280" }}>
+            Системд бүртгэлтэй нийт ресепшн ажилчдын тоо.
+          </div>
+        </div>
+
+        <div
+          style={{
+            background: "linear-gradient(90deg,#dcfce7,#ffffff)",
+            borderRadius: 12,
+            border: "1px solid #bbf7d0",
+            padding: 12,
+            boxShadow: "0 4px 10px rgba(15,23,42,0.08)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              textTransform: "uppercase",
+              color: "#15803d",
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              marginBottom: 4,
+            }}
+          >
+            Өнөөдөр ажиллаж буй ресепшн
+          </div>
+          <div
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              color: "#111827",
+              marginBottom: 4,
+            }}
+          >
+            {summary ? summary.workingToday : "—"}
+          </div>
+          <div style={{ fontSize: 11, color: "#6b7280" }}>
+            Өнөөдрийн ажлын хуваарьт орсон ресепшнүүдийн тоо.
+          </div>
+        </div>
+      </section>
+
       <ReceptionForm
         branches={branches}
         onSuccess={(u) => {
           setUsers((prev) => [u, ...prev]);
+          loadSummary();
         }}
       />
 
@@ -524,7 +632,6 @@ export default function ReceptionPage() {
         >
           <thead>
             <tr>
-              {/* # constant number column */}
               <th
                 style={{
                   textAlign: "left",
@@ -606,7 +713,6 @@ export default function ReceptionPage() {
               if (isEditing) {
                 return (
                   <tr key={u.id}>
-                    {/* # */}
                     <td
                       style={{
                         borderBottom: "1px solid #f0f0f0",
@@ -743,7 +849,6 @@ export default function ReceptionPage() {
 
               return (
                 <tr key={u.id}>
-                  {/* # */}
                   <td
                     style={{
                       borderBottom: "1px solid #f0f0f0",
@@ -804,27 +909,27 @@ export default function ReceptionPage() {
                       ? u.branch.name
                       : "-"}
                   </td>
-                 <td
-  style={{
-    borderBottom: "1px solid #f0f0f0",
-    padding: 8,
-    whiteSpace: "nowrap",
-  }}
->
-  <a
-    href={`/users/reception/${u.id}`}
-    style={{
-      padding: "2px 6px",
-      fontSize: 12,
-      borderRadius: 4,
-      border: "1px solid #2563eb",
-      color: "#2563eb",
-      textDecoration: "none",
-    }}
-  >
-    Профайл
-  </a>
-</td>
+                  <td
+                    style={{
+                      borderBottom: "1px solid #f0f0f0",
+                      padding: 8,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <a
+                      href={`/users/reception/${u.id}`}
+                      style={{
+                        padding: "2px 6px",
+                        fontSize: 12,
+                        borderRadius: 4,
+                        border: "1px solid #2563eb",
+                        color: "#2563eb",
+                        textDecoration: "none",
+                      }}
+                    >
+                      Профайл
+                    </a>
+                  </td>
                 </tr>
               );
             })}
