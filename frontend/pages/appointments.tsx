@@ -2908,6 +2908,9 @@ const [hasMounted, setHasMounted] = useState(false);
 const [dailyRevenue, setDailyRevenue] = useState<number | null>(null);
 
   // filters
+const workingDoctorsForFilter = scheduledDoctors.length
+  ? scheduledDoctors
+  : doctors;
   const [filterDate, setFilterDate] = useState<string>(todayStr);
   const [filterBranchId, setFilterBranchId] = useState<string>(
     branchIdFromQuery || ""
@@ -3532,24 +3535,24 @@ const totalCompletedPatientsForDay = useMemo(() => {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label>Эмч</label>
-            <select
-              value={filterDoctorId}
-              onChange={(e) => setFilterDoctorId(e.target.value)}
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            >
-              <option value="">Бүх эмч</option>
-              {doctors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {formatDoctorName(d)}
-                </option>
-              ))}
-            </select>
-          </div>
+  <label>Эмч</label>
+  <select
+    value={filterDoctorId}
+    onChange={(e) => setFilterDoctorId(e.target.value)}
+    style={{
+      borderRadius: 6,
+      border: "1px solid #d1d5db",
+      padding: "6px 8px",
+    }}
+  >
+    <option value="">Бүх эмч</option>
+    {workingDoctorsForFilter.map((d) => (
+      <option key={d.id} value={d.id}>
+        {formatDoctorName(d)}
+      </option>
+    ))}
+  </select>
+</div>
         </div>
       </section>
 
