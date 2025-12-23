@@ -39,6 +39,9 @@ function ReceptionForm({
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const res = await fetch("/api/users/receptions/today");
+const data = await res.json(); // { count, items }
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
