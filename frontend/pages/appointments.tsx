@@ -721,10 +721,7 @@ function AppointmentDetailsModal({
                   <strong>Эмч:</strong>{" "}
                   {doctorDisplay || "-"}
                 </div>
-                <div>
-                  <strong>Салбар:</strong>{" "}
-                  {a.branch?.name ?? a.branchId}
-                </div>
+               
               </>
             );
           })()}
