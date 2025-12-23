@@ -1934,14 +1934,20 @@ function AppointmentForm({
 
   const [showQuickPatientModal, setShowQuickPatientModal] = useState(false);
   const [quickPatientForm, setQuickPatientForm] = useState<{
-    name: string;
-    phone: string;
-    branchId: string;
-  }>({
-    name: "",
-    phone: "",
-    branchId: "",
-  });
+  ovog: string;
+  name: string;
+  phone: string;
+  branchId: string;
+  regNo: string;
+  gender: string;
+}>({
+  ovog: "",
+  name: "",
+  phone: "",
+  branchId: "",
+  regNo: "",
+  gender: "",
+});
   const [quickPatientError, setQuickPatientError] = useState("");
   const [quickPatientSaving, setQuickPatientSaving] = useState(false);
 
@@ -2268,12 +2274,22 @@ function AppointmentForm({
     setQuickPatientSaving(true);
 
     try {
-      const payload = {
-        name: quickPatientForm.name.trim(),
-        phone: quickPatientForm.phone.trim(),
-        branchId: branchIdForPatient,
-        bookNumber: "",
-      };
+      const payload: any = {
+  name: quickPatientForm.name.trim(),
+  phone: quickPatientForm.phone.trim(),
+  branchId: branchIdForPatient,
+  bookNumber: "",
+};
+
+if (quickPatientForm.ovog.trim()) {
+  payload.ovog = quickPatientForm.ovog.trim();
+}
+if (quickPatientForm.regNo.trim()) {
+  payload.regNo = quickPatientForm.regNo.trim();
+}
+if (quickPatientForm.gender) {
+  payload.gender = quickPatientForm.gender;
+}
 
       const res = await fetch("/api/patients", {
         method: "POST",
@@ -2306,7 +2322,14 @@ function AppointmentForm({
         patientQuery: formatPatientSearchLabel(p),
       }));
 
-      setQuickPatientForm({ name: "", phone: "", branchId: "" });
+      setQuickPatientForm({
+  ovog: "",
+  name: "",
+  phone: "",
+  branchId: "",
+  regNo: "",
+  gender: "",
+});
       setShowQuickPatientModal(false);
     } catch (e) {
       console.error(e);
@@ -2798,87 +2821,164 @@ function AppointmentForm({
               дараа нь &quot;Үйлчлүүлэгчийн бүртгэл&quot; хэсгээс засварлана.
             </p>
             <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              <label
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                }}
-              >
-                Нэр
-                <input
-                  name="name"
-                  value={quickPatientForm.name}
-                  onChange={handleQuickPatientChange}
-                  placeholder="Ж: Батболд"
-                  style={{
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "6px 8px",
-                  }}
-                />
-              </label>
-              <label
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                }}
-              >
-                Утас
-                <input
-                  name="phone"
-                  value={quickPatientForm.phone}
-                  onChange={handleQuickPatientChange}
-                  placeholder="Ж: 99112233"
-                  style={{
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "6px 8px",
-                  }}
-                />
-              </label>
-              <label
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                }}
-              >
-                Салбар
-                <select
-                  name="branchId"
-                  value={quickPatientForm.branchId}
-                  onChange={handleQuickPatientChange}
-                  style={{
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "6px 8px",
-                  }}
-                >
-                  <option value="">Сонгох</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {quickPatientError && (
-                <div
-                  style={{
-                    color: "#b91c1c",
-                    fontSize: 12,
-                  }}
-                >
-                  {quickPatientError}
-                </div>
+  style={{
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  }}
+>
+  {/* Овог (optional) */}
+  <label
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+    }}
+  >
+    Овог
+    <input
+      name="ovog"
+      value={quickPatientForm.ovog}
+      onChange={handleQuickPatientChange}
+      placeholder="Ж: Бат"
+      style={{
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "6px 8px",
+      }}
+    />
+  </label>
+
+  {/* Нэр (required) */}
+  <label
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+    }}
+  >
+    Нэр
+    <input
+      name="name"
+      value={quickPatientForm.name}
+      onChange={handleQuickPatientChange}
+      placeholder="Ж: Болд"
+      style={{
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "6px 8px",
+      }}
+    />
+  </label>
+
+  {/* Утас (required) */}
+  <label
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+    }}
+  >
+    Утас
+    <input
+      name="phone"
+      value={quickPatientForm.phone}
+      onChange={handleQuickPatientChange}
+      placeholder="Ж: 99112233"
+      style={{
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "6px 8px",
+      }}
+    />
+  </label>
+
+  {/* Салбар (required – already enforced in logic) */}
+  <label
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+    }}
+  >
+    Салбар
+    <select
+      name="branchId"
+      value={quickPatientForm.branchId}
+      onChange={handleQuickPatientChange}
+      style={{
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "6px 8px",
+      }}
+    >
+      <option value="">Сонгох</option>
+      {branches.map((b) => (
+        <option key={b.id} value={b.id}>
+          {b.name}
+        </option>
+      ))}
+    </select>
+  </label>
+
+  {/* РД (optional) */}
+  <label
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+    }}
+  >
+    РД
+    <input
+      name="regNo"
+      value={quickPatientForm.regNo}
+      onChange={handleQuickPatientChange}
+      placeholder="Ж: УБ99112233"
+      style={{
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "6px 8px",
+      }}
+    />
+  </label>
+
+  {/* Хүйс (optional) */}
+  <label
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+    }}
+  >
+    Хүйс
+    <select
+      name="gender"
+      value={quickPatientForm.gender}
+      onChange={handleQuickPatientChange}
+      style={{
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "6px 8px",
+      }}
+    >
+      <option value="">Сонгохгүй</option>
+      <option value="male">Эр</option>
+      <option value="female">Эм</option>
+    </select>
+  </label>
+
+  {quickPatientError && (
+    <div
+      style={{
+        color: "#b91c1c",
+        fontSize: 12,
+      }}
+    >
+      {quickPatientError}
+    </div>
+  )}
+
               )}
               <div
                 style={{
