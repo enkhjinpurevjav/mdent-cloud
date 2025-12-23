@@ -43,7 +43,6 @@ function DoctorForm({
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [summary, setSummary] = useState<{ total: number; workingToday: number } | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -112,21 +111,6 @@ function DoctorForm({
         return;
       }
 
-const loadSummary = async () => {
-  try {
-    const res = await fetch("/api/staff/summary?role=doctor");
-    const data = await res.json().catch(() => null);
-    if (res.ok && data && typeof data.total === "number") {
-      setSummary({ total: data.total, workingToday: data.workingToday || 0 });
-    } else {
-      setSummary(null);
-    }
-  } catch {
-    setSummary(null);
-  }
-};
-
-      
       const createdDoctor = data as Doctor;
 
       // 2) assign multiple branches via /api/users/:id/branches
@@ -279,6 +263,12 @@ export default function DoctorsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // NEW: summary state for cards
+  const [summary, setSummary] = useState<{
+    total: number;
+    workingToday: number;
+  } | null>(null);
+
   const loadBranches = async () => {
     try {
       const res = await fetch("/api/branches");
@@ -327,6 +317,24 @@ export default function DoctorsPage() {
     }
   };
 
+  // NEW: load summary from /api/staff/summary
+  const loadSummary = async () => {
+    try {
+      const res = await fetch("/api/staff/summary?role=doctor");
+      const data = await res.json().catch(() => null);
+      if (res.ok && data && typeof data.total === "number") {
+        setSummary({
+          total: data.total,
+          workingToday: data.workingToday || 0,
+        });
+      } else {
+        setSummary(null);
+      }
+    } catch {
+      setSummary(null);
+    }
+  };
+
   useEffect(() => {
     loadBranches();
     loadDoctors();
@@ -348,6 +356,7 @@ export default function DoctorsPage() {
       </p>
 
       <UsersTabs />
+
       {/* Summary cards – similar to Үйлчлүүлэгчид page */}
       <section
         style={{
@@ -431,10 +440,13 @@ export default function DoctorsPage() {
           </div>
         </div>
       </section>
+
       <DoctorForm
         branches={branches}
         onSuccess={(d) => {
           setDoctors((ds) => [d, ...ds]);
+          // optionally refresh summary when a doctor is added
+          loadSummary();
         }}
       />
 
@@ -531,7 +543,7 @@ export default function DoctorsPage() {
               <tr key={d.id}>
                 <td
                   style={{
-                    borderBottom: "1px solid #f0f0f0",
+                    borderBottom: "1px solid "#f0f0f0",
                     padding: 8,
                   }}
                 >
@@ -539,7 +551,7 @@ export default function DoctorsPage() {
                 </td>
                 <td
                   style={{
-                    borderBottom: "1px solid #f0f0f0",
+                    borderBottom: "1px solid "#f0f0f0",
                     padding: 8,
                   }}
                 >
@@ -547,7 +559,7 @@ export default function DoctorsPage() {
                 </td>
                 <td
                   style={{
-                    borderBottom: "1px solid #f0f0f0",
+                    borderBottom: "1px solid "#f0f0f0",
                     padding: 8,
                   }}
                 >
@@ -555,7 +567,7 @@ export default function DoctorsPage() {
                 </td>
                 <td
                   style={{
-                    borderBottom: "1px solid #f0f0f0",
+                    borderBottom: "1px solid "#f0f0f0",
                     padding: 8,
                   }}
                 >
@@ -563,7 +575,7 @@ export default function DoctorsPage() {
                 </td>
                 <td
                   style={{
-                    borderBottom: "1px solid #f0f0f0",
+                    borderBottom: "1px solid "#f0f0f0",
                     padding: 8,
                   }}
                 >
@@ -571,7 +583,7 @@ export default function DoctorsPage() {
                 </td>
                 <td
                   style={{
-                    borderBottom: "1px solid #f0f0f0",
+                    borderBottom: "1px solid "#f0f0f0",
                     padding: 8,
                   }}
                 >
@@ -583,7 +595,7 @@ export default function DoctorsPage() {
                 </td>
                 <td
                   style={{
-                    borderBottom: "1px solid #f0f0f0",
+                    borderBottom: "1px solid "#f0f0f0",
                     padding: 8,
                   }}
                 >
@@ -643,7 +655,7 @@ export default function DoctorsPage() {
                 </td>
                 <td
                   style={{
-                    borderBottom: "1px solid #f0f0f0",
+                    borderBottom: "1px solid "#f0f0f0",
                     padding: 8,
                     whiteSpace: "nowrap",
                   }}
@@ -654,7 +666,7 @@ export default function DoctorsPage() {
                       display: "inline-block",
                       padding: "4px 8px",
                       borderRadius: 4,
-                      border: "1px solid #2563eb",
+                      border: "1px solid "#2563eb",
                       color: "#2563eb",
                       textDecoration: "none",
                       fontSize: 12,
