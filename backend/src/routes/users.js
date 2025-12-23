@@ -32,6 +32,17 @@ async function ensureReceptionOr404(id, res) {
   return user;
 }
 
+async function ensureNurseOr404(id, res) {
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, role: true },
+  });
+  if (!user || user.role !== UserRole.nurse) {
+    res.status(404).json({ error: "Nurse not found" });
+    return null;
+  }
+  return user;
+}
 /**
  * GET /api/users?role=doctor&branchId=1
  * Supports:
@@ -419,6 +430,234 @@ router.delete("/:id/reception-schedule/:scheduleId", async (req, res) => {
     return res
       .status(500)
       .json({ error: "Failed to delete reception schedule" });
+  }
+});
+
+/**
+ * GET /api/users/:id/nurse-schedule
+ */
+router.get("/:id/nurse-schedule", async (req, res) => {
+  const nurseId = Number(req.params.id);
+  if (!nurseId || Number.isNaN(nurseId)) {
+    return res.status(400).json({ error: "Invalid nurse id" });
+  }
+
+  try {
+    const nurse = await ensureNurseOr404(nurseId, res);
+    if (!nurse) return;
+
+    const { from, to, branchId } = req.query;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const fromDate = from ? new Date(from) : today;
+    if (Number.isNaN(fromDate.getTime())) {
+      return res.status(400).json({ error: "Invalid from date" });
+    }
+
+    let toDate;
+    if (to) {
+      toDate = new Date(to);
+      if (Number.isNaN(toDate.getTime())) {
+        return res.status(400).json({ error: "Invalid to date" });
+      }
+    } else {
+      toDate = new Date(fromDate);
+      toDate.setDate(fromDate.getDate() + 31);
+    }
+
+    const where = {
+      nurseId,
+      date: {
+        gte: fromDate,
+        lte: toDate,
+      },
+    };
+
+    if (branchId) {
+      const bid = Number(branchId);
+      if (Number.isNaN(bid)) {
+        return res.status(400).json({ error: "Invalid branchId" });
+      }
+      where.branchId = bid;
+    }
+
+    const schedules = await prisma.nurseSchedule.findMany({
+      where,
+      orderBy: [{ date: "asc" }, { startTime: "asc" }],
+      include: {
+        branch: { select: { id: true, name: true } },
+      },
+    });
+
+    return res.json(
+      schedules.map((s) => ({
+        id: s.id,
+        date: s.date.toISOString().slice(0, 10),
+        branch: s.branch,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        note: s.note,
+      }))
+    );
+  } catch (err) {
+    console.error("GET /api/users/:id/nurse-schedule error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch nurse schedule" });
+  }
+});
+
+/**
+ * POST /api/users/:id/nurse-schedule
+ */
+router.post("/:id/nurse-schedule", async (req, res) => {
+  const nurseId = Number(req.params.id);
+  if (!nurseId || Number.isNaN(nurseId)) {
+    return res.status(400).json({ error: "Invalid nurse id" });
+  }
+
+  const { date, branchId, startTime, endTime, note } = req.body || {};
+
+  if (!date || !branchId || !startTime || !endTime) {
+    return res.status(400).json({
+      error: "date, branchId, startTime, endTime are required",
+    });
+  }
+
+  const day = new Date(date);
+  if (Number.isNaN(day.getTime())) {
+    return res.status(400).json({ error: "Invalid date" });
+  }
+  day.setHours(0, 0, 0, 0);
+
+  const bid = Number(branchId);
+  if (Number.isNaN(bid)) {
+    return res.status(400).json({ error: "Invalid branchId" });
+  }
+
+  const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
+    return res
+      .status(400)
+      .json({ error: "startTime and endTime must be HH:MM (24h)" });
+  }
+
+  if (startTime >= endTime) {
+    return res
+      .status(400)
+      .json({ error: "startTime must be before endTime" });
+  }
+
+  try {
+    const nurse = await ensureNurseOr404(nurseId, res);
+    if (!nurse) return;
+
+    const branch = await prisma.branch.findUnique({
+      where: { id: bid },
+      select: { id: true, name: true },
+    });
+    if (!branch) {
+      return res.status(400).json({ error: "Branch not found" });
+    }
+
+    const weekday = day.getDay(); // 0=Sun .. 6=Sat
+    const isWeekend = weekday === 0 || weekday === 6;
+    const clinicOpen = isWeekend ? "10:00" : "09:00";
+    const clinicClose = isWeekend ? "19:00" : "21:00";
+
+    if (startTime < clinicOpen || endTime > clinicClose) {
+      return res.status(400).json({
+        error: "Schedule outside clinic hours",
+        clinicOpen,
+        clinicClose,
+      });
+    }
+
+    const existing = await prisma.nurseSchedule.findFirst({
+      where: { nurseId, branchId: bid, date: day },
+    });
+
+    let schedule;
+    if (existing) {
+      schedule = await prisma.nurseSchedule.update({
+        where: { id: existing.id },
+        data: {
+          startTime,
+          endTime,
+          note: note || null,
+        },
+        include: { branch: { select: { id: true, name: true } } },
+      });
+    } else {
+      schedule = await prisma.nurseSchedule.create({
+        data: {
+          nurseId,
+          branchId: bid,
+          date: day,
+          startTime,
+          endTime,
+          note: note || null,
+        },
+        include: { branch: { select: { id: true, name: true } } },
+      });
+    }
+
+    return res.status(existing ? 200 : 201).json({
+      id: schedule.id,
+      date: schedule.date.toISOString().slice(0, 10),
+      branch: schedule.branch,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      note: schedule.note,
+    });
+  } catch (err) {
+    console.error("POST /api/users/:id/nurse-schedule error:", err);
+    return res.status(500).json({ error: "Failed to save nurse schedule" });
+  }
+});
+
+/**
+ * DELETE /api/users/:id/nurse-schedule/:scheduleId
+ */
+router.delete("/:id/nurse-schedule/:scheduleId", async (req, res) => {
+  const nurseId = Number(req.params.id);
+  const scheduleId = Number(req.params.scheduleId);
+
+  if (!nurseId || Number.isNaN(nurseId)) {
+    return res.status(400).json({ error: "Invalid nurse id" });
+  }
+  if (!scheduleId || Number.isNaN(scheduleId)) {
+    return res.status(400).json({ error: "Invalid schedule id" });
+  }
+
+  try {
+    const nurse = await ensureNurseOr404(nurseId, res);
+    if (!nurse) return;
+
+    const existing = await prisma.nurseSchedule.findUnique({
+      where: { id: scheduleId },
+      select: { id: true, nurseId: true },
+    });
+
+    if (!existing || existing.nurseId !== nurseId) {
+      return res.status(404).json({ error: "Schedule not found" });
+    }
+
+    await prisma.nurseSchedule.delete({
+      where: { id: scheduleId },
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error(
+      "DELETE /api/users/:id/nurse-schedule/:scheduleId error:",
+      err
+    );
+    return res
+      .status(500)
+      .json({ error: "Failed to delete nurse schedule" });
   }
 });
 
