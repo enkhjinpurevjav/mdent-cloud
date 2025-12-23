@@ -330,6 +330,7 @@ export default function DoctorsPage() {
   useEffect(() => {
     loadBranches();
     loadDoctors();
+    loadSummary();
   }, []);
 
   return (
@@ -347,7 +348,89 @@ export default function DoctorsPage() {
       </p>
 
       <UsersTabs />
+      {/* Summary cards – similar to Үйлчлүүлэгчид page */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        {/* Total doctors */}
+        <div
+          style={{
+            background: "linear-gradient(90deg,#eff6ff,#ffffff)",
+            borderRadius: 12,
+            border: "1px solid #dbeafe",
+            padding: 12,
+            boxShadow: "0 4px 10px rgba(15,23,42,0.08)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              textTransform: "uppercase",
+              color: "#1d4ed8",
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              marginBottom: 4,
+            }}
+          >
+            Нийт эмч
+          </div>
+          <div
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              color: "#111827",
+              marginBottom: 4,
+            }}
+          >
+            {summary ? summary.total : "—"}
+          </div>
+          <div style={{ fontSize: 11, color: "#6b7280" }}>
+            Системд бүртгэлтэй нийт эмчийн тоо.
+          </div>
+        </div>
 
+        {/* Doctors working today */}
+        <div
+          style={{
+            background: "linear-gradient(90deg,#dcfce7,#ffffff)",
+            borderRadius: 12,
+            border: "1px solid #bbf7d0",
+            padding: 12,
+            boxShadow: "0 4px 10px rgba(15,23,42,0.08)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              textTransform: "uppercase",
+              color: "#15803d",
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              marginBottom: 4,
+            }}
+          >
+            Өнөөдөр ажиллаж буй эмч
+          </div>
+          <div
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              color: "#111827",
+              marginBottom: 4,
+            }}
+          >
+            {summary ? summary.workingToday : "—"}
+          </div>
+          <div style={{ fontSize: 11, color: "#6b7280" }}>
+            Өнөөдрийн ажлын хуваарьт орсон эмч нарын тоо.
+          </div>
+        </div>
+      </section>
       <DoctorForm
         branches={branches}
         onSuccess={(d) => {
