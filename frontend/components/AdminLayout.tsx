@@ -58,8 +58,8 @@ export default function AdminLayout({ children }: Props) {
 
   const [visitsOpen, setVisitsOpen] = useState(true); // Үзлэг group
   const [appointmentsOpen, setAppointmentsOpen] = useState(true); // Цаг захиалга group
+  const [staffOpen, setStaffOpen] = useState(true); // Ажилтнууд group
   const [branchItems, setBranchItems] = useState<{ id: string; name: string }[]>([]);
-    const [staffOpen, setStaffOpen] = useState(true);
 
   const isActive = (href?: string) => {
     if (!href) return false;
@@ -67,7 +67,7 @@ export default function AdminLayout({ children }: Props) {
     return currentPath === href || currentPath.startsWith(href + "/");
   };
 
-    const isInVisitsGroup =
+  const isInVisitsGroup =
     currentPath.startsWith("/visits/") || currentPath === "/visits";
 
   const isInStaffGroup =
@@ -307,13 +307,12 @@ export default function AdminLayout({ children }: Props) {
             )}
           </div>
 
-          {/* Rest of nav: Үзлэг group + normal items from mainNav */}
+          {/* Rest of nav: Үзлэг group + Ажилтнууд group + normal items */}
           {mainNav.map((item) => {
             // Handle Үзлэг group specially
             if (item.label === "Үзлэг" && item.children) {
               return (
                 <div key="visits-group">
-                  {/* Parent row (click to toggle) */}
                   <button
                     type="button"
                     onClick={() => setVisitsOpen((open) => !open)}
@@ -349,7 +348,45 @@ export default function AdminLayout({ children }: Props) {
                       {visitsOpen ? "▾" : "▸"}
                     </span>
                   </button>
-if (item.label === "Ажилтнууд" && item.children) {
+
+                  {visitsOpen &&
+                    item.children.map((child) => {
+                      const active = isActive(child.href);
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href!}
+                          legacyBehavior
+                        >
+                          <a
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              padding: "6px 12px 6px 32px",
+                              margin: "2px 4px",
+                              borderRadius: 8,
+                              textDecoration: "none",
+                              fontSize: 13,
+                              color: active ? "#111827" : "#4b5563",
+                              background: active ? "#e5f0ff" : "transparent",
+                              fontWeight: active ? 600 : 400,
+                            }}
+                          >
+                            <span style={{ width: 18, textAlign: "center" }}>
+                              {child.icon ?? "•"}
+                            </span>
+                            <span>{child.label}</span>
+                          </a>
+                        </Link>
+                      );
+                    })}
+                </div>
+              );
+            }
+
+            // Handle Ажилтнууд group
+            if (item.label === "Ажилтнууд" && item.children) {
               return (
                 <div key="staff-group">
                   <button
@@ -423,36 +460,6 @@ if (item.label === "Ажилтнууд" && item.children) {
                 </div>
               );
             }
-
-            // Normal single link items
-            if (!item.href) return null;
-            const active = isActive(item.href);
-
-            return (
-              <Link key={item.href} href={item.href} legacyBehavior>
-                <a
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "8px 12px",
-                    margin: "2px 4px",
-                    borderRadius: 8,
-                    textDecoration: "none",
-                    fontSize: 14,
-                    color: active ? "#111827" : "#374151",
-                    background: active ? "#e5f0ff" : "transparent",
-                    fontWeight: active ? 600 : 400,
-                  }}
-                >
-                  <span style={{ width: 18, textAlign: "center" }}>
-                    {item.icon ?? "•"}
-                  </span>
-                  <span>{item.label}</span>
-                </a>
-              </Link>
-            );
-          })}
 
             // Normal single link items
             if (!item.href) return null;
