@@ -672,7 +672,7 @@ function AppointmentDetailsModal({
                     )}
                   </div>
 
-                  {!isEditing ? (
+                                    {!isEditing ? (
                     <>
                       <div style={{ color: "#4b5563" }}>
                         <div
@@ -702,30 +702,23 @@ function AppointmentDetailsModal({
                           <strong>Утас:</strong> {a.patient?.phone || "-"}
                         </div>
                       </div>
-{/* NEW: Doctor + appointment branch */}
-        <div style={{ color: "#4b5563", marginTop: 4 }}>
-          {(() => {
-            const d = a.doctor as any;
-            const dName = (d?.name ?? a.doctorName ?? "").toString().trim();
-            const dOvog = (d?.ovog ?? a.doctorOvog ?? "").toString().trim();
 
-            let doctorDisplay = dName;
-            if (dOvog) {
-              const first = dOvog.charAt(0).toUpperCase();
-              doctorDisplay = `${first}.${dName}`;
-            }
+                      {/* Doctor + appointment branch */}
+                      <div style={{ color: "#4b5563", marginTop: 4 }}>
+                        <div>
+                          <strong>Эмч:</strong>{" "}
+                          {a.doctorOvog
+                            ? `${a.doctorOvog.charAt(0).toUpperCase()}.${
+                                a.doctorName ?? ""
+                              }`
+                            : a.doctorName || "-"}
+                        </div>
+                        <div>
+                          <strong>Салбар:</strong>{" "}
+                          {a.branch?.name ?? a.branchId}
+                        </div>
+                      </div>
 
-            return (
-              <>
-                <div>
-                  <strong>Эмч:</strong>{" "}
-                  {doctorDisplay || "-"}
-                </div>
-               
-              </>
-            );
-          })()}
-        </div>
                       <div
                         style={{
                           marginTop: 6,
@@ -787,6 +780,7 @@ function AppointmentDetailsModal({
                       </div>
                     </>
                   ) : (
+                    // editing branch stays as-is
                     <div
                       style={{
                         display: "flex",
