@@ -79,6 +79,7 @@ function NurseForm({
         payload.regNo = form.regNo.trim();
       }
 
+      // 1) create nurse
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -100,6 +101,7 @@ function NurseForm({
 
       const createdUser = data as Nurse;
 
+      // 2) assign multiple branches via /api/users/:id/branches
       if (form.branchIds.length > 0) {
         try {
           const resBranches = await fetch(
@@ -249,11 +251,6 @@ export default function NursesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [summary, setSummary] = useState<{
-    total: number;
-    workingToday: number;
-  } | null>(null);
-
   const loadBranches = async () => {
     try {
       const res = await fetch("/api/branches");
@@ -262,7 +259,7 @@ export default function NursesPage() {
         setBranches(data);
       }
     } catch {
-      // ignore; main error handling is in loadUsers
+      // ignore; main error handling below
     }
   };
 
@@ -282,6 +279,7 @@ export default function NursesPage() {
         throw new Error((data && data.error) || "Алдаа гарлаа");
       }
 
+      // sort by name only (alphabetically, Mongolian)
       setUsers(
         [...data].sort((a, b) => {
           const aName = (a.name || "").toString();
@@ -298,27 +296,9 @@ export default function NursesPage() {
     }
   };
 
-  const loadSummary = async () => {
-    try {
-      const res = await fetch("/api/staff/summary?role=nurse");
-      const data = await res.json().catch(() => null);
-      if (res.ok && data && typeof data.total === "number") {
-        setSummary({
-          total: data.total,
-          workingToday: data.workingToday || 0,
-        });
-      } else {
-        setSummary(null);
-      }
-    } catch {
-      setSummary(null);
-    }
-  };
-
   useEffect(() => {
     loadBranches();
     loadUsers();
-    loadSummary();
   }, []);
 
   return (
@@ -337,93 +317,10 @@ export default function NursesPage() {
 
       <UsersTabs />
 
-      {/* Summary cards */}
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 12,
-          marginBottom: 16,
-        }}
-      >
-        <div
-          style={{
-            background: "linear-gradient(90deg,#eff6ff,#ffffff)",
-            borderRadius: 12,
-            border: "1px solid #dbeafe",
-            padding: 12,
-            boxShadow: "0 4px 10px rgba(15,23,42,0.08)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              textTransform: "uppercase",
-              color: "#1d4ed8",
-              fontWeight: 700,
-              letterSpacing: 0.5,
-              marginBottom: 4,
-            }}
-          >
-            Нийт сувилагч
-          </div>
-          <div
-            style={{
-              fontSize: 26,
-              fontWeight: 700,
-              color: "#111827",
-              marginBottom: 4,
-            }}
-          >
-            {summary ? summary.total : "—"}
-          </div>
-          <div style={{ fontSize: 11, color: "#6b7280" }}>
-            Системд бүртгэлтэй нийт сувилагчдын тоо.
-          </div>
-        </div>
-
-        <div
-          style={{
-            background: "linear-gradient(90deg,#dcfce7,#ffffff)",
-            borderRadius: 12,
-            border: "1px solid #bbf7d0",
-            padding: 12,
-            boxShadow: "0 4px 10px rgba(15,23,42,0.08)",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 11,
-              textTransform: "uppercase",
-              color: "#15803d",
-              fontWeight: 700,
-              letterSpacing: 0.5,
-              marginBottom: 4,
-            }}
-          >
-            Өнөөдөр ажиллаж буй сувилагч
-          </div>
-          <div
-            style={{
-              fontSize: 26,
-              fontWeight: 700,
-              color: "#111827",
-              marginBottom: 4,
-            }}
-          >
-            {summary ? summary.workingToday : "—"}
-          </div>
-          <div style={{ fontSize: 11, color: "#6b7280" }}>
-            Өнөөдрийн ажлын хуваарьт орсон сувилагчдын тоо.
-          </div>
-        </div>
-      </section>
-
       <NurseForm
         branches={branches}
         onSuccess={(u) => {
           setUsers((prev) => [u, ...prev]);
-          loadSummary();
         }}
       />
 
