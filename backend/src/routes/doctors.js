@@ -49,6 +49,8 @@ router.get("/scheduled", async (req, res) => {
         doctor: true,
       },
       orderBy: [
+        // sort doctors by calendarOrder then id to give stable grouping
+        { doctor: { calendarOrder: "asc" } },
         { doctorId: "asc" },
         { startTime: "asc" },
       ],
@@ -64,6 +66,7 @@ router.get("/scheduled", async (req, res) => {
           id: s.doctor.id,
           name: s.doctor.name,
           ovog: s.doctor.ovog,
+          calendarOrder: s.doctor.calendarOrder ?? 0, // expose
           schedules: [],
         };
       existing.schedules.push({
