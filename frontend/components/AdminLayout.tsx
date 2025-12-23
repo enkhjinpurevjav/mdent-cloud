@@ -14,8 +14,6 @@ type NavItem = {
 };
 
 const mainNav: NavItem[] = [
-  
-
   // NOTE: Цаг захиалга is now rendered as a dynamic group below
   // so we don't list it here as a simple item.
 
@@ -33,12 +31,17 @@ const mainNav: NavItem[] = [
   // Patients / encounters
   { label: "Үйлчлүүлэгчид", href: "/patients", icon: "👤" },
 
-  // Users
-  { label: "Ажилтнууд", href: "/users", icon: "👥" },
-  { label: "Эмч нар", href: "/users/doctors", icon: "🩺" },
-  { label: "Сувилагч", href: "/users/nurses", icon: "💉" },
-  { label: "Ресепшн", href: "/users/reception", icon: "📞" },
-  { label: "Бусад ажилтан", href: "/users/staff", icon: "🏢" },
+  // Users group (collapsible)
+  {
+    label: "Ажилтнууд",
+    icon: "👥",
+    children: [
+      { label: "Эмч", href: "/users/doctors", icon: "🩺" },
+      { label: "Ресепшн", href: "/users/reception", icon: "📞" },
+      { label: "Сувилагч", href: "/users/nurses", icon: "💉" },
+      { label: "Бусад ажилтан", href: "/users/staff", icon: "🏢" },
+    ],
+  },
 
   // Clinic config
   { label: "Салбарууд", href: "/branches", icon: "🏥" },
