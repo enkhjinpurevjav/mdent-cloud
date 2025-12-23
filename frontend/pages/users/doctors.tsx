@@ -14,12 +14,15 @@ type Doctor = {
   role: string;
   branchId?: number | null;
   branch?: Branch | null;
-  branches?: Branch[]; // all assigned branches (via DoctorBranch)
+  branches?: Branch[];
   regNo?: string | null;
   licenseNumber?: string | null;
   licenseExpiryDate?: string | null;
   phone?: string | null;
   createdAt?: string;
+
+  // NEW: calendar order
+  calendarOrder?: number | null;
 };
 
 function DoctorForm({
