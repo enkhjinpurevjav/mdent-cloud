@@ -20,8 +20,6 @@ type Doctor = {
   licenseExpiryDate?: string | null;
   phone?: string | null;
   createdAt?: string;
-
-  // calendar / column order on calendar
   calendarOrder?: number | null;
 };
 
@@ -52,15 +50,11 @@ function DoctorForm({
   const handleBranchToggle = (branchId: number) => {
     setForm((prev) => {
       const exists = prev.branchIds.includes(branchId);
-      if (exists) {
-        return {
-          ...prev,
-          branchIds: prev.branchIds.filter((id) => id !== branchId),
-        };
-      }
       return {
         ...prev,
-        branchIds: [...prev.branchIds, branchId],
+        branchIds: exists
+          ? prev.branchIds.filter((id) => id !== branchId)
+          : [...prev.branchIds, branchId],
       };
     });
   };
@@ -91,7 +85,6 @@ function DoctorForm({
         payload.phone = form.phone.trim();
       }
 
-      // 1) create doctor
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -113,7 +106,6 @@ function DoctorForm({
 
       const createdDoctor = data as Doctor;
 
-      // 2) assign multiple branches via /api/users/:id/branches
       if (form.branchIds.length > 0) {
         try {
           const resBranches = await fetch(
@@ -263,7 +255,6 @@ export default function DoctorsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // NEW: summary state for cards
   const [summary, setSummary] = useState<{
     total: number;
     workingToday: number;
@@ -277,7 +268,7 @@ export default function DoctorsPage() {
         setBranches(data);
       }
     } catch {
-      // ignore here, main error handling is in doctors load
+      // ignore here
     }
   };
 
@@ -317,7 +308,6 @@ export default function DoctorsPage() {
     }
   };
 
-  // NEW: load summary from /api/staff/summary
   const loadSummary = async () => {
     try {
       const res = await fetch("/api/staff/summary?role=doctor");
@@ -357,7 +347,6 @@ export default function DoctorsPage() {
 
       <UsersTabs />
 
-      {/* Summary cards – similar to Үйлчлүүлэгчид page */}
       <section
         style={{
           display: "grid",
@@ -366,7 +355,6 @@ export default function DoctorsPage() {
           marginBottom: 16,
         }}
       >
-        {/* Total doctors */}
         <div
           style={{
             background: "linear-gradient(90deg,#eff6ff,#ffffff)",
@@ -403,7 +391,6 @@ export default function DoctorsPage() {
           </div>
         </div>
 
-        {/* Doctors working today */}
         <div
           style={{
             background: "linear-gradient(90deg,#dcfce7,#ffffff)",
@@ -444,8 +431,7 @@ export default function DoctorsPage() {
       <DoctorForm
         branches={branches}
         onSuccess={(d) => {
-          setDoctors((ds) => [d, ...ds]);
-          // optionally refresh summary when a doctor is added
+          setDoctors((prev) => [d, ...prev]);
           loadSummary();
         }}
       />
@@ -464,157 +450,41 @@ export default function DoctorsPage() {
         >
           <thead>
             <tr>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                #
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Овог
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Нэр
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                РД
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Утас
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Салбар
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Дараалал
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Дэлгэрэнгүй
-              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>#</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Овог</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Нэр</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>РД</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Утас</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Салбар</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Дараалал</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Дэлгэрэнгүй</th>
             </tr>
           </thead>
           <tbody>
             {doctors.map((d, index) => (
               <tr key={d.id}>
-                <td
-                  style={{
-                    borderBottom: "1px solid "#f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {index + 1}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid "#f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {d.ovog || "-"}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid "#f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {d.name || "-"}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid "#f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {d.regNo || "-"}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid "#f0f0f0",
-                    padding: 8,
-                  }}
-                >
-                  {d.phone || "-"}
-                </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid "#f0f0f0",
-                    padding: 8,
-                  }}
-                >
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>{index + 1}</td>
+                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>{d.ovog || "-"}</td>
+                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>{d.name || "-"}</td>
+                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>{d.regNo || "-"}</td>
+                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>{d.phone || "-"}</td>
+                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>
                   {Array.isArray(d.branches) && d.branches.length > 0
                     ? d.branches.map((b) => b.name).join(", ")
                     : d.branch
                     ? d.branch.name
                     : "-"}
                 </td>
-                <td
-                  style={{
-                    borderBottom: "1px solid "#f0f0f0",
-                    padding: 8,
-                  }}
-                >
+                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>
                   <input
                     type="number"
-                    value={
-                      typeof d.calendarOrder === "number"
-                        ? d.calendarOrder
-                        : 0
-                    }
+                    value={typeof d.calendarOrder === "number" ? d.calendarOrder : 0}
                     onChange={async (e) => {
                       const value = parseInt(e.target.value, 10) || 0;
 
-                      // optimistic update
                       setDoctors((prev) =>
                         prev.map((doc) =>
-                          doc.id === d.id
-                            ? { ...doc, calendarOrder: value }
-                            : doc
+                          doc.id === d.id ? { ...doc, calendarOrder: value } : doc
                         )
                       );
 
@@ -625,12 +495,8 @@ export default function DoctorsPage() {
                           body: JSON.stringify({ calendarOrder: value }),
                         });
                         if (!res.ok) {
-                          console.error(
-                            "Failed to update calendarOrder for doctor",
-                            d.id
-                          );
+                          console.error("Failed to update calendarOrder for doctor", d.id);
                         } else {
-                          // re-sort after successful save
                           setDoctors((prev) =>
                             [...prev].sort((a, b) => {
                               const ao = (a.calendarOrder ?? 0) as number;
@@ -646,16 +512,12 @@ export default function DoctorsPage() {
                         console.error(err);
                       }
                     }}
-                    style={{
-                      width: 60,
-                      padding: 4,
-                      fontSize: 12,
-                    }}
+                    style={{ width: 60, padding: 4, fontSize: 12 }}
                   />
                 </td>
                 <td
                   style={{
-                    borderBottom: "1px solid "#f0f0f0",
+                    borderBottom: "1px solid #f0f0f0",
                     padding: 8,
                     whiteSpace: "nowrap",
                   }}
@@ -666,7 +528,7 @@ export default function DoctorsPage() {
                       display: "inline-block",
                       padding: "4px 8px",
                       borderRadius: 4,
-                      border: "1px solid "#2563eb",
+                      border: "1px solid #2563eb",
                       color: "#2563eb",
                       textDecoration: "none",
                       fontSize: 12,
