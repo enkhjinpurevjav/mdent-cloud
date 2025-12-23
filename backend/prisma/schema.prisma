@@ -97,6 +97,9 @@ model User {
 
   createdAt          DateTime         @default(now())
 
+  // *** NEW: calendar / display ordering for doctors ***
+  calendarOrder      Int?             @default(0)
+
   // Encounters where this user is the doctor
   encounters         Encounter[]      @relation("DoctorEncounters")
 
