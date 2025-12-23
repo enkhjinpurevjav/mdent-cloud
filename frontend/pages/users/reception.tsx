@@ -805,36 +805,39 @@ export default function ReceptionPage() {
                       : "-"}
                   </td>
                   <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => startEdit(u)}
-                      style={{
-                        marginRight: 8,
-                        padding: "2px 6px",
-                        fontSize: 12,
-                      }}
-                    >
-                      Засах
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteUser(u.id)}
-                      style={{
-                        padding: "2px 6px",
-                        fontSize: 12,
-                        color: "#b91c1c",
-                        borderColor: "#b91c1c",
-                      }}
-                    >
-                      Устгах
-                    </button>
-                  </td>
+  style={{
+    borderBottom: "1px solid #f0f0f0",
+    padding: 8,
+    whiteSpace: "nowrap",
+  }}
+>
+  <a
+    href={`/users/reception/${u.id}`}
+    style={{
+      marginRight: 8,
+      padding: "2px 6px",
+      fontSize: 12,
+      borderRadius: 4,
+      border: "1px solid #2563eb",
+      color: "#2563eb",
+      textDecoration: "none",
+    }}
+  >
+    Профайл
+  </a>
+  <button
+    type="button"
+    onClick={() => deleteUser(u.id)}
+    style={{
+      padding: "2px 6px",
+      fontSize: 12,
+      color: "#b91c1c",
+      borderColor: "#b91c1c",
+    }}
+  >
+    Устгах
+  </button>
+</td>
                 </tr>
               );
             })}
