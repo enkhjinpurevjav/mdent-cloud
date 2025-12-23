@@ -1170,4 +1170,113 @@ router.delete("/:id/schedule/:scheduleId", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/users/receptions/today
+ *
+ * Optional query:
+ *   branchId=number  → filter by branch
+ *
+ * Returns:
+ * {
+ *   count: number,
+ *   items: Array<{
+ *     receptionId: number,
+ *     name: string | null,
+ *     ovog: string | null,
+ *     email: string,
+ *     phone: string | null,
+ *     branches: { id: number, name: string }[],
+ *     schedules: {
+ *       id: number,
+ *       branch: { id: number, name: string },
+ *       date: string,        // YYYY-MM-DD
+ *       startTime: string,   // HH:MM
+ *       endTime: string,     // HH:MM
+ *       note: string | null
+ *     }[]
+ *   }>
+ * }
+ *
+ * Used by the Reception list top card: "өнөөдөр ажиллаж буй ресепшн".
+ */
+router.get("/receptions/today", async (req, res) => {
+  try {
+    const { branchId } = req.query;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const whereSchedule = {
+      date: today,
+    };
+
+    if (branchId) {
+      const bid = Number(branchId);
+      if (Number.isNaN(bid)) {
+        return res.status(400).json({ error: "Invalid branchId" });
+      }
+      whereSchedule.branchId = bid;
+    }
+
+    // Find today's reception schedules (optionally filtered by branch)
+    const schedules = await prisma.receptionSchedule.findMany({
+      where: whereSchedule,
+      include: {
+        branch: { select: { id: true, name: true } },
+        reception: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            ovog: true,
+            phone: true,
+          },
+        },
+      },
+      orderBy: [{ startTime: "asc" }],
+    });
+
+    if (!schedules.length) {
+      return res.json({ count: 0, items: [] });
+    }
+
+    // Group by receptionId so frontend can show unique staff count
+    const map = new Map();
+    for (const s of schedules) {
+      const key = s.receptionId;
+      if (!map.has(key)) {
+        map.set(key, {
+          receptionId: s.receptionId,
+          name: s.reception.name,
+          ovog: s.reception.ovog,
+          email: s.reception.email,
+          phone: s.reception.phone || null,
+          schedules: [],
+        });
+      }
+      const entry = map.get(key);
+      entry.schedules.push({
+        id: s.id,
+        branch: s.branch,
+        date: s.date.toISOString().slice(0, 10),
+        startTime: s.startTime,
+        endTime: s.endTime,
+        note: s.note,
+      });
+    }
+
+    const items = Array.from(map.values());
+
+    return res.json({
+      count: items.length,
+      items,
+    });
+  } catch (err) {
+    console.error("GET /api/users/receptions/today error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch today's receptions" });
+  }
+});
+
 export default router;
