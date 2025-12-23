@@ -363,34 +363,34 @@ setReception(rec);
   };
 
   const handleSaveBranches = async () => {
-    if (!id) return;
-    setSavingBranches(true);
-    setError(null);
+  if (!id) return;
+  setSavingBranches(true);
+  setError(null);
 
-    try {
-      const res = await fetch(`/api/users/${id}/reception-branches`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branchIds: selectedBranchIds }),
-      });
+  try {
+    const res = await fetch(`/api/users/${id}/branches`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ branchIds: selectedBranchIds }),
+    });
 
-      const data = await res.json().catch(() => null);
+    const data = await res.json().catch(() => null);
 
-      if (!res.ok) {
-        setError(
-          (data && (data as any).error) ||
-            "Салбар хадгалах үед алдаа гарлаа"
-        );
-        setSavingBranches(false);
-        return;
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Сүлжээгээ шалгана уу");
-    } finally {
+    if (!res.ok) {
+      setError(
+        (data && (data as any).error) ||
+          "Салбар хадгалах үед алдаа гарлаа"
+      );
       setSavingBranches(false);
+      return;
     }
-  };
+  } catch (err) {
+    console.error(err);
+    setError("Сүлжээгээ шалгана уу");
+  } finally {
+    setSavingBranches(false);
+  }
+};
 
   const handleDeleteUser = async () => {
     if (!id) return;
@@ -412,7 +412,7 @@ setReception(rec);
         return;
       }
 
-      router.push("/users/receptions");
+      router.push("/users/reception");
     } catch (err) {
       console.error(err);
       alert("Сүлжээгээ шалгана уу");
