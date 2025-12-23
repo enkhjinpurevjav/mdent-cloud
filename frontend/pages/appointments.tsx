@@ -705,15 +705,34 @@ function AppointmentDetailsModal({
 
                       {/* Doctor + appointment branch */}
                       <div style={{ color: "#4b5563", marginTop: 4 }}>
-                        <div>
-                          <strong>Эмч:</strong>{" "}
-                          {a.doctorOvog
-                            ? `${a.doctorOvog.charAt(0).toUpperCase()}.${
-                                a.doctorName ?? ""
-                              }`
-                            : a.doctorName || "-"}
-                        </div>
-                        <div>
+  <div>
+    <strong>Эмч:</strong>{" "}
+    {(() => {
+      const rawName = (a.doctorName ?? "").toString().trim();
+      const rawOvog = (a.doctorOvog ?? "").toString().trim();
+
+      // doctorName = "Test Amaraa" → нэр хэсгийг авах
+      let pureName = rawName;
+      if (rawName && rawOvog) {
+        const lowerName = rawName.toLowerCase();
+        const lowerOvog = rawOvog.toLowerCase();
+
+        if (lowerName.startsWith(lowerOvog + " ")) {
+          pureName = rawName.slice(rawOvog.length).trim();
+        }
+      }
+
+      if (!pureName && !rawOvog) return "-";
+
+      if (rawOvog) {
+        const first = rawOvog.charAt(0).toUpperCase();
+        return `${first}.${pureName || rawOvog}`;
+      }
+
+      return pureName;
+    })()}
+  </div>
+  <div>
                           <strong>Салбар:</strong>{" "}
                           {a.branch?.name ?? a.branchId}
                         </div>
