@@ -31,17 +31,7 @@ async function ensureReceptionOr404(id, res) {
   }
   return user;
 }
-async function ensureReceptionOr404(id, res) {
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: { id: true, role: true },
-  });
-  if (!user || user.role !== UserRole.receptionist) {
-    res.status(404).json({ error: "Receptionist not found" });
-    return null;
-  }
-  return user;
-}
+
 /**
  * GET /api/users?role=doctor&branchId=1
  * Supports:
