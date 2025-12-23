@@ -804,7 +804,7 @@ export default function ReceptionPage() {
                       ? u.branch.name
                       : "-"}
                   </td>
-                  <td
+                 <td
   style={{
     borderBottom: "1px solid #f0f0f0",
     padding: 8,
@@ -814,7 +814,6 @@ export default function ReceptionPage() {
   <a
     href={`/users/reception/${u.id}`}
     style={{
-      marginRight: 8,
       padding: "2px 6px",
       fontSize: 12,
       borderRadius: 4,
@@ -825,18 +824,6 @@ export default function ReceptionPage() {
   >
     Профайл
   </a>
-  <button
-    type="button"
-    onClick={() => deleteUser(u.id)}
-    style={{
-      padding: "2px 6px",
-      fontSize: 12,
-      color: "#b91c1c",
-      borderColor: "#b91c1c",
-    }}
-  >
-    Устгах
-  </button>
 </td>
                 </tr>
               );
