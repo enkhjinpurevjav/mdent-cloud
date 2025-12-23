@@ -3533,26 +3533,6 @@ const totalCompletedPatientsForDay = useMemo(() => {
   ))}
 </select>
           </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-  <label>Эмч</label>
-  <select
-    value={filterDoctorId}
-    onChange={(e) => setFilterDoctorId(e.target.value)}
-    style={{
-      borderRadius: 6,
-      border: "1px solid #d1d5db",
-      padding: "6px 8px",
-    }}
-  >
-    <option value="">Бүх эмч</option>
-    {workingDoctorsForFilter.map((d) => (
-      <option key={d.id} value={d.id}>
-        {formatDoctorName(d)}
-      </option>
-    ))}
-  </select>
-</div>
         </div>
       </section>
 
