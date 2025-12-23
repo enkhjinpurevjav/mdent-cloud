@@ -3078,7 +3078,7 @@ if (quickPatientForm.gender) {
     </div>
   )}
 
-              )}
+       
               <div
                 style={{
                   display: "flex",
