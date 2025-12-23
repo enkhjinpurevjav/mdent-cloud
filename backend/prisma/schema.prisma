@@ -534,3 +534,43 @@ model DoctorSchedule {
   @@index([branchId, date])
   @@unique([doctorId, branchId, date])
 }
+
+model ReceptionBranch {
+  id           Int    @id @default(autoincrement())
+
+  receptionId  Int
+  branchId     Int
+
+  reception    User   @relation(fields: [receptionId], references: [id])
+  branch       Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([receptionId, branchId])
+}
+
+// ==========================================================
+// RECEPTION SCHEDULES (Per-day, per-branch work schedule)
+// ==========================================================
+model ReceptionSchedule {
+  id          Int      @id @default(autoincrement())
+
+  receptionId Int
+  branchId    Int
+
+  /// Calendar date (store as date-only; time is in startTime/endTime)
+  date        DateTime
+
+  /// e.g. "09:00" — 24h format
+  startTime   String
+
+  /// e.g. "15:00" — 24h format
+  endTime     String
+
+  note        String?
+
+  reception   User     @relation(fields: [receptionId], references: [id])
+  branch      Branch   @relation(fields: [branchId], references: [id])
+
+  @@index([receptionId, date])
+  @@index([branchId, date])
+  @@unique([receptionId, branchId, date])
+}
