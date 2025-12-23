@@ -88,28 +88,14 @@ model User {
   id                 Int              @id @default(autoincrement())
   email              String           @unique
   password           String
-
-  /// Father’s name for all users
   ovog               String?
-
-  /// Given name
   name               String?
-
   role               UserRole         @default(receptionist)
-
-  /// Legacy single-branch assignment
   branchId           Int?
   branch             Branch?          @relation(fields: [branchId], references: [id])
-
   createdAt          DateTime         @default(now())
-
-  // Encounters where this user is the doctor
   encounters         Encounter[]      @relation("DoctorEncounters")
-
-  // Contact
-  phone              String?          // employee phone (optional)
-
-  // Advanced Doctor/Nurse Info
+  phone              String?
   regNo              String?          @unique
   licenseNumber      String?          @unique
   licenseExpiryDate  DateTime?
@@ -119,32 +105,17 @@ model User {
 
   // Per-day work schedules across branches
   doctorSchedules    DoctorSchedule[]
-
-  // Many-to-many doctor-to-branch assignment
   doctorBranches     DoctorBranch[]
 
-  // NEW: Receptionist multi-branch + schedules
-  receptionBranches  ReceptionBranch[]
+  // NEW: Receptionist relations
   receptionSchedules ReceptionSchedule[]
+  receptionBranches  ReceptionBranch[]
 
-  // Appointments where this user is the doctor
   appointments       Appointment[]
-
-  // Bookings for this user as doctor
   bookings           Booking[]
-}
 
-// Join table for many-to-many between Doctor (User) and Branch
-model DoctorBranch {
-  id        Int    @id @default(autoincrement())
-
-  doctorId  Int
-  branchId  Int
-
-  doctor    User   @relation(fields: [doctorId], references: [id])
-  branch    Branch @relation(fields: [branchId], references: [id])
-
-  @@unique([doctorId, branchId])
+  // KEEP THIS:
+  calendarOrder      Int?             // column already exists in DB
 }
 
 // ==========================================================
