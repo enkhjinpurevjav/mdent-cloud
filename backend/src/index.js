@@ -23,6 +23,7 @@ import bookingsRouter from "./routes/bookings.js";
 import diagnosesRouter from "./routes/diagnoses.js";
 import diagnosisProblemsRouter from "./routes/diagnosisProblems.js";
 import encounterDiagnosesRouter from "./routes/encounterDiagnoses.js";
+import receptionRoutes from "./routes/reception.js";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const app = express();
@@ -76,6 +77,7 @@ app.use("/api/bookings", bookingsRouter);
 app.use("/api/diagnoses", diagnosesRouter);
 app.use("/api", diagnosisProblemsRouter);
 app.use("/api", encounterDiagnosesRouter);
+app.use("/api/reception", receptionRoutes);
 
 // Optional central error handler
 app.use((err, _req, res, _next) => {
