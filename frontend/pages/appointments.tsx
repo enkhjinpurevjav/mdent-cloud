@@ -930,6 +930,7 @@ type QuickAppointmentModalProps = {
   doctors: Doctor[];
   scheduledDoctors: ScheduledDoctor[];
   appointments: Appointment[];
+  selectedBranchId: string;        // NEW
   onCreated: (a: Appointment) => void;
 };
 
@@ -943,19 +944,20 @@ function QuickAppointmentModal({
   doctors,
   scheduledDoctors,
   appointments,
+  selectedBranchId,  // NEW
   onCreated,
 }: QuickAppointmentModalProps) {
   const [form, setForm] = useState({
-    patientQuery: "",
-    patientId: null as number | null,
-    doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
-    branchId: branches.length ? String(branches[0].id) : "",
-    date: defaultDate,
-    startTime: defaultTime,
-    endTime: addMinutesToTimeString(defaultTime, SLOT_MINUTES),
-    status: "booked",
-    notes: "",
-  });
+  patientQuery: "",
+  patientId: null as number | null,
+  doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
+  branchId: selectedBranchId || (branches.length ? String(branches[0].id) : ""),
+  date: defaultDate,
+  startTime: defaultTime,
+  endTime: addMinutesToTimeString(defaultTime, SLOT_MINUTES),
+  status: "booked",
+  notes: "",
+});
   const [error, setError] = useState("");
 
 const workingDoctors = scheduledDoctors.length
@@ -991,19 +993,20 @@ const workingDoctors = scheduledDoctors.length
   
 
   useEffect(() => {
-    if (!open) return;
-    setForm((prev) => ({
-      ...prev,
-      doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
-      date: defaultDate,
-      startTime: defaultTime,
-      endTime: addMinutesToTimeString(defaultTime, SLOT_MINUTES),
-      patientId: null,
-      patientQuery: "",
-    }));
-    setError("");
-    setPatientResults([]);
-  }, [open, defaultDoctorId, defaultDate, defaultTime]);
+  if (!open) return;
+  setForm((prev) => ({
+    ...prev,
+    doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
+    branchId: selectedBranchId || prev.branchId,
+    date: defaultDate,
+    startTime: defaultTime,
+    endTime: addMinutesToTimeString(defaultTime, SLOT_MINUTES),
+    patientId: null,
+    patientQuery: "",
+  }));
+  setError("");
+  setPatientResults([]);
+}, [open, defaultDoctorId, defaultDate, defaultTime, selectedBranchId]);
 
   useEffect(() => {
   if (!form.date) {
@@ -4031,6 +4034,7 @@ const totalCompletedPatientsForDay = useMemo(() => {
         doctors={doctors}
         scheduledDoctors={scheduledDoctors}
         appointments={appointments}
+        selectedBranchId={filterBranchId}
         onCreated={(a) => setAppointments((prev) => [a, ...prev])}
       />
     </main>
