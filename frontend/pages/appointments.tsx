@@ -1760,146 +1760,222 @@ if (quickPatientForm.gender) {
                   fontSize: 13,
                 }}
               >
-                <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 15 }}>
-                  Шинэ үйлчлүүлэгч хурдан бүртгэх
-                </h3>
-                <p
-                  style={{
-                    marginTop: 0,
-                    marginBottom: 12,
-                    color: "#6b7280",
-                  }}
-                >
-                  Зөвхөн нэр, утас болон салбарыг бүртгэнэ. Дэлгэрэнгүй
-                  мэдээллийг дараа нь &quot;Үйлчлүүлэгчийн бүртгэл&quot;
-                  хэсгээс засварлана.
-                </p>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 8,
-                  }}
-                >
-                  <label
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 4,
-                    }}
-                  >
-                    Нэр
-                    <input
-                      name="name"
-                      value={quickPatientForm.name}
-                      onChange={handleQuickPatientChange}
-                      placeholder="Ж: Батболд"
-                      style={{
-                        borderRadius: 6,
-                        border: "1px solid #d1d5db",
-                        padding: "6px 8px",
-                      }}
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 4,
-                    }}
-                  >
-                    Утас
-                    <input
-                      name="phone"
-                      value={quickPatientForm.phone}
-                      onChange={handleQuickPatientChange}
-                      placeholder="Ж: 99112233"
-                      style={{
-                        borderRadius: 6,
-                        border: "1px solid #d1d5db",
-                        padding: "6px 8px",
-                      }}
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 4,
-                    }}
-                  >
-                    Салбар
-                    <select
-                      name="branchId"
-                      value={quickPatientForm.branchId}
-                      onChange={handleQuickPatientChange}
-                      style={{
-                        borderRadius: 6,
-                        border: "1px solid #d1d5db",
-                        padding: "6px 8px",
-                      }}
-                    >
-                      <option value="">Сонгох</option>
-                      {branches.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {quickPatientError && (
-                    <div
-                      style={{
-                        color: "#b91c1c",
-                        fontSize: 12,
-                      }}
-                    >
-                      {quickPatientError}
-                    </div>
-                  )}
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "flex-end",
-                      gap: 8,
-                      marginTop: 8,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!quickPatientSaving) {
-                          setShowQuickPatientModal(false);
-                          setQuickPatientError("");
-                        }
-                      }}
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: 6,
-                        border: "1px solid #d1d5db",
-                        background: "#f9fafb",
-                        cursor: quickPatientSaving ? "default" : "pointer",
-                      }}
-                    >
-                      Болих
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleQuickPatientSave}
-                      disabled={quickPatientSaving}
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: 6,
-                        border: "none",
-                        background: "#16a34a",
-                        color: "white",
-                        cursor: quickPatientSaving ? "default" : "pointer",
-                      }}
-                    >
-                      {quickPatientSaving ? "Хадгалж байна..." : "Хадгалах"}
-                    </button>
-                  </div>
-                </div>
+                      <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 15 }}>
+        Шинэ үйлчлүүлэгч хурдан бүртгэх
+      </h3>
+      <p
+        style={{
+          marginTop: 0,
+          marginBottom: 12,
+          color: "#6b7280",
+        }}
+      >
+        Нэр, утас болон салбар талбарууд заавал бөглөнө. Овог, РД, хүйс
+        талбаруудыг бөглөж өгвөл дараа нь &quot;Үйлчлүүлэгчийн бүртгэл&quot;
+        хэсэгт дахин оруулах шаардлагагүй.
+      </p>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+        }}
+      >
+        {/* Овог (optional) */}
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
+          Овог
+          <input
+            name="ovog"
+            value={quickPatientForm.ovog}
+            onChange={handleQuickPatientChange}
+            placeholder="Ж: Бат"
+            style={{
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
+        </label>
+
+        {/* Нэр (required) */}
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
+          Нэр
+          <input
+            name="name"
+            value={quickPatientForm.name}
+            onChange={handleQuickPatientChange}
+            placeholder="Ж: Болд"
+            style={{
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
+        </label>
+
+        {/* Утас (required) */}
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
+          Утас
+          <input
+            name="phone"
+            value={quickPatientForm.phone}
+            onChange={handleQuickPatientChange}
+            placeholder="Ж: 99112233"
+            style={{
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
+        </label>
+
+        {/* Салбар (required – logic already enforces) */}
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
+          Салбар
+          <select
+            name="branchId"
+            value={quickPatientForm.branchId}
+            onChange={handleQuickPatientChange}
+            style={{
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          >
+            <option value="">Сонгох</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {/* РД (optional) */}
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
+          РД
+          <input
+            name="regNo"
+            value={quickPatientForm.regNo}
+            onChange={handleQuickPatientChange}
+            placeholder="Ж: УБ99112233"
+            style={{
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
+        </label>
+
+        {/* Хүйс (optional) */}
+        <label
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
+          Хүйс
+          <select
+            name="gender"
+            value={quickPatientForm.gender}
+            onChange={handleQuickPatientChange}
+            style={{
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          >
+            <option value="">Сонгохгүй</option>
+            <option value="male">Эр</option>
+            <option value="female">Эм</option>
+          </select>
+        </label>
+
+        {quickPatientError && (
+          <div
+            style={{
+              color: "#b91c1c",
+              fontSize: 12,
+            }}
+          >
+            {quickPatientError}
+          </div>
+        )}
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            marginTop: 8,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              if (!quickPatientSaving) {
+                setShowQuickPatientModal(false);
+                setQuickPatientError("");
+              }
+            }}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              background: "#f9fafb",
+              cursor: quickPatientSaving ? "default" : "pointer",
+            }}
+          >
+            Болих
+          </button>
+          <button
+            type="button"
+            onClick={handleQuickPatientSave}
+            disabled={quickPatientSaving}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: "none",
+              background: "#16a34a",
+              color: "white",
+              cursor: quickPatientSaving ? "default" : "pointer",
+            }}
+          >
+            {quickPatientSaving ? "Хадгалж байна..." : "Хадгалах"}
+          </button>
+        </div>
+      </div>
               </div>
             </div>
           )}
