@@ -21,7 +21,7 @@ type Doctor = {
   phone?: string | null;
   createdAt?: string;
 
-  // NEW: calendar order
+  // calendar / column order on calendar
   calendarOrder?: number | null;
 };
 
@@ -33,14 +33,14 @@ function DoctorForm({
   onSuccess: (d: Doctor) => void;
 }) {
   const [form, setForm] = useState({
-  email: "",
-  password: "",
-  name: "",
-  ovog: "",
-  regNo: "",
-  phone: "",         // <- add this
-  branchIds: [] as number[],
-});
+    email: "",
+    password: "",
+    name: "",
+    ovog: "",
+    regNo: "",
+    phone: "",
+    branchIds: [] as number[],
+  });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -74,22 +74,22 @@ function DoctorForm({
       const primaryBranchId =
         form.branchIds.length > 0 ? form.branchIds[0] : undefined;
 
-     const payload: any = {
-  email: form.email,
-  password: form.password,
-  name: form.name || undefined,
-  ovog: form.ovog || undefined,
-  role: "doctor",
-  branchId: primaryBranchId,
-};
+      const payload: any = {
+        email: form.email,
+        password: form.password,
+        name: form.name || undefined,
+        ovog: form.ovog || undefined,
+        role: "doctor",
+        branchId: primaryBranchId,
+      };
 
-if (form.regNo.trim()) {
-  payload.regNo = form.regNo.trim();
-}
+      if (form.regNo.trim()) {
+        payload.regNo = form.regNo.trim();
+      }
 
-if (form.phone.trim()) {
-  payload.phone = form.phone.trim();
-}
+      if (form.phone.trim()) {
+        payload.phone = form.phone.trim();
+      }
 
       // 1) create doctor
       const res = await fetch("/api/users", {
@@ -145,15 +145,15 @@ if (form.phone.trim()) {
 
       onSuccess(createdDoctor);
 
-     setForm({
-  email: "",
-  password: "",
-  name: "",
-  ovog: "",
-  regNo: "",
-  phone: "",        // <- reset
-  branchIds: [],
-});
+      setForm({
+        email: "",
+        password: "",
+        name: "",
+        ovog: "",
+        regNo: "",
+        phone: "",
+        branchIds: [],
+      });
     } catch {
       setError("Сүлжээгээ шалгана уу");
     } finally {
@@ -164,57 +164,57 @@ if (form.phone.trim()) {
   return (
     <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
       <h2>Шинэ эмч бүртгэх</h2>
-     <div
-  style={{
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: 8,
-    marginBottom: 8,
-  }}
->
-  <input
-    name="ovog"
-    placeholder="Овог"
-    value={form.ovog}
-    onChange={handleChange}
-    required
-  />
-  <input
-    name="name"
-    placeholder="Нэр"
-    value={form.name}
-    onChange={handleChange}
-    required
-  />
-  <input
-    name="regNo"
-    placeholder="РД"
-    value={form.regNo}
-    onChange={handleChange}
-  />
-  <input
-    name="phone"
-    placeholder="Утас"
-    value={form.phone}
-    onChange={handleChange}
-  />
-  <input
-    name="email"
-    type="email"
-    placeholder="И-мэйл"
-    value={form.email}
-    onChange={handleChange}
-    required
-  />
-  <input
-    name="password"
-    type="password"
-    placeholder="Нууц үг"
-    value={form.password}
-    onChange={handleChange}
-    required
-  />
-</div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 8,
+          marginBottom: 8,
+        }}
+      >
+        <input
+          name="ovog"
+          placeholder="Овог"
+          value={form.ovog}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="name"
+          placeholder="Нэр"
+          value={form.name}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="regNo"
+          placeholder="РД"
+          value={form.regNo}
+          onChange={handleChange}
+        />
+        <input
+          name="phone"
+          placeholder="Утас"
+          value={form.phone}
+          onChange={handleChange}
+        />
+        <input
+          name="email"
+          type="email"
+          placeholder="И-мэйл"
+          value={form.email}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="password"
+          type="password"
+          placeholder="Нууц үг"
+          value={form.password}
+          onChange={handleChange}
+          required
+        />
+      </div>
       <div style={{ marginBottom: 8 }}>
         <div style={{ marginBottom: 4, fontWeight: 500 }}>Салбар сонгох</div>
         <div
@@ -275,41 +275,41 @@ export default function DoctorsPage() {
     }
   };
 
-    const loadDoctors = async () => {
-  setLoading(true);
-  setError("");
-  try {
-    const res = await fetch("/api/users?role=doctor");
-    let data: any = null;
+  const loadDoctors = async () => {
+    setLoading(true);
+    setError("");
     try {
-      data = await res.json();
+      const res = await fetch("/api/users?role=doctor");
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (res.ok && Array.isArray(data)) {
+        const sorted = [...data].sort((a, b) => {
+          const ao = (a.calendarOrder ?? 0) as number;
+          const bo = (b.calendarOrder ?? 0) as number;
+          if (ao !== bo) return ao - bo;
+
+          const aName = (a.name || "").toString();
+          const bName = (b.name || "").toString();
+          return aName.localeCompare(bName, "mn");
+        });
+
+        setDoctors(sorted);
+      } else {
+        setError(
+          (data && data.error) || "Эмч нарын жагсаалтыг ачааллаж чадсангүй"
+        );
+      }
     } catch {
-      data = null;
+      setError("Сүлжээгээ шалгана уу");
+    } finally {
+      setLoading(false);
     }
-
-    if (res.ok && Array.isArray(data)) {
-      const sorted = [...data].sort((a, b) => {
-        const ao = (a.calendarOrder ?? 0) as number;
-        const bo = (b.calendarOrder ?? 0) as number;
-        if (ao !== bo) return ao - bo;
-
-        const aName = (a.name || "").toString();
-        const bName = (b.name || "").toString();
-        return aName.localeCompare(bName, "mn");
-      });
-
-      setDoctors(sorted);
-    } else {
-      setError(
-        (data && data.error) || "Эмч нарын жагсаалтыг ачааллаж чадсангүй"
-      );
-    }
-  } catch {
-    setError("Сүлжээгээ шалгана уу");
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   useEffect(() => {
     loadBranches();
@@ -353,7 +353,6 @@ export default function DoctorsPage() {
         >
           <thead>
             <tr>
-              {/* 1. # (row number) */}
               <th
                 style={{
                   textAlign: "left",
@@ -363,7 +362,6 @@ export default function DoctorsPage() {
               >
                 #
               </th>
-              {/* 2. Овог */}
               <th
                 style={{
                   textAlign: "left",
@@ -373,7 +371,6 @@ export default function DoctorsPage() {
               >
                 Овог
               </th>
-              {/* 3. Нэр */}
               <th
                 style={{
                   textAlign: "left",
@@ -383,7 +380,6 @@ export default function DoctorsPage() {
               >
                 Нэр
               </th>
-              {/* 4. РД */}
               <th
                 style={{
                   textAlign: "left",
@@ -393,7 +389,6 @@ export default function DoctorsPage() {
               >
                 РД
               </th>
-              {/* 5. Утас */}
               <th
                 style={{
                   textAlign: "left",
@@ -403,7 +398,6 @@ export default function DoctorsPage() {
               >
                 Утас
               </th>
-              {/* 6. Салбар */}
               <th
                 style={{
                   textAlign: "left",
@@ -413,19 +407,15 @@ export default function DoctorsPage() {
               >
                 Салбар
               </th>
-
- {/* NEW: calendar order */}
-    <th
-      style={{
-        textAlign: "left",
-        borderBottom: "1px solid #ddd",
-        padding: 8,
-      }}
-    >
-      Дараалал
-    </th>
-              
-              {/* 7. Дэлгэрэнгүй */}
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
+                Дараалал
+              </th>
               <th
                 style={{
                   textAlign: "left",
@@ -440,7 +430,6 @@ export default function DoctorsPage() {
           <tbody>
             {doctors.map((d, index) => (
               <tr key={d.id}>
-                {/* 1. # (row number) */}
                 <td
                   style={{
                     borderBottom: "1px solid #f0f0f0",
@@ -449,7 +438,6 @@ export default function DoctorsPage() {
                 >
                   {index + 1}
                 </td>
-                {/* 2. Овог */}
                 <td
                   style={{
                     borderBottom: "1px solid #f0f0f0",
@@ -458,7 +446,6 @@ export default function DoctorsPage() {
                 >
                   {d.ovog || "-"}
                 </td>
-                {/* 3. Нэр */}
                 <td
                   style={{
                     borderBottom: "1px solid #f0f0f0",
@@ -467,7 +454,6 @@ export default function DoctorsPage() {
                 >
                   {d.name || "-"}
                 </td>
-                {/* 4. РД */}
                 <td
                   style={{
                     borderBottom: "1px solid #f0f0f0",
@@ -476,7 +462,6 @@ export default function DoctorsPage() {
                 >
                   {d.regNo || "-"}
                 </td>
-                {/* 5. Утас */}
                 <td
                   style={{
                     borderBottom: "1px solid #f0f0f0",
@@ -485,15 +470,78 @@ export default function DoctorsPage() {
                 >
                   {d.phone || "-"}
                 </td>
-                {/* 6. Салбар */}
                 <td
                   style={{
                     borderBottom: "1px solid #f0f0f0",
                     padding: 8,
                   }}
                 >
-                                    {Array.isArray(d.branches) && d.branches.length > 0
-                {/* 7. Дэлгэрэнгүй */}
+                  {Array.isArray(d.branches) && d.branches.length > 0
+                    ? d.branches.map((b) => b.name).join(", ")
+                    : d.branch
+                    ? d.branch.name
+                    : "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
+                  <input
+                    type="number"
+                    value={
+                      typeof d.calendarOrder === "number"
+                        ? d.calendarOrder
+                        : 0
+                    }
+                    onChange={async (e) => {
+                      const value = parseInt(e.target.value, 10) || 0;
+
+                      // optimistic update
+                      setDoctors((prev) =>
+                        prev.map((doc) =>
+                          doc.id === d.id
+                            ? { ...doc, calendarOrder: value }
+                            : doc
+                        )
+                      );
+
+                      try {
+                        const res = await fetch(`/api/users/${d.id}`, {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ calendarOrder: value }),
+                        });
+                        if (!res.ok) {
+                          console.error(
+                            "Failed to update calendarOrder for doctor",
+                            d.id
+                          );
+                        } else {
+                          // re-sort after successful save
+                          setDoctors((prev) =>
+                            [...prev].sort((a, b) => {
+                              const ao = (a.calendarOrder ?? 0) as number;
+                              const bo = (b.calendarOrder ?? 0) as number;
+                              if (ao !== bo) return ao - bo;
+                              const aName = (a.name || "").toString();
+                              const bName = (b.name || "").toString();
+                              return aName.localeCompare(bName, "mn");
+                            })
+                          );
+                        }
+                      } catch (err) {
+                        console.error(err);
+                      }
+                    }}
+                    style={{
+                      width: 60,
+                      padding: 4,
+                      fontSize: 12,
+                    }}
+                  />
+                </td>
                 <td
                   style={{
                     borderBottom: "1px solid #f0f0f0",
@@ -521,7 +569,7 @@ export default function DoctorsPage() {
             {doctors.length === 0 && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   style={{
                     textAlign: "center",
                     color: "#888",
