@@ -69,6 +69,7 @@ function NurseForm({
         email: form.email,
         password: form.password,
         name: form.name || undefined,
+        ovom: form.ovog || undefined,
         ovog: form.ovog || undefined,
         role: "nurse",
         branchId: primaryBranchId,
@@ -251,7 +252,6 @@ export default function NursePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // summary cards state
   const [summary, setSummary] = useState<{
     total: number;
     workingToday: number;
@@ -265,7 +265,7 @@ export default function NursePage() {
         setBranches(data);
       }
     } catch {
-      // ignore; main error handling below
+      // ignore
     }
   };
 
@@ -303,13 +303,13 @@ export default function NursePage() {
 
   const loadSummary = async () => {
     try {
-      // 1) get total number of nurses
+      // total nurses
       const usersRes = await fetch("/api/users?role=nurse");
       const usersData = await usersRes.json().catch(() => null);
       const total =
         usersRes.ok && Array.isArray(usersData) ? usersData.length : 0;
 
-      // 2) get "working today" count from nurses/today endpoint
+      // working today from nurses/today
       const todayRes = await fetch("/api/users/nurses/today");
       const todayData = await todayRes.json().catch(() => null);
       const workingToday =
