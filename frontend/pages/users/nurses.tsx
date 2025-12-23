@@ -6,7 +6,7 @@ type Branch = {
   name: string;
 };
 
-type Receptionist = {
+type Nurse = {
   id: number;
   email: string;
   name?: string | null;
@@ -20,12 +20,12 @@ type Receptionist = {
   createdAt?: string;
 };
 
-function ReceptionForm({
+function NurseForm({
   branches,
   onSuccess,
 }: {
   branches: Branch[];
-  onSuccess: (u: Receptionist) => void;
+  onSuccess: (u: Nurse) => void;
 }) {
   const [form, setForm] = useState({
     email: "",
@@ -38,7 +38,6 @@ function ReceptionForm({
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -57,7 +56,6 @@ function ReceptionForm({
     });
   };
 
-  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -72,7 +70,7 @@ function ReceptionForm({
         password: form.password,
         name: form.name || undefined,
         ovog: form.ovog || undefined,
-        role: "receptionist",
+        role: "nurse",
         branchId: primaryBranchId,
         phone: form.phone || undefined,
       };
@@ -100,7 +98,7 @@ function ReceptionForm({
         return;
       }
 
-      const createdUser = data as Receptionist;
+      const createdUser = data as Nurse;
 
       if (form.branchIds.length > 0) {
         try {
@@ -151,7 +149,7 @@ function ReceptionForm({
 
   return (
     <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
-      <h2>Шинэ ресепшн бүртгэх</h2>
+      <h2>Шинэ сувилагч бүртгэх</h2>
 
       <div
         style={{
@@ -247,13 +245,12 @@ function ReceptionForm({
   );
 }
 
-export default function ReceptionPage() {
-  const [users, setUsers] = useState<Receptionist[]>([]);
+export default function NursesPage() {
+  const [users, setUsers] = useState<Nurse[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // summary cards state
   const [summary, setSummary] = useState<{
     total: number;
     workingToday: number;
@@ -267,7 +264,7 @@ export default function ReceptionPage() {
         setBranches(data);
       }
     } catch {
-      // ignore; main error handling below
+      // ignore
     }
   };
 
@@ -275,7 +272,7 @@ export default function ReceptionPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/users?role=receptionist");
+      const res = await fetch("/api/users?role=nurse");
       let data: any = null;
       try {
         data = await res.json();
@@ -305,14 +302,12 @@ export default function ReceptionPage() {
 
   const loadSummary = async () => {
     try {
-      // 1) get total number of receptionists (existing logic)
-      const usersRes = await fetch("/api/users?role=receptionist");
+      const usersRes = await fetch("/api/users?role=nurse");
       const usersData = await usersRes.json().catch(() => null);
       const total =
         usersRes.ok && Array.isArray(usersData) ? usersData.length : 0;
 
-      // 2) get "working today" count from new endpoint
-      const todayRes = await fetch("/api/users/receptions/today");
+      const todayRes = await fetch("/api/users/nurses/today");
       const todayData = await todayRes.json().catch(() => null);
       const workingToday =
         todayRes.ok && todayData && typeof todayData.count === "number"
@@ -340,14 +335,13 @@ export default function ReceptionPage() {
         fontFamily: "sans-serif",
       }}
     >
-      <h1>Ресепшн</h1>
+      <h1>Сувилагч</h1>
       <p style={{ color: "#555", marginBottom: 16 }}>
-        Ресепшн ажилчдыг бүртгэх, салбарт хуваарьлах, жагсаалтаар харах.
+        Сувилагч ажилчдыг бүртгэх, салбарт хуваарьлах, жагсаалтаар харах.
       </p>
 
       <UsersTabs />
 
-      {/* Summary cards */}
       <section
         style={{
           display: "grid",
@@ -375,7 +369,7 @@ export default function ReceptionPage() {
               marginBottom: 4,
             }}
           >
-            Нийт ресепшн
+            Нийт сувилагч
           </div>
           <div
             style={{
@@ -388,7 +382,7 @@ export default function ReceptionPage() {
             {summary ? summary.total : "—"}
           </div>
           <div style={{ fontSize: 11, color: "#6b7280" }}>
-            Системд бүртгэлтэй нийт ресепшн ажилчдын тоо.
+            Системд бүртгэлтэй нийт сувилагч ажилчдын тоо.
           </div>
         </div>
 
@@ -411,7 +405,7 @@ export default function ReceptionPage() {
               marginBottom: 4,
             }}
           >
-            Өнөөдөр ажиллаж буй ресепшн
+            Өнөөдөр ажиллаж буй сувилагч
           </div>
           <div
             style={{
@@ -424,12 +418,12 @@ export default function ReceptionPage() {
             {summary ? summary.workingToday : "—"}
           </div>
           <div style={{ fontSize: 11, color: "#6b7280" }}>
-            Өнөөдрийн ажлын хуваарьт орсон ресепшнүүдийн тоо.
+            Өнөөдрийн ажлын хуваарьт орсон сувилагчдын тоо.
           </div>
         </div>
       </section>
 
-      <ReceptionForm
+      <NurseForm
         branches={branches}
         onSuccess={(u) => {
           setUsers((prev) => [u, ...prev]);
@@ -596,7 +590,7 @@ export default function ReceptionPage() {
                   }}
                 >
                   <a
-                    href={`/users/reception/${u.id}`}
+                    href={`/users/nurse/${u.id}`}
                     style={{
                       padding: "2px 6px",
                       fontSize: 12,
