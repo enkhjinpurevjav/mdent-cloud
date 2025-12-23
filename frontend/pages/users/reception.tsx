@@ -251,6 +251,12 @@ export default function ReceptionPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // summary cards state
+  const [summary, setSummary] = useState<{
+    total: number;
+    workingToday: number;
+  } | null>(null);
+
   const loadBranches = async () => {
     try {
       const res = await fetch("/api/branches");
@@ -295,9 +301,27 @@ export default function ReceptionPage() {
     }
   };
 
+  const loadSummary = async () => {
+    try {
+      const res = await fetch("/api/staff/summary?role=receptionist");
+      const data = await res.json().catch(() => null);
+      if (res.ok && data && typeof data.total === "number") {
+        setSummary({
+          total: data.total,
+          workingToday: data.workingToday || 0,
+        });
+      } else {
+        setSummary(null);
+      }
+    } catch {
+      setSummary(null);
+    }
+  };
+
   useEffect(() => {
     loadBranches();
     loadUsers();
+    loadSummary();
   }, []);
 
   return (
@@ -316,10 +340,93 @@ export default function ReceptionPage() {
 
       <UsersTabs />
 
+      {/* Summary cards */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        <div
+          style={{
+            background: "linear-gradient(90deg,#eff6ff,#ffffff)",
+            borderRadius: 12,
+            border: "1px solid #dbeafe",
+            padding: 12,
+            boxShadow: "0 4px 10px rgba(15,23,42,0.08)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              textTransform: "uppercase",
+              color: "#1d4ed8",
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              marginBottom: 4,
+            }}
+          >
+            Нийт ресепшн
+          </div>
+          <div
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              color: "#111827",
+              marginBottom: 4,
+            }}
+          >
+            {summary ? summary.total : "—"}
+          </div>
+          <div style={{ fontSize: 11, color: "#6b7280" }}>
+            Системд бүртгэлтэй нийт ресепшн ажилчдын тоо.
+          </div>
+        </div>
+
+        <div
+          style={{
+            background: "linear-gradient(90deg,#dcfce7,#ffffff)",
+            borderRadius: 12,
+            border: "1px solid #bbf7d0",
+            padding: 12,
+            boxShadow: "0 4px 10px rgba(15,23,42,0.08)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              textTransform: "uppercase",
+              color: "#15803d",
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              marginBottom: 4,
+            }}
+          >
+            Өнөөдөр ажиллаж буй ресепшн
+          </div>
+          <div
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              color: "#111827",
+              marginBottom: 4,
+            }}
+          >
+            {summary ? summary.workingToday : "—"}
+          </div>
+          <div style={{ fontSize: 11, color: "#6b7280" }}>
+            Өнөөдрийн ажлын хуваарьт орсон ресепшнүүдийн тоо.
+          </div>
+        </div>
+      </section>
+
       <ReceptionForm
         branches={branches}
         onSuccess={(u) => {
           setUsers((prev) => [u, ...prev]);
+          loadSummary();
         }}
       />
 
