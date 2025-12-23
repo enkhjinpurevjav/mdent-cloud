@@ -175,6 +175,254 @@ router.post("/", async (req, res) => {
 });
 
 /**
+ * GET /api/users/:id/reception-schedule
+ * Query params:
+ *   from=YYYY-MM-DD (optional, defaults to today)
+ *   to=YYYY-MM-DD   (optional, defaults to from + 31 days)
+ *   branchId=number (optional)
+ *
+ * Returns the receptionist's schedule entries in the given range.
+ */
+router.get("/:id/reception-schedule", async (req, res) => {
+  const receptionId = Number(req.params.id);
+  if (!receptionId || Number.isNaN(receptionId)) {
+    return res.status(400).json({ error: "Invalid receptionist id" });
+  }
+
+  try {
+    const reception = await ensureReceptionOr404(receptionId, res);
+    if (!reception) return;
+
+    const { from, to, branchId } = req.query;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const fromDate = from ? new Date(from) : today;
+    if (Number.isNaN(fromDate.getTime())) {
+      return res.status(400).json({ error: "Invalid from date" });
+    }
+
+    let toDate;
+    if (to) {
+      toDate = new Date(to);
+      if (Number.isNaN(toDate.getTime())) {
+        return res.status(400).json({ error: "Invalid to date" });
+      }
+    } else {
+      toDate = new Date(fromDate);
+      toDate.setDate(fromDate.getDate() + 31);
+    }
+
+    const where = {
+      receptionId,
+      date: {
+        gte: fromDate,
+        lte: toDate,
+      },
+    };
+
+    if (branchId) {
+      const bid = Number(branchId);
+      if (Number.isNaN(bid)) {
+        return res.status(400).json({ error: "Invalid branchId" });
+      }
+      where.branchId = bid;
+    }
+
+    const schedules = await prisma.receptionSchedule.findMany({
+      where,
+      orderBy: [{ date: "asc" }, { startTime: "asc" }],
+      include: {
+        branch: { select: { id: true, name: true } },
+      },
+    });
+
+    return res.json(
+      schedules.map((s) => ({
+        id: s.id,
+        date: s.date.toISOString().slice(0, 10),
+        branch: s.branch,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        note: s.note,
+      }))
+    );
+  } catch (err) {
+    console.error("GET /api/users/:id/reception-schedule error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch reception schedule" });
+  }
+});
+
+/**
+ * POST /api/users/:id/reception-schedule
+ * Body:
+ * {
+ *   date: "YYYY-MM-DD",
+ *   branchId: number,
+ *   startTime: "HH:MM",
+ *   endTime: "HH:MM",
+ *   note?: string
+ * }
+ *
+ * Creates or updates a schedule entry for the given receptionist/branch/date.
+ */
+router.post("/:id/reception-schedule", async (req, res) => {
+  const receptionId = Number(req.params.id);
+  if (!receptionId || Number.isNaN(receptionId)) {
+    return res.status(400).json({ error: "Invalid receptionist id" });
+  }
+
+  const { date, branchId, startTime, endTime, note } = req.body || {};
+
+  if (!date || !branchId || !startTime || !endTime) {
+    return res.status(400).json({
+      error: "date, branchId, startTime, endTime are required",
+    });
+  }
+
+  const day = new Date(date);
+  if (Number.isNaN(day.getTime())) {
+    return res.status(400).json({ error: "Invalid date" });
+  }
+  day.setHours(0, 0, 0, 0);
+
+  const bid = Number(branchId);
+  if (Number.isNaN(bid)) {
+    return res.status(400).json({ error: "Invalid branchId" });
+  }
+
+  const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
+    return res
+      .status(400)
+      .json({ error: "startTime and endTime must be HH:MM (24h)" });
+  }
+
+  if (startTime >= endTime) {
+    return res
+      .status(400)
+      .json({ error: "startTime must be before endTime" });
+  }
+
+  try {
+    const reception = await ensureReceptionOr404(receptionId, res);
+    if (!reception) return;
+
+    const branch = await prisma.branch.findUnique({
+      where: { id: bid },
+      select: { id: true, name: true },
+    });
+    if (!branch) {
+      return res.status(400).json({ error: "Branch not found" });
+    }
+
+    // Optional: if you later add ReceptionBranch (many-to-many) you can check it here
+
+    const weekday = day.getDay(); // 0=Sun .. 6=Sat
+    const isWeekend = weekday === 0 || weekday === 6;
+    const clinicOpen = isWeekend ? "10:00" : "09:00";
+    const clinicClose = isWeekend ? "19:00" : "21:00";
+
+    if (startTime < clinicOpen || endTime > clinicClose) {
+      return res.status(400).json({
+        error: "Schedule outside clinic hours",
+        clinicOpen,
+        clinicClose,
+      });
+    }
+
+    const existing = await prisma.receptionSchedule.findFirst({
+      where: { receptionId, branchId: bid, date: day },
+    });
+
+    let schedule;
+    if (existing) {
+      schedule = await prisma.receptionSchedule.update({
+        where: { id: existing.id },
+        data: {
+          startTime,
+          endTime,
+          note: note || null,
+        },
+        include: { branch: { select: { id: true, name: true } } },
+      });
+    } else {
+      schedule = await prisma.receptionSchedule.create({
+        data: {
+          receptionId,
+          branchId: bid,
+          date: day,
+          startTime,
+          endTime,
+          note: note || null,
+        },
+        include: { branch: { select: { id: true, name: true } } },
+      });
+    }
+
+    return res.status(existing ? 200 : 201).json({
+      id: schedule.id,
+      date: schedule.date.toISOString().slice(0, 10),
+      branch: schedule.branch,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      note: schedule.note,
+    });
+  } catch (err) {
+    console.error("POST /api/users/:id/reception-schedule error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to save reception schedule" });
+  }
+});
+
+/**
+ * DELETE /api/users/:id/reception-schedule/:scheduleId
+ */
+router.delete("/:id/reception-schedule/:scheduleId", async (req, res) => {
+  const receptionId = Number(req.params.id);
+  const scheduleId = Number(req.params.scheduleId);
+
+  if (!receptionId || Number.isNaN(receptionId)) {
+    return res.status(400).json({ error: "Invalid receptionist id" });
+  }
+  if (!scheduleId || Number.isNaN(scheduleId)) {
+    return res.status(400).json({ error: "Invalid schedule id" });
+  }
+
+  try {
+    const reception = await ensureReceptionOr404(receptionId, res);
+    if (!reception) return;
+
+    const existing = await prisma.receptionSchedule.findUnique({
+      where: { id: scheduleId },
+      select: { id: true, receptionId: true },
+    });
+
+    if (!existing || existing.receptionId !== receptionId) {
+      return res.status(404).json({ error: "Schedule not found" });
+    }
+
+    await prisma.receptionSchedule.delete({
+      where: { id: scheduleId },
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (err) {
+    console.error(
+      "DELETE /api/users/:id/reception-schedule/:scheduleId error:",
+      err
+    );
+    return res
+      .status(500)
+      .json({ error: "Failed to delete reception schedule" });
+  }
+});
+
+/**
  * GET /api/users/:id
  * Returns a single user with:
  * - legacy branch
