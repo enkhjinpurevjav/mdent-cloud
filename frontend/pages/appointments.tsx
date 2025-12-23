@@ -702,7 +702,33 @@ function AppointmentDetailsModal({
                           <strong>Утас:</strong> {a.patient?.phone || "-"}
                         </div>
                       </div>
+{/* NEW: Doctor + appointment branch */}
+        <div style={{ color: "#4b5563", marginTop: 4 }}>
+          {(() => {
+            const d = a.doctor as any;
+            const dName = (d?.name ?? a.doctorName ?? "").toString().trim();
+            const dOvog = (d?.ovog ?? a.doctorOvog ?? "").toString().trim();
 
+            let doctorDisplay = dName;
+            if (dOvog) {
+              const first = dOvog.charAt(0).toUpperCase();
+              doctorDisplay = `${first}.${dName}`;
+            }
+
+            return (
+              <>
+                <div>
+                  <strong>Эмч:</strong>{" "}
+                  {doctorDisplay || "-"}
+                </div>
+                <div>
+                  <strong>Салбар:</strong>{" "}
+                  {a.branch?.name ?? a.branchId}
+                </div>
+              </>
+            );
+          })()}
+        </div>
                       <div
                         style={{
                           marginTop: 6,
