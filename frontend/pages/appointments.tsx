@@ -960,6 +960,10 @@ function QuickAppointmentModal({
   });
   const [error, setError] = useState("");
 
+const workingDoctors = scheduledDoctors.length
+  ? scheduledDoctors
+  : doctors;
+  
   const [patientResults, setPatientResults] = useState<PatientLite[]>([]);
   const [patientSearchLoading, setPatientSearchLoading] = useState(false);
   const [searchDebounceTimer, setSearchDebounceTimer] =
@@ -2522,15 +2526,12 @@ const [dayEndSlots, setDayEndSlots] = useState<
       )}
 
       {/* Doctor */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
   <label>Эмч (заавал)</label>
   <select
     name="doctorId"
     value={form.doctorId}
-    onChange={(e) => {
-      handleChange(e);
-      setError("");
-    }}
+    onChange={handleChange}
     required
     style={{
       borderRadius: 6,
