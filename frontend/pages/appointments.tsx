@@ -1871,6 +1871,7 @@ type AppointmentFormProps = {
   selectedDate: string;
   selectedBranchId: string;
   onCreated: (a: Appointment) => void;
+  onBranchChange: (branchId: string) => void; // NEW
 };
 
 function AppointmentForm({
