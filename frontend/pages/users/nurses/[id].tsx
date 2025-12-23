@@ -6,7 +6,7 @@ type Branch = {
   name: string;
 };
 
-type Receptionist = {
+type Nurse = {
   id: number;
   email: string;
   name?: string | null;
@@ -20,7 +20,7 @@ type Receptionist = {
   createdAt?: string;
 };
 
-type ReceptionScheduleDay = {
+type NurseScheduleDay = {
   id: number;
   date: string; // YYYY-MM-DD
   branch: Branch;
@@ -31,15 +31,15 @@ type ReceptionScheduleDay = {
 
 type ShiftType = "AM" | "PM" | "WEEKEND_FULL";
 
-export default function ReceptionProfilePage() {
+export default function NurseProfilePage() {
   const router = useRouter();
   const idParam = router.query.id;
-  const receptionId =
+  const nurseId =
     typeof idParam === "string" ? Number(idParam) : NaN;
 
-  const [user, setUser] = useState<Receptionist | null>(null);
+  const [user, setUser] = useState<Nurse | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [schedule, setSchedule] = useState<ReceptionScheduleDay[]>([]);
+  const [schedule, setSchedule] = useState<NurseScheduleDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -78,7 +78,7 @@ export default function ReceptionProfilePage() {
   const [scheduleError, setScheduleError] = useState("");
 
   useEffect(() => {
-    if (!receptionId || Number.isNaN(receptionId)) return;
+    if (!nurseId || Number.isNaN(nurseId)) return;
 
     async function load() {
       try {
@@ -86,9 +86,9 @@ export default function ReceptionProfilePage() {
         setError("");
 
         const [userRes, branchesRes, scheduleRes] = await Promise.all([
-          fetch(`/api/users/${receptionId}`),
+          fetch(`/api/users/${nurseId}`),
           fetch("/api/branches"),
-          fetch(`/api/users/${receptionId}/reception-schedule`),
+          fetch(`/api/users/${nurseId}/nurse-schedule`),
         ]);
 
         const [userData, branchesData, scheduleData] = await Promise.all([
@@ -103,7 +103,7 @@ export default function ReceptionProfilePage() {
           );
         }
 
-        setUser(userData as Receptionist);
+        setUser(userData as Nurse);
 
         const branchList = Array.isArray(branchesData)
           ? (branchesData as Branch[])
@@ -111,7 +111,7 @@ export default function ReceptionProfilePage() {
         setBranches(branchList);
 
         if (Array.isArray(scheduleData)) {
-          setSchedule(scheduleData as ReceptionScheduleDay[]);
+          setSchedule(scheduleData as NurseScheduleDay[]);
         } else {
           setSchedule([]);
         }
@@ -144,7 +144,7 @@ export default function ReceptionProfilePage() {
     }
 
     load();
-  }, [receptionId]);
+  }, [nurseId]);
 
   const handleProfileChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -191,12 +191,12 @@ export default function ReceptionProfilePage() {
   };
 
   const reloadSchedule = async () => {
-    if (!receptionId || Number.isNaN(receptionId)) return;
+    if (!nurseId || Number.isNaN(nurseId)) return;
     try {
-      const res = await fetch(`/api/users/${receptionId}/reception-schedule`);
+      const res = await fetch(`/api/users/${nurseId}/nurse-schedule`);
       const data = await res.json().catch(() => []);
       if (res.ok && Array.isArray(data)) {
-        setSchedule(data as ReceptionScheduleDay[]);
+        setSchedule(data as NurseScheduleDay[]);
       }
     } catch (e) {
       console.error("Failed to reload schedule", e);
@@ -316,7 +316,7 @@ export default function ReceptionProfilePage() {
         return;
       }
 
-      router.push("/users/reception");
+      router.push("/users/nurse");
     } catch (e) {
       console.error(e);
       alert("Сүлжээгээ шалгана уу");
@@ -344,7 +344,7 @@ export default function ReceptionProfilePage() {
         note: scheduleForm.note || null,
       };
 
-      const res = await fetch(`/api/users/${user.id}/reception-schedule`, {
+      const res = await fetch(`/api/users/${user.id}/nurse-schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -385,7 +385,7 @@ export default function ReceptionProfilePage() {
 
     try {
       const res = await fetch(
-        `/api/users/${user.id}/reception-schedule/${scheduleId}`,
+        `/api/users/${user.id}/nurse-schedule/${scheduleId}`,
         {
           method: "DELETE",
         }
@@ -410,7 +410,7 @@ export default function ReceptionProfilePage() {
     }
   };
 
-  if (!receptionId || Number.isNaN(receptionId)) {
+  if (!nurseId || Number.isNaN(nurseId)) {
     return <div>Буруу ID</div>;
   }
 
