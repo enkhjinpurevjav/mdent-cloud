@@ -192,9 +192,33 @@ function formatGridShortLabel(a: Appointment): string {
 }
 
 function formatPatientSearchLabel(p: PatientLite): string {
-  const parts = [p.name];
+  const parts: string[] = [];
+
+  // Ovog + name
+  const name = (p.name || "").toString().trim();
+  const ovog = (p.ovog || "").toString().trim();
+
+  if (ovog && name) {
+    parts.push(`${ovog} ${name}`); // or `${ovog}.${name}` if you prefer
+  } else if (name) {
+    parts.push(name);
+  } else if (ovog) {
+    parts.push(ovog);
+  }
+
+  // RegNo
   if (p.regNo) parts.push(`(${p.regNo})`);
+
+  // Phone
   if (p.phone) parts.push(`📞 ${p.phone}`);
+
+  // Patient book number, if present
+  const bookNumber =
+    p.patientBook && p.patientBook.bookNumber != null
+      ? String(p.patientBook.bookNumber)
+      : "";
+  if (bookNumber) parts.push(`#${bookNumber}`);
+
   return parts.join(" ");
 }
 
@@ -1172,8 +1196,8 @@ const workingDoctors = scheduledDoctors.length
         setPatientResults(
           filtered.map((p: any) => ({
             id: p.id,
-            name: p.name,
             ovog: p.ovog ?? null,
+            name: p.name,
             regNo: p.regNo ?? p.regno ?? "",
             phone: p.phone,
             patientBook: p.patientBook || null,
