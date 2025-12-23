@@ -249,7 +249,6 @@ export default function NursesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // summary cards
   const [summary, setSummary] = useState<{
     total: number;
     workingToday: number;
@@ -263,7 +262,7 @@ export default function NursesPage() {
         setBranches(data);
       }
     } catch {
-      // ignore; main error handling below
+      // ignore
     }
   };
 
@@ -338,7 +337,7 @@ export default function NursesPage() {
 
       <UsersTabs />
 
-      {/* Summary cards – same style as doctors/reception/patients */}
+      {/* Summary cards */}
       <section
         style={{
           display: "grid",
@@ -347,7 +346,6 @@ export default function NursesPage() {
           marginBottom: 16,
         }}
       >
-        {/* Total nurses */}
         <div
           style={{
             background: "linear-gradient(90deg,#eff6ff,#ffffff)",
@@ -384,7 +382,6 @@ export default function NursesPage() {
           </div>
         </div>
 
-        {/* Nurses working today */}
         <div
           style={{
             background: "linear-gradient(90deg,#dcfce7,#ffffff)",
