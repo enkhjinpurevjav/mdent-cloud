@@ -12,17 +12,17 @@ type Doctor = {
   name?: string;
   ovog?: string | null;
   role: string;
-  branchId?: number | null; // legacy single branch
+  branchId?: number | null;
   regNo?: string | null;
   licenseNumber?: string | null;
-  licenseExpiryDate?: string | null; // ISO string
+  licenseExpiryDate?: string | null;
   signatureImagePath?: string | null;
   stampImagePath?: string | null;
   idPhotoPath?: string | null;
   phone?: string | null;
-
-  // multiple branches
   branches?: Branch[];
+
+  calendarOrder?: number | null; // NEW
 };
 
 type DoctorScheduleDay = {
