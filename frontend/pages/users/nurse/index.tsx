@@ -69,7 +69,6 @@ function NurseForm({
         email: form.email,
         password: form.password,
         name: form.name || undefined,
-        
         ovog: form.ovog || undefined,
         role: "nurse",
         branchId: primaryBranchId,
@@ -141,7 +140,8 @@ function NurseForm({
         phone: "",
         branchIds: [],
       });
-    } catch {
+    } catch (err) {
+      console.error(err);
       setError("Сүлжээгээ шалгана уу");
     } finally {
       setSubmitting(false);
