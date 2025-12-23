@@ -69,7 +69,7 @@ function NurseForm({
         email: form.email,
         password: form.password,
         name: form.name || undefined,
-        ovom: form.ovog || undefined,
+        
         ovog: form.ovog || undefined,
         role: "nurse",
         branchId: primaryBranchId,
