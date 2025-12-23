@@ -79,7 +79,6 @@ function NurseForm({
         payload.regNo = form.regNo.trim();
       }
 
-      // 1) create nurse
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -101,7 +100,6 @@ function NurseForm({
 
       const createdUser = data as Nurse;
 
-      // 2) assign multiple branches via /api/users/:id/branches
       if (form.branchIds.length > 0) {
         try {
           const resBranches = await fetch(
@@ -126,8 +124,8 @@ function NurseForm({
           ) {
             createdUser.branches = branchesData.branches;
           }
-        } catch (e) {
-          console.error("Failed to assign multiple branches", e);
+        } catch (err) {
+          console.error("Failed to assign multiple branches", err);
         }
       }
 
@@ -152,7 +150,6 @@ function NurseForm({
   return (
     <form onSubmit={handleSubmit} style={{ marginBottom: 24 }}>
       <h2>Шинэ сувилагч бүртгэх</h2>
-
       <div
         style={{
           display: "grid",
@@ -204,7 +201,6 @@ function NurseForm({
           required
         />
       </div>
-
       <div style={{ marginBottom: 8 }}>
         <div style={{ marginBottom: 4, fontWeight: 500 }}>Салбар сонгох</div>
         <div
@@ -248,243 +244,57 @@ function NurseForm({
 }
 
 export default function NursesPage() {
-  const [nurses, setNurses] = useState<Nurse[]>([]);
+  const [users, setUsers] = useState<Nurse[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // editing state
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState<{
-    name: string;
-    ovog: string;
-    regNo: string;
-    phone: string;
-    branchId: number | null;
-    editBranchIds: number[];
-  }>({
-    name: "",
-    ovog: "",
-    regNo: "",
-    phone: "",
-    branchId: null,
-    editBranchIds: [],
-  });
-
-  const loadBranches = async () => {
-    try {
-      const res = await fetch("/api/branches");
-      const data = await res.json();
-      if (res.ok && Array.isArray(data)) {
-        setBranches(data);
-      }
-    } catch {
-      // ignore; main error handling below
-    }
-  };
-
-  const loadNurses = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch("/api/users?role=nurse");
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-
-      if (!res.ok || !Array.isArray(data)) {
-        throw new Error((data && data.error) || "Алдаа гарлаа");
-      }
-
-      // sort by name only (alphabetically, Mongolian)
-      setNurses(
-        [...data].sort((a, b) => {
-          const aName = (a.name || "").toString();
-          const bName = (b.name || "").toString();
-          return aName.localeCompare(bName, "mn");
-        })
-      );
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Сүлжээгээ шалгана уу");
-      setNurses([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadBranches();
-    loadNurses();
-  }, []);
-
-  const startEdit = (u: Nurse) => {
-    setEditingId(u.id);
-
-    const currentBranchIds =
-      Array.isArray(u.branches) && u.branches.length > 0
-        ? u.branches.map((b) => b.id)
-        : u.branch
-        ? [u.branch.id]
-        : [];
-
-    setEditForm({
-      name: u.name || "",
-      ovog: u.ovog || "",
-      regNo: u.regNo || "",
-      phone: u.phone || "",
-      branchId: u.branchId ?? (u.branch ? u.branch.id : null),
-      editBranchIds: currentBranchIds,
-    });
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-  };
-
-  const handleEditChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setEditForm((prev) => ({
-      ...prev,
-      [name]:
-        name === "branchId"
-          ? value
-            ? Number(value)
-            : null
-          : value,
-    }));
-  };
-
-  const handleEditBranchToggle = (branchId: number) => {
-    setEditForm((prev) => {
-      const exists = prev.editBranchIds.includes(branchId);
-      const next = exists
-        ? prev.editBranchIds.filter((id) => id !== branchId)
-        : [...prev.editBranchIds, branchId];
-
-      const nextPrimary = next.length > 0 ? next[0] : null;
-
-      return {
-        ...prev,
-        editBranchIds: next,
-        branchId: nextPrimary,
-      };
-    });
-  };
-
-  const saveEdit = async (id: number) => {
-    try {
-      const payload: any = {
-        name: editForm.name || null,
-        ovog: editForm.ovog || null,
-        regNo: editForm.regNo || null,
-        phone: editForm.phone || null,
-        branchId: editForm.branchId || null,
-      };
-
-      const res = await fetch(`/api/users/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      let userData: any = null;
+    const loadBranches = async () => {
       try {
-        userData = await res.json();
-      } catch {
-        userData = null;
-      }
+        const res = await fetch("/api/branches");
+        const data = await res.json();
+        if (res.ok && Array.isArray(data)) {
+          setBranches(data);
+        }
+      } catch {}
+    };
 
-      if (!res.ok || !userData || !userData.id) {
-        alert((userData && userData.error) || "Хадгалах үед алдаа гарлаа");
-        return;
-      }
-
-      const branchesPayload = { branchIds: editForm.editBranchIds };
-
-      const resBranches = await fetch(`/api/users/${id}/branches`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(branchesPayload),
-      });
-
-      let branchesResult: any = null;
+    const loadUsers = async () => {
+      setLoading(true);
+      setError("");
       try {
-        branchesResult = await resBranches.json();
-      } catch {
-        branchesResult = null;
-      }
+        const res = await fetch("/api/users?role=nurse");
+        let data: any = null;
+        try {
+          data = await res.json();
+        } catch {
+          data = null;
+        }
 
-      if (!resBranches.ok) {
-        alert(
-          (branchesResult && branchesResult.error) ||
-            "Салбар хадгалах үед алдаа гарлаа"
+        if (!res.ok || !Array.isArray(data)) {
+          throw new Error((data && data.error) || "Алдаа гарлаа");
+        }
+
+        setUsers(
+          [...data].sort((a, b) => {
+            const aName = (a.name || "").toString();
+            const bName = (b.name || "").toString();
+            return aName.localeCompare(bName, "mn");
+          })
         );
-        return;
+      } catch (err: any) {
+        console.error(err);
+        setError(err.message || "Сүлжээгээ шалгана уу");
+        setUsers([]);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      const updatedBranches =
-        branchesResult && Array.isArray(branchesResult.branches)
-          ? branchesResult.branches
-          : userData.branches || [];
-
-      setNurses((prev) =>
-        prev.map((u) =>
-          u.id === id
-            ? {
-                ...u,
-                name: userData.name,
-                ovog: userData.ovog,
-                regNo: userData.regNo,
-                phone: userData.phone,
-                branchId: userData.branchId,
-                branch: userData.branch,
-                branches: updatedBranches,
-              }
-            : u
-        )
-      );
-      setEditingId(null);
-    } catch (err) {
-      console.error(err);
-      alert("Сүлжээгээ шалгана уу");
-    }
-  };
-
-  const deleteUser = async (id: number) => {
-    const ok = window.confirm(
-      "Та энэхүү сувилагч ажилтныг устгахдаа итгэлтэй байна уу?"
-    );
-    if (!ok) return;
-
-    try {
-      const res = await fetch(`/api/users/${id}`, {
-        method: "DELETE",
-      });
-
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-
-      if (!res.ok) {
-        alert((data && data.error) || "Устгах үед алдаа гарлаа");
-        return;
-      }
-
-      setNurses((prev) => prev.filter((u) => u.id !== id));
-    } catch (err) {
-      console.error(err);
-      alert("Сүлжээгээ шалгана уу");
-    }
-  };
+    loadBranches();
+    loadUsers();
+  }, []);
 
   return (
     <main
@@ -495,9 +305,9 @@ export default function NursesPage() {
         fontFamily: "sans-serif",
       }}
     >
-      <h1>Сувилагч</h1>
+      <h1>Сувилагчид</h1>
       <p style={{ color: "#555", marginBottom: 16 }}>
-        Сувилагч ажилчдыг бүртгэх, салбарт хуваарьлах, жагсаалтаар харах.
+        Сувилагчдыг бүртгэх, салбарт хуваарьлах, жагсаалтаар харах.
       </p>
 
       <UsersTabs />
@@ -505,11 +315,11 @@ export default function NursesPage() {
       <NurseForm
         branches={branches}
         onSuccess={(u) => {
-          setNurses((prev) => [u, ...prev]);
+          setUsers((prev) => [u, ...prev]);
         }}
       />
 
-      {loading && <div>Ачааллиж байна...</div>}
+      {loading && <div>Ачааллаж байна...</div>}
       {!loading && error && <div style={{ color: "red" }}>{error}</div>}
 
       {!loading && !error && (
@@ -523,321 +333,56 @@ export default function NursesPage() {
         >
           <thead>
             <tr>
-              {/* # constant number column */}
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                #
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Овог
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Нэр
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                И-мэйл
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                РД
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Утас
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Салбар
-              </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
-                Үйлдэл
-              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>#</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Овог</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Нэр</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>И-мэйл</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>РД</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Утас</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Салбар</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Профайл</th>
             </tr>
           </thead>
           <tbody>
-            {nurses.map((u, index) => {
-              const isEditing = editingId === u.id;
-
-              if (isEditing) {
-                return (
-                  <tr key={u.id}>
-                    {/* # */}
-                    <td
-                      style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
-                      }}
-                    >
-                      {index + 1}
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
-                      }}
-                    >
-                      <input
-                        name="ovog"
-                        value={editForm.ovog}
-                        onChange={handleEditChange}
-                        style={{ width: "100%" }}
-                      />
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
-                      }}
-                    >
-                      <input
-                        name="name"
-                        value={editForm.name}
-                        onChange={handleEditChange}
-                        style={{ width: "100%" }}
-                      />
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
-                      }}
-                    >
-                      {u.email}
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
-                      }}
-                    >
-                      <input
-                        name="regNo"
-                        value={editForm.regNo}
-                        onChange={handleEditChange}
-                        style={{ width: "100%" }}
-                      />
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
-                      }}
-                    >
-                      <input
-                        name="phone"
-                        value={editForm.phone}
-                        onChange={handleEditChange}
-                        style={{ width: "100%" }}
-                      />
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 4,
-                        }}
-                      >
-                        {branches.map((b) => (
-                          <label
-                            key={b.id}
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4,
-                              border: "1px solid #ddd",
-                              borderRadius: 4,
-                              padding: "2px 6px",
-                              fontSize: 12,
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={editForm.editBranchIds.includes(b.id)}
-                              onChange={() => handleEditBranchToggle(b.id)}
-                            />
-                            {b.name}
-                          </label>
-                        ))}
-                      </div>
-                    </td>
-                    <td
-                      style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => saveEdit(u.id)}
-                        style={{
-                          marginRight: 8,
-                          padding: "2px 6px",
-                          fontSize: 12,
-                        }}
-                      >
-                        Хадгалах
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelEdit}
-                        style={{ padding: "2px 6px", fontSize: 12 }}
-                      >
-                        Цуцлах
-                      </button>
-                    </td>
-                  </tr>
-                );
-              }
-
-              return (
-                <tr key={u.id}>
-                  {/* # */}
-                  <td
+            {users.map((u, index) => (
+              <tr key={u.id}>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>{index + 1}</td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>{u.ovog || "-"}</td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>{u.name || "-"}</td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>{u.email}</td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>{u.regNo || "-"}</td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>{u.phone || "-"}</td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                  {Array.isArray(u.branches) && u.branches.length > 0
+                    ? u.branches.map((b) => b.name).join(", ")
+                    : u.branch
+                    ? u.branch.name
+                    : "-"}
+                </td>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <a
+                    href={`/users/nurses/${u.id}`}
                     style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
+                      padding: "2px 6px",
+                      fontSize: 12,
+                      borderRadius: 4,
+                      border: "1px solid #2563eb",
+                      color: "#2563eb",
+                      textDecoration: "none",
                     }}
                   >
-                    {index + 1}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                    }}
-                  >
-                    {u.ovog || "-"}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                    }}
-                  >
-                    {u.name || "-"}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                    }}
-                  >
-                    {u.email}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                    }}
-                  >
-                    {u.regNo || "-"}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                    }}
-                  >
-                    {u.phone || "-"}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                    }}
-                  >
-                    {Array.isArray(u.branches) && u.branches.length > 0
-                      ? u.branches.map((b) => b.name).join(", ")
-                      : u.branch
-                      ? u.branch.name
-                      : "-"}
-                  </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => startEdit(u)}
-                      style={{
-                        marginRight: 8,
-                        padding: "2px 6px",
-                        fontSize: 12,
-                      }}
-                    >
-                      Засах
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteUser(u.id)}
-                      style={{
-                        padding: "2px 6px",
-                        fontSize: 12,
-                        color: "#b91c1c",
-                        borderColor: "#b91c1c",
-                      }}
-                    >
-                      Устгах
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-            {nurses.length === 0 && (
+                    Профайл
+                  </a>
+                </td>
+              </tr>
+            ))}
+            {users.length === 0 && (
               <tr>
                 <td
                   colSpan={8}
