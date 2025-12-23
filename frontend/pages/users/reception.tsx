@@ -55,7 +55,9 @@ function ReceptionForm({
       };
     });
   };
-
+const res = await fetch("/api/users/receptions/today");
+const data = await res.json(); // { count, items }
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
