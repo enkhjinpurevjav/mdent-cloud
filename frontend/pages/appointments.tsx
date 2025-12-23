@@ -1918,12 +1918,13 @@ function AppointmentForm({
   const [quickPatientSaving, setQuickPatientSaving] = useState(false);
 
   const [dayStartSlots, setDayStartSlots] = useState<
-  { label: string; value: string }[]
->([]);
-const [dayEndSlots, setDayEndSlots] = useState<
-  { label: string; value: string }[]
->([]);
+    { label: string; value: string }[]
+  >([]);
+  const [dayEndSlots, setDayEndSlots] = useState<
+    { label: string; value: string }[]
+  >([]);
 
+  // keep branch in form in sync
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
       setForm((prev) => ({ ...prev, branchId: String(branches[0].id) }));
@@ -1942,62 +1943,61 @@ const [dayEndSlots, setDayEndSlots] = useState<
     }
   }, [selectedBranchId]);
 
+  // time slots for selected date + doctor schedule
   useEffect(() => {
-  if (!form.date) {
-    setDayStartSlots([]);
-    setDayEndSlots([]);
-    return;
-  }
-  const [year, month, day] = form.date.split("-").map(Number);
-  if (!year || !month || !day) {
-    setDayStartSlots([]);
-    setDayEndSlots([]);
-    return;
-  }
-  const d = new Date(year, (month || 1) - 1, day || 1);
-
-  // Build raw slots with both start and end
-  let slots = generateTimeSlotsForDay(d).map((s) => ({
-    label: s.label,
-    start: s.start,
-    end: s.end,
-    value: getSlotTimeString(s.start),
-  }));
-
-  // Filter by doctor schedule if a doctor is selected
-  if (form.doctorId) {
-    const doctorIdNum = Number(form.doctorId);
-    const doc = scheduledDoctors.find((sd) => sd.id === doctorIdNum);
-    const schedules = doc?.schedules || [];
-    if (schedules.length > 0) {
-      slots = slots.filter((slot) => {
-        const tStr = getSlotTimeString(slot.start);
-        return schedules.some((s: any) =>
-          isTimeWithinRange(tStr, s.startTime, s.endTime)
-        );
-      });
+    if (!form.date) {
+      setDayStartSlots([]);
+      setDayEndSlots([]);
+      return;
     }
-  }
+    const [year, month, day] = form.date.split("-").map(Number);
+    if (!year || !month || !day) {
+      setDayStartSlots([]);
+      setDayEndSlots([]);
+      return;
+    }
+    const d = new Date(year, (month || 1) - 1, day || 1);
 
-  // Start options: from slot.start (same as before)
-  const startOptions = slots.map(({ label, value }) => ({ label, value }));
+    let slots = generateTimeSlotsForDay(d).map((s) => ({
+      label: s.label,
+      start: s.start,
+      end: s.end,
+      value: getSlotTimeString(s.start),
+    }));
 
-  // End options: from slot.end (this is what adds 21:00)
-  const endOptions = Array.from(
-    new Set(slots.map((s) => getSlotTimeString(s.end)))
-  ).map((t) => ({ label: t, value: t }));
+    // Filter by doctor schedule if a doctor is selected
+    if (form.doctorId) {
+      const doctorIdNum = Number(form.doctorId);
+      const doc = scheduledDoctors.find((sd) => sd.id === doctorIdNum);
+      const schedules = doc?.schedules || [];
+      if (schedules.length > 0) {
+        slots = slots.filter((slot) => {
+          const tStr = getSlotTimeString(slot.start);
+          return schedules.some((s: any) =>
+            isTimeWithinRange(tStr, s.startTime, s.endTime)
+          );
+        });
+      }
+    }
 
-  setDayStartSlots(startOptions);
-  setDayEndSlots(endOptions);
+    const startOptions = slots.map(({ label, value }) => ({ label, value }));
+    const endOptions = Array.from(
+      new Set(slots.map((s) => getSlotTimeString(s.end)))
+    ).map((t) => ({ label: t, value: t }));
 
-  // Reset start/end if current value no longer valid
-  if (form.startTime && !startOptions.some((s) => s.value === form.startTime)) {
-    setForm((prev) => ({ ...prev, startTime: "" }));
-  }
-  if (form.endTime && !endOptions.some((s) => s.value === form.endTime)) {
-    setForm((prev) => ({ ...prev, endTime: "" }));
-  }
-}, [form.date, form.doctorId, scheduledDoctors]);
+    setDayStartSlots(startOptions);
+    setDayEndSlots(endOptions);
+
+    if (
+      form.startTime &&
+      !startOptions.some((s) => s.value === form.startTime)
+    ) {
+      setForm((prev) => ({ ...prev, startTime: "" }));
+    }
+    if (form.endTime && !endOptions.some((s) => s.value === form.endTime)) {
+      setForm((prev) => ({ ...prev, endTime: "" }));
+    }
+  }, [form.date, form.doctorId, scheduledDoctors]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -2127,7 +2127,6 @@ const [dayEndSlots, setDayEndSlots] = useState<
   };
 
   const handleSelectPatient = (p: PatientLite) => {
-    console.log("DEBUG handleSelectPatient clicked id =", p.id);
     setSelectedPatientId(p.id);
     setForm((prev) => ({
       ...prev,
@@ -2155,36 +2154,36 @@ const [dayEndSlots, setDayEndSlots] = useState<
   };
 
   const countAppointmentsInSlot = (slotStartDate: Date) => {
-  if (!form.doctorId) return 0;
-  const doctorIdNum = Number(form.doctorId);
+    if (!form.doctorId) return 0;
+    const doctorIdNum = Number(form.doctorId);
 
-  const slotStart = new Date(slotStartDate);
-  const slotEnd = new Date(
-    slotStart.getTime() + SLOT_MINUTES * 60 * 1000
-  );
+    const slotStart = new Date(slotStartDate);
+    const slotEnd = new Date(
+      slotStart.getTime() + SLOT_MINUTES * 60 * 1000
+    );
 
-  return appointments.filter((a) => {
-    if (a.doctorId !== doctorIdNum) return false;
-    if (selectedBranchId && String(a.branchId) !== selectedBranchId)
-      return false;
+    return appointments.filter((a) => {
+      if (a.doctorId !== doctorIdNum) return false;
+      if (selectedBranchId && String(a.branchId) !== selectedBranchId)
+        return false;
 
-    // Ignore cancelled appointments in capacity calculation
-    if (a.status === "cancelled") return false;
+      // Ignore cancelled appointments in capacity calculation
+      if (a.status === "cancelled") return false;
 
-    const start = new Date(a.scheduledAt);
-    if (Number.isNaN(start.getTime())) return false;
+      const start = new Date(a.scheduledAt);
+      if (Number.isNaN(start.getTime())) return false;
 
-    const end =
-      a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
-        ? new Date(a.endAt)
-        : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+      const end =
+        a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+          ? new Date(a.endAt)
+          : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
 
-    const dayStr = start.toISOString().slice(0, 10);
-    if (dayStr !== form.date) return false;
+      const dayStr = start.toISOString().slice(0, 10);
+      if (dayStr !== form.date) return false;
 
-    return start < slotEnd && end > slotStart;
-  }).length;
-};
+      return start < slotEnd && end > slotStart;
+    }).length;
+  };
 
   const handleQuickPatientChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -2276,17 +2275,11 @@ const [dayEndSlots, setDayEndSlots] = useState<
     e.preventDefault();
     setError("");
 
-    if (
-      !form.branchId ||
-      !form.date ||
-      !form.startTime ||
-      !form.endTime
-    ) {
+    if (!form.branchId || !form.date || !form.startTime || !form.endTime) {
       setError("Салбар, огноо, эхлэх/дуусах цаг талбаруудыг бөглөнө үү.");
       return;
     }
 
-    console.log("DEBUG inline selectedPatientId =", selectedPatientId);
     if (!selectedPatientId) {
       setError(
         "Үйлчлүүлэгчийг жагсаалтаас сонгох эсвэл + товчоор шинээр бүртгэнэ үү."
@@ -2300,9 +2293,7 @@ const [dayEndSlots, setDayEndSlots] = useState<
     }
 
     const [year, month, day] = form.date.split("-").map(Number);
-    const [startHour, startMinute] = form.startTime
-      .split(":")
-      .map(Number);
+    const [startHour, startMinute] = form.startTime.split(":").map(Number);
     const [endHour, endMinute] = form.endTime.split(":").map(Number);
 
     const start = new Date(
@@ -2401,26 +2392,29 @@ const [dayEndSlots, setDayEndSlots] = useState<
     }
   };
 
-// Doctors who are actually working in the selected branch & date
-const workingDoctors = useMemo(() => {
-  // If we have scheduledDoctors, filter them by selectedBranchId / form.branchId
-  if (scheduledDoctors.length > 0) {
-    const branchIdForFilter = form.branchId || selectedBranchId || "";
-    if (!branchIdForFilter) return scheduledDoctors;
+  // BRANCH + DATE AWARE DOCTOR LIST
+  const workingDoctors = useMemo(() => {
+    if (scheduledDoctors.length > 0) {
+      const branchIdForFilter = form.branchId || selectedBranchId || "";
+      const dateForFilter = form.date;
 
-    const branchNum = Number(branchIdForFilter);
-    if (Number.isNaN(branchNum)) return scheduledDoctors;
+      if (!branchIdForFilter || !dateForFilter) return scheduledDoctors;
 
-    return scheduledDoctors.filter((sd) =>
-      (sd.schedules || []).some(
-        (s) => s.branchId === branchNum && s.date === form.date
-      )
-    );
-  }
+      const branchNum = Number(branchIdForFilter);
+      if (Number.isNaN(branchNum)) return scheduledDoctors;
 
-  // Fallback: if no schedule data, show all doctors
-  return doctors;
-}, [scheduledDoctors, doctors, form.branchId, form.date, selectedBranchId]);
+      const filtered = scheduledDoctors.filter((sd) =>
+        (sd.schedules || []).some(
+          (s) => s.branchId === branchNum && s.date === dateForFilter
+        )
+      );
+
+      return filtered.length ? filtered : scheduledDoctors;
+    }
+
+    // fallback – no schedule data
+    return doctors;
+  }, [scheduledDoctors, doctors, form.branchId, form.date, selectedBranchId]);
 
   return (
     <form
@@ -2433,6 +2427,32 @@ const workingDoctors = useMemo(() => {
         fontSize: 13,
       }}
     >
+      {/* Branch – FIRST */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Салбар</label>
+        <select
+          name="branchId"
+          value={form.branchId}
+          onChange={(e) => {
+            handleChange(e);
+            setError("");
+          }}
+          required
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Салбар сонгох</option>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {/* Patient */}
       <div
         style={{
@@ -2522,15 +2542,12 @@ const workingDoctors = useMemo(() => {
         </div>
       )}
 
-      
-
-
-      {/* Branch */}
+      {/* Doctor */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Салбар</label>
+        <label>Эмч (заавал)</label>
         <select
-          name="branchId"
-          value={form.branchId}
+          name="doctorId"
+          value={form.doctorId}
           onChange={(e) => {
             handleChange(e);
             setError("");
@@ -2542,43 +2559,20 @@ const workingDoctors = useMemo(() => {
             padding: "6px 8px",
           }}
         >
-          <option value="">Салбар сонгох</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
+          <option value="">Ажиллах эмч сонгох</option>
+          {workingDoctors.map((d) => (
+            <option key={d.id} value={d.id}>
+              {formatDoctorName(d)}
             </option>
           ))}
         </select>
+        {scheduledDoctors.length === 0 && (
+          <span style={{ fontSize: 11, color: "#b91c1c", marginTop: 2 }}>
+            Энэ өдөр сонгосон салбарт эмчийн ажлын хуваарь олдсонгүй.
+          </span>
+        )}
       </div>
 
-{/* Doctor */}
-<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-  <label>Эмч (заавал)</label>
-  <select
-    name="doctorId"
-    value={form.doctorId}
-    onChange={handleChange}
-    required
-    style={{
-      borderRadius: 6,
-      border: "1px solid #d1d5db",
-      padding: "6px 8px",
-    }}
-  >
-    <option value="">Ажиллах эмч сонгох</option>
-    {workingDoctors.map((d) => (
-      <option key={d.id} value={d.id}>
-        {formatDoctorName(d)}
-      </option>
-    ))}
-  </select>
-  {scheduledDoctors.length === 0 && (
-    <span style={{ fontSize: 11, color: "#b91c1c", marginTop: 2 }}>
-      Энэ өдөр сонгосон салбарт эмчийн ажлын хуваарь олдсонгүй.
-    </span>
-  )}
-</div>
-      
       {/* Date */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Огноо</label>
@@ -2586,7 +2580,10 @@ const workingDoctors = useMemo(() => {
           type="date"
           name="date"
           value={form.date}
-          onChange={handleChange}
+          onChange={(e) => {
+            handleChange(e);
+            setError("");
+          }}
           required
           style={{
             borderRadius: 6,
@@ -2596,57 +2593,57 @@ const workingDoctors = useMemo(() => {
         />
       </div>
 
-     {/* Start time */}
-<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-  <label>Эхлэх цаг</label>
-  <select
-    name="startTime"
-    value={form.startTime}
-    onChange={(e) => {
-      handleChange(e);
-      setError("");
-    }}
-    required
-    style={{
-      borderRadius: 6,
-      border: "1px solid #d1d5db",
-      padding: "6px 8px",
-    }}
-  >
-    <option value="">Эхлэх цаг сонгох</option>
-    {dayStartSlots.map((slot) => (
-      <option key={slot.value} value={slot.value}>
-        {slot.label}
-      </option>
-    ))}
-  </select>
-</div>
+      {/* Start time */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Эхлэх цаг</label>
+        <select
+          name="startTime"
+          value={form.startTime}
+          onChange={(e) => {
+            handleChange(e);
+            setError("");
+          }}
+          required
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Эхлэх цаг сонгох</option>
+          {dayStartSlots.map((slot) => (
+            <option key={slot.value} value={slot.value}>
+              {slot.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
-{/* End time */}
-<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-  <label>Дуусах цаг</label>
-  <select
-    name="endTime"
-    value={form.endTime}
-    onChange={(e) => {
-      handleChange(e);
-      setError("");
-    }}
-    required
-    style={{
-      borderRadius: 6,
-      border: "1px solid #d1d5db",
-      padding: "6px 8px",
-    }}
-  >
-    <option value="">Дуусах цаг сонгох</option>
-    {dayEndSlots.map((slot) => (
-      <option key={slot.value} value={slot.value}>
-        {slot.label}
-      </option>
-    ))}
-  </select>
-</div>
+      {/* End time */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Дуусах цаг</label>
+        <select
+          name="endTime"
+          value={form.endTime}
+          onChange={(e) => {
+            handleChange(e);
+            setError("");
+          }}
+          required
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Дуусах цаг сонгох</option>
+          {dayEndSlots.map((slot) => (
+            <option key={slot.value} value={slot.value}>
+              {slot.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* Status */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -2662,11 +2659,11 @@ const workingDoctors = useMemo(() => {
           }}
         >
           <option value="booked">Захиалсан</option>
-  <option value="confirmed">Баталгаажсан</option>
-  <option value="ongoing">Явагдаж байна</option>
-  <option value="ready_to_pay">Төлбөр төлөх</option>
-  <option value="completed">Дууссан</option>
-  <option value="cancelled">Цуцалсан</option>
+          <option value="confirmed">Баталгаажсан</option>
+          <option value="ongoing">Явагдаж байна</option>
+          <option value="ready_to_pay">Төлбөр төлөх</option>
+          <option value="completed">Дууссан</option>
+          <option value="cancelled">Цуцалсан</option>
         </select>
       </div>
 
@@ -2718,6 +2715,7 @@ const workingDoctors = useMemo(() => {
 
       {/* Quick new patient modal */}
       {showQuickPatientModal && (
+        /* ... keep your existing quick patient modal as-is ... */
         <div
           style={{
             position: "fixed",
@@ -2729,6 +2727,7 @@ const workingDoctors = useMemo(() => {
             zIndex: 50,
           }}
         >
+          
           <div
             style={{
               background: "white",
