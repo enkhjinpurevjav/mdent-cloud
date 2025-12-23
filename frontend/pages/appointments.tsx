@@ -2417,9 +2417,9 @@ const [dayEndSlots, setDayEndSlots] = useState<
     }
   };
 
-  const availableDoctors = scheduledDoctors.length
-    ? doctors.filter((d) => scheduledDoctors.some((s) => s.id === d.id))
-    : doctors;
+ const workingDoctors = scheduledDoctors.length
+  ? scheduledDoctors
+  : doctors;
 
   return (
     <form
@@ -2523,34 +2523,35 @@ const [dayEndSlots, setDayEndSlots] = useState<
 
       {/* Doctor */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Эмч (заавал)</label>
-        <select
-          name="doctorId"
-          value={form.doctorId}
-          onChange={(e) => {
-            handleChange(e);
-            setError("");
-          }}
-          required
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        >
-          <option value="">Ажиллах эмч сонгох</option>
-          {availableDoctors.map((d) => (
-            <option key={d.id} value={d.id}>
-              {formatDoctorName(d)}
-            </option>
-          ))}
-        </select>
-        {scheduledDoctors.length === 0 && (
-          <span style={{ fontSize: 11, color: "#b91c1c", marginTop: 2 }}>
-            Энэ өдөр сонгосон салбарт эмчийн ажлын хуваарь олдсонгүй.
-          </span>
-        )}
-      </div>
+  <label>Эмч (заавал)</label>
+  <select
+    name="doctorId"
+    value={form.doctorId}
+    onChange={(e) => {
+      handleChange(e);
+      setError("");
+    }}
+    required
+    style={{
+      borderRadius: 6,
+      border: "1px solid #d1d5db",
+      padding: "6px 8px",
+    }}
+  >
+    <option value="">Ажиллах эмч сонгох</option>
+    {workingDoctors.map((d) => (
+      <option key={d.id} value={d.id}>
+        {formatDoctorName(d)}
+      </option>
+    ))}
+  </select>
+  {scheduledDoctors.length === 0 && (
+    <span style={{ fontSize: 11, color: "#b91c1c", marginTop: 2 }}>
+      Энэ өдөр сонгосон салбарт эмчийн ажлын хуваарь олдсонгүй.
+    </span>
+  )}
+</div>
+
 
       {/* Branch */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
