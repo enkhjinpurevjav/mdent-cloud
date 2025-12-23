@@ -249,51 +249,77 @@ export default function NursesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    const loadBranches = async () => {
-      try {
-        const res = await fetch("/api/branches");
-        const data = await res.json();
-        if (res.ok && Array.isArray(data)) {
-          setBranches(data);
-        }
-      } catch {}
-    };
+  // summary cards
+  const [summary, setSummary] = useState<{
+    total: number;
+    workingToday: number;
+  } | null>(null);
 
-    const loadUsers = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const res = await fetch("/api/users?role=nurse");
-        let data: any = null;
-        try {
-          data = await res.json();
-        } catch {
-          data = null;
-        }
-
-        if (!res.ok || !Array.isArray(data)) {
-          throw new Error((data && data.error) || "Алдаа гарлаа");
-        }
-
-        setUsers(
-          [...data].sort((a, b) => {
-            const aName = (a.name || "").toString();
-            const bName = (b.name || "").toString();
-            return aName.localeCompare(bName, "mn");
-          })
-        );
-      } catch (err: any) {
-        console.error(err);
-        setError(err.message || "Сүлжээгээ шалгана уу");
-        setUsers([]);
-      } finally {
-        setLoading(false);
+  const loadBranches = async () => {
+    try {
+      const res = await fetch("/api/branches");
+      const data = await res.json();
+      if (res.ok && Array.isArray(data)) {
+        setBranches(data);
       }
-    };
+    } catch {
+      // ignore; main error handling below
+    }
+  };
 
+  const loadUsers = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/users?role=nurse");
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok || !Array.isArray(data)) {
+        throw new Error((data && data.error) || "Алдаа гарлаа");
+      }
+
+      setUsers(
+        [...data].sort((a, b) => {
+          const aName = (a.name || "").toString();
+          const bName = (b.name || "").toString();
+          return aName.localeCompare(bName, "mn");
+        })
+      );
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Сүлжээгээ шалгана уу");
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSummary = async () => {
+    try {
+      const res = await fetch("/api/staff/summary?role=nurse");
+      const data = await res.json().catch(() => null);
+      if (res.ok && data && typeof data.total === "number") {
+        setSummary({
+          total: data.total,
+          workingToday: data.workingToday || 0,
+        });
+      } else {
+        setSummary(null);
+      }
+    } catch {
+      setSummary(null);
+    }
+  };
+
+  useEffect(() => {
     loadBranches();
     loadUsers();
+    loadSummary();
   }, []);
 
   return (
@@ -312,10 +338,95 @@ export default function NursesPage() {
 
       <UsersTabs />
 
+      {/* Summary cards – same style as doctors/reception/patients */}
+      <section
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        {/* Total nurses */}
+        <div
+          style={{
+            background: "linear-gradient(90deg,#eff6ff,#ffffff)",
+            borderRadius: 12,
+            border: "1px solid #dbeafe",
+            padding: 12,
+            boxShadow: "0 4px 10px rgba(15,23,42,0.08)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              textTransform: "uppercase",
+              color: "#1d4ed8",
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              marginBottom: 4,
+            }}
+          >
+            Нийт сувилагч
+          </div>
+          <div
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              color: "#111827",
+              marginBottom: 4,
+            }}
+          >
+            {summary ? summary.total : "—"}
+          </div>
+          <div style={{ fontSize: 11, color: "#6b7280" }}>
+            Системд бүртгэлтэй нийт сувилагчдын тоо.
+          </div>
+        </div>
+
+        {/* Nurses working today */}
+        <div
+          style={{
+            background: "linear-gradient(90deg,#dcfce7,#ffffff)",
+            borderRadius: 12,
+            border: "1px solid #bbf7d0",
+            padding: 12,
+            boxShadow: "0 4px 10px rgba(15,23,42,0.08)",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 11,
+              textTransform: "uppercase",
+              color: "#15803d",
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              marginBottom: 4,
+            }}
+          >
+            Өнөөдөр ажиллаж буй сувилагч
+          </div>
+          <div
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              color: "#111827",
+              marginBottom: 4,
+            }}
+          >
+            {summary ? summary.workingToday : "—"}
+          </div>
+          <div style={{ fontSize: 11, color: "#6b7280" }}>
+            Өнөөдрийн ажлын хуваарьт орсон сувилагчдын тоо.
+          </div>
+        </div>
+      </section>
+
       <NurseForm
         branches={branches}
         onSuccess={(u) => {
           setUsers((prev) => [u, ...prev]);
+          loadSummary();
         }}
       />
 
@@ -333,25 +444,53 @@ export default function NursesPage() {
         >
           <thead>
             <tr>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>#</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Овог</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Нэр</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>И-мэйл</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>РД</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Утас</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Салбар</th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Профайл</th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                #
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                Овог
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                Нэр
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                И-мэйл
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                РД
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                Утас
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                Салбар
+              </th>
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+                Профайл
+              </th>
             </tr>
           </thead>
           <tbody>
             {users.map((u, index) => (
               <tr key={u.id}>
-                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>{index + 1}</td>
-                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>{u.ovog || "-"}</td>
-                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>{u.name || "-"}</td>
-                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>{u.email}</td>
-                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>{u.regNo || "-"}</td>
-                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>{u.phone || "-"}</td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                  {index + 1}
+                </td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                  {u.ovog || "-"}
+                </td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                  {u.name || "-"}
+                </td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                  {u.email}
+                </td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                  {u.regNo || "-"}
+                </td>
+                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                  {u.phone || "-"}
+                </td>
                 <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                   {Array.isArray(u.branches) && u.branches.length > 0
                     ? u.branches.map((b) => b.name).join(", ")
