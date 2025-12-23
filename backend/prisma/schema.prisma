@@ -73,6 +73,12 @@ model Branch {
 
   // Bookings in this branch
   bookings        Booking[]
+
+  // NEW: Receptionist schedules per branch
+  receptionSchedules ReceptionSchedule[]
+
+  // NEW: Receptionist many-to-many assignment
+  receptionBranches  ReceptionBranch[]
 }
 
 // ==========================================================
@@ -97,9 +103,6 @@ model User {
 
   createdAt          DateTime         @default(now())
 
-  // *** NEW: calendar / display ordering for doctors ***
-  calendarOrder      Int?             @default(0)
-
   // Encounters where this user is the doctor
   encounters         Encounter[]      @relation("DoctorEncounters")
 
@@ -119,6 +122,10 @@ model User {
 
   // Many-to-many doctor-to-branch assignment
   doctorBranches     DoctorBranch[]
+
+  // NEW: Receptionist multi-branch + schedules
+  receptionBranches  ReceptionBranch[]
+  receptionSchedules ReceptionSchedule[]
 
   // Appointments where this user is the doctor
   appointments       Appointment[]
@@ -567,8 +574,8 @@ model ReceptionSchedule {
 
   note        String?
 
-  reception   User     @relation(fields: [receptionId], references: [id])
-  branch      Branch   @relation(fields: [branchId], references: [id])
+  reception   User   @relation(fields: [receptionId], references: [id])
+  branch      Branch @relation(fields: [branchId], references: [id])
 
   @@index([receptionId, date])
   @@index([branchId, date])
