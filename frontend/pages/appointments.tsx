@@ -1918,8 +1918,8 @@ if (quickPatientForm.gender) {
                   }}
                 >
                   <option value="">Сонгохгүй</option>
-                  <option value="male">Эр</option>
-                  <option value="female">Эм</option>
+                  <option value="эр">Эр</option>
+                  <option value="эм">Эм</option>
                 </select>
               </label>
 
@@ -3063,8 +3063,8 @@ if (quickPatientForm.gender) {
       }}
     >
       <option value="">Сонгохгүй</option>
-      <option value="male">Эр</option>
-      <option value="female">Эм</option>
+      <option value="эр">Эр</option>
+      <option value="эм">Эм</option>
     </select>
   </label>
 
