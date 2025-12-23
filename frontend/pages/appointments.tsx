@@ -698,9 +698,7 @@ function AppointmentDetailsModal({
                             </span>
                           )}
                         </div>
-                        <div>
-                          <strong>Утас:</strong> {a.patient?.phone || "-"}
-                        </div>
+                       
                       </div>
 
                       {/* Doctor + appointment branch */}
