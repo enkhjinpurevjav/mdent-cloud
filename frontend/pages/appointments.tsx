@@ -1546,27 +1546,7 @@ const workingDoctors = scheduledDoctors.length
           </div>
 
           {/* Branch */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label>Салбар</label>
-            <select
-              name="branchId"
-              value={form.branchId}
-              onChange={handleChange}
-              required
-              style={{
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-              }}
-            >
-              <option value="">Салбар сонгох</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          
 
           {/* Start time */}
 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -2421,9 +2401,26 @@ const [dayEndSlots, setDayEndSlots] = useState<
     }
   };
 
- const workingDoctors = scheduledDoctors.length
-  ? scheduledDoctors
-  : doctors;
+// Doctors who are actually working in the selected branch & date
+const workingDoctors = useMemo(() => {
+  // If we have scheduledDoctors, filter them by selectedBranchId / form.branchId
+  if (scheduledDoctors.length > 0) {
+    const branchIdForFilter = form.branchId || selectedBranchId || "";
+    if (!branchIdForFilter) return scheduledDoctors;
+
+    const branchNum = Number(branchIdForFilter);
+    if (Number.isNaN(branchNum)) return scheduledDoctors;
+
+    return scheduledDoctors.filter((sd) =>
+      (sd.schedules || []).some(
+        (s) => s.branchId === branchNum && s.date === form.date
+      )
+    );
+  }
+
+  // Fallback: if no schedule data, show all doctors
+  return doctors;
+}, [scheduledDoctors, doctors, form.branchId, form.date, selectedBranchId]);
 
   return (
     <form
@@ -2525,7 +2522,36 @@ const [dayEndSlots, setDayEndSlots] = useState<
         </div>
       )}
 
-      {/* Doctor */}
+      
+
+
+      {/* Branch */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Салбар</label>
+        <select
+          name="branchId"
+          value={form.branchId}
+          onChange={(e) => {
+            handleChange(e);
+            setError("");
+          }}
+          required
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Салбар сонгох</option>
+          {branches.map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+{/* Doctor */}
 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
   <label>Эмч (заавал)</label>
   <select
@@ -2552,31 +2578,7 @@ const [dayEndSlots, setDayEndSlots] = useState<
     </span>
   )}
 </div>
-
-
-      {/* Branch */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label>Салбар</label>
-        <select
-          name="branchId"
-          value={form.branchId}
-          onChange={handleChange}
-          required
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
-        >
-          <option value="">Салбар сонгох</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
+      
       {/* Date */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <label>Огноо</label>
