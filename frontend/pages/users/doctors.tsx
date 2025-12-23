@@ -43,6 +43,7 @@ function DoctorForm({
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [summary, setSummary] = useState<{ total: number; workingToday: number } | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -111,6 +112,21 @@ function DoctorForm({
         return;
       }
 
+const loadSummary = async () => {
+  try {
+    const res = await fetch("/api/staff/summary?role=doctor");
+    const data = await res.json().catch(() => null);
+    if (res.ok && data && typeof data.total === "number") {
+      setSummary({ total: data.total, workingToday: data.workingToday || 0 });
+    } else {
+      setSummary(null);
+    }
+  } catch {
+    setSummary(null);
+  }
+};
+
+      
       const createdDoctor = data as Doctor;
 
       // 2) assign multiple branches via /api/users/:id/branches
