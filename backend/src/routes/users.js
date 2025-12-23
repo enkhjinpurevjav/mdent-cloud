@@ -662,61 +662,97 @@ router.delete("/:id/nurse-schedule/:scheduleId", async (req, res) => {
 });
 
 /**
- * GET /api/users/:id
- * Returns a single user with:
- * - legacy branch
- * - branches[] via DoctorBranch
+ * GET /api/users/nurses/today
+ *
+ * Optional query:
+ *   branchId=number  → filter by branch
+ *
+ * Returns:
+ * {
+ *   count: number,
+ *   items: Array<{
+ *     nurseId: number,
+ *     name: string | null,
+ *     ovog: string | null,
+ *     email: string,
+ *     phone: string | null,
+ *     schedules: { id, branch, date, startTime, endTime, note }[]
+ *   }>
+ * }
  */
-router.get("/:id", async (req, res) => {
-  const id = Number(req.params.id);
-  if (!id || Number.isNaN(id)) {
-    return res.status(400).json({ error: "Invalid user id" });
-  }
-
+router.get("/nurses/today", async (req, res) => {
   try {
-    const user = await prisma.user.findUnique({
-      where: { id },
-      include: {
-        branch: true,
-        doctorBranches: {
-          include: { branch: true },
-        },
-      },
-    });
+    const { branchId } = req.query;
 
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const whereSchedule = {
+      date: today,
+    };
+
+    if (branchId) {
+      const bid = Number(branchId);
+      if (Number.isNaN(bid)) {
+        return res.status(400).json({ error: "Invalid branchId" });
+      }
+      whereSchedule.branchId = bid;
     }
 
-    return res.status(200).json({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      ovog: user.ovog,
-      role: user.role,
-      branchId: user.branchId,
-      branch: user.branch
-        ? { id: user.branch.id, name: user.branch.name }
-        : null,
-      regNo: user.regNo,
-      phone: user.phone || null,
-      licenseNumber: user.licenseNumber,
-      licenseExpiryDate: user.licenseExpiryDate
-        ? user.licenseExpiryDate.toISOString()
-        : null,
-      signatureImagePath: user.signatureImagePath,
-      stampImagePath: user.stampImagePath,
-      idPhotoPath: user.idPhotoPath,
-      createdAt: user.createdAt.toISOString(),
-      branches:
-        user.doctorBranches?.map((db) => ({
-          id: db.branch.id,
-          name: db.branch.name,
-        })) ?? [],
+    const schedules = await prisma.nurseSchedule.findMany({
+      where: whereSchedule,
+      include: {
+        branch: { select: { id: true, name: true } },
+        nurse: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            ovog: true,
+            phone: true,
+          },
+        },
+      },
+      orderBy: [{ startTime: "asc" }],
+    });
+
+    if (!schedules.length) {
+      return res.json({ count: 0, items: [] });
+    }
+
+    const map = new Map();
+    for (const s of schedules) {
+      if (!map.has(s.nurseId)) {
+        map.set(s.nurseId, {
+          nurseId: s.nurseId,
+          name: s.nurse.name,
+          ovog: s.nurse.ovog,
+          email: s.nurse.email,
+          phone: s.nurse.phone || null,
+          schedules: [],
+        });
+      }
+      const entry = map.get(s.nurseId);
+      entry.schedules.push({
+        id: s.id,
+        branch: s.branch,
+        date: s.date.toISOString().slice(0, 10),
+        startTime: s.startTime,
+        endTime: s.endTime,
+        note: s.note,
+      });
+    }
+
+    const items = Array.from(map.values());
+    return res.json({
+      count: items.length,
+      items,
     });
   } catch (err) {
-    console.error("GET /api/users/:id error:", err);
-    return res.status(500).json({ error: "Internal server error" });
+    console.error("GET /api/users/nurses/today error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch today's nurses" });
   }
 });
 
