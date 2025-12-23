@@ -305,16 +305,21 @@ export default function ReceptionPage() {
 
   const loadSummary = async () => {
     try {
-      const res = await fetch("/api/staff/summary?role=receptionist");
-      const data = await res.json().catch(() => null);
-      if (res.ok && data && typeof data.total === "number") {
-        setSummary({
-          total: data.total,
-          workingToday: data.workingToday || 0,
-        });
-      } else {
-        setSummary(null);
-      }
+      // 1) get total number of receptionists (existing logic)
+      const usersRes = await fetch("/api/users?role=receptionist");
+      const usersData = await usersRes.json().catch(() => null);
+      const total =
+        usersRes.ok && Array.isArray(usersData) ? usersData.length : 0;
+
+      // 2) get "working today" count from new endpoint
+      const todayRes = await fetch("/api/users/receptions/today");
+      const todayData = await todayRes.json().catch(() => null);
+      const workingToday =
+        todayRes.ok && todayData && typeof todayData.count === "number"
+          ? todayData.count
+          : 0;
+
+      setSummary({ total, workingToday });
     } catch {
       setSummary(null);
     }
