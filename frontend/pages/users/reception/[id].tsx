@@ -191,14 +191,27 @@ export default function ReceptionProfilePage() {
         }
 
         // load user
-        const rRes = await fetch(`/api/users/${id}`);
-        const rData = await rRes.json();
+       // inside useEffect -> load()
+const rRes = await fetch(`/api/users/${id}`);
 
-        if (!rRes.ok) {
-          setError(rData?.error || "Ресепшний мэдээллийг ачааллаж чадсангүй");
-          setLoading(false);
-          return;
-        }
+let rData: any = null;
+try {
+  rData = await rRes.json();
+} catch {
+  rData = null;
+}
+
+if (!rRes.ok || !rData) {
+  setError(
+    (rData && rData.error) || "Ресепшний мэдээллийг ачааллаж чадсангүй"
+  );
+  setLoading(false);
+  return;
+}
+
+const rec: Reception = rData;
+setReception(rec);
+// rest unchanged...
 
         const rec: Reception = rData;
         setReception(rec);
