@@ -1,4 +1,4 @@
-import React, {
+Tbimport React, {
   useCallback,
   useEffect,
   useMemo,
@@ -849,12 +849,7 @@ function AppointmentDetailsModal({
                   )}
 
                                  <div style={{ color: "#4b5563" }}>
-                    <div>
-                      <strong>Эмч:</strong>{" "}
-                      {a.doctorOvog
-                        ? `${a.doctorOvog.charAt(0).toUpperCase()}.${a.doctorName ?? ""}`
-                        : a.doctorName || "-"}
-                    </div>
+                    
                     <div>
                       <strong>Салбар:</strong> {a.branch?.name ?? a.branchId}
                     </div>
