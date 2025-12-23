@@ -337,28 +337,76 @@ export default function ReceptionPage() {
         >
           <thead>
             <tr>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
                 #
               </th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
                 Овог
               </th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
                 Нэр
               </th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
                 И-мэйл
               </th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
                 РД
               </th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
                 Утас
               </th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
                 Салбар
               </th>
-              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #ddd",
+                  padding: 8,
+                }}
+              >
                 Профайл
               </th>
             </tr>
@@ -366,25 +414,60 @@ export default function ReceptionPage() {
           <tbody>
             {users.map((u, index) => (
               <tr key={u.id}>
-                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
                   {index + 1}
                 </td>
-                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
                   {u.ovog || "-"}
                 </td>
-                <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
                   {u.name || "-"}
                 </td>
-                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
                   {u.email}
                 </td>
-                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
                   {u.regNo || "-"}
                 </td>
-                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
                   {u.phone || "-"}
                 </td>
-                <td style={{ borderBottom: "1px solid "#f0f0f0", padding: 8 }}>
+                <td
+                  style={{
+                    borderBottom: "1px solid #f0f0f0",
+                    padding: 8,
+                  }}
+                >
                   {Array.isArray(u.branches) && u.branches.length > 0
                     ? u.branches.map((b) => b.name).join(", ")
                     : u.branch
