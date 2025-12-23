@@ -848,11 +848,7 @@ function AppointmentDetailsModal({
                     </div>
                   )}
 
-                                 <div style={{ color: "#4b5563" }}>
-                    
-                    <div>
-                      <strong>Салбар:</strong> {a.branch?.name ?? a.branchId}
-                    </div>
+                                 
                   </div>
                   <div style={{ color: "#4b5563" }}>
                     <strong>Цаг захиалга:</strong>{" "}
