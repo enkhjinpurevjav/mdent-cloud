@@ -21,6 +21,7 @@ type Doctor = {
   ovog: string | null;
   regNo: string | null;
   phone: string | null;
+  calendarOrder?: number | null; // NEW
 };
 
 type ScheduledDoctor = Doctor & {
@@ -3118,26 +3119,33 @@ useEffect(() => {
 
   // gridDoctors with fallback
   const gridDoctors: ScheduledDoctor[] = useMemo(() => {
-    if (scheduledDoctors.length > 0) return scheduledDoctors;
+  const sortFn = (a: ScheduledDoctor, b: ScheduledDoctor) => {
+    const ao = a.calendarOrder ?? 0;
+    const bo = b.calendarOrder ?? 0;
+    if (ao !== bo) return ao - bo;
+    return (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase());
+  };
 
-    const dayKey = filterDate;
-    const byDoctor: Record<number, ScheduledDoctor> = {};
+  if (scheduledDoctors.length > 0) {
+    return [...scheduledDoctors].sort(sortFn);
+  }
 
-    for (const a of appointments) {
-      if (!a.doctorId) continue;
-      if (getAppointmentDayKey(a) !== dayKey) continue;
+  const dayKey = filterDate;
+  const byDoctor: Record<number, ScheduledDoctor> = {};
 
-      if (!byDoctor[a.doctorId]) {
-        const baseDoc = doctors.find((d) => d.id === a.doctorId);
-        if (!baseDoc) continue;
-        byDoctor[a.doctorId] = { ...baseDoc, schedules: [] };
-      }
+  for (const a of appointments) {
+    if (!a.doctorId) continue;
+    if (getAppointmentDayKey(a) !== dayKey) continue;
+
+    if (!byDoctor[a.doctorId]) {
+      const baseDoc = doctors.find((d) => d.id === a.doctorId);
+      if (!baseDoc) continue;
+      byDoctor[a.doctorId] = { ...baseDoc, schedules: [] };
     }
+  }
 
-    return Object.values(byDoctor).sort((a, b) =>
-      (a.name || "").toLowerCase().localeCompare((b.name || "").toLowerCase())
-    );
-  }, [scheduledDoctors, appointments, doctors, filterDate]);
+  return Object.values(byDoctor).sort(sortFn);
+}, [scheduledDoctors, appointments, doctors, filterDate]);
 
   // lane map
   const laneById: Record<number, 0 | 1> = useMemo(() => {
