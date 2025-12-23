@@ -175,117 +175,112 @@ export default function ReceptionProfilePage() {
   };
 
   // Load branches + receptionist + schedule
-  useEffect(() => {
-    if (!id) return;
+useEffect(() => {
+  if (!id) return;
 
-    async function load() {
-      setLoading(true);
-      setError(null);
+  async function load() {
+    setLoading(true);
+    setError(null);
 
-      try {
-        // load branches
-        const bRes = await fetch("/api/branches");
-        const bData = await bRes.json();
-        if (bRes.ok && Array.isArray(bData)) {
-          setBranches(bData);
-        }
-
-        // load user
-       // inside useEffect -> load()
-const rRes = await fetch(`/api/users/${id}`);
-
-let rData: any = null;
-try {
-  rData = await rRes.json();
-} catch {
-  rData = null;
-}
-
-if (!rRes.ok || !rData) {
-  setError(
-    (rData && rData.error) || "Ресепшний мэдээллийг ачааллаж чадсангүй"
-  );
-  setLoading(false);
-  return;
-}
-
-const rec: Reception = rData;
-setReception(rec);
-// rest unchanged...
-
-        const rec: Reception = rData;
-        setReception(rec);
-
-        setForm({
-          name: rec.name || "",
-          ovog: rec.ovog || "",
-          email: rec.email || "",
-          branchId: rec.branchId ? String(rec.branchId) : "",
-          regNo: rec.regNo || "",
-          phone: rec.phone || "",
-        });
-
-        // ReceptionBranch is not yet included from backend /users/:id,
-        // so initial multi-branch selection = legacy single branch if any.
-        const initialBranchIds =
-          rData.branches && Array.isArray(rData.branches)
-            ? (rData.branches as Branch[]).map((b) => b.id)
-            : rec.branchId
-            ? [rec.branchId]
-            : [];
-        setSelectedBranchIds(initialBranchIds);
-
-        setScheduleForm((prev) => ({
-          ...prev,
-          branchId: initialBranchIds[0]
-            ? String(initialBranchIds[0])
-            : prev.branchId,
-        }));
-
-        setLoading(false);
-      } catch (err) {
-        console.error(err);
-        setError("Сүлжээгээ шалгана уу");
-        setLoading(false);
+    try {
+      // load branches
+      const bRes = await fetch("/api/branches");
+      const bData = await bRes.json();
+      if (bRes.ok && Array.isArray(bData)) {
+        setBranches(bData);
       }
-    }
 
-    async function loadSchedule() {
-      setScheduleLoading(true);
-      setScheduleError(null);
+      // load user (defensive JSON parsing)
+      const rRes = await fetch(`/api/users/${id}`);
 
+      let rData: any = null;
       try {
-        const today = new Date();
-        const from = today.toISOString().slice(0, 10);
-        const toDate = new Date(today);
-        toDate.setDate(today.getDate() + 31);
-        const to = toDate.toISOString().slice(0, 10);
+        rData = await rRes.json();
+      } catch {
+        rData = null;
+      }
 
-        const res = await fetch(
-          `/api/users/${id}/reception-schedule?from=${from}&to=${to}`
+      if (!rRes.ok || !rData) {
+        setError(
+          (rData && rData.error) ||
+            "Ресепшний мэдээллийг ачааллаж чадсангүй"
         );
-        const data = await res.json();
-
-        if (res.ok && Array.isArray(data)) {
-          setSchedule(data);
-        } else {
-          setScheduleError(
-            data && data.error
-              ? data.error
-              : "Ажлын хуваарийг ачааллаж чадсангүй"
-          );
-        }
-      } catch (err) {
-        console.error(err);
-        setScheduleError("Сүлжээгээ шалгана уу");
-      } finally {
-        setScheduleLoading(false);
+        setLoading(false);
+        return;
       }
-    }
 
-    load();
-    loadSchedule();
-  }, [id]);
+      const rec: Reception = rData;
+      setReception(rec);
+
+      setForm({
+        name: rec.name || "",
+        ovog: rec.ovog || "",
+        email: rec.email || "",
+        branchId: rec.branchId ? String(rec.branchId) : "",
+        regNo: rec.regNo || "",
+        phone: rec.phone || "",
+      });
+
+      // initial multi-branch selection
+      const initialBranchIds =
+        rData.branches && Array.isArray(rData.branches)
+          ? (rData.branches as Branch[]).map((b) => b.id)
+          : rec.branchId
+          ? [rec.branchId]
+          : [];
+      setSelectedBranchIds(initialBranchIds);
+
+      setScheduleForm((prev) => ({
+        ...prev,
+        branchId: initialBranchIds[0]
+          ? String(initialBranchIds[0])
+          : prev.branchId,
+      }));
+
+      setLoading(false);
+    } catch (err) {
+      console.error(err);
+      setError("Сүлжээгээ шалгана уу");
+      setLoading(false);
+    }
+  }
+
+  async function loadSchedule() {
+    setScheduleLoading(true);
+    setScheduleError(null);
+
+    try {
+      const today = new Date();
+      const from = today.toISOString().slice(0, 10);
+      const toDate = new Date(today);
+      toDate.setDate(today.getDate() + 31);
+      const to = toDate.toISOString().slice(0, 10);
+
+      const res = await fetch(
+        `/api/users/${id}/reception-schedule?from=${from}&to=${to}`
+      );
+      const data = await res.json();
+
+      if (res.ok && Array.isArray(data)) {
+        setSchedule(data);
+      } else {
+        setScheduleError(
+          data && data.error
+            ? data.error
+            : "Ажлын хуваарийг ачааллаж чадсангүй"
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      setScheduleError("Сүлжээгээ шалгана уу");
+    } finally {
+      setScheduleLoading(false);
+    }
+  }
+
+  load();
+  loadSchedule();
+}, [id]);
 
   const reloadSchedule = async () => {
     if (!id) return;
