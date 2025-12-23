@@ -18,6 +18,7 @@ import reportsRouter from "./routes/reports.js";
 // NEW: scheduled doctors
 import doctorsRouter from "./routes/doctors.js";
 import bookingsRouter from "./routes/bookings.js";
+import staffSummaryRoutes from "./routes/staff-summary.js";
 
 // NEW: diagnoses
 import diagnosesRouter from "./routes/diagnoses.js";
@@ -78,6 +79,7 @@ app.use("/api/diagnoses", diagnosesRouter);
 app.use("/api", diagnosisProblemsRouter);
 app.use("/api", encounterDiagnosesRouter);
 app.use("/api/reception", receptionRoutes);
+app.use("/api/staff/summary", staffSummaryRoutes);
 
 // Optional central error handler
 app.use((err, _req, res, _next) => {
