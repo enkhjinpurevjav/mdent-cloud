@@ -1005,14 +1005,20 @@ const workingDoctors = scheduledDoctors.length
   // quick new patient (same as inline form but local to this modal)
   const [showQuickPatientModal, setShowQuickPatientModal] = useState(false);
   const [quickPatientForm, setQuickPatientForm] = useState<{
-    name: string;
-    phone: string;
-    branchId: string;
-  }>({
-    name: "",
-    phone: "",
-    branchId: "",
-  });
+  ovog: string;
+  name: string;
+  phone: string;
+  branchId: string;
+  regNo: string;
+  gender: string;
+}>({
+  ovog: "",
+  name: "",
+  phone: "",
+  branchId: "",
+  regNo: "",
+  gender: "",
+});
   const [quickPatientError, setQuickPatientError] = useState("");
   const [quickPatientSaving, setQuickPatientSaving] = useState(false);
   
@@ -1261,12 +1267,22 @@ const workingDoctors = scheduledDoctors.length
     setQuickPatientSaving(true);
 
     try {
-      const payload = {
-        name: quickPatientForm.name.trim(),
-        phone: quickPatientForm.phone.trim(),
-        branchId: branchIdForPatient,
-        bookNumber: "",
-      };
+      const payload: any = {
+  name: quickPatientForm.name.trim(),
+  phone: quickPatientForm.phone.trim(),
+  branchId: branchIdForPatient,
+  bookNumber: "",
+};
+
+if (quickPatientForm.ovog.trim()) {
+  payload.ovog = quickPatientForm.ovog.trim();
+}
+if (quickPatientForm.regNo.trim()) {
+  payload.regNo = quickPatientForm.regNo.trim();
+}
+if (quickPatientForm.gender) {
+  payload.gender = quickPatientForm.gender;
+}
 
       const res = await fetch("/api/patients", {
         method: "POST",
@@ -1300,7 +1316,14 @@ const workingDoctors = scheduledDoctors.length
         patientQuery: formatPatientSearchLabel(p),
       }));
 
-      setQuickPatientForm({ name: "", phone: "", branchId: "" });
+      setQuickPatientForm({
+  ovog: "",
+  name: "",
+  phone: "",
+  branchId: "",
+  regNo: "",
+  gender: "",
+});
       setShowQuickPatientModal(false);
     } catch (e) {
       console.error(e);
