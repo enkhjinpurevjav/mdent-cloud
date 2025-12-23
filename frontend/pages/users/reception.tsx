@@ -79,7 +79,6 @@ function ReceptionForm({
         payload.regNo = form.regNo.trim();
       }
 
-      // 1) create receptionist
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -101,7 +100,6 @@ function ReceptionForm({
 
       const createdUser = data as Receptionist;
 
-      // 2) assign multiple branches
       if (form.branchIds.length > 0) {
         try {
           const resBranches = await fetch(
@@ -254,13 +252,11 @@ export default function ReceptionPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // summary cards
   const [summary, setSummary] = useState<{
     total: number;
     workingToday: number;
   } | null>(null);
 
-  // editing state
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<{
     name: string;
@@ -286,7 +282,7 @@ export default function ReceptionPage() {
         setBranches(data);
       }
     } catch {
-      // ignore; main error handling below
+      // ignore
     }
   };
 
@@ -527,7 +523,7 @@ export default function ReceptionPage() {
 
       <UsersTabs />
 
-      {/* Summary cards, same design as doctors/patients */}
+      {/* Summary cards */}
       <section
         style={{
           display: "grid",
@@ -631,76 +627,28 @@ export default function ReceptionPage() {
         >
           <thead>
             <tr>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
                 #
               </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
                 Овог
               </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
                 Нэр
               </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
                 И-мэйл
               </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
                 РД
               </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
                 Утас
               </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
                 Салбар
               </th>
-              <th
-                style={{
-                  textAlign: "left",
-                  borderBottom: "1px solid #ddd",
-                  padding: 8,
-                }}
-              >
+              <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>
                 Үйлдэл
               </th>
             </tr>
@@ -712,20 +660,10 @@ export default function ReceptionPage() {
               if (isEditing) {
                 return (
                   <tr key={u.id}>
-                    <td
-                      style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
-                      }}
-                    >
+                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                       {index + 1}
                     </td>
-                    <td
-                      style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
-                      }}
-                    >
+                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                       <input
                         name="ovog"
                         value={editForm.ovog}
@@ -733,12 +671,7 @@ export default function ReceptionPage() {
                         style={{ width: "100%" }}
                       />
                     </td>
-                    <td
-                      style={{
-                        borderBottom: "1px solid "#f0f0f0",
-                        padding: 8,
-                      }}
-                    >
+                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                       <input
                         name="name"
                         value={editForm.name}
@@ -746,20 +679,10 @@ export default function ReceptionPage() {
                         style={{ width: "100%" }}
                       />
                     </td>
-                    <td
-                      style={{
-                        borderBottom: "1px solid "#f0f0f0",
-                        padding: 8,
-                      }}
-                    >
+                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                       {u.email}
                     </td>
-                    <td
-                      style={{
-                        borderBottom: "1px solid "#f0f0f0",
-                        padding: 8,
-                      }}
-                    >
+                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                       <input
                         name="regNo"
                         value={editForm.regNo}
@@ -767,12 +690,7 @@ export default function ReceptionPage() {
                         style={{ width: "100%" }}
                       />
                     </td>
-                    <td
-                      style={{
-                        borderBottom: "1px solid "#f0f0f0",
-                        padding: 8,
-                      }}
-                    >
+                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                       <input
                         name="phone"
                         value={editForm.phone}
@@ -780,12 +698,7 @@ export default function ReceptionPage() {
                         style={{ width: "100%" }}
                       />
                     </td>
-                    <td
-                      style={{
-                        borderBottom: "1px solid "#f0f0f0",
-                        padding: 8,
-                      }}
-                    >
+                    <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                       <div
                         style={{
                           display: "flex",
@@ -818,7 +731,7 @@ export default function ReceptionPage() {
                     </td>
                     <td
                       style={{
-                        borderBottom: "1px solid "#f0f0f0",
+                        borderBottom: "1px solid #f0f0f0",
                         padding: 8,
                         whiteSpace: "nowrap",
                       }}
@@ -848,60 +761,25 @@ export default function ReceptionPage() {
 
               return (
                 <tr key={u.id}>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                    }}
-                  >
+                  <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                     {index + 1}
                   </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                    }}
-                  >
+                  <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                     {u.ovog || "-"}
                   </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid "#f0f0f0",
-                      padding: 8,
-                    }}
-                  >
+                  <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                     {u.name || "-"}
                   </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                    }}
-                  >
+                  <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                     {u.email}
                   </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid #f0f0f0",
-                      padding: 8,
-                    }}
-                  >
+                  <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                     {u.regNo || "-"}
                   </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid "#f0f0f0",
-                      padding: 8,
-                    }}
-                  >
+                  <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                     {u.phone || "-"}
                   </td>
-                  <td
-                    style={{
-                      borderBottom: "1px solid "#f0f0f0",
-                      padding: 8,
-                    }}
-                  >
+                  <td style={{ borderBottom: "1px solid #f0f0f0", padding: 8 }}>
                     {Array.isArray(u.branches) && u.branches.length > 0
                       ? u.branches.map((b) => b.name).join(", ")
                       : u.branch
@@ -910,7 +788,7 @@ export default function ReceptionPage() {
                   </td>
                   <td
                     style={{
-                      borderBottom: "1px solid "#f0f0f0",
+                      borderBottom: "1px solid #f0f0f0",
                       padding: 8,
                       whiteSpace: "nowrap",
                     }}
