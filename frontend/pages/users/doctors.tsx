@@ -276,37 +276,40 @@ export default function DoctorsPage() {
   };
 
     const loadDoctors = async () => {
-    setLoading(true);
-    setError("");
+  setLoading(true);
+  setError("");
+  try {
+    const res = await fetch("/api/users?role=doctor");
+    let data: any = null;
     try {
-      const res = await fetch("/api/users?role=doctor");
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-
-      if (res.ok && Array.isArray(data)) {
-        // sort by name only (alphabetically)
-        const sorted = [...data].sort((a, b) => {
-          const aName = (a.name || "").toString();
-          const bName = (b.name || "").toString();
-          return aName.localeCompare(bName, "mn");
-        });
-
-        setDoctors(sorted);
-      } else {
-        setError(
-          (data && data.error) || "Эмч нарын жагсаалтыг ачааллаж чадсангүй"
-        );
-      }
+      data = await res.json();
     } catch {
-      setError("Сүлжээгээ шалгана уу");
-    } finally {
-      setLoading(false);
+      data = null;
     }
-  };
+
+    if (res.ok && Array.isArray(data)) {
+      const sorted = [...data].sort((a, b) => {
+        const ao = (a.calendarOrder ?? 0) as number;
+        const bo = (b.calendarOrder ?? 0) as number;
+        if (ao !== bo) return ao - bo;
+
+        const aName = (a.name || "").toString();
+        const bName = (b.name || "").toString();
+        return aName.localeCompare(bName, "mn");
+      });
+
+      setDoctors(sorted);
+    } else {
+      setError(
+        (data && data.error) || "Эмч нарын жагсаалтыг ачааллаж чадсангүй"
+      );
+    }
+  } catch {
+    setError("Сүлжээгээ шалгана уу");
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     loadBranches();
@@ -410,6 +413,18 @@ export default function DoctorsPage() {
               >
                 Салбар
               </th>
+
+ {/* NEW: calendar order */}
+    <th
+      style={{
+        textAlign: "left",
+        borderBottom: "1px solid #ddd",
+        padding: 8,
+      }}
+    >
+      Дараалал
+    </th>
+              
               {/* 7. Дэлгэрэнгүй */}
               <th
                 style={{
@@ -477,12 +492,7 @@ export default function DoctorsPage() {
                     padding: 8,
                   }}
                 >
-                  {Array.isArray(d.branches) && d.branches.length > 0
-                    ? d.branches.map((b) => b.name).join(", ")
-                    : d.branch
-                    ? d.branch.name
-                    : "-"}
-                </td>
+                                    {Array.isArray(d.branches) && d.branches.length > 0
                 {/* 7. Дэлгэрэнгүй */}
                 <td
                   style={{
