@@ -365,12 +365,12 @@ router.get("/:id/chart-teeth", async (req, res) => {
     }
 
     const chartTeeth = await prisma.chartTooth.findMany({
-      where: { encounterId },
-      orderBy: { id: "asc" },
-      include: {
-        chartNotes: true,
-      },
-    });
+  where: { encounterId },
+  orderBy: { id: "asc" },
+  include: {
+    chartNotes: true,
+  },
+});
 
     return res.json(chartTeeth);
   } catch (err) {
@@ -398,13 +398,24 @@ router.put("/:id/chart-teeth", async (req, res) => {
       await trx.chartTooth.deleteMany({ where: { encounterId } });
 
       for (const t of teeth) {
-        if (!t || typeof t.toothCode !== "string" || !t.toothCode.trim()) {
+        if (
+          !t ||
+          typeof t.toothCode !== "string" ||
+          !t.toothCode.trim()
+        ) {
           continue;
         }
+
+        const toothGroup =
+          typeof t.toothGroup === "string" && t.toothGroup.trim()
+            ? t.toothGroup.trim()
+            : null;
+
         await trx.chartTooth.create({
           data: {
             encounterId,
             toothCode: t.toothCode.trim(),
+            toothGroup,          // <--- NEW
             status: t.status || null,
             notes: t.notes || null,
           },
@@ -420,7 +431,7 @@ router.put("/:id/chart-teeth", async (req, res) => {
 
     return res.json(updated);
   } catch (err) {
-    console.error("PUT /api/encounters/:id/chart-teeth error:", err);
+    console.error("PUT /api/encounters/:id/chart-teeth error", err);
     return res.status(500).json({ error: "Failed to save tooth chart" });
   }
 });
