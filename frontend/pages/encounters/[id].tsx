@@ -154,6 +154,18 @@ type ChartToothRow = {
 
 type EncounterMediaType = "XRAY" | "PHOTO" | "DOCUMENT";
 
+type ConsentType = "root_canal" | "surgery" | "orthodontic" | "prosthodontic";
+
+type EncounterConsent = {
+  encounterId: number;
+  type: ConsentType;
+  answers: any;
+  patientSignedAt?: string | null;
+  doctorSignedAt?: string | null;
+  patientSignaturePath?: string | null;
+  doctorSignaturePath?: string | null;
+};
+
 type EncounterMedia = {
   id: number;
   encounterId: number;
@@ -252,6 +264,12 @@ export default function EncounterAdminPage() {
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaError, setMediaError] = useState("");
   const [uploadingMedia, setUploadingMedia] = useState(false);
+
+    // Consent form (Step 1: type only)
+  const [consent, setConsent] = useState<EncounterConsent | null>(null);
+  const [consentLoading, setConsentLoading] = useState(false);
+  const [consentSaving, setConsentSaving] = useState(false);
+  const [consentError, setConsentError] = useState("");
 
   // --- Load master services ---
   useEffect(() => {
@@ -447,6 +465,39 @@ export default function EncounterAdminPage() {
     }
   };
 
+  // --- Load consent for this encounter (if any) ---
+  useEffect(() => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+
+    const loadConsent = async () => {
+      setConsentLoading(true);
+      setConsentError("");
+      try {
+        const res = await fetch(`/api/encounters/${encounterId}/consent`);
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(data?.error || "Зөвшөөрлийн хуудас ачаалахад алдаа гарлаа.");
+        }
+        if (data) {
+          setConsent(data as EncounterConsent);
+        } else {
+          setConsent(null);
+        }
+      } catch (err: any) {
+        console.error("Failed to load consent:", err);
+        setConsentError(
+          err.message || "Зөвшөөрлийн хуудас ачаалахад алдаа гарлаа."
+        );
+        setConsent(null);
+      } finally {
+        setConsentLoading(false);
+      }
+    };
+
+    void loadConsent();
+  }, [encounterId]);
+
+  
   // --- Load media on first render / when encounterId changes ---
   useEffect(() => {
     void reloadMedia();
@@ -504,6 +555,34 @@ export default function EncounterAdminPage() {
     });
   };
 
+  const saveConsent = async (type: ConsentType | null) => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+    setConsentSaving(true);
+    setConsentError("");
+    try {
+      const res = await fetch(`/api/encounters/${encounterId}/consent`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type,
+          answers: consent?.answers ?? {}, // for now, keep existing answers or empty
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || "Зөвшөөрлийн хуудас хадгалахад алдаа гарлаа.");
+      }
+      setConsent(data || null);
+    } catch (err: any) {
+      console.error("Failed to save consent:", err);
+      setConsentError(
+        err.message || "Зөвшөөрлийн хуудас хадгалахад алдаа гарлаа."
+      );
+    } finally {
+      setConsentSaving(false);
+    }
+  };
+  
   const handleDiagnosisChange = async (index: number, diagnosisId: number) => {
     const dx = allDiagnoses.find((d) => d.id === diagnosisId);
     setRows((prev) =>
@@ -1083,9 +1162,134 @@ export default function EncounterAdminPage() {
                 </select>
               )}
             </div>
-            <div style={{ marginBottom: 4 }}>
+                        <div style={{ marginBottom: 4 }}>
               <strong>Огноо:</strong> {formatDateTime(encounter.visitDate)}
             </div>
+
+            {/* Consent form (step 1: enable + choose type) */}
+            <div
+              style={{
+                marginTop: 4,
+                marginBottom: 4,
+                padding: 8,
+                borderRadius: 6,
+                border: "1px dashed #e5e7eb",
+                background: "#f9fafb",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 6,
+                }}
+              >
+                <label
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 13,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!consent}
+                    disabled={consentLoading || consentSaving}
+                    onChange={async (e) => {
+                      if (e.target.checked) {
+                        // default type when enabling for the first time
+                        await saveConsent(consent?.type || "root_canal");
+                      } else {
+                        await saveConsent(null);
+                      }
+                    }}
+                  />
+                  <span>Зөвшөөрлийн хуудас шаардлагатай</span>
+                </label>
+
+                {consentLoading && (
+                  <span style={{ fontSize: 12, color: "#6b7280" }}>
+                    (ачаалж байна...)
+                  </span>
+                )}
+              </div>
+
+              {consent && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 12,
+                    fontSize: 13,
+                  }}
+                >
+                  <span style={{ fontWeight: 500 }}>Төрөл:</span>
+
+                  <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                    <input
+                      type="radio"
+                      name="consentType"
+                      value="root_canal"
+                      checked={consent.type === "root_canal"}
+                      disabled={consentSaving}
+                      onChange={() => void saveConsent("root_canal")}
+                    />
+                    Суурь сувгийн эмчилгээ
+                  </label>
+
+                  <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                    <input
+                      type="radio"
+                      name="consentType"
+                      value="surgery"
+                      checked={consent.type === "surgery"}
+                      disabled={consentSaving}
+                      onChange={() => void saveConsent("surgery")}
+                    />
+                    Мэс засал
+                  </label>
+
+                  <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                    <input
+                      type="radio"
+                      name="consentType"
+                      value="orthodontic"
+                      checked={consent.type === "orthodontic"}
+                      disabled={consentSaving}
+                      onChange={() => void saveConsent("orthodontic")}
+                    />
+                    Гажиг засал
+                  </label>
+
+                  <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                    <input
+                      type="radio"
+                      name="consentType"
+                      value="prosthodontic"
+                      checked={consent.type === "prosthodontic"}
+                      disabled={consentSaving}
+                      onChange={() => void saveConsent("prosthodontic")}
+                    />
+                    Протез
+                  </label>
+                </div>
+              )}
+
+              {consentError && (
+                <div
+                  style={{
+                    marginTop: 4,
+                    fontSize: 12,
+                    color: "#b91c1c",
+                  }}
+                >
+                  {consentError}
+                </div>
+              )}
+            </div>
+
             {encounter.notes && (
               <div style={{ marginTop: 4 }}>
                 <strong>Тэмдэглэл:</strong> {encounter.notes}
