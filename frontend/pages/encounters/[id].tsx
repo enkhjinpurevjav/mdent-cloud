@@ -1202,7 +1202,7 @@ export default function EncounterAdminPage() {
               <strong>Огноо:</strong> {formatDateTime(encounter.visitDate)}
             </div>
 
-            {/* Consent form (step 1: enable + choose type) */}
+           {/* Consent form (toggle + type + content) */}
             <div
               style={{
                 marginTop: 4,
@@ -1213,6 +1213,7 @@ export default function EncounterAdminPage() {
                 background: "#f9fafb",
               }}
             >
+              {/* Toggle */}
               <div
                 style={{
                   display: "flex",
@@ -1235,9 +1236,10 @@ export default function EncounterAdminPage() {
                     disabled={consentLoading || consentSaving}
                     onChange={async (e) => {
                       if (e.target.checked) {
-                        // default type when enabling for the first time
+                        // enable with default type
                         await saveConsent(consent?.type || "root_canal");
                       } else {
+                        // disable and delete consent
                         await saveConsent(null);
                       }
                     }}
@@ -1252,7 +1254,7 @@ export default function EncounterAdminPage() {
                 )}
               </div>
 
-                            {consent && (
+              {consent && (
                 <>
                   {/* Type selection */}
                   <div
@@ -1280,9 +1282,210 @@ export default function EncounterAdminPage() {
                         checked={consent.type === "root_canal"}
                         disabled={consentSaving}
                         onChange={() => void saveConsent("root_canal")}
-                     
-                        
-                        />. Сувгийн эмчилгээ */}
+                      />
+                      Сувгийн эмчилгээ
+                    </label>
+
+                    <label
+                      style={{
+                        display: "inline-flex",
+                        gap: 4,
+                        alignItems: "center",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="consentType"
+                        value="surgery"
+                        checked={consent.type === "surgery"}
+                        disabled={consentSaving}
+                        onChange={() => void saveConsent("surgery")}
+                      />
+                      Мэс засал
+                    </label>
+
+                    <label
+                      style={{
+                        display: "inline-flex",
+                        gap: 4,
+                        alignItems: "center",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="consentType"
+                        value="orthodontic"
+                        checked={consent.type === "orthodontic"}
+                        disabled={consentSaving}
+                        onChange={() => void saveConsent("orthodontic")}
+                      />
+                      Гажиг засал
+                    </label>
+
+                    <label
+                      style={{
+                        display: "inline-flex",
+                        gap: 4,
+                        alignItems: "center",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="consentType"
+                        value="prosthodontic"
+                        checked={consent.type === "prosthodontic"}
+                        disabled={consentSaving}
+                        onChange={() => void saveConsent("prosthodontic")}
+                      />
+                      Согог засал
+                    </label>
+                  </div>
+
+                  {/* Per-type content */}
+                  <div
+                    style={{
+                      marginTop: 4,
+                      paddingTop: 4,
+                      borderTop: "1px dashed #e5e7eb",
+                      fontSize: 12,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 8,
+                    }}
+                  >
+                    {/* 1. Сувгийн эмчилгээ */}
+                    {consent.type === "root_canal" && (
+                      <div>
+                        {/* Title */}
+                        <div
+                          style={{
+                            textAlign: "center",
+                            fontWeight: 700,
+                            fontSize: 14,
+                            marginBottom: 8,
+                          }}
+                        >
+                          “MON FAMILY” Шүдний эмнэлгийн шүдний сувгийн эмчилгээ
+                          хийх танилцсан зөвшөөрлийн хуудас
+                        </div>
+
+                        {/* Date line (paper form has 20.... он ... сар ... өдөр) */}
+                        <div
+                          style={{
+                            fontSize: 12,
+                            marginBottom: 8,
+                          }}
+                        >
+                          Огноо:{" "}
+                          <strong>
+                            {formatShortDate(encounter.visitDate)}
+                          </strong>
+                        </div>
+
+                        {/* Main explanatory text – adapted from your PDF */}
+                        <div
+                          style={{
+                            fontSize: 12,
+                            lineHeight: 1.5,
+                            color: "#111827",
+                            marginBottom: 8,
+                            whiteSpace: "pre-line",
+                          }}
+                        >
+                          Шүдний сувгийн (endodont) эмчилгээ нь шүдний төв болон
+                          сувралжийн хөндийд байрлах мэдрэл, судасны багц
+                          (зөөлц)-ын үрэвсэл, үхжлийг эмчлэх эмчилгээ юм. Ийм
+                          эмчилгээ нь шүдийг авахын оронд аль болох удаан
+                          хадгалах, өвдөлтийг намдаах зорилготой.{"\n\n"}
+                          Сувгийн эмчилгээний явцад хэд хэдэн удаагийн ирэлтийн
+                          турш сувгийг тусгай багаж, эмийн бодисоор цэвэрлэж,
+                          дараа нь сувгийг эмчилгээний материалаар дүүргэнэ.
+                          Энэ хугацаанд шүд түр зуур өвдөх, эмзэглэх, өнгө нь
+                          бага зэрэг өөрчлөгдөх зэрэг шинж илэрч болзошгүй.{"\n\n"}
+                          Эмчилгээний дараа шаардлагатай гэж үзвэл рентген зураг
+                          авч сувгийн уртыг тогтоох, дүүргэлтийн байрлал,
+                          чанарыг хянана. Үр дүн нь тухайн шүдний байдал, хүний
+                          дархлаа, ерөнхий эрүүл мэндийн байдал зэрэг олон
+                          хүчин зүйлээс шалтгаалан өөр өөр байж болохыг эмч
+                          танилцуулсан.
+                          {"\n\n"}
+                          <strong>Учир болох эрсдэлүүд:</strong> сувгийн
+                          эмчилгээний явцад сувгийн хэрэгсэл хугарах, сувгийн
+                          хананд цооролт үүсэх, халдвар бүрэн арилаагүйгээс
+                          дахин үрэвсэх, мэдээ алдуулалтын болон эмийн харшлын
+                          урвал гарах зэрэг эрсдэлүүд үүсч болзошгүй.
+                        </div>
+
+                        {/* Acknowledgement */}
+                        <label
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            marginBottom: 10,
+                            fontSize: 12,
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!!consent.answers?.acknowledged}
+                            onChange={async (e) => {
+                              updateConsentAnswers({
+                                acknowledged: e.target.checked,
+                              });
+                              await saveConsent(consent.type);
+                            }}
+                          />
+                          <span>
+                            Дээрх танилцуулгыг уншиж, эмчийн тайлбарыг бүрэн
+                            ойлгож, сувгийн эмчилгээ хийлгэхийг зөвшөөрч байна.
+                          </span>
+                        </label>
+
+                        {/* Bottom: patient + doctor + date */}
+                        <div
+                          style={{
+                            marginTop: 4,
+                            paddingTop: 6,
+                            borderTop: "1px dashed #e5e7eb",
+                            fontSize: 12,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 4,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 8,
+                            }}
+                          >
+                            <div style={{ flex: "1 1 260px" }}>
+                              Үйлчлүүлэгчийн нэр:{" "}
+                              <strong>
+                                {formatPatientName(
+                                  encounter.patientBook.patient
+                                )}
+                              </strong>
+                            </div>
+                            <div style={{ flex: "1 1 220px" }}>
+                              Эмчилгээ хийж буй эмч:{" "}
+                              <strong>
+                                {formatDoctorDisplayName(encounter.doctor)}
+                              </strong>
+                            </div>
+                          </div>
+
+                          <div>
+                            Огноо:{" "}
+                            <strong>
+                              {formatShortDate(encounter.visitDate)}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* 2. Мэс засал */}
                     {consent.type === "surgery" && (
@@ -1848,7 +2051,18 @@ export default function EncounterAdminPage() {
                         </div>
                       </>
                     )}
-
+{consentError && (
+                <div
+                  style={{
+                    marginTop: 4,
+                    fontSize: 12,
+                    color: "#b91c1c",
+                  }}
+                >
+                  {consentError}
+                </div>
+              )}
+            </div>
             {encounter.notes && (
               <div style={{ marginTop: 4 }}>
                 <strong>Тэмдэглэл:</strong> {encounter.notes}
