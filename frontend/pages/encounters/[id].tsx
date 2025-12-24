@@ -869,6 +869,38 @@ export default function EncounterAdminPage() {
     }
   };
 
+
+  const setCustomToothRange = () => {
+    const input = window.prompt(
+      "(ж: 21-24, 25-26, 11,21,22):",
+      ""
+    );
+    if (!input) return;
+
+    const value = input.trim();
+    if (!value) return;
+
+    // If there is an active diagnosis row, write into its toothCode
+    if (activeRowIndex !== null) {
+      setRows((prev) =>
+        prev.map((row, i) =>
+          i === activeRowIndex ? { ...row, toothCode: value } : row
+        )
+      );
+      return;
+    }
+
+    // If no active row, create a new one using this value
+    const idx = createDiagnosisRow([]);
+    setActiveRowIndex(idx);
+    setRows((prev) =>
+      prev.map((row, i) =>
+        i === idx ? { ...row, toothCode: value } : row
+      )
+    );
+  };
+
+  
   const toggleToothSelection = (code: string) => {
     setSelectedTeeth((prev) => {
       let next: string[];
