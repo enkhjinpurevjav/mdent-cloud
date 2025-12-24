@@ -373,7 +373,6 @@ model Encounter {
   encounterServices  EncounterService[]
 
   diagnoses          EncounterDiagnosis[]
-}noses          EncounterDiagnosis[]
 }
 
 model EncounterDiagnosis {
