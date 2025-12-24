@@ -1059,7 +1059,7 @@ export default function EncounterAdminPage() {
               <div style={{ color: "red", marginBottom: 8 }}>{chartError}</div>
             )}
 
-            <div
+                        <div
               style={{
                 display: "flex",
                 flexWrap: "wrap",
@@ -1090,6 +1090,51 @@ export default function EncounterAdminPage() {
                     >
                       {code}
                     </button>
+                  );
+                }
+              )}
+
+              {/* NEW: custom range button between last tooth and "Бүх шүд" */}
+              <button
+                key="RANGE"
+                type="button"
+                onClick={setCustomToothRange}
+                style={{
+                  minWidth: 60,
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  border: "1px solid #d1d5db",
+                  background: "white",
+                  color: "#111827",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  marginLeft: 8,
+                }}
+              >
+                Сонголт бичих
+              </button>
+
+              <button
+                key="ALL"
+                type="button"
+                onClick={() => toggleToothSelection("ALL")}
+                style={{
+                  minWidth: 60,
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  border: isToothSelected("ALL")
+                    ? "1px solid #16a34a"
+                    : "1px solid #d1d5db",
+                  background: isToothSelected("ALL") ? "#dcfce7" : "white",
+                  color: isToothSelected("ALL") ? "#166534" : "#111827",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  marginLeft: 8,
+                }}
+              >
+                Бүх шүд
+              </button>
+            </div>
                   );
                 }
               )}
