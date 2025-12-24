@@ -111,6 +111,9 @@ model User {
   // Encounters where this user is the doctor
   encounters         Encounter[]      @relation("DoctorEncounters")
 
+  // NEW: encounters where this user is the nurse
+  nurseEncounters    Encounter[]      @relation("NurseEncounters")
+
   // Contact
   phone              String?          // employee phone (optional)
 
@@ -145,11 +148,6 @@ model User {
   // KEEP this if you still use calendarOrder in frontend
   calendarOrder      Int?
 
- // Encounters where this user is the doctor
-  encounters         Encounter[]      @relation("DoctorEncounters")
-
-  // NEW: encounters where this user is the nurse
-  nurseEncounters    Encounter[]      @relation("NurseEncounters")
 }
 
 // Join table for many-to-many between Doctor (User) and Branch
