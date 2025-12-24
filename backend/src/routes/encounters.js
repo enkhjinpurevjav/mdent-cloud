@@ -225,7 +225,7 @@ router.put("/:id/nurse", async (req, res) => {
     const { nurseId } = req.body || {};
 
     let nurse = null;
-    let nurseIdValue: number | null = null;
+    let nurseIdValue = null; // plain JS, no ": number | null"
 
     if (nurseId !== null && nurseId !== undefined) {
       const nid = Number(nurseId);
