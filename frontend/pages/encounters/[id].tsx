@@ -2040,19 +2040,21 @@ export default function EncounterAdminPage() {
                                 {formatDoctorDisplayName(encounter.doctor)}
                               </strong>
                             </div>
-                            <div style={{ flex: "1 1 160px" }}>
-                              Огноо:
-                              {" "}
+                                                        <div style={{ flex: "1 1 160px" }}>
+                              Огноо:{" "}
                               <strong>
                                 {formatShortDate(encounter.visitDate)}
                               </strong>
-                           
-                        </>
+                            </div>
+                          </div>
+                        </div>
+                      </>
                     )}
                   </div> {/* end per-type content */}
                 </>      {/* end fragment opened after {consent && ( */}
-              )}  
-{consentError && (
+              )}
+
+              {consentError && (
                 <div
                   style={{
                     marginTop: 4,
