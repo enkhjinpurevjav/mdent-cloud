@@ -1281,105 +1281,79 @@ export default function EncounterAdminPage() {
                         disabled={consentSaving}
                         onChange={() => void saveConsent("root_canal")}
                       />
-                      Сувгийн эмчилгээ
-                    </label>
-
-                    <label
-                      style={{
-                        display: "inline-flex",
-                        gap: 4,
-                        alignItems: "center",
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name="consentType"
-                        value="surgery"
-                        checked={consent.type === "surgery"}
-                        disabled={consentSaving}
-                        onChange={() => void saveConsent("surgery")}
-                      />
-                      Мэс засал
-                    </label>
-
-                    <label
-                      style={{
-                        display: "inline-flex",
-                        gap: 4,
-                        alignItems: "center",
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name="consentType"
-                        value="orthodontic"
-                        checked={consent.type === "orthodontic"}
-                        disabled={consentSaving}
-                        onChange={() => void saveConsent("orthodontic")}
-                      />
-                      Гажиг засал
-                    </label>
-
-                    <label
-                      style={{
-                        display: "inline-flex",
-                        gap: 4,
-                        alignItems: "center",
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name="consentType"
-                        value="prosthodontic"
-                        checked={consent.type === "prosthodontic"}
-                        disabled={consentSaving}
-                        onChange={() => void saveConsent("prosthodontic")}
-                      />
-                      Согог засал
-                    </label>
-                  </div>
-
-                  {/* Per-type fields */}
-                  <div
-                    style={{
-                      marginTop: 4,
-                      paddingTop: 4,
-                      borderTop: "1px dashed #e5e7eb",
-                      fontSize: 12,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 6,
-                    }}
-                  >
-                    {/* 1. Сувгийн эмчилгээ */}
+                                         {/* 1. Сувгийн эмчилгээ */}
                     {consent.type === "root_canal" && (
                       <div>
+                        {/* Title */}
                         <div
                           style={{
-                            fontWeight: 500,
-                            marginBottom: 4,
+                            textAlign: "center",
+                            fontWeight: 700,
+                            fontSize: 14,
+                            marginBottom: 8,
                           }}
                         >
-                          Сувгийн эмчилгээний танилцуулгын зөвшөөрөл
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: "#6b7280",
-                            marginBottom: 6,
-                          }}
-                        >
-                          &quot;Шүдний сувгийн эмчилгээ хийх танилцсан зөвшөөрлийн
-                          хуудас&quot;-ын агуулгыг өвчтөнд уншиж танилцуулсан
-                          бөгөөд доорх сонголтоор баталгаажуулна.
+                          “MON FAMILY” Шүдний эмнэлгийн шүдний сувгийн эмчилгээ
+                          хийх танилцсан зөвшөөрлийн хуудас
                         </div>
 
+                        {/* Date line */}
+                        <div
+                          style={{
+                            fontSize: 12,
+                            marginBottom: 8,
+                          }}
+                        >
+                          Огноо:{" "}
+                          <strong>
+                            {formatShortDate(encounter.visitDate)}
+                          </strong>
+                        </div>
+
+                        {/* Main body text – shortened from paper form */}
+                        <div
+                          style={{
+                            fontSize: 12,
+                            lineHeight: 1.5,
+                            color: "#111827",
+                            marginBottom: 8,
+                            whiteSpace: "pre-line",
+                          }}
+                        >
+                          Шүдний сувгийн (endodont) эмчилгээ нь шүдний төв болон
+                          сувралжийн хөндийд байрлах мэдрэл, судасны эдийн
+                          үрэвсэл, үхжлийг эмчлэх эмчилгээ юм. Үрэвслийн
+                          улмаас үүссэн өвдөлт, эмгэг өөрчлөлтийг арилгах,
+                          шүдийг авалгүй хэвийн байдалд аль болох удаан
+                          хадгалах зорилготой.{"\n\n"}
+                          Сувгийн эмчилгээний явцад хэд хэдэн удаагийн ирэлтийн
+                          турш сувгийг механик болон химийн аргаар цэвэрлэж,
+                          эмчилгээний материал хийдэг. Энэ хугацаанд
+                          эмчлүүлж буй шүд түр зуур өвдөх, эмзэглэх, өнгө нь
+                          өөрчлөгдөх, дотор нь хийсэн материалын нөлөөгөөр
+                          мэдрэмтгий болох зэрэг шинж илэрч болзошгүй.{"\n\n"}
+                          Эмчилгээний дараах хяналт, сувгийн дүүргэлтийг
+                          баталгаажуулах зорилгоор рентген зураг авах шаардлагатай
+                          байх ба эмчилгээ хийгдэж буй шүдний байдал, хүний
+                          дархлаа, амьдралын хэв маяг, ерөнхий эрүүл мэндийн
+                          байдал зэргээс шалтгаалан үр дүн өөр байж болохыг
+                          анхаарна уу.{"\n\n"}
+                          <strong>Учир болох эрсдэлүүд:</strong> сувгийн
+                          эмчилгээний явцад сувгийн хэлбэрийн онцлогоос шалтгаалж
+                          сувгийн хэрэгсэл хугарах, сувгийн хананд цооролт
+                          үүсэх, давсаг, үений өвдөлт, мэдээ алдуулалтын
+                          урвал, эмийн харшил, эмчилгээний үр дүн хангалтгүй
+                          байх зэрэг эрсдэлүүд гарч болзошгүй.
+                        </div>
+
+                        {/* Acknowledgement checkbox */}
                         <label
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
                             gap: 6,
-                            marginBottom: 6,
+                            marginBottom: 10,
+                            fontSize: 12,
                           }}
                         >
                           <input
@@ -1393,10 +1367,13 @@ export default function EncounterAdminPage() {
                             }}
                           />
                           <span>
-                            Өвчтөн / асран хамгаалагч танилцуулгыг бүрэн уншиж,
-                            ойлгож зөвшөөрсөн.
+                            Дээрх танилцуулгыг уншиж, эмчилгээний явц болон
+                            эрсдэлүүдийн талаар эмчээс тайлбар сонсож, бүрэн
+                            ойлгож зөвшөөрч байна.
                           </span>
                         </label>
+
+                        {/* Bottom lines: patient & doctor & date */}
 
                         <div
                           style={{
@@ -1436,34 +1413,19 @@ export default function EncounterAdminPage() {
                             />
                           </div>
 
-                          <div style={{ flex: "1 1 200px" }}>
-                            <div
-                              style={{
-                                marginBottom: 2,
-                                color: "#4b5563",
-                              }}
-                            >
-                              Эмчилгээ хийсэн эмчийн нэр
+                          <div style={{ flex: "1 1 220px" }}>
+                              Эмчилгээ хийж буй эмч:{" "}
+                              <strong>
+                                {formatDoctorDisplayName(encounter.doctor)}
+                              </strong>
                             </div>
-                            <input
-                              type="text"
-                              value={consent.answers?.doctorName || ""}
-                              onChange={(e) =>
-                                updateConsentAnswers({
-                                  doctorName: e.target.value,
-                                })
-                              }
-                              onBlur={async () => {
-                                await saveConsent(consent.type);
-                              }}
-                              placeholder="Ж: Сүхбаатар"
-                              style={{
-                                width: "100%",
-                                borderRadius: 6,
-                                border: "1px solid #d1d5db",
-                                padding: "4px 6px",
-                              }}
-                            />
+                          </div>
+
+                          <div>
+                            Огноо:{" "}
+                            <strong>
+                              {formatShortDate(encounter.visitDate)}
+                            </strong>
                           </div>
                         </div>
                       </div>
@@ -1840,39 +1802,199 @@ export default function EncounterAdminPage() {
                       </>
                     )}
 
-                    {/* 4. Согог засал – basic fields */}
+                                       {/* 4. Согог засал */}
                     {consent.type === "prosthodontic" && (
                       <>
-                        <div style={{ marginBottom: 4 }}>
-                          Согог заслын үед тохиролцсон нөхцөл, онцгой заалтуудыг
-                          энд тэмдэглэнэ.
+                        <div
+                          style={{
+                            fontWeight: 500,
+                            marginBottom: 4,
+                          }}
+                        >
+                          НАСЗ заслын эмчилгээний танилцуулах зөвшөөрөл
                         </div>
+
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: "#6b7280",
+                            marginBottom: 6,
+                          }}
+                        >
+                          Эмчилгээний зорилго, хоёрдогч удаагийн ирэлтийн тоо,
+                          эмчилгээний сул тал, үнэ зэрэг дэлгэрэнгүй тайлбарууд
+                          албан ёсны хэвлэмэл загварт хадгалагдана. Доор зөвхөн
+                          тухайн үйлчлүүлэгчид хамаарах үндсэн нөхцөлүүдийг
+                          тэмдэглэнэ.
+                        </div>
+
+                        {/* Нөхцөл, товч тайлбар */}
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: 12,
+                            fontWeight: 500,
+                            marginBottom: 2,
+                          }}
+                        >
+                          Эмчилгээний нөхцөл, товч тайлбар
+                        </label>
                         <textarea
-                          placeholder="Нөхцөл, тайлбар"
-                          value={consent.answers?.conditions || ""}
+                          placeholder="Ж: Хуучин композит бүрээс өнгө өөрчлөгдсөн тул солих, шинэ бүрээс хийх төлөвлөгөө, давтан ирэлтийн тоо гэх мэт."
+                          value={consent.answers?.conditionsText || ""}
                           onChange={(e) =>
                             updateConsentAnswers({
-                              conditions: e.target.value,
+                              conditionsText: e.target.value,
                             })
                           }
                           onBlur={async () => {
                             await saveConsent(consent.type);
                           }}
-                          rows={3}
+                          rows={4}
                           style={{
                             width: "100%",
                             borderRadius: 6,
                             border: "1px solid #d1d5db",
                             padding: "4px 6px",
+                            marginBottom: 6,
+                            fontSize: 12,
                           }}
                         />
+
+                        {/* Үнийн хэсэг */}
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: 8,
+                            fontSize: 12,
+                            marginBottom: 6,
+                          }}
+                        >
+                          <div style={{ flex: "1 1 200px" }}>
+                            <div
+                              style={{
+                                marginBottom: 2,
+                                color: "#4b5563",
+                              }}
+                            >
+                              Эмчилгээний үнэ (хуучин бүрээс авах)
+                            </div>
+                            <input
+                              type="text"
+                              placeholder="Ж: 100000"
+                              value={consent.answers?.priceOldWork || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  priceOldWork: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                              }}
+                            />
+                          </div>
+
+                          <div style={{ flex: "1 1 200px" }}>
+                            <div
+                              style={{
+                                marginBottom: 2,
+                                color: "#4b5563",
+                              }}
+                            >
+                              Эмчилгээний үнэ (шинэ бүрээс / пааланд)
+                            </div>
+                            <input
+                              type="text"
+                              placeholder="Ж: 200000"
+                              value={consent.answers?.priceNewWork || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  priceNewWork: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Доод хэсгийн нэрүүд ба огноо */}
+                        <div
+                          style={{
+                            marginTop: 4,
+                            paddingTop: 6,
+                            borderTop: "1px dashed #e5e7eb",
+                            fontSize: 12,
+                          }}
+                        >
+                          <div
+                            style={{
+                              marginBottom: 4,
+                            }}
+                          >
+                            Танилцуулгыг уншиж танилцсан үйлчлүүлэгч:
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Үйлчлүүлэгчийн нэр"
+                            value={consent.answers?.patientName || ""}
+                            onChange={(e) =>
+                              updateConsentAnswers({
+                                patientName: e.target.value,
+                              })
+                            }
+                            onBlur={async () => {
+                              await saveConsent(consent.type);
+                            }}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                              marginBottom: 6,
+                            }}
+                          />
+
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 8,
+                              color: "#4b5563",
+                            }}
+                          >
+                            <div style={{ flex: "1 1 200px" }}>
+                              Эмчилгээ хийж буй эмч:
+                              {" "}
+                              <strong>
+                                {formatDoctorDisplayName(encounter.doctor)}
+                              </strong>
+                            </div>
+                            <div style={{ flex: "1 1 160px" }}>
+                              Огноо:
+                              {" "}
+                              <strong>
+                                {formatShortDate(encounter.visitDate)}
+                              </strong>
+                            </div>
+                          </div>
+                        </div>
                       </>
                     )}
-                  </div>
-                </>
-  
-              )}
-            </div>
 
             {encounter.notes && (
               <div style={{ marginTop: 4 }}>
