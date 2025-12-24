@@ -1472,7 +1472,7 @@ export default function EncounterAdminPage() {
                               gap: 8,
                             }}
                           >
-                            <div style={{ flex: "1 1 200px" }}>
+                            <div style={{ flex: "1 1 150px" }}>
                               <div
                                 style={{
                                   marginBottom: 2,
