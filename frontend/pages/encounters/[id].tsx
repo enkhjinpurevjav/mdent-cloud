@@ -1428,7 +1428,7 @@ export default function EncounterAdminPage() {
                             </strong>
                           </div>
                         </div>
-                      </div>
+                      
                     )}
 
                     {/* 2. Мэс засал */}
