@@ -1377,7 +1377,7 @@ export default function EncounterAdminPage() {
                       }}
                     >
                       <input
-                        placeholder="Шүдний код (ж: 11, 21, 22) эсвэл Бүх шүд"
+                        placeholder="Шүдний код (ж: 11, 21, 22)"
                         value={row.toothCode || ""}
                         onChange={(e) =>
                           handleDxToothCodeChange(index, e.target.value)
