@@ -371,6 +371,27 @@ model Encounter {
   encounterServices  EncounterService[]
 
   diagnoses          EncounterDiagnosis[]
+
+  // NEW: optional consent form for this encounter
+  consent            EncounterConsent?
+}
+
+model EncounterConsent {
+  id                  Int       @id @default(autoincrement())
+  encounterId         Int       @unique
+  type                String    // "root_canal" | "surgery" | "orthodontic" | "prosthodontic"
+  answers             Json      // form answers (structure depends on type)
+
+  patientSignedAt     DateTime?
+  doctorSignedAt      DateTime?
+
+  patientSignaturePath String?
+  doctorSignaturePath  String?
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  encounter           Encounter @relation(fields: [encounterId], references: [id])
 }
 
 model EncounterDiagnosis {
