@@ -582,6 +582,20 @@ export default function EncounterAdminPage() {
       setConsentSaving(false);
     }
   };
+
+  const updateConsentAnswers = (partial: any) => {
+    setConsent((prev) =>
+      prev
+        ? {
+            ...prev,
+            answers: {
+              ...(prev.answers || {}),
+              ...partial,
+            },
+          }
+        : prev
+    );
+  };
   
   const handleDiagnosisChange = async (index: number, diagnosisId: number) => {
     const dx = allDiagnoses.find((d) => d.id === diagnosisId);
@@ -1216,77 +1230,490 @@ export default function EncounterAdminPage() {
                 )}
               </div>
 
-              {consent && (
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: 12,
-                    fontSize: 13,
-                  }}
-                >
-                  <span style={{ fontWeight: 500 }}>Төрөл:</span>
+                            {consent && (
+                <>
+                  {/* Type selection */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 12,
+                      fontSize: 13,
+                      marginBottom: 6,
+                    }}
+                  >
+                    <span style={{ fontWeight: 500 }}>Төрөл:</span>
 
-                  <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
-                    <input
-                      type="radio"
-                      name="consentType"
-                      value="root_canal"
-                      checked={consent.type === "root_canal"}
-                      disabled={consentSaving}
-                      onChange={() => void saveConsent("root_canal")}
-                    />
-                    Сувгийн эмчилгээ
-                  </label>
+                    <label
+                      style={{
+                        display: "inline-flex",
+                        gap: 4,
+                        alignItems: "center",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="consentType"
+                        value="root_canal"
+                        checked={consent.type === "root_canal"}
+                        disabled={consentSaving}
+                        onChange={() => void saveConsent("root_canal")}
+                      />
+                      Сувгийн эмчилгээ
+                    </label>
 
-                  <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
-                    <input
-                      type="radio"
-                      name="consentType"
-                      value="surgery"
-                      checked={consent.type === "surgery"}
-                      disabled={consentSaving}
-                      onChange={() => void saveConsent("surgery")}
-                    />
-                    Мэс засал
-                  </label>
+                    <label
+                      style={{
+                        display: "inline-flex",
+                        gap: 4,
+                        alignItems: "center",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="consentType"
+                        value="surgery"
+                        checked={consent.type === "surgery"}
+                        disabled={consentSaving}
+                        onChange={() => void saveConsent("surgery")}
+                      />
+                      Мэс засал
+                    </label>
 
-                  <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
-                    <input
-                      type="radio"
-                      name="consentType"
-                      value="orthodontic"
-                      checked={consent.type === "orthodontic"}
-                      disabled={consentSaving}
-                      onChange={() => void saveConsent("orthodontic")}
-                    />
-                    Гажиг засал
-                  </label>
+                    <label
+                      style={{
+                        display: "inline-flex",
+                        gap: 4,
+                        alignItems: "center",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="consentType"
+                        value="orthodontic"
+                        checked={consent.type === "orthodontic"}
+                        disabled={consentSaving}
+                        onChange={() => void saveConsent("orthodontic")}
+                      />
+                      Гажиг засал
+                    </label>
 
-                  <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
-                    <input
-                      type="radio"
-                      name="consentType"
-                      value="prosthodontic"
-                      checked={consent.type === "prosthodontic"}
-                      disabled={consentSaving}
-                      onChange={() => void saveConsent("prosthodontic")}
-                    />
-                    Согог засал
-                  </label>
-                </div>
+                    <label
+                      style={{
+                        display: "inline-flex",
+                        gap: 4,
+                        alignItems: "center",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="consentType"
+                        value="prosthodontic"
+                        checked={consent.type === "prosthodontic"}
+                        disabled={consentSaving}
+                        onChange={() => void saveConsent("prosthodontic")}
+                      />
+                      Согог засал
+                    </label>
+                  </div>
+
+                  {/* Per-type fields */}
+                  <div
+                    style={{
+                      marginTop: 4,
+                      paddingTop: 4,
+                      borderTop: "1px dashed #e5e7eb",
+                      fontSize: 12,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
+                    }}
+                  >
+                    {/* 1. Сувгийн эмчилгээ */}
+                    {consent.type === "root_canal" && (
+                      <div>
+                        <div
+                          style={{
+                            fontWeight: 500,
+                            marginBottom: 4,
+                          }}
+                        >
+                          Сувгийн эмчилгээний танилцуулгын зөвшөөрөл
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: "#6b7280",
+                            marginBottom: 6,
+                          }}
+                        >
+                          &quot;Шүдний сувгийн эмчилгээ хийх танилцсан зөвшөөрлийн
+                          хуудас&quot;-ын агуулгыг өвчтөнд уншиж танилцуулсан
+                          бөгөөд доорх сонголтоор баталгаажуулна.
+                        </div>
+
+                        <label
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            marginBottom: 6,
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!!consent.answers?.acknowledged}
+                            onChange={async (e) => {
+                              updateConsentAnswers({
+                                acknowledged: e.target.checked,
+                              });
+                              await saveConsent(consent.type);
+                            }}
+                          />
+                          <span>
+                            Өвчтөн / асран хамгаалагч танилцуулгыг бүрэн уншиж,
+                            ойлгож зөвшөөрсөн.
+                          </span>
+                        </label>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: 8,
+                            fontSize: 12,
+                          }}
+                        >
+                          <div style={{ flex: "1 1 200px" }}>
+                            <div
+                              style={{
+                                marginBottom: 2,
+                                color: "#4b5563",
+                              }}
+                            >
+                              Үйлчлүүлэгч / асран хамгаалагчийн нэр
+                            </div>
+                            <input
+                              type="text"
+                              value={consent.answers?.patientName || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  patientName: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              placeholder="Ж: Б. Болор"
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                              }}
+                            />
+                          </div>
+
+                          <div style={{ flex: "1 1 200px" }}>
+                            <div
+                              style={{
+                                marginBottom: 2,
+                                color: "#4b5563",
+                              }}
+                            >
+                              Эмчилгээ хийсэн эмчийн нэр
+                            </div>
+                            <input
+                              type="text"
+                              value={consent.answers?.doctorName || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  doctorName: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              placeholder="Ж: Сүхбаатар"
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                              }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2. Мэс засал */}
+                    {consent.type === "surgery" && (
+                      <>
+                        <div style={{ fontWeight: 500, marginBottom: 2 }}>
+                          Мэс заслын мэдээлэл (эмч бөглөнө)
+                        </div>
+
+                        <textarea
+                          placeholder="Мэс засал / мэс ажилбарын нэр"
+                          value={consent.answers?.surgeryName || ""}
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              surgeryName: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsent(consent.type);
+                          }}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 6px",
+                            marginBottom: 4,
+                          }}
+                        />
+
+                        <textarea
+                          placeholder="Хийлгэх шалтгаан, онош"
+                          value={consent.answers?.indication || ""}
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              indication: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsent(consent.type);
+                          }}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 6px",
+                            marginBottom: 4,
+                          }}
+                        />
+
+                        <textarea
+                          placeholder="Гарч болзошгүй эрсдэл, хүндрэлүүд"
+                          value={consent.answers?.risks || ""}
+                          onChange={(e) =>
+                            updateConsentAnswers({ risks: e.target.value })
+                          }
+                          onBlur={async () => {
+                            await saveConsent(consent.type);
+                          }}
+                          rows={3}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 6px",
+                            marginBottom: 4,
+                          }}
+                        />
+
+                        <textarea
+                          placeholder="Боломжит өөр эмчилгээний арга, хувилбарууд"
+                          value={consent.answers?.alternatives || ""}
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              alternatives: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsent(consent.type);
+                          }}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 6px",
+                            marginBottom: 4,
+                          }}
+                        />
+
+                        <textarea
+                          placeholder="Үйлчлүүлэгчийн асуулт, тэмдэглэл"
+                          value={consent.answers?.questions || ""}
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              questions: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsent(consent.type);
+                          }}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 6px",
+                            marginBottom: 6,
+                          }}
+                        />
+
+                        <div style={{ marginTop: 4 }}>
+                          <div style={{ fontWeight: 500, marginBottom: 2 }}>
+                            Асран хамгаалагч гарын үсэг зурах шалтгаан
+                          </div>
+
+                          {["minor", "unconscious", "mentalDisorder", "other"].map(
+                            (key) => {
+                              const labels: Record<string, string> = {
+                                minor: "Насанд хүрээгүй",
+                                unconscious: "Ухаангүй",
+                                mentalDisorder: "Сэтгэцийн эмгэгтэй",
+                                other: "Бусад (тайлбарлана уу)",
+                              };
+                              const checked =
+                                !!consent.answers?.guardianReason?.[key];
+                              return (
+                                <label
+                                  key={key}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                    marginBottom: 2,
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => {
+                                      const prev =
+                                        consent.answers?.guardianReason || {};
+                                      updateConsentAnswers({
+                                        guardianReason: {
+                                          ...prev,
+                                          [key]: e.target.checked,
+                                        },
+                                      });
+                                    }}
+                                    onBlur={async () => {
+                                      await saveConsent(consent.type);
+                                    }}
+                                  />
+                                  <span>{labels[key]}</span>
+                                </label>
+                              );
+                            }
+                          )}
+
+                          <textarea
+                            placeholder="Бусад шалтгааны тайлбар"
+                            value={
+                              consent.answers?.guardianReason?.otherText || ""
+                            }
+                            onChange={(e) => {
+                              const prev =
+                                consent.answers?.guardianReason || {};
+                              updateConsentAnswers({
+                                guardianReason: {
+                                  ...prev,
+                                  otherText: e.target.value,
+                                },
+                              });
+                            }}
+                            onBlur={async () => {
+                              await saveConsent(consent.type);
+                            }}
+                            rows={2}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                              marginTop: 2,
+                            }}
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* 3. Гажиг засал – basic fields, refine later */}
+                    {consent.type === "orthodontic" && (
+                      <>
+                        <div style={{ marginBottom: 4 }}>
+                          Гажиг заслын ерөнхий мэдээлэл, эрсдэл, үргэлжлэх
+                          хугацаа зэргийг энд товч тэмдэглэнэ.
+                        </div>
+                        <textarea
+                          placeholder="Гол эрсдэл, хүндрэлүүд"
+                          value={consent.answers?.mainRisks || ""}
+                          onChange={(e) =>
+                            updateConsentAnswers({ mainRisks: e.target.value })
+                          }
+                          onBlur={async () => {
+                            await saveConsent(consent.type);
+                          }}
+                          rows={3}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 6px",
+                            marginBottom: 4,
+                          }}
+                        />
+                        <textarea
+                          placeholder="Төслийн үргэлжлэх хугацаа (ж: 18–24 сар)"
+                          value={consent.answers?.expectedDuration || ""}
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              expectedDuration: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsent(consent.type);
+                          }}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 6px",
+                          }}
+                        />
+                      </>
+                    )}
+
+                    {/* 4. Согог засал – basic fields */}
+                    {consent.type === "prosthodontic" && (
+                      <>
+                        <div style={{ marginBottom: 4 }}>
+                          Согог заслын үед тохиролцсон нөхцөл, онцгой заалтуудыг
+                          энд тэмдэглэнэ.
+                        </div>
+                        <textarea
+                          placeholder="Нөхцөл, тайлбар"
+                          value={consent.answers?.conditions || ""}
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              conditions: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsent(consent.type);
+                          }}
+                          rows={3}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 6px",
+                          }}
+                        />
+                      </>
+                    )}
+                  </div>
+                </>
               )}
-
-              {consentError && (
-                <div
-                  style={{
-                    marginTop: 4,
-                    fontSize: 12,
-                    color: "#b91c1c",
-                  }}
-                >
-                  {consentError}
-                </div>
               )}
             </div>
 
