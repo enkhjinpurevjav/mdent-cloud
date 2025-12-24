@@ -208,6 +208,28 @@ function formatStaffName(u: { name?: string | null; ovog?: string | null; email:
   return u.email;
 }
 
+function formatDoctorDisplayName(d: Doctor | null) {
+  if (!d) return "";
+  if (d.name && d.name.trim()) {
+    const ovogInitial = d.ovog && d.ovog.trim() ? `${d.ovog.trim().charAt(0)}. ` : "";
+    return `${ovogInitial}${d.name.trim()}`;
+  }
+  return d.email;
+}
+
+function formatShortDate(iso: string) {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}.${m}.${day}`;
+  } catch {
+    return iso;
+  }
+}
+
 function stringifyToothList(list: string[]): string {
   return Array.from(new Set(list))
     .sort((a, b) => a.localeCompare(b))
