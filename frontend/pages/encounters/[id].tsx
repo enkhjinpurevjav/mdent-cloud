@@ -870,35 +870,27 @@ export default function EncounterAdminPage() {
   };
 
 
-  const setCustomToothRange = () => {
-    const input = window.prompt(
-      "(ж: 21-24, 25-26, 11,21,22):",
-      ""
-    );
-    if (!input) return;
+  const setCustomToothRange = (value: string) => {
+  const trimmed = value.trim();
 
-    const value = input.trim();
-    if (!value) return;
-
-    // If there is an active diagnosis row, write into its toothCode
-    if (activeRowIndex !== null) {
-      setRows((prev) =>
-        prev.map((row, i) =>
-          i === activeRowIndex ? { ...row, toothCode: value } : row
-        )
-      );
-      return;
-    }
-
-    // If no active row, create a new one using this value
-    const idx = createDiagnosisRow([]);
-    setActiveRowIndex(idx);
+  if (activeRowIndex !== null) {
     setRows((prev) =>
       prev.map((row, i) =>
-        i === idx ? { ...row, toothCode: value } : row
+        i === activeRowIndex ? { ...row, toothCode: trimmed } : row
       )
     );
-  };
+    return;
+  }
+
+  // If no active row yet, create one and set its toothCode
+  const idx = createDiagnosisRow([]);
+  setActiveRowIndex(idx);
+  setRows((prev) =>
+    prev.map((row, i) =>
+      i === idx ? { ...row, toothCode: trimmed } : row
+    )
+  );
+};
 
   
   const toggleToothSelection = (code: string) => {
@@ -1056,85 +1048,76 @@ export default function EncounterAdminPage() {
             </div>
 
                         {chartError && (
-              <div style={{ color: "red", marginBottom: 8 }}>{chartError}</div>
-            )}
+  <div style={{ color: "red", marginBottom: 8 }}>{chartError}</div>
+)}
 
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 6,
-                marginBottom: 8,
-              }}
-            >
-              {(toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH).map(
-                (code) => {
-                  const selected = isToothSelected(code);
-                  return (
-                    <button
-                      key={code}
-                      type="button"
-                      onClick={() => toggleToothSelection(code)}
-                      style={{
-                        minWidth: 34,
-                        padding: "4px 6px",
-                        borderRadius: 999,
-                        border: selected
-                          ? "1px solid #16a34a"
-                          : "1px solid #d1d5db",
-                        background: selected ? "#dcfce7" : "white",
-                        color: selected ? "#166534" : "#111827",
-                        fontSize: 12,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {code}
-                    </button>
-                  );
-                }
-              )}
+<div
+  style={{
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 8,
+  }}
+>
+  {(toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH).map((code) => {
+    const selected = isToothSelected(code);
+    return (
+      <button
+        key={code}
+        type="button"
+        onClick={() => toggleToothSelection(code)}
+        style={{
+          minWidth: 34,
+          padding: "4px 6px",
+          borderRadius: 999,
+          border: selected ? "1px solid #16a34a" : "1px solid #d1d5db",
+          background: selected ? "#dcfce7" : "white",
+          color: selected ? "#166534" : "#111827",
+          fontSize: 12,
+          cursor: "pointer",
+        }}
+      >
+        {code}
+      </button>
+    );
+  })}
 
-              {/* custom range button between last tooth and "Бүх шүд" */}
-              <button
-                key="RANGE"
-                type="button"
-                onClick={setCustomToothRange}
-                style={{
-                  minWidth: 60,
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  border: "1px solid #d1d5db",
-                  background: "white",
-                  color: "#111827",
-                  fontSize: 12,
-                  cursor: "pointer",
-                  marginLeft: 8,
-                }}
-              >
-                Сонголт бичих
-              </button>
+  {/* NEW: inline text field between last tooth and "Бүх шүд" */}
+  <input
+    key="RANGE"
+    type="text"
+    placeholder="ж: 21-24, 25-26, 11,21,22"
+    onChange={(e) => setCustomToothRange(e.target.value)}
+    style={{
+      minWidth: 140,
+      padding: "4px 8px",
+      borderRadius: 999,
+      border: "1px solid #d1d5db",
+      fontSize: 12,
+    }}
+  />
 
-              <button
-                key="ALL"
-                type="button"
-                onClick={() => toggleToothSelection("ALL")}
-                style={{
-                  minWidth: 60,
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  border: isToothSelected("ALL")
-                    ? "1px solid #16a34a"
-                    : "1px solid #d1d5db",
-                  background: isToothSelected("ALL") ? "#dcfce7" : "white",
-                  color: isToothSelected("ALL") ? "#166534" : "#111827",
-                  fontSize: 12,
-                  cursor: "pointer",
-                  marginLeft: 8,
-                }}
-              >
-                Бүх шүд
-              </button>
-            </div>
+  <button
+    key="ALL"
+    type="button"
+    onClick={() => toggleToothSelection("ALL")}
+    style={{
+      minWidth: 60,
+      padding: "4px 10px",
+      borderRadius: 999,
+      border: isToothSelected("ALL")
+        ? "1px solid #16a34a"
+        : "1px solid #d1d5db",
+      background: isToothSelected("ALL") ? "#dcfce7" : "white",
+      color: isToothSelected("ALL") ? "#166534" : "#111827",
+      fontSize: 12,
+      cursor: "pointer",
+      marginLeft: 8,
+    }}
+  >
+    Бүх шүд
+  </button>
+</div>
 
             <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>
               Шүдийг дарж сонгох үед тухайн шүднүүдэд зориулсан нэг оношийн мөр
