@@ -144,6 +144,12 @@ model User {
 
   // KEEP this if you still use calendarOrder in frontend
   calendarOrder      Int?
+
+ // Encounters where this user is the doctor
+  encounters         Encounter[]      @relation("DoctorEncounters")
+
+  // NEW: encounters where this user is the nurse
+  nurseEncounters    Encounter[]      @relation("NurseEncounters")
 }
 
 // Join table for many-to-many between Doctor (User) and Branch
@@ -349,6 +355,10 @@ model Encounter {
   patientBook        PatientBook   @relation(fields: [patientBookId], references: [id])
   doctor             User          @relation("DoctorEncounters", fields: [doctorId], references: [id])
 
+  // NEW: optional nurse working on this encounter
+  nurseId            Int?
+  nurse              User?         @relation("NurseEncounters", fields: [nurseId], references: [id])
+
   // Per-tooth charting for this encounter
   chartTeeth         ChartTooth[]
 
@@ -363,6 +373,7 @@ model Encounter {
   encounterServices  EncounterService[]
 
   diagnoses          EncounterDiagnosis[]
+}noses          EncounterDiagnosis[]
 }
 
 model EncounterDiagnosis {
