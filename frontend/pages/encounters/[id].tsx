@@ -222,7 +222,9 @@ export default function EncounterAdminPage() {
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [servicesLoadError, setServicesLoadError] = useState("");
   const [openServiceIndex, setOpenServiceIndex] = useState<number | null>(null);
-
+ // Nurse selection
+  const [allNurses, setAllNurses] = useState<Nurse[]>([]);
+  const [nurseSaving, setNurseSaving] = useState(false);
   // Tooth chart selection
   const [selectedTeeth, setSelectedTeeth] = useState<string[]>([]);
   const [chartError, setChartError] = useState("");
