@@ -1351,35 +1351,90 @@ export default function EncounterAdminPage() {
                       gap: 6,
                     }}
                   >
-                    {/* 1. Сувгийн эмчилгээ */}
+                                        {/* 1. Сувгийн эмчилгээ */}
                     {consent.type === "root_canal" && (
                       <div>
+                        {/* Title */}
                         <div
                           style={{
-                            fontWeight: 500,
-                            marginBottom: 4,
+                            textAlign: "center",
+                            fontWeight: 700,
+                            fontSize: 14,
+                            marginBottom: 8,
                           }}
                         >
-                          Сувгийн эмчилгээний танилцуулгын зөвшөөрөл
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: "#6b7280",
-                            marginBottom: 6,
-                          }}
-                        >
-                          &quot;Шүдний сувгийн эмчилгээ хийх танилцсан зөвшөөрлийн
-                          хуудас&quot;-ын агуулгыг өвчтөнд уншиж танилцуулсан
-                          бөгөөд доорх сонголтоор баталгаажуулна.
+                          “MON FAMILY” Шүдний эмнэлгийн шүдний сувгийн эмчилгээ
+                          хийх таниулсан зөвшөөрлийн хуудас
                         </div>
 
+                        {/* Main explanatory text */}
+                        <div
+                          style={{
+                            fontSize: 12,
+                            lineHeight: 1.5,
+                            color: "#111827",
+                            marginBottom: 8,
+                            whiteSpace: "pre-line",
+                          }}
+                        >
+                          Шүдний сувгийн (endodont) эмчилгээ нь шүдний цөгц болон
+                          сурвалжийн хөндийд байрлах мэдрэл судасны багц
+                          (зөөлц)-д үүссэн өвдөлт үрэвслийг эмчлэх олон удаагийн
+                          (3-5 удаагийн ирэлт болон тухайн шүдний үрэвслийн
+                          байдлаас шалтгаалан 5-с дээш 6 сар хүртэл хугацаагаар)
+                          ирэлтээр эмчлэгддэг курс эмчилгээ юм. Сувгийн
+                          эмчилгээгээр суваг доторх үрэвслийг намдаадаг боловч
+                          шүдний сурвалжийн оройн эдийн өөрчлөлт нь хэвийн
+                          байдалд эргэн орж, эдгэрэхэд хугацаа шаардагддаг.
+                          {"\n\n"}
+                          Сувгийн эмчилгээний эхний 1-7 хоногт эмчилгээтэй
+                          шүднүүдэд эвгүй мэдрэмжүүд үүсч болно. Тэр хугацаанд
+                          тухайн шүдээр ачаалал үүсэх хэт хатуу (ааруул, хатуу
+                          чихэр, үртэй жимс, самар... гэх мэт) зүйлс хазаж идэхийг
+                          хатуу хориглоно. Хатуу зүйлс нь тухайн шүдний зовиур
+                          таагүй мэдрэмжүүдийг ихэсгэх, мөн эрдэсгүйжсэн шүдний
+                          (сувгийн эмчилгээтэй шүд нь мэдрэл судасгүй болсны
+                          улмаас хэврэг болдог) цөгцний болон сурвалжийн хугарал
+                          үүсч цаашлаад тухайн шүд авагдах хүртэл хүндрэл үүсч
+                          болдог.
+                          {"\n\n"}
+                          Эмчилгээ хийлгэсэн шүд хэсэг хугацааны дараа өнгө
+                          хувирч болно. Цоорол их хэмжээгээр үүсч шүдний цөгцний
+                          ихэнхи хэсэг цооролд өртсөн (цөгцний ½-1/3 хүртэл)
+                          шүдэнд сувгийн эмчилгээний дараа голонцор (метал,
+                          шилэн) ашиглан тухайн шүдийг сэргээдэг. Сувгийн
+                          эмчилгээ ихэнхи тохиолдолд тухайн хүний дархлааны
+                          системтэй хамааралтай байдаг ба даарч хөрөх, ханиад
+                          томуу, стресс ядаргаа, ажлын ачаалал, нойргүйдэл,
+                          дааврын өөрчлөлт (жирэмсэн, хөхүүл, архаг хууч
+                          өвчтэй хүмүүс, өндөр настнууд) зэрэг нь эмчилгээний
+                          хугацаа болон үр дүнг уртасгаж удаашруулж болно.
+                          {"\n\n"}
+                          Эмчилгээний явцад үйлчлүүлэгч эмчийн заасан хугацаанд
+                          эмчилгээндээ ирэхгүй байх, эмчийн бичиж өгсөн эм,
+                          уусмалыг зааврын дагуу уухгүй байх, огт хэрэглээгүй
+                          байх зэрэг нь эмчилгээний үр дүнд шууд нөлөөлөх ба
+                          аливаа хүндрэл (эрүүл мэнд болон санхүүгийн) эрсдэлийг
+                          тухайн үйлчлүүлэгч өөрөө бүрэн хариуцна.
+                          {"\n\n"}
+                          Үүсч болох эрсдлүүд: Сувгийн эмчилгээг шүдний сувагт
+                          тохирсон зориулалтын нарийн багажнуудаар жижгээс
+                          томруулах зарчимаар хийдэг эмчилгээ бөгөөд зарим
+                          шүдний сурвалж анатомын онцлогоос хамаарч хэт далий
+                          муруй, нарийн байснаас болж эмчийн ажиллах явцад
+                          сувагт багаж хугарах, сурвалж цоорох, сурвалж, цөгц
+                          хугарах, мэдээ алдуулах тарианд харшлах зэрэг эрсдлүүд
+                          үүсч болно.
+                        </div>
+
+                        {/* Acknowledgement */}
                         <label
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
                             gap: 6,
-                            marginBottom: 6,
+                            marginBottom: 10,
+                            fontSize: 12,
                           }}
                         >
                           <input
@@ -1398,72 +1453,77 @@ export default function EncounterAdminPage() {
                           </span>
                         </label>
 
+                        {/* Bottom: patient + doctor + date */}
                         <div
                           style={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: 8,
+                            marginTop: 4,
+                            paddingTop: 6,
+                            borderTop: "1px dashed #e5e7eb",
                             fontSize: 12,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 4,
                           }}
                         >
-                          <div style={{ flex: "1 1 200px" }}>
-                            <div
-                              style={{
-                                marginBottom: 2,
-                                color: "#4b5563",
-                              }}
-                            >
-                              Үйлчлүүлэгч / асран хамгаалагчийн нэр
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 8,
+                            }}
+                          >
+                            <div style={{ flex: "1 1 200px" }}>
+                              <div
+                                style={{
+                                  marginBottom: 2,
+                                  color: "#4b5563",
+                                }}
+                              >
+                                Үйлчлүүлэгч / асран хамгаалагчийн нэр
+                              </div>
+                              <input
+                                type="text"
+                                value={consent.answers?.patientName || ""}
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    patientName: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsent(consent.type);
+                                }}
+                                placeholder="Ж: Б. Болор"
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  padding: "4px 6px",
+                                }}
+                              />
                             </div>
-                            <input
-                              type="text"
-                              value={consent.answers?.patientName || ""}
-                              onChange={(e) =>
-                                updateConsentAnswers({
-                                  patientName: e.target.value,
-                                })
-                              }
-                              onBlur={async () => {
-                                await saveConsent(consent.type);
-                              }}
-                              placeholder="Ж: Б. Болор"
-                              style={{
-                                width: "100%",
-                                borderRadius: 6,
-                                border: "1px solid #d1d5db",
-                                padding: "4px 6px",
-                              }}
-                            />
+
+                            <div style={{ flex: "1 1 200px" }}>
+                              <div
+                                style={{
+                                  marginBottom: 2,
+                                  color: "#4b5563",
+                                }}
+                              >
+                                Эмчилгээ хийсэн эмчийн нэр
+                              </div>
+                              <div>
+                                <strong>
+                                  {formatDoctorDisplayName(encounter.doctor)}
+                                </strong>
+                              </div>
+                            </div>
                           </div>
 
-                          <div style={{ flex: "1 1 200px" }}>
-                            <div
-                              style={{
-                                marginBottom: 2,
-                                color: "#4b5563",
-                              }}
-                            >
-                              Эмчилгээ хийсэн эмчийн нэр
-                            </div>
-                            <input
-                              type="text"
-                              value={consent.answers?.doctorName || ""}
-                              onChange={(e) =>
-                                updateConsentAnswers({
-                                  doctorName: e.target.value,
-                                })
-                              }
-                              onBlur={async () => {
-                                await saveConsent(consent.type);
-                              }}
-                              placeholder="Ж: Сүхбаатар"
-                              style={{
-                                width: "100%",
-                                borderRadius: 6,
-                                border: "1px solid #d1d5db",
-                                padding: "4px 6px",
-                              }}
-                            />
+                          <div>
+                            Огноо:{" "}
+                            <strong>
+                              {formatShortDate(encounter.visitDate)}
+                            </strong>
                           </div>
                         </div>
                       </div>
