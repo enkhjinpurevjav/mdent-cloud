@@ -274,20 +274,33 @@ export default function EncounterAdminPage() {
   }, []);
 
 
-    // --- Load nurses (all nurses in system) ---
+      // --- Load nurses scheduled for this encounter's date/branch ---
   useEffect(() => {
-    const loadNurses = async () => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+
+    const loadNursesForEncounter = async () => {
       try {
-        const res = await fetch("/api/users?role=nurse");
+        const res = await fetch(`/api/encounters/${encounterId}/nurses`);
         const data = await res.json().catch(() => null);
-        if (!res.ok || !Array.isArray(data)) return;
-        setAllNurses(data as Nurse[]);
+        if (!res.ok || !data || !Array.isArray(data.items)) {
+          return;
+        }
+        // Map API response items to Nurse[]
+        setAllNurses(
+          data.items.map((it: any) => ({
+            id: it.nurseId,
+            name: it.name,
+            ovog: it.ovog,
+            email: it.email,
+          })) as Nurse[]
+        );
       } catch {
-        // ignore; nurse selection is optional
+        // optional: log error; field is optional
       }
     };
-    loadNurses();
-  }, []);
+
+    loadNursesForEncounter();
+  }, [encounterId]);
   // --- Load encounter (diagnoses + services + prescription) ---
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
