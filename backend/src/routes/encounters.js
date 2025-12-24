@@ -98,6 +98,116 @@ router.get("/:id", async (req, res) => {
 });
 
 /**
+ * GET /api/encounters/:id/consent
+ * Returns the consent form for this encounter if it exists.
+ */
+router.get("/:id/consent", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
+
+    const consent = await prisma.encounterConsent.findUnique({
+      where: { encounterId },
+    });
+
+    if (!consent) {
+      return res.json(null);
+    }
+
+    return res.json({
+      encounterId: consent.encounterId,
+      type: consent.type,
+      answers: consent.answers,
+      patientSignedAt: consent.patientSignedAt,
+      doctorSignedAt: consent.doctorSignedAt,
+      patientSignaturePath: consent.patientSignaturePath,
+      doctorSignaturePath: consent.doctorSignaturePath,
+      createdAt: consent.createdAt,
+      updatedAt: consent.updatedAt,
+    });
+  } catch (err) {
+    console.error("GET /api/encounters/:id/consent error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to load encounter consent" });
+  }
+});
+
+/**
+ * PUT /api/encounters/:id/consent
+ * Body: { type: string | null, answers?: object }
+ *
+ * - If type is null → delete consent (no consent for this encounter).
+ * - Otherwise upsert consent with given type and answers.
+ *   (signatures are untouched here; separate endpoints will handle them later.)
+ */
+router.put("/:id/consent", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
+
+    const { type, answers } = req.body || {};
+
+    // Ensure encounter exists
+    const existingEncounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      select: { id: true },
+    });
+    if (!existingEncounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    // No type => remove consent
+    if (type === null || type === undefined || String(type).trim() === "") {
+      await prisma.encounterConsent.deleteMany({
+        where: { encounterId },
+      });
+      return res.json(null);
+    }
+
+    const typeStr = String(type).trim();
+
+    // Upsert consent
+    const consent = await prisma.encounterConsent.upsert({
+      where: { encounterId },
+      create: {
+        encounterId,
+        type: typeStr,
+        answers: answers ?? {},
+      },
+      update: {
+        type: typeStr,
+        answers: answers ?? {},
+      },
+    });
+
+    return res.json({
+      encounterId: consent.encounterId,
+      type: consent.type,
+      answers: consent.answers,
+      patientSignedAt: consent.patientSignedAt,
+      doctorSignedAt: consent.doctorSignedAt,
+      patientSignaturePath: consent.patientSignaturePath,
+      doctorSignaturePath: consent.doctorSignaturePath,
+      createdAt: consent.createdAt,
+      updatedAt: consent.updatedAt,
+    });
+  } catch (err) {
+    console.error("PUT /api/encounters/:id/consent error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to save encounter consent" });
+  }
+});
+
+
+
+
+/**
  * GET /api/encounters/:id/nurses
  * Returns nurses scheduled on the encounter's visitDate and branch.
  */
