@@ -133,6 +133,15 @@ type EditablePrescriptionItem = {
   note: string;
 };
 
+type ChartToothRow = {
+  id?: number;
+  toothCode: string;
+  toothGroup?: string | null;  // <--- NEW
+  status?: string | null;
+  notes?: string | null;
+  // chartNotes?: ChartNote[];
+};
+
 // --- Media / X-ray types ---
 
 type EncounterMediaType = "XRAY" | "PHOTO" | "DOCUMENT";
