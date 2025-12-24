@@ -1236,7 +1236,7 @@ export default function EncounterAdminPage() {
                       disabled={consentSaving}
                       onChange={() => void saveConsent("root_canal")}
                     />
-                    Суурь сувгийн эмчилгээ
+                    Сувгийн эмчилгээ
                   </label>
 
                   <label style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
@@ -1272,7 +1272,7 @@ export default function EncounterAdminPage() {
                       disabled={consentSaving}
                       onChange={() => void saveConsent("prosthodontic")}
                     />
-                    Протез
+                    Согог засал
                   </label>
                 </div>
               )}
