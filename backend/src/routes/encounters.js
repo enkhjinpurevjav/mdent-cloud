@@ -98,6 +98,119 @@ router.get("/:id", async (req, res) => {
 });
 
 /**
+ * GET /api/encounters/:id/nurses
+ * Returns nurses scheduled on the encounter's visitDate and branch.
+ */
+router.get("/:id/nurses", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
+
+    // Load encounter with patient & branch to infer branchId + date
+    const encounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      include: {
+        patientBook: {
+          include: {
+            patient: {
+              include: { branch: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    const visitDate = new Date(encounter.visitDate);
+    if (Number.isNaN(visitDate.getTime())) {
+      return res.status(400).json({ error: "Invalid encounter date" });
+    }
+
+    // Normalize date to day range [start, end)
+    visitDate.setHours(0, 0, 0, 0);
+    const start = new Date(visitDate);
+    const end = new Date(visitDate);
+    end.setDate(end.getDate() + 1);
+
+    const branchId = encounter.patientBook.patient.branchId;
+
+    const whereSchedule = {
+      date: {
+        gte: start,
+        lt: end,
+      },
+    };
+
+    if (branchId) {
+      whereSchedule.branchId = branchId;
+    }
+
+    // Find nurse schedules for that day (and branch)
+    const schedules = await prisma.nurseSchedule.findMany({
+      where: whereSchedule,
+      include: {
+        nurse: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            ovog: true,
+            phone: true,
+          },
+        },
+        branch: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: [{ startTime: "asc" }],
+    });
+
+    if (!schedules.length) {
+      return res.json({ count: 0, items: [] });
+    }
+
+    // Group by nurseId so each nurse appears once with their schedules
+    const map = new Map();
+    for (const s of schedules) {
+      if (!map.has(s.nurseId)) {
+        map.set(s.nurseId, {
+          nurseId: s.nurseId,
+          name: s.nurse.name,
+          ovog: s.nurse.ovog,
+          email: s.nurse.email,
+          phone: s.nurse.phone || null,
+          schedules: [],
+        });
+      }
+      const entry = map.get(s.nurseId);
+      entry.schedules.push({
+        id: s.id,
+        date: s.date.toISOString().slice(0, 10),
+        branch: s.branch,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        note: s.note,
+      });
+    }
+
+    const items = Array.from(map.values());
+    return res.json({ count: items.length, items });
+  } catch (err) {
+    console.error("GET /api/encounters/:id/nurses error:", err);
+    return res.status(500).json({ error: "Failed to load nurses for encounter" });
+  }
+});
+
+
+/**
  * PUT /api/encounters/:id/diagnoses
  */
 router.put("/:id/diagnoses", async (req, res) => {
