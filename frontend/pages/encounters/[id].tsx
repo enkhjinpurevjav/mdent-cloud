@@ -28,6 +28,13 @@ type Doctor = {
   email: string;
 };
 
+type Nurse = {
+  id: number;
+  name?: string | null;
+  ovog?: string | null;
+  email: string;
+};
+
 type Diagnosis = {
   id: number;
   code: string;
@@ -108,6 +115,7 @@ type Encounter = {
   notes?: string | null;
   patientBook: PatientBook;
   doctor: Doctor | null;
+  nurse?: Nurse | null;                      // <--- NEW
   encounterDiagnoses: EncounterDiagnosisRow[];
   encounterServices: EncounterService[];
   prescription?: Prescription | null;
