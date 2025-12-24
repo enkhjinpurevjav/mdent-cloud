@@ -2046,11 +2046,12 @@ export default function EncounterAdminPage() {
                               <strong>
                                 {formatShortDate(encounter.visitDate)}
                               </strong>
-                            </div>
-                          </div>
-                        </div>
-                      </>
+                           
+                        </>
                     )}
+                  </div> {/* end per-type content */}
+                </>      {/* end fragment opened after {consent && ( */}
+              )}  
 {consentError && (
                 <div
                   style={{
@@ -2063,6 +2064,7 @@ export default function EncounterAdminPage() {
                 </div>
               )}
             </div>
+
             {encounter.notes && (
               <div style={{ marginTop: 4 }}>
                 <strong>Тэмдэглэл:</strong> {encounter.notes}
