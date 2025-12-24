@@ -47,6 +47,7 @@ router.get("/:id", async (req, res) => {
           },
         },
         doctor: true,
+        nurse: true,                      // <--- NEW
         diagnoses: {
           include: { diagnosis: true },
           orderBy: { createdAt: "asc" },
@@ -143,6 +144,8 @@ router.put("/:id/diagnoses", async (req, res) => {
       }
     });
 
+    
+
     const updated = await prisma.encounterDiagnosis.findMany({
       where: { encounterId },
       include: { diagnosis: true },
@@ -208,7 +211,52 @@ router.put("/:id/services", async (req, res) => {
     return res.status(500).json({ error: "Failed to save services" });
   }
 });
+/**
+ * PUT /api/encounters/:id/nurse
+ * Body: { nurseId: number | null }
+ */
+router.put("/:id/nurse", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
 
+    const { nurseId } = req.body || {};
+
+    let nurse = null;
+    let nurseIdValue: number | null = null;
+
+    if (nurseId !== null && nurseId !== undefined) {
+      const nid = Number(nurseId);
+      if (!nid || Number.isNaN(nid)) {
+        return res.status(400).json({ error: "Invalid nurse id" });
+      }
+
+      nurse = await prisma.user.findUnique({
+        where: { id: nid },
+        select: { id: true, name: true, ovog: true, email: true, role: true },
+      });
+
+      if (!nurse || nurse.role !== "nurse") {
+        return res.status(404).json({ error: "Nurse not found" });
+      }
+
+      nurseIdValue = nid;
+    }
+
+    const updated = await prisma.encounter.update({
+      where: { id: encounterId },
+      data: { nurseId: nurseIdValue },
+      include: { nurse: true },
+    });
+
+    return res.json({ nurse: updated.nurse });
+  } catch (err) {
+    console.error("PUT /api/encounters/:id/nurse error:", err);
+    return res.status(500).json({ error: "Failed to update nurse" });
+  }
+});
 /**
  * PUT /api/encounters/:id/prescription
  */
