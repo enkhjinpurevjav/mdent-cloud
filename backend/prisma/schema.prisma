@@ -225,6 +225,9 @@ model ChartTooth {
   /// FDI tooth code (e.g. "11", "26", "85")
   toothCode   String
 
+  /// Optional group/range description (e.g. "21-24", "25-26", "all molars")
+  toothGroup  String?    // <--- NEW
+
   /// General tooth condition/status (optional, e.g. "Healthy", "Caries")
   status      String?
 
