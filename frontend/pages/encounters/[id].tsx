@@ -1658,15 +1658,39 @@ export default function EncounterAdminPage() {
                       </>
                     )}
 
-                    {/* 3. Гажиг засал – basic fields, refine later */}
+                                        {/* 3. Гажиг засал */}
                     {consent.type === "orthodontic" && (
                       <>
-                        <div style={{ marginBottom: 4 }}>
-                          Гажиг заслын ерөнхий мэдээлэл, эрсдэл, үргэлжлэх
-                          хугацаа зэргийг энд товч тэмдэглэнэ.
+                        <div style={{ fontWeight: 500, marginBottom: 4 }}>
+                          Гажиг заслын эмчилгээний танилцуулга
                         </div>
+
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: "#6b7280",
+                            marginBottom: 6,
+                          }}
+                        >
+                          Гажиг заслын эмчилгээний зорилго, боломжит эрсдэл,
+                          эмчилгээний хугацаа, нэмэлт шинжилгээ, рентген зураг
+                          авах, төлбөр тооцооны талаар эмч танилцуулсныг
+                          баталгаажуулах хэсэг.
+                        </div>
+
+                        {/* 3.1 Гол эрсдэл, хүндрэлүүд */}
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: 12,
+                            fontWeight: 500,
+                            marginBottom: 2,
+                          }}
+                        >
+                          Гол эрсдэл, хүндрэлүүд
+                        </label>
                         <textarea
-                          placeholder="Гол эрсдэл, хүндрэлүүд"
+                          placeholder="Ж: Шүдний цоорол, буйлны үрэвсэл сэдрэх, яс сорвижих, эмчилгээ сунжрах, брекет хугарах, аппаратыг тогтмол зүүхгүй үед гарах хүндрэлүүд гэх мэт."
                           value={consent.answers?.mainRisks || ""}
                           onChange={(e) =>
                             updateConsentAnswers({ mainRisks: e.target.value })
@@ -1674,17 +1698,31 @@ export default function EncounterAdminPage() {
                           onBlur={async () => {
                             await saveConsent(consent.type);
                           }}
-                          rows={3}
+                          rows={4}
                           style={{
                             width: "100%",
                             borderRadius: 6,
                             border: "1px solid #d1d5db",
                             padding: "4px 6px",
-                            marginBottom: 4,
+                            marginBottom: 6,
+                            fontSize: 12,
                           }}
                         />
-                        <textarea
-                          placeholder="Төслийн үргэлжлэх хугацаа (ж: 18–24 сар)"
+
+                        {/* 3.2 Үргэлжлэх хугацаа */}
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: 12,
+                            fontWeight: 500,
+                            marginBottom: 2,
+                          }}
+                        >
+                          Төлөвлөсөн эмчилгээний үргэлжлэх хугацаа
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ж: 18–24 сар, сард 1 удаа хяналт"
                           value={consent.answers?.expectedDuration || ""}
                           onChange={(e) =>
                             updateConsentAnswers({
@@ -1694,14 +1732,111 @@ export default function EncounterAdminPage() {
                           onBlur={async () => {
                             await saveConsent(consent.type);
                           }}
-                          rows={2}
                           style={{
                             width: "100%",
                             borderRadius: 6,
                             border: "1px solid #d1d5db",
                             padding: "4px 6px",
+                            marginBottom: 6,
+                            fontSize: 12,
                           }}
                         />
+
+                        {/* 3.3 Үйлчлүүлэгчийн асуулт / эмчийн хариу – contract-like part */}
+                        <div
+                          style={{
+                            marginTop: 4,
+                            paddingTop: 6,
+                            borderTop: "1px dashed #e5e7eb",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: 500,
+                              fontSize: 12,
+                              marginBottom: 2,
+                            }}
+                          >
+                            Үйлчлүүлэгчийн асуулт:
+                          </div>
+                          <textarea
+                            placeholder="Үйлчлүүлэгчийн асуусан асуултуудыг энд тэмдэглэнэ."
+                            value={consent.answers?.patientQuestions || ""}
+                            onChange={(e) =>
+                              updateConsentAnswers({
+                                patientQuestions: e.target.value,
+                              })
+                            }
+                            onBlur={async () => {
+                              await saveConsent(consent.type);
+                            }}
+                            rows={2}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                              marginBottom: 4,
+                              fontSize: 12,
+                            }}
+                          />
+
+                          <div
+                            style={{
+                              fontWeight: 500,
+                              fontSize: 12,
+                              marginBottom: 2,
+                            }}
+                          >
+                            Эмчийн хариулт:
+                          </div>
+                          <textarea
+                            placeholder="Эмчилгээний явц, эрсдэл, хувилбаруудын талаар эмчийн өгсөн тайлбар, хариултуудыг тэмдэглэнэ."
+                            value={consent.answers?.doctorAnswer || ""}
+                            onChange={(e) =>
+                              updateConsentAnswers({
+                                doctorAnswer: e.target.value,
+                              })
+                            }
+                            onBlur={async () => {
+                              await saveConsent(consent.type);
+                            }}
+                            rows={2}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                              marginBottom: 6,
+                              fontSize: 12,
+                            }}
+                          />
+
+                          {/* Read-only doctor + date to mimic bottom of paper form */}
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 8,
+                              fontSize: 12,
+                              color: "#4b5563",
+                              marginTop: 4,
+                            }}
+                          >
+                            <div style={{ flex: "1 1 200px" }}>
+                              Эмчийн нэр:{" "}
+                              <strong>
+                                {formatDoctorDisplayName(encounter.doctor)}
+                              </strong>
+                            </div>
+                            <div style={{ flex: "1 1 160px" }}>
+                              Огноо:{" "}
+                              <strong>
+                                {formatShortDate(encounter.visitDate)}
+                              </strong>
+                            </div>
+                          </div>
+                        </div>
                       </>
                     )}
 
