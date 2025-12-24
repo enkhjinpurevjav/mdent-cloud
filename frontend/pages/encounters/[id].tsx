@@ -187,6 +187,15 @@ function formatDoctorName(d: Doctor | null) {
   return d.email;
 }
 
+function formatStaffName(u: { name?: string | null; ovog?: string | null; email: string } | null | undefined) {
+  if (!u) return "-";
+  if (u.name && u.name.trim()) {
+    const ovogInitial = u.ovog && u.ovog.trim() ? `${u.ovog.trim().charAt(0)}. ` : "";
+    return `${ovogInitial}${u.name.trim()}`;
+  }
+  return u.email;
+}
+
 function stringifyToothList(list: string[]): string {
   return Array.from(new Set(list))
     .sort((a, b) => a.localeCompare(b))
@@ -264,6 +273,21 @@ export default function EncounterAdminPage() {
     loadServices();
   }, []);
 
+
+    // --- Load nurses (all nurses in system) ---
+  useEffect(() => {
+    const loadNurses = async () => {
+      try {
+        const res = await fetch("/api/users?role=nurse");
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !Array.isArray(data)) return;
+        setAllNurses(data as Nurse[]);
+      } catch {
+        // ignore; nurse selection is optional
+      }
+    };
+    loadNurses();
+  }, []);
   // --- Load encounter (diagnoses + services + prescription) ---
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
@@ -630,6 +654,40 @@ export default function EncounterAdminPage() {
     }
   };
 
+
+    const handleChangeNurse = async (nurseIdStr: string) => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+    setNurseSaving(true);
+    try {
+      const nurseId = nurseIdStr ? Number(nurseIdStr) : null;
+
+      const res = await fetch(`/api/encounters/${encounterId}/nurse`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nurseId }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(data?.error || "Сувилагч хадгалахад алдаа гарлаа.");
+      }
+
+      setEncounter((prev) =>
+        prev
+          ? {
+              ...prev,
+              nurse: data?.nurse ?? null,
+            }
+          : prev
+      );
+    } catch (err) {
+      console.error("Failed to save nurse:", err);
+      // optional: set a local error message
+    } finally {
+      setNurseSaving(false);
+    }
+  };
+  
   // --- Prescription save ---
 
   const savePrescription = async () => {
@@ -984,6 +1042,33 @@ export default function EncounterAdminPage() {
             </div>
             <div style={{ marginBottom: 4 }}>
               <strong>Эмч:</strong> {formatDoctorName(encounter.doctor)}
+            </div>
+                        <div style={{ marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+              <strong>Сувилагч:</strong>
+              {allNurses.length === 0 ? (
+                <span style={{ fontSize: 13, color: "#6b7280" }}>
+                  (Сувилагч бүртгээгүй эсвэл ачаалаагүй байна)
+                </span>
+              ) : (
+                <select
+                  value={encounter.nurse?.id ?? ""}
+                  onChange={(e) => void handleChangeNurse(e.target.value)}
+                  disabled={nurseSaving}
+                  style={{
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "4px 8px",
+                    fontSize: 13,
+                  }}
+                >
+                  <option value="">— Сонгоогүй —</option>
+                  {allNurses.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {formatStaffName(n)}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <div style={{ marginBottom: 4 }}>
               <strong>Огноо:</strong> {formatDateTime(encounter.visitDate)}
