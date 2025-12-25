@@ -27,11 +27,11 @@ type Patient = {
 };
 
 type ActiveTab =
-  | "profile"        // Профайл
-  | "appointments"   // Цагууд
-  | "visit_card"     // Үзлэгийн карт
-  | "history"        // Үзлэгийн түүх
-  | "billing";       // Нэхэмжлэх (future)
+  | "profile" // Профайл
+  | "appointments" // Цагууд
+  | "visit_card" // Үзлэгийн карт
+  | "history" // Үзлэгийн түүх (future)
+  | "billing"; // Нэхэмжлэх (future)
 
 type PatientBook = {
   id: number;
@@ -123,10 +123,10 @@ export default function PatientProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Tabs: "profile" (default) or "appointments"
- const [activeTab, setActiveTab] = useState<ActiveTab>("profile");
+  // All tabs
+  const [activeTab, setActiveTab] = useState<ActiveTab>("profile");
 
-  // --- Visit card state (adult/child form) ---
+  // Visit card state (adult/child form) – not yet wired to API
   const [visitCard, setVisitCard] = useState<VisitCard | null>(null);
   const [visitCardLoading, setVisitCardLoading] = useState(false);
   const [visitCardError, setVisitCardError] = useState("");
@@ -136,7 +136,6 @@ export default function PatientProfilePage() {
   const [visitCardSaving, setVisitCardSaving] = useState(false);
   const [signatureSaving, setSignatureSaving] = useState(false);
 
-  
   // Edit state for Үндсэн мэдээлэл
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Patient>>({});
@@ -397,94 +396,110 @@ export default function PatientProfilePage() {
                     fontSize: 13,
                   }}
                 >
-                 {/* Профайл */}
-<button
-  type="button"
-  onClick={() => {
-    setActiveTab("profile");
-    setEditMode(false);
-    setSaveError("");
-    setSaveSuccess("");
-  }}
-  style={{
-    textAlign: "left",
-    padding: "6px 10px",
-    borderRadius: 6,
-    border: "none",
-    background: activeTab === "profile" ? "#eff6ff" : "transparent",
-    color: activeTab === "profile" ? "#1d4ed8" : "#6b7280",
-    fontWeight: activeTab === "profile" ? 500 : 400,
-    cursor: "pointer",
-  }}
->
-  Профайл
-</button>
+                  {/* Профайл */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("profile");
+                      setEditMode(false);
+                      setSaveError("");
+                      setSaveSuccess("");
+                    }}
+                    style={{
+                      textAlign: "left",
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background:
+                        activeTab === "profile" ? "#eff6ff" : "transparent",
+                      color:
+                        activeTab === "profile" ? "#1d4ed8" : "#6b7280",
+                      fontWeight: activeTab === "profile" ? 500 : 400,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Профайл
+                  </button>
 
-{/* Цагууд */}
-<button
-  type="button"
-  onClick={() => {
-    setActiveTab("appointments");
-    setEditMode(false);
-    setSaveError("");
-    setSaveSuccess("");
-  }}
-  style={{
-    textAlign: "left",
-    padding: "6px 10px",
-    borderRadius: 6,
-    border: "none",
-    background: activeTab === "appointments" ? "#eff6ff" : "transparent",
-    color: activeTab === "appointments" ? "#1d4ed8" : "#6b7280",
-    fontWeight: activeTab === "appointments" ? 500 : 400,
-    cursor: "pointer",
-  }}
->
-  Цагууд
-</button>
+                  {/* Цагууд */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("appointments");
+                      setEditMode(false);
+                      setSaveError("");
+                      setSaveSuccess("");
+                    }}
+                    style={{
+                      textAlign: "left",
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background:
+                        activeTab === "appointments"
+                          ? "#eff6ff"
+                          : "transparent",
+                      color:
+                        activeTab === "appointments"
+                          ? "#1d4ed8"
+                          : "#6b7280",
+                      fontWeight:
+                        activeTab === "appointments" ? 500 : 400,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Цагууд
+                  </button>
 
-{/* NEW: Үзлэгийн карт */}
-<button
-  type="button"
-  onClick={() => {
-    setActiveTab("visit_card");
-    setEditMode(false);
-    setSaveError("");
-    setSaveSuccess("");
-  }}
-  style={{
-    textAlign: "left",
-    padding: "6px 10px",
-    borderRadius: 6,
-    border: "none",
-    background: activeTab === "visit_card" ? "#eff6ff" : "transparent",
-    color: activeTab === "visit_card" ? "#1d4ed8" : "#6b7280",
-    fontWeight: activeTab === "visit_card" ? 500 : 400,
-    cursor: "pointer",
-  }}
->
-  Үзлэгийн карт
-</button>
+                  {/* Үзлэгийн карт */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("visit_card");
+                      setEditMode(false);
+                      setSaveError("");
+                      setSaveSuccess("");
+                    }}
+                    style={{
+                      textAlign: "left",
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background:
+                        activeTab === "visit_card"
+                          ? "#eff6ff"
+                          : "transparent",
+                      color:
+                        activeTab === "visit_card"
+                          ? "#1d4ed8"
+                          : "#6b7280",
+                      fontWeight:
+                        activeTab === "visit_card" ? 500 : 400,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Үзлэгийн карт
+                  </button>
 
-{/* Future placeholders – these will become real tabs later */}
-<div
-  style={{
-    padding: "6px 10px",
-    borderRadius: 6,
-    color: "#6b7280",
-  }}
->
-  Үзлэгийн түүх
-</div>
-<div
-  style={{
-    padding: "6px 10px",
-    borderRadius: 6,
-    color: "#6b7280",
-  }}
->
-  Нэхэмжлэх
-</div>
+                  {/* Future placeholders */}
+                  <div
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      color: "#6b7280",
+                    }}
+                  >
+                    Үзлэгийн түүх
+                  </div>
+                  <div
+                    style={{
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      color: "#6b7280",
+                    }}
+                  >
+                    Нэхэмжлэх
+                  </div>
                 </div>
               </div>
             </div>
@@ -1173,36 +1188,36 @@ export default function PatientProfilePage() {
                   )}
                 </div>
               )}
+
+              {activeTab === "visit_card" && (
+                <div
+                  style={{
+                    borderRadius: 12,
+                    border: "1px solid #e5e7eb",
+                    padding: 16,
+                    background: "white",
+                  }}
+                >
+                  <h2
+                    style={{
+                      fontSize: 16,
+                      marginTop: 0,
+                      marginBottom: 12,
+                    }}
+                  >
+                    Үзлэгийн карт
+                  </h2>
+                  <div style={{ fontSize: 13, color: "#6b7280" }}>
+                    Энд том хүн / хүүхдийн үзлэгийн картын маягт гарна.
+                    Одоогоор зөвхөн таб болон бүтэц бэлдсэн, дараа нь
+                    асуултууд, хадгалалт, гарын үсэг зэргийг холбоно.
+                  </div>
+                </div>
+              )}
             </div>
           </section>
-{/* NEW: visit card tab content */}
-  {activeTab === "visit_card" && (
-    <div
-      style={{
-        borderRadius: 12,
-        border: "1px solid #e5e7eb",
-        padding: 16,
-        background: "white",
-      }}
-    >
-      <h2
-        style={{
-          fontSize: 16,
-          marginTop: 0,
-          marginBottom: 12,
-        }}
-      >
-        Үзлэгийн карт
-      </h2>
-      <div style={{ fontSize: 13, color: "#6b7280" }}>
-        Энд том хүн / хүүхдийн үзлэгийн картын маягт гарна. Одоогоор зөвхөн
-        таб болон бүтэц бэлдсэн, дараа нь асуултууд, хадгалалт, гарын үсэг
-        зэргийг холбоно.
-      </div>
-    </div>
-  )}
-</div>
-          {/* Encounter history and inline appointments table below are still shown only in profile tab */}
+
+          {/* Encounter history and inline appointments table shown only in profile tab */}
           {activeTab === "profile" && (
             <>
               {/* Encounter history table */}
