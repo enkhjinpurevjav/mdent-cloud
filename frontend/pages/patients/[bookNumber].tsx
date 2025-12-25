@@ -327,6 +327,31 @@ const updateVisitCardAnswer = (key: string, value: any) => {
         );
       }
 
+
+      
+      // Update local state with returned patient
+      const updatedPatient = (json && json.patient) || json || patient;
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              patient: {
+                ...prev.patient,
+                ...updatedPatient,
+              },
+            }
+          : prev
+      );
+
+      setSaveSuccess("Мэдээлэл амжилттай хадгалагдлаа.");
+      setEditMode(false);
+    } catch (err: any) {
+      console.error(err);
+      setSaveError(err?.message || "Өгөгдөл хадгалах үед алдаа гарлаа.");
+    } finally {
+      setSaving(false);
+    }
+  };
 const handleSaveVisitCard = async () => {
   if (!patientBookId) {
     setVisitCardError("PatientBook ID олдсонгүй.");
@@ -371,31 +396,6 @@ const handleSaveVisitCard = async () => {
     setVisitCardSaving(false);
   }
 };
-      
-      // Update local state with returned patient
-      const updatedPatient = (json && json.patient) || json || patient;
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              patient: {
-                ...prev.patient,
-                ...updatedPatient,
-              },
-            }
-          : prev
-      );
-
-      setSaveSuccess("Мэдээлэл амжилттай хадгалагдлаа.");
-      setEditMode(false);
-    } catch (err: any) {
-      console.error(err);
-      setSaveError(err?.message || "Өгөгдөл хадгалах үед алдаа гарлаа.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   // Derived sorted appointments (for the list tab)
   const sortedAppointments = [...appointments].sort((a, b) =>
     b.scheduledAt.localeCompare(a.scheduledAt)
