@@ -1,4 +1,4 @@
-```tsx name=frontend/pages/patients/[bookNumber].tsx url=https://github.com/enkhjinpurevjav/mdent-cloud/blob/b39c5fae01ae3d5c73e4ff6351c7508b23af7ebc/frontend/pages/patients/%5BbookNumber%5D.tsx
+
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import SignaturePad from "../../components/SignaturePad";
