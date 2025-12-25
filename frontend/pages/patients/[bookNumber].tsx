@@ -1175,7 +1175,33 @@ export default function PatientProfilePage() {
               )}
             </div>
           </section>
-
+{/* NEW: visit card tab content */}
+  {activeTab === "visit_card" && (
+    <div
+      style={{
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        padding: 16,
+        background: "white",
+      }}
+    >
+      <h2
+        style={{
+          fontSize: 16,
+          marginTop: 0,
+          marginBottom: 12,
+        }}
+      >
+        Үзлэгийн карт
+      </h2>
+      <div style={{ fontSize: 13, color: "#6b7280" }}>
+        Энд том хүн / хүүхдийн үзлэгийн картын маягт гарна. Одоогоор зөвхөн
+        таб болон бүтэц бэлдсэн, дараа нь асуултууд, хадгалалт, гарын үсэг
+        зэргийг холбоно.
+      </div>
+    </div>
+  )}
+</div>
           {/* Encounter history and inline appointments table below are still shown only in profile tab */}
           {activeTab === "profile" && (
             <>
