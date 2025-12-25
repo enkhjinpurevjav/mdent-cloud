@@ -44,6 +44,11 @@ enum ServiceCategory {
   SURGERY                 // мэс засал
 }
 
+enum VisitCardType {
+  ADULT   // Үзлэгийн карт (том хүн)
+  CHILD   // Үзлэгийн карт (хүүхэд)
+}
+
 // ==========================================================
 // BRANCHES (Multi-Branch Support)
 // ==========================================================
@@ -84,6 +89,30 @@ model Branch {
   nurseSchedules     NurseSchedule[]
   nurseBranches      NurseBranch[]
 
+}
+
+model VisitCard {
+  id             Int           @id @default(autoincrement())
+
+  /// One card per PatientBook (patient)
+  patientBookId  Int           @unique
+  patientBook    PatientBook   @relation(fields: [patientBookId], references: [id])
+
+  /// ADULT or CHILD
+  type           VisitCardType
+
+  /// All answers from the form.
+  /// JSON so we can evolve fields without migrations.
+  answers        Json
+
+  /// Optional path to PNG signature image stored under /media.
+  patientSignaturePath String?
+
+  /// When the card was first created (patient agreed).
+  signedAt      DateTime?
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
 // ==========================================================
@@ -315,6 +344,8 @@ model PatientBook {
 
   // All encounters (visits) recorded in this book
   encounters Encounter[]
+// NEW: one visit card per patient book
+  visitCard  VisitCard?
 }
 
 model Diagnosis {
