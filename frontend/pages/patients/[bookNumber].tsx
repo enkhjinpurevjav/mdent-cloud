@@ -52,84 +52,124 @@ type VisitCard = {
 };
 
 type VisitCardAnswers = {
-  // shared header
+  // shared header (optional; adult form mostly uses patient profile)
   date?: string;
   email?: string;
   phone?: string;
   workPlace?: string;
   address?: string;
 
-  // adult/child-specific simple text fields
-  previousClinicName?: string;
-  previousTreatmentIssues?: string;
+  // Complaint
+  mainComplaint?: string;
+  pastHistory?: string; // "Өмнөх эмчилгээ / эмнэлгийн онцгой түүх"
+
+  // Урьдчилан сэргийлэх асуумж – left side
+  reasonToVisit?: {
+    toothPain?: boolean;           // Шүд өвдсөн
+    toothCaries?: boolean;         // Шүд цоорсон
+    toothMalposition?: boolean;    // Шүд буруу ургасан
+    fillingLost?: boolean;         // Ломбо унасан
+    preventiveCheck?: boolean;     // Урьдчилан сэргийлэх хяналтад орох
+    cosmeticSmile?: boolean;       // Гоо сайхны /цайруулах, Hollywood smile гэх мэт/
+    other?: string;                // Бусад (text)
+  };
+
+  // Урьдчилан сэргийлэх асуумж – right side
+  previousDentalVisit?: {
+    hasVisited?: "yes" | "no";           // Өмнө нь шүдний эмнэлэгт үзүүлж байсан уу?
+    clinicName?: string;                 // if hasVisited === "yes"
+    complicationHistory?: "yes" | "no";  // Өмнө шүдний эмчилгээнд хүндрэл гарч байсан эсэх
+    complicationDetail?: string;         // if complicationHistory === "yes"
+  };
+
+  // “Шүдний эмчилгээний үед эмчийн зүгээс анхаарах зүйлс:”
   dentistAttentionNotes?: string;
 
-  // simple complaint fields we already use in JSX
-  mainComplaint?: string;
-  pastHistory?: string;
-
-  // prevention reason (multi-choice)
-  reasonToVisit?: {
-    toothPain?: boolean;
-    toothBroken?: boolean;
-    toothDecay?: boolean;
-    badBite?: boolean;
-    preventiveCheck?: boolean;
-    cosmeticSmile?: boolean;
-    other?: string;
-  };
-
-  previousDentalVisit?: {
-    hasVisited?: "yes" | "no";
-    clinicName?: string;
-    reactionOrComplication?: string;
-  };
-
+  // Ерөнхий биеийн талаархи асуумж + харшил + зуршил
   generalMedical?: {
     heartDisease?: "yes" | "no";
+    heartDiseaseDetail?: string;
+
     highBloodPressure?: "yes" | "no";
-    infectiousDisease?: "yes" | "no";
-    tuberculosis?: "yes" | "no";
-    hepatitisBC?: "yes" | "no";
-    diabetes?: "yes" | "no";
-    onMedication?: "yes" | "no";
-    seriousIllnessOrSurgery?: "yes" | "no";
-    implant?: "yes" | "no";
-    generalAnesthesia?: "yes" | "no";
-    chemoOrRadiation?: "yes" | "no";
+    highBloodPressureDetail?: string;
+
     pregnant?: "yes" | "no";
-    childAllergyFood?: "yes" | "no";
-    details?: string;
-  };
+    pregnantDetail?: string;
 
-  allergies?: {
-    drug?: "yes" | "no";
-    drugDetail?: string;
-    metal?: "yes" | "no";
-    localAnesthetic?: "yes" | "no";
-    latex?: "yes" | "no";
-    other?: "yes" | "no";
-    otherDetail?: string;
-  };
+    breastfeeding?: "yes" | "no";
+    breastfeedingDetail?: string;
 
-  habits?: {
+    infectiousDisease?: "yes" | "no";
+    infectiousDiseaseDetail?: string;
+
+    tuberculosis?: "yes" | "no";
+    tuberculosisDetail?: string;
+
+    hepatitisBC?: "yes" | "no";
+    hepatitisBCDetail?: string;
+
+    diabetes?: "yes" | "no";
+    diabetesDetail?: string;
+
+    onMedication?: "yes" | "no";
+    onMedicationDetail?: string;
+
+    seriousIllnessOrSurgery?: "yes" | "no";
+    seriousIllnessOrSurgeryDetail?: string;
+
+    implant?: "yes" | "no";
+    implantDetail?: string;
+
+    generalAnesthesia?: "yes" | "no";
+    generalAnesthesiaDetail?: string;
+
+    chemoOrRadiation?: "yes" | "no";
+    chemoOrRadiationDetail?: string;
+
+    drugAllergy?: "yes" | "no";
+    drugAllergyDetail?: string;
+
+    metalAllergy?: "yes" | "no";
+    metalAllergyDetail?: string;
+
+    localAnestheticAllergy?: "yes" | "no";
+    localAnestheticAllergyDetail?: string;
+
+    latexAllergy?: "yes" | "no";
+    latexAllergyDetail?: string;
+
+    otherAllergy?: "yes" | "no";
+    otherAllergyDetail?: string;
+
     smoking?: "yes" | "no";
+    smokingDetail?: string;
+
     alcohol?: "yes" | "no";
+    alcoholDetail?: string;
+
     coffee?: "yes" | "no";
-    nightGrinding?: "yes" | "no";
-    mouthBreathing?: "yes" | "no";
-    other?: string;
+    coffeeDetail?: string;
+
+    otherHabit?: "yes" | "no";
+    otherHabitDetail?: string;
   };
 
+  // Dental-specific
   dentalFollowup?: {
     regularCheckups?: "yes" | "no";
+    regularCheckupsDetail?: string;
+
     bleedingAfterExtraction?: "yes" | "no";
+    bleedingAfterExtractionDetail?: string;
+
     gumBleeding?: "yes" | "no";
+    gumBleedingDetail?: string;
+
     badBreath?: "yes" | "no";
+    badBreathDetail?: string;
   };
 
   consentAccepted?: boolean;
-  notes?: string;
 };
 
 type Encounter = {
