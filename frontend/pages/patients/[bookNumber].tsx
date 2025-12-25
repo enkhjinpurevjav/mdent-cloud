@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+// import SignaturePad from "../../components/SignaturePad"; // uncomment after you create this component
 
 type Branch = {
   id: number;
@@ -27,11 +28,11 @@ type Patient = {
 };
 
 type ActiveTab =
-  | "profile" // Профайл
-  | "appointments" // Цагууд
-  | "visit_card" // Үзлэгийн карт
-  | "history" // Үзлэгийн түүх (future)
-  | "billing"; // Нэхэмжлэх (future)
+  | "profile"
+  | "appointments"
+  | "visit_card"
+  | "history"
+  | "billing";
 
 type PatientBook = {
   id: number;
@@ -51,7 +52,7 @@ type VisitCard = {
 
 type VisitCardAnswers = {
   // shared header
-  date?: string; // YYYY-MM-DD
+  date?: string;
   email?: string;
   phone?: string;
   workPlace?: string;
@@ -62,6 +63,10 @@ type VisitCardAnswers = {
   previousTreatmentIssues?: string;
   dentistAttentionNotes?: string;
 
+  // simple complaint fields we already use in JSX
+  mainComplaint?: string;
+  pastHistory?: string;
+
   // prevention reason (multi-choice)
   reasonToVisit?: {
     toothPain?: boolean;
@@ -69,18 +74,16 @@ type VisitCardAnswers = {
     toothDecay?: boolean;
     badBite?: boolean;
     preventiveCheck?: boolean;
-    cosmeticSmile?: boolean; // adult only
+    cosmeticSmile?: boolean;
     other?: string;
   };
 
-  // previous dental visit
   previousDentalVisit?: {
     hasVisited?: "yes" | "no";
     clinicName?: string;
     reactionOrComplication?: string;
   };
 
-  // general medical questions (yes/no + detail)
   generalMedical?: {
     heartDisease?: "yes" | "no";
     highBloodPressure?: "yes" | "no";
@@ -93,12 +96,11 @@ type VisitCardAnswers = {
     implant?: "yes" | "no";
     generalAnesthesia?: "yes" | "no";
     chemoOrRadiation?: "yes" | "no";
-    pregnant?: "yes" | "no"; // mostly adult
-    childAllergyFood?: "yes" | "no"; // child form
+    pregnant?: "yes" | "no";
+    childAllergyFood?: "yes" | "no";
     details?: string;
   };
 
-  // allergies
   allergies?: {
     drug?: "yes" | "no";
     drugDetail?: string;
@@ -109,17 +111,15 @@ type VisitCardAnswers = {
     otherDetail?: string;
   };
 
-  // habits (adult)
   habits?: {
     smoking?: "yes" | "no";
     alcohol?: "yes" | "no";
     coffee?: "yes" | "no";
     nightGrinding?: "yes" | "no";
-    mouthBreathing?: "yes" | "no"; // child
+    mouthBreathing?: "yes" | "no";
     other?: string;
   };
 
-  // dental specific yes/no at bottom
   dentalFollowup?: {
     regularCheckups?: "yes" | "no";
     bleedingAfterExtraction?: "yes" | "no";
@@ -127,10 +127,7 @@ type VisitCardAnswers = {
     badBreath?: "yes" | "no";
   };
 
-  // consent checkbox
   consentAccepted?: boolean;
-
-  // extra free text
   notes?: string;
 };
 
@@ -181,7 +178,6 @@ function formatDate(iso?: string) {
   });
 }
 
-// Normalize possibly-null / "null" / empty strings for display
 function displayOrDash(value?: string | null) {
   if (value === undefined || value === null) return "-";
   const trimmed = String(value).trim();
@@ -189,7 +185,6 @@ function displayOrDash(value?: string | null) {
   return trimmed;
 }
 
-// Short display name in header: first letter of ovog + "." + name (E.Margad)
 function formatDisplayName(patient: Patient) {
   const name = patient.name || "";
   const ovog = (patient.ovog || "").trim();
@@ -208,26 +203,25 @@ export default function PatientProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // All tabs
   const [activeTab, setActiveTab] = useState<ActiveTab>("profile");
 
-  // Visit card state (adult/child form) – not yet wired to API
   const [visitCard, setVisitCard] = useState<VisitCard | null>(null);
   const [visitCardLoading, setVisitCardLoading] = useState(false);
   const [visitCardError, setVisitCardError] = useState("");
   const [visitCardTypeDraft, setVisitCardTypeDraft] =
     useState<VisitCardType | null>(null);
-  const [visitCardAnswers, setVisitCardAnswers] = useState<VisitCardAnswers>({});
+  const [visitCardAnswers, setVisitCardAnswers] =
+    useState<VisitCardAnswers>({});
   const [visitCardSaving, setVisitCardSaving] = useState(false);
   const [signatureSaving, setSignatureSaving] = useState(false);
 
-  // Edit state for Үндсэн мэдээлэл
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Patient>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState("");
 
+  // Load main profile
   useEffect(() => {
     if (!bookNumber || typeof bookNumber !== "string") return;
 
@@ -257,80 +251,79 @@ export default function PatientProfilePage() {
     load();
   }, [bookNumber]);
 
-useEffect(() => {
-  if (!bookNumber || typeof bookNumber !== "string") return;
-  if (activeTab !== "visit_card") return;
+  // Load visit card only when visit_card tab is active
+  useEffect(() => {
+    if (!bookNumber || typeof bookNumber !== "string") return;
+    if (activeTab !== "visit_card") return;
 
-  const loadVisitCard = async () => {
-    setVisitCardLoading(true);
-    setVisitCardError("");
-    try {
-      const res = await fetch(
-        `/api/patients/visit-card/by-book/${encodeURIComponent(
-          bookNumber
-        )}`
-      );
-      const json = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(
-          (json && json.error) || "Үзлэгийн карт ачаалахад алдаа гарлаа."
+    const loadVisitCard = async () => {
+      setVisitCardLoading(true);
+      setVisitCardError("");
+      try {
+        const res = await fetch(
+          `/api/patients/visit-card/by-book/${encodeURIComponent(bookNumber)}`
         );
-      }
+        const json = await res.json().catch(() => null);
 
-      const card: VisitCard | null = json.visitCard || null;
-      setVisitCard(card);
-      if (card) {
-        setVisitCardTypeDraft(card.type);
-        setVisitCardAnswers(card.answers || {});
-      } else {
-        setVisitCardTypeDraft(null);
-        setVisitCardAnswers({});
-      }
-    } catch (err: any) {
-      console.error("loadVisitCard failed", err);
-      setVisitCardError(
-        err?.message || "Үзлэгийн карт ачаалахад алдаа гарлаа."
-      );
-      setVisitCard(null);
-    } finally {
-      setVisitCardLoading(false);
-    }
-  };
+        if (!res.ok) {
+          throw new Error(
+            (json && json.error) || "Үзлэгийн карт ачаалахад алдаа гарлаа."
+          );
+        }
 
-  void loadVisitCard();
-}, [bookNumber, activeTab]);
-  
+        const card: VisitCard | null = json.visitCard || null;
+        setVisitCard(card);
+        if (card) {
+          setVisitCardTypeDraft(card.type);
+          setVisitCardAnswers(card.answers || {});
+        } else {
+          setVisitCardTypeDraft(null);
+          setVisitCardAnswers({});
+        }
+      } catch (err: any) {
+        console.error("loadVisitCard failed", err);
+        setVisitCardError(
+          err?.message || "Үзлэгийн карт ачаалахад алдаа гарлаа."
+        );
+        setVisitCard(null);
+      } finally {
+        setVisitCardLoading(false);
+      }
+    };
+
+    void loadVisitCard();
+  }, [bookNumber, activeTab]);
+
   const patient = data?.patient;
   const pb = data?.patientBook;
   const encounters = data?.encounters || [];
   const appointments = data?.appointments || [];
   const patientBookId = pb?.id || null;
 
-const updateVisitCardAnswer = (
-  key: keyof VisitCardAnswers,
-  value: VisitCardAnswers[typeof key]
-) => {
-  setVisitCardAnswers((prev: VisitCardAnswers) => ({
-    ...(prev || {}),
-    [key]: value,
-  }));
-};
+  const updateVisitCardAnswer = (
+    key: keyof VisitCardAnswers,
+    value: VisitCardAnswers[typeof key]
+  ) => {
+    setVisitCardAnswers((prev: VisitCardAnswers) => ({
+      ...(prev || {}),
+      [key]: value,
+    }));
+  };
 
-const updateNested = (
-  section: keyof VisitCardAnswers,
-  field: string,
-  value: any
-) => {
-  setVisitCardAnswers((prev: VisitCardAnswers) => ({
-    ...(prev || {}),
-    [section]: {
-      ...(prev?.[section] as any),
-      [field]: value,
-    },
-  }));
-};
-  
+  const updateNested = (
+    section: keyof VisitCardAnswers,
+    field: string,
+    value: any
+  ) => {
+    setVisitCardAnswers((prev: VisitCardAnswers) => ({
+      ...(prev || {}),
+      [section]: {
+        ...(prev?.[section] as any),
+        [field]: value,
+      },
+    }));
+  };
+
   const totalEncounters = encounters.length;
   const lastEncounter = encounters[0];
 
@@ -342,7 +335,6 @@ const updateNested = (
     return d > now && a.status === "booked";
   });
 
-  // Initialize edit form from loaded patient when entering edit mode
   const startEdit = () => {
     if (!patient) return;
     setEditForm({
@@ -390,7 +382,6 @@ const updateNested = (
     setSaveError("");
     setSaveSuccess("");
 
-    // Optional front validation for gender
     if (
       editForm.gender &&
       editForm.gender !== "эр" &&
@@ -429,9 +420,6 @@ const updateNested = (
         );
       }
 
-
-      
-      // Update local state with returned patient
       const updatedPatient = (json && json.patient) || json || patient;
       setData((prev) =>
         prev
@@ -454,98 +442,99 @@ const updateNested = (
       setSaving(false);
     }
   };
-const handleSaveVisitCard = async () => {
-  if (!patientBookId) {
-    setVisitCardError("PatientBook ID олдсонгүй.");
-    return;
-  }
 
-  const type = visitCard?.type || visitCardTypeDraft;
-  if (!type) {
-    setVisitCardError("Эхлээд картын төрлийг сонгоно уу (том хүн / хүүхэд).");
-    return;
-  }
-
-  setVisitCardSaving(true);
-  setVisitCardError("");
-  try {
-    const res = await fetch(`/api/patients/visit-card/${patientBookId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type,
-        answers: visitCardAnswers,
-      }),
-    });
-
-    const json = await res.json().catch(() => null);
-    if (!res.ok) {
-      throw new Error(
-        (json && json.error) || "Үзлэгийн карт хадгалахад алдаа гарлаа."
-      );
+  const handleSaveVisitCard = async () => {
+    if (!patientBookId) {
+      setVisitCardError("PatientBook ID олдсонгүй.");
+      return;
     }
 
-    const card: VisitCard = json.visitCard;
-    setVisitCard(card);
-    setVisitCardTypeDraft(card.type);
-    setVisitCardAnswers(card.answers || {});
-  } catch (err: any) {
-    console.error("save visit card failed", err);
-    setVisitCardError(
-      err?.message || "Үзлэгийн карт хадгалахад алдаа гарлаа."
-    );
-  } finally {
-    setVisitCardSaving(false);
-  }
-};
+    const type = visitCard?.type || visitCardTypeDraft;
+    if (!type) {
+      setVisitCardError(
+        "Эхлээд картын төрлийг сонгоно уу (том хүн / хүүхэд)."
+      );
+      return;
+    }
 
+    setVisitCardSaving(true);
+    setVisitCardError("");
+    try {
+      const res = await fetch(`/api/patients/visit-card/${patientBookId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type,
+          answers: visitCardAnswers,
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          (json && json.error) || "Үзлэгийн карт хадгалахад алдаа гарлаа."
+        );
+      }
+
+      const card: VisitCard = json.visitCard;
+      setVisitCard(card);
+      setVisitCardTypeDraft(card.type);
+      setVisitCardAnswers(card.answers || {});
+    } catch (err: any) {
+      console.error("save visit card failed", err);
+      setVisitCardError(
+        err?.message || "Үзлэгийн карт хадгалахад алдаа гарлаа."
+      );
+    } finally {
+      setVisitCardSaving(false);
+    }
+  };
 
   const handleUploadSignature = async (blob: Blob) => {
-  if (!patientBookId) {
-    setVisitCardError("PatientBook ID олдсонгүй.");
-    return;
-  }
-  setSignatureSaving(true);
-  setVisitCardError("");
-  try {
-    const formData = new FormData();
-    formData.append("file", blob, "signature.png");
-
-    const res = await fetch(
-      `/api/patients/visit-card/${patientBookId}/signature`,
-      {
-        method: "POST",
-        body: formData,
-      }
-    );
-
-    const json = await res.json().catch(() => null);
-    if (!res.ok) {
-      throw new Error(
-        (json && json.error) || "Гарын үсэг хадгалахад алдаа гарлаа."
-      );
+    if (!patientBookId) {
+      setVisitCardError("PatientBook ID олдсонгүй.");
+      return;
     }
+    setSignatureSaving(true);
+    setVisitCardError("");
+    try {
+      const formData = new FormData();
+      formData.append("file", blob, "signature.png");
 
-    setVisitCard((prev) =>
-      prev
-        ? {
-            ...prev,
-            patientSignaturePath: json.patientSignaturePath,
-            signedAt: json.signedAt,
-          }
-        : prev
-    );
-  } catch (err: any) {
-    console.error("upload signature failed", err);
-    setVisitCardError(
-      err?.message || "Гарын үсэг хадгалахад алдаа гарлаа."
-    );
-  } finally {
-    setSignatureSaving(false);
-  }
-};
-  
-  // Derived sorted appointments (for the list tab)
+      const res = await fetch(
+        `/api/patients/visit-card/${patientBookId}/signature`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          (json && json.error) || "Гарын үсэг хадгалахад алдаа гарлаа."
+        );
+      }
+
+      setVisitCard((prev) =>
+        prev
+          ? {
+              ...prev,
+              patientSignaturePath: json.patientSignaturePath,
+              signedAt: json.signedAt,
+            }
+          : prev
+      );
+    } catch (err: any) {
+      console.error("upload signature failed", err);
+      setVisitCardError(
+        err?.message || "Гарын үсэг хадгалахад алдаа гарлаа."
+      );
+    } finally {
+      setSignatureSaving(false);
+    }
+  };
+
   const sortedAppointments = [...appointments].sort((a, b) =>
     b.scheduledAt.localeCompare(a.scheduledAt)
   );
@@ -1436,156 +1425,202 @@ const handleSaveVisitCard = async () => {
               )}
 
               {activeTab === "visit_card" && (
-  <div
-    style={{
-      borderRadius: 12,
-      border: "1px solid #e5e7eb",
-      padding: 16,
-      background: "white",
-    }}
-  >
-    <h2
-      style={{
-        fontSize: 16,
-        marginTop: 0,
-        marginBottom: 12,
-      }}
-    >
-      Үзлэгийн карт
-    </h2>
-
-    {visitCardLoading && (
-      <div style={{ fontSize: 13 }}>Үзлэгийн карт ачааллаж байна...</div>
-    )}
-
-    {!visitCardLoading && visitCardError && (
-      <div style={{ fontSize: 12, color: "#b91c1c", marginBottom: 8 }}>
-        {visitCardError}
-      </div>
-    )}
-
-    {!visitCardLoading && (
-      <>
-        {/* 1) Type selector – only when card not yet created */}
-        {!visitCard && (
-          <div
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              background: "#f3f4f6",
-              fontSize: 13,
-            }}
-          >
-            <div style={{ marginBottom: 8 }}>
-              Анхны үзлэгийн карт бөглөх төрөл:
-            </div>
-            <div style={{ display: "flex", gap: 12 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <input
-                  type="radio"
-                  name="visitCardType"
-                  value="ADULT"
-                  checked={visitCardTypeDraft === "ADULT"}
-                  onChange={() => setVisitCardTypeDraft("ADULT")}
-                />
-                <span>Том хүн</span>
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <input
-                  type="radio"
-                  name="visitCardType"
-                  value="CHILD"
-                  checked={visitCardTypeDraft === "CHILD"}
-                  onChange={() => setVisitCardTypeDraft("CHILD")}
-                />
-                <span>Хүүхэд</span>
-              </label>
-            </div>
-          </div>
-        )}
-
-        {/* 2) Simple example form – we’ll expand later */}
         <div
           style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-            fontSize: 13,
+            borderRadius: 12,
+            border: "1px solid #e5e7eb",
+            padding: 16,
+            background: "white",
           }}
         >
-          <div>
-            <div style={{ color: "#6b7280", marginBottom: 4 }}>
-              Үндсэн гомдол / эмнэлэгт хандах болсон шалтгаан
-            </div>
-            <textarea
-              rows={3}
-              value={visitCardAnswers.mainComplaint || ""}
-              onChange={(e) =>
-                updateVisitCardAnswer("mainComplaint", e.target.value)
-              }
-              style={{
-                width: "100%",
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-                resize: "vertical",
-              }}
-            />
-          </div>
+          <h2
+            style={{
+              fontSize: 16,
+              marginTop: 0,
+              marginBottom: 12,
+            }}
+          >
+            Үзлэгийн карт
+          </h2>
 
-          <div>
-            <div style={{ color: "#6b7280", marginBottom: 4 }}>
-              Өмнөх эмчилгээ / эмнэлгийн онцгой түүх
+          {visitCardLoading && (
+            <div style={{ fontSize: 13 }}>
+              Үзлэгийн карт ачааллаж байна...
             </div>
-            <textarea
-              rows={3}
-              value={visitCardAnswers.pastHistory || ""}
-              onChange={(e) =>
-                updateVisitCardAnswer("pastHistory", e.target.value)
-              }
-              style={{
-                width: "100%",
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-                resize: "vertical",
-              }}
-            />
-          </div>
-        </div>
+          )}
 
+          {!visitCardLoading && visitCardError && (
+            <div style={{ fontSize: 12, color: "#b91c1c", marginBottom: 8 }}>
+              {visitCardError}
+            </div>
+          )}
+
+          {!visitCardLoading && (
+            <>
+              {!visitCard && (
+                <div
+                  style={{
+                    marginBottom: 16,
+                    padding: 12,
+                    borderRadius: 8,
+                    background: "#f3f4f6",
+                    fontSize: 13,
+                  }}
+                >
+                  <div style={{ marginBottom: 8 }}>
+                    Анхны үзлэгийн карт бөглөх төрөл:
+                  </div>
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="visitCardType"
+                        value="ADULT"
+                        checked={visitCardTypeDraft === "ADULT"}
+                        onChange={() => setVisitCardTypeDraft("ADULT")}
+                      />
+                      <span>Том хүн</span>
+                    </label>
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="visitCardType"
+                        value="CHILD"
+                        checked={visitCardTypeDraft === "CHILD"}
+                        onChange={() => setVisitCardTypeDraft("CHILD")}
+                      />
+                      <span>Хүүхэд</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                  fontSize: 13,
+                }}
+              >
+                <div>
+                  <div style={{ color: "#6b7280", marginBottom: 4 }}>
+                    Үндсэн гомдол / эмнэлэгт хандах болсон шалтгаан
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={visitCardAnswers.mainComplaint || ""}
+                    onChange={(e) =>
+                      updateVisitCardAnswer(
+                        "mainComplaint",
+                        e.target.value
+                      )
+                    }
+                    style={{
+                      width: "100%",
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      padding: "6px 8px",
+                      resize: "vertical",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <div style={{ color: "#6b7280", marginBottom: 4 }}>
+                    Өмнөх эмчилгээ / эмнэлгийн онцгой түүх
+                  </div>
+                  <textarea
+                    rows={3}
+                    value={visitCardAnswers.pastHistory || ""}
+                    onChange={(e) =>
+                      updateVisitCardAnswer("pastHistory", e.target.value)
+                    }
+                    style={{
+                      width: "100%",
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      padding: "6px 8px",
+                      resize: "vertical",
+                    }}
+                  />
+                </div>
+              </div>
+ {/* Signature placeholder – uncomment after SignaturePad import */}
+              {/* 
+              <section
+                style={{
+                  marginTop: 16,
+                  paddingTop: 12,
+                  borderTop: "1px dashed #e5e7eb",
+                }}
+              >
+                <div style={{ fontSize: 13, marginBottom: 4 }}>
+                  Үйлчлүүлэгч / асран хамгаалагчийн гарын үсэг:
+                </div>
+                {visitCard?.patientSignaturePath ? (
+                  <img
+                    src={visitCard.patientSignaturePath}
+                    alt="Visit card signature"
+                    style={{
+                      maxWidth: 400,
+                      borderRadius: 8,
+                      border: "1px solid #d1d5db",
+                      background: "#ffffff",
+                    }}
+                  />
+                ) : (
+                  <SignaturePad
+                    disabled={signatureSaving}
+                    onChange={(blob) => void handleUploadSignature(blob)}
+                  />
+                )}
+              </section>
+              */}
         {/* 3) Save button */}
         <div
-          style={{
-            marginTop: 16,
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleSaveVisitCard}
-            disabled={visitCardSaving}
-            style={{
-              padding: "6px 12px",
-              borderRadius: 6,
-              border: "none",
-              background: visitCardSaving ? "#9ca3af" : "#2563eb",
-              color: "#ffffff",
-              fontSize: 13,
-              cursor: visitCardSaving ? "default" : "pointer",
-            }}
-          >
-            {visitCardSaving ? "Хадгалж байна..." : "Үзлэгийн карт хадгалах"}
-          </button>
+                style={{
+                  marginTop: 16,
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 8,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={handleSaveVisitCard}
+                  disabled={visitCardSaving}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: visitCardSaving ? "#9ca3af" : "#2563eb",
+                    color: "#ffffff",
+                    fontSize: 13,
+                    cursor: visitCardSaving ? "default" : "pointer",
+                  }}
+                >
+                  {visitCardSaving
+                    ? "Хадгалж байна..."
+                    : "Үзлэгийн карт хадгалах"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
-      </>
-    )}
-  </div>
-)}
-            </div>
+      )}            </div>
           </section>
 
           {/* Encounter history and inline appointments table shown only in profile tab */}
