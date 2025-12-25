@@ -363,15 +363,15 @@ export default function PatientProfilePage() {
     setSaveSuccess("");
   };
 
-  const handleEditChange = (
-    e:
-      | React.ChangeEvent<HTMLInputElement>
-      | React.ChangeEvent<HTMLTextAreaElement>
-      | React.ChangeEvent<HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setEditForm((prev) => ({ ...prev, [name]: value }));
-  };
+const handleEditChange = (
+  e:
+    | React.ChangeEvent<HTMLInputElement>
+    | React.ChangeEvent<HTMLTextAreaElement>
+    | React.ChangeEvent<HTMLSelectElement>
+) => {
+  const { name, value } = e.target;
+  setEditForm((prev) => ({ ...prev, [name]: value }));
+};
 
   const handleGenderChange = (value: "" | "эр" | "эм") => {
     setEditForm((prev) => ({ ...prev, gender: value }));
