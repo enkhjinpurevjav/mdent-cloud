@@ -1495,55 +1495,94 @@ const handleEditChange = (
           </div>
         )}
 
-        {/* 2) Гол гомдол + өмнөх эмчилгээ */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-            fontSize: 13,
-          }}
-        >
-          <div>
-            <div style={{ color: "#6b7280", marginBottom: 4 }}>
-              Үндсэн гомдол / эмнэлэгт хандах болсон шалтгаан
-            </div>
-            <textarea
-              rows={3}
-              value={visitCardAnswers.mainComplaint || ""}
-              onChange={(e) =>
-                updateVisitCardAnswer("mainComplaint", e.target.value)
-              }
-              style={{
-                width: "100%",
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-                resize: "vertical",
-              }}
-            />
+                {/* Урьдчилан сэргийлэх асуумж */}
+        <section style={{ marginTop: 8, fontSize: 13 }}>
+          <h3
+            style={{
+              fontSize: 14,
+              margin: 0,
+              marginBottom: 4,
+            }}
+          >
+            Урьдчилан сэргийлэх асуумж
+          </h3>
+          <div style={{ marginBottom: 8 }}>
+            Та эрүүл мэндийнхээ төлөө доорхи асуултанд үнэн зөв хариулна уу
           </div>
 
-          <div>
-            <div style={{ color: "#6b7280", marginBottom: 4 }}>
-              Өмнөх эмчилгээ / эмнэлгийн онцгой түүх
-            </div>
-            <textarea
-              rows={3}
-              value={visitCardAnswers.pastHistory || ""}
-              onChange={(e) =>
-                updateVisitCardAnswer("pastHistory", e.target.value)
-              }
+          <div
+            style={{
+              border: "1px solid #e5e7eb",
+              borderRadius: 8,
+              padding: 10,
+            }}
+          >
+            <div
               style={{
-                width: "100%",
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "6px 8px",
-                resize: "vertical",
+                fontWeight: 500,
+                marginBottom: 8,
               }}
-            />
+            >
+              Таны эмнэлэгт хандах болсон шалтгаан юу вэ?
+            </div>
+
+            {([
+              ["toothPain", "Шүд өвдсөн"],
+              ["toothBroken", "Шүд цоорсон"],
+              ["badBite", "Шүд буруу ургасан"],
+              // reuse toothDecay key for "Ломбо унасан"
+              ["toothDecay", "Ломбо унасан"],
+              ["preventiveCheck", "Урьдчилан сэргийлэх хяналтанд орох"],
+              [
+                "cosmeticSmile",
+                "Гоо сайхны /цайруулах, Hollywood smile гэх мэт/",
+              ],
+            ] as const).map(([key, label]) => (
+              <label
+                key={key}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  marginBottom: 4,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={Boolean(visitCardAnswers.reasonToVisit?.[key])}
+                  onChange={(e) =>
+                    updateNested("reasonToVisit", key, e.target.checked)
+                  }
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+
+            <div style={{ marginTop: 6 }}>
+              <span
+                style={{
+                  display: "block",
+                  color: "#6b7280",
+                  marginBottom: 2,
+                }}
+              >
+                Бусад
+              </span>
+              <input
+                value={visitCardAnswers.reasonToVisit?.other || ""}
+                onChange={(e) =>
+                  updateNested("reasonToVisit", "other", e.target.value)
+                }
+                style={{
+                  width: "100%",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                }}
+              />
+            </div>
           </div>
-        </div>
+        </section>
 
         {/* 3) Ерөнхий биеийн талаархи асуумж */}
         <section style={{ marginTop: 16 }}>
