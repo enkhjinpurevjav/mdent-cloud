@@ -3706,6 +3706,56 @@ export default function EncounterAdminPage() {
                 </>
   
               )}
+
+{/* Bottom button row: general save + send/edit */}
+              {consent && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    display: "flex",
+                    gap: 8,
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => void saveCurrentConsent()}
+                    disabled={consentSaving}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      border: "1px solid #16a34a",
+                      background: "#ecfdf3",
+                      color: "#166534",
+                      fontSize: 12,
+                      cursor: consentSaving ? "default" : "pointer",
+                    }}
+                  >
+                    {consentSaving ? "Хадгалж байна..." : "Зөвшөөрөл хадгалах"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void saveCurrentConsent()}
+                    disabled={consentSaving}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      border: "1px solid #2563eb",
+                      background: "#eff6ff",
+                      color: "#2563eb",
+                      fontSize: 12,
+                      cursor: consentSaving ? "default" : "pointer",
+                    }}
+                  >
+                    {consentSaving
+                      ? "Илгээж байна..."
+                      : "Зөвшөөрөл илгээх / засах"}
+                  </button>
+                </div>
+              )}
+       </div>
+              
             </div>
 
             {encounter.notes && (
