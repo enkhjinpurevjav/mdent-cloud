@@ -115,7 +115,7 @@ type Encounter = {
   notes?: string | null;
   patientBook: PatientBook;
   doctor: Doctor | null;
-  nurse?: Nurse | null;                      // <--- NEW
+  nurse?: Nurse | null;
   encounterDiagnoses: EncounterDiagnosisRow[];
   encounterServices: EncounterService[];
   prescription?: Prescription | null;
@@ -144,10 +144,9 @@ type EditablePrescriptionItem = {
 type ChartToothRow = {
   id?: number;
   toothCode: string;
-  toothGroup?: string | null;  // <--- NEW
+  toothGroup?: string | null;
   status?: string | null;
   notes?: string | null;
-  // chartNotes?: ChartNote[];
 };
 
 // --- Media / X-ray types ---
@@ -157,7 +156,7 @@ type EncounterMediaType = "XRAY" | "PHOTO" | "DOCUMENT";
 type ConsentType = "root_canal" | "surgery" | "orthodontic" | "prosthodontic";
 
 type SurgeryConsentAnswers = {
-  surgeryMode?: "SURGERY" | "PROCEDURE"; // Мэс засал vs Мэс ажилбар
+  surgeryMode?: "SURGERY" | "PROCEDURE";
 
   // Shared A) informational fields
   name?: string;
@@ -203,7 +202,6 @@ type SurgeryConsentAnswers = {
   husbandRefuseReason?: string;
 };
 
-
 type EncounterConsent = {
   encounterId: number;
   type: ConsentType;
@@ -217,7 +215,7 @@ type EncounterConsent = {
 type EncounterMedia = {
   id: number;
   encounterId: number;
-  filePath: string; // e.g. "/media/filename.jpg"
+  filePath: string;
   toothCode?: string | null;
   type: EncounterMediaType;
   createdAt?: string;
@@ -313,9 +311,11 @@ export default function EncounterAdminPage() {
   const [allServices, setAllServices] = useState<Service[]>([]);
   const [servicesLoadError, setServicesLoadError] = useState("");
   const [openServiceIndex, setOpenServiceIndex] = useState<number | null>(null);
- // Nurse selection
+
+  // Nurse selection
   const [allNurses, setAllNurses] = useState<Nurse[]>([]);
   const [nurseSaving, setNurseSaving] = useState(false);
+
   // Tooth chart selection
   const [selectedTeeth, setSelectedTeeth] = useState<string[]>([]);
   const [chartError, setChartError] = useState("");
@@ -335,7 +335,7 @@ export default function EncounterAdminPage() {
   const [mediaError, setMediaError] = useState("");
   const [uploadingMedia, setUploadingMedia] = useState(false);
 
-    // Consent form (Step 1: type only)
+  // Consent
   const [consent, setConsent] = useState<EncounterConsent | null>(null);
   const [consentLoading, setConsentLoading] = useState(false);
   const [consentSaving, setConsentSaving] = useState(false);
@@ -361,8 +361,7 @@ export default function EncounterAdminPage() {
     loadServices();
   }, []);
 
-
-      // --- Load nurses scheduled for this encounter's date/branch ---
+  // --- Load nurses scheduled for this encounter's date/branch ---
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
 
@@ -373,7 +372,6 @@ export default function EncounterAdminPage() {
         if (!res.ok || !data || !Array.isArray(data.items)) {
           return;
         }
-        // Map API response items to Nurse[]
         setAllNurses(
           data.items.map((it: any) => ({
             id: it.nurseId,
@@ -383,12 +381,13 @@ export default function EncounterAdminPage() {
           })) as Nurse[]
         );
       } catch {
-        // optional: log error; field is optional
+        // ignore
       }
     };
 
     loadNursesForEncounter();
   }, [encounterId]);
+
   // --- Load encounter (diagnoses + services + prescription) ---
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
@@ -445,7 +444,6 @@ export default function EncounterAdminPage() {
 
         setRows(initialRows);
 
-        // Prescription hydrate
         if (data.prescription && Array.isArray(data.prescription.items)) {
           setPrescriptionItems(
             data.prescription.items
@@ -488,7 +486,7 @@ export default function EncounterAdminPage() {
           data = null;
         }
         if (!res.ok || !Array.isArray(data)) {
-          throw new Error((data && data.error) || "Алдаа гарлаа");
+          throw new Error((data && data.error) || "Алдаа гарлаа";
         }
         setAllDiagnoses(data);
       } catch (err: any) {
@@ -509,9 +507,7 @@ export default function EncounterAdminPage() {
     setMediaLoading(true);
     setMediaError("");
     try {
-      const res = await fetch(
-        `/api/encounters/${encounterId}/media?type=XRAY`
-      );
+      const res = await fetch(`/api/encounters/${encounterId}/media?type=XRAY`);
       let data: any = null;
       try {
         data = await res.json();
@@ -546,7 +542,9 @@ export default function EncounterAdminPage() {
         const res = await fetch(`/api/encounters/${encounterId}/consent`);
         const data = await res.json().catch(() => null);
         if (!res.ok) {
-          throw new Error(data?.error || "Зөвшөөрлийн хуудас ачаалахад алдаа гарлаа.");
+          throw new Error(
+            data?.error || "Зөвшөөрлийн хуудас ачаалахад алдаа гарлаа."
+          );
         }
         if (data) {
           setConsent(data as EncounterConsent);
@@ -567,8 +565,7 @@ export default function EncounterAdminPage() {
     void loadConsent();
   }, [encounterId]);
 
-  
-  // --- Load media on first render / when encounterId changes ---
+  // --- Load media when encounterId changes ---
   useEffect(() => {
     void reloadMedia();
   }, [encounterId]);
@@ -635,12 +632,14 @@ export default function EncounterAdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type,
-          answers: consent?.answers ?? {}, // for now, keep existing answers or empty
+          answers: consent?.answers ?? {},
         }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error(data?.error || "Зөвшөөрлийн хуудас хадгалахад алдаа гарлаа.");
+        throw new Error(
+          data?.error || "Зөвшөөрлийн хуудас хадгалахад алдаа гарлаа."
+        );
       }
       setConsent(data || null);
     } catch (err: any) {
@@ -667,13 +666,12 @@ export default function EncounterAdminPage() {
     );
   };
 
-  // Save current consent state without changing type
   const saveCurrentConsent = async () => {
     if (!encounterId || Number.isNaN(encounterId)) return;
     if (!consent) return;
     await saveConsent(consent.type as ConsentType);
   };
-  
+
   const handleDiagnosisChange = async (index: number, diagnosisId: number) => {
     const dx = allDiagnoses.find((d) => d.id === diagnosisId);
     setRows((prev) =>
@@ -717,9 +715,7 @@ export default function EncounterAdminPage() {
 
   const handleDxToothCodeChange = (index: number, value: string) => {
     setRows((prev) =>
-      prev.map((row, i) =>
-        i === index ? { ...row, toothCode: value } : row
-      )
+      prev.map((row, i) => (i === index ? { ...row, toothCode: value } : row))
     );
   };
 
@@ -736,9 +732,7 @@ export default function EncounterAdminPage() {
             selectedProblemIds: r.selectedProblemIds,
             note: r.note || null,
             toothCode:
-              r.toothCode && r.toothCode.trim()
-                ? r.toothCode.trim()
-                : null,
+              r.toothCode && r.toothCode.trim() ? r.toothCode.trim() : null,
           })),
       };
 
@@ -837,8 +831,7 @@ export default function EncounterAdminPage() {
     }
   };
 
-
-    const handleChangeNurse = async (nurseIdStr: string) => {
+  const handleChangeNurse = async (nurseIdStr: string) => {
     if (!encounterId || Number.isNaN(encounterId)) return;
     setNurseSaving(true);
     try {
@@ -865,12 +858,11 @@ export default function EncounterAdminPage() {
       );
     } catch (err) {
       console.error("Failed to save nurse:", err);
-      // optional: set a local error message
     } finally {
       setNurseSaving(false);
     }
   };
-  
+
   // --- Prescription save ---
 
   const savePrescription = async () => {
@@ -991,7 +983,6 @@ export default function EncounterAdminPage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      // Use currently selected teeth as toothCode (optional)
       formData.append("toothCode", selectedTeeth.join(",") || "");
       formData.append("type", "XRAY");
 
@@ -1005,7 +996,6 @@ export default function EncounterAdminPage() {
         throw new Error(data?.error || "Зураг хадгалахад алдаа гарлаа.");
       }
 
-      // Backend returns created media row; append and/or refresh
       if (data && data.id) {
         setMedia((prev) => [data as EncounterMedia, ...prev]);
       } else {
@@ -1120,30 +1110,25 @@ export default function EncounterAdminPage() {
     }
   };
 
-
   const setCustomToothRange = (value: string) => {
-  const trimmed = value.trim();
+    const trimmed = value.trim();
 
-  if (activeRowIndex !== null) {
+    if (activeRowIndex !== null) {
+      setRows((prev) =>
+        prev.map((row, i) =>
+          i === activeRowIndex ? { ...row, toothCode: trimmed } : row
+        )
+      );
+      return;
+    }
+
+    const idx = createDiagnosisRow([]);
+    setActiveRowIndex(idx);
     setRows((prev) =>
-      prev.map((row, i) =>
-        i === activeRowIndex ? { ...row, toothCode: trimmed } : row
-      )
+      prev.map((row, i) => (i === idx ? { ...row, toothCode: trimmed } : row))
     );
-    return;
-  }
+  };
 
-  // If no active row yet, create one and set its toothCode
-  const idx = createDiagnosisRow([]);
-  setActiveRowIndex(idx);
-  setRows((prev) =>
-    prev.map((row, i) =>
-      i === idx ? { ...row, toothCode: trimmed } : row
-    )
-  );
-};
-
-  
   const toggleToothSelection = (code: string) => {
     setSelectedTeeth((prev) => {
       let next: string[];
@@ -1226,7 +1211,14 @@ export default function EncounterAdminPage() {
             <div style={{ marginBottom: 4 }}>
               <strong>Эмч:</strong> {formatDoctorName(encounter.doctor)}
             </div>
-                        <div style={{ marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+            <div
+              style={{
+                marginBottom: 4,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
               <strong>Сувилагч:</strong>
               {allNurses.length === 0 ? (
                 <span style={{ fontSize: 13, color: "#6b7280" }}>
@@ -1253,11 +1245,11 @@ export default function EncounterAdminPage() {
                 </select>
               )}
             </div>
-                        <div style={{ marginBottom: 4 }}>
+            <div style={{ marginBottom: 4 }}>
               <strong>Огноо:</strong> {formatDateTime(encounter.visitDate)}
             </div>
 
-                        {/* Consent form (step 1: enable + choose type) */}
+            {/* Consent form */}
             <div
               style={{
                 marginTop: 4,
@@ -1313,7 +1305,6 @@ export default function EncounterAdminPage() {
                 )}
               </div>
 
-              {/* Everything below only when consent exists */}
               {consent && (
                 <>
                   {/* Type selection */}
@@ -3456,7 +3447,7 @@ export default function EncounterAdminPage() {
                       </div>
                     )}
 
-                                       {/* 4. Согог засал – НАСЗ засал consent */}
+                                       {/* 4. Prosthodontic (NАСЗ) */}
                     {consent.type === "prosthodontic" && (
                       <div style={{ fontSize: 12, lineHeight: 1.5 }}>
                         <div
@@ -3470,7 +3461,6 @@ export default function EncounterAdminPage() {
                           НАСЗ заслын эмчилгээний танилцуулах зөвшөөрөл
                         </div>
 
-                        {/* 1. Гол тайлбар / ерөнхий мэдээлэл */}
                         <textarea
                           placeholder="Эмчилгээний ерөнхий тайлбар, зорилго, онцлог..."
                           value={consent.answers?.prosthoIntroText || ""}
@@ -3493,7 +3483,6 @@ export default function EncounterAdminPage() {
                           }}
                         />
 
-                        {/* 2. Хоёрдох удаагийн ирэлтээр */}
                         <div
                           style={{
                             fontWeight: 500,
@@ -3523,7 +3512,6 @@ export default function EncounterAdminPage() {
                           }}
                         />
 
-                        {/* 3. Эмчилгээний сул тал */}
                         <div
                           style={{
                             fontWeight: 500,
@@ -3553,7 +3541,6 @@ export default function EncounterAdminPage() {
                           }}
                         />
 
-                        {/* 4. Эмчилгээний явц */}
                         <div
                           style={{
                             fontWeight: 500,
@@ -3583,7 +3570,6 @@ export default function EncounterAdminPage() {
                           }}
                         />
 
-                        {/* 5. Эмчилгээний үнэ өртөг */}
                         <div
                           style={{
                             fontWeight: 500,
@@ -3613,7 +3599,6 @@ export default function EncounterAdminPage() {
                           }}
                         />
 
-                        {/* 6. Танилцах зөвшөөрлийг уншиж танилцсан */}
                         <div
                           style={{
                             fontWeight: 500,
@@ -3645,7 +3630,6 @@ export default function EncounterAdminPage() {
                           }}
                         />
 
-                        {/* 7. Эмчлэгч эмчийн хэсэг */}
                         <div
                           style={{
                             marginTop: 4,
@@ -3694,7 +3678,7 @@ export default function EncounterAdminPage() {
                     )}
                   </div>
 
-                  {/* Bottom button row: general save + send/edit */}
+                  {/* Bottom button row */}
                   <div
                     style={{
                       marginTop: 8,
