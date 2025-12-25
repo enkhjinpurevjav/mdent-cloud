@@ -3702,7 +3702,7 @@ export default function EncounterAdminPage() {
                         </div>
                       </div>
                     )}
-                  </div>
+                 
                 </>
   
               )}
