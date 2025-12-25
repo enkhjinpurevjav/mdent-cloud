@@ -3446,19 +3446,29 @@ export default function EncounterAdminPage() {
                       </div>
                     )}
 
-                    {/* 4. Согог засал – basic fields */}
+                                       {/* 4. Согог засал – НАСЗ засал consent */}
                     {consent.type === "prosthodontic" && (
-                      <>
-                        <div style={{ marginBottom: 4 }}>
-                          Согог заслын үед тохиролцсон нөхцөл, онцгой заалтуудыг
-                          энд тэмдэглэнэ.
+                      <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                        <div
+                          style={{
+                            textAlign: "center",
+                            fontWeight: 700,
+                            fontSize: 14,
+                            marginBottom: 12,
+                          }}
+                        >
+                          НАСЗ заслын эмчилгээний танилцуулах зөвшөөрөл
                         </div>
+
+                        {/* 1. Гол тайлбар / ерөнхий мэдээлэл */}
                         <textarea
-                          placeholder="Нөхцөл, тайлбар"
-                          value={consent.answers?.conditions || ""}
+                          placeholder="Эмчилгээний ерөнхий тайлбар, зорилго, онцлог..."
+                          value={
+                            consent.answers?.prosthoIntroText || ""
+                          }
                           onChange={(e) =>
                             updateConsentAnswers({
-                              conditions: e.target.value,
+                              prosthoIntroText: e.target.value,
                             })
                           }
                           onBlur={async () => {
@@ -3469,10 +3479,221 @@ export default function EncounterAdminPage() {
                             width: "100%",
                             borderRadius: 6,
                             border: "1px solid #d1d5db",
-                            padding: "4px 6px",
+                            padding: "4px 8px",
+                            fontSize: 12,
+                            marginBottom: 10,
                           }}
                         />
-                      </>
+
+                        {/* 2. Хоёрдох удаагийн ирэлтээр */}
+                        <div
+                          style={{
+                            fontWeight: 500,
+                            marginBottom: 2,
+                          }}
+                        >
+                          Хоёрдох удаагийн ирэлтээр:
+                        </div>
+                        <textarea
+                          value={
+                            consent.answers?.prosthoSecondVisit || ""
+                          }
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              prosthoSecondVisit: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsent(consent.type);
+                          }}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 8px",
+                            fontSize: 12,
+                            marginBottom: 10,
+                          }}
+                        />
+
+                        {/* 3. Эмчилгээний сул тал */}
+                        <div
+                          style={{
+                            fontWeight: 500,
+                            marginBottom: 2,
+                          }}
+                        >
+                          Эмчилгээний сул тал:
+                        </div>
+                        <textarea
+                          value={
+                            consent.answers?.prosthoWeakPoints || ""
+                          }
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              prosthoWeakPoints: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsent(consent.type);
+                          }}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 8px",
+                            fontSize: 12,
+                            marginBottom: 10,
+                          }}
+                        />
+
+                        {/* 4. Эмчилгээний явц */}
+                        <div
+                          style={{
+                            fontWeight: 500,
+                            marginBottom: 2,
+                          }}
+                        >
+                          Эмчилгээний явц:
+                        </div>
+                        <textarea
+                          value={
+                            consent.answers?.prosthoCourse || ""
+                          }
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              prosthoCourse: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsent(consent.type);
+                          }}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 8px",
+                            fontSize: 12,
+                            marginBottom: 10,
+                          }}
+                        />
+
+                        {/* 5. Эмчилгээний үнэ өртөг */}
+                        <div
+                          style={{
+                            fontWeight: 500,
+                            marginBottom: 2,
+                          }}
+                        >
+                          Эмчилгээний үнэ өртөг:
+                        </div>
+                        <textarea
+                          value={
+                            consent.answers?.prosthoCost || ""
+                          }
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              prosthoCost: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsent(consent.type);
+                          }}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 8px",
+                            fontSize: 12,
+                            marginBottom: 10,
+                          }}
+                        />
+
+                        {/* 6. Танилцах зөвшөөрлийг уншиж танилцсан */}
+                        <div
+                          style={{
+                            fontWeight: 500,
+                            marginBottom: 2,
+                          }}
+                        >
+                          Танилцах зөвшөөрлийг уншиж танилцсан:
+                        </div>
+                        <textarea
+                          value={
+                            consent.answers?.prosthoAcknowledgement ||
+                            ""
+                          }
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              prosthoAcknowledgement: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsent(consent.type);
+                          }}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 8px",
+                            fontSize: 12,
+                            marginBottom: 12,
+                          }}
+                        />
+
+                        {/* 7. Эмчлэгч эмчийн хэсэг – signature + name + date from encounter */}
+                        <div
+                          style={{
+                            marginTop: 4,
+                            fontSize: 12,
+                          }}
+                        >
+                          <div style={{ marginBottom: 6 }}>
+                            Эмчлэгч эмч:{" "}
+                            <input
+                              type="text"
+                              placeholder="гарын үсэг"
+                              value={
+                                consent.answers
+                                  ?.prosthoDoctorSignature || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  prosthoDoctorSignature:
+                                    e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              style={{
+                                minWidth: 120,
+                                borderRadius: 4,
+                                border: "1px solid #d1d5db",
+                                padding: "0 6px",
+                                fontSize: 12,
+                                marginRight: 6,
+                              }}
+                            />
+                            /{" "}
+                            <strong>
+                              {formatDoctorDisplayName(encounter.doctor)}
+                            </strong>
+                          </div>
+
+                          <div>
+                            Огноо:{" "}
+                            <strong>
+                              {formatShortDate(encounter.visitDate)}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </>
