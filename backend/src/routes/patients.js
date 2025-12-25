@@ -1,5 +1,7 @@
 import express from "express";
 import prisma from "../db.js";
+import multer from "multer";          
+import path from "path";
 
 const router = express.Router();
 
@@ -416,4 +418,125 @@ router.get("/visit-card/by-book/:bookNumber", async (req, res) => {
       .json({ error: "failed to load visit card for patient" });
   }
 });
+
+// PUT /api/patients/visit-card/:patientBookId
+// Body: { type: "ADULT" | "CHILD", answers: object, signed?: boolean }
+router.put("/visit-card/:patientBookId", async (req, res) => {
+  try {
+    const patientBookId = Number(req.params.patientBookId);
+    if (!patientBookId || Number.isNaN(patientBookId)) {
+      return res.status(400).json({ error: "Invalid patientBookId" });
+    }
+
+    const { type, answers, signed } = req.body || {};
+    if (type !== "ADULT" && type !== "CHILD") {
+      return res
+        .status(400)
+        .json({ error: "type must be 'ADULT' or 'CHILD'" });
+    }
+
+    // Ensure patientBook exists
+    const pb = await prisma.patientBook.findUnique({
+      where: { id: patientBookId },
+      select: { id: true },
+    });
+    if (!pb) {
+      return res.status(404).json({ error: "PatientBook not found" });
+    }
+
+    const now = new Date();
+
+    const existing = await prisma.visitCard.findUnique({
+      where: { patientBookId },
+    });
+
+    let visitCard;
+    if (!existing) {
+      visitCard = await prisma.visitCard.create({
+        data: {
+          patientBookId,
+          type,
+          answers: answers ?? {},
+          signedAt: signed ? now : null,
+        },
+      });
+    } else {
+      // Do not allow type switch after first save to avoid mixing forms
+      visitCard = await prisma.visitCard.update({
+        where: { patientBookId },
+        data: {
+          answers: answers ?? {},
+          signedAt: signed ? existing.signedAt || now : existing.signedAt,
+        },
+      });
+    }
+
+    return res.json({ visitCard });
+  } catch (err) {
+    console.error("PUT /api/patients/visit-card/:patientBookId error:", err);
+    return res.status(500).json({ error: "failed to save visit card" });
+  }
+
+  
+});
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname) || ".png";
+    const base = path
+      .basename(file.originalname, ext)
+      .replace(/\s+/g, "_")
+      .replace(/[^a-zA-Z0-9_\-]/g, "");
+    const ts = Date.now();
+    cb(null, `${base}_visitcard_${ts}${ext}`);
+  },
+});
+
+const upload = multer({ storage });
+
+// POST /api/patients/visit-card/:patientBookId/signature
+router.post(
+  "/visit-card/:patientBookId/signature",
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      const patientBookId = Number(req.params.patientBookId);
+      if (!patientBookId || Number.isNaN(patientBookId)) {
+        return res.status(400).json({ error: "Invalid patientBookId" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ error: "file is required" });
+      }
+
+      const publicPath = `/media/${path.basename(req.file.path)}`;
+
+      const existing = await prisma.visitCard.findUnique({
+        where: { patientBookId },
+      });
+      if (!existing) {
+        return res.status(404).json({ error: "Visit card not found" });
+      }
+
+      const updated = await prisma.visitCard.update({
+        where: { patientBookId },
+        data: {
+          patientSignaturePath: publicPath,
+          signedAt: existing.signedAt || new Date(),
+        },
+      });
+
+      return res.status(201).json({
+        patientSignaturePath: updated.patientSignaturePath,
+        signedAt: updated.signedAt,
+      });
+    } catch (err) {
+      console.error(
+        "POST /api/patients/visit-card/:patientBookId/signature error:",
+        err
+      );
+      return res.status(500).json({ error: "failed to save signature" });
+    }
+  }
+);
 export default router;
