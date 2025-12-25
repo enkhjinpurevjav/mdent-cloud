@@ -3754,7 +3754,7 @@ export default function EncounterAdminPage() {
                   </button>
                 </div>
   </>
-              )}
+             
        </div>
               
      
