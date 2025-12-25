@@ -1766,6 +1766,43 @@ const handleEditChange = (
                 />
               )}
             </div>
+
+            {/* Extra notes for dentist during treatment */}
+            <div
+              style={{
+                borderTop: "1px dashed #e5e7eb",
+                paddingTop: 8,
+                marginTop: 4,
+              }}
+            >
+              <div
+                style={{
+                  color: "#6b7280",
+                  marginBottom: 4,
+                  fontWeight: 500,
+                }}
+              >
+                Шүдний эмчилгээний үед эмчийн зүгээс анхаарах зүйлс:
+              </div>
+              <textarea
+                rows={3}
+                value={visitCardAnswers.dentistAttentionNotes || ""}
+                onChange={(e) =>
+                  updateVisitCardAnswer(
+                    "dentistAttentionNotes",
+                    e.target.value
+                  )
+                }
+                style={{
+                  width: "100%",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                  resize: "vertical",
+                }}
+              />
+            </div>
+            
           </div>
         
         </section>
