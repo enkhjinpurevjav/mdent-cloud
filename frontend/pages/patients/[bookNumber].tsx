@@ -1678,6 +1678,7 @@ const handleEditChange = (
             </div>
 
             {/* Q2: Өмнө шүдний эмчилгээ хийлгэхэд ... */}
+                        {/* Q2: Өмнө шүдний эмчилгээ хийлгэхэд ... */}
             <div>
               <div
                 style={{
@@ -1697,8 +1698,12 @@ const handleEditChange = (
                     name="prevComplication"
                     value="no"
                     checked={
-                      !visitCardAnswers.previousDentalVisit
-                        ?.reactionOrComplication
+                      visitCardAnswers.previousDentalVisit?.reactionOrComplication ===
+                        undefined ||
+                      visitCardAnswers.previousDentalVisit?.reactionOrComplication ===
+                        null ||
+                      visitCardAnswers.previousDentalVisit?.reactionOrComplication ===
+                        ""
                     }
                     onChange={() =>
                       updateNested(
@@ -1717,30 +1722,34 @@ const handleEditChange = (
                     type="radio"
                     name="prevComplication"
                     value="yes"
-                    checked={Boolean(
+                    checked={
                       visitCardAnswers.previousDentalVisit
-                        ?.reactionOrComplication
-                    )}
-                    onChange={() => {
-                      // if switching to Тийм and field is empty, initialize as empty string
-                      if (
-                        !visitCardAnswers.previousDentalVisit
-                          ?.reactionOrComplication
-                      ) {
-                        updateNested(
-                          "previousDentalVisit",
-                          "reactionOrComplication",
-                          ""
-                        );
-                      }
-                    }}
+                        ?.reactionOrComplication !== "" &&
+                      visitCardAnswers.previousDentalVisit
+                        ?.reactionOrComplication !== undefined &&
+                      visitCardAnswers.previousDentalVisit
+                        ?.reactionOrComplication !== null
+                    }
+                    onChange={() =>
+                      updateNested(
+                        "previousDentalVisit",
+                        "reactionOrComplication",
+                        visitCardAnswers.previousDentalVisit
+                          ?.reactionOrComplication || ""
+                      )
+                    }
                   />
                   <span>Тийм</span>
                 </label>
               </div>
 
-              {Boolean(
-                visitCardAnswers.previousDentalVisit?.reactionOrComplication
+              {(
+                visitCardAnswers.previousDentalVisit
+                  ?.reactionOrComplication !== "" &&
+                visitCardAnswers.previousDentalVisit
+                  ?.reactionOrComplication !== undefined &&
+                visitCardAnswers.previousDentalVisit
+                  ?.reactionOrComplication !== null
               ) && (
                 <textarea
                   rows={2}
