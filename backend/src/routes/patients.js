@@ -381,4 +381,39 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
   }
 });
 
+
+// GET /api/patients/visit-card/by-book/:bookNumber
+router.get("/visit-card/by-book/:bookNumber", async (req, res) => {
+  try {
+    const { bookNumber } = req.params;
+    if (!bookNumber) {
+      return res.status(400).json({ error: "bookNumber is required" });
+    }
+
+    const pb = await prisma.patientBook.findUnique({
+      where: { bookNumber },
+      include: {
+        visitCard: true,
+        patient: {
+          include: { branch: true },
+        },
+      },
+    });
+
+    if (!pb || !pb.patient) {
+      return res.status(404).json({ error: "Patient not found" });
+    }
+
+    return res.json({
+      patientBook: { id: pb.id, bookNumber: pb.bookNumber },
+      patient: pb.patient,
+      visitCard: pb.visitCard, // may be null if not yet created
+    });
+  } catch (err) {
+    console.error("GET /api/patients/visit-card/by-book/:bookNumber error:", err);
+    return res
+      .status(500)
+      .json({ error: "failed to load visit card for patient" });
+  }
+});
 export default router;
