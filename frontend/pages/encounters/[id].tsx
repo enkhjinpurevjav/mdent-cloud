@@ -1305,7 +1305,7 @@ export default function EncounterAdminPage() {
                     (ачаалж байна...)
                   </span>
                 )}
-              </div>
+           
 
                             {consent && (
                 <>
@@ -3703,9 +3703,7 @@ export default function EncounterAdminPage() {
                       </div>
                     )}
                  
-                </>
-  
-              )}
+               
 
 {/* Bottom button row: general save + send/edit */}
               {consent && (
@@ -3754,7 +3752,7 @@ export default function EncounterAdminPage() {
                   </button>
                 </div>
   </>
-             
+     )}        
        </div>
               
      
