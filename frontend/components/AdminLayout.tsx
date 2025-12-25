@@ -13,17 +13,23 @@ type NavItem = {
   children?: NavItem[];
 };
 
-const mainNav: NavItem[] = [
-  // 1. Хянах самбар (already has its own single link below)
-  // 2. Цаг захиалах → just one submenu "Салбарууд" (we show existing appointments UI)
+// Main navigation structure based on your spreadsheet
+const navItems: NavItem[] = [
+  // 1. Хянах самбар (top-level link only, no submenu here)
+  {
+    label: "Хянах самбар",
+    href: "/",
+    icon: "🏠",
+  },
+
+  // 2. Цаг захиалах
   {
     label: "Цаг захиалах",
     icon: "📅",
     children: [
       {
         label: "Салбарууд",
-        href: "/appointments", // existing calendar, with branch filter inside
-        icon: "🏥",
+        href: "/appointments", // existing page; branch filter inside
       },
     ],
   },
@@ -33,22 +39,18 @@ const mainNav: NavItem[] = [
     label: "Үзлэг",
     icon: "📋",
     children: [
-      { label: "Цаг захиалсан", href: "/visits/booked", icon: "🕒" },
-      { label: "Үзлэг хийж буй", href: "/visits/ongoing", icon: "⏱" },
-      { label: "Дууссан", href: "/visits/completed", icon: "✅" },
+      { label: "Цаг захиалсан", href: "/visits/booked" },
+      { label: "Үзлэг хийж буй", href: "/visits/ongoing" },
+      { label: "Дууссан", href: "/visits/completed" },
     ],
   },
 
-  // 4. Үйлчлүүлэгчид (list of customers)
+  // 4. Үйлчлүүлэгчид
   {
     label: "Үйлчлүүлэгчид",
     icon: "👤",
     children: [
-      {
-        label: "List of customers",
-        href: "/patients",
-        icon: "📋",
-      },
+      { label: "List of customers", href: "/patients" },
     ],
   },
 
@@ -57,18 +59,13 @@ const mainNav: NavItem[] = [
     label: "Хүний нөөц",
     icon: "👥",
     children: [
-      { label: "Эмч", href: "/users/doctors", icon: "🩺" },
-      { label: "Ресепшн", href: "/users/reception", icon: "📞" },
-      { label: "Сувилагч", href: "/users/nurses", icon: "💉" },
-      { label: "Ажилтан", href: "/users/staff", icon: "🏢" },
-      // new / future pages – placeholders for now
-      {
-        label: "Ажлын анкет мэдээллийн сан",
-        href: "/hr/applicant-database",
-        icon: "📁",
-      },
-      { label: "Материал", href: "/hr/materials", icon: "📦" },
-      { label: "Тайлан харах", href: "/hr/reports", icon: "📊" },
+      { label: "Эмч", href: "/users/doctors" },
+      { label: "Ресепшн", href: "/users/reception" },
+      { label: "Сувилагч", href: "/users/nurses" },
+      { label: "Ажилтан", href: "/users/staff" },
+      { label: "Ажлын анкет мэдээллийн сан", href: "/hr/applicant-database" },
+      { label: "Материал", href: "/hr/materials" },
+      { label: "Тайлан харах", href: "/hr/reports" },
     ],
   },
 
@@ -77,16 +74,12 @@ const mainNav: NavItem[] = [
     label: "Санхүү",
     icon: "💰",
     children: [
-      { label: "Авлага", href: "/finance/debts", icon: "📄" },
-      { label: "Илүү төлөлт", href: "/finance/overpayments", icon: "➕" },
-      { label: "Бартер", href: "/finance/barter", icon: "🔄" },
-      { label: "Ажилчдын ваучер", href: "/finance/vouchers", icon: "🎟️" },
-      { label: "Ажилчдын тайлан", href: "/finance/staff-reports", icon: "👥" },
-      {
-        label: "Эмнэлгийн тайлан",
-        href: "/finance/clinic-reports",
-        icon: "🏥",
-      },
+      { label: "Авлага", href: "/finance/debts" },
+      { label: "Илүү төлөлт", href: "/finance/overpayments" },
+      { label: "Бартер", href: "/finance/barter" },
+      { label: "Ажилчдын ваучер", href: "/finance/vouchers" },
+      { label: "Ажилчдын тайлан", href: "/finance/staff-reports" },
+      { label: "Эмнэлгийн тайлан", href: "/finance/clinic-reports" },
     ],
   },
 
@@ -95,10 +88,10 @@ const mainNav: NavItem[] = [
     label: "Үйлчилгээ",
     icon: "🧾",
     children: [
-      { label: "Эмчилгээ үйлчилгээ", href: "/services", icon: "🦷" },
-      { label: "Бараа материал", href: "/inventory", icon: "📦" },
-      { label: "Жор", href: "/prescriptions", icon: "💊" },
-      { label: "Онош", href: "/diagnoses", icon: "🩻" },
+      { label: "Эмчилгээ үйлчилгээ", href: "/services" },
+      { label: "Бараа материал", href: "/inventory" },
+      { label: "Жор", href: "/prescriptions" },
+      { label: "Онош", href: "/diagnoses" },
     ],
   },
 
@@ -106,27 +99,21 @@ const mainNav: NavItem[] = [
   {
     label: "Төлбөрийн тохиргоо",
     icon: "💳",
-    children: [
-      { label: "Төлбөрийн тохиргоо", href: "/settings/payments", icon: "⚙️" },
-    ],
+    children: [{ label: "Төлбөрийн тохиргоо", href: "/settings/payments" }],
   },
 
   // 9. Салбарын тохиргоо
   {
     label: "Салбарын тохиргоо",
     icon: "🏥",
-    children: [
-      { label: "Салбарууд", href: "/branches", icon: "🏥" },
-    ],
+    children: [{ label: "Салбарууд", href: "/branches" }],
   },
 
   // 10. Үндсэн тайлан
   {
     label: "Үндсэн тайлан",
     icon: "📈",
-    children: [
-      { label: "Үндсэн тайлан", href: "/reports", icon: "📊" },
-    ],
+    children: [{ label: "Үндсэн тайлан", href: "/reports" }],
   },
 ];
 
@@ -134,73 +121,34 @@ export default function AdminLayout({ children }: Props) {
   const router = useRouter();
   const currentPath = router.pathname;
 
-  const [visitsOpen, setVisitsOpen] = useState(true);
-  const [appointmentsOpen, setAppointmentsOpen] = useState(true);
-  const [staffOpen, setStaffOpen] = useState(true);
-  const [hrOpen, setHrOpen] = useState(true);
-  const [financeOpen, setFinanceOpen] = useState(true);
-  const [servicesOpen, setServicesOpen] = useState(true);
-  const [settingsOpen, setSettingsOpen] = useState(true);
-  const [branchesCfgOpen, setBranchesCfgOpen] = useState(true);
-  const [mainReportOpen, setMainReportOpen] = useState(true);
+  // which main menu label is open (for dropdown)
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
 
-  const [branchItems, setBranchItems] = useState<{ id: string; name: string }[]>(
-    []
-  );
+  // Auto-open the group that contains the current path
+  useEffect(() => {
+    const found = navItems.find((item) => {
+      if (!item.children) return false;
+      return item.children.some((child) => {
+        if (!child.href) return false;
+        if (child.href === "/") return currentPath === "/";
+        return (
+          currentPath === child.href ||
+          currentPath.startsWith(child.href + "/")
+        );
+      });
+    });
+    if (found) {
+      setOpenGroup(found.label);
+    } else {
+      setOpenGroup(null);
+    }
+  }, [currentPath]);
 
   const isActive = (href?: string) => {
     if (!href) return false;
     if (href === "/") return currentPath === "/";
     return currentPath === href || currentPath.startsWith(href + "/");
   };
-
-  const isInVisitsGroup =
-    currentPath.startsWith("/visits/") || currentPath === "/visits";
-
-  const isInAppointmentsGroup =
-    currentPath === "/appointments" || currentPath.startsWith("/appointments/");
-
-  const isInHrGroup =
-    currentPath.startsWith("/users/") ||
-    currentPath.startsWith("/hr/") ||
-    currentPath === "/users" ||
-    currentPath === "/hr";
-
-  const isInFinanceGroup =
-    currentPath.startsWith("/finance/") || currentPath === "/finance";
-
-  const isInServicesGroup =
-    currentPath.startsWith("/services") ||
-    currentPath.startsWith("/inventory") ||
-    currentPath.startsWith("/prescriptions") ||
-    currentPath.startsWith("/diagnoses");
-
-  const isInPaymentSettingsGroup =
-    currentPath.startsWith("/settings/payments") ||
-    currentPath === "/settings";
-
-  const isInBranchesCfgGroup =
-    currentPath.startsWith("/branches") || currentPath === "/branches";
-
-  const isInMainReportGroup =
-    currentPath.startsWith("/reports") || currentPath === "/reports";
-
-  // Load branches once (still used for appointments "Салбарууд" filter)
-  useEffect(() => {
-    fetch("/api/branches")
-      .then((r) => r.json())
-      .then((data) => {
-        const mapped = (data || []).map((b: any) => ({
-          id: String(b.id),
-          name: b.name as string,
-        }));
-        setBranchItems(mapped);
-      })
-      .catch(() => setBranchItems([]));
-  }, []);
-
-  const activeBranchId =
-    typeof router.query.branchId === "string" ? router.query.branchId : "";
 
   return (
     <div
@@ -232,6 +180,7 @@ export default function AdminLayout({ children }: Props) {
             gap: 12,
           }}
         >
+          {/* Circle avatar with "M" */}
           <div
             style={{
               width: 40,
@@ -277,710 +226,122 @@ export default function AdminLayout({ children }: Props) {
             Цэс
           </div>
 
-          {/* 1. Хянах самбар (single item) */}
-          <div style={{ marginBottom: 4 }}>
-            <Link href="/" legacyBehavior>
-              <a
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "8px 12px",
-                  margin: "2px 4px",
-                  borderRadius: 8,
-                  textDecoration: "none",
-                  fontSize: 14,
-                  color: isActive("/") ? "#111827" : "#374151",
-                  background: isActive("/") ? "#e5f0ff" : "transparent",
-                  fontWeight: isActive("/") ? 600 : 400,
-                }}
-              >
-                <span style={{ width: 18, textAlign: "center" }}>🏠</span>
-                <span>Хянах самбар</span>
-              </a>
-            </Link>
-          </div>
-
-          {/* 2–10 menu groups from mainNav */}
-          {mainNav.map((item) => {
-            // Цаг захиалах group: we keep extra dynamic branch list for /appointments
-            if (item.label === "Цаг захиалах") {
+          {navItems.map((item) => {
+            // Case 1: top-level direct link (Хянах самбар)
+            if (!item.children && item.href) {
+              const active = isActive(item.href);
               return (
-                <div key="appointments-group" style={{ marginBottom: 4 }}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setAppointmentsOpen((open) => !open)
-                    }
-                    style={{
-                      width: "100%",
-                      border: "none",
-                      background: "transparent",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 12px",
-                      margin: "2px 4px",
-                      borderRadius: 8,
-                      cursor: "pointer",
-                      fontSize: 14,
-                      color: isInAppointmentsGroup ? "#111827" : "#374151",
-                      fontWeight: isInAppointmentsGroup ? 600 : 500,
-                    }}
-                  >
-                    <div
+                <div key={item.label} style={{ marginBottom: 4 }}>
+                  <Link href={item.href} legacyBehavior>
+                    <a
                       style={{
                         display: "flex",
                         alignItems: "center",
                         gap: 8,
+                        padding: "8px 12px",
+                        margin: "2px 4px",
+                        borderRadius: 12,
+                        textDecoration: "none",
+                        fontSize: 14,
+                        color: active ? "#0f172a" : "#1f2937",
+                        background: active ? "#e5f0ff" : "transparent",
+                        fontWeight: active ? 600 : 500,
                       }}
                     >
-                      <span style={{ width: 18, textAlign: "center" }}>
+                      <span style={{ width: 20, textAlign: "center" }}>
                         {item.icon ?? "•"}
                       </span>
                       <span>{item.label}</span>
-                    </div>
-                    <span style={{ fontSize: 12 }}>
-                      {appointmentsOpen ? "▾" : "▸"}
-                    </span>
-                  </button>
-
-                  {appointmentsOpen && (
-                    <div style={{ marginLeft: 24, marginTop: 4 }}>
-                      {/* Submenu: Салбарууд (all branches) */}
-                      <div style={{ marginBottom: 2 }}>
-                        <Link href="/appointments" legacyBehavior>
-                          <a
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
-                              padding: "6px 8px",
-                              borderRadius: 6,
-                              textDecoration: "none",
-                              fontSize: 13,
-                              color:
-                                currentPath === "/appointments" &&
-                                !activeBranchId
-                                  ? "#1d4ed8"
-                                  : "#4b5563",
-                              backgroundColor:
-                                currentPath === "/appointments" &&
-                                !activeBranchId
-                                  ? "#eff6ff"
-                                  : "transparent",
-                              fontWeight:
-                                currentPath === "/appointments" &&
-                                !activeBranchId
-                                  ? 600
-                                  : 400,
-                            }}
-                          >
-                            <span
-                              style={{
-                                width: 18,
-                                textAlign: "center",
-                              }}
-                            >
-                              🏥
-                            </span>
-                            <span>Салбарууд</span>
-                          </a>
-                        </Link>
-                      </div>
-
-                      {/* Dynamic branches (existing behaviour) */}
-                      {branchItems.map((b) => {
-                        const href = `/appointments?branchId=${encodeURIComponent(
-                          b.id
-                        )}`;
-                        const isActiveBranch =
-                          currentPath === "/appointments" &&
-                          activeBranchId === b.id;
-
-                        return (
-                          <div key={b.id} style={{ marginBottom: 2 }}>
-                            <Link href={href} legacyBehavior>
-                              <a
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 6,
-                                  padding: "6px 8px",
-                                  borderRadius: 6,
-                                  textDecoration: "none",
-                                  fontSize: 13,
-                                  color: isActiveBranch
-                                    ? "#1d4ed8"
-                                    : "#4b5563",
-                                  backgroundColor: isActiveBranch
-                                    ? "#eff6ff"
-                                    : "transparent",
-                                  fontWeight: isActiveBranch ? 600 : 400,
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    width: 18,
-                                    textAlign: "center",
-                                  }}
-                                >
-                                  🏥
-                                </span>
-                                <span>{b.name}</span>
-                              </a>
-                            </Link>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                    </a>
+                  </Link>
                 </div>
               );
             }
 
-            // Үзлэг group
-            if (item.label === "Үзлэг" && item.children) {
-              return (
-                <div key="visits-group">
-                  <button
-                    type="button"
-                    onClick={() => setVisitsOpen((open) => !open)}
+            // Case 2: expandable group with children
+            const isOpen = openGroup === item.label;
+            const groupActive =
+              isOpen ||
+              (item.children ?? []).some((child) => isActive(child.href));
+
+            return (
+              <div key={item.label} style={{ marginBottom: 4 }}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenGroup((prev) =>
+                      prev === item.label ? null : item.label
+                    )
+                  }
+                  style={{
+                    width: "100%",
+                    border: "none",
+                    background: "transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "8px 12px",
+                    margin: "2px 4px",
+                    borderRadius: 12,
+                    cursor: "pointer",
+                    fontSize: 14,
+                    color: groupActive ? "#0f172a" : "#1f2937",
+                    fontWeight: groupActive ? 600 : 500,
+                  }}
+                >
+                  <div
                     style={{
-                      width: "100%",
-                      border: "none",
-                      background: "transparent",
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 12px",
-                      margin: "2px 4px",
-                      borderRadius: 8,
-                      cursor: "pointer",
-                      fontSize: 14,
-                      color: isInVisitsGroup ? "#111827" : "#374151",
-                      fontWeight: isInVisitsGroup ? 600 : 500,
+                      gap: 8,
                     }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <span style={{ width: 18, textAlign: "center" }}>
-                        {item.icon ?? "•"}
-                      </span>
-                      <span>{item.label}</span>
-                    </div>
-                    <span style={{ fontSize: 12 }}>
-                      {visitsOpen ? "▾" : "▸"}
+                    <span style={{ width: 20, textAlign: "center" }}>
+                      {item.icon ?? "•"}
                     </span>
-                  </button>
+                    <span>{item.label}</span>
+                  </div>
+                  <span style={{ fontSize: 12, color: "#4b5563" }}>
+                    {isOpen ? "▾" : "▸"}
+                  </span>
+                </button>
 
-                  {visitsOpen &&
-                    item.children.map((child) => {
+                {isOpen && item.children && (
+                  <div style={{ marginTop: 2, marginLeft: 28 }}>
+                    {item.children.map((child) => {
                       const active = isActive(child.href);
                       return (
                         <Link
-                          key={child.href}
-                          href={child.href!}
+                          key={child.label}
+                          href={child.href || "#"}
                           legacyBehavior
                         >
                           <a
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              padding: "6px 12px 6px 32px",
-                              margin: "2px 4px",
+                              display: "block",
+                              padding: "6px 10px",
+                              margin: "1px 0",
                               borderRadius: 8,
                               textDecoration: "none",
                               fontSize: 13,
-                              color: active ? "#111827" : "#4b5563",
-                              background: active ? "#e5f0ff" : "transparent",
+                              color: active ? "#1d4ed8" : "#4b5563",
+                              background: active ? "#eff6ff" : "transparent",
                               fontWeight: active ? 600 : 400,
                             }}
                           >
-                            <span style={{ width: 18, textAlign: "center" }}>
-                              {child.icon ?? "•"}
-                            </span>
-                            <span>{child.label}</span>
+                            {child.label}
                           </a>
                         </Link>
                       );
                     })}
-                </div>
-              );
-            }
-
-            // Хүний нөөц group
-            if (item.label === "Хүний нөөц" && item.children) {
-              return (
-                <div key="hr-group">
-                  <button
-                    type="button"
-                    onClick={() => setHrOpen((open) => !open)}
-                    style={{
-                      width: "100%",
-                      border: "none",
-                      background: "transparent",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 12px",
-                      margin: "2px 4px",
-                      borderRadius: 8,
-                      cursor: "pointer",
-                      fontSize: 14,
-                      color: isInHrGroup ? "#111827" : "#374151",
-                      fontWeight: isInHrGroup ? 600 : 500,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <span style={{ width: 18, textAlign: "center" }}>
-                        {item.icon ?? "•"}
-                      </span>
-                      <span>{item.label}</span>
-                    </div>
-                    <span style={{ fontSize: 12 }}>
-                      {hrOpen ? "▾" : "▸"}
-                    </span>
-                  </button>
-
-                  {hrOpen &&
-                    item.children.map((child) => {
-                      const active = isActive(child.href);
-                      return (
-                        <Link
-                          key={child.href}
-                          href={child.href!}
-                          legacyBehavior
-                        >
-                          <a
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              padding: "6px 12px 6px 32px",
-                              margin: "2px 4px",
-                              borderRadius: 8,
-                              textDecoration: "none",
-                              fontSize: 13,
-                              color: active ? "#111827" : "#4b5563",
-                              background: active ? "#e5f0ff" : "transparent",
-                              fontWeight: active ? 600 : 400,
-                            }}
-                          >
-                            <span style={{ width: 18, textAlign: "center" }}>
-                              {child.icon ?? "•"}
-                            </span>
-                            <span>{child.label}</span>
-                          </a>
-                        </Link>
-                      );
-                    })}
-                </div>
-              );
-            }
-
-            // Санхүү group
-            if (item.label === "Санхүү" && item.children) {
-              return (
-                <div key="finance-group">
-                  <button
-                    type="button"
-                    onClick={() => setFinanceOpen((open) => !open)}
-                    style={{
-                      width: "100%",
-                      border: "none",
-                      background: "transparent",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 12px",
-                      margin: "2px 4px",
-                      borderRadius: 8,
-                      cursor: "pointer",
-                      fontSize: 14,
-                      color: isInFinanceGroup ? "#111827" : "#374151",
-                      fontWeight: isInFinanceGroup ? 600 : 500,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <span style={{ width: 18, textAlign: "center" }}>
-                        {item.icon ?? "•"}
-                      </span>
-                      <span>{item.label}</span>
-                    </div>
-                    <span style={{ fontSize: 12 }}>
-                      {financeOpen ? "▾" : "▸"}
-                    </span>
-                  </button>
-
-                  {financeOpen &&
-                    item.children.map((child) => {
-                      const active = isActive(child.href);
-                      return (
-                        <Link
-                          key={child.href}
-                          href={child.href!}
-                          legacyBehavior
-                        >
-                          <a
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              padding: "6px 12px 6px 32px",
-                              margin: "2px 4px",
-                              borderRadius: 8,
-                              textDecoration: "none",
-                              fontSize: 13,
-                              color: active ? "#111827" : "#4b5563",
-                              background: active ? "#e5f0ff" : "transparent",
-                              fontWeight: active ? 600 : 400,
-                            }}
-                          >
-                            <span style={{ width: 18, textAlign: "center" }}>
-                              {child.icon ?? "•"}
-                            </span>
-                            <span>{child.label}</span>
-                          </a>
-                        </Link>
-                      );
-                    })}
-                </div>
-              );
-            }
-
-            // Үйлчилгээ group
-            if (item.label === "Үйлчилгээ" && item.children) {
-              return (
-                <div key="services-group">
-                  <button
-                    type="button"
-                    onClick={() => setServicesOpen((open) => !open)}
-                    style={{
-                      width: "100%",
-                      border: "none",
-                      background: "transparent",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 12px",
-                      margin: "2px 4px",
-                      borderRadius: 8,
-                      cursor: "pointer",
-                      fontSize: 14,
-                      color: isInServicesGroup ? "#111827" : "#374151",
-                      fontWeight: isInServicesGroup ? 600 : 500,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <span style={{ width: 18, textAlign: "center" }}>
-                        {item.icon ?? "•"}
-                      </span>
-                      <span>{item.label}</span>
-                    </div>
-                    <span style={{ fontSize: 12 }}>
-                      {servicesOpen ? "▾" : "▸"}
-                    </span>
-                  </button>
-
-                  {servicesOpen &&
-                    item.children.map((child) => {
-                      const active = isActive(child.href);
-                      return (
-                        <Link
-                          key={child.href}
-                          href={child.href!}
-                          legacyBehavior
-                        >
-                          <a
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              padding: "6px 12px 6px 32px",
-                              margin: "2px 4px",
-                              borderRadius: 8,
-                              textDecoration: "none",
-                              fontSize: 13,
-                              color: active ? "#111827" : "#4b5563",
-                              background: active ? "#e5f0ff" : "transparent",
-                              fontWeight: active ? 600 : 400,
-                            }}
-                          >
-                            <span style={{ width: 18, textAlign: "center" }}>
-                              {child.icon ?? "•"}
-                            </span>
-                            <span>{child.label}</span>
-                          </a>
-                        </Link>
-                      );
-                    })}
-                </div>
-              );
-            }
-
-            // Төлбөрийн тохиргоо
-            if (item.label === "Төлбөрийн тохиргоо" && item.children) {
-              return (
-                <div key="payment-settings-group">
-                  <button
-                    type="button"
-                    onClick={() => setSettingsOpen((open) => !open)}
-                    style={{
-                      width: "100%",
-                      border: "none",
-                      background: "transparent",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 12px",
-                      margin: "2px 4px",
-                      borderRadius: 8,
-                      cursor: "pointer",
-                      fontSize: 14,
-                      color: isInPaymentSettingsGroup
-                        ? "#111827"
-                        : "#374151",
-                      fontWeight: isInPaymentSettingsGroup ? 600 : 500,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <span style={{ width: 18, textAlign: "center" }}>
-                        {item.icon ?? "•"}
-                      </span>
-                      <span>{item.label}</span>
-                    </div>
-                    <span style={{ fontSize: 12 }}>
-                      {settingsOpen ? "▾" : "▸"}
-                    </span>
-                  </button>
-
-                  {settingsOpen &&
-                    item.children.map((child) => {
-                      const active = isActive(child.href);
-                      return (
-                        <Link
-                          key={child.href}
-                          href={child.href!}
-                          legacyBehavior
-                        >
-                          <a
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              padding: "6px 12px 6px 32px",
-                              margin: "2px 4px",
-                              borderRadius: 8,
-                              textDecoration: "none",
-                              fontSize: 13,
-                              color: active ? "#111827" : "#4b5563",
-                              background: active ? "#e5f0ff" : "transparent",
-                              fontWeight: active ? 600 : 400,
-                            }}
-                          >
-                            <span style={{ width: 18, textAlign: "center" }}>
-                              {child.icon ?? "•"}
-                            </span>
-                            <span>{child.label}</span>
-                          </a>
-                        </Link>
-                      );
-                    })}
-                </div>
-              );
-            }
-
-            // Салбарын тохиргоо
-            if (item.label === "Салбарын тохиргоо" && item.children) {
-              return (
-                <div key="branches-config-group">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setBranchesCfgOpen((open) => !open)
-                    }
-                    style={{
-                      width: "100%",
-                      border: "none",
-                      background: "transparent",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 12px",
-                      margin: "2px 4px",
-                      borderRadius: 8,
-                      cursor: "pointer",
-                      fontSize: 14,
-                      color: isInBranchesCfgGroup ? "#111827" : "#374151",
-                      fontWeight: isInBranchesCfgGroup ? 600 : 500,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <span style={{ width: 18, textAlign: "center" }}>
-                        {item.icon ?? "•"}
-                      </span>
-                      <span>{item.label}</span>
-                    </div>
-                    <span style={{ fontSize: 12 }}>
-                      {branchesCfgOpen ? "▾" : "▸"}
-                    </span>
-                  </button>
-
-                  {branchesCfgOpen &&
-                    item.children.map((child) => {
-                      const active = isActive(child.href);
-                      return (
-                        <Link
-                          key={child.href}
-                          href={child.href!}
-                          legacyBehavior
-                        >
-                          <a
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              padding: "6px 12px 6px 32px",
-                              margin: "2px 4px",
-                              borderRadius: 8,
-                              textDecoration: "none",
-                              fontSize: 13,
-                              color: active ? "#111827" : "#4b5563",
-                              background: active ? "#e5f0ff" : "transparent",
-                              fontWeight: active ? 600 : 400,
-                            }}
-                          >
-                            <span style={{ width: 18, textAlign: "center" }}>
-                              {child.icon ?? "•"}
-                            </span>
-                            <span>{child.label}</span>
-                          </a>
-                        </Link>
-                      );
-                    })}
-                </div>
-              );
-            }
-
-            // Үндсэн тайлан
-            if (item.label === "Үндсэн тайлан" && item.children) {
-              return (
-                <div key="main-report-group">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setMainReportOpen((open) => !open)
-                    }
-                    style={{
-                      width: "100%",
-                      border: "none",
-                      background: "transparent",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "8px 12px",
-                      margin: "2px 4px",
-                      borderRadius: 8,
-                      cursor: "pointer",
-                      fontSize: 14,
-                      color: isInMainReportGroup ? "#111827" : "#374151",
-                      fontWeight: isInMainReportGroup ? 600 : 500,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <span style={{ width: 18, textAlign: "center" }}>
-                        {item.icon ?? "•"}
-                      </span>
-                      <span>{item.label}</span>
-                    </div>
-                    <span style={{ fontSize: 12 }}>
-                      {mainReportOpen ? "▾" : "▸"}
-                    </span>
-                  </button>
-
-                  {mainReportOpen &&
-                    item.children.map((child) => {
-                      const active = isActive(child.href);
-                      return (
-                        <Link
-                          key={child.href}
-                          href={child.href!}
-                          legacyBehavior
-                        >
-                          <a
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              padding: "6px 12px 6px 32px",
-                              margin: "2px 4px",
-                              borderRadius: 8,
-                              textDecoration: "none",
-                              fontSize: 13,
-                              color: active ? "#111827" : "#4b5563",
-                              background: active ? "#e5f0ff" : "transparent",
-                              fontWeight: active ? 600 : 400,
-                            }}
-                          >
-                            <span style={{ width: 18, textAlign: "center" }}>
-                              {child.icon ?? "•"}
-                            </span>
-                            <span>{child.label}</span>
-                          </a>
-                        </Link>
-                      );
-                    })}
-                </div>
-              );
-            }
-
-            return null;
+                  </div>
+                )}
+              </div>
+            );
           })}
         </nav>
 
+        {/* Sidebar footer */}
         <div
           style={{
             padding: "10px 12px",
@@ -993,7 +354,7 @@ export default function AdminLayout({ children }: Props) {
         </div>
       </aside>
 
-      {/* RIGHT SIDE */}
+      {/* RIGHT SIDE: TOP BAR + PAGE CONTENT (unchanged from your current layout) */}
       <div
         style={{
           flex: 1,
@@ -1002,9 +363,114 @@ export default function AdminLayout({ children }: Props) {
           minWidth: 0,
         }}
       >
-        {/* Top bar stays unchanged */}
-        {/* ... existing header + main content ... */}
-        {/* (keep your current header and main from the working file) */}
+        <header
+          style={{
+            height: 64,
+            background: "#061325",
+            color: "white",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 24px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <img
+              src="/logo-mdent.png"
+              alt="M Dent Software logo"
+              style={{
+                height: 44,
+                width: 44,
+                objectFit: "contain",
+                display: "block",
+              }}
+            />
+            <span
+              style={{
+                fontWeight: 600,
+                fontSize: 22,
+              }}
+            >
+              <span style={{ color: "#f97316" }}>M</span> Dent Software
+              Solution
+            </span>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <button
+              type="button"
+              style={{
+                position: "relative",
+                width: 32,
+                height: 32,
+                borderRadius: "999px",
+                border: "none",
+                background: "rgba(15,23,42,0.4)",
+                color: "white",
+                cursor: "pointer",
+              }}
+            >
+              🔔
+              <span
+                style={{
+                  position: "absolute",
+                  top: 4,
+                  right: 4,
+                  width: 10,
+                  height: 10,
+                  borderRadius: "999px",
+                  background: "#ef4444",
+                  border: "1px solid white",
+                }}
+              />
+            </button>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 13,
+              }}
+            >
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "white",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#1d4ed8",
+                  fontWeight: 700,
+                }}
+              >
+                E
+              </div>
+              <div>
+                <div style={{ fontWeight: 500 }}>Enkhjin</div>
+                <div style={{ fontSize: 11, opacity: 0.9 }}>Админ</div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main
+          style={{
+            flex: 1,
+            padding: 20,
+            overflow: "auto",
+          }}
+        >
+          {children}
+        </main>
       </div>
     </div>
   );
