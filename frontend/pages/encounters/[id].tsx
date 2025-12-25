@@ -3753,10 +3753,11 @@ export default function EncounterAdminPage() {
                       : "Зөвшөөрөл илгээх / засах"}
                   </button>
                 </div>
+  </>
               )}
        </div>
               
-            </div>
+     
 
             {encounter.notes && (
               <div style={{ marginTop: 4 }}>
