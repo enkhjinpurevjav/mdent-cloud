@@ -23,30 +23,15 @@ const navItems: NavItem[] = [
   },
 
   // 2. Цаг захиалах
-  {
+    {
     label: "Цаг захиалах",
     icon: "📅",
-    // children rendered, but we also add the 4 fixed branches plus dynamic list below
     children: [
       {
+        // only "Бүх салбар" is fixed; individual branches come from backend
         label: "Бүх салбар",
         href: "/appointments",
         icon: "📅",
-      },
-      {
-        label: "Төв салбар",
-        href: "/appointments?branchId=1",
-        icon: "🏥",
-      },
-      {
-        label: "Марал салбар",
-        href: "/appointments?branchId=2",
-        icon: "🏥",
-      },
-      {
-        label: "Белла салбар",
-        href: "/appointments?branchId=3",
-        icon: "🏥",
       },
     ],
   },
