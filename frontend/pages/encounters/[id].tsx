@@ -666,6 +666,13 @@ export default function EncounterAdminPage() {
         : prev
     );
   };
+
+  // Save current consent state without changing type
+  const saveCurrentConsent = async () => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+    if (!consent) return;
+    await saveConsent(consent.type as ConsentType);
+  };
   
   const handleDiagnosisChange = async (index: number, diagnosisId: number) => {
     const dx = allDiagnoses.find((d) => d.id === diagnosisId);
