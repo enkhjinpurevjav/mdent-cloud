@@ -83,6 +83,7 @@ type VisitCardAnswers = {
     hasVisited?: "yes" | "no";
     clinicName?: string;
     reactionOrComplication?: string;
+    hadComplication?: "yes" | "no";
   };
 
   generalMedical?: {
@@ -1677,8 +1678,7 @@ const handleEditChange = (
               )}
             </div>
 
-            {/* Q2: Өмнө шүдний эмчилгээ хийлгэхэд ... */}
-                        {/* Q2: Өмнө шүдний эмчилгээ хийлгэхэд ... */}
+                       {/* Q2: Өмнө шүдний эмчилгээ хийлгэхэд ... */}
             <div>
               <div
                 style={{
@@ -1698,20 +1698,22 @@ const handleEditChange = (
                     name="prevComplication"
                     value="no"
                     checked={
-                      visitCardAnswers.previousDentalVisit?.reactionOrComplication ===
-                        undefined ||
-                      visitCardAnswers.previousDentalVisit?.reactionOrComplication ===
-                        null ||
-                      visitCardAnswers.previousDentalVisit?.reactionOrComplication ===
-                        ""
+                      visitCardAnswers.previousDentalVisit?.hadComplication ===
+                        "no" ||
+                      !visitCardAnswers.previousDentalVisit?.hadComplication
                     }
-                    onChange={() =>
+                    onChange={() => {
+                      updateNested(
+                        "previousDentalVisit",
+                        "hadComplication",
+                        "no"
+                      );
                       updateNested(
                         "previousDentalVisit",
                         "reactionOrComplication",
                         ""
-                      )
-                    }
+                      );
+                    }}
                   />
                   <span>Үгүй</span>
                 </label>
@@ -1723,19 +1725,14 @@ const handleEditChange = (
                     name="prevComplication"
                     value="yes"
                     checked={
-                      visitCardAnswers.previousDentalVisit
-                        ?.reactionOrComplication !== "" &&
-                      visitCardAnswers.previousDentalVisit
-                        ?.reactionOrComplication !== undefined &&
-                      visitCardAnswers.previousDentalVisit
-                        ?.reactionOrComplication !== null
+                      visitCardAnswers.previousDentalVisit?.hadComplication ===
+                      "yes"
                     }
                     onChange={() =>
                       updateNested(
                         "previousDentalVisit",
-                        "reactionOrComplication",
-                        visitCardAnswers.previousDentalVisit
-                          ?.reactionOrComplication || ""
+                        "hadComplication",
+                        "yes"
                       )
                     }
                   />
@@ -1743,16 +1740,11 @@ const handleEditChange = (
                 </label>
               </div>
 
-              {(
-                visitCardAnswers.previousDentalVisit
-                  ?.reactionOrComplication !== "" &&
-                visitCardAnswers.previousDentalVisit
-                  ?.reactionOrComplication !== undefined &&
-                visitCardAnswers.previousDentalVisit
-                  ?.reactionOrComplication !== null
-              ) && (
+              {visitCardAnswers.previousDentalVisit?.hadComplication ===
+                "yes" && (
                 <textarea
                   rows={2}
+                  placeholder="Хүндрэл гарч байсан бол тайлбарлана уу"
                   value={
                     visitCardAnswers.previousDentalVisit
                       ?.reactionOrComplication || ""
