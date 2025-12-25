@@ -49,6 +49,91 @@ type VisitCard = {
   signedAt?: string | null;
 };
 
+type VisitCardAnswers = {
+  // shared header
+  date?: string; // YYYY-MM-DD
+  email?: string;
+  phone?: string;
+  workPlace?: string;
+  address?: string;
+
+  // adult/child-specific simple text fields
+  previousClinicName?: string;
+  previousTreatmentIssues?: string;
+  dentistAttentionNotes?: string;
+
+  // prevention reason (multi-choice)
+  reasonToVisit?: {
+    toothPain?: boolean;
+    toothBroken?: boolean;
+    toothDecay?: boolean;
+    badBite?: boolean;
+    preventiveCheck?: boolean;
+    cosmeticSmile?: boolean; // adult only
+    other?: string;
+  };
+
+  // previous dental visit
+  previousDentalVisit?: {
+    hasVisited?: "yes" | "no";
+    clinicName?: string;
+    reactionOrComplication?: string;
+  };
+
+  // general medical questions (yes/no + detail)
+  generalMedical?: {
+    heartDisease?: "yes" | "no";
+    highBloodPressure?: "yes" | "no";
+    infectiousDisease?: "yes" | "no";
+    tuberculosis?: "yes" | "no";
+    hepatitisBC?: "yes" | "no";
+    diabetes?: "yes" | "no";
+    onMedication?: "yes" | "no";
+    seriousIllnessOrSurgery?: "yes" | "no";
+    implant?: "yes" | "no";
+    generalAnesthesia?: "yes" | "no";
+    chemoOrRadiation?: "yes" | "no";
+    pregnant?: "yes" | "no"; // mostly adult
+    childAllergyFood?: "yes" | "no"; // child form
+    details?: string;
+  };
+
+  // allergies
+  allergies?: {
+    drug?: "yes" | "no";
+    drugDetail?: string;
+    metal?: "yes" | "no";
+    localAnesthetic?: "yes" | "no";
+    latex?: "yes" | "no";
+    other?: "yes" | "no";
+    otherDetail?: string;
+  };
+
+  // habits (adult)
+  habits?: {
+    smoking?: "yes" | "no";
+    alcohol?: "yes" | "no";
+    coffee?: "yes" | "no";
+    nightGrinding?: "yes" | "no";
+    mouthBreathing?: "yes" | "no"; // child
+    other?: string;
+  };
+
+  // dental specific yes/no at bottom
+  dentalFollowup?: {
+    regularCheckups?: "yes" | "no";
+    bleedingAfterExtraction?: "yes" | "no";
+    gumBleeding?: "yes" | "no";
+    badBreath?: "yes" | "no";
+  };
+
+  // consent checkbox
+  consentAccepted?: boolean;
+
+  // extra free text
+  notes?: string;
+};
+
 type Encounter = {
   id: number;
   visitDate: string;
@@ -132,7 +217,7 @@ export default function PatientProfilePage() {
   const [visitCardError, setVisitCardError] = useState("");
   const [visitCardTypeDraft, setVisitCardTypeDraft] =
     useState<VisitCardType | null>(null);
-  const [visitCardAnswers, setVisitCardAnswers] = useState<any>({});
+  const [visitCardAnswers, setVisitCardAnswers] = useState<VisitCardAnswers>({});
   const [visitCardSaving, setVisitCardSaving] = useState(false);
   const [signatureSaving, setSignatureSaving] = useState(false);
 
@@ -222,13 +307,30 @@ useEffect(() => {
   const appointments = data?.appointments || [];
   const patientBookId = pb?.id || null;
 
-const updateVisitCardAnswer = (key: string, value: any) => {
-  setVisitCardAnswers((prev: any) => ({
+const updateVisitCardAnswer = (
+  key: keyof VisitCardAnswers,
+  value: VisitCardAnswers[typeof key]
+) => {
+  setVisitCardAnswers((prev: VisitCardAnswers) => ({
     ...(prev || {}),
     [key]: value,
   }));
 };
 
+const updateNested = (
+  section: keyof VisitCardAnswers,
+  field: string,
+  value: any
+) => {
+  setVisitCardAnswers((prev: VisitCardAnswers) => ({
+    ...(prev || {}),
+    [section]: {
+      ...(prev?.[section] as any),
+      [field]: value,
+    },
+  }));
+};
+  
   const totalEncounters = encounters.length;
   const lastEncounter = encounters[0];
 
@@ -396,6 +498,53 @@ const handleSaveVisitCard = async () => {
     setVisitCardSaving(false);
   }
 };
+
+
+  const handleUploadSignature = async (blob: Blob) => {
+  if (!patientBookId) {
+    setVisitCardError("PatientBook ID олдсонгүй.");
+    return;
+  }
+  setSignatureSaving(true);
+  setVisitCardError("");
+  try {
+    const formData = new FormData();
+    formData.append("file", blob, "signature.png");
+
+    const res = await fetch(
+      `/api/patients/visit-card/${patientBookId}/signature`,
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
+
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(
+        (json && json.error) || "Гарын үсэг хадгалахад алдаа гарлаа."
+      );
+    }
+
+    setVisitCard((prev) =>
+      prev
+        ? {
+            ...prev,
+            patientSignaturePath: json.patientSignaturePath,
+            signedAt: json.signedAt,
+          }
+        : prev
+    );
+  } catch (err: any) {
+    console.error("upload signature failed", err);
+    setVisitCardError(
+      err?.message || "Гарын үсэг хадгалахад алдаа гарлаа."
+    );
+  } finally {
+    setSignatureSaving(false);
+  }
+};
+  
   // Derived sorted appointments (for the list tab)
   const sortedAppointments = [...appointments].sort((a, b) =>
     b.scheduledAt.localeCompare(a.scheduledAt)
