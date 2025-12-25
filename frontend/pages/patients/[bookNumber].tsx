@@ -31,6 +31,17 @@ type PatientBook = {
   bookNumber: string;
 };
 
+type VisitCardType = "ADULT" | "CHILD";
+
+type VisitCard = {
+  id: number;
+  patientBookId: number;
+  type: VisitCardType;
+  answers: any;
+  patientSignaturePath?: string | null;
+  signedAt?: string | null;
+};
+
 type Encounter = {
   id: number;
   visitDate: string;
@@ -110,6 +121,23 @@ export default function PatientProfilePage() {
     "profile"
   );
 
+
+    // --- Tab selection: Профайл / Үзлэгийн карт ---
+  const [activeTab, setActiveTab] = useState<"PROFILE" | "VISIT_CARD">(
+    "PROFILE"
+  );
+
+  // --- Visit card state (adult/child form) ---
+  const [visitCard, setVisitCard] = useState<VisitCard | null>(null);
+  const [visitCardLoading, setVisitCardLoading] = useState(false);
+  const [visitCardError, setVisitCardError] = useState("");
+  const [visitCardTypeDraft, setVisitCardTypeDraft] =
+    useState<VisitCardType | null>(null);
+  const [visitCardAnswers, setVisitCardAnswers] = useState<any>({});
+  const [visitCardSaving, setVisitCardSaving] = useState(false);
+  const [signatureSaving, setSignatureSaving] = useState(false);
+
+  
   // Edit state for Үндсэн мэдээлэл
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Patient>>({});
