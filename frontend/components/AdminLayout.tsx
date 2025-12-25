@@ -13,9 +13,9 @@ type NavItem = {
   children?: NavItem[];
 };
 
-// Main navigation structure based on your spreadsheet
+// Main navigation structure
 const navItems: NavItem[] = [
-  // 1. Хянах самбар (top-level link only, no submenu here)
+  // 1. Хянах самбар (top-level link only)
   {
     label: "Хянах самбар",
     href: "/",
@@ -26,10 +26,27 @@ const navItems: NavItem[] = [
   {
     label: "Цаг захиалах",
     icon: "📅",
+    // children rendered, but we also add the 4 fixed branches plus dynamic list below
     children: [
       {
-        label: "Салбарууд",
-        href: "/appointments", // existing page; branch filter inside
+        label: "Бүх салбар",
+        href: "/appointments",
+        icon: "📅",
+      },
+      {
+        label: "Төв салбар",
+        href: "/appointments?branchId=1",
+        icon: "🏥",
+      },
+      {
+        label: "Марал салбар",
+        href: "/appointments?branchId=2",
+        icon: "🏥",
+      },
+      {
+        label: "Белла салбар",
+        href: "/appointments?branchId=3",
+        icon: "🏥",
       },
     ],
   },
@@ -39,33 +56,37 @@ const navItems: NavItem[] = [
     label: "Үзлэг",
     icon: "📋",
     children: [
-      { label: "Цаг захиалсан", href: "/visits/booked" },
-      { label: "Үзлэг хийж буй", href: "/visits/ongoing" },
-      { label: "Дууссан", href: "/visits/completed" },
+      { label: "Цаг захиалсан", href: "/visits/booked", icon: "🕒" },
+      { label: "Үзлэг хийж буй", href: "/visits/ongoing", icon: "⏱" },
+      { label: "Дууссан", href: "/visits/completed", icon: "✅" },
     ],
   },
 
   // 4. Үйлчлүүлэгчид
   {
     label: "Үйлчлүүлэгчид",
-    icon: "👤",
+    icon: "👥",
     children: [
-      { label: "List of customers", href: "/patients" },
+      { label: "List of customers", href: "/patients", icon: "📋" },
     ],
   },
 
   // 5. Хүний нөөц
   {
     label: "Хүний нөөц",
-    icon: "👥",
+    icon: "🧑‍💼",
     children: [
-      { label: "Эмч", href: "/users/doctors" },
-      { label: "Ресепшн", href: "/users/reception" },
-      { label: "Сувилагч", href: "/users/nurses" },
-      { label: "Ажилтан", href: "/users/staff" },
-      { label: "Ажлын анкет мэдээллийн сан", href: "/hr/applicant-database" },
-      { label: "Материал", href: "/hr/materials" },
-      { label: "Тайлан харах", href: "/hr/reports" },
+      { label: "Эмч", href: "/users/doctors", icon: "🩺" },
+      { label: "Ресепшн", href: "/users/reception", icon: "📞" },
+      { label: "Сувилагч", href: "/users/nurses", icon: "💉" },
+      { label: "Ажилтан", href: "/users/staff", icon: "🏢" },
+      {
+        label: "Ажлын анкет мэдээллийн сан",
+        href: "/hr/applicant-database",
+        icon: "📁",
+      },
+      { label: "Материал", href: "/hr/materials", icon: "📦" },
+      { label: "Тайлан харах", href: "/hr/reports", icon: "📊" },
     ],
   },
 
@@ -74,12 +95,20 @@ const navItems: NavItem[] = [
     label: "Санхүү",
     icon: "💰",
     children: [
-      { label: "Авлага", href: "/finance/debts" },
-      { label: "Илүү төлөлт", href: "/finance/overpayments" },
-      { label: "Бартер", href: "/finance/barter" },
-      { label: "Ажилчдын ваучер", href: "/finance/vouchers" },
-      { label: "Ажилчдын тайлан", href: "/finance/staff-reports" },
-      { label: "Эмнэлгийн тайлан", href: "/finance/clinic-reports" },
+      { label: "Авлага", href: "/finance/debts", icon: "📄" },
+      { label: "Илүү төлөлт", href: "/finance/overpayments", icon: "➕" },
+      { label: "Бартер", href: "/finance/barter", icon: "🔄" },
+      { label: "Ажилчдын ваучер", href: "/finance/vouchers", icon: "🎟️" },
+      {
+        label: "Ажилчдын тайлан",
+        href: "/finance/staff-reports",
+        icon: "👥",
+      },
+      {
+        label: "Эмнэлгийн тайлан",
+        href: "/finance/clinic-reports",
+        icon: "🏥",
+      },
     ],
   },
 
@@ -88,10 +117,10 @@ const navItems: NavItem[] = [
     label: "Үйлчилгээ",
     icon: "🧾",
     children: [
-      { label: "Эмчилгээ үйлчилгээ", href: "/services" },
-      { label: "Бараа материал", href: "/inventory" },
-      { label: "Жор", href: "/prescriptions" },
-      { label: "Онош", href: "/diagnoses" },
+      { label: "Эмчилгээ үйлчилгээ", href: "/services", icon: "🦷" },
+      { label: "Бараа материал", href: "/inventory", icon: "📦" },
+      { label: "Жор", href: "/prescriptions", icon: "💊" },
+      { label: "Онош", href: "/diagnoses", icon: "🩻" },
     ],
   },
 
@@ -99,21 +128,27 @@ const navItems: NavItem[] = [
   {
     label: "Төлбөрийн тохиргоо",
     icon: "💳",
-    children: [{ label: "Төлбөрийн тохиргоо", href: "/settings/payments" }],
+    children: [
+      {
+        label: "Төлбөрийн тохиргоо",
+        href: "/settings/payments",
+        icon: "⚙️",
+      },
+    ],
   },
 
   // 9. Салбарын тохиргоо
   {
     label: "Салбарын тохиргоо",
     icon: "🏥",
-    children: [{ label: "Салбарууд", href: "/branches" }],
+    children: [{ label: "Салбарууд", href: "/branches", icon: "🏥" }],
   },
 
   // 10. Үндсэн тайлан
   {
     label: "Үндсэн тайлан",
     icon: "📈",
-    children: [{ label: "Үндсэн тайлан", href: "/reports" }],
+    children: [{ label: "Үндсэн тайлан", href: "/reports", icon: "📊" }],
   },
 ];
 
@@ -123,6 +158,11 @@ export default function AdminLayout({ children }: Props) {
 
   // which main menu label is open (for dropdown)
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+
+  // Branch list from backend (for Цаг захиалах dynamic items)
+  const [branchItems, setBranchItems] = useState<{ id: string; name: string }[]>(
+    []
+  );
 
   // Auto-open the group that contains the current path
   useEffect(() => {
@@ -143,6 +183,23 @@ export default function AdminLayout({ children }: Props) {
       setOpenGroup(null);
     }
   }, [currentPath]);
+
+  // Load branches once for Цаг захиалах submenu (dynamic)
+  useEffect(() => {
+    fetch("/api/branches")
+      .then((r) => r.json())
+      .then((data) => {
+        const mapped = (data || []).map((b: any) => ({
+          id: String(b.id),
+          name: b.name as string,
+        }));
+        setBranchItems(mapped);
+      })
+      .catch(() => setBranchItems([]));
+  }, []);
+
+  const activeBranchId =
+    typeof router.query.branchId === "string" ? router.query.branchId : "";
 
   const isActive = (href?: string) => {
     if (!href) return false;
@@ -170,7 +227,7 @@ export default function AdminLayout({ children }: Props) {
           flexDirection: "column",
         }}
       >
-        {/* Logo / user header */}
+        {/* Header */}
         <div
           style={{
             padding: "16px 20px",
@@ -180,7 +237,6 @@ export default function AdminLayout({ children }: Props) {
             gap: 12,
           }}
         >
-          {/* Circle avatar with "M" */}
           <div
             style={{
               width: 40,
@@ -227,7 +283,7 @@ export default function AdminLayout({ children }: Props) {
           </div>
 
           {navItems.map((item) => {
-            // Case 1: top-level direct link (Хянах самбар)
+            // Top-level direct link (only Хянах самбар)
             if (!item.children && item.href) {
               const active = isActive(item.href);
               return (
@@ -258,7 +314,7 @@ export default function AdminLayout({ children }: Props) {
               );
             }
 
-            // Case 2: expandable group with children
+            // Expandable group
             const isOpen = openGroup === item.label;
             const groupActive =
               isOpen ||
@@ -308,32 +364,139 @@ export default function AdminLayout({ children }: Props) {
 
                 {isOpen && item.children && (
                   <div style={{ marginTop: 2, marginLeft: 28 }}>
-                    {item.children.map((child) => {
-                      const active = isActive(child.href);
-                      return (
-                        <Link
-                          key={child.label}
-                          href={child.href || "#"}
-                          legacyBehavior
-                        >
-                          <a
-                            style={{
-                              display: "block",
-                              padding: "6px 10px",
-                              margin: "1px 0",
-                              borderRadius: 8,
-                              textDecoration: "none",
-                              fontSize: 13,
-                              color: active ? "#1d4ed8" : "#4b5563",
-                              background: active ? "#eff6ff" : "transparent",
-                              fontWeight: active ? 600 : 400,
-                            }}
+                    {/* Special handling for Цаг захиалах to add fixed 4 branches + dynamic list */}
+                    {item.label === "Цаг захиалах" ? (
+                      <>
+                        {item.children.map((child) => {
+                          const active = isActive(child.href);
+                          // For Bүх салбар, ignore branchId when checking
+                          const isWhole =
+                            child.href === "/appointments" &&
+                            currentPath === "/appointments" &&
+                            !activeBranchId;
+                          const activeHere = active || isWhole;
+
+                          return (
+                            <Link
+                              key={child.label}
+                              href={child.href || "#"}
+                              legacyBehavior
+                            >
+                              <a
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                  padding: "6px 10px",
+                                  margin: "1px 0",
+                                  borderRadius: 8,
+                                  textDecoration: "none",
+                                  fontSize: 13,
+                                  color: activeHere ? "#1d4ed8" : "#4b5563",
+                                  background: activeHere
+                                    ? "#eff6ff"
+                                    : "transparent",
+                                  fontWeight: activeHere ? 600 : 400,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    width: 16,
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  {child.icon ?? "🏥"}
+                                </span>
+                                <span>{child.label}</span>
+                              </a>
+                            </Link>
+                          );
+                        })}
+
+                        {/* Dynamic branches from backend */}
+                        {branchItems.map((b) => {
+                          const href = `/appointments?branchId=${encodeURIComponent(
+                            b.id
+                          )}`;
+                          const isActiveBranch =
+                            currentPath === "/appointments" &&
+                            activeBranchId === b.id;
+                          return (
+                            <Link key={b.id} href={href} legacyBehavior>
+                              <a
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                  padding: "6px 10px",
+                                  margin: "1px 0",
+                                  borderRadius: 8,
+                                  textDecoration: "none",
+                                  fontSize: 13,
+                                  color: isActiveBranch
+                                    ? "#1d4ed8"
+                                    : "#4b5563",
+                                  background: isActiveBranch
+                                    ? "#eff6ff"
+                                    : "transparent",
+                                  fontWeight: isActiveBranch ? 600 : 400,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    width: 16,
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  🏥
+                                </span>
+                                <span>{b.name}</span>
+                              </a>
+                            </Link>
+                          );
+                        })}
+                      </>
+                    ) : (
+                      // Normal groups
+                      item.children.map((child) => {
+                        const active = isActive(child.href);
+                        return (
+                          <Link
+                            key={child.label}
+                            href={child.href || "#"}
+                            legacyBehavior
                           >
-                            {child.label}
-                          </a>
-                        </Link>
-                      );
-                    })}
+                            <a
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                padding: "6px 10px",
+                                margin: "1px 0",
+                                borderRadius: 8,
+                                textDecoration: "none",
+                                fontSize: 13,
+                                color: active ? "#1d4ed8" : "#4b5563",
+                                background: active ? "#eff6ff" : "transparent",
+                                fontWeight: active ? 600 : 400,
+                              }}
+                            >
+                              {child.icon && (
+                                <span
+                                  style={{
+                                    width: 16,
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  {child.icon}
+                                </span>
+                              )}
+                              <span>{child.label}</span>
+                            </a>
+                          </Link>
+                        );
+                      })
+                    )}
                   </div>
                 )}
               </div>
@@ -354,7 +517,7 @@ export default function AdminLayout({ children }: Props) {
         </div>
       </aside>
 
-      {/* RIGHT SIDE: TOP BAR + PAGE CONTENT (unchanged from your current layout) */}
+      {/* RIGHT SIDE: TOP BAR + PAGE CONTENT (unchanged) */}
       <div
         style={{
           flex: 1,
