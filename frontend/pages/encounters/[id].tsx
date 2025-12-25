@@ -1257,7 +1257,7 @@ export default function EncounterAdminPage() {
               <strong>Огноо:</strong> {formatDateTime(encounter.visitDate)}
             </div>
 
-            {/* Consent form (step 1: enable + choose type) */}
+                        {/* Consent form (step 1: enable + choose type) */}
             <div
               style={{
                 marginTop: 4,
@@ -1268,6 +1268,7 @@ export default function EncounterAdminPage() {
                 background: "#f9fafb",
               }}
             >
+              {/* Enable checkbox */}
               <div
                 style={{
                   display: "flex",
@@ -1290,7 +1291,6 @@ export default function EncounterAdminPage() {
                     disabled={consentLoading || consentSaving}
                     onChange={async (e) => {
                       if (e.target.checked) {
-                        // default type when enabling for the first time
                         await saveConsent(consent?.type || "root_canal");
                       } else {
                         await saveConsent(null);
@@ -1305,9 +1305,16 @@ export default function EncounterAdminPage() {
                     (ачаалж байна...)
                   </span>
                 )}
-           
 
-                            {consent && (
+                {consentError && (
+                  <span style={{ fontSize: 12, color: "#b91c1c" }}>
+                    {consentError}
+                  </span>
+                )}
+              </div>
+
+              {/* Everything below only when consent exists */}
+              {consent && (
                 <>
                   {/* Type selection */}
                   <div
@@ -1394,7 +1401,7 @@ export default function EncounterAdminPage() {
                     </label>
                   </div>
 
-                  {/* Per-type fields */}
+                  {/* Per-type forms */}
                   <div
                     style={{
                       marginTop: 4,
@@ -1406,7 +1413,7 @@ export default function EncounterAdminPage() {
                       gap: 6,
                     }}
                   >
-                                        {/* 1. Сувгийн эмчилгээ */}
+                    {/* 1. Сувгийн эмчилгээ */}
                     {consent.type === "root_canal" && (
                       <div>
                         {/* Title */}
@@ -1579,8 +1586,7 @@ export default function EncounterAdminPage() {
                             <strong>
                               {formatShortDate(encounter.visitDate)}
                             </strong>
-                          </div>
-                        </div>
+                        
                       </div>
                     )}
 
@@ -2632,9 +2638,7 @@ export default function EncounterAdminPage() {
                               <strong>
                                 {formatShortDate(encounter.visitDate)}
                               </strong>
-                            </div>
-                          </div>
-                        </div>
+                         
                       </div>
                     )}
 
@@ -3448,8 +3452,7 @@ export default function EncounterAdminPage() {
                                 marginTop: 2,
                               }}
                             />
-                          </div>
-                        </div>
+                        
                       </div>
                     )}
 
@@ -3470,9 +3473,7 @@ export default function EncounterAdminPage() {
                         {/* 1. Гол тайлбар / ерөнхий мэдээлэл */}
                         <textarea
                           placeholder="Эмчилгээний ерөнхий тайлбар, зорилго, онцлог..."
-                          value={
-                            consent.answers?.prosthoIntroText || ""
-                          }
+                          value={consent.answers?.prosthoIntroText || ""}
                           onChange={(e) =>
                             updateConsentAnswers({
                               prosthoIntroText: e.target.value,
@@ -3502,9 +3503,7 @@ export default function EncounterAdminPage() {
                           Хоёрдох удаагийн ирэлтээр:
                         </div>
                         <textarea
-                          value={
-                            consent.answers?.prosthoSecondVisit || ""
-                          }
+                          value={consent.answers?.prosthoSecondVisit || ""}
                           onChange={(e) =>
                             updateConsentAnswers({
                               prosthoSecondVisit: e.target.value,
@@ -3534,9 +3533,7 @@ export default function EncounterAdminPage() {
                           Эмчилгээний сул тал:
                         </div>
                         <textarea
-                          value={
-                            consent.answers?.prosthoWeakPoints || ""
-                          }
+                          value={consent.answers?.prosthoWeakPoints || ""}
                           onChange={(e) =>
                             updateConsentAnswers({
                               prosthoWeakPoints: e.target.value,
@@ -3566,9 +3563,7 @@ export default function EncounterAdminPage() {
                           Эмчилгээний явц:
                         </div>
                         <textarea
-                          value={
-                            consent.answers?.prosthoCourse || ""
-                          }
+                          value={consent.answers?.prosthoCourse || ""}
                           onChange={(e) =>
                             updateConsentAnswers({
                               prosthoCourse: e.target.value,
@@ -3598,9 +3593,7 @@ export default function EncounterAdminPage() {
                           Эмчилгээний үнэ өртөг:
                         </div>
                         <textarea
-                          value={
-                            consent.answers?.prosthoCost || ""
-                          }
+                          value={consent.answers?.prosthoCost || ""}
                           onChange={(e) =>
                             updateConsentAnswers({
                               prosthoCost: e.target.value,
@@ -3631,8 +3624,7 @@ export default function EncounterAdminPage() {
                         </div>
                         <textarea
                           value={
-                            consent.answers?.prosthoAcknowledgement ||
-                            ""
+                            consent.answers?.prosthoAcknowledgement || ""
                           }
                           onChange={(e) =>
                             updateConsentAnswers({
@@ -3653,7 +3645,7 @@ export default function EncounterAdminPage() {
                           }}
                         />
 
-                        {/* 7. Эмчлэгч эмчийн хэсэг – signature + name + date from encounter */}
+                        {/* 7. Эмчлэгч эмчийн хэсэг */}
                         <div
                           style={{
                             marginTop: 4,
@@ -3666,13 +3658,11 @@ export default function EncounterAdminPage() {
                               type="text"
                               placeholder="гарын үсэг"
                               value={
-                                consent.answers
-                                  ?.prosthoDoctorSignature || ""
+                                consent.answers?.prosthoDoctorSignature || ""
                               }
                               onChange={(e) =>
                                 updateConsentAnswers({
-                                  prosthoDoctorSignature:
-                                    e.target.value,
+                                  prosthoDoctorSignature: e.target.value,
                                 })
                               }
                               onBlur={async () => {
@@ -3702,60 +3692,58 @@ export default function EncounterAdminPage() {
                         </div>
                       </div>
                     )}
-                 
-               
+                  </div>
 
-{/* Bottom button row: general save + send/edit */}
-              {consent && (
-                <div
-                  style={{
-                    marginTop: 8,
-                    display: "flex",
-                    gap: 8,
-                    justifyContent: "flex-end",
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => void saveCurrentConsent()}
-                    disabled={consentSaving}
+                  {/* Bottom button row: general save + send/edit */}
+                  <div
                     style={{
-                      padding: "4px 10px",
-                      borderRadius: 6,
-                      border: "1px solid #16a34a",
-                      background: "#ecfdf3",
-                      color: "#166534",
-                      fontSize: 12,
-                      cursor: consentSaving ? "default" : "pointer",
+                      marginTop: 8,
+                      display: "flex",
+                      gap: 8,
+                      justifyContent: "flex-end",
                     }}
                   >
-                    {consentSaving ? "Хадгалж байна..." : "Зөвшөөрөл хадгалах"}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => void saveCurrentConsent()}
+                      disabled={consentSaving}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: 6,
+                        border: "1px solid #16a34a",
+                        background: "#ecfdf3",
+                        color: "#166534",
+                        fontSize: 12,
+                        cursor: consentSaving ? "default" : "pointer",
+                      }}
+                    >
+                      {consentSaving
+                        ? "Хадгалж байна..."
+                        : "Зөвшөөрөл хадгалах"}
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => void saveCurrentConsent()}
-                    disabled={consentSaving}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: 6,
-                      border: "1px solid #2563eb",
-                      background: "#eff6ff",
-                      color: "#2563eb",
-                      fontSize: 12,
-                      cursor: consentSaving ? "default" : "pointer",
-                    }}
-                  >
-                    {consentSaving
-                      ? "Илгээж байна..."
-                      : "Зөвшөөрөл илгээх / засах"}
-                  </button>
-                </div>
-  </>
-     )}        
-       </div>
-              
-     
+                    <button
+                      type="button"
+                      onClick={() => void saveCurrentConsent()}
+                      disabled={consentSaving}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: 6,
+                        border: "1px solid #2563eb",
+                        background: "#eff6ff",
+                        color: "#2563eb",
+                        fontSize: 12,
+                        cursor: consentSaving ? "default" : "pointer",
+                      }}
+                    >
+                      {consentSaving
+                        ? "Илгээж байна..."
+                        : "Зөвшөөрөл илгээх / засах"}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
 
             {encounter.notes && (
               <div style={{ marginTop: 4 }}>
