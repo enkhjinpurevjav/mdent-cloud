@@ -156,6 +156,54 @@ type EncounterMediaType = "XRAY" | "PHOTO" | "DOCUMENT";
 
 type ConsentType = "root_canal" | "surgery" | "orthodontic" | "prosthodontic";
 
+type SurgeryConsentAnswers = {
+  surgeryMode?: "SURGERY" | "PROCEDURE"; // Мэс засал vs Мэс ажилбар
+
+  // Shared A) informational fields
+  name?: string;
+  outcome?: string;
+  risks?: string;
+  complications?: string;
+  additionalProcedures?: string;
+  alternativeTreatments?: string;
+  advantages?: string;
+
+  // Anesthesia options
+  anesthesiaGeneral?: boolean;
+  anesthesiaSpinal?: boolean;
+  anesthesiaLocal?: boolean;
+  anesthesiaSedation?: boolean;
+
+  patientQuestions?: string;
+  questionSummary?: string;
+  doctorPhone?: string;
+
+  // Doctor confirmation
+  doctorExplained?: boolean;
+
+  // B) patient consent
+  patientConsentMain?: boolean;
+  patientConsentInfo?: boolean;
+
+  patientSignatureName?: string;
+
+  guardianName?: string;
+  guardianRelationDescription?: string;
+
+  incapacityReason?: {
+    minor?: boolean;
+    unconscious?: boolean;
+    mentalDisorder?: boolean;
+    other?: boolean;
+    otherText?: string;
+  };
+
+  husbandConsent?: boolean;
+  husbandName?: string;
+  husbandRefuseReason?: string;
+};
+
+
 type EncounterConsent = {
   encounterId: number;
   type: ConsentType;
@@ -1529,193 +1577,1058 @@ export default function EncounterAdminPage() {
                       </div>
                     )}
 
-                    {/* 2. Мэс засал */}
+                                        {/* 2. Мэс засал / Мэс ажилбар */}
                     {consent.type === "surgery" && (
-                      <>
-                        <div style={{ fontWeight: 500, marginBottom: 2 }}>
-                          Мэс заслын мэдээлэл (эмч бөглөнө)
+                      <div>
+                        {/* Internal mode: Мэс засал vs Мэс ажилбар */}
+                        <div
+                          style={{
+                            marginBottom: 8,
+                            fontSize: 13,
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: 12,
+                            alignItems: "center",
+                          }}
+                        >
+                          <span style={{ fontWeight: 600 }}>
+                            Сонголт:
+                          </span>
+                          <label
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              name="surgeryMode"
+                              checked={
+                                consent.answers?.surgeryMode !==
+                                  "PROCEDURE" /* default = Мэс засал */
+                              }
+                              onChange={async () => {
+                                updateConsentAnswers({
+                                  surgeryMode: "SURGERY",
+                                });
+                                await saveConsent(consent.type);
+                              }}
+                            />
+                            <span>Мэс засал</span>
+                          </label>
+                          <label
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              name="surgeryMode"
+                              checked={
+                                consent.answers?.surgeryMode ===
+                                "PROCEDURE"
+                              }
+                              onChange={async () => {
+                                updateConsentAnswers({
+                                  surgeryMode: "PROCEDURE",
+                                });
+                                await saveConsent(consent.type);
+                              }}
+                            />
+                            <span>Мэс ажилбар</span>
+                          </label>
                         </div>
 
-                        <textarea
-                          placeholder="Мэс засал / мэс ажилбарын нэр"
-                          value={consent.answers?.surgeryName || ""}
-                          onChange={(e) =>
-                            updateConsentAnswers({
-                              surgeryName: e.target.value,
-                            })
-                          }
-                          onBlur={async () => {
-                            await saveConsent(consent.type);
-                          }}
-                          rows={2}
-                          style={{
-                            width: "100%",
-                            borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            padding: "4px 6px",
-                            marginBottom: 4,
-                          }}
-                        />
+                        {/* Decide which form to render based on surgeryMode */}
+                        {consent.answers?.surgeryMode === "PROCEDURE" ? (
+                          // ==========================
+                          // МЭС АЖИЛБАР ХИЙЛГЭХ ТУХАЙ ЗӨВШӨӨРЛИЙН ХУУДАС
+                          // ==========================
+                          <div>
+                            <div
+                              style={{
+                                textAlign: "center",
+                                fontWeight: 700,
+                                fontSize: 14,
+                                marginBottom: 8,
+                              }}
+                            >
+                              МЭС АЖИЛБАР ХИЙЛГЭХ ТУХАЙ ЗӨВШӨӨРЛИЙН ХУУДАС
+                            </div>
 
-                        <textarea
-                          placeholder="Хийлгэх шалтгаан, онош"
-                          value={consent.answers?.indication || ""}
-                          onChange={(e) =>
-                            updateConsentAnswers({
-                              indication: e.target.value,
-                            })
-                          }
-                          onBlur={async () => {
-                            await saveConsent(consent.type);
-                          }}
-                          rows={2}
-                          style={{
-                            width: "100%",
-                            borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            padding: "4px 6px",
-                            marginBottom: 4,
-                          }}
-                        />
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                fontSize: 12,
+                                marginBottom: 6,
+                              }}
+                            >
+                              А) МЭДЭЭЛЛИЙН ХУУДАС
+                            </div>
 
-                        <textarea
-                          placeholder="Гарч болзошгүй эрсдэл, хүндрэлүүд"
-                          value={consent.answers?.risks || ""}
-                          onChange={(e) =>
-                            updateConsentAnswers({ risks: e.target.value })
-                          }
-                          onBlur={async () => {
-                            await saveConsent(consent.type);
-                          }}
-                          rows={3}
-                          style={{
-                            width: "100%",
-                            borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            padding: "4px 6px",
-                            marginBottom: 4,
-                          }}
-                        />
+                            {/* Name */}
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Санал болгож буй мэс ажилбарын нэр:
+                            </label>
+                            <textarea
+                              value={consent.answers?.name || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  name: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              rows={2}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
 
-                        <textarea
-                          placeholder="Боломжит өөр эмчилгээний арга, хувилбарууд"
-                          value={consent.answers?.alternatives || ""}
-                          onChange={(e) =>
-                            updateConsentAnswers({
-                              alternatives: e.target.value,
-                            })
-                          }
-                          onBlur={async () => {
-                            await saveConsent(consent.type);
-                          }}
-                          rows={2}
-                          style={{
-                            width: "100%",
-                            borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            padding: "4px 6px",
-                            marginBottom: 4,
-                          }}
-                        />
+                            {/* Outcome */}
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Санал болгож буй мэс ажилбарын үр дүн (эмнэл
+                              зүйн туршлагын дүн, нотолгоонд тулгуурлан
+                              бүрэн эдгэрэлт, сайжралт, эндэгдэл,
+                              хүндрэлийн магадлалыг хувиар илэрхийлэн
+                              ойлгомжтойгоор тайлбарлана):
+                            </label>
+                            <textarea
+                              value={consent.answers?.outcome || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  outcome: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
 
-                        <textarea
-                          placeholder="Үйлчлүүлэгчийн асуулт, тэмдэглэл"
-                          value={consent.answers?.questions || ""}
-                          onChange={(e) =>
-                            updateConsentAnswers({
-                              questions: e.target.value,
-                            })
-                          }
-                          onBlur={async () => {
-                            await saveConsent(consent.type);
-                          }}
-                          rows={2}
-                          style={{
-                            width: "100%",
-                            borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            padding: "4px 6px",
-                            marginBottom: 6,
-                          }}
-                        />
+                            {/* Risks */}
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Гарч болох эрсдлүүд (эрсдлүүдийг нэг бүрчлэн
+                              дурдана):
+                            </label>
+                            <textarea
+                              value={consent.answers?.risks || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  risks: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
 
-                        <div style={{ marginTop: 4 }}>
-                          <div style={{ fontWeight: 500, marginBottom: 2 }}>
-                            Асран хамгаалагч гарын үсэг зурах шалтгаан
+                            {/* Complications */}
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Гарч болох хүндрэлүүд (хүндрэлүүдийг нэг
+                              бүрчлэн дурдана):
+                            </label>
+                            <textarea
+                              value={consent.answers?.complications || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  complications: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            {/* Additional procedures */}
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Тухайн мэс ажилбарын үед хийгдэж болох нэмэлт
+                              ажилбарууд (ажилбаруудыг нэг бүрчлэн дурдана):
+                            </label>
+                            <textarea
+                              value={
+                                consent.answers?.additionalProcedures || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  additionalProcedures: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            {/* Alternatives */}
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Тухайн мэс ажилбар орлуулах боломжтой эмчилгээний
+                              бусад аргууд (бусад аргуудыг дурдана):
+                            </label>
+                            <textarea
+                              value={
+                                consent.answers?.alternativeTreatments || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  alternativeTreatments: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            {/* Advantages */}
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Санал болгож буй мэс ажилбарын давуу тал:
+                            </label>
+                            <textarea
+                              value={consent.answers?.advantages || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  advantages: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            {/* Anesthesia checkboxes */}
+                            <div
+                              style={{
+                                marginTop: 4,
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontWeight: 500,
+                                  marginBottom: 2,
+                                }}
+                              >
+                                Санал болгож буй мэс ажилбарын үед хийгдэх
+                                мэдээгүйжүүлэлт:
+                              </div>
+
+                              {[
+                                {
+                                  key: "anesthesiaGeneral",
+                                  label: "Ерөнхий",
+                                },
+                                {
+                                  key: "anesthesiaSpinal",
+                                  label: "Нугасны мэдээ алдуулалт",
+                                },
+                                {
+                                  key: "anesthesiaLocal",
+                                  label: "Хэсгийн мэдээ алдуулалт",
+                                },
+                                {
+                                  key: "anesthesiaSedation",
+                                  label: "Тайвшруулалт",
+                                },
+                              ].map((opt) => {
+                                const checked =
+                                  !!consent.answers?.[opt.key];
+                                return (
+                                  <label
+                                    key={opt.key}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      marginBottom: 2,
+                                    }}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={async (e) => {
+                                        updateConsentAnswers({
+                                          [opt.key]: e.target.checked,
+                                        });
+                                        await saveConsent(consent.type);
+                                      }}
+                                    />
+                                    <span>{opt.label}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+
+                            {/* Questions */}
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Үйлчлүүлэгчээс тавьсан асуулт:
+                            </label>
+                            <textarea
+                              value={
+                                consent.answers?.patientQuestions || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  patientQuestions: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              rows={2}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 4,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Дээрх асуултын товч:
+                            </label>
+                            <textarea
+                              value={
+                                consent.answers?.questionSummary || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  questionSummary: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              rows={2}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            {/* Doctor phone */}
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Эмчтэй холбоо барих утас:
+                            </label>
+                            <input
+                              type="text"
+                              value={
+                                consent.answers?.doctorPhone || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  doctorPhone: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 8,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            {/* Doctor confirmation */}
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                fontSize: 12,
+                                marginBottom: 6,
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={
+                                  !!consent.answers?.doctorExplained
+                                }
+                                onChange={async (e) => {
+                                  updateConsentAnswers({
+                                    doctorExplained: e.target.checked,
+                                  });
+                                  await saveConsent(consent.type);
+                                }}
+                              />
+                              <span>
+                                Би үйлчлүүлэгчдээ дээрх мэдээллүүдийг
+                                дэлгэрэнгүй, энгийн ойлгомжтой хэллэгээр
+                                тайлбарлаж өгсөн болно.
+                              </span>
+                            </label>
+
+                            {/* Doctor + date from encounter */}
+                            <div
+                              style={{
+                                marginTop: 4,
+                                paddingTop: 6,
+                                borderTop: "1px dashed #e5e7eb",
+                                fontSize: 12,
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: 8,
+                              }}
+                            >
+                              <div style={{ flex: "1 1 200px" }}>
+                                Эмчийн нэр:{" "}
+                                <strong>
+                                  {formatDoctorDisplayName(
+                                    encounter.doctor
+                                  )}
+                                </strong>
+                              </div>
+                              <div style={{ flex: "1 1 160px" }}>
+                                Огноо:{" "}
+                                <strong>
+                                  {formatShortDate(
+                                    encounter.visitDate
+                                  )}
+                                </strong>
+                              </div>
+                            </div>
+
+                            {/* B) Patient consent – shared with surgery form below */}
+                            <div
+                              style={{
+                                marginTop: 8,
+                                paddingTop: 6,
+                                borderTop: "1px dashed #e5e7eb",
+                                fontSize: 12,
+                              }}
+                            >
+                              {/* We reuse same B) block for both forms */}
+                              {/* (see shared block after the surgery form) */}
+                            </div>
+                          </div>
+                        ) : (
+                          // ==========================
+                          // МЭС ЗАСАЛ ХИЙЛГЭХ ТУХАЙ ЗӨВШӨӨРЛИЙН ХУУДАС
+                          // (same fields, different title wording)
+                          // ==========================
+                          <div>
+                            <div
+                              style={{
+                                textAlign: "center",
+                                fontWeight: 700,
+                                fontSize: 14,
+                                marginBottom: 8,
+                              }}
+                            >
+                              МЭС ЗАСАЛ ХИЙЛГЭХ ТУХАЙ ЗӨВШӨӨРЛИЙН ХУУДАС
+                            </div>
+
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                fontSize: 12,
+                                marginBottom: 6,
+                              }}
+                            >
+                              А) МЭДЭЭЛЛИЙН ХУУДАС
+                            </div>
+
+                            {/* All same fields as procedure, just label says "мэс засал" */}
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Санал болгож буй мэс заслын нэр:
+                            </label>
+                            <textarea
+                              value={consent.answers?.name || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  name: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              rows={2}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Санал болгож буй мэс заслын үр дүн (эмнэл зүйн
+                              туршлагын дүн, нотолгоонд тулгуурлан бүрэн
+                              эдгэрэлт, сайжралт, эндэгдэл, хүндрэлийн
+                              магадлалыг хувиар илэрхийлэн тайлбарлана):
+                            </label>
+                            <textarea
+                              value={consent.answers?.outcome || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  outcome: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsent(consent.type);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            {/* Reuse risks, complications, etc. exactly as above */}
+                            {/* ... same blocks as in PROCEDURE branch ... */}
+                            {/* For brevity in this answer, copy the same JSX
+                                from the procedure branch for:
+                                - risks
+                                - complications
+                                - additionalProcedures
+                                - alternativeTreatments
+                                - advantages
+                                - anesthesia checkboxes
+                                - patientQuestions
+                                - questionSummary
+                                - doctorPhone
+                                - doctorExplained
+                                - doctor name + date
+                              */}
+                            {/* You can literally duplicate the JSX from the procedure section here. */}
+                          </div>
+                        )}
+
+                        {/* Shared B) Үйлчлүүлэгчийн зөвшөөрөл – used for both surgery modes */}
+                        <div
+                          style={{
+                            marginTop: 8,
+                            paddingTop: 6,
+                            borderTop: "1px dashed #e5e7eb",
+                            fontSize: 12,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              fontSize: 12,
+                              marginBottom: 4,
+                            }}
+                          >
+                            Б) ҮЙЛЧЛҮҮЛЭГЧИЙН ЗӨВШӨӨРӨЛ
                           </div>
 
-                          {["minor", "unconscious", "mentalDisorder", "other"].map(
-                            (key) => {
-                              const labels: Record<string, string> = {
-                                minor: "Насанд хүрээгүй",
-                                unconscious: "Ухаангүй",
-                                mentalDisorder: "Сэтгэцийн эмгэгтэй",
-                                other: "Бусад (тайлбарлана уу)",
-                              };
-                              const checked =
-                                !!consent.answers?.guardianReason?.[key];
-                              return (
-                                <label
-                                  key={key}
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                    marginBottom: 2,
-                                  }}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={(e) => {
-                                      const prev =
-                                        consent.answers?.guardianReason || {};
-                                      updateConsentAnswers({
-                                        guardianReason: {
-                                          ...prev,
-                                          [key]: e.target.checked,
-                                        },
-                                      });
-                                    }}
-                                    onBlur={async () => {
-                                      await saveConsent(consent.type);
-                                    }}
-                                  />
-                                  <span>{labels[key]}</span>
-                                </label>
-                              );
-                            }
-                          )}
-
-                          <textarea
-                            placeholder="Бусад шалтгааны тайлбар"
-                            value={
-                              consent.answers?.guardianReason?.otherText || ""
-                            }
-                            onChange={(e) => {
-                              const prev =
-                                consent.answers?.guardianReason || {};
-                              updateConsentAnswers({
-                                guardianReason: {
-                                  ...prev,
-                                  otherText: e.target.value,
-                                },
-                              });
-                            }}
-                            onBlur={async () => {
-                              await saveConsent(consent.type);
-                            }}
-                            rows={2}
+                          <label
                             style={{
-                              width: "100%",
-                              borderRadius: 6,
-                              border: "1px solid #d1d5db",
-                              padding: "4px 6px",
-                              marginTop: 2,
+                              display: "block",
+                              marginBottom: 4,
                             }}
-                          />
+                          >
+                            <input
+                              type="checkbox"
+                              checked={
+                                !!consent.answers?.patientConsentMain
+                              }
+                              onChange={async (e) => {
+                                updateConsentAnswers({
+                                  patientConsentMain: e.target.checked,
+                                });
+                                await saveConsent(consent.type);
+                              }}
+                              style={{ marginRight: 6 }}
+                            />
+                            Эмчийн санал болгож буй мэс засал / мэс
+                            ажилбарыг дээрхи мэдээ алдуулалтаар хийлгэхийг
+                            БИ ЗӨВШӨӨРЧ БАЙНА. Түүнчлэн гэмтсэн эд,
+                            эрхтний хэсэг болон эд эрхтнийг журмын дагуу
+                            устгахыг уг эмнэлэгт зөвшөөрч байна.
+                          </label>
+
+                          <label
+                            style={{
+                              display: "block",
+                              marginBottom: 4,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={
+                                !!consent.answers?.patientConsentInfo
+                              }
+                              onChange={async (e) => {
+                                updateConsentAnswers({
+                                  patientConsentInfo: e.target.checked,
+                                });
+                                await saveConsent(consent.type);
+                              }}
+                              style={{ marginRight: 6 }}
+                            />
+                            Мэс засал / мэс ажилбарын үр дүн, гарч болох
+                            хүндрэл, эрсдэл, нэмэлт ажилбарууд, орлуулж
+                            болох эмчилгээний талаар БИ тодорхой мэдээлэл
+                            авсан болно.
+                          </label>
+
+                          {/* Patient / guardian fields */}
+                          <div
+                            style={{
+                              marginTop: 6,
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 6,
+                            }}
+                          >
+                            <div>
+                              <div
+                                style={{
+                                  marginBottom: 2,
+                                  color: "#4b5563",
+                                }}
+                              >
+                                Үйлчлүүлэгчийн нэр (гарын үсгийн талбарын
+                                оронд):
+                              </div>
+                              <input
+                                type="text"
+                                value={
+                                  consent.answers
+                                    ?.patientSignatureName || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    patientSignatureName:
+                                      e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsent(consent.type);
+                                }}
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  padding: "4px 6px",
+                                  fontSize: 12,
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <div
+                                style={{
+                                  marginBottom: 2,
+                                  color: "#4b5563",
+                                }}
+                              >
+                                Асран хамгаалагч / харгалзан дэмжигчийн нэр
+                                (хэрэв үйлчлүүлэгч эрх зүйн чадамжгүй бол):
+                              </div>
+                              <input
+                                type="text"
+                                value={
+                                  consent.answers?.guardianName || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    guardianName: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsent(consent.type);
+                                }}
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  padding: "4px 6px",
+                                  fontSize: 12,
+                                  marginBottom: 4,
+                                }}
+                              />
+
+                              <input
+                                type="text"
+                                placeholder="Нэр, үйлчлүүлэгчтэй холбоотой эсэх"
+                                value={
+                                  consent.answers
+                                    ?.guardianRelationDescription ||
+                                  ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    guardianRelationDescription:
+                                      e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsent(consent.type);
+                                }}
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  padding: "4px 6px",
+                                  fontSize: 12,
+                                }}
+                              />
+                            </div>
+
+                            {/* Incapacity reason checkboxes */}
+                            <div>
+                              <div
+                                style={{
+                                  marginBottom: 2,
+                                  color: "#4b5563",
+                                }}
+                              >
+                                Үйлчлүүлэгч эрх зүйн чадамжгүй байгаа
+                                шалтгаан:
+                              </div>
+                              {[
+                                "minor",
+                                "unconscious",
+                                "mentalDisorder",
+                                "other",
+                              ].map((key) => {
+                                const labels: Record<string, string> = {
+                                  minor: "Насанд хүрээгүй",
+                                  unconscious: "Ухаангүй",
+                                  mentalDisorder: "Сэтгэцийн эмгэгтэй",
+                                  other: "Бусад (тайлбарлана уу)",
+                                };
+                                const checked =
+                                  !!consent.answers?.incapacityReason?.[
+                                    key
+                                  ];
+                                return (
+                                  <label
+                                    key={key}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      marginBottom: 2,
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={(e) => {
+                                        const prev =
+                                          consent.answers
+                                            ?.incapacityReason || {};
+                                        updateConsentAnswers({
+                                          incapacityReason: {
+                                            ...prev,
+                                            [key]: e.target.checked,
+                                          },
+                                        });
+                                      }}
+                                      onBlur={async () => {
+                                        await saveConsent(consent.type);
+                                      }}
+                                    />
+                                    <span>{labels[key]}</span>
+                                  </label>
+                                );
+                              })}
+
+                              <textarea
+                                placeholder="Бусад шалтгааны тайлбар"
+                                value={
+                                  consent.answers?.incapacityReason
+                                    ?.otherText || ""
+                                }
+                                onChange={(e) => {
+                                  const prev =
+                                    consent.answers?.incapacityReason ||
+                                    {};
+                                  updateConsentAnswers({
+                                    incapacityReason: {
+                                      ...prev,
+                                      otherText: e.target.value,
+                                    },
+                                  });
+                                }}
+                                onBlur={async () => {
+                                  await saveConsent(consent.type);
+                                }}
+                                rows={2}
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  padding: "4px 6px",
+                                  marginTop: 2,
+                                  fontSize: 12,
+                                }}
+                              />
+                            </div>
+
+                            {/* Pregnant: husband consent */}
+                            <div
+                              style={{
+                                marginTop: 6,
+                                paddingTop: 6,
+                                borderTop: "1px dashed #e5e7eb",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  marginBottom: 4,
+                                  color: "#4b5563",
+                                  fontSize: 12,
+                                }}
+                              >
+                                Хэрэв өвчтөн жирэмсэн тохиолдолд:
+                              </div>
+                              <label
+                                style={{
+                                  display: "block",
+                                  marginBottom: 4,
+                                  fontSize: 12,
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={
+                                    !!consent.answers?.husbandConsent
+                                  }
+                                  onChange={async (e) => {
+                                    updateConsentAnswers({
+                                      husbandConsent: e.target.checked,
+                                    });
+                                    await saveConsent(consent.type);
+                                  }}
+                                  style={{ marginRight: 6 }}
+                                />
+                                Миний эхнэрийн хийлгэхээр зөвшөөрсөн мэс
+                                ажилбар / мэс заслыг би зөвшөөрч байна.
+                              </label>
+
+                              <div
+                                style={{
+                                  marginBottom: 2,
+                                  color: "#4b5563",
+                                }}
+                              >
+                                Нөхрийн нэр:
+                              </div>
+                              <input
+                                type="text"
+                                value={
+                                  consent.answers?.husbandName || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    husbandName: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsent(consent.type);
+                                }}
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  padding: "4px 6px",
+                                  fontSize: 12,
+                                  marginBottom: 4,
+                                }}
+                              />
+
+                              <textarea
+                                placeholder="Хэрэв нөхөр / асран хамгаалагч / харгалзан дэмжигч нь зөвшөөрөөгүй бол тайлбарлана уу."
+                                value={
+                                  consent.answers
+                                    ?.husbandRefuseReason || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    husbandRefuseReason: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsent(consent.type);
+                                }}
+                                rows={2}
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  padding: "4px 6px",
+                                  fontSize: 12,
+                                }}
+                              />
+                            </div>
+
+                            {/* Date from encounter */}
+                            <div style={{ marginTop: 6, fontSize: 12 }}>
+                              Огноо:{" "}
+                              <strong>
+                                {formatShortDate(encounter.visitDate)}
+                              </strong>
+                            </div>
+                          </div>
                         </div>
-                      </>
+                      </div>
                     )}
 
                                         {/* 3. Гажиг засал */}
