@@ -52,7 +52,7 @@ const navItems: NavItem[] = [
     label: "Үйлчлүүлэгчид",
     icon: "👥",
     children: [
-      { label: "List of customers", href: "/patients", icon: "📋" },
+      { label: "Үйлчлүүлэгчдийн жагсаалт", href: "/patients", icon: "📋" },
     ],
   },
 
