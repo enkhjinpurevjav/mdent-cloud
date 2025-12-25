@@ -4,6 +4,7 @@ import multer from "multer";
 import path from "path";
 
 const router = express.Router();
+const uploadDir = process.env.MEDIA_UPLOAD_DIR || "/data/media";
 
 // Helper: get next available numeric bookNumber as string
 async function generateNextBookNumber() {
