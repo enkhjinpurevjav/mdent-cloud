@@ -540,4 +540,97 @@ router.post(
     }
   }
 );
+
+// GET /api/patients/ortho-card/by-book/:bookNumber
+router.get("/ortho-card/by-book/:bookNumber", async (req, res) => {
+  try {
+    const { bookNumber } = req.params;
+    if (!bookNumber) {
+      return res.status(400).json({ error: "bookNumber is required" });
+    }
+
+    const pb = await prisma.patientBook.findUnique({
+      where: { bookNumber },
+      include: {
+        orthoCard: true,
+        patient: {
+          include: { branch: true },
+        },
+      },
+    });
+
+    if (!pb || !pb.patient) {
+      return res.status(404).json({ error: "Patient not found" });
+    }
+
+    return res.json({
+      patientBook: { id: pb.id, bookNumber: pb.bookNumber },
+      patient: pb.patient,
+      orthoCard: pb.orthoCard, // may be null
+    });
+  } catch (err) {
+    console.error(
+      "GET /api/patients/ortho-card/by-book/:bookNumber error:",
+      err
+    );
+    return res
+      .status(500)
+      .json({ error: "failed to load ortho card for patient" });
+  }
+});
+
+
+// PUT /api/patients/ortho-card/:patientBookId
+// Body: { data: object }
+router.put("/ortho-card/:patientBookId", async (req, res) => {
+  try {
+    const patientBookId = Number(req.params.patientBookId);
+    if (!patientBookId || Number.isNaN(patientBookId)) {
+      return res.status(400).json({ error: "Invalid patientBookId" });
+    }
+
+    const { data } = req.body || {};
+    if (!data || typeof data !== "object") {
+      return res
+        .status(400)
+        .json({ error: "data must be a non-empty object" });
+    }
+
+    // Ensure patientBook exists
+    const pb = await prisma.patientBook.findUnique({
+      where: { id: patientBookId },
+      select: { id: true },
+    });
+    if (!pb) {
+      return res.status(404).json({ error: "PatientBook not found" });
+    }
+
+    const existing = await prisma.orthoCard.findUnique({
+      where: { patientBookId },
+    });
+
+    let orthoCard;
+    if (!existing) {
+      orthoCard = await prisma.orthoCard.create({
+        data: {
+          patientBookId,
+          data,
+        },
+      });
+    } else {
+      orthoCard = await prisma.orthoCard.update({
+        where: { patientBookId },
+        data: {
+          data,
+        },
+      });
+    }
+
+    return res.json({ orthoCard });
+  } catch (err) {
+    console.error("PUT /api/patients/ortho-card/:patientBookId error:", err);
+    return res.status(500).json({ error: "failed to save ortho card" });
+  }
+});
+
 export default router;
