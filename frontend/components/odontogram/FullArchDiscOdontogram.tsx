@@ -21,11 +21,11 @@ type Props = {
   onChange: (next: ExternalDisc[]) => void;
 };
 
-// New layout:
-//   Row 1 (top upper):    16 discs
-//   Row 2 (bottom upper): 10 discs
-//   Row 3 (top lower):    10 discs
-//   Row 4 (bottom lower): 16 discs
+// Layout:
+//   Row 1: 16 discs
+//   Row 2: 10 discs
+//   Row 3: 10 discs
+//   Row 4: 16 discs
 const DISC_IDS_ROW1 = Array.from({ length: 16 }, (_v, i) => `R1-${i}`);
 const DISC_IDS_ROW2 = Array.from({ length: 10 }, (_v, i) => `R2-${i}`);
 const DISC_IDS_ROW3 = Array.from({ length: 10 }, (_v, i) => `R3-${i}`);
@@ -108,7 +108,7 @@ export default function FullArchDiscOdontogram({ value, onChange }: Props) {
     return (
       <ToothSvg5Region
         key={id}
-        code="" // no visible numeric label
+        code="" // no numeric label
         baseStatus={baseStatus}
         regions={regions}
         isActive={activeId === id}
@@ -148,8 +148,26 @@ export default function FullArchDiscOdontogram({ value, onChange }: Props) {
         Хоншоор
       </div>
 
-      {/* Upper rows: 16 + 10 */}
-      <div style={{ marginBottom: 8 }}>
+      {/* Upper rows container: 16 + 10, with vertical midline */}
+      <div
+        style={{
+          marginBottom: 8,
+          position: "relative",
+        }}
+      >
+        {/* Vertical line splitting left/right halves (like the screenshot) */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: "50%",
+            width: 1,
+            backgroundColor: "#4b5563",
+            transform: "translateX(-0.5px)",
+          }}
+        />
+
         {renderRow(DISC_IDS_ROW1)}
         {renderRow(DISC_IDS_ROW2)}
       </div>
@@ -181,7 +199,7 @@ export default function FullArchDiscOdontogram({ value, onChange }: Props) {
         <span style={{ fontSize: 11, marginLeft: 4 }}>Зүүн</span>
       </div>
 
-      {/* Lower rows: 10 + 16 */}
+      {/* Lower rows: 10 + 16 (no vertical line yet) */}
       <div style={{ marginBottom: 4 }}>
         {renderRow(DISC_IDS_ROW3)}
         {renderRow(DISC_IDS_ROW4)}
