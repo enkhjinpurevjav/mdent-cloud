@@ -2,6 +2,10 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import SignaturePad from "../../components/SignaturePad";
 import ChildVisitCardForm from "../../components/ChildVisitCardForm";
+import { OrthoOdontogram } from "../../components/odontogram/OrthoOdontogram";
+import type { OrthoChartState } from "../../types/orthoChart";
+import { createEmptyChartState } from "../../utils/orthoChartRules";
+import type { OrthoCardData } from "../../types/orthoCard";
 
 type Branch = {
   id: number;
@@ -32,6 +36,7 @@ type ActiveTab =
   | "profile"
   | "appointments"
   | "visit_card"
+  | "ortho_card"   // NEW
   | "history"
   | "billing";
 
@@ -234,6 +239,12 @@ export default function PatientProfilePage() {
   const [visitCardSaving, setVisitCardSaving] = useState(false);
   const [signatureSaving, setSignatureSaving] = useState(false);
 
+const [orthoCard, setOrthoCard] = useState<OrthoCardData | null>(null);
+const [orthoLoading, setOrthoLoading] = useState(false);
+const [orthoError, setOrthoError] = useState("");
+const [orthoSaving, setOrthoSaving] = useState(false);
+  
+
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Patient>>({});
   const [saving, setSaving] = useState(false);
@@ -269,6 +280,53 @@ export default function PatientProfilePage() {
 
     load();
   }, [bookNumber]);
+
+  useEffect(() => {
+  if (activeTab !== "ortho_card") return;
+  if (!pb) return;
+
+  const loadOrtho = async () => {
+    setOrthoLoading(true);
+    setOrthoError("");
+    try {
+      const res = await fetch(
+        `/api/patients/ortho-card/by-book/${encodeURIComponent(
+          pb.bookNumber
+        )}`
+      );
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(
+          (json && json.error) || "Гажиг заслын карт ачаалахад алдаа гарлаа."
+        );
+      }
+
+      const existing = json.orthoCard?.data;
+      if (existing && typeof existing === "object") {
+        setOrthoCard(existing as OrthoCardData);
+      } else {
+        setOrthoCard({
+          toothChart: createEmptyChartState(),
+          problemList: [],
+        });
+      }
+    } catch (err: any) {
+      console.error("loadOrthoCard failed", err);
+      setOrthoError(
+        err?.message || "Гажиг заслын карт ачаалахад алдаа гарлаа."
+      );
+      setOrthoCard({
+        toothChart: createEmptyChartState(),
+        problemList: [],
+      });
+    } finally {
+      setOrthoLoading(false);
+    }
+  };
+
+  void loadOrtho();
+}, [activeTab, pb?.bookNumber]);
 
   // Load visit card only when visit_card tab is active
   useEffect(() => {
@@ -346,6 +404,39 @@ export default function PatientProfilePage() {
     }));
   };
 
+const handleSaveOrthoCard = async () => {
+  if (!pb || !orthoCard) {
+    setOrthoError("Картын дугаар эсвэл гажиг заслын картын өгөгдөл алга.");
+    return;
+  }
+
+  setOrthoSaving(true);
+  setOrthoError("");
+  try {
+    const res = await fetch(`/api/patients/ortho-card/${pb.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: orthoCard }),
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(
+        (json && json.error) || "Гажиг заслын карт хадгалахад алдаа гарлаа."
+      );
+    }
+    if (json.orthoCard?.data) {
+      setOrthoCard(json.orthoCard.data as OrthoCardData);
+    }
+  } catch (err: any) {
+    console.error("save ortho card failed", err);
+    setOrthoError(
+      err?.message || "Гажиг заслын карт хадгалахад алдаа гарлаа."
+    );
+  } finally {
+    setOrthoSaving(false);
+  }
+};
+  
   const totalEncounters = encounters.length;
   const lastEncounter = encounters[0];
 
@@ -703,6 +794,33 @@ const handleEditChange = (
                   >
                     Үзлэгийн карт
                   </button>
+
+
+{/* Гажиг заслын карт */}
+<button
+  type="button"
+  onClick={() => {
+    setActiveTab("ortho_card");
+    setEditMode(false);
+    setSaveError("");
+    setSaveSuccess("");
+  }}
+  style={{
+    textAlign: "left",
+    padding: "6px 10px",
+    borderRadius: 6,
+    border: "none",
+    background:
+      activeTab === "ortho_card" ? "#eff6ff" : "transparent",
+    color: activeTab === "ortho_card" ? "#1d4ed8" : "#6b7280",
+    fontWeight: activeTab === "ortho_card" ? 500 : 400,
+    cursor: "pointer",
+  }}
+>
+  Гажиг заслын карт
+</button>
+
+                  
  {/* Цагууд */}
                   <button
                     type="button"
@@ -756,6 +874,133 @@ const handleEditChange = (
             </div>
 
             {/* Right content area: depends on activeTab */}
+            
+            {activeTab === "ortho_card" && (
+  <div
+    style={{
+      borderRadius: 12,
+      border: "1px solid #e5e7eb",
+      padding: 16,
+      background: "white",
+    }}
+  >
+    <h2
+      style={{
+        fontSize: 16,
+        marginTop: 0,
+        marginBottom: 12,
+      }}
+    >
+      Гажиг заслын өвчтөний карт
+    </h2>
+
+    {orthoLoading && (
+      <div style={{ fontSize: 13 }}>
+        Гажиг заслын карт ачааллаж байна...
+      </div>
+    )}
+
+    {!orthoLoading && orthoError && (
+      <div
+        style={{
+          fontSize: 12,
+          color: "#b91c1c",
+          marginBottom: 8,
+        }}
+      >
+        {orthoError}
+      </div>
+    )}
+
+    {!orthoLoading && orthoCard && (
+      <>
+        {/* Very minimal header for now; you’ll extend to match paper form */}
+        <section
+          style={{
+            marginBottom: 12,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 8,
+            fontSize: 13,
+          }}
+        >
+          <div>
+            <div style={{ color: "#6b7280", marginBottom: 2 }}>
+              Өвчтөний овог, нэр
+            </div>
+            <input
+              value={orthoCard.patientName ?? ""}
+              onChange={(e) =>
+                setOrthoCard((prev) =>
+                  prev ? { ...prev, patientName: e.target.value } : prev
+                )
+              }
+              style={{
+                width: "100%",
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "4px 6px",
+              }}
+            />
+          </div>
+          {/* You can auto-fill some fields from patient if you want */}
+        </section>
+
+        {/* Tooth circle chart */}
+        <section style={{ marginBottom: 12 }}>
+          <h3
+            style={{
+              fontSize: 14,
+              margin: 0,
+              marginBottom: 8,
+            }}
+          >
+            Шүдний тойргийн зураг (Одонтограм)
+          </h3>
+          <OrthoOdontogram
+            value={orthoCard.toothChart}
+            onChange={(next) =>
+              setOrthoCard((prev) =>
+                prev ? { ...prev, toothChart: next } : prev
+              )
+            }
+          />
+        </section>
+
+        {/* Later you’ll add Discrepancy, Problem list, Treatment plan sections here */}
+
+        <div
+          style={{
+            marginTop: 16,
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleSaveOrthoCard}
+            disabled={orthoSaving}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: "none",
+              background: orthoSaving ? "#9ca3af" : "#2563eb",
+              color: "#ffffff",
+              fontSize: 13,
+              cursor: orthoSaving ? "default" : "pointer",
+            }}
+          >
+            {orthoSaving
+              ? "Хадгалж байна..."
+              : "Гажиг заслын карт хадгалах"}
+          </button>
+        </div>
+      </>
+    )}
+  </div>
+)}
+            
+            
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {activeTab === "profile" && (
                 <>
