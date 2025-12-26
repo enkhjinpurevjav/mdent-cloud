@@ -1,46 +1,195 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import OrthoOdontogram from "../../components/odontogram/OrthoOdontogram";
 
+/**
+ * NOTE:
+ * - This page is built to work with the current backend API:
+ *   - GET  /api/patients/ortho-card/by-book/:bookNumber
+ *   - PUT  /api/patients/ortho-card/:patientBookId
+ * - Backend stores OrthoCard.data as generic JSON (Prisma Json field).
+ * - We keep the external tooth type simple: { code, status }[]
+ *   so it matches the already‑working minimal implementation.
+ * - Internally, OrthoOdontogram can map this to richer structures.
+ */
+
 type OrthoTooth = {
   code: string;
-  status: string;
+  status: string; // base status key; internal component can interpret it
 };
 
-export default function OrthoCardPrototypePage() {
+type OrthoCardData = {
+  patientName?: string;
+  notes?: string;
+  toothChart: OrthoTooth[];
+  problemList?: { id: number; label: string; checked?: boolean }[];
+  supernumeraryNote?: string; // e.g. "between 12–13"
+};
+
+type OrthoCardApiResponse = {
+  patientBook: { id: number; bookNumber: string };
+  patient: {
+    id: number;
+    name: string | null;
+    ovog: string | null;
+    regNo: string | null;
+    branch?: { id: number; name: string | null } | null;
+  };
+  orthoCard: {
+    id: number;
+    patientBookId: number;
+    data: OrthoCardData;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
+};
+
+export default function OrthoCardPage() {
   const router = useRouter();
   const { bookNumber } = router.query;
 
-  const [patientName, setPatientName] = useState<string>("");
-  const [notes, setNotes] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+
+  const [patientBookId, setPatientBookId] = useState<number | null>(null);
+  const [patientNameHeader, setPatientNameHeader] = useState<string>("");
+
+  // Editable card fields
+  const [cardPatientName, setCardPatientName] = useState<string>("");
+  const [cardNotes, setCardNotes] = useState<string>("");
+  const [supernumeraryNote, setSupernumeraryNote] = useState<string>("");
   const [toothChart, setToothChart] = useState<OrthoTooth[]>([]);
-  const [info, setInfo] = useState<string>("");
 
   const bn =
     typeof bookNumber === "string" && bookNumber.trim()
       ? bookNumber.trim()
       : "";
 
-  const handleSave = () => {
-    // Phase 1: just log / show message
-    console.log("Ortho card save (prototype):", {
-      bookNumber: bn,
-      patientName,
-      notes,
-      toothChart,
-    });
-    setInfo("Гажиг заслын картын өгөгдлийг локал прототип байдлаар хадгаллаа (console.log).");
+  // --- Load existing ortho card (or create empty state) ---
+  useEffect(() => {
+    if (!bn) return;
+
+    const load = async () => {
+      setLoading(true);
+      setError("");
+      setInfo("");
+
+      try {
+        const res = await fetch(
+          `/api/patients/ortho-card/by-book/${encodeURIComponent(bn)}`
+        );
+        const json = (await res.json().catch(() => null)) as
+          | OrthoCardApiResponse
+          | null;
+
+        if (!res.ok) {
+          throw new Error(
+            (json && (json as any).error) ||
+              "Гажиг заслын карт ачаалахад алдаа гарлаа."
+          );
+        }
+
+        if (!json || !json.patientBook) {
+          throw new Error("Картын мэдээлэл олдсонгүй.");
+        }
+
+        setPatientBookId(json.patientBook.id);
+
+        // Patient display name in header
+        if (json.patient) {
+          const { ovog, name } = json.patient;
+          if (name) {
+            const trimmedOvog = (ovog || "").trim();
+            const display =
+              trimmedOvog && trimmedOvog !== "null"
+                ? `${trimmedOvog.charAt(0).toUpperCase()}.${name}`
+                : name;
+            setPatientNameHeader(display);
+          }
+        }
+
+        // Fill card fields if orthoCard exists
+        if (json.orthoCard && json.orthoCard.data) {
+          const data = json.orthoCard.data;
+          setCardPatientName(data.patientName || "");
+          setCardNotes(data.notes || "");
+          setSupernumeraryNote(data.supernumeraryNote || "");
+          setToothChart(data.toothChart || []);
+        } else {
+          // Fresh / first‑time card
+          setCardPatientName("");
+          setCardNotes("");
+          setSupernumeraryNote("");
+          setToothChart([]);
+        }
+      } catch (err: any) {
+        console.error("load ortho card failed", err);
+        setError(
+          err?.message || "Гажиг заслын карт ачаалахад алдаа гарлаа."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void load();
+  }, [bn]);
+
+  // --- Save handler ---
+  const handleSave = async () => {
+    if (!patientBookId) {
+      setError("PatientBook ID олдсонгүй.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setInfo("");
+
+    try {
+      const payload: OrthoCardData = {
+        patientName: cardPatientName || undefined,
+        notes: cardNotes || undefined,
+        toothChart,
+        supernumeraryNote: supernumeraryNote || undefined,
+      };
+
+      const res = await fetch(`/api/patients/ortho-card/${patientBookId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: payload }),
+      });
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(
+          (json && json.error) || "Гажиг заслын карт хадгалахад алдаа гарлаа."
+        );
+      }
+
+      setInfo("Гажиг заслын карт амжилттай хадгалагдлаа.");
+    } catch (err: any) {
+      console.error("save ortho card failed", err);
+      setError(
+        err?.message || "Гажиг заслын карт хадгалахад алдаа гарлаа."
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <main
       style={{
-        maxWidth: 1000,
+        maxWidth: 1100,
         margin: "40px auto",
         padding: 24,
         fontFamily: "sans-serif",
       }}
     >
+      {/* Back to patient list */}
       <button
         type="button"
         onClick={() => router.push("/patients")}
@@ -57,14 +206,33 @@ export default function OrthoCardPrototypePage() {
         ← Өвчтөнүүдийн жагсаалт руу
       </button>
 
-      <h1 style={{ fontSize: 20, marginTop: 0, marginBottom: 8 }}>
+      {/* Title + book number */}
+      <h1 style={{ fontSize: 20, marginTop: 0, marginBottom: 4 }}>
         Гажиг заслын өвчтөний карт (туршилтын хувилбар)
       </h1>
-      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 4 }}>
         Картын дугаар: {bn || "—"}
       </div>
+      {patientNameHeader && (
+        <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+          Өвчтөн: {patientNameHeader}
+        </div>
+      )}
 
-      {info && (
+      {/* Status messages */}
+      {loading && <div>Ачааллаж байна...</div>}
+      {!loading && error && (
+        <div
+          style={{
+            color: "#b91c1c",
+            fontSize: 13,
+            marginBottom: 8,
+          }}
+        >
+          {error}
+        </div>
+      )}
+      {!loading && info && (
         <div
           style={{
             color: "#16a34a",
@@ -76,106 +244,132 @@ export default function OrthoCardPrototypePage() {
         </div>
       )}
 
-      <section
-        style={{
-          borderRadius: 12,
-          border: "1px solid #e5e7eb",
-          padding: 16,
-          background: "white",
-        }}
-      >
-        <div
+      {!loading && !error && (
+        <section
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: 8,
-            fontSize: 13,
-            marginBottom: 16,
+            borderRadius: 12,
+            border: "1px solid #e5e7eb",
+            padding: 16,
+            background: "white",
           }}
         >
-          <div>
-            <div style={{ color: "#6b7280", marginBottom: 2 }}>
-              Өвчтөний овог, нэр (сонголттой)
+          {/* Top fields: patient name + notes (per card) */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 8,
+              fontSize: 13,
+              marginBottom: 16,
+            }}
+          >
+            <div>
+              <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                Өвчтөний овог, нэр (сонголттой)
+              </div>
+              <input
+                value={cardPatientName}
+                onChange={(e) => setCardPatientName(e.target.value)}
+                style={{
+                  width: "100%",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                }}
+              />
             </div>
-            <input
-              value={patientName}
-              onChange={(e) => setPatientName(e.target.value)}
+            <div>
+              <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                Тэмдэглэл (сонголттой)
+              </div>
+              <input
+                value={cardNotes}
+                onChange={(e) => setCardNotes(e.target.value)}
+                style={{
+                  width: "100%",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Odontogram */}
+          <h2
+            style={{
+              fontSize: 14,
+              marginTop: 0,
+              marginBottom: 8,
+            }}
+          >
+            Шүдний тойргийн зураг (Одонтограм)
+          </h2>
+
+          <OrthoOdontogram value={toothChart} onChange={setToothChart} />
+
+          {/* Supernumerary note */}
+          <section style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 13, marginBottom: 4 }}>
+              Нэмэлт шүд (supernumerary) байрлал:
+            </div>
+            <textarea
+              value={supernumeraryNote}
+              onChange={(e) => setSupernumeraryNote(e.target.value)}
+              rows={2}
               style={{
                 width: "100%",
                 borderRadius: 6,
                 border: "1px solid #d1d5db",
                 padding: "4px 6px",
+                resize: "vertical",
               }}
+              placeholder='Жишээ: "12–13 хооронд"'
             />
-          </div>
-          <div>
-            <div style={{ color: "#6b7280", marginBottom: 2 }}>
-              Тэмдэглэл (сонголттой)
-            </div>
-            <input
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+          </section>
+
+          {/* Actions */}
+          <div
+            style={{
+              marginTop: 16,
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 8,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => router.back()}
               style={{
-                width: "100%",
+                padding: "6px 12px",
                 borderRadius: 6,
                 border: "1px solid #d1d5db",
-                padding: "4px 6px",
+                background: "#f9fafb",
+                fontSize: 13,
+                cursor: "pointer",
               }}
-            />
+            >
+              Буцах
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "none",
+                background: saving ? "#9ca3af" : "#2563eb",
+                color: "#ffffff",
+                fontSize: 13,
+                cursor: saving ? "default" : "pointer",
+              }}
+            >
+              {saving ? "Хадгалж байна..." : "Карт хадгалах"}
+            </button>
           </div>
-        </div>
-
-        <h2
-          style={{
-            fontSize: 14,
-            marginTop: 0,
-            marginBottom: 8,
-          }}
-        >
-          Шүдний тойргийн зураг (Одонтограм)
-        </h2>
-
-        <OrthoOdontogram value={toothChart} onChange={setToothChart} />
-
-        <div
-          style={{
-            marginTop: 16,
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => router.back()}
-            style={{
-              padding: "6px 12px",
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              background: "#f9fafb",
-              fontSize: 13,
-              cursor: "pointer",
-            }}
-          >
-            Буцах
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            style={{
-              padding: "6px 12px",
-              borderRadius: 6,
-              border: "none",
-              background: "#2563eb",
-              color: "#ffffff",
-              fontSize: 13,
-              cursor: "pointer",
-            }}
-          >
-            Карт хадгалах (прототип)
-          </button>
-        </div>
-      </section>
+        </section>
+      )}
     </main>
   );
 }
