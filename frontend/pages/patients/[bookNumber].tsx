@@ -1443,37 +1443,38 @@ const handleEditChange = (
                 </div>
               )}
 
-             {activeTab === "visit_card" &&
-  (visitCard?.type === "CHILD" || visitCardTypeDraft === "CHILD" ? (
-    <ChildVisitCardForm
-      answers={visitCardAnswers}
-      visitCard={visitCard}
-      visitCardTypeDraft={visitCardTypeDraft}
-      setVisitCardTypeDraft={setVisitCardTypeDraft}
-      updateVisitCardAnswer={(
-        key: keyof VisitCardAnswers,
-        value: VisitCardAnswers[keyof VisitCardAnswers]
-      ) => updateVisitCardAnswer(key, value)}
-      updateNested={(
-        section: keyof VisitCardAnswers,
-        field: string,
-        value: any
-      ) => updateNested(section, field, value)}
-      signatureSaving={signatureSaving}
-      handleUploadSignature={handleUploadSignature}
-      handleSaveVisitCard={handleSaveVisitCard}
-      visitCardSaving={visitCardSaving}
-      formatDate={formatDate}
-    />
-  ) : (
-    <div
-      style={{
-        borderRadius: 12,
-        border: "1px solid #e5e7eb",
-        padding: 16,
-        background: "white",
-      }}
-    >
+{activeTab === "visit_card" &&
+                (visitCard?.type === "CHILD" ||
+                visitCardTypeDraft === "CHILD" ? (
+                  <ChildVisitCardForm
+                    answers={visitCardAnswers}
+                    visitCard={visitCard}
+                    visitCardTypeDraft={visitCardTypeDraft}
+                    setVisitCardTypeDraft={setVisitCardTypeDraft}
+                    updateVisitCardAnswer={(
+                      key: keyof VisitCardAnswers,
+                      value: VisitCardAnswers[keyof VisitCardAnswers]
+                    ) => updateVisitCardAnswer(key, value)}
+                    updateNested={(
+                      section: keyof VisitCardAnswers,
+                      field: string,
+                      value: any
+                    ) => updateNested(section, field, value)}
+                    signatureSaving={signatureSaving}
+                    handleUploadSignature={handleUploadSignature}
+                    handleSaveVisitCard={handleSaveVisitCard}
+                    visitCardSaving={visitCardSaving}
+                    formatDate={formatDate}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      borderRadius: 12,
+                      border: "1px solid #e5e7eb",
+                      padding: 16,
+                      background: "white",
+                    }}
+                  >
     <h2
       style={{
         fontSize: 16,
@@ -2512,7 +2513,6 @@ const handleEditChange = (
       </>
     )}
   </div>
-  ))}            </div>
           </section>
 
           {/* Encounter history and inline appointments table shown only in profile tab */}
