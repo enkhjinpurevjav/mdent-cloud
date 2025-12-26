@@ -1,3 +1,4 @@
+//```tsx name=frontend/components/odontogram/ToothSvg5Region.tsx url=https://github.com/enkhjinpurevjav/mdent-cloud/blob/main/frontend/components/odontogram/ToothSvg5Region.tsx
 import React from "react";
 
 export type ToothRegion = "top" | "bottom" | "left" | "right" | "center";
@@ -28,33 +29,13 @@ export type ToothSvg5RegionProps = {
     center: ToothRegionState;
   };
 
-  /** Fired when user clicks a specific region (for toggling caries/filled later) */
   onClickRegion?: (region: ToothRegion) => void;
-
-  /** Optional: click the middle area to open a popover/editor */
   onClickTooth?: () => void;
 
-  /** Draw a highlight ring when this tooth is selected in the UI */
   isActive?: boolean;
-
-  /** Optional size in px (default 40) */
   size?: number;
 };
 
-/**
- * Single tooth SVG with 5 regions:
- * - 4 outer wedges: top, right, bottom, left
- * - 1 center circle
- *
- * Colors:
- * - baseStatus controls the background (full tooth) color
- * - region caries/filled can later be drawn as overlays
- *
- * For now we just:
- * - fill whole tooth with baseStatus color
- * - tint each region slightly differently when clicked (for debugging)
- * You can refine colors in OrthoOdontogram once behaviour is correct.
- */
 export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
   const {
     code,
@@ -68,20 +49,20 @@ export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
 
   const S = size;
   const center = S / 2;
-  const outerR = (S / 2) * 0.95; // outer radius
-  const innerR = outerR * 0.55;  // ring inner radius
-  const coreR = innerR * 0.65;   // center circle radius
+  const outerR = (S / 2) * 0.95;
+  const innerR = outerR * 0.55;
+  const coreR = innerR * 0.65;
 
-  // --- Base status full‑tooth color ---
+  // BaseStatus → full-circle background
   const baseFill =
     baseStatus === "none"
       ? "#ffffff"
       : baseStatus === "extracted"
-      ? "#fee2e2" // light red
+      ? "#fecaca" // red-ish
       : baseStatus === "prosthesis"
-      ? "#e0f2fe" // light blue
+      ? "#bae6fd" // blue-ish
       : baseStatus === "delay"
-      ? "#fef3c7" // light amber
+      ? "#fde68a" // amber
       : baseStatus === "apodontia"
       ? "#e5e7eb" // gray
       : baseStatus === "shapeAnomaly"
@@ -90,7 +71,6 @@ export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
 
   const borderColor = isActive ? "#2563eb" : "#111827";
 
-  // Helper to create an annular sector (ring wedge)
   function annularSectorPath(
     cx: number,
     cy: number,
@@ -122,17 +102,15 @@ export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
     ].join(" ");
   }
 
-  // Region overlay color (for now simple)
+  // Per-region overlay color:
+  // Цоорсон (caries) = red, Ломбодсон (filled) = blue
   const regionFill = (region: ToothRegionState): string => {
-    if (region.caries && region.filled) {
-      return "#a855f7"; // purple when both
-    }
-    if (region.caries) return "#f97373"; // red-ish
-    if (region.filled) return "#60a5fa"; // blue-ish
+    if (region.caries && region.filled) return "#a855f7"; // both
+    if (region.caries) return "#f97373"; // caries
+    if (region.filled) return "#60a5fa"; // filled
     return "transparent";
   };
 
-  // Slightly tint the region over base fill
   const regionOverlayOpacity = 0.9;
 
   const handleRegionClick = (region: ToothRegion) => {
@@ -144,18 +122,10 @@ export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
     else if (onClickRegion) onClickRegion("center");
   };
 
-  // Precompute wedge paths for 4 directions
   const topPath = annularSectorPath(center, center, outerR, innerR, -135, -45);
   const rightPath = annularSectorPath(center, center, outerR, innerR, -45, 45);
   const bottomPath = annularSectorPath(center, center, outerR, innerR, 45, 135);
-  const leftPath = annularSectorPath(
-    center,
-    center,
-    outerR,
-    innerR,
-    135,
-    225
-  );
+  const leftPath = annularSectorPath(center, center, outerR, innerR, 135, 225);
 
   return (
     <div
@@ -173,7 +143,7 @@ export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
         viewBox={`0 0 ${S} ${S}`}
         style={{ display: "block", cursor: "pointer" }}
       >
-        {/* Outer circle (tooth outline + base fill) */}
+        {/* Outer circle with baseStatus fill */}
         <circle
           cx={center}
           cy={center}
@@ -185,7 +155,6 @@ export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
 
         {/* 4 ring segments */}
         <g>
-          {/* TOP */}
           <path
             d={topPath}
             fill={regionFill(regions.top)}
@@ -194,7 +163,6 @@ export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
             strokeWidth={0.5}
             onClick={() => handleRegionClick("top")}
           />
-          {/* RIGHT */}
           <path
             d={rightPath}
             fill={regionFill(regions.right)}
@@ -203,7 +171,6 @@ export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
             strokeWidth={0.5}
             onClick={() => handleRegionClick("right")}
           />
-          {/* BOTTOM */}
           <path
             d={bottomPath}
             fill={regionFill(regions.bottom)}
@@ -212,7 +179,6 @@ export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
             strokeWidth={0.5}
             onClick={() => handleRegionClick("bottom")}
           />
-          {/* LEFT */}
           <path
             d={leftPath}
             fill={regionFill(regions.left)}
@@ -236,7 +202,7 @@ export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
         />
       </svg>
 
-      {/* FDI code label under the tooth */}
+      {/* FDI code label (unused for your full arch layout, but kept for reuse) */}
       <span style={{ fontSize: 9, color: "#374151" }}>{code}</span>
     </div>
   );
