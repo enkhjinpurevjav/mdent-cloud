@@ -69,7 +69,18 @@ function cloneTooth(t: InternalTooth): InternalTooth {
   };
 }
 
-export default function FullArchDiscOdontogram({ value, onChange }: Props) {
+
+
+
+
+
+
+
+export default function FullArchDiscOdontogram({
+  value,
+  onChange,
+  activeStatus,
+}: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const internalList = useMemo(
