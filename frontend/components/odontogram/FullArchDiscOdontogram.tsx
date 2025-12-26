@@ -9,18 +9,18 @@ import ToothSvg5Region, {
  * Active status keys must match the buttons on /ortho/[bookNumber].tsx
  */
 export type ActiveStatusKey =
-  | "caries" // Цоорсон – partial, per region
-  | "filled" // Ломбодсон – partial, per region
-  | "extracted" // Авахуулсан – full circle, exclusive
-  | "prosthesis" // Шүдэлбэр – full circle, exclusive
-  | "delay" // Саатсан – full circle, can overlap with caries/filled
-  | "anodontia" // Anodontia – full circle, exclusive
-  | "supernumerary" // Илүү шүд – handled by text, no visual change yet
-  | "shapeAnomaly"; // Хэлбэрийн гажиг – full circle, can overlap with caries/filled
+  | "caries"
+  | "filled"
+  | "extracted"
+  | "prosthesis"
+  | "delay"
+  | "anodontia"
+  | "supernumerary"
+  | "shapeAnomaly";
 
 export type ExternalDisc = {
-  code: string; // disc id
-  status: string; // baseStatus stored externally
+  code: string;
+  status: string;
 };
 
 type InternalDisc = {
@@ -39,13 +39,11 @@ type Props = {
   value: ExternalDisc[];
   onChange: (next: ExternalDisc[]) => void;
   activeStatus: ActiveStatusKey | null;
+  // optional hook for parent if it wants to react to save explicitly
+  onSavePainted?: (snapshot: ExternalDisc[]) => void;
 };
 
-// Layout:
-//   Row 1: 16 discs
-//   Row 2: 10 discs
-//   Row 3: 10 discs
-//   Row 4: 16 discs
+// Layout IDs
 const DISC_IDS_ROW1 = Array.from({ length: 16 }, (_v, i) => `R1-${i}`);
 const DISC_IDS_ROW2 = Array.from({ length: 10 }, (_v, i) => `R2-${i}`);
 const DISC_IDS_ROW3 = Array.from({ length: 10 }, (_v, i) => `R3-${i}`);
@@ -93,22 +91,21 @@ export default function FullArchDiscOdontogram({
   value,
   onChange,
   activeStatus,
+  onSavePainted,
 }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Single source of truth for what we draw
+  // Single source of truth for what we draw (includes unsaved paints)
   const [internalDiscs, setInternalDiscs] = useState<InternalDisc[]>([]);
 
-  // Initialize internalDiscs once from value (for baseStatus only)
+  // Initialize internalDiscs once from external baseStatus
   useEffect(() => {
     const map: Record<string, InternalDisc> = {};
 
-    // create an entry for every known disc
     for (const id of ALL_IDS) {
       map[id] = createEmptyDisc(id);
     }
 
-    // apply baseStatus from external value if present
     if (value && value.length > 0) {
       for (const ext of value) {
         const target = map[ext.code];
@@ -120,7 +117,7 @@ export default function FullArchDiscOdontogram({
 
     setInternalDiscs(Object.values(map));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // only on mount
+  }, []); // only once on mount, so paints are not reset on every parent change
 
   const getDisc = (code: string): InternalDisc => {
     const found = internalDiscs.find((d) => d.code === code);
@@ -128,7 +125,6 @@ export default function FullArchDiscOdontogram({
   };
 
   const updateDisc = (updated: InternalDisc) => {
-    // 1) update local state used for rendering
     setInternalDiscs((prev) => {
       const idx = prev.findIndex((d) => d.code === updated.code);
       if (idx === -1) return [...prev, updated];
@@ -136,41 +132,14 @@ export default function FullArchDiscOdontogram({
       copy[idx] = updated;
       return copy;
     });
-
-    // 2) update simplified external array (only baseStatus)
-    const externalMap: Record<string, ExternalDisc> = {};
-
-    // start from existing value so we don't lose other discs
-    for (const e of value || []) {
-      externalMap[e.code] = { ...e };
-    }
-
-    externalMap[updated.code] = {
-      code: updated.code,
-      status: updated.baseStatus,
-    };
-
-    const nextExternal = Object.values(externalMap);
-    onChange(nextExternal);
+    // NOTE: we do NOT call onChange here anymore.
+    // Changes stay local until "Өөрчлөлт хадгалах" is pressed.
   };
 
-  /**
-   * Helper: which base statuses allow Цоорсон/Ломбодсон overlays?
-   * Allowed: none, delay, shapeAnomaly
-   */
   const baseAllowsPartial = (status: ToothBaseStatus): boolean => {
-    return (
-      status === "none" ||
-      status === "delay" ||
-      status === "shapeAnomaly"
-    );
+    return status === "none" || status === "delay" || status === "shapeAnomaly";
   };
 
-  /**
-   * For Цоорсон / Ломбодсон – per‑region toggles, with rules:
-   * - Only allowed when baseStatus is none / delay / shapeAnomaly.
-   * - A region can have either caries OR filled, not both.
-   */
   const toggleRegionPartial = (
     code: string,
     region: ToothRegion,
@@ -178,7 +147,6 @@ export default function FullArchDiscOdontogram({
   ) => {
     const base = getDisc(code);
 
-    // If the baseStatus does NOT allow partial overlays, ignore the click.
     if (!baseAllowsPartial(base.baseStatus)) {
       return;
     }
@@ -187,11 +155,9 @@ export default function FullArchDiscOdontogram({
     const reg = copy.regions[region];
 
     if (field === "caries") {
-      // Turn off filled in this region (cannot have both)
       reg.filled = false;
       reg.caries = !reg.caries;
     } else {
-      // field === "filled"
       reg.caries = false;
       reg.filled = !reg.filled;
     }
@@ -199,11 +165,6 @@ export default function FullArchDiscOdontogram({
     updateDisc(copy);
   };
 
-  /**
-   * For full‑circle statuses.
-   * - extracted / prosthesis / apodontia: exclusive, clear all partials
-   * - delay / shapeAnomaly: can overlap with caries/filled, so partials kept
-   */
   const setFullCircleStatus = (code: string, status: ToothBaseStatus) => {
     const base = getDisc(code);
     const copy = cloneDisc(base);
@@ -214,7 +175,6 @@ export default function FullArchDiscOdontogram({
       status === "prosthesis" ||
       status === "apodontia"
     ) {
-      // Exclusive: clear all region overlays
       copy.regions = {
         top: emptyRegion(),
         bottom: emptyRegion(),
@@ -227,12 +187,8 @@ export default function FullArchDiscOdontogram({
     updateDisc(copy);
   };
 
-  /**
-   * High‑level click behavior according to activeStatus.
-   */
   const handleDiscClick = (id: string, clickedRegion: ToothRegion) => {
     if (!activeStatus) {
-      // No status selected: default = toggle caries on the clicked region
       toggleRegionPartial(id, clickedRegion, "caries");
       return;
     }
@@ -265,6 +221,22 @@ export default function FullArchDiscOdontogram({
     }
   };
 
+  // Build external snapshot from current internalDiscs (baseStatus only)
+  const buildExternalSnapshot = (): ExternalDisc[] => {
+    return internalDiscs.map((d) => ({
+      code: d.code,
+      status: d.baseStatus,
+    }));
+  };
+
+  const handleSavePainted = () => {
+    const snapshot = buildExternalSnapshot();
+    onChange(snapshot); // sync to parent toothChart
+    if (onSavePainted) {
+      onSavePainted(snapshot);
+    }
+  };
+
   const renderDisc = (id: string) => {
     const disc = getDisc(id);
     const baseStatus: ToothBaseStatus = disc.baseStatus || "none";
@@ -273,7 +245,7 @@ export default function FullArchDiscOdontogram({
     return (
       <ToothSvg5Region
         key={id}
-        code="" // no numeric label for this full-arch layout
+        code=""
         baseStatus={baseStatus}
         regions={regions}
         isActive={activeId === id}
@@ -320,7 +292,6 @@ export default function FullArchDiscOdontogram({
           position: "relative",
         }}
       >
-        {/* Vertical line splitting left/right halves */}
         <div
           style={{
             position: "absolute",
@@ -332,7 +303,6 @@ export default function FullArchDiscOdontogram({
             transform: "translateX(-0.5px)",
           }}
         />
-
         {renderRow(DISC_IDS_ROW1)}
         {renderRow(DISC_IDS_ROW2)}
       </div>
@@ -367,11 +337,10 @@ export default function FullArchDiscOdontogram({
       {/* Lower rows container: 10 + 16, with same vertical midline */}
       <div
         style={{
-          marginBottom: 4,
+          marginBottom: 8,
           position: "relative",
         }}
       >
-        {/* Vertical line splitting left/right halves for bottom rows */}
         <div
           style={{
             position: "absolute",
@@ -383,9 +352,33 @@ export default function FullArchDiscOdontogram({
             transform: "translateX(-0.5px)",
           }}
         />
-
         {renderRow(DISC_IDS_ROW3)}
         {renderRow(DISC_IDS_ROW4)}
+      </div>
+
+      {/* Save painting button */}
+      <div
+        style={{
+          marginTop: 4,
+          display: "flex",
+          justifyContent: "flex-start",
+        }}
+      >
+        <button
+          type="button"
+          onClick={handleSavePainted}
+          style={{
+            padding: "4px 10px",
+            borderRadius: 6,
+            border: "1px solid #2563eb",
+            background: "#2563eb",
+            color: "#ffffff",
+            fontSize: 12,
+            cursor: "pointer",
+          }}
+        >
+          Өөрчлөлт хадгалах
+        </button>
       </div>
 
       {/* Bottom label: lower jaw */}
