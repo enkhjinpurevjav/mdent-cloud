@@ -4,7 +4,7 @@ import SignaturePad from "./SignaturePad";
 type VisitCardType = "ADULT" | "CHILD";
 
 type Props = {
-  answers: any; // VisitCardAnswers, but kept as any to avoid circular import
+  answers: any;
   visitCard: any | null;
   visitCardTypeDraft: VisitCardType | null;
   setVisitCardTypeDraft: (t: VisitCardType) => void;
@@ -14,6 +14,7 @@ type Props = {
   handleUploadSignature: (blob: Blob) => Promise<void>;
   handleSaveVisitCard: () => Promise<void> | void;
   visitCardSaving: boolean;
+  formatDate: (iso?: string) => string;
 };
 
 export default function ChildVisitCardForm({
@@ -27,6 +28,7 @@ export default function ChildVisitCardForm({
   handleUploadSignature,
   handleSaveVisitCard,
   visitCardSaving,
+  formatDate,
 }: Props) {
   return (
     <div
@@ -47,7 +49,7 @@ export default function ChildVisitCardForm({
         Үзлэгийн карт (Хүүхэд)
       </h2>
 
-      {/* Type selector – same as adult */}
+      {/* Type selector – same as in page */}
       {!visitCard && (
         <div
           style={{
@@ -86,7 +88,7 @@ export default function ChildVisitCardForm({
         </div>
       )}
 
-      {/* 3) Ерөнхий биеийн талаархи асуумж (kids wording, but same keys) */}
+      {/* 3) Ерөнхий биеийн талаархи асуумж — with child labels */}
       <section style={{ marginTop: 16 }}>
         <h3
           style={{
@@ -139,7 +141,7 @@ export default function ChildVisitCardForm({
             </tr>
           </thead>
           <tbody>
-            {/* ---- Ерөнхий бие (same keys as adult, kid labels) ---- */}
+            {/* --- Ерөнхий бие (same keys, kid wording) --- */}
             {([
               ["heartDisease", "Зүрх судасны өвчинтэй эсэх"],
               ["highBloodPressure", "Даралт ихсэх өвчинтэй эсэх"],
@@ -245,7 +247,7 @@ export default function ChildVisitCardForm({
               );
             })}
 
-            {/* ---- Харшил ---- */}
+            {/* --- Харшил --- */}
             <tr>
               <td
                 colSpan={3}
@@ -350,7 +352,7 @@ export default function ChildVisitCardForm({
               );
             })}
 
-            {/* ---- Зуршил (kids labels) ---- */}
+            {/* --- Зуршил (kids wording) --- */}
             <tr>
               <td
                 colSpan={3}
@@ -457,7 +459,7 @@ export default function ChildVisitCardForm({
               );
             })}
 
-            {/* ---- Нэмэлт (same as adult) ---- */}
+            {/* --- Нэмэлт (same as adult) --- */}
             <tr>
               <td
                 colSpan={3}
@@ -582,9 +584,56 @@ export default function ChildVisitCardForm({
         <div style={{ marginBottom: 8 }}>
           Та доорхи таниулсан зөвшөөрлийг бүрэн уншиж танилцана уу
         </div>
-        {/* ... your 9-point child consent text exactly as provided ... */}
         <ol style={{ paddingLeft: 18, margin: 0, marginBottom: 8 }}>
-          {/* copy your 1–9 items here same as adult version, adapted for child */}
+          <li style={{ marginBottom: 4 }}>
+            Манай эмнэлгийн <strong>7715-1551</strong> утсаар болон биечлэн
+            уулзаж эмчилгээ хийлгэх цагаа урьдчилан захиална.
+          </li>
+          <li style={{ marginBottom: 4 }}>
+            Таны хүүхдэд анхны үзлэгээр эмчилгээний төлөвлөгөө, төлбөрийн
+            баримжаа, цаашид хийгдэх эмчилгээ үр дүнгийн талаар эмч урьдчилан
+            мэдээллэх үүрэгтэй.
+          </li>
+          <li style={{ marginBottom: 4 }}>
+            Давтан ирэх шаардлагатай эмчилгээнд эмчийн тогтоосон өдөр та
+            хүүхдээ дагуулж ирэх үүрэгтэй ба хугацаандаа ирээгүйн улмаас
+            эмчилгээ дахих, цаг хугацаа алдах, дахин төлбөр төлөх зэрэг
+            асуудал гардаг ба тухайн асуудлыг үйлчлүүлэгчийн эцэг эх
+            хариуцна.
+          </li>
+          <li style={{ marginBottom: 4 }}>
+            Сувгийн эмчилгээ нь тухайн шүдний үрэвслийн байдал, тойрон эдийн
+            эдгэрэлт зэргээс хамаарч 2 болон түүнээс дээш удаагийн ирэлтээр
+            хийгддэг.
+          </li>
+          <li style={{ marginBottom: 4 }}>
+            Та хүндэтгэх шалтгааны улмаас товлосон үзлэгийн цагтаа ирэх
+            боломжгүй болсон тохиолдолд урьдчилан манай эмнэлгийн{" "}
+            <strong>7715-1551</strong> утсанд мэдэгдэнэ үү. Ингэснээр таны
+            хүүхдийн эмчилгээ үр дүнгүй болох зэрэг таагүй байдлаас та
+            урьдчилан сэргийлэх боломжтой болно.
+          </li>
+          <li style={{ marginBottom: 4 }}>
+            Та хийлгэсэн эмчилгээний дараахь эмчийн хэлсэн заавар
+            зөвлөмжийг дагаж биелүүлэх үүрэгтэй ба ингэснээр эмчилгээ үр
+            дүнгүй болох, дараачийн хүндрэлүүд үүсэх зэрэг асуудлаас
+            өөрийгөө сэргийлж байгаа юм.
+          </li>
+          <li style={{ marginBottom: 4 }}>
+            Манай эмнэлэгт хэрэглэгдэж буй нэг удаагийн зүүний лацны бүрэн
+            бүтэн, аюулгүй байдалд та давхар хяналт тавих эрхтэй.
+          </li>
+          <li style={{ marginBottom: 4 }}>
+            0-6 настай хүүхэд шүдний эмнэлэгт хэрэглэгдэж буй тод гэрэл, дуу
+            чимээнээс айж уйлах тохиолдол гардаг ба хүүхдийн уйлсан тохиолдол
+            бүрийг өвдөлт гэж андуурч болохгүй.
+          </li>
+          <li style={{ marginBottom: 4 }}>
+            Эмчилгээ хийх явцад тухайн хүүхдийн зан төлөв, эмчилгээний
+            айдсаас үүдэн хүүхэд уйлах, тийчлэх үед эмч, сувилагч аюулгүйн
+            ажиллагааны бэхэлгээ хийлгэхийг эцэг эх эмчтэй ярилцсаны үүднээс
+            харилцан зөвшөөрөх.
+          </li>
         </ol>
 
         <label
@@ -609,7 +658,7 @@ export default function ChildVisitCardForm({
         </label>
       </section>
 
-      {/* Signature – same as adult */}
+      {/* Signature & save — same pattern as adult */}
       <section
         style={{
           marginTop: 16,
@@ -634,8 +683,7 @@ export default function ChildVisitCardForm({
             />
             {visitCard.signedAt && (
               <span style={{ fontSize: 11, color: "#6b7280" }}>
-                Огноо:{" "}
-                {new Date(visitCard.signedAt).toLocaleDateString("mn-MN")}
+                Огноо: {formatDate(visitCard.signedAt)}
               </span>
             )}
           </div>
@@ -643,7 +691,7 @@ export default function ChildVisitCardForm({
           <div>
             <SignaturePad
               disabled={signatureSaving}
-              onChange={(blob) => void handleUploadSignature(blob)}
+              onChange={(blob: Blob) => void handleUploadSignature(blob)}
             />
             <div
               style={{
@@ -658,7 +706,6 @@ export default function ChildVisitCardForm({
         )}
       </section>
 
-      {/* Save */}
       <div
         style={{
           marginTop: 16,
