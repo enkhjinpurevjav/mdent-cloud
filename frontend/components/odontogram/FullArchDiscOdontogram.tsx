@@ -11,18 +11,17 @@ import {
   ensureInternalTooth,
 } from "../../utils/orthoToothMapping";
 
-type ExternalTooth = {
-  code: string;
-  status: string;
+export type ExternalDisc = {
+  code: string;   // disc id
+  status: string; // baseStatus
 };
 
 type Props = {
-  value: ExternalTooth[];
-  onChange: (next: ExternalTooth[]) => void;
+  value: ExternalDisc[];
+  onChange: (next: ExternalDisc[]) => void;
 };
 
-// For now we just use a simple numeric ID per disc instead of FDI code.
-// Later we can map each disc to a real tooth code if needed.
+// You can adjust counts later; 16 per row for now.
 const DISC_IDS_TOP_UPPER = Array.from({ length: 16 }, (_v, i) => `U1-${i}`);
 const DISC_IDS_BOTTOM_UPPER = Array.from({ length: 16 }, (_v, i) => `U2-${i}`);
 const DISC_IDS_TOP_LOWER = Array.from({ length: 16 }, (_v, i) => `L1-${i}`);
@@ -48,7 +47,6 @@ function cloneTooth(t: InternalTooth): InternalTooth {
 export default function FullArchDiscOdontogram({ value, onChange }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Use externalToInternal mapping but treat "code" as our disc id
   const internalList = useMemo(
     () => externalToInternal(value || []),
     [value]
@@ -106,11 +104,11 @@ export default function FullArchDiscOdontogram({ value, onChange }: Props) {
     return (
       <ToothSvg5Region
         key={id}
-        code="" // no visible label
+        code="" // no numeric label
         baseStatus={baseStatus}
         regions={regions}
         isActive={activeId === id}
-        size={32}
+        size={28}
         onClickTooth={() => setActiveId(id)}
         onClickRegion={(region) => toggleRegion(id, region, "caries")}
       />
@@ -141,18 +139,18 @@ export default function FullArchDiscOdontogram({ value, onChange }: Props) {
         fontSize: 12,
       }}
     >
-      {/* Top ( хоншоор ) */}
+      {/* Top label: upper jaw */}
       <div style={{ textAlign: "center", marginBottom: 8, fontWeight: 500 }}>
         Хоншоор
       </div>
 
-      {/* Upper jaw discs */}
+      {/* Upper rows */}
       <div style={{ marginBottom: 8 }}>
         {renderRow(DISC_IDS_TOP_UPPER)}
         {renderRow(DISC_IDS_BOTTOM_UPPER)}
       </div>
 
-      {/* Horizontal separator with Баруун / Зүүн and center Хэлэн тал */}
+      {/* Middle line: Баруун | Хэлэн тал | Зүүн */}
       <div
         style={{
           display: "flex",
@@ -160,14 +158,7 @@ export default function FullArchDiscOdontogram({ value, onChange }: Props) {
           margin: "6px 0 10px",
         }}
       >
-        <span
-          style={{
-            fontSize: 11,
-            marginRight: 4,
-          }}
-        >
-          Баруун
-        </span>
+        <span style={{ fontSize: 11, marginRight: 4 }}>Баруун</span>
         <div
           style={{
             flex: 1,
@@ -175,14 +166,7 @@ export default function FullArchDiscOdontogram({ value, onChange }: Props) {
             backgroundColor: "#d1d5db",
           }}
         />
-        <span
-          style={{
-            fontSize: 11,
-            margin: "0 8px",
-          }}
-        >
-          Хэлэн тал
-        </span>
+        <span style={{ fontSize: 11, margin: "0 8px" }}>Хэлэн тал</span>
         <div
           style={{
             flex: 1,
@@ -190,23 +174,16 @@ export default function FullArchDiscOdontogram({ value, onChange }: Props) {
             backgroundColor: "#d1d5db",
           }}
         />
-        <span
-          style={{
-            fontSize: 11,
-            marginLeft: 4,
-          }}
-        >
-          Зүүн
-        </span>
+        <span style={{ fontSize: 11, marginLeft: 4 }}>Зүүн</span>
       </div>
 
-      {/* Lower jaw discs */}
+      {/* Lower rows */}
       <div style={{ marginBottom: 4 }}>
         {renderRow(DISC_IDS_TOP_LOWER)}
         {renderRow(DISC_IDS_BOTTOM_LOWER)}
       </div>
 
-      {/* Bottom label Эрүү */}
+      {/* Bottom label: lower jaw */}
       <div style={{ textAlign: "center", marginTop: 4, fontWeight: 500 }}>
         Эрүү
       </div>
