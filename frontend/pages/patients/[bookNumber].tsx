@@ -2510,9 +2510,7 @@ const handleEditChange = (
             {visitCardSaving ? "Хадгалж байна..." : "Үзлэгийн карт хадгалах"}
           </button>
         </div>
-      </>
-    )}
-  </div>
+  ))}            </div>
           </section>
 
           {/* Encounter history and inline appointments table shown only in profile tab */}
