@@ -50,43 +50,7 @@ export default function ChildVisitCardForm({
       </h2>
 
       {/* Type selector – same as in page */}
-      {!visitCard && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: 12,
-            borderRadius: 8,
-            background: "#f3f4f6",
-            fontSize: 13,
-          }}
-        >
-          <div style={{ marginBottom: 8 }}>
-            Анхны үзлэгийн карт бөглөх төрөл:
-          </div>
-          <div style={{ display: "flex", gap: 12 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <input
-                type="radio"
-                name="visitCardType"
-                value="ADULT"
-                checked={visitCardTypeDraft === "ADULT"}
-                onChange={() => setVisitCardTypeDraft("ADULT")}
-              />
-              <span>Том хүн</span>
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <input
-                type="radio"
-                name="visitCardType"
-                value="CHILD"
-                checked={visitCardTypeDraft === "CHILD"}
-                onChange={() => setVisitCardTypeDraft("CHILD")}
-              />
-              <span>Хүүхэд</span>
-            </label>
-          </div>
-        </div>
-      )}
+      
 
       {/* 3) Ерөнхий биеийн талаархи асуумж — with child labels */}
       <section style={{ marginTop: 16 }}>
