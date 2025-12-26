@@ -1444,37 +1444,36 @@ const handleEditChange = (
               )}
 
 {activeTab === "visit_card" &&
-                (visitCard?.type === "CHILD" ||
-                visitCardTypeDraft === "CHILD" ? (
-                  <ChildVisitCardForm
-                    answers={visitCardAnswers}
-                    visitCard={visitCard}
-                    visitCardTypeDraft={visitCardTypeDraft}
-                    setVisitCardTypeDraft={setVisitCardTypeDraft}
-                    updateVisitCardAnswer={(
-                      key: keyof VisitCardAnswers,
-                      value: VisitCardAnswers[keyof VisitCardAnswers]
-                    ) => updateVisitCardAnswer(key, value)}
-                    updateNested={(
-                      section: keyof VisitCardAnswers,
-                      field: string,
-                      value: any
-                    ) => updateNested(section, field, value)}
-                    signatureSaving={signatureSaving}
-                    handleUploadSignature={handleUploadSignature}
-                    handleSaveVisitCard={handleSaveVisitCard}
-                    visitCardSaving={visitCardSaving}
-                    formatDate={formatDate}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      borderRadius: 12,
-                      border: "1px solid #e5e7eb",
-                      padding: 16,
-                      background: "white",
-                    }}
-                  >
+  (visitCard?.type === "CHILD" || visitCardTypeDraft === "CHILD" ? (
+    <ChildVisitCardForm
+      answers={visitCardAnswers}
+      visitCard={visitCard}
+      visitCardTypeDraft={visitCardTypeDraft}
+      setVisitCardTypeDraft={setVisitCardTypeDraft}
+      updateVisitCardAnswer={(
+        key: keyof VisitCardAnswers,
+        value: VisitCardAnswers[keyof VisitCardAnswers]
+      ) => updateVisitCardAnswer(key, value)}
+      updateNested={(
+        section: keyof VisitCardAnswers,
+        field: string,
+        value: any
+      ) => updateNested(section, field, value)}
+      signatureSaving={signatureSaving}
+      handleUploadSignature={handleUploadSignature}
+      handleSaveVisitCard={handleSaveVisitCard}
+      visitCardSaving={visitCardSaving}
+      formatDate={formatDate}
+    />
+  ) : (
+    <div
+      style={{
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        padding: 16,
+        background: "white",
+      }}
+    >
     <h2
       style={{
         fontSize: 16,
@@ -2484,15 +2483,15 @@ const handleEditChange = (
           )}
         </section>
 
-        {/* 6) Save button */}
-        <div
-          style={{
-            marginTop: 16,
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-          }}
-        >
+       {/* 6) Save button */}
+      <div
+        style={{
+          marginTop: 16,
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 8,
+        }}
+      >
           <button
             type="button"
             onClick={handleSaveVisitCard}
@@ -2509,6 +2508,7 @@ const handleEditChange = (
           >
             {visitCardSaving ? "Хадгалж байна..." : "Үзлэгийн карт хадгалах"}
           </button>
+        </div>
         </div>
   ))}            </div>
           </section>
