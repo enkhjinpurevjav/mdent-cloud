@@ -113,16 +113,25 @@ type VisitCardAnswers = {
     otherDetail?: string;
   };
 
-  habits?: {
-  smoking?: "yes" | "no";
-  alcohol?: "yes" | "no";
-  coffee?: "yes" | "no";
-  nightGrinding?: "yes" | "no";
-  mouthBreathing?: "yes" | "no";
+    habits?: {
+    smoking?: "yes" | "no";
+    smokingDetail?: string;
 
-  other?: "yes" | "no";      // Бусад? yes/no
-  otherDetail?: string;      // Бусад текст
-};
+    alcohol?: "yes" | "no";
+    alcoholDetail?: string;
+
+    coffee?: "yes" | "no";
+    coffeeDetail?: string;
+
+    nightGrinding?: "yes" | "no";
+    nightGrindingDetail?: string;
+
+    mouthBreathing?: "yes" | "no";
+    mouthBreathingDetail?: string;
+
+    other?: "yes" | "no";
+    otherDetail?: string;
+  };
 
   dentalFollowup?: {
     regularCheckups?: "yes" | "no";
@@ -2077,7 +2086,7 @@ const handleEditChange = (
                 );
               })}
 
-                            {/* ---- Зуршил (title row) ---- */}
+                                          {/* ---- Зуршил (title row) ---- */}
               <tr>
                 <td
                   colSpan={3}
@@ -2106,10 +2115,11 @@ const handleEditChange = (
                 const isYes = value === "yes";
                 const isNo = value === "no" || value === undefined;
 
+                // map to corresponding *Detail key
+                const detailKey =
+                  key === "other" ? "otherDetail" : (`${key}Detail` as const);
                 const detailValue =
-                  key === "other"
-                    ? visitCardAnswers.habits?.otherDetail || ""
-                    : "";
+                  (visitCardAnswers.habits as any)?.[detailKey] || "";
 
                 return (
                   <React.Fragment key={key}>
@@ -2133,9 +2143,11 @@ const handleEditChange = (
                           type="radio"
                           name={`habit_${key}`}
                           checked={isNo}
-                          onChange={() =>
-                            updateNested("habits", key, "no")
-                          }
+                          onChange={() => {
+                            updateNested("habits", key, "no");
+                            // clear detail when selecting "no"
+                            updateNested("habits", detailKey, "");
+                          }}
                         />
                       </td>
                       <td
@@ -2156,8 +2168,7 @@ const handleEditChange = (
                       </td>
                     </tr>
 
-                    {/* If Тийм for Бусад – show text field */}
-                    {isYes && key === "other" && (
+                    {isYes && (
                       <tr>
                         <td
                           colSpan={3}
@@ -2167,12 +2178,16 @@ const handleEditChange = (
                           }}
                         >
                           <input
-                            placeholder="Бусад зуршил"
+                            placeholder={
+                              key === "other"
+                                ? "Бусад зуршил"
+                                : "Тайлбар / дэлгэрэнгүй"
+                            }
                             value={detailValue}
                             onChange={(e) =>
                               updateNested(
                                 "habits",
-                                "otherDetail",
+                                detailKey,
                                 e.target.value
                               )
                             }
