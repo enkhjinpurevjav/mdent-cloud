@@ -155,7 +155,7 @@ export default function FullArchDiscOdontogram({ value, onChange }: Props) {
           position: "relative",
         }}
       >
-        {/* Vertical line splitting left/right halves (like the screenshot) */}
+        {/* Vertical line splitting left/right halves */}
         <div
           style={{
             position: "absolute",
@@ -199,8 +199,26 @@ export default function FullArchDiscOdontogram({ value, onChange }: Props) {
         <span style={{ fontSize: 11, marginLeft: 4 }}>Зүүн</span>
       </div>
 
-      {/* Lower rows: 10 + 16 (no vertical line yet) */}
-      <div style={{ marginBottom: 4 }}>
+      {/* Lower rows container: 10 + 16, with same vertical midline */}
+      <div
+        style={{
+          marginBottom: 4,
+          position: "relative",
+        }}
+      >
+        {/* Vertical line splitting left/right halves for bottom rows */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: "50%",
+            width: 1,
+            backgroundColor: "#4b5563",
+            transform: "translateX(-0.5px)",
+          }}
+        />
+
         {renderRow(DISC_IDS_ROW3)}
         {renderRow(DISC_IDS_ROW4)}
       </div>
