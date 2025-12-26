@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import SignaturePad from "../../components/SignaturePad";
+import ChildVisitCardForm from "../../components/ChildVisitCardForm";
 
 type Branch = {
   id: number;
