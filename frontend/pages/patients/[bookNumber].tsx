@@ -1443,38 +1443,15 @@ const handleEditChange = (
                 </div>
               )}
 
-             {activeTab === "visit_card" && (
-  (visitCard?.type === "CHILD" || visitCardTypeDraft === "CHILD") ? (
-    <ChildVisitCardForm
-      answers={visitCardAnswers}
-      visitCard={visitCard}
-      visitCardTypeDraft={visitCardTypeDraft}
-      setVisitCardTypeDraft={setVisitCardTypeDraft}
-      updateVisitCardAnswer={(
-        key: keyof typeof visitCardAnswers,
-        value: any
-      ) => updateVisitCardAnswer(key as any, value)}
-      updateNested={(
-        section: string,
-        field: string,
-        value: any
-      ) => updateNested(section as any, field, value)}
-      signatureSaving={signatureSaving}
-      handleUploadSignature={handleUploadSignature}
-      handleSaveVisitCard={handleSaveVisitCard}
-      visitCardSaving={visitCardSaving}
-      formatDate={formatDate}
-    />
-  ) : (
-    // your existing adult block, unchanged
-    <div
-      style={{
-        borderRadius: 12,
-        border: "1px solid #e5e7eb",
-        padding: 16,
-        background: "white",
-      }}
-    >
+              {activeTab === "visit_card" && (
+  <div
+    style={{
+      borderRadius: 12,
+      border: "1px solid #e5e7eb",
+      padding: 16,
+      background: "white",
+    }}
+  >
     <h2
       style={{
         fontSize: 16,
@@ -2513,7 +2490,7 @@ const handleEditChange = (
       </>
     )}
   </div>
-)}            
+)}            </div>
           </section>
 
           {/* Encounter history and inline appointments table shown only in profile tab */}
