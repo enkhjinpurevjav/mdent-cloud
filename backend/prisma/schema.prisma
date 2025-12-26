@@ -344,8 +344,26 @@ model PatientBook {
 
   // All encounters (visits) recorded in this book
   encounters Encounter[]
-// NEW: one visit card per patient book
+
+  // One general visit card per patient book
   visitCard  VisitCard?
+
+  // NEW: one orthodontic card per patient book
+  orthoCard  OrthoCard?
+}
+
+model OrthoCard {
+  id            Int         @id @default(autoincrement())
+
+  /// One orthodontic card per patient book
+  patientBookId Int         @unique
+  patientBook   PatientBook @relation(fields: [patientBookId], references: [id])
+
+  /// Full orthodontic card data as JSON (matches OrthoCardData in frontend)
+  data          Json
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 }
 
 model Diagnosis {
