@@ -1805,7 +1805,6 @@ const handleEditChange = (
         
         </section>
 
-        ```tsx name=frontend/pages/patients/[bookNumber].tsx url=https://github.com/enkhjinpurevjav/mdent-cloud/blob/main/frontend/pages/patients/%5BbookNumber%5D.tsx
         {/* 3) Ерөнхий биеийн талаархи асуумж + Харшил + Зуршил (нэг хүснэгтэнд) */}
         <section style={{ marginTop: 16 }}>
           <h3
