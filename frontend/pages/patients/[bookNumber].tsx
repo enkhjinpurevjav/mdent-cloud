@@ -251,7 +251,58 @@ const [orthoSaving, setOrthoSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState("");
 
-  // Load main profile
+  
+
+  // Load visit card only when visit_card tab is active
+  useEffect(() => {
+    if (!bookNumber || typeof bookNumber !== "string") return;
+    if (activeTab !== "visit_card") return;
+
+    const loadVisitCard = async () => {
+      setVisitCardLoading(true);
+      setVisitCardError("");
+      try {
+        const res = await fetch(
+          `/api/patients/visit-card/by-book/${encodeURIComponent(bookNumber)}`
+        );
+        const json = await res.json().catch(() => null);
+
+        if (!res.ok) {
+          throw new Error(
+            (json && json.error) || "Үзлэгийн карт ачаалахад алдаа гарлаа."
+          );
+        }
+
+        const card: VisitCard | null = json.visitCard || null;
+        setVisitCard(card);
+        if (card) {
+          setVisitCardTypeDraft(card.type);
+          setVisitCardAnswers(card.answers || {});
+        } else {
+          setVisitCardTypeDraft(null);
+          setVisitCardAnswers({});
+        }
+      } catch (err: any) {
+        console.error("loadVisitCard failed", err);
+        setVisitCardError(
+          err?.message || "Үзлэгийн карт ачаалахад алдаа гарлаа."
+        );
+        setVisitCard(null);
+      } finally {
+        setVisitCardLoading(false);
+      }
+    };
+
+    void loadVisitCard();
+  }, [bookNumber, activeTab]);
+
+  const patient = data?.patient;
+  const pb = data?.patientBook;
+  const encounters = data?.encounters || [];
+  const appointments = data?.appointments || [];
+  const patientBookId = pb?.id || null;
+
+// Load main profile
   useEffect(() => {
     if (!bookNumber || typeof bookNumber !== "string") return;
 
@@ -327,56 +378,7 @@ const [orthoSaving, setOrthoSaving] = useState(false);
 
   void loadOrtho();
 }, [activeTab, pb?.bookNumber]);
-
-  // Load visit card only when visit_card tab is active
-  useEffect(() => {
-    if (!bookNumber || typeof bookNumber !== "string") return;
-    if (activeTab !== "visit_card") return;
-
-    const loadVisitCard = async () => {
-      setVisitCardLoading(true);
-      setVisitCardError("");
-      try {
-        const res = await fetch(
-          `/api/patients/visit-card/by-book/${encodeURIComponent(bookNumber)}`
-        );
-        const json = await res.json().catch(() => null);
-
-        if (!res.ok) {
-          throw new Error(
-            (json && json.error) || "Үзлэгийн карт ачаалахад алдаа гарлаа."
-          );
-        }
-
-        const card: VisitCard | null = json.visitCard || null;
-        setVisitCard(card);
-        if (card) {
-          setVisitCardTypeDraft(card.type);
-          setVisitCardAnswers(card.answers || {});
-        } else {
-          setVisitCardTypeDraft(null);
-          setVisitCardAnswers({});
-        }
-      } catch (err: any) {
-        console.error("loadVisitCard failed", err);
-        setVisitCardError(
-          err?.message || "Үзлэгийн карт ачаалахад алдаа гарлаа."
-        );
-        setVisitCard(null);
-      } finally {
-        setVisitCardLoading(false);
-      }
-    };
-
-    void loadVisitCard();
-  }, [bookNumber, activeTab]);
-
-  const patient = data?.patient;
-  const pb = data?.patientBook;
-  const encounters = data?.encounters || [];
-  const appointments = data?.appointments || [];
-  const patientBookId = pb?.id || null;
-
+  
   const effectiveVisitCardType: VisitCardType =
     visitCard?.type || visitCardTypeDraft || "ADULT";
   
@@ -874,7 +876,7 @@ const handleEditChange = (
             </div>
 
             {/* Right content area: depends on activeTab */}
-            
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {activeTab === "ortho_card" && (
   <div
     style={{
@@ -1001,7 +1003,7 @@ const handleEditChange = (
 )}
             
             
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            
               {activeTab === "profile" && (
                 <>
                   {/* Summary cards row */}
