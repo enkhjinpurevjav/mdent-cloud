@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import FullArchDiscOdontogram from "../../components/odontogram/FullArchDiscOdontogram";
+import FullArchDiscOdontogram, {
+  ActiveStatusKey,
+} from "../../components/odontogram/FullArchDiscOdontogram";
 
 /**
- * This page renders the Orthodontic card for a patient book, using the
- * full-arch disc odontogram layout (no individual tooth numbers).
+ * Ortho card page using the new full‑arch disc odontogram layout.
+ * Data shape is still simple: toothChart: { code, status }[].
  */
 
 type OrthoDisc = {
-  code: string;   // disc id
-  status: string; // base status key
+  code: string;   // disc id (R1-0, R2-3, etc.)
+  status: string; // stored baseStatus key
 };
 
 type OrthoCardData = {
@@ -38,16 +40,10 @@ type OrthoCardApiResponse = {
   } | null;
 };
 
-type StatusKey =
-  | "caries"
-  | "filled"
-  | "extracted"
-  | "prosthesis"
-  | "delay"
-  | "anodontia"
-  | "supernumerary"
-  | "shapeAnomaly";
+// Reuse ActiveStatusKey for the right‑side legend buttons
+type StatusKey = ActiveStatusKey;
 
+// Right panel buttons: label + color + internal key
 const STATUS_BUTTONS: {
   key: StatusKey;
   label: string;
@@ -59,8 +55,8 @@ const STATUS_BUTTONS: {
   { key: "prosthesis", label: "Шүдэлбэр", color: "#14b8a6" },
   { key: "delay", label: "Саатсан", color: "#fbbf24" },
   { key: "anodontia", label: "Anodontia", color: "#fb7185" },
-  { key: "supernumerary", label: "Илүү шүд", color: "#a855f7" },
   { key: "shapeAnomaly", label: "Хэлбэрийн гажиг", color: "#6366f1" },
+  { key: "supernumerary", label: "Илүү шүд", color: "#a855f7" },
 ];
 
 export default function OrthoCardPage() {
@@ -81,9 +77,9 @@ export default function OrthoCardPage() {
   const [supernumeraryNote, setSupernumeraryNote] = useState<string>("");
   const [toothChart, setToothChart] = useState<OrthoDisc[]>([]);
 
-  // UI-only: which status button is selected
+  // UI‑only: selected status button on the right
   const [activeStatus, setActiveStatus] = useState<StatusKey | null>(null);
-  // UI-only: extra tooth text for "Илүү шүд"
+  // UI‑only: additional text for "Илүү шүд"
   const [extraToothText, setExtraToothText] = useState<string>("");
 
   const bn =
@@ -121,7 +117,7 @@ export default function OrthoCardPage() {
 
         setPatientBookId(json.patientBook.id);
 
-        // Header patient name
+        // Header patient name from patient record
         if (json.patient) {
           const { ovog, name } = json.patient;
           if (name) {
@@ -343,6 +339,7 @@ export default function OrthoCardPage() {
               <FullArchDiscOdontogram
                 value={toothChart}
                 onChange={setToothChart}
+                activeStatus={activeStatus}
               />
             </div>
 
@@ -452,8 +449,9 @@ export default function OrthoCardPage() {
                   color: "#6b7280",
                 }}
               >
-                Эхний ээлжинд зөвхөн байршлыг өөрөө дарж тэмдэглэнэ. Дараа нь
-                товч бүрийн дүрэм (цоорсон, ломбо гэх мэт)-г холбоно.
+                Товчийг сонгоод тойрог дээр дарж тухайн шүдний байдал, хэсэг
+                тус бүрийн цоорсон / ломбодсон байдлыг тэмдэглэнэ. Илүү шүд
+                товч дээр тайлбар бичиж хадгална.
               </div>
             </aside>
           </div>
