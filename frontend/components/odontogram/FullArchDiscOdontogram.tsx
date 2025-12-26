@@ -166,26 +166,37 @@ export default function FullArchDiscOdontogram({
   };
 
   const setFullCircleStatus = (code: string, status: ToothBaseStatus) => {
-    const base = getDisc(code);
-    const copy = cloneDisc(base);
-    copy.baseStatus = status;
+  const base = getDisc(code);
 
-    if (
-      status === "extracted" ||
-      status === "prosthesis" ||
-      status === "apodontia"
-    ) {
-      copy.regions = {
-        top: emptyRegion(),
-        bottom: emptyRegion(),
-        left: emptyRegion(),
-        right: emptyRegion(),
-        center: emptyRegion(),
-      };
-    }
+  // If clicking the same status again → toggle off to "none"
+  if (base.baseStatus === status) {
+    const cleared = cloneDisc(base);
+    cleared.baseStatus = "none";
+    // When clearing, we do NOT touch regions (they remain whatever they were)
+    updateDisc(cleared);
+    return;
+  }
 
-    updateDisc(copy);
-  };
+  const copy = cloneDisc(base);
+  copy.baseStatus = status;
+
+  if (
+    status === "extracted" ||
+    status === "prosthesis" ||
+    status === "apodontia"
+  ) {
+    // Exclusive: clear all region overlays
+    copy.regions = {
+      top: emptyRegion(),
+      bottom: emptyRegion(),
+      left: emptyRegion(),
+      right: emptyRegion(),
+      center: emptyRegion(),
+    };
+  }
+
+  updateDisc(copy);
+};
 
   const handleDiscClick = (id: string, clickedRegion: ToothRegion) => {
     if (!activeStatus) {
