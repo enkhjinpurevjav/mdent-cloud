@@ -21,11 +21,15 @@ type Props = {
   onChange: (next: ExternalDisc[]) => void;
 };
 
-// You can adjust counts later; 16 per row for now.
-const DISC_IDS_TOP_UPPER = Array.from({ length: 16 }, (_v, i) => `U1-${i}`);
-const DISC_IDS_BOTTOM_UPPER = Array.from({ length: 16 }, (_v, i) => `U2-${i}`);
-const DISC_IDS_TOP_LOWER = Array.from({ length: 16 }, (_v, i) => `L1-${i}`);
-const DISC_IDS_BOTTOM_LOWER = Array.from({ length: 16 }, (_v, i) => `L2-${i}`);
+// New layout:
+//   Row 1 (top upper):    16 discs
+//   Row 2 (bottom upper): 10 discs
+//   Row 3 (top lower):    10 discs
+//   Row 4 (bottom lower): 16 discs
+const DISC_IDS_ROW1 = Array.from({ length: 16 }, (_v, i) => `R1-${i}`);
+const DISC_IDS_ROW2 = Array.from({ length: 10 }, (_v, i) => `R2-${i}`);
+const DISC_IDS_ROW3 = Array.from({ length: 10 }, (_v, i) => `R3-${i}`);
+const DISC_IDS_ROW4 = Array.from({ length: 16 }, (_v, i) => `R4-${i}`);
 
 function emptyRegion(): ToothRegionState {
   return { caries: false, filled: false };
@@ -104,7 +108,7 @@ export default function FullArchDiscOdontogram({ value, onChange }: Props) {
     return (
       <ToothSvg5Region
         key={id}
-        code="" // no numeric label
+        code="" // no visible numeric label
         baseStatus={baseStatus}
         regions={regions}
         isActive={activeId === id}
@@ -144,10 +148,10 @@ export default function FullArchDiscOdontogram({ value, onChange }: Props) {
         Хоншоор
       </div>
 
-      {/* Upper rows */}
+      {/* Upper rows: 16 + 10 */}
       <div style={{ marginBottom: 8 }}>
-        {renderRow(DISC_IDS_TOP_UPPER)}
-        {renderRow(DISC_IDS_BOTTOM_UPPER)}
+        {renderRow(DISC_IDS_ROW1)}
+        {renderRow(DISC_IDS_ROW2)}
       </div>
 
       {/* Middle line: Баруун | Хэлэн тал | Зүүн */}
@@ -177,10 +181,10 @@ export default function FullArchDiscOdontogram({ value, onChange }: Props) {
         <span style={{ fontSize: 11, marginLeft: 4 }}>Зүүн</span>
       </div>
 
-      {/* Lower rows */}
+      {/* Lower rows: 10 + 16 */}
       <div style={{ marginBottom: 4 }}>
-        {renderRow(DISC_IDS_TOP_LOWER)}
-        {renderRow(DISC_IDS_BOTTOM_LOWER)}
+        {renderRow(DISC_IDS_ROW3)}
+        {renderRow(DISC_IDS_ROW4)}
       </div>
 
       {/* Bottom label: lower jaw */}
