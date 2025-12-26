@@ -1,32 +1,38 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import ToothSvg5Region, {
   ToothRegion,
   ToothBaseStatus,
   ToothRegionState,
 } from "./ToothSvg5Region";
-import type { InternalTooth } from "../../types/orthoTooth";
-import {
-  externalToInternal,
-  internalToExternal,
-  ensureInternalTooth,
-} from "../../utils/orthoToothMapping";
 
 /**
  * Active status keys must match the buttons on /ortho/[bookNumber].tsx
  */
 export type ActiveStatusKey =
-  | "caries"          // Цоорсон – partial, per region
-  | "filled"          // Ломбодсон – partial, per region
-  | "extracted"       // Авахуулсан – full circle, exclusive
-  | "prosthesis"      // Шүдэлбэр – full circle, exclusive
-  | "delay"           // Саатсан – full circle, can overlap with caries/filled
-  | "anodontia"       // Anodontia – full circle, exclusive
-  | "supernumerary"   // Илүү шүд – handled by text, no visual change yet
-  | "shapeAnomaly";   // Хэлбэрийн гажиг – full circle, can overlap with caries/filled
+  | "caries" // Цоорсон – partial, per region
+  | "filled" // Ломбодсон – partial, per region
+  | "extracted" // Авахуулсан – full circle, exclusive
+  | "prosthesis" // Шүдэлбэр – full circle, exclusive
+  | "delay" // Саатсан – full circle, can overlap with caries/filled
+  | "anodontia" // Anodontia – full circle, exclusive
+  | "supernumerary" // Илүү шүд – handled by text, no visual change yet
+  | "shapeAnomaly"; // Хэлбэрийн гажиг – full circle, can overlap with caries/filled
 
 export type ExternalDisc = {
-  code: string;   // disc id
+  code: string; // disc id
   status: string; // baseStatus stored externally
+};
+
+type InternalDisc = {
+  code: string;
+  baseStatus: ToothBaseStatus;
+  regions: {
+    top: ToothRegionState;
+    bottom: ToothRegionState;
+    left: ToothRegionState;
+    right: ToothRegionState;
+    center: ToothRegionState;
+  };
 };
 
 type Props = {
@@ -49,15 +55,30 @@ function emptyRegion(): ToothRegionState {
   return { caries: false, filled: false };
 }
 
-function cloneTooth(t: InternalTooth): InternalTooth {
+function createEmptyDisc(code: string): InternalDisc {
   return {
-    ...t,
+    code,
+    baseStatus: "none",
     regions: {
-      top: { ...t.regions.top },
-      bottom: { ...t.regions.bottom },
-      left: { ...t.regions.left },
-      right: { ...t.regions.right },
-      center: { ...t.regions.center },
+      top: emptyRegion(),
+      bottom: emptyRegion(),
+      left: emptyRegion(),
+      right: emptyRegion(),
+      center: emptyRegion(),
+    },
+  };
+}
+
+function cloneDisc(d: InternalDisc): InternalDisc {
+  return {
+    code: d.code,
+    baseStatus: d.baseStatus,
+    regions: {
+      top: { ...d.regions.top },
+      bottom: { ...d.regions.bottom },
+      left: { ...d.regions.left },
+      right: { ...d.regions.right },
+      center: { ...d.regions.center },
     },
   };
 }
@@ -69,48 +90,95 @@ export default function FullArchDiscOdontogram({
 }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Convert external simple list to richer internal structure
-  const internalList = useMemo(
-    () => externalToInternal(value || []),
-    [value]
-  );
+  // Local full state with regions; this is what the SVG actually uses.
+  const [internalDiscs, setInternalDiscs] = useState<InternalDisc[]>([]);
+
+  // Initialize internal discs from external value (only baseStatus / code).
+  // This runs when the page first loads or when value changes from backend.
+  useEffect(() => {
+    if (!value || value.length === 0) {
+      // start with just empty discs when no data
+      const allIds = [
+        ...DISC_IDS_ROW1,
+        ...DISC_IDS_ROW2,
+        ...DISC_IDS_ROW3,
+        ...DISC_IDS_ROW4,
+      ];
+      setInternalDiscs(allIds.map((id) => createEmptyDisc(id)));
+      return;
+    }
+
+    const map: Record<string, InternalDisc> = {};
+
+    // create an entry for every disc we know about
+    for (const id of [
+      ...DISC_IDS_ROW1,
+      ...DISC_IDS_ROW2,
+      ...DISC_IDS_ROW3,
+      ...DISC_IDS_ROW4,
+    ]) {
+      map[id] = createEmptyDisc(id);
+    }
+
+    // apply external baseStatus for any codes we have stored
+    for (const ext of value) {
+      const target = map[ext.code];
+      if (!target) continue;
+      // interpret ext.status as ToothBaseStatus when possible
+      const s = (ext.status || "none") as ToothBaseStatus;
+      target.baseStatus = s;
+    }
+
+    setInternalDiscs(Object.values(map));
+  }, [value]);
 
   const findIndex = (code: string) =>
-    internalList.findIndex((t) => t.code === code);
+    internalDiscs.findIndex((t) => t.code === code);
 
-  const getDisc = (code: string): InternalTooth | null => {
-    const existing = internalList.find((t) => t.code === code);
-    return existing || null;
+  const getDisc = (code: string): InternalDisc => {
+    const found = internalDiscs.find((d) => d.code === code);
+    return found || createEmptyDisc(code);
   };
 
-  const applyUpdate = (updated: InternalTooth) => {
-    const idx = findIndex(updated.code);
-    const next = [...internalList];
-    if (idx === -1) {
-      next.push(updated);
+  const updateDisc = (updated: InternalDisc) => {
+    setInternalDiscs((prev) => {
+      const idx = prev.findIndex((d) => d.code === updated.code);
+      if (idx === -1) return [...prev, updated];
+      const copy = [...prev];
+      copy[idx] = updated;
+      return copy;
+    });
+
+    // Also push simplified data out (only baseStatus) so backend sees change.
+    const simple: ExternalDisc[] = internalDiscs.map((d) => ({
+      code: d.code,
+      status: d.baseStatus,
+    }));
+    const existingIdx = simple.findIndex((d) => d.code === updated.code);
+    if (existingIdx === -1) {
+      simple.push({ code: updated.code, status: updated.baseStatus });
     } else {
-      next[idx] = updated;
+      simple[existingIdx] = {
+        code: updated.code,
+        status: updated.baseStatus,
+      };
     }
-    onChange(internalToExternal(next));
-  };
-
-  const ensureDisc = (code: string): InternalTooth => {
-    return ensureInternalTooth(internalList, code);
+    onChange(simple);
   };
 
   /**
    * For Цоорсон / Ломбодсон – per‑region toggles.
    */
   const toggleRegionPartial = (
-  code: string,
-  region: ToothRegion,
-  field: "caries" | "filled"
-) => {
-  const base = ensureDisc(code);
-  const copy = cloneTooth(base);
-  copy.regions[region][field] = !copy.regions[region][field];
-  applyUpdate(copy);
-};
+    code: string,
+    region: ToothRegion,
+    field: "caries" | "filled"
+  ) => {
+    const base = getDisc(code);
+    const copy = cloneDisc(base);
+    copy.regions[region][field] = !copy.regions[region][field];
+    updateDisc(copy);
+  };
 
   /**
    * For full‑circle statuses.
@@ -118,8 +186,8 @@ export default function FullArchDiscOdontogram({
    * - delay / shapeAnomaly: can overlap with caries/filled, so partials kept
    */
   const setFullCircleStatus = (code: string, status: ToothBaseStatus) => {
-    const base = ensureDisc(code);
-    const copy = cloneTooth(base);
+    const base = getDisc(code);
+    const copy = cloneDisc(base);
     copy.baseStatus = status;
 
     if (
@@ -137,76 +205,68 @@ export default function FullArchDiscOdontogram({
       };
     }
 
-    // For delay / shapeAnomaly we keep partials so they overlap visually
-    applyUpdate(copy);
+    updateDisc(copy);
   };
 
   /**
    * High‑level click behavior according to activeStatus.
    */
   const handleDiscClick = (id: string, clickedRegion: ToothRegion) => {
-  console.log("DISC CLICK", { id, clickedRegion, activeStatus });
+    // console.log("DISC CLICK", { id, clickedRegion, activeStatus });
 
-  if (!activeStatus) {
-    toggleRegionPartial(id, clickedRegion, "caries");
-    return;
-  }
-
-  switch (activeStatus) {
-    case "caries":
+    if (!activeStatus) {
+      // No status selected: default = toggle caries on the clicked region
       toggleRegionPartial(id, clickedRegion, "caries");
-      break;
-    case "filled":
-      toggleRegionPartial(id, clickedRegion, "filled");
-      break;
-    case "extracted":
-      setFullCircleStatus(id, "extracted");
-      break;
-    case "prosthesis":
-      setFullCircleStatus(id, "prosthesis");
-      break;
-    case "anodontia":
-      setFullCircleStatus(id, "apodontia");
-      break;
-    case "delay":
-      setFullCircleStatus(id, "delay");
-      break;
-    case "shapeAnomaly":
-      setFullCircleStatus(id, "shapeAnomaly");
-      break;
-    case "supernumerary":
-      break;
-  }
-};
+      return;
+    }
+
+    switch (activeStatus) {
+      case "caries":
+        toggleRegionPartial(id, clickedRegion, "caries");
+        break;
+      case "filled":
+        toggleRegionPartial(id, clickedRegion, "filled");
+        break;
+      case "extracted":
+        setFullCircleStatus(id, "extracted");
+        break;
+      case "prosthesis":
+        setFullCircleStatus(id, "prosthesis");
+        break;
+      case "anodontia":
+        setFullCircleStatus(id, "apodontia");
+        break;
+      case "delay":
+        setFullCircleStatus(id, "delay");
+        break;
+      case "shapeAnomaly":
+        setFullCircleStatus(id, "shapeAnomaly");
+        break;
+      case "supernumerary":
+        // Илүү шүд – no visual on disc for now
+        break;
+    }
+  };
 
   const renderDisc = (id: string) => {
-  const disc = getDisc(id);
-  const baseStatus: ToothBaseStatus = (disc?.baseStatus ||
-    "none") as ToothBaseStatus;
+    const disc = getDisc(id);
+    const baseStatus: ToothBaseStatus = disc.baseStatus || "none";
 
-  const regions = disc
-    ? disc.regions
-    : {
-        top: emptyRegion(),
-        bottom: emptyRegion(),
-        left: emptyRegion(),
-        right: emptyRegion(),
-        center: emptyRegion(),
-      };
+    const regions = disc.regions;
 
-  return (
-    <ToothSvg5Region
-      key={id}
-      code=""
-      baseStatus={baseStatus}
-      regions={regions}
-      isActive={activeId === id}
-      size={28}
-      onClickTooth={() => setActiveId(id)}
-      onClickRegion={(region) => handleDiscClick(id, region)}
-    />
-  );
-};
+    return (
+      <ToothSvg5Region
+        key={id}
+        code="" // no numeric label for this full-arch layout
+        baseStatus={baseStatus}
+        regions={regions}
+        isActive={activeId === id}
+        size={28}
+        onClickTooth={() => setActiveId(id)}
+        onClickRegion={(region) => handleDiscClick(id, region)}
+      />
+    );
+  };
 
   const renderRow = (ids: string[]) => (
     <div
