@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import SignaturePad from "../../components/SignaturePad";
-import ChildVisitCardForm from "../../components/ChildVisitCardForm";
+import dynamic from "next/dynamic"
+
+const ChildVisitCardForm = dynamic(
+  () => import("../../components/ChildVisitCardForm"),
+  { ssr: false }
+);
+
 
 type Branch = {
   id: number;
