@@ -119,7 +119,8 @@ export default function FullArchDiscOdontogram({
     }
 
     setInternalDiscs(Object.values(map));
-  }, []); // IMPORTANT: empty deps → only on first mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // only on mount
 
   const getDisc = (code: string): InternalDisc => {
     const found = internalDiscs.find((d) => d.code === code);
@@ -127,7 +128,7 @@ export default function FullArchDiscOdontogram({
   };
 
   const updateDisc = (updated: InternalDisc) => {
-    // update local state used for rendering
+    // 1) update local state used for rendering
     setInternalDiscs((prev) => {
       const idx = prev.findIndex((d) => d.code === updated.code);
       if (idx === -1) return [...prev, updated];
@@ -136,19 +137,21 @@ export default function FullArchDiscOdontogram({
       return copy;
     });
 
-    // also update simplified external array for backend
-    onChange((prevExternal) => {
-      // prevExternal may be the old array from page; rebuild against ALL_IDS
-      const map: Record<string, ExternalDisc> = {};
-      for (const e of prevExternal || []) {
-        map[e.code] = { ...e };
-      }
-      map[updated.code] = {
-        code: updated.code,
-        status: updated.baseStatus,
-      };
-      return Object.values(map);
-    });
+    // 2) update simplified external array (only baseStatus)
+    const externalMap: Record<string, ExternalDisc> = {};
+
+    // start from existing value so we don't lose other discs
+    for (const e of value || []) {
+      externalMap[e.code] = { ...e };
+    }
+
+    externalMap[updated.code] = {
+      code: updated.code,
+      status: updated.baseStatus,
+    };
+
+    const nextExternal = Object.values(externalMap);
+    onChange(nextExternal);
   };
 
   /**
