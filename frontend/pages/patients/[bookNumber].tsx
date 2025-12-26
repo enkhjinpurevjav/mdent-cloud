@@ -146,9 +146,10 @@ type VisitCardAnswers = {
     badBreathDetail?: string;
   };
 
-  consentAccepted?: boolean;
-  notes?: string;
-};
+    consentAccepted?: boolean;     // adult
+    childConsentAccepted?: boolean; // child
+    notes?: string;
+  };
 
 type Encounter = {
   id: number;
