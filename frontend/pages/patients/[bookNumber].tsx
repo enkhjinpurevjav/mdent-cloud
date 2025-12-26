@@ -1597,21 +1597,14 @@ const handleEditChange = (
                                 Таны эмнэлэгт хандах болсон шалтгаан юу вэ?
                               </div>
 
-                              {([
-                                ["toothPain", "Шүд өвдсөн"],
-                                ["toothBroken", "Шүд цоорсон"],
-                                ["badBite", "Шүд буруу ургасан"],
-                                // reuse toothDecay for "Ломбо унасан"
-                                ["toothDecay", "Ломбо унасан"],
-                                [
-                                  "preventiveCheck",
-                                  "Урьдчилан сэргийлэх хяналтанд орох",
-                                ],
-                                [
-                                  "cosmeticSmile",
-                                  "Гоо сайхны /цайруулах, Hollywood smile гэх мэт/",
-                                ],
-                              ] as const).map(([key, label]) => (
+                             {([
+  ["toothPain", "Шүд өвдсөн"],
+  ["toothCaries", "Шүд цоорсон"],
+  ["toothMalposition", "Шүд буруу ургасан"],
+  ["fillingLost", "Ломбо унасан"],
+  ["preventiveCheck", "Урьдчилан сэргийлэх хяналтанд орох"],
+  ["cosmeticSmile", "Гоо сайхны /цайруулах, Hollywood smile гэх мэт/"],
+] as const).map(([key, label]) => (
                                 <label
                                   key={key}
                                   style={{
