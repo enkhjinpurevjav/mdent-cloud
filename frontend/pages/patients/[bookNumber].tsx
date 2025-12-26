@@ -1443,7 +1443,7 @@ const handleEditChange = (
                 </div>
               )}
 
-                          {activeTab === "visit_card" &&
+                                        {activeTab === "visit_card" &&
                 (visitCard?.type === "CHILD" ||
                 visitCardTypeDraft === "CHILD" ? (
                   <ChildVisitCardForm
@@ -1925,8 +1925,8 @@ const handleEditChange = (
 
                         {/* 3) Ерөнхий биеийн талаархи асуумж + Харшил + Зуршил (нэг хүснэгтэнд) */}
                         <section style={{ marginTop: 16 }}>
-                          {/* ... KEEP your full table JSX here exactly as you already have it ... */}
-                          {/* I’m not changing that part to avoid more confusion */}
+                          {/* keep your existing table JSX here – unchanged */}
+                          {/* ... */}
                         </section>
 
                         {/* Consent declaration */}
@@ -1938,7 +1938,8 @@ const handleEditChange = (
                             fontSize: 13,
                           }}
                         >
-                          {/* ... your existing consent JSX ... */}
+                          {/* keep your existing consent JSX here */}
+                          {/* ... */}
                         </section>
 
                         {/* 5) Гарын үсэг */}
@@ -1949,7 +1950,8 @@ const handleEditChange = (
                             borderTop: "1px dashed #e5e7eb",
                           }}
                         >
-                          {/* ... your existing signature JSX ... */}
+                          {/* keep your existing signature JSX here */}
+                          {/* ... */}
                         </section>
 
                         {/* Save button */}
