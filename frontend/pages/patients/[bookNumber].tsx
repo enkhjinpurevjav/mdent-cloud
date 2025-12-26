@@ -33,7 +33,8 @@ type ActiveTab =
   | "appointments"
   | "visit_card"
   | "history"
-  | "billing";
+  | "billing"
+  | "ortho_card"; // Гажиг заслын карт
 
 type PatientBook = {
   id: number;
@@ -269,6 +270,14 @@ export default function PatientProfilePage() {
 
     load();
   }, [bookNumber]);
+
+  // Navigate to ortho card page when Гажиг заслын карт tab is selected
+useEffect(() => {
+  if (!bookNumber || typeof bookNumber !== "string") return;
+  if (activeTab !== "ortho_card") return;
+
+  router.push(`/ortho/${encodeURIComponent(bookNumber)}`);
+}, [activeTab, bookNumber, router]);
 
   // Load visit card only when visit_card tab is active
   useEffect(() => {
@@ -734,6 +743,30 @@ const handleEditChange = (
                   >
                     Үзлэгийн карт
                   </button>
+
+                  {/* Гажиг заслын карт */}
+<button
+  type="button"
+  onClick={() => {
+    setActiveTab("ortho_card");
+    setEditMode(false);
+    setSaveError("");
+    setSaveSuccess("");
+  }}
+  style={{
+    textAlign: "left",
+    padding: "6px 10px",
+    borderRadius: 6,
+    border: "none",
+    background:
+      activeTab === "ortho_card" ? "#eff6ff" : "transparent",
+    color: activeTab === "ortho_card" ? "#1d4ed8" : "#6b7280",
+    fontWeight: activeTab === "ortho_card" ? 500 : 400,
+    cursor: "pointer",
+  }}
+>
+  Гажиг заслын карт
+</button>
 
                   {/* Future placeholders */}
                   <div
