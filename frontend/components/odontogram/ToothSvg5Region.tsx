@@ -53,19 +53,20 @@ export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
   const innerR = outerR * 0.55;
   const coreR = innerR * 0.65;
 
+  // Match legend button colors
   const baseFill =
     baseStatus === "none"
       ? "#ffffff"
       : baseStatus === "extracted"
-      ? "#fecaca"
+      ? "#9ca3af" // Авахуулсан
       : baseStatus === "prosthesis"
-      ? "#bae6fd"
+      ? "#14b8a6" // Шүдэлбэр
       : baseStatus === "delay"
-      ? "#fde68a"
+      ? "#fbbf24" // Саатсан
       : baseStatus === "apodontia"
-      ? "#e5e7eb"
+      ? "#fb7185" // Anodontia
       : baseStatus === "shapeAnomaly"
-      ? "#bfdbfe"
+      ? "#6366f1" // Хэлбэрийн гажиг
       : "#ffffff";
 
   const borderColor = isActive ? "#2563eb" : "#111827";
@@ -100,11 +101,11 @@ export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
     ].join(" ");
   }
 
-  // Цоорсон (caries) = red, Ломбодсон (filled) = blue, both = purple.
+  // Цоорсон / Ломбодсон region colors, matching legend
   const regionFill = (region: ToothRegionState): string => {
-    if (region.caries && region.filled) return "#a855f7";
-    if (region.caries) return "#f97373";
-    if (region.filled) return "#60a5fa";
+    if (region.caries && region.filled) return "#a855f7"; // both
+    if (region.caries) return "#f97373";                  // Цоорсон
+    if (region.filled) return "#60a5fa";                  // Ломбодсон
     return "transparent";
   };
 
@@ -199,7 +200,7 @@ export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
         />
       </svg>
 
-      {/* Code label (not shown for your full arch, but kept for reuse) */}
+      {/* Code label (unused in this layout) */}
       <span style={{ fontSize: 9, color: "#374151" }}>{code}</span>
     </div>
   );
