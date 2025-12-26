@@ -2486,33 +2486,40 @@ const handleEditChange = (
         </section>
 
         {/* 6) Save button */}
-         <div
-                      style={{
-                        marginTop: 16,
-                        display: "flex",
-                        justifyContent: "flex-end",
-                        gap: 8,
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={handleSaveVisitCard}
-                        disabled={visitCardSaving}
-                        style={{
-                          padding: "6px 12px",
-                          borderRadius: 6,
-                          border: "none",
-                          background: visitCardSaving ? "#9ca3af" : "#2563eb",
-                          color: "#ffffff",
-                          fontSize: 13,
-                          cursor: visitCardSaving ? "default" : "pointer",
-                        }}
-                      >
-                        {visitCardSaving
-                          ? "Хадгалж байна..."
-                          : "Үзлэгийн карт хадгалах"}
-                      </button>
-                    </div>
+         {/* 6) Save button */}
+                        <div
+                          style={{
+                            marginTop: 16,
+                            display: "flex",
+                            justifyContent: "flex-end",
+                            gap: 8,
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={handleSaveVisitCard}
+                            disabled={visitCardSaving}
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: 6,
+                              border: "none",
+                              background: visitCardSaving
+                                ? "#9ca3af"
+                                : "#2563eb",
+                              color: "#ffffff",
+                              fontSize: 13,
+                              cursor: visitCardSaving
+                                ? "default"
+                                : "pointer",
+                            }}
+                          >
+                            {visitCardSaving
+                              ? "Хадгалж байна..."
+                              : "Үзлэгийн карт хадгалах"}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Child form rendered below adult form */}
@@ -2545,7 +2552,7 @@ const handleEditChange = (
                 </>
               )}
 
-            </div> {/* closes the right column flex box */}
+            </div> 
           </section>
 
           {/* Encounter history and inline appointments table shown only in profile tab */}
