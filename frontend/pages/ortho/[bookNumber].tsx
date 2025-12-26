@@ -49,14 +49,14 @@ const STATUS_BUTTONS: {
   label: string;
   color: string;
 }[] = [
-  { key: "caries", label: "Цоорсон", color: "#f97373" },
-  { key: "filled", label: "Ломбодсон", color: "#60a5fa" },
-  { key: "extracted", label: "Авахуулсан", color: "#9ca3af" },
-  { key: "prosthesis", label: "Шүдэлбэр", color: "#14b8a6" },
-  { key: "delay", label: "Саатсан", color: "#fbbf24" },
-  { key: "anodontia", label: "Anodontia", color: "#fb7185" },
-  { key: "shapeAnomaly", label: "Хэлбэрийн гажиг", color: "#6366f1" },
-  { key: "supernumerary", label: "Илүү шүд", color: "#a855f7" },
+  { key: "caries",       label: "Цоорсон",          color: "#dc2626" }, // real red
+  { key: "filled",       label: "Ломбодсон",        color: "#2563eb" }, // real blue
+  { key: "extracted",    label: "Авахуулсан",       color: "#166534" }, // darker green
+  { key: "prosthesis",   label: "Шүдэлбэр",         color: "#9ca3af" }, // grey
+  { key: "delay",        label: "Саатсан",          color: "#fbbf24" }, // keep
+  { key: "anodontia",    label: "Anodontia",        color: "#14b8a6" }, // turquoise
+  { key: "shapeAnomaly", label: "Хэлбэрийн гажиг",  color: "#6366f1" }, // keep
+  { key: "supernumerary",label: "Илүү шүд",         color: "#a855f7" }, // unchanged
 ];
 
 export default function OrthoCardPage() {
