@@ -114,13 +114,15 @@ type VisitCardAnswers = {
   };
 
   habits?: {
-    smoking?: "yes" | "no";
-    alcohol?: "yes" | "no";
-    coffee?: "yes" | "no";
-    nightGrinding?: "yes" | "no";
-    mouthBreathing?: "yes" | "no";
-    other?: string;
-  };
+  smoking?: "yes" | "no";
+  alcohol?: "yes" | "no";
+  coffee?: "yes" | "no";
+  nightGrinding?: "yes" | "no";
+  mouthBreathing?: "yes" | "no";
+
+  other?: "yes" | "no";      // Бусад? yes/no
+  otherDetail?: string;      // Бусад текст
+};
 
   dentalFollowup?: {
     regularCheckups?: "yes" | "no";
@@ -2075,7 +2077,7 @@ const handleEditChange = (
                 );
               })}
 
-              {/* ---- Зуршил (title row) ---- */}
+                            {/* ---- Зуршил (title row) ---- */}
               <tr>
                 <td
                   colSpan={3}
@@ -2098,19 +2100,17 @@ const handleEditChange = (
                 ["other", "Бусад"],
               ] as const).map(([key, label]) => {
                 const value =
-                  key === "other"
-                    ? visitCardAnswers.habits?.other
-                      ? "yes"
-                      : "no"
-                    : visitCardAnswers.habits?.[
-                        key as keyof VisitCardAnswers["habits"]
-                      ];
+                  visitCardAnswers.habits?.[
+                    key as keyof VisitCardAnswers["habits"]
+                  ];
                 const isYes = value === "yes";
-                const isNo = value === "no";
+                const isNo = value === "no" || value === undefined;
+
                 const detailValue =
                   key === "other"
-                    ? visitCardAnswers.habits?.other || ""
+                    ? visitCardAnswers.habits?.otherDetail || ""
                     : "";
+
                 return (
                   <React.Fragment key={key}>
                     <tr>
@@ -2133,13 +2133,9 @@ const handleEditChange = (
                           type="radio"
                           name={`habit_${key}`}
                           checked={isNo}
-                          onChange={() => {
-                            if (key === "other") {
-                              updateNested("habits", "other", "");
-                            } else {
-                              updateNested("habits", key, "no");
-                            }
-                          }}
+                          onChange={() =>
+                            updateNested("habits", key, "no")
+                          }
                         />
                       </td>
                       <td
@@ -2153,18 +2149,14 @@ const handleEditChange = (
                           type="radio"
                           name={`habit_${key}`}
                           checked={isYes}
-                          onChange={() => {
-                            if (key === "other") {
-                              if (!visitCardAnswers.habits?.other) {
-                                updateNested("habits", "other", "");
-                              }
-                            } else {
-                              updateNested("habits", key, "yes");
-                            }
-                          }}
+                          onChange={() =>
+                            updateNested("habits", key, "yes")
+                          }
                         />
                       </td>
                     </tr>
+
+                    {/* If Тийм for Бусад – show text field */}
                     {isYes && key === "other" && (
                       <tr>
                         <td
@@ -2178,7 +2170,11 @@ const handleEditChange = (
                             placeholder="Бусад зуршил"
                             value={detailValue}
                             onChange={(e) =>
-                              updateNested("habits", "other", e.target.value)
+                              updateNested(
+                                "habits",
+                                "otherDetail",
+                                e.target.value
+                              )
                             }
                             style={{
                               width: "100%",
