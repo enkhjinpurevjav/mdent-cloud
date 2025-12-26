@@ -111,45 +111,102 @@ export default function FullArchDiscOdontogram({
     return ensureInternalTooth(internalList, code);
   };
 
-  const toggleRegion = (
-    code: string,
-    region: ToothRegion,
-    field: "caries" | "filled"
-  ) => {
-    const base = ensureDisc(code);
-    const copy = cloneTooth(base);
-    copy.regions[region][field] = !copy.regions[region][field];
-    applyUpdate(copy);
-  };
+  // inside FullArchDiscOdontogram
+
+const toggleRegionPartial = (
+  code: string,
+  region: ToothRegion,
+  field: "caries" | "filled"
+) => {
+  const base = ensureDisc(code);
+  const copy = cloneTooth(base);
+  copy.regions[region][field] = !copy.regions[region][field];
+  applyUpdate(copy);
+};
+
+const setFullCircleStatus = (code: string, status: ToothBaseStatus) => {
+  const base = ensureDisc(code);
+  const copy = cloneTooth(base);
+  copy.baseStatus = status;
+
+  // For purely exclusive statuses, clear partials
+  if (status === "extracted" || status === "prosthesis" || status === "apodontia") {
+    copy.regions = {
+      top: emptyRegion(),
+      bottom: emptyRegion(),
+      left: emptyRegion(),
+      right: emptyRegion(),
+      center: emptyRegion(),
+    };
+  }
+  // For delay / shapeAnomaly we keep existing partials (overlap allowed)
+
+  applyUpdate(copy);
+};
+
+const handleDiscClick = (id: string, clickedRegion: ToothRegion) => {
+  // If no status is active, default stays as "toggle caries"
+  if (!activeStatus) {
+    toggleRegionPartial(id, clickedRegion, "caries");
+    return;
+  }
+
+  switch (activeStatus) {
+    case "caries":
+      toggleRegionPartial(id, clickedRegion, "caries");
+      break;
+    case "filled":
+      toggleRegionPartial(id, clickedRegion, "filled");
+      break;
+    case "extracted":
+      setFullCircleStatus(id, "extracted");
+      break;
+    case "prosthesis":
+      setFullCircleStatus(id, "prosthesis");
+      break;
+    case "anodontia":
+      setFullCircleStatus(id, "apodontia");
+      break;
+    case "delay":
+      setFullCircleStatus(id, "delay");
+      break;
+    case "shapeAnomaly":
+      setFullCircleStatus(id, "shapeAnomaly");
+      break;
+    case "supernumerary":
+      // For now: no visual change; handled by notes/text only
+      break;
+  }
+};
 
   const renderDisc = (id: string) => {
-    const disc = getDisc(id);
-    const baseStatus: ToothBaseStatus = (disc?.baseStatus ||
-      "none") as ToothBaseStatus;
+  const disc = getDisc(id);
+  const baseStatus: ToothBaseStatus = (disc?.baseStatus ||
+    "none") as ToothBaseStatus;
 
-    const regions = disc
-      ? disc.regions
-      : {
-          top: emptyRegion(),
-          bottom: emptyRegion(),
-          left: emptyRegion(),
-          right: emptyRegion(),
-          center: emptyRegion(),
-        };
+  const regions = disc
+    ? disc.regions
+    : {
+        top: emptyRegion(),
+        bottom: emptyRegion(),
+        left: emptyRegion(),
+        right: emptyRegion(),
+        center: emptyRegion(),
+      };
 
-    return (
-      <ToothSvg5Region
-        key={id}
-        code="" // no numeric label
-        baseStatus={baseStatus}
-        regions={regions}
-        isActive={activeId === id}
-        size={28}
-        onClickTooth={() => setActiveId(id)}
-        onClickRegion={(region) => toggleRegion(id, region, "caries")}
-      />
-    );
-  };
+  return (
+    <ToothSvg5Region
+      key={id}
+      code=""
+      baseStatus={baseStatus}
+      regions={regions}
+      isActive={activeId === id}
+      size={28}
+      onClickTooth={() => setActiveId(id)}
+      onClickRegion={(region) => handleDiscClick(id, region)}
+    />
+  );
+};
 
   const renderRow = (ids: string[]) => (
     <div
