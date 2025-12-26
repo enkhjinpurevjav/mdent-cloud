@@ -1443,7 +1443,7 @@ const handleEditChange = (
                 </div>
               )}
 
-                                        {activeTab === "visit_card" &&
+                                                      {activeTab === "visit_card" &&
                 (visitCard?.type === "CHILD" ||
                 visitCardTypeDraft === "CHILD" ? (
                   <ChildVisitCardForm
@@ -1597,14 +1597,21 @@ const handleEditChange = (
                                 Таны эмнэлэгт хандах болсон шалтгаан юу вэ?
                               </div>
 
-                             {([
-  ["toothPain", "Шүд өвдсөн"],
-  ["toothCaries", "Шүд цоорсон"],
-  ["toothMalposition", "Шүд буруу ургасан"],
-  ["fillingLost", "Ломбо унасан"],
-  ["preventiveCheck", "Урьдчилан сэргийлэх хяналтанд орох"],
-  ["cosmeticSmile", "Гоо сайхны /цайруулах, Hollywood smile гэх мэт/"],
-] as const).map(([key, label]) => (
+                              {([
+                                ["toothPain", "Шүд өвдсөн"],
+                                ["toothBroken", "Шүд цоорсон"],
+                                ["badBite", "Шүд буруу ургасан"],
+                                // reuse toothDecay for "Ломбо унасан"
+                                ["toothDecay", "Ломбо унасан"],
+                                [
+                                  "preventiveCheck",
+                                  "Урьдчилан сэргийлэх хяналтанд орох",
+                                ],
+                                [
+                                  "cosmeticSmile",
+                                  "Гоо сайхны /цайруулах, Hollywood smile гэх мэт/",
+                                ],
+                              ] as const).map(([key, label]) => (
                                 <label
                                   key={key}
                                   style={{
@@ -1617,7 +1624,9 @@ const handleEditChange = (
                                   <input
                                     type="checkbox"
                                     checked={Boolean(
-                                      visitCardAnswers.reasonToVisit?.[key]
+                                      visitCardAnswers.reasonToVisit?.[
+                                        key as keyof VisitCardAnswers["reasonToVisit"]
+                                      ]
                                     )}
                                     onChange={(e) =>
                                       updateNested(
@@ -1916,69 +1925,7 @@ const handleEditChange = (
                           </div>
                         </section>
 
-                        {/* 3) Ерөнхий биеийн талаархи асуумж + Харшил + Зуршил (нэг хүснэгтэнд) */}
-                        <section style={{ marginTop: 16 }}>
-                          {/* keep your existing table JSX here – unchanged */}
-                          {/* ... */}
-                        </section>
-
-                        {/* Consent declaration */}
-                        <section
-                          style={{
-                            marginTop: 16,
-                            paddingTop: 12,
-                            borderTop: "1px dashed #e5e7eb",
-                            fontSize: 13,
-                          }}
-                        >
-                          {/* keep your existing consent JSX here */}
-                          {/* ... */}
-                        </section>
-
-                        {/* 5) Гарын үсэг */}
-                        <section
-                          style={{
-                            marginTop: 16,
-                            paddingTop: 12,
-                            borderTop: "1px dashed #e5e7eb",
-                          }}
-                        >
-                          {/* keep your existing signature JSX here */}
-                          {/* ... */}
-                        </section>
-
-                        {/* Save button */}
-                        <div
-                          style={{
-                            marginTop: 16,
-                            display: "flex",
-                            justifyContent: "flex-end",
-                            gap: 8,
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={handleSaveVisitCard}
-                            disabled={visitCardSaving}
-                            style={{
-                              padding: "6px 12px",
-                              borderRadius: 6,
-                              border: "none",
-                              background: visitCardSaving
-                                ? "#9ca3af"
-                                : "#2563eb",
-                              color: "#ffffff",
-                              fontSize: 13,
-                              cursor: visitCardSaving
-                                ? "default"
-                                : "pointer",
-                            }}
-                          >
-                            {visitCardSaving
-                              ? "Хадгалж байна..."
-                              : "Үзлэгийн карт хадгалах"}
-                          </button>
-                        </div>
+                        {/* TODO: put back your full table, consent, signature, save button here */}
                       </>
                     )}
                   </div>
