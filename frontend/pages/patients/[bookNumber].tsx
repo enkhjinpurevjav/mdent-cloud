@@ -1805,7 +1805,8 @@ const handleEditChange = (
         
         </section>
 
-        {/* 3) Ерөнхий биеийн талаархи асуумж */}
+        ```tsx name=frontend/pages/patients/[bookNumber].tsx url=https://github.com/enkhjinpurevjav/mdent-cloud/blob/main/frontend/pages/patients/%5BbookNumber%5D.tsx
+        {/* 3) Ерөнхий биеийн талаархи асуумж + Харшил + Зуршил (нэг хүснэгтэнд) */}
         <section style={{ marginTop: 16 }}>
           <h3
             style={{
@@ -1816,6 +1817,7 @@ const handleEditChange = (
           >
             Ерөнхий биеийн талаархи асуумж
           </h3>
+
           <table
             style={{
               width: "100%",
@@ -1857,12 +1859,16 @@ const handleEditChange = (
               </tr>
             </thead>
             <tbody>
-              {[
+              {/* ---- Ерөнхий бие ---- */}
+              {([
                 ["heartDisease", "Зүрх судасны өвчтэй эсэх"],
                 ["highBloodPressure", "Даралт ихсэх өвчтэй эсэх"],
                 ["infectiousDisease", "Халдварт өвчний түүхтэй эсэх"],
                 ["tuberculosis", "Сүрьеэ өвчнөөр өвчилж байсан эсэх"],
-                ["hepatitisBC", "Халдварт гепатит B, C-сээр өвдөж байсан эсэх"],
+                [
+                  "hepatitisBC",
+                  "Халдварт гепатит B, C‑сээр өвдөж байсан эсэх",
+                ],
                 ["diabetes", "Чихрийн шижинтэй эсэх"],
                 ["onMedication", "Одоо хэрэглэж байгаа эм, тариа байгаа эсэх"],
                 [
@@ -1875,134 +1881,127 @@ const handleEditChange = (
                   "chemoOrRadiation",
                   "Хими / туяа эмчилгээ хийлгэж байгаа эсэх",
                 ],
-              ].map(([key, label]) => {
-                const value = visitCardAnswers.generalMedical?.[
-                  key as keyof VisitCardAnswers["generalMedical"]
-                ];
+              ] as const).map(([key, label]) => {
+                const value =
+                  visitCardAnswers.generalMedical?.[
+                    key as keyof VisitCardAnswers["generalMedical"]
+                  ];
+                const detailKey = `${key}Detail`;
+                const detailValue =
+                  (visitCardAnswers.generalMedical as any)?.[detailKey] || "";
                 return (
-                  <tr key={key}>
-                    <td
-                      style={{
-                        borderBottom: "1px solid #f3f4f6",
-                        padding: 6,
-                      }}
-                    >
-                      {label}
-                    </td>
-                    <td
-                      style={{
-                        textAlign: "center",
-                        borderBottom: "1px solid #f3f4f6",
-                        padding: 6,
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name={`gm_${key}`}
-                        checked={value === "no"}
-                        onChange={() =>
-                          updateNested("generalMedical", key, "no")
-                        }
-                      />
-                    </td>
-                    <td
-                      style={{
-                        textAlign: "center",
-                        borderBottom: "1px solid #f3f4f6",
-                        padding: 6,
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name={`gm_${key}`}
-                        checked={value === "yes"}
-                        onChange={() =>
-                          updateNested("generalMedical", key, "yes")
-                        }
-                      />
-                    </td>
-                  </tr>
+                  <React.Fragment key={key}>
+                    <tr>
+                      <td
+                        style={{
+                          borderBottom: "1px solid #f3f4f6",
+                          padding: 6,
+                        }}
+                      >
+                        {label}
+                      </td>
+                      <td
+                        style={{
+                          textAlign: "center",
+                          borderBottom: "1px solid #f3f4f6",
+                          padding: 6,
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name={`gm_${key}`}
+                          checked={value === "no"}
+                          onChange={() =>
+                            updateNested("generalMedical", key, "no")
+                          }
+                        />
+                      </td>
+                      <td
+                        style={{
+                          textAlign: "center",
+                          borderBottom: "1px solid #f3f4f6",
+                          padding: 6,
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name={`gm_${key}`}
+                          checked={value === "yes"}
+                          onChange={() =>
+                            updateNested("generalMedical", key, "yes")
+                          }
+                        />
+                      </td>
+                    </tr>
+                    {value === "yes" && (
+                      <tr>
+                        <td
+                          colSpan={3}
+                          style={{
+                            borderBottom: "1px solid #f3f4f6",
+                            padding: "0 6px 6px 6px",
+                          }}
+                        >
+                          <input
+                            placeholder="Тайлбар / дэлгэрэнгүй"
+                            value={detailValue}
+                            onChange={(e) =>
+                              updateNested(
+                                "generalMedical",
+                                detailKey,
+                                e.target.value
+                              )
+                            }
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
-            </tbody>
-          </table>
-          
-        </section>
 
-        {/* 4) Харшил + Зуршил */}
-        <section
-          style={{
-            marginTop: 16,
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-            gap: 12,
-            fontSize: 13,
-          }}
-        >
-                    {/* Allergies */}
-          <div>
-            <h3
-              style={{
-                fontSize: 14,
-                margin: 0,
-                marginBottom: 8,
-              }}
-            >
-              Харшил
-            </h3>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: 13,
-              }}
-            >
-              <thead>
-                <tr>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      borderBottom: "1px solid #e5e7eb",
-                      padding: 6,
-                    }}
-                  >
-                    Асуумж
-                  </th>
-                  <th
-                    style={{
-                      textAlign: "center",
-                      borderBottom: "1px solid #e5e7eb",
-                      padding: 6,
-                      width: 60,
-                    }}
-                  >
-                    Үгүй
-                  </th>
-                  <th
-                    style={{
-                      textAlign: "center",
-                      borderBottom: "1px solid #e5e7eb",
-                      padding: 6,
-                      width: 100,
-                    }}
-                  >
-                    Тийм
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  ["drug", "Эм тариа"],
-                  ["metal", "Метал"],
-                  ["localAnesthetic", "Шүдний мэдээ алдуулах тариа"],
-                  ["latex", "Латекс"],
-                  ["other", "Бусад"],
-                ].map(([key, label]) => {
-                  const value = visitCardAnswers.allergies?.[
+              {/* ---- Харшил (title row) ---- */}
+              <tr>
+                <td
+                  colSpan={3}
+                  style={{
+                    padding: 6,
+                    background: "#f9fafb",
+                    fontWeight: 500,
+                    borderTop: "1px solid #e5e7eb",
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  Харшил
+                </td>
+              </tr>
+
+              {([
+                ["drug", "Эм тариа"],
+                ["metal", "Метал"],
+                ["localAnesthetic", "Шүдний мэдээ алдуулах тариа"],
+                ["latex", "Латекс"],
+                ["other", "Бусад"],
+              ] as const).map(([key, label]) => {
+                const value =
+                  visitCardAnswers.allergies?.[
                     key as keyof VisitCardAnswers["allergies"]
                   ];
-                  return (
-                    <tr key={key}>
+                const detailKey =
+                  key === "other" ? "otherDetail" : `${key}Detail`;
+                const detailValue =
+                  (visitCardAnswers.allergies as any)?.[detailKey] || "";
+                const isYes = value === "yes";
+                const isNo = value === "no";
+                return (
+                  <React.Fragment key={key}>
+                    <tr>
                       <td
                         style={{
                           borderBottom: "1px solid #f3f4f6",
@@ -2021,7 +2020,7 @@ const handleEditChange = (
                         <input
                           type="radio"
                           name={`allergy_${key}`}
-                          checked={value === "no"}
+                          checked={isNo}
                           onChange={() =>
                             updateNested("allergies", key, "no")
                           }
@@ -2037,101 +2036,85 @@ const handleEditChange = (
                         <input
                           type="radio"
                           name={`allergy_${key}`}
-                          checked={value === "yes"}
+                          checked={isYes}
                           onChange={() =>
                             updateNested("allergies", key, "yes")
                           }
                         />
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <div style={{ marginTop: 4 }}>
-              <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                Харшлын дэлгэрэнгүй
-              </div>
-              <textarea
-                rows={2}
-                value={visitCardAnswers.allergies?.otherDetail || ""}
-                onChange={(e) =>
-                  updateNested("allergies", "otherDetail", e.target.value)
-                }
-                style={{
-                  width: "100%",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                  resize: "vertical",
-                }}
-              />
-            </div>
-          </div>
+                    {isYes && (
+                      <tr>
+                        <td
+                          colSpan={3}
+                          style={{
+                            borderBottom: "1px solid #f3f4f6",
+                            padding: "0 6px 6px 6px",
+                          }}
+                        >
+                          <input
+                            placeholder="Тайлбар / дэлгэрэнгүй"
+                            value={detailValue}
+                            onChange={(e) =>
+                              updateNested(
+                                "allergies",
+                                detailKey,
+                                e.target.value
+                              )
+                            }
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
 
-                    {/* Habits */}
-          <div>
-            <h3
-              style={{
-                fontSize: 14,
-                margin: 0,
-                marginBottom: 8,
-              }}
-            >
-              Зуршил
-            </h3>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: 13,
-              }}
-            >
-              <thead>
-                <tr>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      borderBottom: "1px solid #e5e7eb",
-                      padding: 6,
-                    }}
-                  >
-                    Асуумж
-                  </th>
-                  <th
-                    style={{
-                      textAlign: "center",
-                      borderBottom: "1px solid #e5e7eb",
-                      padding: 6,
-                      width: 60,
-                    }}
-                  >
-                    Үгүй
-                  </th>
-                  <th
-                    style={{
-                      textAlign: "center",
-                      borderBottom: "1px solid #e5e7eb",
-                      padding: 6,
-                      width: 100,
-                    }}
-                  >
-                    Тийм
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  ["smoking", "Тамхи татдаг эсэх"],
-                  ["alcohol", "Архи хэрэглэдэг эсэх"],
-                  ["coffee", "Кофе хэрэглэдэг эсэх"],
-                  ["nightGrinding", "Шөнө амаа ангайж унтдаг эсэх"],
-                ].map(([key, label]) => {
-                  const value = visitCardAnswers.habits?.[
-                    key as keyof VisitCardAnswers["habits"]
-                  ];
-                  return (
-                    <tr key={key}>
+              {/* ---- Зуршил (title row) ---- */}
+              <tr>
+                <td
+                  colSpan={3}
+                  style={{
+                    padding: 6,
+                    background: "#f9fafb",
+                    fontWeight: 500,
+                    borderTop: "1px solid #e5e7eb",
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  Зуршил
+                </td>
+              </tr>
+
+              {([
+                ["smoking", "Тамхи татдаг эсэх"],
+                ["alcohol", "Архи хэрэглэдэг эсэх"],
+                ["coffee", "Кофе хэрэглэдэг эсэх"],
+                ["other", "Бусад"],
+              ] as const).map(([key, label]) => {
+                const value =
+                  key === "other"
+                    ? visitCardAnswers.habits?.other
+                      ? "yes"
+                      : "no"
+                    : visitCardAnswers.habits?.[
+                        key as keyof VisitCardAnswers["habits"]
+                      ];
+                const isYes = value === "yes";
+                const isNo = value === "no";
+                const detailValue =
+                  key === "other"
+                    ? visitCardAnswers.habits?.other || ""
+                    : "";
+                return (
+                  <React.Fragment key={key}>
+                    <tr>
                       <td
                         style={{
                           borderBottom: "1px solid #f3f4f6",
@@ -2150,8 +2133,14 @@ const handleEditChange = (
                         <input
                           type="radio"
                           name={`habit_${key}`}
-                          checked={value === "no"}
-                          onChange={() => updateNested("habits", key, "no")}
+                          checked={isNo}
+                          onChange={() => {
+                            if (key === "other") {
+                              updateNested("habits", "other", "");
+                            } else {
+                              updateNested("habits", key, "no");
+                            }
+                          }}
                         />
                       </td>
                       <td
@@ -2164,31 +2153,49 @@ const handleEditChange = (
                         <input
                           type="radio"
                           name={`habit_${key}`}
-                          checked={value === "yes"}
-                          onChange={() => updateNested("habits", key, "yes")}
+                          checked={isYes}
+                          onChange={() => {
+                            if (key === "other") {
+                              if (!visitCardAnswers.habits?.other) {
+                                updateNested("habits", "other", "");
+                              }
+                            } else {
+                              updateNested("habits", key, "yes");
+                            }
+                          }}
                         />
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <div style={{ marginTop: 4 }}>
-              <div style={{ color: "#6b7280", marginBottom: 2 }}>Бусад</div>
-              <input
-                value={visitCardAnswers.habits?.other || ""}
-                onChange={(e) =>
-                  updateNested("habits", "other", e.target.value)
-                }
-                style={{
-                  width: "100%",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                }}
-              />
-            </div>
-          </div>
+                    {isYes && key === "other" && (
+                      <tr>
+                        <td
+                          colSpan={3}
+                          style={{
+                            borderBottom: "1px solid #f3f4f6",
+                            padding: "0 6px 6px 6px",
+                          }}
+                        >
+                          <input
+                            placeholder="Бусад зуршил"
+                            value={detailValue}
+                            onChange={(e) =>
+                              updateNested("habits", "other", e.target.value)
+                            }
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         </section>
 
         {/* 5) Гарын үсэг */}
