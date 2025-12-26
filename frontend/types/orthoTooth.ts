@@ -8,15 +8,13 @@ export type ToothBaseStatus =
   | "apodontia"
   | "shapeAnomaly";
 
-export type ToothPartialStatus = "caries" | "filled";
-
 export type ToothRegionState = {
   caries: boolean;
   filled: boolean;
 };
 
 export type InternalTooth = {
-  code: string;
+  code: string;               // FDI code
   baseStatus: ToothBaseStatus;
   regions: {
     top: ToothRegionState;
