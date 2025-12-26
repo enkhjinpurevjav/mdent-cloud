@@ -1443,26 +1443,7 @@ const handleEditChange = (
                 </div>
               )}
 
-              {activeTab === "visit_card" &&
-  (visitCard?.type === "CHILD" || visitCardTypeDraft === "CHILD" ? (
-    <ChildVisitCardForm
-      answers={visitCardAnswers}
-      visitCard={visitCard}
-      visitCardTypeDraft={visitCardTypeDraft}
-      setVisitCardTypeDraft={setVisitCardTypeDraft}
-      updateVisitCardAnswer={(key, value) =>
-        updateVisitCardAnswer(key as keyof VisitCardAnswers, value)
-      }
-      updateNested={(section, field, value) =>
-        updateNested(section as keyof VisitCardAnswers, field, value)
-      }
-      signatureSaving={signatureSaving}
-      handleUploadSignature={handleUploadSignature}
-      handleSaveVisitCard={handleSaveVisitCard}
-      visitCardSaving={visitCardSaving}
-      formatDate={formatDate}
-    />
-  ) : (
+              {activeTab === "visit_card" && (
   <div
     style={{
       borderRadius: 12,
