@@ -672,35 +672,7 @@ const handleEditChange = (
                     Профайл
                   </button>
 
-                  {/* Цагууд */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab("appointments");
-                      setEditMode(false);
-                      setSaveError("");
-                      setSaveSuccess("");
-                    }}
-                    style={{
-                      textAlign: "left",
-                      padding: "6px 10px",
-                      borderRadius: 6,
-                      border: "none",
-                      background:
-                        activeTab === "appointments"
-                          ? "#eff6ff"
-                          : "transparent",
-                      color:
-                        activeTab === "appointments"
-                          ? "#1d4ed8"
-                          : "#6b7280",
-                      fontWeight:
-                        activeTab === "appointments" ? 500 : 400,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Цагууд
-                  </button>
+                 
 
                   {/* Үзлэгийн карт */}
                   <button
@@ -731,7 +703,35 @@ const handleEditChange = (
                   >
                     Үзлэгийн карт
                   </button>
-
+ {/* Цагууд */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("appointments");
+                      setEditMode(false);
+                      setSaveError("");
+                      setSaveSuccess("");
+                    }}
+                    style={{
+                      textAlign: "left",
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background:
+                        activeTab === "appointments"
+                          ? "#eff6ff"
+                          : "transparent",
+                      color:
+                        activeTab === "appointments"
+                          ? "#1d4ed8"
+                          : "#6b7280",
+                      fontWeight:
+                        activeTab === "appointments" ? 500 : 400,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Цагууд
+                  </button>
                   {/* Future placeholders */}
                   <div
                     style={{
