@@ -1443,386 +1443,410 @@ const handleEditChange = (
                 </div>
               )}
 
-              {activeTab === "visit_card" && (
-  <div
-    style={{
-      borderRadius: 12,
-      border: "1px solid #e5e7eb",
-      padding: 16,
-      background: "white",
-    }}
-  >
-    <h2
-      style={{
-        fontSize: 16,
-        marginTop: 0,
-        marginBottom: 12,
-      }}
-    >
-      Үзлэгийн карт
-    </h2>
-
-    {visitCardLoading && (
-      <div style={{ fontSize: 13 }}>Үзлэгийн карт ачааллаж байна...</div>
-    )}
-
-    {!visitCardLoading && visitCardError && (
-      <div style={{ fontSize: 12, color: "#b91c1c", marginBottom: 8 }}>
-        {visitCardError}
-      </div>
-    )}
-
-    {!visitCardLoading && (
-      <>
-        {/* 1) Type selector – only when card not yet created */}
-        {!visitCard && (
-          <div
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              background: "#f3f4f6",
-              fontSize: 13,
-            }}
-          >
-            <div style={{ marginBottom: 8 }}>
-              Анхны үзлэгийн карт бөглөх төрөл:
-            </div>
-            <div style={{ display: "flex", gap: 12 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <input
-                  type="radio"
-                  name="visitCardType"
-                  value="ADULT"
-                  checked={visitCardTypeDraft === "ADULT"}
-                  onChange={() => setVisitCardTypeDraft("ADULT")}
-                />
-                <span>Том хүн</span>
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <input
-                  type="radio"
-                  name="visitCardType"
-                  value="CHILD"
-                  checked={visitCardTypeDraft === "CHILD"}
-                  onChange={() => setVisitCardTypeDraft("CHILD")}
-                />
-                <span>Хүүхэд</span>
-              </label>
-            </div>
-          </div>
-        )}
-
-                {/* Урьдчилан сэргийлэх асуумж */}
-                <section style={{ marginTop: 8, fontSize: 13 }}>
-          <h3
-            style={{
-              fontSize: 14,
-              margin: 0,
-              marginBottom: 4,
-            }}
-          >
-            Урьдчилан сэргийлэх асуумж
-          </h3>
-          <div style={{ marginBottom: 8 }}>
-            Та эрүүл мэндийнхээ төлөө доорхи асуултанд үнэн зөв хариулна уу
-          </div>
-
-          <div
-            style={{
-              border: "1px solid #e5e7eb",
-              borderRadius: 8,
-              padding: 10,
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-            }}
-          >
-            {/* Reasons */}
-            <div>
-              <div
-                style={{
-                  fontWeight: 500,
-                  marginBottom: 8,
-                }}
-              >
-                Таны эмнэлэгт хандах болсон шалтгаан юу вэ?
-              </div>
-
-              {([
-                ["toothPain", "Шүд өвдсөн"],
-                ["toothBroken", "Шүд цоорсон"],
-                ["badBite", "Шүд буруу ургасан"],
-                // reuse toothDecay for "Ломбо унасан"
-                ["toothDecay", "Ломбо унасан"],
-                ["preventiveCheck", "Урьдчилан сэргийлэх хяналтанд орох"],
-                [
-                  "cosmeticSmile",
-                  "Гоо сайхны /цайруулах, Hollywood smile гэх мэт/",
-                ],
-              ] as const).map(([key, label]) => (
-                <label
-                  key={key}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    marginBottom: 4,
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={Boolean(visitCardAnswers.reasonToVisit?.[key])}
-                    onChange={(e) =>
-                      updateNested("reasonToVisit", key, e.target.checked)
-                    }
-                  />
-                  <span>{label}</span>
-                </label>
-              ))}
-
-              <div style={{ marginTop: 6 }}>
-                <span
-                  style={{
-                    display: "block",
-                    color: "#6b7280",
-                    marginBottom: 2,
-                  }}
-                >
-                  Бусад
-                </span>
-                <input
-                  value={visitCardAnswers.reasonToVisit?.other || ""}
-                  onChange={(e) =>
-                    updateNested("reasonToVisit", "other", e.target.value)
-                  }
-                  style={{
-                    width: "100%",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Q1: Өмнө нь шүдний эмнэлэгт үзүүлж байсан уу? */}
-            <div
-              style={{
-                borderTop: "1px dashed #e5e7eb",
-                paddingTop: 8,
-                marginTop: 4,
-              }}
-            >
-              <div
-                style={{
-                  fontWeight: 500,
-                  marginBottom: 4,
-                }}
-              >
-                Өмнө нь шүдний эмнэлэгт үзүүлж байсан уу?
-              </div>
-              <div style={{ display: "flex", gap: 12, marginBottom: 6 }}>
-                <label
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
-                >
-                  <input
-                    type="radio"
-                    name="prevVisit"
-                    value="no"
-                    checked={
-                      visitCardAnswers.previousDentalVisit?.hasVisited === "no"
-                    }
-                    onChange={() =>
-                      updateNested(
-                        "previousDentalVisit",
-                        "hasVisited",
-                        "no"
-                      )
-                    }
-                  />
-                  <span>Үгүй</span>
-                </label>
-                <label
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
-                >
-                  <input
-                    type="radio"
-                    name="prevVisit"
-                    value="yes"
-                    checked={
-                      visitCardAnswers.previousDentalVisit?.hasVisited ===
-                      "yes"
-                    }
-                    onChange={() =>
-                      updateNested(
-                        "previousDentalVisit",
-                        "hasVisited",
-                        "yes"
-                      )
-                    }
-                  />
-                  <span>Тийм</span>
-                </label>
-              </div>
-
-              {visitCardAnswers.previousDentalVisit?.hasVisited === "yes" && (
-                <div>
+                             {activeTab === "visit_card" && (
+                <>
+                  {/* Adult form */}
                   <div
-                    style={{ color: "#6b7280", marginBottom: 2 }}
-                  >
-                    Өмнө үзүүлж байсан эмнэлгийн нэр
-                  </div>
-                  <input
-                    value={
-                      visitCardAnswers.previousDentalVisit?.clinicName || ""
-                    }
-                    onChange={(e) =>
-                      updateNested(
-                        "previousDentalVisit",
-                        "clinicName",
-                        e.target.value
-                      )
-                    }
                     style={{
-                      width: "100%",
-                      borderRadius: 6,
-                      border: "1px solid #d1d5db",
-                      padding: "4px 6px",
+                      borderRadius: 12,
+                      border: "1px solid #e5e7eb",
+                      padding: 16,
+                      background: "white",
+                      marginBottom: 16,
                     }}
-                  />
-                </div>
-              )}
-            </div>
+                  >
+                    <h2
+                      style={{
+                        fontSize: 16,
+                        marginTop: 0,
+                        marginBottom: 12,
+                      }}
+                    >
+                      Үзлэгийн карт (Том хүн)
+                    </h2>
 
-                       {/* Q2: Өмнө шүдний эмчилгээ хийлгэхэд ... */}
-            <div>
-              <div
-                style={{
-                  fontWeight: 500,
-                  marginBottom: 4,
-                }}
-              >
-                Өмнө шүдний эмчилгээ хийлгэхэд ямар нэгэн хүндрэл гарч
-                байсан эсэх?
-              </div>
-              <div style={{ display: "flex", gap: 12, marginBottom: 6 }}>
-                <label
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
-                >
-                  <input
-                    type="radio"
-                    name="prevComplication"
-                    value="no"
-                    checked={
-                      visitCardAnswers.previousDentalVisit?.hadComplication ===
-                        "no" ||
-                      !visitCardAnswers.previousDentalVisit?.hadComplication
-                    }
-                    onChange={() => {
-                      updateNested(
-                        "previousDentalVisit",
-                        "hadComplication",
-                        "no"
-                      );
-                      updateNested(
-                        "previousDentalVisit",
-                        "reactionOrComplication",
-                        ""
-                      );
-                    }}
-                  />
-                  <span>Үгүй</span>
-                </label>
-                <label
-                  style={{ display: "flex", alignItems: "center", gap: 4 }}
-                >
-                  <input
-                    type="radio"
-                    name="prevComplication"
-                    value="yes"
-                    checked={
-                      visitCardAnswers.previousDentalVisit?.hadComplication ===
-                      "yes"
-                    }
-                    onChange={() =>
-                      updateNested(
-                        "previousDentalVisit",
-                        "hadComplication",
-                        "yes"
-                      )
-                    }
-                  />
-                  <span>Тийм</span>
-                </label>
-              </div>
+                    {visitCardLoading && (
+                      <div style={{ fontSize: 13 }}>
+                        Үзлэгийн карт ачааллаж байна...
+                      </div>
+                    )}
 
-              {visitCardAnswers.previousDentalVisit?.hadComplication ===
-                "yes" && (
-                <textarea
-                  rows={2}
-                  placeholder="Хүндрэл гарч байсан бол тайлбарлана уу"
-                  value={
-                    visitCardAnswers.previousDentalVisit
-                      ?.reactionOrComplication || ""
-                  }
-                  onChange={(e) =>
-                    updateNested(
-                      "previousDentalVisit",
-                      "reactionOrComplication",
-                      e.target.value
-                    )
-                  }
-                  style={{
-                    width: "100%",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                    resize: "vertical",
-                  }}
-                />
-              )}
-            </div>
+                    {!visitCardLoading && visitCardError && (
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#b91c1c",
+                          marginBottom: 8,
+                        }}
+                      >
+                        {visitCardError}
+                      </div>
+                    )}
 
-            {/* Extra notes for dentist during treatment */}
-            <div
-              style={{
-                borderTop: "1px dashed #e5e7eb",
-                paddingTop: 8,
-                marginTop: 4,
-              }}
-            >
-              <div
-                style={{
-                  color: "#6b7280",
-                  marginBottom: 4,
-                  fontWeight: 500,
-                }}
-              >
-                Шүдний эмчилгээний үед эмчийн зүгээс анхаарах зүйлс:
-              </div>
-              <textarea
-                rows={3}
-                value={visitCardAnswers.dentistAttentionNotes || ""}
-                onChange={(e) =>
-                  updateVisitCardAnswer(
-                    "dentistAttentionNotes",
-                    e.target.value
-                  )
-                }
-                style={{
-                  width: "100%",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                  resize: "vertical",
-                }}
-              />
-            </div>
-            
-          </div>
-        
-        </section>
+                    {!visitCardLoading && (
+                      <>
+                        {/* Урьдчилан сэргийлэх асуумж */}
+                        <section style={{ marginTop: 8, fontSize: 13 }}>
+                          <h3
+                            style={{
+                              fontSize: 14,
+                              margin: 0,
+                              marginBottom: 4,
+                            }}
+                          >
+                            Урьдчилан сэргийлэх асуумж
+                          </h3>
+                          <div style={{ marginBottom: 8 }}>
+                            Та эрүүл мэндийнхээ төлөө доорхи асуултанд үнэн
+                            зөв хариулна уу
+                          </div>
+
+                          <div
+                            style={{
+                              border: "1px solid #e5e7eb",
+                              borderRadius: 8,
+                              padding: 10,
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 10,
+                            }}
+                          >
+                            {/* Reasons */}
+                            <div>
+                              <div
+                                style={{
+                                  fontWeight: 500,
+                                  marginBottom: 8,
+                                }}
+                              >
+                                Таны эмнэлэгт хандах болсон шалтгаан юу вэ?
+                              </div>
+
+                              {([
+                                ["toothPain", "Шүд өвдсөн"],
+                                ["toothBroken", "Шүд цоорсон"],
+                                ["badBite", "Шүд буруу ургасан"],
+                                // reuse toothDecay for "Ломбо унасан"
+                                ["toothDecay", "Ломбо унасан"],
+                                [
+                                  "preventiveCheck",
+                                  "Урьдчилан сэргийлэх хяналтанд орох",
+                                ],
+                                [
+                                  "cosmeticSmile",
+                                  "Гоо сайхны /цайруулах, Hollywood smile гэх мэт/",
+                                ],
+                              ] as const).map(([key, label]) => (
+                                <label
+                                  key={key}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                    marginBottom: 4,
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(
+                                      visitCardAnswers.reasonToVisit?.[key]
+                                    )}
+                                    onChange={(e) =>
+                                      updateNested(
+                                        "reasonToVisit",
+                                        key,
+                                        e.target.checked
+                                      )
+                                    }
+                                  />
+                                  <span>{label}</span>
+                                </label>
+                              ))}
+
+                              <div style={{ marginTop: 6 }}>
+                                <span
+                                  style={{
+                                    display: "block",
+                                    color: "#6b7280",
+                                    marginBottom: 2,
+                                  }}
+                                >
+                                  Бусад
+                                </span>
+                                <input
+                                  value={
+                                    visitCardAnswers.reasonToVisit?.other || ""
+                                  }
+                                  onChange={(e) =>
+                                    updateNested(
+                                      "reasonToVisit",
+                                      "other",
+                                      e.target.value
+                                    )
+                                  }
+                                  style={{
+                                    width: "100%",
+                                    borderRadius: 6,
+                                    border: "1px solid #d1d5db",
+                                    padding: "4px 6px",
+                                  }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Q1: Өмнө нь шүдний эмнэлэгт үзүүлж байсан уу? */}
+                            <div
+                              style={{
+                                borderTop: "1px dashed #e5e7eb",
+                                paddingTop: 8,
+                                marginTop: 4,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontWeight: 500,
+                                  marginBottom: 4,
+                                }}
+                              >
+                                Өмнө нь шүдний эмнэлэгт үзүүлж байсан уу?
+                              </div>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: 12,
+                                  marginBottom: 6,
+                                }}
+                              >
+                                <label
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                  }}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="prevVisit"
+                                    value="no"
+                                    checked={
+                                      visitCardAnswers.previousDentalVisit
+                                        ?.hasVisited === "no"
+                                    }
+                                    onChange={() =>
+                                      updateNested(
+                                        "previousDentalVisit",
+                                        "hasVisited",
+                                        "no"
+                                      )
+                                    }
+                                  />
+                                  <span>Үгүй</span>
+                                </label>
+                                <label
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                  }}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="prevVisit"
+                                    value="yes"
+                                    checked={
+                                      visitCardAnswers.previousDentalVisit
+                                        ?.hasVisited === "yes"
+                                    }
+                                    onChange={() =>
+                                      updateNested(
+                                        "previousDentalVisit",
+                                        "hasVisited",
+                                        "yes"
+                                      )
+                                    }
+                                  />
+                                  <span>Тийм</span>
+                                </label>
+                              </div>
+
+                              {visitCardAnswers.previousDentalVisit
+                                ?.hasVisited === "yes" && (
+                                <div>
+                                  <div
+                                    style={{
+                                      color: "#6b7280",
+                                      marginBottom: 2,
+                                    }}
+                                  >
+                                    Өмнө үзүүлж байсан эмнэлгийн нэр
+                                  </div>
+                                  <input
+                                    value={
+                                      visitCardAnswers.previousDentalVisit
+                                        ?.clinicName || ""
+                                    }
+                                    onChange={(e) =>
+                                      updateNested(
+                                        "previousDentalVisit",
+                                        "clinicName",
+                                        e.target.value
+                                      )
+                                    }
+                                    style={{
+                                      width: "100%",
+                                      borderRadius: 6,
+                                      border: "1px solid #d1d5db",
+                                      padding: "4px 6px",
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Q2: Өмнө шүдний эмчилгээ хийлгэхэд ... */}
+                            <div>
+                              <div
+                                style={{
+                                  fontWeight: 500,
+                                  marginBottom: 4,
+                                }}
+                              >
+                                Өмнө шүдний эмчилгээ хийлгэхэд ямар нэгэн
+                                хүндрэл гарч байсан эсэх?
+                              </div>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: 12,
+                                  marginBottom: 6,
+                                }}
+                              >
+                                <label
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                  }}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="prevComplication"
+                                    value="no"
+                                    checked={
+                                      visitCardAnswers.previousDentalVisit
+                                        ?.hadComplication === "no" ||
+                                      !visitCardAnswers.previousDentalVisit
+                                        ?.hadComplication
+                                    }
+                                    onChange={() => {
+                                      updateNested(
+                                        "previousDentalVisit",
+                                        "hadComplication",
+                                        "no"
+                                      );
+                                      updateNested(
+                                        "previousDentalVisit",
+                                        "reactionOrComplication",
+                                        ""
+                                      );
+                                    }}
+                                  />
+                                  <span>Үгүй</span>
+                                </label>
+                                <label
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                  }}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="prevComplication"
+                                    value="yes"
+                                    checked={
+                                      visitCardAnswers.previousDentalVisit
+                                        ?.hadComplication === "yes"
+                                    }
+                                    onChange={() =>
+                                      updateNested(
+                                        "previousDentalVisit",
+                                        "hadComplication",
+                                        "yes"
+                                      )
+                                    }
+                                  />
+                                  <span>Тийм</span>
+                                </label>
+                              </div>
+
+                              {visitCardAnswers.previousDentalVisit
+                                ?.hadComplication === "yes" && (
+                                <textarea
+                                  rows={2}
+                                  placeholder="Хүндрэл гарч байсан бол тайлбарлана уу"
+                                  value={
+                                    visitCardAnswers.previousDentalVisit
+                                      ?.reactionOrComplication || ""
+                                  }
+                                  onChange={(e) =>
+                                    updateNested(
+                                      "previousDentalVisit",
+                                      "reactionOrComplication",
+                                      e.target.value
+                                    )
+                                  }
+                                  style={{
+                                    width: "100%",
+                                    borderRadius: 6,
+                                    border: "1px solid #d1d5db",
+                                    padding: "4px 6px",
+                                    resize: "vertical",
+                                  }}
+                                />
+                              )}
+                            </div>
+
+                            {/* Extra notes for dentist during treatment */}
+                            <div
+                              style={{
+                                borderTop: "1px dashed #e5e7eb",
+                                paddingTop: 8,
+                                marginTop: 4,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  color: "#6b7280",
+                                  marginBottom: 4,
+                                  fontWeight: 500,
+                                }}
+                              >
+                                Шүдний эмчилгээний үед эмчийн зүгээс анхаарах
+                                зүйлс:
+                              </div>
+                              <textarea
+                                rows={3}
+                                value={
+                                  visitCardAnswers.dentistAttentionNotes || ""
+                                }
+                                onChange={(e) =>
+                                  updateVisitCardAnswer(
+                                    "dentistAttentionNotes",
+                                    e.target.value
+                                  )
+                                }
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  padding: "4px 6px",
+                                  resize: "vertical",
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </section>
 
         {/* 3) Ерөнхий биеийн талаархи асуумж + Харшил + Зуршил (нэг хүснэгтэнд) */}
         <section style={{ marginTop: 16 }}>
@@ -2462,35 +2486,66 @@ const handleEditChange = (
         </section>
 
         {/* 6) Save button */}
-        <div
-          style={{
-            marginTop: 16,
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleSaveVisitCard}
-            disabled={visitCardSaving}
-            style={{
-              padding: "6px 12px",
-              borderRadius: 6,
-              border: "none",
-              background: visitCardSaving ? "#9ca3af" : "#2563eb",
-              color: "#ffffff",
-              fontSize: 13,
-              cursor: visitCardSaving ? "default" : "pointer",
-            }}
-          >
-            {visitCardSaving ? "Хадгалж байна..." : "Үзлэгийн карт хадгалах"}
-          </button>
-        </div>
-      </>
-    )}
-  </div>
-)}            </div>
+         <div
+                      style={{
+                        marginTop: 16,
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        gap: 8,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={handleSaveVisitCard}
+                        disabled={visitCardSaving}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: 6,
+                          border: "none",
+                          background: visitCardSaving ? "#9ca3af" : "#2563eb",
+                          color: "#ffffff",
+                          fontSize: 13,
+                          cursor: visitCardSaving ? "default" : "pointer",
+                        }}
+                      >
+                        {visitCardSaving
+                          ? "Хадгалж байна..."
+                          : "Үзлэгийн карт хадгалах"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Child form rendered below adult form */}
+                  <ChildVisitCardForm
+                    answers={visitCardAnswers}
+                    visitCard={visitCard}
+                    visitCardTypeDraft={visitCardTypeDraft}
+                    setVisitCardTypeDraft={setVisitCardTypeDraft}
+                    updateVisitCardAnswer={(
+                      key: keyof VisitCardAnswers,
+                      value: VisitCardAnswers[keyof VisitCardAnswers]
+                    ) => updateVisitCardAnswer(key, value as any)}
+                    updateNested={(
+                      section: string,
+                      field: string,
+                      value: any
+                    ) =>
+                      updateNested(
+                        section as keyof VisitCardAnswers,
+                        field,
+                        value
+                      )
+                    }
+                    signatureSaving={signatureSaving}
+                    handleUploadSignature={handleUploadSignature}
+                    handleSaveVisitCard={handleSaveVisitCard}
+                    visitCardSaving={visitCardSaving}
+                    formatDate={formatDate}
+                  />
+                </>
+              )}
+
+            </div> {/* closes the right column flex box */}
           </section>
 
           {/* Encounter history and inline appointments table shown only in profile tab */}
