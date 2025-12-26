@@ -2684,10 +2684,10 @@ const handleEditChange = (
                       </>
                     )}
                   </div>
-) : (
-                    // Child form
-                    <div style={{ marginTop: 16 }}>
-                      <ChildVisitCardForm
+                ) : (
+                  // Child form
+                  <div style={{ marginTop: 16 }}>
+                    <ChildVisitCardForm
                         answers={visitCardAnswers}
                         visitCard={visitCard}
                         visitCardTypeDraft={visitCardTypeDraft}
