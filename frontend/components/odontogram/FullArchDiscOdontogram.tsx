@@ -102,15 +102,15 @@ export default function FullArchDiscOdontogram({
    * For Цоорсон / Ломбодсон – per‑region toggles.
    */
   const toggleRegionPartial = (
-    code: string,
-    region: ToothRegion,
-    field: "caries" | "filled"
-  ) => {
-    const base = ensureDisc(code);
-    const copy = cloneTooth(base);
-    copy.regions[region][field] = !copy.regions[region][field];
-    applyUpdate(copy);
-  };
+  code: string,
+  region: ToothRegion,
+  field: "caries" | "filled"
+) => {
+  const base = ensureDisc(code);
+  const copy = cloneTooth(base);
+  copy.regions[region][field] = !copy.regions[region][field];
+  applyUpdate(copy);
+};
 
   /**
    * For full‑circle statuses.
@@ -145,69 +145,68 @@ export default function FullArchDiscOdontogram({
    * High‑level click behavior according to activeStatus.
    */
   const handleDiscClick = (id: string, clickedRegion: ToothRegion) => {
-    if (!activeStatus) {
-      // No status selected: default = toggle caries on the clicked region
-      toggleRegionPartial(id, clickedRegion, "caries");
-      return;
-    }
+  if (!activeStatus) {
+    // No status selected: default = toggle caries on the clicked region
+    toggleRegionPartial(id, clickedRegion, "caries");
+    return;
+  }
 
-    switch (activeStatus) {
-      case "caries":
-        toggleRegionPartial(id, clickedRegion, "caries");
-        break;
-      case "filled":
-        toggleRegionPartial(id, clickedRegion, "filled");
-        break;
-      case "extracted":
-        setFullCircleStatus(id, "extracted");
-        break;
-      case "prosthesis":
-        setFullCircleStatus(id, "prosthesis");
-        break;
-      case "anodontia":
-        setFullCircleStatus(id, "apodontia");
-        break;
-      case "delay":
-        setFullCircleStatus(id, "delay");
-        break;
-      case "shapeAnomaly":
-        setFullCircleStatus(id, "shapeAnomaly");
-        break;
-      case "supernumerary":
-        // Илүү шүд – for now no visual change on the disc itself.
-        // Will be linked to text/notes in the page.
-        break;
-    }
-  };
+  switch (activeStatus) {
+    case "caries":
+      toggleRegionPartial(id, clickedRegion, "caries");
+      break;
+    case "filled":
+      toggleRegionPartial(id, clickedRegion, "filled");
+      break;
+    case "extracted":
+      setFullCircleStatus(id, "extracted");
+      break;
+    case "prosthesis":
+      setFullCircleStatus(id, "prosthesis");
+      break;
+    case "anodontia":
+      setFullCircleStatus(id, "apodontia");
+      break;
+    case "delay":
+      setFullCircleStatus(id, "delay");
+      break;
+    case "shapeAnomaly":
+      setFullCircleStatus(id, "shapeAnomaly");
+      break;
+    case "supernumerary":
+      // no visual for now
+      break;
+  }
+};
 
   const renderDisc = (id: string) => {
-    const disc = getDisc(id);
-    const baseStatus: ToothBaseStatus = (disc?.baseStatus ||
-      "none") as ToothBaseStatus;
+  const disc = getDisc(id);
+  const baseStatus: ToothBaseStatus = (disc?.baseStatus ||
+    "none") as ToothBaseStatus;
 
-    const regions = disc
-      ? disc.regions
-      : {
-          top: emptyRegion(),
-          bottom: emptyRegion(),
-          left: emptyRegion(),
-          right: emptyRegion(),
-          center: emptyRegion(),
-        };
+  const regions = disc
+    ? disc.regions
+    : {
+        top: emptyRegion(),
+        bottom: emptyRegion(),
+        left: emptyRegion(),
+        right: emptyRegion(),
+        center: emptyRegion(),
+      };
 
-    return (
-      <ToothSvg5Region
-        key={id}
-        code="" // no numeric label for this full-arch layout
-        baseStatus={baseStatus}
-        regions={regions}
-        isActive={activeId === id}
-        size={28}
-        onClickTooth={() => setActiveId(id)}
-        onClickRegion={(region) => handleDiscClick(id, region)}
-      />
-    );
-  };
+  return (
+    <ToothSvg5Region
+      key={id}
+      code=""
+      baseStatus={baseStatus}
+      regions={regions}
+      isActive={activeId === id}
+      size={28}
+      onClickTooth={() => setActiveId(id)}
+      onClickRegion={(region) => handleDiscClick(id, region)}
+    />
+  );
+};
 
   const renderRow = (ids: string[]) => (
     <div
