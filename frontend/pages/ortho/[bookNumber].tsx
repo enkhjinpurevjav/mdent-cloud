@@ -10,8 +10,15 @@ import FullArchDiscOdontogram, {
  */
 
 type OrthoDisc = {
-  code: string;   // disc id (R1-0, R2-3, etc.)
-  status: string; // stored baseStatus key
+  code: string;
+  status: string;
+  regions?: {
+    top?: "none" | "caries" | "filled";
+    bottom?: "none" | "caries" | "filled";
+    left?: "none" | "caries" | "filled";
+    right?: "none" | "caries" | "filled";
+    center?: "none" | "caries" | "filled";
+  };
 };
 
 type OrthoCardData = {
