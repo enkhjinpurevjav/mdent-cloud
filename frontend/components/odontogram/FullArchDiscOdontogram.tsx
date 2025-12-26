@@ -20,7 +20,14 @@ export type ActiveStatusKey =
 
 export type ExternalDisc = {
   code: string;
-  status: string;
+  status: string; // baseStatus
+  regions?: {
+    top?: "none" | "caries" | "filled";
+    bottom?: "none" | "caries" | "filled";
+    left?: "none" | "caries" | "filled";
+    right?: "none" | "caries" | "filled";
+    center?: "none" | "caries" | "filled";
+  };
 };
 
 type InternalDisc = {
