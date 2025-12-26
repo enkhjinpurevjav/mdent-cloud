@@ -218,20 +218,26 @@ export default function OrthoCardPage() {
     >
       {/* Back to patient list */}
       <button
-        type="button"
-        onClick={() => router.push("/patients")}
-        style={{
-          marginBottom: 16,
-          padding: "4px 8px",
-          borderRadius: 4,
-          border: "1px solid #d1d5db",
-          background: "#f9fafb",
-          cursor: "pointer",
-          fontSize: 13,
-        }}
-      >
-        ← Өвчтөнүүдийн жагсаалт руу
-      </button>
+  type="button"
+  onClick={() => {
+    if (!bookNumber || typeof bookNumber !== "string") {
+      router.push("/patients");
+      return;
+    }
+    router.push(`/patients/${encodeURIComponent(bookNumber)}`);
+  }}
+  style={{
+    marginBottom: 16,
+    padding: "4px 8px",
+    borderRadius: 4,
+    border: "1px solid #d1d5db",
+    background: "#f9fafb",
+    cursor: "pointer",
+    fontSize: 13,
+  }}
+>
+  ← Үйлчлүүлэгчийн хэсэг рүү буцах
+</button>
 
       {/* Title + book number */}
       <h1 style={{ fontSize: 20, marginTop: 0, marginBottom: 4 }}>
