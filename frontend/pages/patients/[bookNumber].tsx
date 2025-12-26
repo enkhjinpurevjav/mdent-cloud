@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import SignaturePad from "../../components/SignaturePad";
@@ -133,11 +132,18 @@ type VisitCardAnswers = {
     otherDetail?: string;
   };
 
-  dentalFollowup?: {
+    dentalFollowup?: {
     regularCheckups?: "yes" | "no";
+    regularCheckupsDetail?: string;
+
     bleedingAfterExtraction?: "yes" | "no";
+    bleedingAfterExtractionDetail?: string;
+
     gumBleeding?: "yes" | "no";
+    gumBleedingDetail?: string;
+
     badBreath?: "yes" | "no";
+    badBreathDetail?: string;
   };
 
   consentAccepted?: boolean;
@@ -2204,6 +2210,125 @@ const handleEditChange = (
                   </React.Fragment>
                 );
               })}
+
+              {/* ---- Нэмэлт (шүдний эмчид хамаарах асуумж) ---- */}
+              <tr>
+                <td
+                  colSpan={3}
+                  style={{
+                    padding: 6,
+                    background: "#f9fafb",
+                    fontWeight: 500,
+                    borderTop: "1px solid #e5e7eb",
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  Нэмэлт
+                </td>
+              </tr>
+
+              {([
+                [
+                  "regularCheckups",
+                  "Шүдний эмчид байнга үзүүлдэг эсэх",
+                ],
+                [
+                  "bleedingAfterExtraction",
+                  "Шүд авахуулсны дараа цус тогтол удаан эсэх",
+                ],
+                ["gumBleeding", "Буйлнаас цус гардаг эсэх"],
+                ["badBreath", "Амнаас эвгүй үнэр гардаг эсэх"],
+              ] as const).map(([key, label]) => {
+                const value =
+                  visitCardAnswers.dentalFollowup?.[
+                    key as keyof VisitCardAnswers["dentalFollowup"]
+                  ];
+                const isYes = value === "yes";
+                const isNo = value === "no" || value === undefined;
+
+                const detailKey =
+                  `${key}Detail` as keyof VisitCardAnswers["dentalFollowup"];
+                const detailValue =
+                  (visitCardAnswers.dentalFollowup as any)?.[detailKey] || "";
+
+                return (
+                  <React.Fragment key={key}>
+                    <tr>
+                      <td
+                        style={{
+                          borderBottom: "1px solid #f3f4f6",
+                          padding: 6,
+                        }}
+                      >
+                        {label}
+                      </td>
+                      <td
+                        style={{
+                          textAlign: "center",
+                          borderBottom: "1px solid #f3f4f6",
+                          padding: 6,
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name={`dental_${key}`}
+                          checked={isNo}
+                          onChange={() => {
+                            updateNested("dentalFollowup", key, "no");
+                            updateNested("dentalFollowup", detailKey, "");
+                          }}
+                        />
+                      </td>
+                      <td
+                        style={{
+                          textAlign: "center",
+                          borderBottom: "1px solid #f3f4f6",
+                          padding: 6,
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name={`dental_${key}`}
+                          checked={isYes}
+                          onChange={() =>
+                            updateNested("dentalFollowup", key, "yes")
+                          }
+                        />
+                      </td>
+                    </tr>
+
+                    {isYes && (
+                      <tr>
+                        <td
+                          colSpan={3}
+                          style={{
+                            borderBottom: "1px solid #f3f4f6",
+                            padding: "0 6px 6px 6px",
+                          }}
+                        >
+                          <input
+                            placeholder="Тайлбар / дэлгэрэнгүй"
+                            value={detailValue}
+                            onChange={(e) =>
+                              updateNested(
+                                "dentalFollowup",
+                                detailKey as string,
+                                e.target.value
+                              )
+                            }
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}              
             </tbody>
           </table>
         </section>
