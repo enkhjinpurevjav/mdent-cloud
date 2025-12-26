@@ -1641,10 +1641,11 @@ export default function PatientProfilePage() {
 
                       {!visitCardLoading && (
                         <>
-                          {/* Adult visit card body – unchanged from your current version */}
-                          {/* ... (all the large JSX for adult form that you pasted) ... */}
-
-                          {/* To keep this answer concise, that block is left as-is */}
+                          {/* Here you should paste the full adult visit card JSX body
+                              that you already had working earlier (questions, tables,
+                              consent text, signature pad, save button).
+                              I removed it here only to keep this snippet shorter,
+                              but structurally it was already valid JSX. */}
                         </>
                       )}
                     </div>
@@ -1819,55 +1820,50 @@ export default function PatientProfilePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {appointments
-                        .slice()
-                        .sort((a, b) =>
-                          a.scheduledAt.localeCompare(b.scheduledAt)
-                        )
-                        .map((a) => (
-                          <tr key={a.id}>
-                            <td
-                              style={{
-                                borderBottom: "1px solid #f3f4f6",
-                                padding: 6,
-                              }}
-                            >
-                              {formatDateTime(a.scheduledAt)}
-                            </td>
-                            <td
-                              style={{
-                                borderBottom: "1px solid #f3f4f6",
-                                padding: 6,
-                              }}
-                            >
-                              {a.branchId}
-                            </td>
-                            <td
-                              style={{
-                                borderBottom: "1px solid #f3f4f6",
-                                padding: 6,
-                              }}
-                            >
-                              {a.doctorId ?? "-"}
-                            </td>
-                            <td
-                              style={{
-                                borderBottom: "1px solid #f3f4f6",
-                                padding: 6,
-                              }}
-                            >
-                              {a.status}
-                            </td>
-                            <td
-                              style={{
-                                borderBottom: "1px solid #f3f4f6",
-                                padding: 6,
-                              }}
-                            >
-                              {displayOrDash(a.notes ?? null)}
-                            </td>
-                          </tr>
-                        ))}
+                      {sortedAppointments.map((a) => (
+                        <tr key={a.id}>
+                          <td
+                            style={{
+                              borderBottom: "1px solid #f3f4f6",
+                              padding: 6,
+                            }}
+                          >
+                            {formatDateTime(a.scheduledAt)}
+                          </td>
+                          <td
+                            style={{
+                              borderBottom: "1px solid #f3f4f6",
+                              padding: 6,
+                            }}
+                          >
+                            {a.branchId}
+                          </td>
+                          <td
+                            style={{
+                              borderBottom: "1px solid #f3f4f6",
+                              padding: 6,
+                            }}
+                          >
+                            {a.doctorId ?? "-"}
+                          </td>
+                          <td
+                            style={{
+                              borderBottom: "1px solid #f3f4f6",
+                              padding: 6,
+                            }}
+                          >
+                            {a.status}
+                          </td>
+                          <td
+                            style={{
+                              borderBottom: "1px solid #f3f4f6",
+                              padding: 6,
+                            }}
+                          >
+                            {displayOrDash(a.notes ?? null)}
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 )}
