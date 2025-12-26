@@ -1,6 +1,15 @@
 import React, { useMemo, useState } from "react";
-import type { InternalTooth, ToothBaseStatus, ToothRegion } from "../../types/orthoTooth";
-import { externalToInternal, internalToExternal } from "../../utils/orthoToothMapping";
+import ToothSvg5Region, {
+  ToothRegion,
+  ToothBaseStatus,
+  ToothRegionState,
+} from "./ToothSvg5Region";
+import type { InternalTooth } from "../../types/orthoTooth";
+import {
+  externalToInternal,
+  internalToExternal,
+  ensureInternalTooth,
+} from "../../utils/orthoToothMapping";
 
 type ExternalTooth = {
   code: string;
@@ -13,15 +22,21 @@ type Props = {
 };
 
 const BASE_STATUS_LABELS: { key: ToothBaseStatus; label: string }[] = [
-  { key: "none",         label: "—" },
-  { key: "extracted",    label: "Шүд авсан" },
-  { key: "prosthesis",   label: "Протез" },
-  { key: "delay",        label: "Саатал" },
-  { key: "apodontia",    label: "Аподонт" },
+  { key: "none", label: "—" },
+  { key: "extracted", label: "Шүд авсан" },
+  { key: "prosthesis", label: "Протез" },
+  { key: "delay", label: "Саатал" },
+  { key: "apodontia", label: "Аподонт" },
   { key: "shapeAnomaly", label: "Хэлбэрийн гажиг" },
 ];
 
-const regionOrder: ToothRegion[] = ["top", "bottom", "left", "right", "center"];
+const regionOrder: ToothRegion[] = [
+  "top",
+  "bottom",
+  "left",
+  "right",
+  "center",
+];
 const regionLabels: Record<ToothRegion, string> = {
   top: "Дээд",
   bottom: "Доод",
@@ -29,6 +44,10 @@ const regionLabels: Record<ToothRegion, string> = {
   right: "Баруун",
   center: "Төв",
 };
+
+function emptyRegion(): ToothRegionState {
+  return { caries: false, filled: false };
+}
 
 function cloneTooth(t: InternalTooth): InternalTooth {
   return {
@@ -43,10 +62,13 @@ function cloneTooth(t: InternalTooth): InternalTooth {
   };
 }
 
-export function OrthoOdontogram({ value, onChange }: Props) {
+export default function OrthoOdontogram({ value, onChange }: Props) {
   const [activeCode, setActiveCode] = useState<string | null>(null);
 
-  const internalList = useMemo(() => externalToInternal(value || []), [value]);
+  const internalList = useMemo(
+    () => externalToInternal(value || []),
+    [value]
+  );
 
   const adultUpperRight = ["18", "17", "16", "15", "14", "13", "12", "11"];
   const adultUpperLeft = ["21", "22", "23", "24", "25", "26", "27", "28"];
@@ -62,12 +84,11 @@ export function OrthoOdontogram({ value, onChange }: Props) {
     internalList.findIndex((t) => t.code === code);
 
   const getTooth = (code: string): InternalTooth | null => {
-    const idx = findIndex(code);
-    if (idx === -1) return null;
-    return internalList[idx];
+    const existing = internalList.find((t) => t.code === code);
+    return existing || null;
   };
 
-  const updateTooth = (updated: InternalTooth) => {
+  const applyUpdate = (updated: InternalTooth) => {
     const idx = findIndex(updated.code);
     const next = [...internalList];
     if (idx === -1) {
@@ -78,133 +99,81 @@ export function OrthoOdontogram({ value, onChange }: Props) {
     onChange(internalToExternal(next));
   };
 
-  const clearTooth = (code: string) => {
-    const idx = findIndex(code);
-    if (idx === -1) return;
-    const t = internalList[idx];
-    const empty: InternalTooth = {
-      code,
-      baseStatus: "none",
-      regions: {
-        top: { caries: false, filled: false },
-        bottom: { caries: false, filled: false },
-        left: { caries: false, filled: false },
-        right: { caries: false, filled: false },
-        center: { caries: false, filled: false },
-      },
-      note: undefined,
-    };
-    const next = [...internalList];
-    next[idx] = empty;
-    onChange(internalToExternal(next));
+  const ensureTooth = (code: string): InternalTooth => {
+    return ensureInternalTooth(internalList, code);
   };
 
-  const toggleRegion = (code: string, region: ToothRegion, field: "caries" | "filled") => {
-    let t = getTooth(code);
-    if (!t) {
-      t = {
-        code,
-        baseStatus: "none",
-        regions: {
-          top: { caries: false, filled: false },
-          bottom: { caries: false, filled: false },
-          left: { caries: false, filled: false },
-          right: { caries: false, filled: false },
-          center: { caries: false, filled: false },
-        },
-        note: undefined,
-      };
-    }
-    const copy = cloneTooth(t);
-    copy.regions[region][field] = !copy.regions[region][field];
-    updateTooth(copy);
+  const toggleRegion = (
+    code: string,
+    region: ToothRegion,
+    field: "caries" | "filled"
+  ) => {
+    const base = ensureTooth(code);
+    const copy = cloneTooth(base);
+    const current = copy.regions[region][field];
+    copy.regions[region][field] = !current;
+    applyUpdate(copy);
   };
 
   const changeBaseStatus = (code: string, status: ToothBaseStatus) => {
-    let t = getTooth(code);
-    if (!t) {
-      t = {
-        code,
-        baseStatus: status,
-        regions: {
-          top: { caries: false, filled: false },
-          bottom: { caries: false, filled: false },
-          left: { caries: false, filled: false },
-          right: { caries: false, filled: false },
-          center: { caries: false, filled: false },
-        },
-        note: undefined,
-      };
-    } else {
-      t = cloneTooth(t);
-      t.baseStatus = status;
-      // If status is not shapeAnomaly, we keep regions as is.
-    }
-    updateTooth(t);
+    const base = ensureTooth(code);
+    const copy = cloneTooth(base);
+    copy.baseStatus = status;
+    applyUpdate(copy);
   };
 
   const changeNote = (code: string, note: string) => {
-    let t = getTooth(code);
-    if (!t) {
-      t = {
-        code,
-        baseStatus: "none",
-        regions: {
-          top: { caries: false, filled: false },
-          bottom: { caries: false, filled: false },
-          left: { caries: false, filled: false },
-          right: { caries: false, filled: false },
-          center: { caries: false, filled: false },
-        },
-        note,
-      };
-    } else {
-      t = cloneTooth(t);
-      t.note = note || undefined;
-    }
-    updateTooth(t);
+    const base = ensureTooth(code);
+    const copy = cloneTooth(base);
+    copy.note = note || undefined;
+    applyUpdate(copy);
   };
 
-  const renderToothButton = (code: string) => {
+  const clearTooth = (code: string) => {
+    const base = ensureTooth(code);
+    const cleared: InternalTooth = {
+      code,
+      baseStatus: "none",
+      regions: {
+        top: emptyRegion(),
+        bottom: emptyRegion(),
+        left: emptyRegion(),
+        right: emptyRegion(),
+        center: emptyRegion(),
+      },
+      note: undefined,
+    };
+    applyUpdate(cleared);
+  };
+
+  const renderTooth = (code: string) => {
     const t = getTooth(code);
-    const baseStatus = t?.baseStatus ?? "none";
+    const baseStatus: ToothBaseStatus = (t?.baseStatus || "none") as ToothBaseStatus;
 
-    const isActive = baseStatus !== "none";
-    const isShape = baseStatus === "shapeAnomaly";
-
-    const bgColor = isShape
-      ? "#bfdbfe" // blue-ish for shape anomaly
-      : isActive
-      ? "#fee2e2" // pink for other base statuses
-      : "#ffffff";
-
-    const borderColor = activeCode === code ? "#2563eb" : "#d1d5db";
+    const regions = t
+      ? t.regions
+      : {
+          top: emptyRegion(),
+          bottom: emptyRegion(),
+          left: emptyRegion(),
+          right: emptyRegion(),
+          center: emptyRegion(),
+        };
 
     return (
-      <button
+      <ToothSvg5Region
         key={code}
-        type="button"
-        onClick={() => setActiveCode(code)}
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: 999,
-          border: `2px solid ${borderColor}`,
-          backgroundColor: bgColor,
-          fontSize: 10,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
+        code={code}
+        baseStatus={baseStatus}
+        regions={regions}
+        isActive={activeCode === code}
+        onClickTooth={() => setActiveCode(code)}
+        onClickRegion={(region) => {
+          // For now: clicking region toggles "caries".
+          // Later we can add shift+click for "filled", etc.
+          toggleRegion(code, region, "caries");
         }}
-      >
-        <span style={{ fontSize: 9, color: "#6b7280" }}>{code}</span>
-        {/* For now, show base status initial; later we can overlay region info */}
-        <span style={{ fontSize: 9, fontWeight: 600 }}>
-          {baseStatus === "none" ? "" : baseStatus === "extracted" ? "Ø" : ""}
-        </span>
-      </button>
+      />
     );
   };
 
@@ -218,7 +187,7 @@ export function OrthoOdontogram({ value, onChange }: Props) {
         flexWrap: "wrap",
       }}
     >
-      {codes.map((code) => renderToothButton(code))}
+      {codes.map((code) => renderTooth(code))}
     </div>
   );
 
@@ -235,7 +204,8 @@ export function OrthoOdontogram({ value, onChange }: Props) {
       }}
     >
       <div style={{ marginBottom: 8, color: "#6b7280" }}>
-        Шүд дээр дарж дэлгэрэнгүй тохиргоог (статус + хэсэг) засна.
+        Шүд дээр дарж дэлгэрэнгүй тохиргоог засна. Хэсэг тус бүрт caries / filled
+        тэмдэглэж болно. Clear нь тухайн шүдний бүх мэдээллийг цэвэрлэнэ.
       </div>
 
       {/* Adult teeth */}
@@ -303,7 +273,7 @@ export function OrthoOdontogram({ value, onChange }: Props) {
         </div>
       </section>
 
-      {/* Bottom inspector panel instead of anchored popover (safer to start with) */}
+      {/* Bottom editor panel for currently selected tooth */}
       {activeCode && (
         <section
           style={{
@@ -366,10 +336,10 @@ export function OrthoOdontogram({ value, onChange }: Props) {
             </div>
           </div>
 
-          {/* Regions and partial statuses */}
+          {/* Region caries / filled */}
           <div style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 12, marginBottom: 4 }}>
-              Хэсэг тус бүрийн байдал (caries/filled)
+              Хэсэг тус бүрийн байдал
             </div>
             <table
               style={{
@@ -411,7 +381,7 @@ export function OrthoOdontogram({ value, onChange }: Props) {
               </thead>
               <tbody>
                 {regionOrder.map((r) => {
-                  const state = activeTooth?.regions[r];
+                  const state = activeTooth?.regions[r] || emptyRegion();
                   return (
                     <tr key={r}>
                       <td
@@ -431,8 +401,10 @@ export function OrthoOdontogram({ value, onChange }: Props) {
                       >
                         <input
                           type="checkbox"
-                          checked={Boolean(state?.caries)}
-                          onChange={() => toggleRegion(activeCode, r, "caries")}
+                          checked={state.caries}
+                          onChange={() =>
+                            toggleRegion(activeCode, r, "caries")
+                          }
                         />
                       </td>
                       <td
@@ -444,8 +416,10 @@ export function OrthoOdontogram({ value, onChange }: Props) {
                       >
                         <input
                           type="checkbox"
-                          checked={Boolean(state?.filled)}
-                          onChange={() => toggleRegion(activeCode, r, "filled")}
+                          checked={state.filled}
+                          onChange={() =>
+                            toggleRegion(activeCode, r, "filled")
+                          }
                         />
                       </td>
                     </tr>
@@ -455,7 +429,7 @@ export function OrthoOdontogram({ value, onChange }: Props) {
             </table>
           </div>
 
-          {/* Tooth note */}
+          {/* Note */}
           <div style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 12, marginBottom: 2 }}>Тэмдэглэл</div>
             <textarea
@@ -495,5 +469,3 @@ export function OrthoOdontogram({ value, onChange }: Props) {
     </div>
   );
 }
-
-export default OrthoOdontogram;
