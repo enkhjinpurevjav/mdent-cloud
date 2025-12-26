@@ -136,9 +136,8 @@ export default function FullArchDiscOdontogram({
     // Changes stay local until "Өөрчлөлт хадгалах" is pressed.
   };
 
-  const baseAllowsPartial = (status: ToothBaseStatus): boolean => {
-    return status === "none" || status === "delay" || status === "shapeAnomaly";
-  };
+  const baseAllowsPartial = (status: ToothBaseStatus): boolean =>
+    status === "none" || status === "delay" || status === "shapeAnomaly";
 
   const toggleRegionPartial = (
     code: string,
@@ -155,6 +154,7 @@ export default function FullArchDiscOdontogram({
     const reg = copy.regions[region];
 
     if (field === "caries") {
+      // only one of caries / filled per region
       reg.filled = false;
       reg.caries = !reg.caries;
     } else {
@@ -166,40 +166,41 @@ export default function FullArchDiscOdontogram({
   };
 
   const setFullCircleStatus = (code: string, status: ToothBaseStatus) => {
-  const base = getDisc(code);
+    const base = getDisc(code);
 
-  // If clicking the same status again → toggle off to "none"
-  if (base.baseStatus === status) {
-    const cleared = cloneDisc(base);
-    cleared.baseStatus = "none";
-    // When clearing, we do NOT touch regions (they remain whatever they were)
-    updateDisc(cleared);
-    return;
-  }
+    // If clicking the same status again → toggle off to "none"
+    if (base.baseStatus === status) {
+      const cleared = cloneDisc(base);
+      cleared.baseStatus = "none";
+      // When clearing, we do NOT touch regions (they remain whatever they were)
+      updateDisc(cleared);
+      return;
+    }
 
-  const copy = cloneDisc(base);
-  copy.baseStatus = status;
+    const copy = cloneDisc(base);
+    copy.baseStatus = status;
 
-  if (
-    status === "extracted" ||
-    status === "prosthesis" ||
-    status === "apodontia"
-  ) {
-    // Exclusive: clear all region overlays
-    copy.regions = {
-      top: emptyRegion(),
-      bottom: emptyRegion(),
-      left: emptyRegion(),
-      right: emptyRegion(),
-      center: emptyRegion(),
-    };
-  }
+    if (
+      status === "extracted" ||
+      status === "prosthesis" ||
+      status === "apodontia"
+    ) {
+      // Exclusive: clear all region overlays
+      copy.regions = {
+        top: emptyRegion(),
+        bottom: emptyRegion(),
+        left: emptyRegion(),
+        right: emptyRegion(),
+        center: emptyRegion(),
+      };
+    }
 
-  updateDisc(copy);
-};
+    updateDisc(copy);
+  };
 
   const handleDiscClick = (id: string, clickedRegion: ToothRegion) => {
     if (!activeStatus) {
+      // default: treat as caries toggle
       toggleRegionPartial(id, clickedRegion, "caries");
       return;
     }
@@ -233,19 +234,18 @@ export default function FullArchDiscOdontogram({
   };
 
   // Build external snapshot from current internalDiscs (baseStatus only)
-  const buildExternalSnapshot = (): ExternalDisc[] => {
-    return internalDiscs.map((d) => ({
+  const buildExternalSnapshot = (): ExternalDisc[] =>
+    internalDiscs.map((d) => ({
       code: d.code,
       status: d.baseStatus,
     }));
-  };
 
   const handleSavePainted = () => {
     const snapshot = buildExternalSnapshot();
+    // NOTE: only baseStatus is persisted; partial regions (цоорсон/ломбодсон)
+    // are currently NOT saved anywhere in backend data model.
     onChange(snapshot); // sync to parent toothChart
-    if (onSavePainted) {
-      onSavePainted(snapshot);
-    }
+    if (onSavePainted) onSavePainted(snapshot);
   };
 
   const renderDisc = (id: string) => {
