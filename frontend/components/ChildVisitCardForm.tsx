@@ -1,5 +1,8 @@
+"use client";
+
 import React from "react";
 import SignaturePad from "./SignaturePad";
+
 
 type VisitCardType = "ADULT" | "CHILD";
 
