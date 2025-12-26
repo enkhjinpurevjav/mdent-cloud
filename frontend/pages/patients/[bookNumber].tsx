@@ -9,7 +9,7 @@ const ChildVisitCardForm = dynamic(
   { ssr: false }
 );
 const SignaturePad = dynamic(
-  () => import("../../components/SignaturePad"),
+  () => import("../../components/SignaturePad").then((m) => m.SignaturePad),
   { ssr: false }
 );
 
