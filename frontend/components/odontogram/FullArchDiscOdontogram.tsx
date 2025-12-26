@@ -155,7 +155,21 @@ export default function FullArchDiscOdontogram({
   };
 
   /**
-   * For Цоорсон / Ломбодсон – per‑region toggles.
+   * Helper: which base statuses allow Цоорсон/Ломбодсон overlays?
+   * Allowed: none, delay, shapeAnomaly
+   */
+  const baseAllowsPartial = (status: ToothBaseStatus): boolean => {
+    return (
+      status === "none" ||
+      status === "delay" ||
+      status === "shapeAnomaly"
+    );
+  };
+
+  /**
+   * For Цоорсон / Ломбодсон – per‑region toggles, with rules:
+   * - Only allowed when baseStatus is none / delay / shapeAnomaly.
+   * - A region can have either caries OR filled, not both.
    */
   const toggleRegionPartial = (
     code: string,
@@ -163,8 +177,25 @@ export default function FullArchDiscOdontogram({
     field: "caries" | "filled"
   ) => {
     const base = getDisc(code);
+
+    // If the baseStatus does NOT allow partial overlays, ignore the click.
+    if (!baseAllowsPartial(base.baseStatus)) {
+      return;
+    }
+
     const copy = cloneDisc(base);
-    copy.regions[region][field] = !copy.regions[region][field];
+    const reg = copy.regions[region];
+
+    if (field === "caries") {
+      // Turn off filled in this region (cannot have both)
+      reg.filled = false;
+      reg.caries = !reg.caries;
+    } else {
+      // field === "filled"
+      reg.caries = false;
+      reg.filled = !reg.filled;
+    }
+
     updateDisc(copy);
   };
 
@@ -200,8 +231,6 @@ export default function FullArchDiscOdontogram({
    * High‑level click behavior according to activeStatus.
    */
   const handleDiscClick = (id: string, clickedRegion: ToothRegion) => {
-    // console.log("DISC CLICK", { id, clickedRegion, activeStatus });
-
     if (!activeStatus) {
       // No status selected: default = toggle caries on the clicked region
       toggleRegionPartial(id, clickedRegion, "caries");
