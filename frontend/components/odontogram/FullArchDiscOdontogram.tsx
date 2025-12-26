@@ -50,6 +50,12 @@ const DISC_IDS_ROW1 = Array.from({ length: 16 }, (_v, i) => `R1-${i}`);
 const DISC_IDS_ROW2 = Array.from({ length: 10 }, (_v, i) => `R2-${i}`);
 const DISC_IDS_ROW3 = Array.from({ length: 10 }, (_v, i) => `R3-${i}`);
 const DISC_IDS_ROW4 = Array.from({ length: 16 }, (_v, i) => `R4-${i}`);
+const ALL_IDS = [
+  ...DISC_IDS_ROW1,
+  ...DISC_IDS_ROW2,
+  ...DISC_IDS_ROW3,
+  ...DISC_IDS_ROW4,
+];
 
 function emptyRegion(): ToothRegionState {
   return { caries: false, filled: false };
@@ -90,50 +96,30 @@ export default function FullArchDiscOdontogram({
 }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Local full state with regions; this is what the SVG actually uses.
+  // Single source of truth for what we draw
   const [internalDiscs, setInternalDiscs] = useState<InternalDisc[]>([]);
 
-  // Initialize internal discs from external value (only baseStatus / code).
-  // This runs when the page first loads or when value changes from backend.
+  // Initialize internalDiscs once from value (for baseStatus only)
   useEffect(() => {
-    if (!value || value.length === 0) {
-      // start with just empty discs when no data
-      const allIds = [
-        ...DISC_IDS_ROW1,
-        ...DISC_IDS_ROW2,
-        ...DISC_IDS_ROW3,
-        ...DISC_IDS_ROW4,
-      ];
-      setInternalDiscs(allIds.map((id) => createEmptyDisc(id)));
-      return;
-    }
-
     const map: Record<string, InternalDisc> = {};
 
-    // create an entry for every disc we know about
-    for (const id of [
-      ...DISC_IDS_ROW1,
-      ...DISC_IDS_ROW2,
-      ...DISC_IDS_ROW3,
-      ...DISC_IDS_ROW4,
-    ]) {
+    // create an entry for every known disc
+    for (const id of ALL_IDS) {
       map[id] = createEmptyDisc(id);
     }
 
-    // apply external baseStatus for any codes we have stored
-    for (const ext of value) {
-      const target = map[ext.code];
-      if (!target) continue;
-      // interpret ext.status as ToothBaseStatus when possible
-      const s = (ext.status || "none") as ToothBaseStatus;
-      target.baseStatus = s;
+    // apply baseStatus from external value if present
+    if (value && value.length > 0) {
+      for (const ext of value) {
+        const target = map[ext.code];
+        if (!target) continue;
+        const s = (ext.status || "none") as ToothBaseStatus;
+        target.baseStatus = s;
+      }
     }
 
     setInternalDiscs(Object.values(map));
-  }, [value]);
-
-  const findIndex = (code: string) =>
-    internalDiscs.findIndex((t) => t.code === code);
+  }, []); // IMPORTANT: empty deps → only on first mount
 
   const getDisc = (code: string): InternalDisc => {
     const found = internalDiscs.find((d) => d.code === code);
@@ -141,6 +127,7 @@ export default function FullArchDiscOdontogram({
   };
 
   const updateDisc = (updated: InternalDisc) => {
+    // update local state used for rendering
     setInternalDiscs((prev) => {
       const idx = prev.findIndex((d) => d.code === updated.code);
       if (idx === -1) return [...prev, updated];
@@ -149,21 +136,19 @@ export default function FullArchDiscOdontogram({
       return copy;
     });
 
-    // Also push simplified data out (only baseStatus) so backend sees change.
-    const simple: ExternalDisc[] = internalDiscs.map((d) => ({
-      code: d.code,
-      status: d.baseStatus,
-    }));
-    const existingIdx = simple.findIndex((d) => d.code === updated.code);
-    if (existingIdx === -1) {
-      simple.push({ code: updated.code, status: updated.baseStatus });
-    } else {
-      simple[existingIdx] = {
+    // also update simplified external array for backend
+    onChange((prevExternal) => {
+      // prevExternal may be the old array from page; rebuild against ALL_IDS
+      const map: Record<string, ExternalDisc> = {};
+      for (const e of prevExternal || []) {
+        map[e.code] = { ...e };
+      }
+      map[updated.code] = {
         code: updated.code,
         status: updated.baseStatus,
       };
-    }
-    onChange(simple);
+      return Object.values(map);
+    });
   };
 
   /**
@@ -251,7 +236,6 @@ export default function FullArchDiscOdontogram({
   const renderDisc = (id: string) => {
     const disc = getDisc(id);
     const baseStatus: ToothBaseStatus = disc.baseStatus || "none";
-
     const regions = disc.regions;
 
     return (
