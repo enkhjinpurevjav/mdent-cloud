@@ -4,16 +4,7 @@ import FullArchDiscOdontogram from "../../components/odontogram/FullArchDiscOdon
 
 /**
  * This page renders the Orthodontic card for a patient book, using the
- * new full-arch disc odontogram layout (no individual tooth numbers).
- *
- * Backend:
- * - GET  /api/patients/ortho-card/by-book/:bookNumber
- * - PUT  /api/patients/ortho-card/:patientBookId
- *
- * Backend stores OrthoCard.data as JSON. For now we keep toothChart as:
- *   { code: string; status: string }[]
- * where `code` is an internal disc id (U1-0, L2-15, etc.) and `status`
- * is interpreted as ToothBaseStatus in our components.
+ * full-arch disc odontogram layout (no individual tooth numbers).
  */
 
 type OrthoDisc = {
@@ -47,6 +38,31 @@ type OrthoCardApiResponse = {
   } | null;
 };
 
+type StatusKey =
+  | "caries"
+  | "filled"
+  | "extracted"
+  | "prosthesis"
+  | "delay"
+  | "anodontia"
+  | "supernumerary"
+  | "shapeAnomaly";
+
+const STATUS_BUTTONS: {
+  key: StatusKey;
+  label: string;
+  color: string;
+}[] = [
+  { key: "caries", label: "Цоорсон", color: "#f97373" },
+  { key: "filled", label: "Ломбодсон", color: "#60a5fa" },
+  { key: "extracted", label: "Авахуулсан", color: "#9ca3af" },
+  { key: "prosthesis", label: "Шүдэлбэр", color: "#14b8a6" },
+  { key: "delay", label: "Саатсан", color: "#fbbf24" },
+  { key: "anodontia", label: "Anodontia", color: "#fb7185" },
+  { key: "supernumerary", label: "Илүү шүд", color: "#a855f7" },
+  { key: "shapeAnomaly", label: "Хэлбэрийн гажиг", color: "#6366f1" },
+];
+
 export default function OrthoCardPage() {
   const router = useRouter();
   const { bookNumber } = router.query;
@@ -64,6 +80,11 @@ export default function OrthoCardPage() {
   const [cardNotes, setCardNotes] = useState<string>("");
   const [supernumeraryNote, setSupernumeraryNote] = useState<string>("");
   const [toothChart, setToothChart] = useState<OrthoDisc[]>([]);
+
+  // UI-only: which status button is selected
+  const [activeStatus, setActiveStatus] = useState<StatusKey | null>(null);
+  // UI-only: extra tooth text for "Илүү шүд"
+  const [extraToothText, setExtraToothText] = useState<string>("");
 
   const bn =
     typeof bookNumber === "string" && bookNumber.trim()
@@ -298,7 +319,7 @@ export default function OrthoCardPage() {
             </div>
           </div>
 
-          {/* Odontogram */}
+          {/* Odontogram + legend/actions side by side */}
           <h2
             style={{
               fontSize: 14,
@@ -309,9 +330,135 @@ export default function OrthoCardPage() {
             Шүдний тойргийн зураг (Одонтограм)
           </h2>
 
-          <FullArchDiscOdontogram value={toothChart} onChange={setToothChart} />
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 2.2fr) minmax(230px, 1fr)",
+              gap: 16,
+              alignItems: "flex-start",
+            }}
+          >
+            {/* Left: full arch chart */}
+            <div>
+              <FullArchDiscOdontogram
+                value={toothChart}
+                onChange={setToothChart}
+              />
+            </div>
 
-          {/* Supernumerary note */}
+            {/* Right: legend + status selection */}
+            <aside
+              style={{
+                borderRadius: 10,
+                border: "1px solid #e5e7eb",
+                padding: 12,
+                background: "#f9fafb",
+                fontSize: 12,
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 500,
+                  marginBottom: 8,
+                }}
+              >
+                Тэмдэглэгээ / Үйлдэл сонгох
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  marginBottom: 8,
+                }}
+              >
+                {STATUS_BUTTONS.map((s) => {
+                  const isActive = activeStatus === s.key;
+                  return (
+                    <button
+                      key={s.key}
+                      type="button"
+                      onClick={() =>
+                        setActiveStatus((prev) =>
+                          prev === s.key ? null : s.key
+                        )
+                      }
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "4px 8px",
+                        borderRadius: 999,
+                        border: isActive
+                          ? `2px solid ${s.color}`
+                          : "1px solid #d1d5db",
+                        background: isActive ? "#ffffff" : "#f3f4f6",
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                    >
+                      <span>{s.label}</span>
+                      <span
+                        style={{
+                          width: 16,
+                          height: 16,
+                          borderRadius: 999,
+                          backgroundColor: s.color,
+                          display: "inline-block",
+                        }}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Extra field only for Илүү шүд */}
+              {activeStatus === "supernumerary" && (
+                <div
+                  style={{
+                    marginTop: 4,
+                    paddingTop: 6,
+                    borderTop: "1px dashed #e5e7eb",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      marginBottom: 2,
+                    }}
+                  >
+                    Илүү шүдний байрлал / тайлбар:
+                  </div>
+                  <input
+                    value={extraToothText}
+                    onChange={(e) => setExtraToothText(e.target.value)}
+                    placeholder='Жишээ: "баруун дээд, 3 дахь шүдний дотор"'
+                    style={{
+                      width: "100%",
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      padding: "4px 6px",
+                      fontSize: 12,
+                    }}
+                  />
+                </div>
+              )}
+
+              <div
+                style={{
+                  marginTop: 8,
+                  fontSize: 11,
+                  color: "#6b7280",
+                }}
+              >
+                Эхний ээлжинд зөвхөн байршлыг өөрөө дарж тэмдэглэнэ. Дараа нь
+                товч бүрийн дүрэм (цоорсон, ломбо гэх мэт)-г холбоно.
+              </div>
+            </aside>
+          </div>
+
+          {/* Supernumerary note (card-level) */}
           <section style={{ marginTop: 16 }}>
             <div style={{ fontSize: 13, marginBottom: 4 }}>
               Нэмэлт шүд (supernumerary) байрлал:
