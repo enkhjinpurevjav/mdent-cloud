@@ -319,6 +319,9 @@ export default function PatientProfilePage() {
   const appointments = data?.appointments || [];
   const patientBookId = pb?.id || null;
 
+  const effectiveVisitCardType: VisitCardType =
+    visitCard?.type || visitCardTypeDraft || "ADULT";
+  
   const updateVisitCardAnswer = (
     key: keyof VisitCardAnswers,
     value: VisitCardAnswers[typeof key]
@@ -462,19 +465,13 @@ const handleEditChange = (
     }
   };
 
-  const handleSaveVisitCard = async () => {
+    const handleSaveVisitCard = async () => {
     if (!patientBookId) {
       setVisitCardError("PatientBook ID олдсонгүй.");
       return;
     }
 
-    const type = visitCard?.type || visitCardTypeDraft;
-    if (!type) {
-      setVisitCardError(
-        "Эхлээд картын төрлийг сонгоно уу (том хүн / хүүхэд)."
-      );
-      return;
-    }
+    const type: VisitCardType = visitCard?.type || visitCardTypeDraft || "ADULT";
 
     setVisitCardSaving(true);
     setVisitCardError("");
@@ -1313,178 +1310,97 @@ const handleEditChange = (
                 </>
               )}
 
-              {activeTab === "appointments" && (
-                <div
-                  style={{
-                    borderRadius: 12,
-                    border: "1px solid #e5e7eb",
-                    padding: 16,
-                    background: "white",
-                  }}
-                >
-                  <h2
-                    style={{
-                      fontSize: 16,
-                      marginTop: 0,
-                      marginBottom: 12,
-                    }}
-                  >
-                    Цагууд (бүх бүртгэлтэй цагууд)
-                  </h2>
-                  {sortedAppointments.length === 0 ? (
-                    <div style={{ color: "#6b7280", fontSize: 13 }}>
-                      Цаг захиалгын бүртгэл алга.
-                    </div>
-                  ) : (
-                    <table
-                      style={{
-                        width: "100%",
-                        borderCollapse: "collapse",
-                        fontSize: 13,
-                      }}
-                    >
-                      <thead>
-                        <tr>
-                          <th
-                            style={{
-                              textAlign: "left",
-                              borderBottom: "1px solid #e5e7eb",
-                              padding: 6,
-                            }}
-                          >
-                            Огноо / цаг
-                          </th>
-                          <th
-                            style={{
-                              textAlign: "left",
-                              borderBottom: "1px solid #e5e7eb",
-                              padding: 6,
-                            }}
-                          >
-                            Салбар ID
-                          </th>
-                          <th
-                            style={{
-                              textAlign: "left",
-                              borderBottom: "1px solid #e5e7eb",
-                              padding: 6,
-                            }}
-                          >
-                            Эмч ID
-                          </th>
-                          <th
-                            style={{
-                              textAlign: "left",
-                              borderBottom: "1px solid #e5e7eb",
-                              padding: 6,
-                            }}
-                          >
-                            Төлөв
-                          </th>
-                          <th
-                            style={{
-                              textAlign: "left",
-                              borderBottom: "1px solid #e5e7eb",
-                              padding: 6,
-                            }}
-                          >
-                            Тэмдэглэл
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sortedAppointments.map((a) => (
-                          <tr key={a.id}>
-                            <td
-                              style={{
-                                borderBottom: "1px solid #f3f4f6",
-                                padding: 6,
-                              }}
-                            >
-                              {formatDateTime(a.scheduledAt)}
-                            </td>
-                            <td
-                              style={{
-                                borderBottom: "1px solid #f3f4f6",
-                                padding: 6,
-                              }}
-                            >
-                              {a.branchId}
-                            </td>
-                            <td
-                              style={{
-                                borderBottom: "1px solid #f3f4f6",
-                                padding: 6,
-                              }}
-                            >
-                              {a.doctorId ?? "-"}
-                            </td>
-                            <td
-                              style={{
-                                borderBottom: "1px solid #f3f4f6",
-                                padding: 6,
-                              }}
-                            >
-                              {a.status}
-                            </td>
-                            <td
-                              style={{
-                                borderBottom: "1px solid #f3f4f6",
-                                padding: 6,
-                              }}
-                            >
-                              {displayOrDash(a.notes ?? null)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-              )}
-
-                             {activeTab === "visit_card" && (
+              {activeTab === "visit_card" && (
                 <>
-                  {/* Adult form */}
+                  {/* Type selector for adult vs child card */}
                   <div
                     style={{
-                      borderRadius: 12,
+                      borderRadius: 8,
                       border: "1px solid #e5e7eb",
-                      padding: 16,
-                      background: "white",
-                      marginBottom: 16,
+                      padding: 12,
+                      background: "#f9fafb",
                     }}
                   >
-                    <h2
-                      style={{
-                        fontSize: 16,
-                        marginTop: 0,
-                        marginBottom: 12,
-                      }}
-                    >
-                      Үзлэгийн карт (Том хүн)
-                    </h2>
-
-                    {visitCardLoading && (
-                      <div style={{ fontSize: 13 }}>
-                        Үзлэгийн карт ачааллаж байна...
-                      </div>
-                    )}
-
-                    {!visitCardLoading && visitCardError && (
-                      <div
+                    <div style={{ fontSize: 13, marginBottom: 8 }}>
+                      Үзлэгийн картын төрөл:
+                    </div>
+                    <div style={{ display: "flex", gap: 12, fontSize: 13 }}>
+                      <label
                         style={{
-                          fontSize: 12,
-                          color: "#b91c1c",
-                          marginBottom: 8,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
                         }}
                       >
-                        {visitCardError}
-                      </div>
-                    )}
+                        <input
+                          type="radio"
+                          name="visitCardTypeDisplay"
+                          value="ADULT"
+                          checked={effectiveVisitCardType === "ADULT"}
+                          onChange={() => setVisitCardTypeDraft("ADULT")}
+                        />
+                        <span>Том хүн</span>
+                      </label>
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="visitCardTypeDisplay"
+                          value="CHILD"
+                          checked={effectiveVisitCardType === "CHILD"}
+                          onChange={() => setVisitCardTypeDraft("CHILD")}
+                        />
+                        <span>Хүүхэд</span>
+                      </label>
+                    </div>
+                  </div>
 
-                    {!visitCardLoading && (
-                      <>
+                  {effectiveVisitCardType === "ADULT" ? (
+                    // Adult form
+                    <div
+                      style={{
+                        borderRadius: 12,
+                        border: "1px solid #e5e7eb",
+                        padding: 16,
+                        background: "white",
+                        marginTop: 16,
+                      }}
+                    >
+                      <h2
+                        style={{
+                          fontSize: 16,
+                          marginTop: 0,
+                          marginBottom: 12,
+                        }}
+                      >
+                        Үзлэгийн карт (Том хүн)
+                      </h2>
+
+                      {visitCardLoading && (
+                        <div style={{ fontSize: 13 }}>
+                          Үзлэгийн карт ачааллаж байна...
+                        </div>
+                      )}
+
+                      {!visitCardLoading && visitCardError && (
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#b91c1c",
+                            marginBottom: 8,
+                          }}
+                        >
+                          {visitCardError}
+                        </div>
+                      )}
+
+                      {!visitCardLoading && (
+                        <>
                         {/* Урьдчилан сэргийлэх асуумж */}
                         <section style={{ marginTop: 8, fontSize: 13 }}>
                           <h3
@@ -2521,34 +2437,37 @@ const handleEditChange = (
                       </>
                     )}
                   </div>
-
-                  {/* Child form rendered below adult form */}
-                  <ChildVisitCardForm
-                    answers={visitCardAnswers}
-                    visitCard={visitCard}
-                    visitCardTypeDraft={visitCardTypeDraft}
-                    setVisitCardTypeDraft={setVisitCardTypeDraft}
-                    updateVisitCardAnswer={(
-                      key: keyof VisitCardAnswers,
-                      value: VisitCardAnswers[keyof VisitCardAnswers]
-                    ) => updateVisitCardAnswer(key, value as any)}
-                    updateNested={(
-                      section: string,
-                      field: string,
-                      value: any
-                    ) =>
-                      updateNested(
-                        section as keyof VisitCardAnswers,
-                        field,
-                        value
-                      )
-                    }
-                    signatureSaving={signatureSaving}
-                    handleUploadSignature={handleUploadSignature}
-                    handleSaveVisitCard={handleSaveVisitCard}
-                    visitCardSaving={visitCardSaving}
-                    formatDate={formatDate}
-                  />
+) : (
+                    // Child form
+                    <div style={{ marginTop: 16 }}>
+                      <ChildVisitCardForm
+                        answers={visitCardAnswers}
+                        visitCard={visitCard}
+                        visitCardTypeDraft={visitCardTypeDraft}
+                        setVisitCardTypeDraft={setVisitCardTypeDraft}
+                        updateVisitCardAnswer={(
+                          key: keyof VisitCardAnswers,
+                          value: VisitCardAnswers[keyof VisitCardAnswers]
+                        ) => updateVisitCardAnswer(key, value as any)}
+                        updateNested={(
+                          section: string,
+                          field: string,
+                          value: any
+                        ) =>
+                          updateNested(
+                            section as keyof VisitCardAnswers,
+                            field,
+                            value
+                          )
+                        }
+                        signatureSaving={signatureSaving}
+                        handleUploadSignature={handleUploadSignature}
+                        handleSaveVisitCard={handleSaveVisitCard}
+                        visitCardSaving={visitCardSaving}
+                        formatDate={formatDate}
+                      />
+                    </div>
+                  )}
                 </>
               )}
 
