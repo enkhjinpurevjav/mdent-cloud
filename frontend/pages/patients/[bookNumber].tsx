@@ -2903,7 +2903,7 @@ export default function PatientProfilePage() {
               </section>
             </>
           )}
-                </>
+               </>
       )}
     </main>
   );
