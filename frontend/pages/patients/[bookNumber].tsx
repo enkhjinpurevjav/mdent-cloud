@@ -1928,25 +1928,7 @@ const handleEditChange = (
               })}
             </tbody>
           </table>
-          <div style={{ marginTop: 8 }}>
-            <div style={{ color: "#6b7280", marginBottom: 2 }}>
-              Дэлгэрэнгүй / бусад тайлбар
-            </div>
-            <textarea
-              rows={2}
-              value={visitCardAnswers.generalMedical?.details || ""}
-              onChange={(e) =>
-                updateNested("generalMedical", "details", e.target.value)
-              }
-              style={{
-                width: "100%",
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "4px 6px",
-                resize: "vertical",
-              }}
-            />
-          </div>
+          
         </section>
 
         {/* 4) Харшил + Зуршил */}
@@ -1959,7 +1941,7 @@ const handleEditChange = (
             fontSize: 13,
           }}
         >
-          {/* Allergies */}
+                    {/* Allergies */}
           <div>
             <h3
               style={{
@@ -1977,6 +1959,39 @@ const handleEditChange = (
                 fontSize: 13,
               }}
             >
+              <thead>
+                <tr>
+                  <th
+                    style={{
+                      textAlign: "left",
+                      borderBottom: "1px solid #e5e7eb",
+                      padding: 6,
+                    }}
+                  >
+                    Асуумж
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "center",
+                      borderBottom: "1px solid #e5e7eb",
+                      padding: 6,
+                      width: 60,
+                    }}
+                  >
+                    Үгүй
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "center",
+                      borderBottom: "1px solid #e5e7eb",
+                      padding: 6,
+                      width: 100,
+                    }}
+                  >
+                    Тийм
+                  </th>
+                </tr>
+              </thead>
               <tbody>
                 {[
                   ["drug", "Эм тариа"],
@@ -2003,7 +2018,6 @@ const handleEditChange = (
                           textAlign: "center",
                           borderBottom: "1px solid #f3f4f6",
                           padding: 6,
-                          width: 60,
                         }}
                       >
                         <input
@@ -2020,7 +2034,6 @@ const handleEditChange = (
                           textAlign: "center",
                           borderBottom: "1px solid #f3f4f6",
                           padding: 6,
-                          width: 100,
                         }}
                       >
                         <input
@@ -2058,7 +2071,7 @@ const handleEditChange = (
             </div>
           </div>
 
-          {/* Habits */}
+                    {/* Habits */}
           <div>
             <h3
               style={{
@@ -2076,6 +2089,39 @@ const handleEditChange = (
                 fontSize: 13,
               }}
             >
+              <thead>
+                <tr>
+                  <th
+                    style={{
+                      textAlign: "left",
+                      borderBottom: "1px solid #e5e7eb",
+                      padding: 6,
+                    }}
+                  >
+                    Асуумж
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "center",
+                      borderBottom: "1px solid #e5e7eb",
+                      padding: 6,
+                      width: 60,
+                    }}
+                  >
+                    Үгүй
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "center",
+                      borderBottom: "1px solid #e5e7eb",
+                      padding: 6,
+                      width: 100,
+                    }}
+                  >
+                    Тийм
+                  </th>
+                </tr>
+              </thead>
               <tbody>
                 {[
                   ["smoking", "Тамхи татдаг эсэх"],
@@ -2101,7 +2147,6 @@ const handleEditChange = (
                           textAlign: "center",
                           borderBottom: "1px solid #f3f4f6",
                           padding: 6,
-                          width: 60,
                         }}
                       >
                         <input
@@ -2116,7 +2161,6 @@ const handleEditChange = (
                           textAlign: "center",
                           borderBottom: "1px solid #f3f4f6",
                           padding: 6,
-                          width: 100,
                         }}
                       >
                         <input
