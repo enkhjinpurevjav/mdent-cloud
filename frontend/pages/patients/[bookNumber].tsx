@@ -1444,7 +1444,7 @@ const handleEditChange = (
               )}
 
              {activeTab === "visit_card" && (
-  visitCard?.type === "CHILD" || visitCardTypeDraft === "CHILD" ? (
+  (visitCard?.type === "CHILD" || visitCardTypeDraft === "CHILD") ? (
     <ChildVisitCardForm
       answers={visitCardAnswers}
       visitCard={visitCard}
