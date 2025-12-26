@@ -2,9 +2,6 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import SignaturePad from "../../components/SignaturePad";
 import ChildVisitCardForm from "../../components/ChildVisitCardForm";
-import { OrthoOdontogram } from "../../components/odontogram/OrthoOdontogram";
-import type { OrthoCardData } from "../../types/orthoCard";
-import { createEmptyChartState } from "../../utils/orthoChartRules";
 
 type Branch = {
   id: number;
@@ -35,7 +32,6 @@ type ActiveTab =
   | "profile"
   | "appointments"
   | "visit_card"
-  | "ortho_card"
   | "history"
   | "billing";
 
@@ -56,19 +52,23 @@ type VisitCard = {
 };
 
 type VisitCardAnswers = {
+  // shared header
   date?: string;
   email?: string;
   phone?: string;
   workPlace?: string;
   address?: string;
 
+  // adult/child-specific simple text fields
   previousClinicName?: string;
   previousTreatmentIssues?: string;
   dentistAttentionNotes?: string;
 
+  // simple complaint fields we already use in JSX
   mainComplaint?: string;
   pastHistory?: string;
 
+  // prevention reason (multi-choice)
   reasonToVisit?: {
     toothPain?: boolean;
     toothBroken?: boolean;
@@ -113,36 +113,44 @@ type VisitCardAnswers = {
     otherDetail?: string;
   };
 
-  habits?: {
+    habits?: {
     smoking?: "yes" | "no";
     smokingDetail?: string;
+
     alcohol?: "yes" | "no";
     alcoholDetail?: string;
+
     coffee?: "yes" | "no";
     coffeeDetail?: string;
+
     nightGrinding?: "yes" | "no";
     nightGrindingDetail?: string;
+
     mouthBreathing?: "yes" | "no";
     mouthBreathingDetail?: string;
+
     other?: "yes" | "no";
     otherDetail?: string;
   };
 
-  dentalFollowup?: {
+    dentalFollowup?: {
     regularCheckups?: "yes" | "no";
     regularCheckupsDetail?: string;
+
     bleedingAfterExtraction?: "yes" | "no";
     bleedingAfterExtractionDetail?: string;
+
     gumBleeding?: "yes" | "no";
     gumBleedingDetail?: string;
+
     badBreath?: "yes" | "no";
     badBreathDetail?: string;
   };
 
-  consentAccepted?: boolean;
-  childConsentAccepted?: boolean;
-  notes?: string;
-};
+    consentAccepted?: boolean;     // adult
+    childConsentAccepted?: boolean; // child
+    notes?: string;
+  };
 
 type Encounter = {
   id: number;
@@ -226,22 +234,11 @@ export default function PatientProfilePage() {
   const [visitCardSaving, setVisitCardSaving] = useState(false);
   const [signatureSaving, setSignatureSaving] = useState(false);
 
-  const [orthoCard, setOrthoCard] = useState<OrthoCardData | null>(null);
-  const [orthoLoading, setOrthoLoading] = useState(false);
-  const [orthoError, setOrthoError] = useState("");
-  const [orthoSaving, setOrthoSaving] = useState(false);
-
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Patient>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState("");
-
-  const patient = data?.patient;
-  const pb = data?.patientBook;
-  const encounters = data?.encounters || [];
-  const appointments = data?.appointments || [];
-  const patientBookId = pb?.id || null;
 
   // Load main profile
   useEffect(() => {
@@ -270,7 +267,7 @@ export default function PatientProfilePage() {
       }
     };
 
-    void load();
+    load();
   }, [bookNumber]);
 
   // Load visit card only when visit_card tab is active
@@ -316,57 +313,11 @@ export default function PatientProfilePage() {
     void loadVisitCard();
   }, [bookNumber, activeTab]);
 
-  // Load ortho card when ortho tab is active
-  useEffect(() => {
-    if (activeTab !== "ortho_card") return;
-    if (!pb) return;
-
-    const loadOrtho = async () => {
-      setOrthoLoading(true);
-      setOrthoError("");
-      try {
-        const res = await fetch(
-          `/api/patients/ortho-card/by-book/${encodeURIComponent(
-            pb.bookNumber
-          )}`
-        );
-        const json = await res.json().catch(() => null);
-
-        if (!res.ok) {
-          throw new Error(
-            (json && json.error) ||
-              "Гажиг заслын карт ачаалахад алдаа гарлаа."
-          );
-        }
-
-        const existing = json.orthoCard?.data;
-        if (existing && typeof existing === "object") {
-          setOrthoCard(existing as OrthoCardData);
-        } else {
-          setOrthoCard({
-            toothChart: createEmptyChartState(),
-            problemList: [],
-          });
-        }
-      } catch (err: any) {
-        console.error("loadOrthoCard failed", err);
-        setOrthoError(
-          err?.message || "Гажиг заслын карт ачаалахад алдаа гарлаа."
-        );
-        setOrthoCard({
-          toothChart: createEmptyChartState(),
-          problemList: [],
-        });
-      } finally {
-        setOrthoLoading(false);
-      }
-    };
-
-    void loadOrtho();
-  }, [activeTab, pb?.bookNumber]);
-
-  const effectiveVisitCardType: VisitCardType =
-    visitCard?.type || visitCardTypeDraft || "ADULT";
+  const patient = data?.patient;
+  const pb = data?.patientBook;
+  const encounters = data?.encounters || [];
+  const appointments = data?.appointments || [];
+  const patientBookId = pb?.id || null;
 
   const updateVisitCardAnswer = (
     key: keyof VisitCardAnswers,
@@ -390,40 +341,6 @@ export default function PatientProfilePage() {
         [field]: value,
       },
     }));
-  };
-
-  const handleSaveOrthoCard = async () => {
-    if (!pb || !orthoCard) {
-      setOrthoError("Картын дугаар эсвэл гажиг заслын картын өгөгдөл алга.");
-      return;
-    }
-
-    setOrthoSaving(true);
-    setOrthoError("");
-    try {
-      const res = await fetch(`/api/patients/ortho-card/${pb.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: orthoCard }),
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(
-          (json && json.error) ||
-            "Гажиг заслын карт хадгалахад алдаа гарлаа."
-        );
-      }
-      if (json.orthoCard?.data) {
-        setOrthoCard(json.orthoCard.data as OrthoCardData);
-      }
-    } catch (err: any) {
-      console.error("save ortho card failed", err);
-      setOrthoError(
-        err?.message || "Гажиг заслын карт хадгалахад алдаа гарлаа."
-      );
-    } finally {
-      setOrthoSaving(false);
-    }
   };
 
   const totalEncounters = encounters.length;
@@ -464,15 +381,15 @@ export default function PatientProfilePage() {
     setSaveSuccess("");
   };
 
-  const handleEditChange = (
-    e:
-      | React.ChangeEvent<HTMLInputElement>
-      | React.ChangeEvent<HTMLTextAreaElement>
-      | React.ChangeEvent<HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setEditForm((prev) => ({ ...prev, [name]: value }));
-  };
+const handleEditChange = (
+  e:
+    | React.ChangeEvent<HTMLInputElement>
+    | React.ChangeEvent<HTMLTextAreaElement>
+    | React.ChangeEvent<HTMLSelectElement>
+) => {
+  const { name, value } = e.target;
+  setEditForm((prev) => ({ ...prev, [name]: value }));
+};
 
   const handleGenderChange = (value: "" | "эр" | "эм") => {
     setEditForm((prev) => ({ ...prev, gender: value }));
@@ -489,9 +406,7 @@ export default function PatientProfilePage() {
       editForm.gender !== "эр" &&
       editForm.gender !== "эм"
     ) {
-      setSaveError(
-        "Хүйс талбарт зөвхөн 'эр' эсвэл 'эм' утга сонгох боломжтой."
-      );
+      setSaveError("Хүйс талбарт зөвхөн 'эр' эсвэл 'эм' утга сонгох боломжтой.");
       setSaving(false);
       return;
     }
@@ -553,8 +468,13 @@ export default function PatientProfilePage() {
       return;
     }
 
-    const type: VisitCardType =
-      visitCard?.type || visitCardTypeDraft || "ADULT";
+    const type = visitCard?.type || visitCardTypeDraft;
+    if (!type) {
+      setVisitCardError(
+        "Эхлээд картын төрлийг сонгоно уу (том хүн / хүүхэд)."
+      );
+      return;
+    }
 
     setVisitCardSaving(true);
     setVisitCardError("");
@@ -755,64 +675,6 @@ export default function PatientProfilePage() {
                     Профайл
                   </button>
 
-                  {/* Үзлэгийн карт */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab("visit_card");
-                      setEditMode(false);
-                      setSaveError("");
-                      setSaveSuccess("");
-                    }}
-                    style={{
-                      textAlign: "left",
-                      padding: "6px 10px",
-                      borderRadius: 6,
-                      border: "none",
-                      background:
-                        activeTab === "visit_card"
-                          ? "#eff6ff"
-                          : "transparent",
-                      color:
-                        activeTab === "visit_card"
-                          ? "#1d4ed8"
-                          : "#6b7280",
-                      fontWeight: activeTab === "visit_card" ? 500 : 400,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Үзлэгийн карт
-                  </button>
-
-                  {/* Гажиг заслын карт */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab("ortho_card");
-                      setEditMode(false);
-                      setSaveError("");
-                      setSaveSuccess("");
-                    }}
-                    style={{
-                      textAlign: "left",
-                      padding: "6px 10px",
-                      borderRadius: 6,
-                      border: "none",
-                      background:
-                        activeTab === "ortho_card"
-                          ? "#eff6ff"
-                          : "transparent",
-                      color:
-                        activeTab === "ortho_card"
-                          ? "#1d4ed8"
-                          : "#6b7280",
-                      fontWeight: activeTab === "ortho_card" ? 500 : 400,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Гажиг заслын карт
-                  </button>
-
                   {/* Цагууд */}
                   <button
                     type="button"
@@ -835,11 +697,42 @@ export default function PatientProfilePage() {
                         activeTab === "appointments"
                           ? "#1d4ed8"
                           : "#6b7280",
-                      fontWeight: activeTab === "appointments" ? 500 : 400,
+                      fontWeight:
+                        activeTab === "appointments" ? 500 : 400,
                       cursor: "pointer",
                     }}
                   >
                     Цагууд
+                  </button>
+
+                  {/* Үзлэгийн карт */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("visit_card");
+                      setEditMode(false);
+                      setSaveError("");
+                      setSaveSuccess("");
+                    }}
+                    style={{
+                      textAlign: "left",
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background:
+                        activeTab === "visit_card"
+                          ? "#eff6ff"
+                          : "transparent",
+                      color:
+                        activeTab === "visit_card"
+                          ? "#1d4ed8"
+                          : "#6b7280",
+                      fontWeight:
+                        activeTab === "visit_card" ? 500 : 400,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Үзлэгийн карт
                   </button>
 
                   {/* Future placeholders */}
@@ -866,137 +759,7 @@ export default function PatientProfilePage() {
             </div>
 
             {/* Right content area: depends on activeTab */}
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: 16 }}
-            >
-              {activeTab === "ortho_card" && (
-                <div
-                  style={{
-                    borderRadius: 12,
-                    border: "1px solid #e5e7eb",
-                    padding: 16,
-                    background: "white",
-                  }}
-                >
-                  <h2
-                    style={{
-                      fontSize: 16,
-                      marginTop: 0,
-                      marginBottom: 12,
-                    }}
-                  >
-                    Гажиг заслын өвчтөний карт
-                  </h2>
-
-                  {orthoLoading && (
-                    <div style={{ fontSize: 13 }}>
-                      Гажиг заслын карт ачааллаж байна...
-                    </div>
-                  )}
-
-                  {!orthoLoading && orthoError && (
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#b91c1c",
-                        marginBottom: 8,
-                      }}
-                    >
-                      {orthoError}
-                    </div>
-                  )}
-
-                  {!orthoLoading && orthoCard && (
-                    <>
-                      <section
-                        style={{
-                          marginBottom: 12,
-                          display: "grid",
-                          gridTemplateColumns:
-                            "repeat(auto-fit, minmax(220px, 1fr))",
-                          gap: 8,
-                          fontSize: 13,
-                        }}
-                      >
-                        <div>
-                          <div
-                            style={{ color: "#6b7280", marginBottom: 2 }}
-                          >
-                            Өвчтөний овог, нэр
-                          </div>
-                          <input
-                            value={orthoCard.patientName ?? ""}
-                            onChange={(e) =>
-                              setOrthoCard((prev) =>
-                                prev
-                                  ? {
-                                      ...prev,
-                                      patientName: e.target.value,
-                                    }
-                                  : prev
-                              )
-                            }
-                            style={{
-                              width: "100%",
-                              borderRadius: 6,
-                              border: "1px solid #d1d5db",
-                              padding: "4px 6px",
-                            }}
-                          />
-                        </div>
-                      </section>
-
-                      <section style={{ marginBottom: 12 }}>
-                        <h3
-                          style={{
-                            fontSize: 14,
-                            margin: 0,
-                            marginBottom: 8,
-                          }}
-                        >
-                          Шүдний тойргийн зураг (Одонтограм)
-                        </h3>
-                        <OrthoOdontogram
-                          value={orthoCard.toothChart}
-                          onChange={(next) =>
-                            setOrthoCard((prev) =>
-                              prev ? { ...prev, toothChart: next } : prev
-                            )
-                          }
-                        />
-                      </section>
-
-                      <div
-                        style={{
-                          marginTop: 16,
-                          display: "flex",
-                          justifyContent: "flex-end",
-                        }}
-                      >
-                        <button
-                          type="button"
-                          onClick={handleSaveOrthoCard}
-                          disabled={orthoSaving}
-                          style={{
-                            padding: "6px 12px",
-                            borderRadius: 6,
-                            border: "none",
-                            background: orthoSaving ? "#9ca3af" : "#2563eb",
-                            color: "#ffffff",
-                            fontSize: 13,
-                            cursor: orthoSaving ? "default" : "pointer",
-                          }}
-                        >
-                          {orthoSaving
-                            ? "Хадгалж байна..."
-                            : "Гажиг заслын карт хадгалах"}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {activeTab === "profile" && (
                 <>
                   {/* Summary cards row */}
@@ -1550,97 +1313,178 @@ export default function PatientProfilePage() {
                 </>
               )}
 
-              {activeTab === "visit_card" && (
-                <>
-                  {/* Type selector for adult vs child card */}
-                  <div
+              {activeTab === "appointments" && (
+                <div
+                  style={{
+                    borderRadius: 12,
+                    border: "1px solid #e5e7eb",
+                    padding: 16,
+                    background: "white",
+                  }}
+                >
+                  <h2
                     style={{
-                      borderRadius: 8,
-                      border: "1px solid #e5e7eb",
-                      padding: 12,
-                      background: "#f9fafb",
+                      fontSize: 16,
+                      marginTop: 0,
+                      marginBottom: 12,
                     }}
                   >
-                    <div style={{ fontSize: 13, marginBottom: 8 }}>
-                      Үзлэгийн картын төрөл:
+                    Цагууд (бүх бүртгэлтэй цагууд)
+                  </h2>
+                  {sortedAppointments.length === 0 ? (
+                    <div style={{ color: "#6b7280", fontSize: 13 }}>
+                      Цаг захиалгын бүртгэл алга.
                     </div>
-                    <div style={{ display: "flex", gap: 12, fontSize: 13 }}>
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="visitCardTypeDisplay"
-                          value="ADULT"
-                          checked={effectiveVisitCardType === "ADULT"}
-                          onChange={() => setVisitCardTypeDraft("ADULT")}
-                        />
-                        <span>Том хүн</span>
-                      </label>
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="visitCardTypeDisplay"
-                          value="CHILD"
-                          checked={effectiveVisitCardType === "CHILD"}
-                          onChange={() => setVisitCardTypeDraft("CHILD")}
-                        />
-                        <span>Хүүхэд</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {effectiveVisitCardType === "ADULT" ? (
-                    // Adult form
-                    <div
+                  ) : (
+                    <table
                       style={{
-                        borderRadius: 12,
-                        border: "1px solid #e5e7eb",
-                        padding: 16,
-                        background: "white",
-                        marginTop: 16,
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontSize: 13,
                       }}
                     >
-                      <h2
+                      <thead>
+                        <tr>
+                          <th
+                            style={{
+                              textAlign: "left",
+                              borderBottom: "1px solid #e5e7eb",
+                              padding: 6,
+                            }}
+                          >
+                            Огноо / цаг
+                          </th>
+                          <th
+                            style={{
+                              textAlign: "left",
+                              borderBottom: "1px solid #e5e7eb",
+                              padding: 6,
+                            }}
+                          >
+                            Салбар ID
+                          </th>
+                          <th
+                            style={{
+                              textAlign: "left",
+                              borderBottom: "1px solid #e5e7eb",
+                              padding: 6,
+                            }}
+                          >
+                            Эмч ID
+                          </th>
+                          <th
+                            style={{
+                              textAlign: "left",
+                              borderBottom: "1px solid #e5e7eb",
+                              padding: 6,
+                            }}
+                          >
+                            Төлөв
+                          </th>
+                          <th
+                            style={{
+                              textAlign: "left",
+                              borderBottom: "1px solid #e5e7eb",
+                              padding: 6,
+                            }}
+                          >
+                            Тэмдэглэл
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortedAppointments.map((a) => (
+                          <tr key={a.id}>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {formatDateTime(a.scheduledAt)}
+                            </td>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {a.branchId}
+                            </td>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {a.doctorId ?? "-"}
+                            </td>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {a.status}
+                            </td>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {displayOrDash(a.notes ?? null)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+                             {activeTab === "visit_card" && (
+                <>
+                  {/* Adult form */}
+                  <div
+                    style={{
+                      borderRadius: 12,
+                      border: "1px solid #e5e7eb",
+                      padding: 16,
+                      background: "white",
+                      marginBottom: 16,
+                    }}
+                  >
+                    <h2
+                      style={{
+                        fontSize: 16,
+                        marginTop: 0,
+                        marginBottom: 12,
+                      }}
+                    >
+                      Үзлэгийн карт (Том хүн)
+                    </h2>
+
+                    {visitCardLoading && (
+                      <div style={{ fontSize: 13 }}>
+                        Үзлэгийн карт ачааллаж байна...
+                      </div>
+                    )}
+
+                    {!visitCardLoading && visitCardError && (
+                      <div
                         style={{
-                          fontSize: 16,
-                          marginTop: 0,
-                          marginBottom: 12,
+                          fontSize: 12,
+                          color: "#b91c1c",
+                          marginBottom: 8,
                         }}
                       >
-                        Үзлэгийн карт (Том хүн)
-                      </h2>
+                        {visitCardError}
+                      </div>
+                    )}
 
-                      {visitCardLoading && (
-                        <div style={{ fontSize: 13 }}>
-                          Үзлэгийн карт ачааллаж байна...
-                        </div>
-                      )}
-
-                      {!visitCardLoading && visitCardError && (
-                        <div
-                          style={{
-                            fontSize: 12,
-                            color: "#b91c1c",
-                            marginBottom: 8,
-                          }}
-                        >
-                          {visitCardError}
-                        </div>
-                      )}
-
-                      {!visitCardLoading && (
-                        <>
+                    {!visitCardLoading && (
+                      <>
                         {/* Урьдчилан сэргийлэх асуумж */}
                         <section style={{ marginTop: 8, fontSize: 13 }}>
                           <h3
@@ -2677,39 +2521,37 @@ export default function PatientProfilePage() {
                       </>
                     )}
                   </div>
-                ) : (
-                  // Child form
-                  <div style={{ marginTop: 16 }}>
-                    <ChildVisitCardForm
-                        answers={visitCardAnswers}
-                        visitCard={visitCard}
-                        visitCardTypeDraft={visitCardTypeDraft}
-                        setVisitCardTypeDraft={setVisitCardTypeDraft}
-                        updateVisitCardAnswer={(
-                          key: keyof VisitCardAnswers,
-                          value: VisitCardAnswers[keyof VisitCardAnswers]
-                        ) => updateVisitCardAnswer(key, value as any)}
-                        updateNested={(
-                          section: string,
-                          field: string,
-                          value: any
-                        ) =>
-                          updateNested(
-                            section as keyof VisitCardAnswers,
-                            field,
-                            value
-                          )
-                        }
-                        signatureSaving={signatureSaving}
-                        handleUploadSignature={handleUploadSignature}
-                        handleSaveVisitCard={handleSaveVisitCard}
-                        visitCardSaving={visitCardSaving}
-                        formatDate={formatDate}
-                      />
-                    </div>
-                  )}
+
+                  {/* Child form rendered below adult form */}
+                  <ChildVisitCardForm
+                    answers={visitCardAnswers}
+                    visitCard={visitCard}
+                    visitCardTypeDraft={visitCardTypeDraft}
+                    setVisitCardTypeDraft={setVisitCardTypeDraft}
+                    updateVisitCardAnswer={(
+                      key: keyof VisitCardAnswers,
+                      value: VisitCardAnswers[keyof VisitCardAnswers]
+                    ) => updateVisitCardAnswer(key, value as any)}
+                    updateNested={(
+                      section: string,
+                      field: string,
+                      value: any
+                    ) =>
+                      updateNested(
+                        section as keyof VisitCardAnswers,
+                        field,
+                        value
+                      )
+                    }
+                    signatureSaving={signatureSaving}
+                    handleUploadSignature={handleUploadSignature}
+                    handleSaveVisitCard={handleSaveVisitCard}
+                    visitCardSaving={visitCardSaving}
+                    formatDate={formatDate}
+                  />
                 </>
               )}
+
             </div> 
           </section>
 
@@ -2903,7 +2745,7 @@ export default function PatientProfilePage() {
               </section>
             </>
           )}
-               </>
+        </>
       )}
     </main>
   );
