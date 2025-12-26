@@ -145,8 +145,9 @@ export default function FullArchDiscOdontogram({
    * High‑level click behavior according to activeStatus.
    */
   const handleDiscClick = (id: string, clickedRegion: ToothRegion) => {
+  console.log("DISC CLICK", { id, clickedRegion, activeStatus });
+
   if (!activeStatus) {
-    // No status selected: default = toggle caries on the clicked region
     toggleRegionPartial(id, clickedRegion, "caries");
     return;
   }
@@ -174,7 +175,6 @@ export default function FullArchDiscOdontogram({
       setFullCircleStatus(id, "shapeAnomaly");
       break;
     case "supernumerary":
-      // no visual for now
       break;
   }
 };
