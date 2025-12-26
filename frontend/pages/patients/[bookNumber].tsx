@@ -1443,77 +1443,124 @@ const handleEditChange = (
                 </div>
               )}
 
-              {activeTab === "visit_card" && (
-  <div
-    style={{
-      borderRadius: 12,
-      border: "1px solid #e5e7eb",
-      padding: 16,
-      background: "white",
-    }}
-  >
-    <h2
-      style={{
-        fontSize: 16,
-        marginTop: 0,
-        marginBottom: 12,
-      }}
-    >
-      Үзлэгийн карт
-    </h2>
+             {activeTab === "visit_card" &&
+                (visitCard?.type === "CHILD" ||
+                visitCardTypeDraft === "CHILD" ? (
+                  <ChildVisitCardForm
+                    answers={visitCardAnswers}
+                    visitCard={visitCard}
+                    visitCardTypeDraft={visitCardTypeDraft}
+                    setVisitCardTypeDraft={setVisitCardTypeDraft}
+                    updateVisitCardAnswer={(
+                      key: keyof VisitCardAnswers,
+                      value: VisitCardAnswers[keyof VisitCardAnswers]
+                    ) => updateVisitCardAnswer(key, value)}
+                    updateNested={(
+                      section: keyof VisitCardAnswers,
+                      field: string,
+                      value: any
+                    ) => updateNested(section, field, value)}
+                    signatureSaving={signatureSaving}
+                    handleUploadSignature={handleUploadSignature}
+                    handleSaveVisitCard={handleSaveVisitCard}
+                    visitCardSaving={visitCardSaving}
+                    formatDate={formatDate}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      borderRadius: 12,
+                      border: "1px solid #e5e7eb",
+                      padding: 16,
+                      background: "white",
+                    }}
+                  >
+                    <h2
+                      style={{
+                        fontSize: 16,
+                        marginTop: 0,
+                        marginBottom: 12,
+                      }}
+                    >
+                      Үзлэгийн карт
+                    </h2>
 
-    {visitCardLoading && (
-      <div style={{ fontSize: 13 }}>Үзлэгийн карт ачааллаж байна...</div>
-    )}
+                    {visitCardLoading && (
+                      <div style={{ fontSize: 13 }}>
+                        Үзлэгийн карт ачааллаж байна...
+                      </div>
+                    )}
 
-    {!visitCardLoading && visitCardError && (
-      <div style={{ fontSize: 12, color: "#b91c1c", marginBottom: 8 }}>
-        {visitCardError}
-      </div>
-    )}
+                    {!visitCardLoading && visitCardError && (
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#b91c1c",
+                          marginBottom: 8,
+                        }}
+                      >
+                        {visitCardError}
+                      </div>
+                    )}
 
-    {!visitCardLoading && (
-      <>
-        {/* 1) Type selector – only when card not yet created */}
-        {!visitCard && (
-          <div
-            style={{
-              marginBottom: 16,
-              padding: 12,
-              borderRadius: 8,
-              background: "#f3f4f6",
-              fontSize: 13,
-            }}
-          >
-            <div style={{ marginBottom: 8 }}>
-              Анхны үзлэгийн карт бөглөх төрөл:
-            </div>
-            <div style={{ display: "flex", gap: 12 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <input
-                  type="radio"
-                  name="visitCardType"
-                  value="ADULT"
-                  checked={visitCardTypeDraft === "ADULT"}
-                  onChange={() => setVisitCardTypeDraft("ADULT")}
-                />
-                <span>Том хүн</span>
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <input
-                  type="radio"
-                  name="visitCardType"
-                  value="CHILD"
-                  checked={visitCardTypeDraft === "CHILD"}
-                  onChange={() => setVisitCardTypeDraft("CHILD")}
-                />
-                <span>Хүүхэд</span>
-              </label>
-            </div>
-          </div>
-        )}
+                    {!visitCardLoading && (
+                      <>
+                        {/* 1) Type selector – only when card not yet created */}
+                        {!visitCard && (
+                          <div
+                            style={{
+                              marginBottom: 16,
+                              padding: 12,
+                              borderRadius: 8,
+                              background: "#f3f4f6",
+                              fontSize: 13,
+                            }}
+                          >
+                            <div style={{ marginBottom: 8 }}>
+                              Анхны үзлэгийн карт бөглөх төрөл:
+                            </div>
+                            <div style={{ display: "flex", gap: 12 }}>
+                              <label
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                }}
+                              >
+                                <input
+                                  type="radio"
+                                  name="visitCardType"
+                                  value="ADULT"
+                                  checked={visitCardTypeDraft === "ADULT"}
+                                  onChange={() =>
+                                    setVisitCardTypeDraft("ADULT")
+                                  }
+                                />
+                                <span>Том хүн</span>
+                              </label>
+                              <label
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                }}
+                              >
+                                <input
+                                  type="radio"
+                                  name="visitCardType"
+                                  value="CHILD"
+                                  checked={visitCardTypeDraft === "CHILD"}
+                                  onChange={() =>
+                                    setVisitCardTypeDraft("CHILD")
+                                  }
+                                />
+                                <span>Хүүхэд</span>
+                              </label>
+                            </div>
+                          </div>
+                        )}
 
-                {/* Урьдчилан сэргийлэх асуумж */}
+                        {/* Урьдчилан сэргийлэх асуумж */}
                 <section style={{ marginTop: 8, fontSize: 13 }}>
           <h3
             style={{
