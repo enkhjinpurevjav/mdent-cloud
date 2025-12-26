@@ -1,29 +1,32 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import OrthoOdontogram from "../../components/odontogram/OrthoOdontogram";
+import FullArchDiscOdontogram from "../../components/odontogram/FullArchDiscOdontogram";
 
 /**
- * NOTE:
- * - This page is built to work with the current backend API:
- *   - GET  /api/patients/ortho-card/by-book/:bookNumber
- *   - PUT  /api/patients/ortho-card/:patientBookId
- * - Backend stores OrthoCard.data as generic JSON (Prisma Json field).
- * - We keep the external tooth type simple: { code, status }[]
- *   so it matches the already‑working minimal implementation.
- * - Internally, OrthoOdontogram can map this to richer structures.
+ * This page renders the Orthodontic card for a patient book, using the
+ * new full-arch disc odontogram layout (no individual tooth numbers).
+ *
+ * Backend:
+ * - GET  /api/patients/ortho-card/by-book/:bookNumber
+ * - PUT  /api/patients/ortho-card/:patientBookId
+ *
+ * Backend stores OrthoCard.data as JSON. For now we keep toothChart as:
+ *   { code: string; status: string }[]
+ * where `code` is an internal disc id (U1-0, L2-15, etc.) and `status`
+ * is interpreted as ToothBaseStatus in our components.
  */
 
-type OrthoTooth = {
-  code: string;
-  status: string; // base status key; internal component can interpret it
+type OrthoDisc = {
+  code: string;   // disc id
+  status: string; // base status key
 };
 
 type OrthoCardData = {
   patientName?: string;
   notes?: string;
-  toothChart: OrthoTooth[];
+  toothChart: OrthoDisc[];
   problemList?: { id: number; label: string; checked?: boolean }[];
-  supernumeraryNote?: string; // e.g. "between 12–13"
+  supernumeraryNote?: string;
 };
 
 type OrthoCardApiResponse = {
@@ -60,7 +63,7 @@ export default function OrthoCardPage() {
   const [cardPatientName, setCardPatientName] = useState<string>("");
   const [cardNotes, setCardNotes] = useState<string>("");
   const [supernumeraryNote, setSupernumeraryNote] = useState<string>("");
-  const [toothChart, setToothChart] = useState<OrthoTooth[]>([]);
+  const [toothChart, setToothChart] = useState<OrthoDisc[]>([]);
 
   const bn =
     typeof bookNumber === "string" && bookNumber.trim()
@@ -97,7 +100,7 @@ export default function OrthoCardPage() {
 
         setPatientBookId(json.patientBook.id);
 
-        // Patient display name in header
+        // Header patient name
         if (json.patient) {
           const { ovog, name } = json.patient;
           if (name) {
@@ -110,7 +113,7 @@ export default function OrthoCardPage() {
           }
         }
 
-        // Fill card fields if orthoCard exists
+        // Existing card data → page state
         if (json.orthoCard && json.orthoCard.data) {
           const data = json.orthoCard.data;
           setCardPatientName(data.patientName || "");
@@ -118,7 +121,7 @@ export default function OrthoCardPage() {
           setSupernumeraryNote(data.supernumeraryNote || "");
           setToothChart(data.toothChart || []);
         } else {
-          // Fresh / first‑time card
+          // Fresh card
           setCardPatientName("");
           setCardNotes("");
           setSupernumeraryNote("");
@@ -183,7 +186,7 @@ export default function OrthoCardPage() {
   return (
     <main
       style={{
-        maxWidth: 1100,
+        maxWidth: 1200,
         margin: "40px auto",
         padding: 24,
         fontFamily: "sans-serif",
@@ -208,7 +211,7 @@ export default function OrthoCardPage() {
 
       {/* Title + book number */}
       <h1 style={{ fontSize: 20, marginTop: 0, marginBottom: 4 }}>
-        Гажиг заслын өвчтөний карт (туршилтын хувилбар)
+        Гажиг заслын өвчтөний карт
       </h1>
       <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 4 }}>
         Картын дугаар: {bn || "—"}
@@ -306,7 +309,7 @@ export default function OrthoCardPage() {
             Шүдний тойргийн зураг (Одонтограм)
           </h2>
 
-          <OrthoOdontogram value={toothChart} onChange={setToothChart} />
+          <FullArchDiscOdontogram value={toothChart} onChange={setToothChart} />
 
           {/* Supernumerary note */}
           <section style={{ marginTop: 16 }}>
