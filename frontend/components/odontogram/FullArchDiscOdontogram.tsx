@@ -11,6 +11,27 @@ import {
   ensureInternalTooth,
 } from "../../utils/orthoToothMapping";
 
+export type ActiveStatusKey =
+  | "caries"
+  | "filled"
+  | "extracted"
+  | "prosthesis"
+  | "delay"
+  | "anodontia"
+  | "supernumerary"
+  | "shapeAnomaly";
+
+export type ExternalDisc = {
+  code: string;
+  status: string;
+};
+
+type Props = {
+  value: ExternalDisc[];
+  onChange: (next: ExternalDisc[]) => void;
+  activeStatus: ActiveStatusKey | null;
+};
+
 export type ExternalDisc = {
   code: string;   // disc id
   status: string; // baseStatus
