@@ -1560,6 +1560,7 @@ const handleEditChange = (
                           </div>
                         )}
 
+
                         {/* Урьдчилан сэргийлэх асуумж */}
                 <section style={{ marginTop: 8, fontSize: 13 }}>
           <h3
@@ -2508,36 +2509,43 @@ const handleEditChange = (
           )}
         </section>
 
-        {/* 6) Save button */}
-        <div
-          style={{
-            marginTop: 16,
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleSaveVisitCard}
-            disabled={visitCardSaving}
-            style={{
-              padding: "6px 12px",
-              borderRadius: 6,
-              border: "none",
-              background: visitCardSaving ? "#9ca3af" : "#2563eb",
-              color: "#ffffff",
-              fontSize: 13,
-              cursor: visitCardSaving ? "default" : "pointer",
-            }}
-          >
-            {visitCardSaving ? "Хадгалж байна..." : "Үзлэгийн карт хадгалах"}
-          </button>
-        </div>
-      </>
-    )}
-  </div>
-)}            </div>
+       {/* Save button */}
+                        <div
+                          style={{
+                            marginTop: 16,
+                            display: "flex",
+                            justifyContent: "flex-end",
+                            gap: 8,
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={handleSaveVisitCard}
+                            disabled={visitCardSaving}
+                            style={{
+                              padding: "6px 12px",
+                              borderRadius: 6,
+                              border: "none",
+                              background: visitCardSaving
+                                ? "#9ca3af"
+                                : "#2563eb",
+                              color: "#ffffff",
+                              fontSize: 13,
+                              cursor: visitCardSaving
+                                ? "default"
+                                : "pointer",
+                            }}
+                          >
+                            {visitCardSaving
+                              ? "Хадгалж байна..."
+                              : "Үзлэгийн карт хадгалах"}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}          
+            </div>
           </section>
 
           {/* Encounter history and inline appointments table shown only in profile tab */}
