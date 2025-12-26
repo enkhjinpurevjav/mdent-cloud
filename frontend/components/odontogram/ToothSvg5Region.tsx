@@ -53,20 +53,20 @@ export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
   const innerR = outerR * 0.55;
   const coreR = innerR * 0.65;
 
-  // Match legend button colors
+  // Base (full-circle) colors
   const baseFill =
     baseStatus === "none"
       ? "#ffffff"
       : baseStatus === "extracted"
-      ? "#9ca3af" // Авахуулсан
+      ? "#166534" // Авахуулсан – darker green
       : baseStatus === "prosthesis"
-      ? "#14b8a6" // Шүдэлбэр
+      ? "#9ca3af" // Шүдэлбэр – grey
       : baseStatus === "delay"
-      ? "#fbbf24" // Саатсан
+      ? "#fbbf24" // Саатсан – keep current (amber)
       : baseStatus === "apodontia"
-      ? "#fb7185" // Anodontia
+      ? "#14b8a6" // Anodontia – turquoise
       : baseStatus === "shapeAnomaly"
-      ? "#6366f1" // Хэлбэрийн гажиг
+      ? "#6366f1" // Хэлбэрийн гажиг – keep current (indigo)
       : "#ffffff";
 
   const borderColor = isActive ? "#2563eb" : "#111827";
@@ -101,11 +101,12 @@ export default function ToothSvg5Region(props: ToothSvg5RegionProps) {
     ].join(" ");
   }
 
-  // Цоорсон / Ломбодсон region colors, matching legend
+  // Segment colors:
+  // Цоорсон – real red, Ломбодсон – real blue, both – purple
   const regionFill = (region: ToothRegionState): string => {
     if (region.caries && region.filled) return "#a855f7"; // both
-    if (region.caries) return "#f97373";                  // Цоорсон
-    if (region.filled) return "#60a5fa";                  // Ломбодсон
+    if (region.caries) return "#dc2626";                  // Цоорсон – real red
+    if (region.filled) return "#2563eb";                  // Ломбодсон – real blue
     return "transparent";
   };
 
