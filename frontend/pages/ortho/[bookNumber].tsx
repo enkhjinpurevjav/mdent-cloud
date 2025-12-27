@@ -278,6 +278,8 @@ export default function OrthoCardPage() {
   const [patientPhone, setPatientPhone] = useState<string>("");
   const [patientAddress, setPatientAddress] = useState<string>("");
 
+  
+
   const [patientBookId, setPatientBookId] = useState<number | null>(null);
   const [patientNameHeader, setPatientNameHeader] = useState<string>("");
 
@@ -434,6 +436,49 @@ export default function OrthoCardPage() {
 
   const u1l1Ratio = l1Sum > 0 ? (u1Sum / l1Sum).toFixed(2) : "";
 
+  
+  const [patientRegNo, setPatientRegNo] = useState<string>("");
+  const [patientAge, setPatientAge] = useState<string>("");
+  const [patientGender, setPatientGender] = useState<string>("");
+  const [patientPhone, setPatientPhone] = useState<string>("");
+  const [patientAddress, setPatientAddress] = useState<string>("");
+
+
+  const toggleHabitBool = (key: keyof HabitSection) =>
+  setHabits(prev => ({ ...prev, [key]: !prev[key] }));
+
+const updateHabitText = (key: keyof HabitSection, v: string) =>
+  setHabits(prev => ({ ...prev, [key]: v }));
+
+const toggleAttachmentBool = (key: keyof AttachmentSection) =>
+  setAttachment(prev => ({ ...prev, [key]: !prev[key] }));
+
+const toggleTmjBool = (key: keyof TmjSection) =>
+  setTmj(prev => ({ ...prev, [key]: !prev[key] }));
+
+const updateTmjText = (key: keyof TmjSection, v: string) =>
+  setTmj(prev => ({ ...prev, [key]: v.replace(/[^0-9.]/g, "") }));
+
+const toggleUttsBool = (key: keyof UttsSection) =>
+  setUtts(prev => ({ ...prev, [key]: !prev[key] }));
+
+const updateUttsText = (key: keyof UttsSection, v: string) =>
+  setUtts(prev => ({ ...prev, [key]: v }));
+
+const toggleLipBool = (key: keyof LipSection) =>
+  setLip(prev => ({ ...prev, [key]: !prev[key] }));
+
+const updateLipText = (key: keyof LipSection, v: string) =>
+  setLip(prev => ({ ...prev, [key]: v.replace(/[^0-9.]/g, "") }));
+
+
+  const [patientBookId, setPatientBookId] = useState<number | null>(null);
+  const [patientNameHeader, setPatientNameHeader] = useState<string>("");
+
+  const [cardPatientName, setCardPatientName] = useState<string>("");
+  const [cardNotes, setCardNotes] = useState<string>("");
+  const
+  
   const updateBoltonUpper6 = (index: number, value: string) => {
     const cleaned = value.replace(/[^0-9.]/g, "");
     setBoltonInputs((prev) => {
