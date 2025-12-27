@@ -11,6 +11,7 @@ import FullArchDiscOdontogram, {
  *  - sumOfIncisorInputs: per‑tooth mesio‑distal widths for incisors
  *  - boltonInputs: 36 fields (6 upper + 6 lower + 12 upper + 12 lower)
  *  - howesInputs: PMBAW / TM values for Howes' Ax
+ *  - discrepancyInputs: 6 axes with 4 positions each (UL, UR, LL, LR)
  */
 
 type OrthoDisc = {
@@ -37,15 +38,31 @@ type SumOfIncisorInputs = {
 };
 
 type BoltonInputs = {
-  upper6: string[];  // length 6
-  lower6: string[];  // length 6
+  upper6: string[]; // length 6
+  lower6: string[]; // length 6
   upper12: string[]; // length 12
   lower12: string[]; // length 12
 };
 
 type HowesInputs = {
-  pmbaw?: string; // PMBAW numerator
-  tm?: string;    // TM denominator
+  pmbaw?: string;
+  tm?: string;
+};
+
+type DiscrepancyAxis = {
+  upperLeft: string;
+  upperRight: string;
+  lowerLeft: string;
+  lowerRight: string;
+};
+
+type DiscrepancyInputs = {
+  ald: DiscrepancyAxis;
+  midline: DiscrepancyAxis;
+  curveOfSpee: DiscrepancyAxis;
+  expansion: DiscrepancyAxis;
+  fmiaABPlane: DiscrepancyAxis;
+  total: DiscrepancyAxis; // computed, but persisted for convenience
 };
 
 type OrthoCardData = {
@@ -59,6 +76,9 @@ type OrthoCardData = {
   sumOfIncisorInputs?: SumOfIncisorInputs;
   boltonInputs?: BoltonInputs;
   howesInputs?: HowesInputs;
+
+  // DISCREPANCY
+  discrepancyInputs?: DiscrepancyInputs;
 };
 
 type OrthoCardApiResponse = {
@@ -79,10 +99,8 @@ type OrthoCardApiResponse = {
   } | null;
 };
 
-// Reuse ActiveStatusKey for the right‑side legend buttons
 type StatusKey = ActiveStatusKey;
 
-// Right panel buttons: label + color + internal key
 const STATUS_BUTTONS: {
   key: StatusKey;
   label: string;
@@ -105,6 +123,22 @@ const emptyBoltonInputs = (): BoltonInputs => ({
   lower12: Array(12).fill(""),
 });
 
+const emptyAxis = (): DiscrepancyAxis => ({
+  upperLeft: "",
+  upperRight: "",
+  lowerLeft: "",
+  lowerRight: "",
+});
+
+const emptyDiscrepancyInputs = (): DiscrepancyInputs => ({
+  ald: emptyAxis(),
+  midline: emptyAxis(),
+  curveOfSpee: emptyAxis(),
+  expansion: emptyAxis(),
+  fmiaABPlane: emptyAxis(),
+  total: emptyAxis(), // will be overwritten from sums
+});
+
 export default function OrthoCardPage() {
   const router = useRouter();
   const { bookNumber } = router.query;
@@ -123,7 +157,7 @@ export default function OrthoCardPage() {
   const [supernumeraryNote, setSupernumeraryNote] = useState<string>("");
   const [toothChart, setToothChart] = useState<OrthoDisc[]>([]);
 
-  // Sum of incisor inputs
+  // Sum of incisor
   const [sumOfIncisorInputs, setSumOfIncisorInputs] =
     useState<SumOfIncisorInputs>({
       u12: "",
@@ -136,18 +170,22 @@ export default function OrthoCardPage() {
       l42: "",
     });
 
-  // Bolton 36-field inputs
+  // Bolton 36‑field inputs
   const [boltonInputs, setBoltonInputs] = useState<BoltonInputs>(
     emptyBoltonInputs()
   );
 
-  // Howes' Ax inputs
+  // Howes Ax
   const [howesInputs, setHowesInputs] = useState<HowesInputs>({
     pmbaw: "",
     tm: "",
   });
 
-  // UI‑only
+  // DISCREPANCY
+  const [discrepancyInputs, setDiscrepancyInputs] =
+    useState<DiscrepancyInputs>(emptyDiscrepancyInputs());
+
+  // UI
   const [activeStatus, setActiveStatus] = useState<StatusKey | null>(null);
   const [extraToothText, setExtraToothText] = useState<string>("");
 
@@ -182,13 +220,13 @@ export default function OrthoCardPage() {
 
   const u1l1Ratio = l1Sum > 0 ? (u1Sum / l1Sum).toFixed(2) : "";
 
-  // Bolton helpers: 36 fields with linking
+  // Bolton helpers
   const updateBoltonUpper6 = (index: number, value: string) => {
     const cleaned = value.replace(/[^0-9.]/g, "");
     setBoltonInputs((prev) => {
       const next = structuredClone(prev) as BoltonInputs;
       next.upper6[index] = cleaned;
-      next.upper12[index] = cleaned; // mirror to 12
+      next.upper12[index] = cleaned;
       return next;
     });
   };
@@ -198,7 +236,7 @@ export default function OrthoCardPage() {
     setBoltonInputs((prev) => {
       const next = structuredClone(prev) as BoltonInputs;
       next.lower6[index] = cleaned;
-      next.lower12[index] = cleaned; // mirror to 12
+      next.lower12[index] = cleaned;
       return next;
     });
   };
@@ -234,7 +272,7 @@ export default function OrthoCardPage() {
   const bolton12Result =
     upper12Sum > 0 ? ((lower12Sum / upper12Sum) * 100).toFixed(1) : "";
 
-  // Howes' Ax
+  // Howes Ax
   const updateHowes = (field: keyof HowesInputs, value: string) => {
     const cleaned = value.replace(/[^0-9.]/g, "");
     setHowesInputs((prev) => ({ ...prev, [field]: cleaned }));
@@ -266,6 +304,45 @@ export default function OrthoCardPage() {
 
   const howesCategory = getHowesCategory();
 
+  // DISCREPANCY helpers
+  type AxisKey =
+    | "ald"
+    | "midline"
+    | "curveOfSpee"
+    | "expansion"
+    | "fmiaABPlane"
+    | "total";
+
+  const updateDiscrepancy = (
+    axis: AxisKey,
+    pos: keyof DiscrepancyAxis,
+    value: string
+  ) => {
+    const cleaned = value.replace(/[^0-9.+-]/g, ""); // allow numbers & +/- & dot
+    setDiscrepancyInputs((prev) => ({
+      ...prev,
+      [axis]: {
+        ...prev[axis],
+        [pos]: cleaned,
+      },
+    }));
+  };
+
+  const axisSum = (ax: DiscrepancyAxis): number =>
+    parseOrZero(ax.upperLeft) +
+    parseOrZero(ax.upperRight) +
+    parseOrZero(ax.lowerLeft) +
+    parseOrZero(ax.lowerRight);
+
+  const aldSum = axisSum(discrepancyInputs.ald);
+  const midlineSum = axisSum(discrepancyInputs.midline);
+  const curveOfSpeeSum = axisSum(discrepancyInputs.curveOfSpee);
+  const expansionSum = axisSum(discrepancyInputs.expansion);
+  const fmiaABPlaneSum = axisSum(discrepancyInputs.fmiaABPlane);
+
+  const totalSum =
+    aldSum + midlineSum + curveOfSpeeSum + expansionSum + fmiaABPlaneSum;
+
   // --- Load existing ortho card (or create empty state) ---
   useEffect(() => {
     if (!bn) return;
@@ -279,9 +356,9 @@ export default function OrthoCardPage() {
         const res = await fetch(
           `/api/patients/ortho-card/by-book/${encodeURIComponent(bn)}`
         );
-        const json = (await res.json().catch(() => null)) as
-          | OrthoCardApiResponse
-          | null;
+        const json = (await res
+          .json()
+          .catch(() => null)) as OrthoCardApiResponse | null;
 
         if (!res.ok) {
           throw new Error(
@@ -347,6 +424,19 @@ export default function OrthoCardPage() {
           } else {
             setHowesInputs({ pmbaw: "", tm: "" });
           }
+          if (data.discrepancyInputs) {
+            const di = data.discrepancyInputs;
+            setDiscrepancyInputs({
+              ald: di.ald || emptyAxis(),
+              midline: di.midline || emptyAxis(),
+              curveOfSpee: di.curveOfSpee || emptyAxis(),
+              expansion: di.expansion || emptyAxis(),
+              fmiaABPlane: di.fmiaABPlane || emptyAxis(),
+              total: di.total || emptyAxis(),
+            });
+          } else {
+            setDiscrepancyInputs(emptyDiscrepancyInputs());
+          }
         } else {
           setCardPatientName("");
           setCardNotes("");
@@ -364,6 +454,7 @@ export default function OrthoCardPage() {
           });
           setBoltonInputs(emptyBoltonInputs());
           setHowesInputs({ pmbaw: "", tm: "" });
+          setDiscrepancyInputs(emptyDiscrepancyInputs());
         }
       } catch (err: any) {
         console.error("load ortho card failed", err);
@@ -390,6 +481,17 @@ export default function OrthoCardPage() {
     setInfo("");
 
     try {
+      // include computed total axis into payload
+      const discrepancyWithTotal: DiscrepancyInputs = {
+        ...discrepancyInputs,
+        total: {
+          upperLeft: totalSum.toFixed(2),
+          upperRight: "",
+          lowerLeft: "",
+          lowerRight: "",
+        },
+      };
+
       const payload: OrthoCardData = {
         patientName: cardPatientName || undefined,
         notes: cardNotes || undefined,
@@ -398,6 +500,7 @@ export default function OrthoCardPage() {
         sumOfIncisorInputs,
         boltonInputs,
         howesInputs,
+        discrepancyInputs: discrepancyWithTotal,
       };
 
       const res = await fetch(`/api/patients/ortho-card/${patientBookId}`, {
@@ -552,6 +655,7 @@ export default function OrthoCardPage() {
               />
             </div>
 
+            {/* legend */}
             <aside
               style={{
                 borderRadius: 10,
@@ -653,7 +757,7 @@ export default function OrthoCardPage() {
             </aside>
           </div>
 
-          {/* ЗАГВАР ХЭМЖИЛ – Sum of incisor + Bolton + Howes */}
+          {/* MODEL MEASUREMENTS + Bolton + Howes */}
           <section
             style={{
               marginTop: 16,
@@ -846,7 +950,7 @@ export default function OrthoCardPage() {
               )}
             </div>
 
-            {/* Bolton index with 36 inputs */}
+            {/* Bolton index */}
             <div style={{ fontWeight: 500, marginBottom: 8 }}>
               Bolton index
             </div>
@@ -1072,6 +1176,177 @@ export default function OrthoCardPage() {
                 {howesCategory.label}
               </div>
             )}
+          </section>
+
+          {/* DISCREPANCY */}
+          <section
+            style={{
+              marginTop: 16,
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              padding: 12,
+              background: "#ffffff",
+              fontSize: 13,
+            }}
+          >
+            <div
+              style={{
+                fontWeight: 700,
+                textTransform: "uppercase",
+                marginBottom: 8,
+              }}
+            >
+              DISCREPANCY
+            </div>
+
+            {/* Helper: reusable axis renderer */}
+            {[
+              { key: "ald" as AxisKey, label: "ALD" },
+              { key: "midline" as AxisKey, label: "Mid line" },
+              { key: "curveOfSpee" as AxisKey, label: "Curve of spee" },
+              { key: "expansion" as AxisKey, label: "Expansion" },
+              { key: "fmiaABPlane" as AxisKey, label: "FMIA / A-B plane" },
+            ].map(({ key, label }) => {
+              const axis = discrepancyInputs[key];
+              const sum = axisSum(axis);
+              return (
+                <div
+                  key={key}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "120px 1fr 80px",
+                    alignItems: "center",
+                    marginBottom: 8,
+                    columnGap: 8,
+                  }}
+                >
+                  <div style={{ fontWeight: 500 }}>{label}</div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 40px 1fr",
+                      gridTemplateRows: "1fr 1fr",
+                      columnGap: 4,
+                      rowGap: 4,
+                      alignItems: "center",
+                      maxWidth: 330,
+                    }}
+                  >
+                    {/* upper left */}
+                    <input
+                      type="text"
+                      value={axis.upperLeft}
+                      onChange={(e) =>
+                        updateDiscrepancy(key, "upperLeft", e.target.value)
+                      }
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "2px 4px",
+                        fontSize: 12,
+                        justifySelf: "flex-start",
+                      }}
+                    />
+                    {/* vertical line */}
+                    <div
+                      style={{
+                        gridRow: "1 / span 2",
+                        width: 1,
+                        height: "34px",
+                        backgroundColor: "#d1d5db",
+                        justifySelf: "center",
+                      }}
+                    />
+                    {/* upper right */}
+                    <input
+                      type="text"
+                      value={axis.upperRight}
+                      onChange={(e) =>
+                        updateDiscrepancy(key, "upperRight", e.target.value)
+                      }
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "2px 4px",
+                        fontSize: 12,
+                        justifySelf: "flex-end",
+                      }}
+                    />
+                    {/* lower left */}
+                    <input
+                      type="text"
+                      value={axis.lowerLeft}
+                      onChange={(e) =>
+                        updateDiscrepancy(key, "lowerLeft", e.target.value)
+                      }
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "2px 4px",
+                        fontSize: 12,
+                        justifySelf: "flex-start",
+                      }}
+                    />
+                    {/* lower right */}
+                    <input
+                      type="text"
+                      value={axis.lowerRight}
+                      onChange={(e) =>
+                        updateDiscrepancy(key, "lowerRight", e.target.value)
+                      }
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "2px 4px",
+                        fontSize: 12,
+                        justifySelf: "flex-end",
+                      }}
+                    />
+                  </div>
+                  <div style={{ fontSize: 12 }}>
+                    Σ ={" "}
+                    <span style={{ fontWeight: 700 }}>
+                      {sum.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Total discrepancy (6th axis) – read-only from sums */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "120px 1fr 80px",
+                alignItems: "center",
+                marginTop: 12,
+                columnGap: 8,
+              }}
+            >
+              <div style={{ fontWeight: 600 }}>Total discrepancy</div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 8,
+                  border: "1px dashed #d1d5db",
+                  padding: 6,
+                  fontSize: 12,
+                  background: "#f9fafb",
+                }}
+              >
+                Σ (ALD + Mid line + Curve of spee + Expansion + FMIA/A-B) =
+                <span style={{ fontWeight: 700, marginLeft: 4 }}>
+                  {totalSum.toFixed(2)}
+                </span>
+              </div>
+              <div />
+            </div>
           </section>
 
           {/* Supernumerary note (kept for compatibility, unlabeled) */}
