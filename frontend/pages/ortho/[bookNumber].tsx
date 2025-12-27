@@ -83,6 +83,10 @@ type OrthoCardApiResponse = {
     name: string | null;
     ovog: string | null;
     regNo: string | null;
+    age?: number | null;
+    gender?: string | null;
+    phone?: string | null;
+    address?: string | null;
     branch?: { id: number; name: string | null } | null;
   };
   orthoCard: {
@@ -143,6 +147,12 @@ export default function OrthoCardPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+
+  const [patientRegNo, setPatientRegNo] = useState<string>("");
+const [patientAge, setPatientAge] = useState<string>("");
+const [patientGender, setPatientGender] = useState<string>("");
+const [patientPhone, setPatientPhone] = useState<string>("");
+const [patientAddress, setPatientAddress] = useState<string>("");
 
   const [patientBookId, setPatientBookId] = useState<number | null>(null);
   const [patientNameHeader, setPatientNameHeader] = useState<string>("");
@@ -395,16 +405,25 @@ export default function OrthoCardPage() {
         setPatientBookId(json.patientBook.id);
 
         if (json.patient) {
-          const { ovog, name } = json.patient;
-          if (name) {
-            const trimmedOvog = (ovog || "").trim();
-            const display =
-              trimmedOvog && trimmedOvog !== "null"
-                ? `${trimmedOvog.charAt(0).toUpperCase()}.${name}`
-                : name;
-            setPatientNameHeader(display);
-          }
-        }
+  const { ovog, name, regNo, age, gender, phone, address } = json.patient;
+
+  if (name) {
+    const trimmedOvog = (ovog || "").trim();
+    const display =
+      trimmedOvog && trimmedOvog !== "null"
+        ? `${trimmedOvog.charAt(0).toUpperCase()}.${name}`
+        : name;
+    setPatientNameHeader(display);
+  }
+
+  setPatientRegNo(regNo || "");
+  setPatientAge(
+    age != null && !Number.isNaN(Number(age)) ? String(age) : ""
+  );
+  setPatientGender(gender || "");
+  setPatientPhone(phone || "");
+  setPatientAddress(address || "");
+}
 
         if (json.orthoCard && json.orthoCard.data) {
           const data = json.orthoCard.data;
@@ -689,17 +708,78 @@ export default function OrthoCardPage() {
         ← Үйлчлүүлэгчийн хэсэг рүү буцах
       </button>
 
-      <h1 style={{ fontSize: 20, marginTop: 0, marginBottom: 4 }}>
-        Гажиг заслын өвчтөний карт
-      </h1>
-      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 4 }}>
-        Картын дугаар: {bn || "—"}
-      </div>
-      {patientNameHeader && (
-        <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
-          Өвчтөн: {patientNameHeader}
-        </div>
-      )}
+     <h1 style={{ fontSize: 20, marginTop: 0, marginBottom: 8 }}>
+  Гажиг заслын өвчтөний карт
+</h1>
+
+<div
+  style={{
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    fontSize: 13,
+    color: "#111827",
+    marginBottom: 16,
+  }}
+>
+  {/* Row 1: Картын дугаар, Өвчтөн, РД */}
+  <div
+    style={{
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 16,
+      alignItems: "baseline",
+    }}
+  >
+    <div>
+      <span style={{ color: "#6b7280", marginRight: 4 }}>Картын дугаар:</span>
+      <span style={{ fontWeight: 600 }}>{bn || "—"}</span>
+    </div>
+
+    <div>
+      <span style={{ color: "#6b7280", marginRight: 4 }}>Өвчтөн:</span>
+      <span style={{ fontWeight: 600 }}>
+        {patientNameHeader || "—"}
+      </span>
+    </div>
+
+    <div>
+      <span style={{ color: "#6b7280", marginRight: 4 }}>РД:</span>
+      <span style={{ fontWeight: 500 }}>{patientRegNo || "—"}</span>
+    </div>
+  </div>
+
+  {/* Row 2: Нас, Хүйс, Утас */}
+  <div
+    style={{
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 16,
+      alignItems: "baseline",
+    }}
+  >
+    <div>
+      <span style={{ color: "#6b7280", marginRight: 4 }}>Нас:</span>
+      <span style={{ fontWeight: 500 }}>{patientAge || "—"}</span>
+    </div>
+
+    <div>
+      <span style={{ color: "#6b7280", marginRight: 4 }}>Хүйс:</span>
+      <span style={{ fontWeight: 500 }}>{patientGender || "—"}</span>
+    </div>
+
+    <div>
+      <span style={{ color: "#6b7280", marginRight: 4 }}>Утас:</span>
+      <span style={{ fontWeight: 500 }}>{patientPhone || "—"}</span>
+    </div>
+  </div>
+
+  {/* Row 3: Хаяг */}
+  <div>
+    <span style={{ color: "#6b7280", marginRight: 4 }}>Хаяг:</span>
+    <span style={{ fontWeight: 500 }}>{patientAddress || "—"}</span>
+  </div>
+</div>
 
       {loading && <div>Ачааллаж байна...</div>}
       {!loading && error && (
