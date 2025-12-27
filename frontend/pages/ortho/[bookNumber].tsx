@@ -197,7 +197,7 @@ export default function OrthoCardPage() {
     setBoltonInputs((prev) => {
       const next = structuredClone(prev) as BoltonInputs;
       next.upper12[index] = cleaned;
-      // Only extra 6 are independent; we don't push back into upper6
+      // Only extra 6 are independent; do not push back into upper6
       return next;
     });
   };
@@ -826,6 +826,12 @@ export default function OrthoCardPage() {
                     }}
                   />
                 ))}
+                <span style={{ marginLeft: 8 }}>
+                  Σ ={" "}
+                  <span style={{ fontWeight: 700 }}>
+                    {upper6Sum.toFixed(2)}
+                  </span>
+                </span>
               </div>
               <div
                 style={{
@@ -851,6 +857,12 @@ export default function OrthoCardPage() {
                     }}
                   />
                 ))}
+                <span style={{ marginLeft: 8 }}>
+                  Σ ={" "}
+                  <span style={{ fontWeight: 700 }}>
+                    {lower6Sum.toFixed(2)}
+                  </span>
+                </span>
               </div>
             </div>
 
@@ -883,6 +895,12 @@ export default function OrthoCardPage() {
                     }}
                   />
                 ))}
+                <span style={{ marginLeft: 8 }}>
+                  Σ ={" "}
+                  <span style={{ fontWeight: 700 }}>
+                    {upper12Sum.toFixed(2)}
+                  </span>
+                </span>
               </div>
               <div
                 style={{
@@ -910,6 +928,12 @@ export default function OrthoCardPage() {
                     }}
                   />
                 ))}
+                <span style={{ marginLeft: 8 }}>
+                  Σ ={" "}
+                  <span style={{ fontWeight: 700 }}>
+                    {lower12Sum.toFixed(2)}
+                  </span>
+                </span>
               </div>
             </div>
 
