@@ -1,4 +1,8 @@
-c
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import FullArchDiscOdontogram, {
+  ActiveStatusKey,
+} from "../../components/odontogram/FullArchDiscOdontogram";
 
 /**
  * Ortho card page using the new full‑arch disc odontogram layout.
