@@ -857,14 +857,14 @@ export default function OrthoCardPage() {
               style={{
                 fontWeight: 700,
                 textTransform: "uppercase",
-                marginBottom: 4,
+                marginBottom: 8,
               }}
             >
-              ЗАГВАР ХЭМЖИЛ
+              ЗАГВАР ХЭМЖИЛЗҮЙ
             </div>
-            <div style={{ fontWeight: 500, marginBottom: 8 }}>
-              Sum of incisor
-            </div>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>
+  Sum of incisor
+</div>
 
             {/* Upper incisors */}
             <div style={{ marginBottom: 8 }}>
