@@ -41,7 +41,7 @@ type OrthoCardData = {
   problemList?: { id: number; label: string; checked?: boolean }[];
   supernumeraryNote?: string;
 
-  // New: загвар хэмжил – Sum of incisor inputs (optional)
+  // Загвар хэмжил – Sum of incisor inputs (optional)
   sumOfIncisorInputs?: SumOfIncisorInputs;
 };
 
@@ -100,7 +100,7 @@ export default function OrthoCardPage() {
   const [supernumeraryNote, setSupernumeraryNote] = useState<string>("");
   const [toothChart, setToothChart] = useState<OrthoDisc[]>([]);
 
-  // NEW: Sum of incisor inputs
+  // Sum of incisor inputs
   const [sumOfIncisorInputs, setSumOfIncisorInputs] =
     useState<SumOfIncisorInputs>({
       u12: "",
@@ -199,7 +199,6 @@ export default function OrthoCardPage() {
           setCardNotes(data.notes || "");
           setSupernumeraryNote(data.supernumeraryNote || "");
           setToothChart(data.toothChart || []);
-          // hydrate sum of incisor inputs if present
           setSumOfIncisorInputs(
             data.sumOfIncisorInputs || {
               u12: "",
@@ -259,7 +258,7 @@ export default function OrthoCardPage() {
         notes: cardNotes || undefined,
         toothChart,
         supernumeraryNote: supernumeraryNote || undefined,
-        sumOfIncisorInputs, // always include; it’s small
+        sumOfIncisorInputs,
       };
 
       const res = await fetch(`/api/patients/ortho-card/${patientBookId}`, {
@@ -548,7 +547,7 @@ export default function OrthoCardPage() {
             </aside>
           </div>
 
-          {/* Загвар хэмжил – Sum of incisor */}
+          {/* ЗАГВАР ХЭМЖИЛ – Sum of incisor */}
           <section
             style={{
               marginTop: 16,
@@ -561,11 +560,20 @@ export default function OrthoCardPage() {
           >
             <div
               style={{
+                fontWeight: 700,
+                textTransform: "uppercase",
+                marginBottom: 4,
+              }}
+            >
+              ЗАГВАР ХЭМЖИЛ
+            </div>
+            <div
+              style={{
                 fontWeight: 500,
                 marginBottom: 8,
               }}
             >
-              Загвар хэмжил – Sum of incisor
+              Sum of incisor
             </div>
 
             {/* Upper incisors */}
@@ -726,24 +734,27 @@ export default function OrthoCardPage() {
               </div>
             </div>
 
-            {/* Optional ratio display */}
+            {/* U1 : L1 ratio, larger text + bold value */}
             <div
               style={{
                 marginTop: 8,
-                fontSize: 12,
-                color: "#4b5563",
+                fontSize: 13,
+                color: "#111827",
               }}
             >
               U1 : L1 харьцаа (лавлагаа болгон):{" "}
-              {u1l1Ratio ? `${u1l1Ratio} : 1` : "-"}
+              {u1l1Ratio ? (
+                <span style={{ fontWeight: 700 }}>
+                  {u1l1Ratio} : 1
+                </span>
+              ) : (
+                "-"
+              )}
             </div>
           </section>
 
-          {/* Supernumerary note (card-level) */}
+          {/* Supernumerary note (card-level) – kept for compatibility but no label above */}
           <section style={{ marginTop: 16 }}>
-            <div style={{ fontSize: 13, marginBottom: 4 }}>
-              Нэмэлт шүд (supernumerary) байрлал:
-            </div>
             <textarea
               value={supernumeraryNote}
               onChange={(e) => setSupernumeraryNote(e.target.value)}
@@ -755,7 +766,7 @@ export default function OrthoCardPage() {
                 padding: "4px 6px",
                 resize: "vertical",
               }}
-              placeholder='Жишээ: "12–13 хооронд"'
+              placeholder=""
             />
           </section>
 
