@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import FullArchDiscOdontogram, {
@@ -278,8 +279,6 @@ export default function OrthoCardPage() {
   const [patientPhone, setPatientPhone] = useState<string>("");
   const [patientAddress, setPatientAddress] = useState<string>("");
 
-  
-
   const [patientBookId, setPatientBookId] = useState<number | null>(null);
   const [patientNameHeader, setPatientNameHeader] = useState<string>("");
 
@@ -436,49 +435,6 @@ export default function OrthoCardPage() {
 
   const u1l1Ratio = l1Sum > 0 ? (u1Sum / l1Sum).toFixed(2) : "";
 
-  
-  const [patientRegNo, setPatientRegNo] = useState<string>("");
-  const [patientAge, setPatientAge] = useState<string>("");
-  const [patientGender, setPatientGender] = useState<string>("");
-  const [patientPhone, setPatientPhone] = useState<string>("");
-  const [patientAddress, setPatientAddress] = useState<string>("");
-
-
-  const toggleHabitBool = (key: keyof HabitSection) =>
-  setHabits(prev => ({ ...prev, [key]: !prev[key] }));
-
-const updateHabitText = (key: keyof HabitSection, v: string) =>
-  setHabits(prev => ({ ...prev, [key]: v }));
-
-const toggleAttachmentBool = (key: keyof AttachmentSection) =>
-  setAttachment(prev => ({ ...prev, [key]: !prev[key] }));
-
-const toggleTmjBool = (key: keyof TmjSection) =>
-  setTmj(prev => ({ ...prev, [key]: !prev[key] }));
-
-const updateTmjText = (key: keyof TmjSection, v: string) =>
-  setTmj(prev => ({ ...prev, [key]: v.replace(/[^0-9.]/g, "") }));
-
-const toggleUttsBool = (key: keyof UttsSection) =>
-  setUtts(prev => ({ ...prev, [key]: !prev[key] }));
-
-const updateUttsText = (key: keyof UttsSection, v: string) =>
-  setUtts(prev => ({ ...prev, [key]: v }));
-
-const toggleLipBool = (key: keyof LipSection) =>
-  setLip(prev => ({ ...prev, [key]: !prev[key] }));
-
-const updateLipText = (key: keyof LipSection, v: string) =>
-  setLip(prev => ({ ...prev, [key]: v.replace(/[^0-9.]/g, "") }));
-
-
-  const [patientBookId, setPatientBookId] = useState<number | null>(null);
-  const [patientNameHeader, setPatientNameHeader] = useState<string>("");
-
-  const [cardPatientName, setCardPatientName] = useState<string>("");
-  const [cardNotes, setCardNotes] = useState<string>("");
-  const
-  
   const updateBoltonUpper6 = (index: number, value: string) => {
     const cleaned = value.replace(/[^0-9.]/g, "");
     setBoltonInputs((prev) => {
@@ -629,6 +585,33 @@ const updateLipText = (key: keyof LipSection, v: string) =>
       valueAt(overjet, "lowerRight")
     ).toFixed(2),
   };
+
+  const toggleHabitBool = (field: keyof HabitSection) =>
+    setHabits((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const updateHabitText = (field: keyof HabitSection, value: string) =>
+    setHabits((prev) => ({ ...prev, [field]: value }));
+
+  const toggleAttachmentBool = (field: keyof AttachmentSection) =>
+    setAttachment((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const toggleTmjBool = (field: keyof TmjSection) =>
+    setTmj((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const updateTmjText = (field: keyof TmjSection, value: string) =>
+    setTmj((prev) => ({ ...prev, [field]: value }));
+
+  const toggleUttsBool = (field: keyof UttsSection) =>
+    setUtts((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const updateUttsText = (field: keyof UttsSection, value: string) =>
+    setUtts((prev) => ({ ...prev, [field]: value }));
+
+  const toggleLipBool = (field: keyof LipSection) =>
+    setLip((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const updateLipText = (field: keyof LipSection, value: string) =>
+    setLip((prev) => ({ ...prev, [field]: value }));
 
   useEffect(() => {
     if (!bn) return;
@@ -1266,7 +1249,6 @@ const updateLipText = (key: keyof LipSection, v: string) =>
           marginBottom: 16,
         }}
       >
-        {/* Row 1 */}
         <div
           style={{
             display: "flex",
@@ -1297,7 +1279,6 @@ const updateLipText = (key: keyof LipSection, v: string) =>
           </div>
         </div>
 
-        {/* Row 2 */}
         <div
           style={{
             display: "flex",
@@ -1322,7 +1303,6 @@ const updateLipText = (key: keyof LipSection, v: string) =>
           </div>
         </div>
 
-        {/* Row 3 */}
         <div>
           <span style={{ color: "#6b7280", marginRight: 4 }}>Хаяг:</span>
           <span style={{ fontWeight: 500 }}>{patientAddress || "—"}</span>
@@ -1350,535 +1330,6 @@ const updateLipText = (key: keyof LipSection, v: string) =>
             background: "white",
           }}
         >
-          {/* АСУУМЖ */}
-          <section
-            style={{
-              borderRadius: 12,
-              border: "1px solid #e5e7eb",
-              padding: 12,
-              background: "#ffffff",
-              fontSize: 13,
-              marginBottom: 16,
-            }}
-          >
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>АСУУМЖ</div>
-
-            <div style={{ marginBottom: 6 }}>
-              <div style={{ marginBottom: 2 }}>
-                1. Гол шалтгаан / ирсэн шалтгаан
-              </div>
-              <textarea
-                value={survey.mainReason || ""}
-                onChange={(e) =>
-                  setSurvey((prev) => ({
-                    ...prev,
-                    mainReason: e.target.value,
-                  }))
-                }
-                rows={2}
-                style={{
-                  width: "100%",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                  fontSize: 12,
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: 6 }}>
-              <div style={{ marginBottom: 2 }}>2. Одоогийн зовуурь</div>
-              <textarea
-                value={survey.currentComplaint || ""}
-                onChange={(e) =>
-                  setSurvey((prev) => ({
-                    ...prev,
-                    currentComplaint: e.target.value,
-                  }))
-                }
-                rows={2}
-                style={{
-                  width: "100%",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                  fontSize: 12,
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: 6 }}>
-              <div style={{ marginBottom: 2 }}>3. Өвчний түүх</div>
-              <textarea
-                value={survey.medicalHistory || ""}
-                onChange={(e) =>
-                  setSurvey((prev) => ({
-                    ...prev,
-                    medicalHistory: e.target.value,
-                  }))
-                }
-                rows={2}
-                style={{
-                  width: "100%",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                  fontSize: 12,
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: 6 }}>
-              <div style={{ marginBottom: 2 }}>
-                4. Өмнөх гажиг заслын эмчилгээ
-              </div>
-              <textarea
-                value={survey.orthoTreatment || ""}
-                onChange={(e) =>
-                  setSurvey((prev) => ({
-                    ...prev,
-                    orthoTreatment: e.target.value,
-                  }))
-                }
-                rows={2}
-                style={{
-                  width: "100%",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                  fontSize: 12,
-                }}
-              />
-            </div>
-
-            <div style={{ marginBottom: 6 }}>
-              <div style={{ marginBottom: 2 }}>5. Удамшлын өгүүлэмж</div>
-              <textarea
-                value={survey.familyHistory || ""}
-                onChange={(e) =>
-                  setSurvey((prev) => ({
-                    ...prev,
-                    familyHistory: e.target.value,
-                  }))
-                }
-                rows={2}
-                style={{
-                  width: "100%",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                  fontSize: 12,
-                }}
-              />
-            </div>
-
-            <div style={{ marginTop: 8, marginBottom: 4 }}>
-              <span style={{ display: "inline-block", width: 90 }}>
-                Харшил:
-              </span>
-              <label style={{ marginRight: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={!!survey.allergyPlant}
-                  onChange={() =>
-                    setSurvey((prev) => ({
-                      ...prev,
-                      allergyPlant: !prev.allergyPlant,
-                    }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                Ургамал
-              </label>
-              <label style={{ marginRight: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={!!survey.allergyMetal}
-                  onChange={() =>
-                    setSurvey((prev) => ({
-                      ...prev,
-                      allergyMetal: !prev.allergyMetal,
-                    }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                Металл
-              </label>
-              <label style={{ marginRight: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={!!survey.allergyDrug}
-                  onChange={() =>
-                    setSurvey((prev) => ({
-                      ...prev,
-                      allergyDrug: !prev.allergyDrug,
-                    }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                Эм
-              </label>
-              <label style={{ marginRight: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={!!survey.allergyFood}
-                  onChange={() =>
-                    setSurvey((prev) => ({
-                      ...prev,
-                      allergyFood: !prev.allergyFood,
-                    }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                Хоол
-              </label>
-              <label style={{ marginRight: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={!!survey.allergyPlastic}
-                  onChange={() =>
-                    setSurvey((prev) => ({
-                      ...prev,
-                      allergyPlastic: !prev.allergyPlastic,
-                    }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                Пластик
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={!!survey.allergyOther}
-                  onChange={() =>
-                    setSurvey((prev) => ({
-                      ...prev,
-                      allergyOther: !prev.allergyOther,
-                    }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                Бусад
-              </label>
-            </div>
-            <div style={{ marginBottom: 6 }}>
-              <span style={{ display: "inline-block", width: 90 }}>
-                Бусад харшил:
-              </span>
-              <input
-                type="text"
-                value={survey.allergyOtherText || ""}
-                onChange={(e) =>
-                  setSurvey((prev) => ({
-                    ...prev,
-                    allergyOtherText: e.target.value,
-                  }))
-                }
-                style={{
-                  width: "60%",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "3px 6px",
-                  fontSize: 12,
-                }}
-              />
-            </div>
-
-            <div>
-              <span style={{ display: "inline-block", width: 90 }}>
-                Халдварт:
-              </span>
-              <label style={{ marginRight: 12 }}>
-                <input
-                  type="checkbox"
-                  checked={!!survey.hbv}
-                  onChange={() =>
-                    setSurvey((prev) => ({ ...prev, hbv: !prev.hbv }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                HBV
-              </label>
-              <label style={{ marginRight: 12 }}>
-                <input
-                  type="checkbox"
-                  checked={!!survey.hbc}
-                  onChange={() =>
-                    setSurvey((prev) => ({ ...prev, hbc: !prev.hbc }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                HBC
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={!!survey.hiv}
-                  onChange={() =>
-                    setSurvey((prev) => ({ ...prev, hiv: !prev.hiv }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                HIV
-              </label>
-            </div>
-          </section>
-
-          {/* БОДИТ ҮЗЛЭГ */}
-          <section
-            style={{
-              borderRadius: 12,
-              border: "1px solid #e5e7eb",
-              padding: 12,
-              background: "#ffffff",
-              fontSize: 13,
-              marginBottom: 16,
-            }}
-          >
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>
-              БОДИТ ҮЗЛЭГ
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 12,
-                marginBottom: 8,
-              }}
-            >
-              <div>
-                <span style={{ marginRight: 4 }}>Жин:</span>
-                <input
-                  type="text"
-                  value={physicalExam.weight || ""}
-                  onChange={(e) =>
-                    setPhysicalExam((prev) => ({
-                      ...prev,
-                      weight: e.target.value,
-                    }))
-                  }
-                  style={{
-                    width: 70,
-                    borderRadius: 4,
-                    border: "1px solid #d1d5db",
-                    padding: "2px 4px",
-                    fontSize: 12,
-                    marginRight: 4,
-                  }}
-                />
-                кг
-              </div>
-              <div>
-                <span style={{ marginRight: 4 }}>Өндөр:</span>
-                <input
-                  type="text"
-                  value={physicalExam.height || ""}
-                  onChange={(e) =>
-                    setPhysicalExam((prev) => ({
-                      ...prev,
-                      height: e.target.value,
-                    }))
-                  }
-                  style={{
-                    width: 70,
-                    borderRadius: 4,
-                    border: "1px solid #d1d5db",
-                    padding: "2px 4px",
-                    fontSize: 12,
-                    marginRight: 4,
-                  }}
-                />
-                см
-              </div>
-              <div>
-                <span style={{ marginRight: 4 }}>Ясны нас:</span>
-                <input
-                  type="text"
-                  value={physicalExam.boneAge || ""}
-                  onChange={(e) =>
-                    setPhysicalExam((prev) => ({
-                      ...prev,
-                      boneAge: e.target.value,
-                    }))
-                  }
-                  style={{
-                    width: 70,
-                    borderRadius: 4,
-                    border: "1px solid #d1d5db",
-                    padding: "2px 4px",
-                    fontSize: 12,
-                  }}
-                />
-              </div>
-              <div>
-                <span style={{ marginRight: 4 }}>Шүдний нас:</span>
-                <input
-                  type="text"
-                  value={physicalExam.dentalAge || ""}
-                  onChange={(e) =>
-                    setPhysicalExam((prev) => ({
-                      ...prev,
-                      dentalAge: e.target.value,
-                    }))
-                  }
-                  style={{
-                    width: 70,
-                    borderRadius: 4,
-                    border: "1px solid #d1d5db",
-                    padding: "2px 4px",
-                    fontSize: 12,
-                  }}
-                />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 4 }}>
-              <span style={{ width: 120, display: "inline-block" }}>
-                Growth spurt:
-              </span>
-              <label style={{ marginRight: 12 }}>
-                <input
-                  type="checkbox"
-                  checked={!!physicalExam.growthSpurtNormal}
-                  onChange={() =>
-                    setPhysicalExam((prev) => ({
-                      ...prev,
-                      growthSpurtNormal: !prev.growthSpurtNormal,
-                    }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                Хэвийн
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={!!physicalExam.growthSpurtAbnormal}
-                  onChange={() =>
-                    setPhysicalExam((prev) => ({
-                      ...prev,
-                      growthSpurtAbnormal: !prev.growthSpurtAbnormal,
-                    }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                Хэвийн бус
-              </label>
-            </div>
-
-            <div style={{ marginBottom: 4 }}>
-              <span style={{ width: 120, display: "inline-block" }}>
-                Growth period:
-              </span>
-              <label style={{ marginRight: 12 }}>
-                <input
-                  type="checkbox"
-                  checked={!!physicalExam.growthSpurtBefore}
-                  onChange={() =>
-                    setPhysicalExam((prev) => ({
-                      ...prev,
-                      growthSpurtBefore: !prev.growthSpurtBefore,
-                    }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                Өмнө
-              </label>
-              <label style={{ marginRight: 12 }}>
-                <input
-                  type="checkbox"
-                  checked={!!physicalExam.growthSpurtMiddle}
-                  onChange={() =>
-                    setPhysicalExam((prev) => ({
-                      ...prev,
-                      growthSpurtMiddle: !prev.growthSpurtMiddle,
-                    }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                Дунд
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={!!physicalExam.growthSpurtAfter}
-                  onChange={() =>
-                    setPhysicalExam((prev) => ({
-                      ...prev,
-                      growthSpurtAfter: !prev.growthSpurtAfter,
-                    }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                Дараа
-              </label>
-            </div>
-
-            <div>
-              <span style={{ width: 120, display: "inline-block" }}>
-                Growth pattern:
-              </span>
-              <label style={{ marginRight: 12 }}>
-                <input
-                  type="checkbox"
-                  checked={!!physicalExam.patternVertical}
-                  onChange={() =>
-                    setPhysicalExam((prev) => ({
-                      ...prev,
-                      patternVertical: !prev.patternVertical,
-                    }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                Босоо
-              </label>
-              <label style={{ marginRight: 12 }}>
-                <input
-                  type="checkbox"
-                  checked={!!physicalExam.patternHorizontal}
-                  onChange={() =>
-                    setPhysicalExam((prev) => ({
-                      ...prev,
-                      patternHorizontal: !prev.patternHorizontal,
-                    }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                Хэвтээ
-              </label>
-              <label style={{ marginRight: 12 }}>
-                <input
-                  type="checkbox"
-                  checked={!!physicalExam.patternClockwise}
-                  onChange={() =>
-                    setPhysicalExam((prev) => ({
-                      ...prev,
-                      patternClockwise: !prev.patternClockwise,
-                    }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                CW
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={!!physicalExam.patternCounterclockwise}
-                  onChange={() =>
-                    setPhysicalExam((prev) => ({
-                      ...prev,
-                      patternCounterclockwise:
-                        !prev.patternCounterclockwise,
-                    }))
-                  }
-                  style={{ marginRight: 4 }}
-                />
-                CCW
-              </label>
-            </div>
-          </section>
-
           {/* ЗУРШИЛ, ХОЛБООС, ЭРҮҮНИЙ ҮЕ, УТТС, УРУУЛ */}
           <section
             style={{
