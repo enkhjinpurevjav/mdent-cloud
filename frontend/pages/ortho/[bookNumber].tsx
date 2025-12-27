@@ -2490,7 +2490,7 @@ export default function OrthoCardPage() {
             </div>
           </section>
 
-          {/* Actions */}
+                    {/* Actions */}
           <div
             style={{
               marginTop: 16,
@@ -2529,6 +2529,7 @@ export default function OrthoCardPage() {
             >
               {saving ? "Хадгалж байна..." : "Карт хадгалах"}
             </button>
+          </div>   {/* <-- this was missing in your version */}
         </section>
       )}
     </main>
