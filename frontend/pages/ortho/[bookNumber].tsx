@@ -761,6 +761,7 @@ if (data.physicalExam) {
         howesInputs,
         discrepancyInputs: discrepancyWithTotal,
         survey,
+        physicalExam, 
       };
 
       const res = await fetch(`/api/patients/ortho-card/${patientBookId}`, {
@@ -1321,6 +1322,190 @@ if (data.physicalExam) {
             </div>
           </section>
 
+{/* БОДИТ ҮЗЛЭГ */}
+<section
+  style={{
+    borderRadius: 12,
+    border: "1px solid #e5e7eb",
+    padding: 12,
+    background: "#ffffff",
+    fontSize: 13,
+    marginBottom: 16,
+  }}
+>
+  <div style={{ fontWeight: 700, marginBottom: 8 }}>БОДИТ ҮЗЛЭГ</div>
+
+  {/* Row 1: Биеийн жин, Биеийн өндөр, Bone age, Dental age */}
+  <div
+    style={{
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 16,
+      marginBottom: 8,
+      alignItems: "center",
+    }}
+  >
+    <div>
+      <span style={{ marginRight: 4 }}>Биеийн жин:</span>
+      <input
+        type="text"
+        value={physicalExam.weight || ""}
+        onChange={(e) => updatePhysicalText("weight", e.target.value)}
+        style={{
+          width: 80,
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "3px 6px",
+        }}
+      />
+    </div>
+
+    <div>
+      <span style={{ marginRight: 4 }}>Биеийн өндөр:</span>
+      <input
+        type="text"
+        value={physicalExam.height || ""}
+        onChange={(e) => updatePhysicalText("height", e.target.value)}
+        style={{
+          width: 80,
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "3px 6px",
+        }}
+      />
+    </div>
+
+    <div>
+      <span style={{ marginRight: 4 }}>Bone age:</span>
+      <input
+        type="text"
+        value={physicalExam.boneAge || ""}
+        onChange={(e) => updatePhysicalText("boneAge", e.target.value)}
+        style={{
+          width: 80,
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "3px 6px",
+        }}
+      />
+    </div>
+
+    <div>
+      <span style={{ marginRight: 4 }}>Dental age:</span>
+      <input
+        type="text"
+        value={physicalExam.dentalAge || ""}
+        onChange={(e) => updatePhysicalText("dentalAge", e.target.value)}
+        style={{
+          width: 80,
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "3px 6px",
+        }}
+      />
+    </div>
+  </div>
+
+  {/* Row 2: Growth spurt + timing + pattern */}
+  <div
+    style={{
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 24,
+      alignItems: "center",
+    }}
+  >
+    {/* Growth spurt: Хэвийн / Хэвийн бус */}
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span>Биеийн өсөлт:</span>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <input
+          type="checkbox"
+          checked={!!physicalExam.growthSpurtNormal}
+          onChange={() => togglePhysicalBool("growthSpurtNormal")}
+        />
+        <span>Хэвийн</span>
+      </label>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <input
+          type="checkbox"
+          checked={!!physicalExam.growthSpurtAbnormal}
+          onChange={() => togglePhysicalBool("growthSpurtAbnormal")}
+        />
+        <span>Хэвийн бус</span>
+      </label>
+    </div>
+
+    {/* Growth spurt timing: Өмнө / Дунд / Дараа */}
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span>Growth spurt:</span>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <input
+          type="checkbox"
+          checked={!!physicalExam.growthSpurtBefore}
+          onChange={() => togglePhysicalBool("growthSpurtBefore")}
+        />
+        <span>Өмнө</span>
+      </label>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <input
+          type="checkbox"
+          checked={!!physicalExam.growthSpurtMiddle}
+          onChange={() => togglePhysicalBool("growthSpurtMiddle")}
+        />
+        <span>Дунд</span>
+      </label>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <input
+          type="checkbox"
+          checked={!!physicalExam.growthSpurtAfter}
+          onChange={() => togglePhysicalBool("growthSpurtAfter")}
+        />
+        <span>Дараа</span>
+      </label>
+    </div>
+
+    {/* Growth pattern: Vertical / Horizontal / Clockwise / Counterclockwise */}
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span>Growth pattern:</span>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <input
+          type="checkbox"
+          checked={!!physicalExam.patternVertical}
+          onChange={() => togglePhysicalBool("patternVertical")}
+        />
+        <span>Vertical</span>
+      </label>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <input
+          type="checkbox"
+          checked={!!physicalExam.patternHorizontal}
+          onChange={() => togglePhysicalBool("patternHorizontal")}
+        />
+        <span>Horizontal</span>
+      </label>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <input
+          type="checkbox"
+          checked={!!physicalExam.patternClockwise}
+          onChange={() => togglePhysicalBool("patternClockwise")}
+        />
+        <span>Clockwise</span>
+      </label>
+      <label style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <input
+          type="checkbox"
+          checked={!!physicalExam.patternCounterclockwise}
+          onChange={() =>
+            togglePhysicalBool("patternCounterclockwise")
+          }
+        />
+        <span>Counterclockwise</span>
+      </label>
+    </div>
+  </div>
+</section>
+          
           {/* Odontogram + legend */}
           <div
             style={{
