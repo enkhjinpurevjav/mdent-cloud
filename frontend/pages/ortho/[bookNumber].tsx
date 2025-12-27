@@ -10,6 +10,7 @@ import FullArchDiscOdontogram, {
  *  - toothChart: { code, status, regions }[]  (regions = caries/filled)
  *  - sumOfIncisorInputs: per‑tooth mesio‑distal widths for incisors
  *  - boltonInputs: 36 fields (6 upper + 6 lower + 12 upper + 12 lower)
+ *  - howesInputs: PMBAW / TM values for Howes' Ax
  */
 
 type OrthoDisc = {
@@ -42,6 +43,11 @@ type BoltonInputs = {
   lower12: string[]; // length 12
 };
 
+type HowesInputs = {
+  pmbaw?: string; // PMBAW numerator
+  tm?: string;    // TM denominator
+};
+
 type OrthoCardData = {
   patientName?: string;
   notes?: string;
@@ -52,6 +58,7 @@ type OrthoCardData = {
   // ЗАГВАР ХЭМЖИЛ
   sumOfIncisorInputs?: SumOfIncisorInputs;
   boltonInputs?: BoltonInputs;
+  howesInputs?: HowesInputs;
 };
 
 type OrthoCardApiResponse = {
@@ -134,6 +141,12 @@ export default function OrthoCardPage() {
     emptyBoltonInputs()
   );
 
+  // Howes' Ax inputs
+  const [howesInputs, setHowesInputs] = useState<HowesInputs>({
+    pmbaw: "",
+    tm: "",
+  });
+
   // UI‑only
   const [activeStatus, setActiveStatus] = useState<StatusKey | null>(null);
   const [extraToothText, setExtraToothText] = useState<string>("");
@@ -175,8 +188,7 @@ export default function OrthoCardPage() {
     setBoltonInputs((prev) => {
       const next = structuredClone(prev) as BoltonInputs;
       next.upper6[index] = cleaned;
-      // Mirror into first 6 of upper12
-      next.upper12[index] = cleaned;
+      next.upper12[index] = cleaned; // mirror to 12
       return next;
     });
   };
@@ -186,8 +198,7 @@ export default function OrthoCardPage() {
     setBoltonInputs((prev) => {
       const next = structuredClone(prev) as BoltonInputs;
       next.lower6[index] = cleaned;
-      // Mirror into first 6 of lower12
-      next.lower12[index] = cleaned;
+      next.lower12[index] = cleaned; // mirror to 12
       return next;
     });
   };
@@ -197,7 +208,6 @@ export default function OrthoCardPage() {
     setBoltonInputs((prev) => {
       const next = structuredClone(prev) as BoltonInputs;
       next.upper12[index] = cleaned;
-      // Only extra 6 are independent; do not push back into upper6
       return next;
     });
   };
@@ -223,6 +233,38 @@ export default function OrthoCardPage() {
     upper6Sum > 0 ? ((lower6Sum / upper6Sum) * 100).toFixed(1) : "";
   const bolton12Result =
     upper12Sum > 0 ? ((lower12Sum / upper12Sum) * 100).toFixed(1) : "";
+
+  // Howes' Ax
+  const updateHowes = (field: keyof HowesInputs, value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    setHowesInputs((prev) => ({ ...prev, [field]: cleaned }));
+  };
+
+  const pmbawNum = parseOrZero(howesInputs.pmbaw);
+  const tmNum = parseOrZero(howesInputs.tm);
+  const howesResult =
+    tmNum > 0 ? ((pmbawNum / tmNum) * 100).toFixed(1) : "";
+
+  const getHowesCategory = () => {
+    const v = Number.parseFloat(howesResult || "");
+    if (!howesResult || Number.isNaN(v)) return { label: "", color: "" };
+    if (v < 37)
+      return {
+        label: "< 37% — Basal bone deficient → extraction likely",
+        color: "#b91c1c",
+      };
+    if (v > 44)
+      return {
+        label: "> 44% — Excess basal width → non-extraction favorable",
+        color: "#16a34a",
+      };
+    return {
+      label: "37–44% — Normal / borderline",
+      color: "#f97316",
+    };
+  };
+
+  const howesCategory = getHowesCategory();
 
   // --- Load existing ortho card (or create empty state) ---
   useEffect(() => {
@@ -297,6 +339,14 @@ export default function OrthoCardPage() {
           } else {
             setBoltonInputs(emptyBoltonInputs());
           }
+          if (data.howesInputs) {
+            setHowesInputs({
+              pmbaw: data.howesInputs.pmbaw || "",
+              tm: data.howesInputs.tm || "",
+            });
+          } else {
+            setHowesInputs({ pmbaw: "", tm: "" });
+          }
         } else {
           setCardPatientName("");
           setCardNotes("");
@@ -313,6 +363,7 @@ export default function OrthoCardPage() {
             l42: "",
           });
           setBoltonInputs(emptyBoltonInputs());
+          setHowesInputs({ pmbaw: "", tm: "" });
         }
       } catch (err: any) {
         console.error("load ortho card failed", err);
@@ -346,6 +397,7 @@ export default function OrthoCardPage() {
         supernumeraryNote: supernumeraryNote || undefined,
         sumOfIncisorInputs,
         boltonInputs,
+        howesInputs,
       };
 
       const res = await fetch(`/api/patients/ortho-card/${patientBookId}`, {
@@ -601,7 +653,7 @@ export default function OrthoCardPage() {
             </aside>
           </div>
 
-          {/* ЗАГВАР ХЭМЖИЛ – Sum of incisor + Bolton */}
+          {/* ЗАГВАР ХЭМЖИЛ – Sum of incisor + Bolton + Howes */}
           <section
             style={{
               marginTop: 16,
@@ -937,8 +989,8 @@ export default function OrthoCardPage() {
               </div>
             </div>
 
-            {/* Summary line */}
-            <div style={{ fontSize: 13, marginTop: 4 }}>
+            {/* Bolton summary line */}
+            <div style={{ fontSize: 13, marginTop: 4, marginBottom: 12 }}>
               6 = 78.1% (
               <span style={{ fontWeight: 600 }}>
                 {bolton6Result || ""}
@@ -952,6 +1004,74 @@ export default function OrthoCardPage() {
                 )
               </span>
             </div>
+
+            {/* Howes' Ax */}
+            <div
+              style={{
+                fontWeight: 500,
+                marginTop: 8,
+                marginBottom: 4,
+              }}
+            >
+              Howes&apos; Ax
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 13,
+              }}
+            >
+              <span>Howes AX (%) =</span>
+              <span>PMBAW</span>
+              <input
+                type="text"
+                value={howesInputs.pmbaw || ""}
+                onChange={(e) => updateHowes("pmbaw", e.target.value)}
+                style={{
+                  width: 80,
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                }}
+              />
+              <span>/ TM</span>
+              <input
+                type="text"
+                value={howesInputs.tm || ""}
+                onChange={(e) => updateHowes("tm", e.target.value)}
+                style={{
+                  width: 80,
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                }}
+              />
+              <span>× 100 =</span>
+              <span
+                style={{
+                  minWidth: 60,
+                  fontWeight: 700,
+                }}
+              >
+                {howesResult ? `${howesResult} %` : ""}
+              </span>
+            </div>
+
+            {howesCategory.label && (
+              <div
+                style={{
+                  marginTop: 6,
+                  fontSize: 12,
+                  color: howesCategory.color,
+                  fontWeight: 600,
+                }}
+              >
+                {howesCategory.label}
+              </div>
+            )}
           </section>
 
           {/* Supernumerary note (kept for compatibility, unlabeled) */}
