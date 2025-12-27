@@ -6,7 +6,9 @@ import FullArchDiscOdontogram, {
 
 /**
  * Ortho card page using the new full‑arch disc odontogram layout.
- * Data shape is still simple: toothChart: { code, status }[].
+ * Data shape now supports:
+ *  - toothChart: { code, status, regions }[]  (regions = caries/filled)
+ *  - sumOfIncisorInputs: per‑tooth mesio‑distal widths for incisors
  */
 
 type OrthoDisc = {
@@ -21,12 +23,26 @@ type OrthoDisc = {
   };
 };
 
+type SumOfIncisorInputs = {
+  u12: string;
+  u11: string;
+  u21: string;
+  u22: string;
+  l32: string;
+  l31: string;
+  l41: string;
+  l42: string;
+};
+
 type OrthoCardData = {
   patientName?: string;
   notes?: string;
   toothChart: OrthoDisc[];
   problemList?: { id: number; label: string; checked?: boolean }[];
   supernumeraryNote?: string;
+
+  // New: загвар хэмжил – Sum of incisor inputs (optional)
+  sumOfIncisorInputs?: SumOfIncisorInputs;
 };
 
 type OrthoCardApiResponse = {
@@ -56,14 +72,14 @@ const STATUS_BUTTONS: {
   label: string;
   color: string;
 }[] = [
-  { key: "caries",       label: "Цоорсон",          color: "#dc2626" }, // real red
-  { key: "filled",       label: "Ломбодсон",        color: "#2563eb" }, // real blue
-  { key: "extracted",    label: "Авахуулсан",       color: "#166534" }, // darker green
-  { key: "prosthesis",   label: "Шүдэлбэр",         color: "#9ca3af" }, // grey
-  { key: "delay",        label: "Саатсан",          color: "#fbbf24" }, // keep
-  { key: "anodontia",    label: "Anodontia",        color: "#14b8a6" }, // turquoise
-  { key: "shapeAnomaly", label: "Хэлбэрийн гажиг",  color: "#6366f1" }, // keep
-  { key: "supernumerary",label: "Илүү шүд",         color: "#a855f7" }, // unchanged
+  { key: "caries", label: "Цоорсон", color: "#dc2626" }, // real red
+  { key: "filled", label: "Ломбодсон", color: "#2563eb" }, // real blue
+  { key: "extracted", label: "Авахуулсан", color: "#166534" }, // darker green
+  { key: "prosthesis", label: "Шүдэлбэр", color: "#9ca3af" }, // grey
+  { key: "delay", label: "Саатсан", color: "#fbbf24" }, // keep
+  { key: "anodontia", label: "Anodontia", color: "#14b8a6" }, // turquoise
+  { key: "shapeAnomaly", label: "Хэлбэрийн гажиг", color: "#6366f1" }, // keep
+  { key: "supernumerary", label: "Илүү шүд", color: "#a855f7" }, // unchanged
 ];
 
 export default function OrthoCardPage() {
@@ -84,6 +100,19 @@ export default function OrthoCardPage() {
   const [supernumeraryNote, setSupernumeraryNote] = useState<string>("");
   const [toothChart, setToothChart] = useState<OrthoDisc[]>([]);
 
+  // NEW: Sum of incisor inputs
+  const [sumOfIncisorInputs, setSumOfIncisorInputs] =
+    useState<SumOfIncisorInputs>({
+      u12: "",
+      u11: "",
+      u21: "",
+      u22: "",
+      l32: "",
+      l31: "",
+      l41: "",
+      l42: "",
+    });
+
   // UI‑only: selected status button on the right
   const [activeStatus, setActiveStatus] = useState<StatusKey | null>(null);
   // UI‑only: additional text for "Илүү шүд"
@@ -93,6 +122,32 @@ export default function OrthoCardPage() {
     typeof bookNumber === "string" && bookNumber.trim()
       ? bookNumber.trim()
       : "";
+
+  // Helpers for Sum of incisor
+  const updateSumOfIncisor = (
+    key: keyof SumOfIncisorInputs,
+    value: string
+  ) => {
+    const cleaned = value.replace(/[^0-9.]/g, ""); // allow only digits + dot
+    setSumOfIncisorInputs((prev) => ({ ...prev, [key]: cleaned }));
+  };
+
+  const parseOrZero = (v: string): number =>
+    v === "" ? 0 : Number.parseFloat(v) || 0;
+
+  const u1Sum =
+    parseOrZero(sumOfIncisorInputs.u12) +
+    parseOrZero(sumOfIncisorInputs.u11) +
+    parseOrZero(sumOfIncisorInputs.u21) +
+    parseOrZero(sumOfIncisorInputs.u22);
+
+  const l1Sum =
+    parseOrZero(sumOfIncisorInputs.l32) +
+    parseOrZero(sumOfIncisorInputs.l31) +
+    parseOrZero(sumOfIncisorInputs.l41) +
+    parseOrZero(sumOfIncisorInputs.l42);
+
+  const u1l1Ratio = l1Sum > 0 ? (u1Sum / l1Sum).toFixed(2) : "";
 
   // --- Load existing ortho card (or create empty state) ---
   useEffect(() => {
@@ -144,12 +199,35 @@ export default function OrthoCardPage() {
           setCardNotes(data.notes || "");
           setSupernumeraryNote(data.supernumeraryNote || "");
           setToothChart(data.toothChart || []);
+          // hydrate sum of incisor inputs if present
+          setSumOfIncisorInputs(
+            data.sumOfIncisorInputs || {
+              u12: "",
+              u11: "",
+              u21: "",
+              u22: "",
+              l32: "",
+              l31: "",
+              l41: "",
+              l42: "",
+            }
+          );
         } else {
           // Fresh card
           setCardPatientName("");
           setCardNotes("");
           setSupernumeraryNote("");
           setToothChart([]);
+          setSumOfIncisorInputs({
+            u12: "",
+            u11: "",
+            u21: "",
+            u22: "",
+            l32: "",
+            l31: "",
+            l41: "",
+            l42: "",
+          });
         }
       } catch (err: any) {
         console.error("load ortho card failed", err);
@@ -181,6 +259,7 @@ export default function OrthoCardPage() {
         notes: cardNotes || undefined,
         toothChart,
         supernumeraryNote: supernumeraryNote || undefined,
+        sumOfIncisorInputs, // always include; it’s small
       };
 
       const res = await fetch(`/api/patients/ortho-card/${patientBookId}`, {
@@ -216,28 +295,28 @@ export default function OrthoCardPage() {
         fontFamily: "sans-serif",
       }}
     >
-      {/* Back to patient list */}
+      {/* Back to patient profile */}
       <button
-  type="button"
-  onClick={() => {
-    if (!bookNumber || typeof bookNumber !== "string") {
-      router.push("/patients");
-      return;
-    }
-    router.push(`/patients/${encodeURIComponent(bookNumber)}`);
-  }}
-  style={{
-    marginBottom: 16,
-    padding: "4px 8px",
-    borderRadius: 4,
-    border: "1px solid #d1d5db",
-    background: "#f9fafb",
-    cursor: "pointer",
-    fontSize: 13,
-  }}
->
-  ← Үйлчлүүлэгчийн хэсэг рүү буцах
-</button>
+        type="button"
+        onClick={() => {
+          if (!bookNumber || typeof bookNumber !== "string") {
+            router.push("/patients");
+            return;
+          }
+          router.push(`/patients/${encodeURIComponent(bookNumber)}`);
+        }}
+        style={{
+          marginBottom: 16,
+          padding: "4px 8px",
+          borderRadius: 4,
+          border: "1px solid #d1d5db",
+          background: "#f9fafb",
+          cursor: "pointer",
+          fontSize: 13,
+        }}
+      >
+        ← Үйлчлүүлэгчийн хэсэг рүү буцах
+      </button>
 
       {/* Title + book number */}
       <h1 style={{ fontSize: 20, marginTop: 0, marginBottom: 4 }}>
@@ -468,6 +547,197 @@ export default function OrthoCardPage() {
               </div>
             </aside>
           </div>
+
+          {/* Загвар хэмжил – Sum of incisor */}
+          <section
+            style={{
+              marginTop: 16,
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              padding: 12,
+              background: "#ffffff",
+              fontSize: 13,
+            }}
+          >
+            <div
+              style={{
+                fontWeight: 500,
+                marginBottom: 8,
+              }}
+            >
+              Загвар хэмжил – Sum of incisor
+            </div>
+
+            {/* Upper incisors */}
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ marginBottom: 4, fontWeight: 500 }}>
+                Дээд үүдэн шүд (U1)
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  alignItems: "center",
+                }}
+              >
+                <span>12:</span>
+                <input
+                  type="text"
+                  value={sumOfIncisorInputs.u12}
+                  onChange={(e) =>
+                    updateSumOfIncisor("u12", e.target.value)
+                  }
+                  style={{
+                    width: 60,
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "4px 6px",
+                  }}
+                />
+
+                <span>11:</span>
+                <input
+                  type="text"
+                  value={sumOfIncisorInputs.u11}
+                  onChange={(e) =>
+                    updateSumOfIncisor("u11", e.target.value)
+                  }
+                  style={{
+                    width: 60,
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "4px 6px",
+                  }}
+                />
+
+                <span>21:</span>
+                <input
+                  type="text"
+                  value={sumOfIncisorInputs.u21}
+                  onChange={(e) =>
+                    updateSumOfIncisor("u21", e.target.value)
+                  }
+                  style={{
+                    width: 60,
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "4px 6px",
+                  }}
+                />
+
+                <span>22:</span>
+                <input
+                  type="text"
+                  value={sumOfIncisorInputs.u22}
+                  onChange={(e) =>
+                    updateSumOfIncisor("u22", e.target.value)
+                  }
+                  style={{
+                    width: 60,
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "4px 6px",
+                  }}
+                />
+
+                <span style={{ marginLeft: 12, fontWeight: 500 }}>
+                  U1 сум = {u1Sum.toFixed(2)} мм
+                </span>
+              </div>
+            </div>
+
+            {/* Lower incisors */}
+            <div>
+              <div style={{ marginBottom: 4, fontWeight: 500 }}>
+                Доод үүдэн шүд (L1)
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  alignItems: "center",
+                }}
+              >
+                <span>32:</span>
+                <input
+                  type="text"
+                  value={sumOfIncisorInputs.l32}
+                  onChange={(e) =>
+                    updateSumOfIncisor("l32", e.target.value)
+                  }
+                  style={{
+                    width: 60,
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "4px 6px",
+                  }}
+                />
+
+                <span>31:</span>
+                <input
+                  type="text"
+                  value={sumOfIncisorInputs.l31}
+                  onChange={(e) =>
+                    updateSumOfIncisor("l31", e.target.value)
+                  }
+                  style={{
+                    width: 60,
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "4px 6px",
+                  }}
+                />
+
+                <span>41:</span>
+                <input
+                  type="text"
+                  value={sumOfIncisorInputs.l41}
+                  onChange={(e) =>
+                    updateSumOfIncisor("l41", e.target.value)
+                  }
+                  style={{
+                    width: 60,
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "4px 6px",
+                  }}
+                />
+
+                <span>42:</span>
+                <input
+                  type="text"
+                  value={sumOfIncisorInputs.l42}
+                  onChange={(e) =>
+                    updateSumOfIncisor("l42", e.target.value)
+                  }
+                  style={{
+                    width: 60,
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "4px 6px",
+                  }}
+                />
+
+                <span style={{ marginLeft: 12, fontWeight: 500 }}>
+                  L1 сум = {l1Sum.toFixed(2)} мм
+                </span>
+              </div>
+            </div>
+
+            {/* Optional ratio display */}
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 12,
+                color: "#4b5563",
+              }}
+            >
+              U1 : L1 харьцаа (лавлагаа болгон):{" "}
+              {u1l1Ratio ? `${u1l1Ratio} : 1` : "-"}
+            </div>
+          </section>
 
           {/* Supernumerary note (card-level) */}
           <section style={{ marginTop: 16 }}>
