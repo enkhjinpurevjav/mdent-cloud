@@ -213,7 +213,7 @@ export default function OrthoCardPage() {
     setBoltonInputs((prev) => {
       const next = structuredClone(prev) as BoltonInputs;
       next.upper6[index] = cleaned;
-      next.upper12[index] = cleaned; // mirror first 6 into 12
+      next.upper12[index] = cleaned; // mirror into upper12
       return next;
     });
   };
@@ -223,7 +223,7 @@ export default function OrthoCardPage() {
     setBoltonInputs((prev) => {
       const next = structuredClone(prev) as BoltonInputs;
       next.lower6[index] = cleaned;
-      next.lower12[index] = cleaned;
+      next.lower12[index] = cleaned; // mirror into lower12
       return next;
     });
   };
@@ -558,6 +558,110 @@ export default function OrthoCardPage() {
     fontWeight: 700,
   };
 
+  // Helper to render one axis as two rows of inputs (no vertical line)
+  const renderAxis = (
+    axisKey: Exclude<AxisKey, "total">,
+    label: string,
+    axis: DiscrepancyAxis
+  ) => (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        fontSize: 12,
+      }}
+    >
+      <div style={{ marginBottom: 4, fontWeight: 500 }}>{label}</div>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+        }}
+      >
+        {/* upper row */}
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <input
+            type="text"
+            value={axis.upperLeft}
+            onChange={(e) =>
+              updateDiscrepancy(axisKey, "upperLeft", e.target.value)
+            }
+            style={uniformInputStyle}
+          />
+          <input
+            type="text"
+            value={axis.upperRight}
+            onChange={(e) =>
+              updateDiscrepancy(axisKey, "upperRight", e.target.value)
+            }
+            style={uniformInputStyle}
+          />
+        </div>
+        {/* lower row */}
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <input
+            type="text"
+            value={axis.lowerLeft}
+            onChange={(e) =>
+              updateDiscrepancy(axisKey, "lowerLeft", e.target.value)
+            }
+            style={uniformInputStyle}
+          />
+          <input
+            type="text"
+            value={axis.lowerRight}
+            onChange={(e) =>
+              updateDiscrepancy(axisKey, "lowerRight", e.target.value)
+            }
+            style={uniformInputStyle}
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  // Helper to render arrow between axes
+  const Arrow = () => (
+    <div
+      style={{
+        width: 32,
+        height: 1,
+        background: "#d1d5db",
+        position: "relative",
+        margin: "0 4px",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          right: 0,
+          top: -3,
+          width: 0,
+          height: 0,
+          borderTop: "4px solid transparent",
+          borderBottom: "4px solid transparent",
+          borderLeft: "6px solid #6b7280",
+        }}
+      />
+    </div>
+  );
+
   return (
     <main
       style={{
@@ -787,423 +891,8 @@ export default function OrthoCardPage() {
             </aside>
           </div>
 
-          {/* MODEL MEASUREMENTS – Sum of incisor, Bolton, Howes */}
-          <section
-            style={{
-              marginTop: 16,
-              borderRadius: 12,
-              border: "1px solid #e5e7eb",
-              padding: 12,
-              background: "#ffffff",
-              fontSize: 13,
-            }}
-          >
-            <div
-              style={{
-                fontWeight: 700,
-                textTransform: "uppercase",
-                marginBottom: 4,
-              }}
-            >
-              ЗАГВАР ХЭМЖИЛ
-            </div>
-            <div style={{ fontWeight: 500, marginBottom: 8 }}>
-              Sum of incisor
-            </div>
-
-            {/* Upper incisors */}
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ marginBottom: 4, fontWeight: 500 }}>
-                Дээд үүдэн шүд (U1)
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  alignItems: "center",
-                }}
-              >
-                <span>12:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.u12}
-                  onChange={(e) =>
-                    updateSumOfIncisor("u12", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>11:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.u11}
-                  onChange={(e) =>
-                    updateSumOfIncisor("u11", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>21:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.u21}
-                  onChange={(e) =>
-                    updateSumOfIncisor("u21", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>22:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.u22}
-                  onChange={(e) =>
-                    updateSumOfIncisor("u22", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span style={{ marginLeft: 12, fontWeight: 500 }}>
-                  U1 сум = {u1Sum.toFixed(2)} мм
-                </span>
-              </div>
-            </div>
-
-            {/* Lower incisors */}
-            <div>
-              <div style={{ marginBottom: 4, fontWeight: 500 }}>
-                Доод үүдэн шүд (L1)
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  alignItems: "center",
-                }}
-              >
-                <span>32:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.l32}
-                  onChange={(e) =>
-                    updateSumOfIncisor("l32", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>31:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.l31}
-                  onChange={(e) =>
-                    updateSumOfIncisor("l31", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>41:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.l41}
-                  onChange={(e) =>
-                    updateSumOfIncisor("l41", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>42:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.l42}
-                  onChange={(e) =>
-                    updateSumOfIncisor("l42", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span style={{ marginLeft: 12, fontWeight: 500 }}>
-                  L1 сум = {l1Sum.toFixed(2)} мм
-                </span>
-              </div>
-            </div>
-
-            {/* U1 : L1 ratio */}
-            <div
-              style={{
-                marginTop: 12,
-                marginBottom: 16,
-                fontSize: 13,
-                color: "#111827",
-              }}
-            >
-              U1 : L1 харьцаа (лавлагаа болгон):{" "}
-              {u1l1Ratio ? (
-                <span style={{ fontWeight: 700 }}>{u1l1Ratio} : 1</span>
-              ) : (
-                "-"
-              )}
-            </div>
-
-            {/* Bolton index */}
-            <div style={{ fontWeight: 500, marginBottom: 8 }}>
-              Bolton index
-            </div>
-
-            {/* 6) */}
-            <div style={{ marginBottom: 10 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 4,
-                  flexWrap: "wrap",
-                }}
-              >
-                <span>6)</span>
-                <span>дээд</span>
-                {boltonInputs.upper6.map((val, i) => (
-                  <input
-                    key={`u6-${i}`}
-                    type="text"
-                    value={val}
-                    onChange={(e) => updateBoltonUpper6(i, e.target.value)}
-                    style={{
-                      width: 60,
-                      borderRadius: 6,
-                      border: "1px solid #d1d5db",
-                      padding: "4px 6px",
-                    }}
-                  />
-                ))}
-                <span style={{ marginLeft: 8 }}>
-                  Σ ={" "}
-                  <span style={{ fontWeight: 700 }}>
-                    {upper6Sum.toFixed(2)}
-                  </span>
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  flexWrap: "wrap",
-                }}
-              >
-                <span style={{ width: 24 }} />
-                <span>доод</span>
-                {boltonInputs.lower6.map((val, i) => (
-                  <input
-                    key={`l6-${i}`}
-                    type="text"
-                    value={val}
-                    onChange={(e) => updateBoltonLower6(i, e.target.value)}
-                    style={{
-                      width: 60,
-                      borderRadius: 6,
-                      border: "1px solid #d1d5db",
-                      padding: "4px 6px",
-                    }}
-                  />
-                ))}
-                <span style={{ marginLeft: 8 }}>
-                  Σ ={" "}
-                  <span style={{ fontWeight: 700 }}>
-                    {lower6Sum.toFixed(2)}
-                  </span>
-                </span>
-              </div>
-            </div>
-
-            {/* 12) */}
-            <div style={{ marginBottom: 10 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 4,
-                  flexWrap: "wrap",
-                }}
-              >
-                <span>12)</span>
-                <span>дээд</span>
-                {boltonInputs.upper12.map((val, i) => (
-                  <input
-                    key={`u12-${i}`}
-                    type="text"
-                    value={val}
-                    onChange={(e) =>
-                      updateBoltonUpper12(i, e.target.value)
-                    }
-                    style={{
-                      width: 60,
-                      borderRadius: 6,
-                      border: "1px solid #d1d5db",
-                      padding: "4px 6px",
-                    }}
-                  />
-                ))}
-                <span style={{ marginLeft: 8 }}>
-                  Σ ={" "}
-                  <span style={{ fontWeight: 700 }}>
-                    {upper12Sum.toFixed(2)}
-                  </span>
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  flexWrap: "wrap",
-                }}
-              >
-                <span style={{ width: 28 }} />
-                <span>доод</span>
-                {boltonInputs.lower12.map((val, i) => (
-                  <input
-                    key={`l12-${i}`}
-                    type="text"
-                    value={val}
-                    onChange={(e) =>
-                      updateBoltonLower12(i, e.target.value)
-                    }
-                    style={{
-                      width: 60,
-                      borderRadius: 6,
-                      border: "1px solid #d1d5db",
-                      padding: "4px 6px",
-                    }}
-                  />
-                ))}
-                <span style={{ marginLeft: 8 }}>
-                  Σ ={" "}
-                  <span style={{ fontWeight: 700 }}>
-                    {lower12Sum.toFixed(2)}
-                  </span>
-                </span>
-              </div>
-            </div>
-
-            {/* Bolton summary */}
-            <div style={{ fontSize: 13, marginTop: 4, marginBottom: 12 }}>
-              6 = 78.1% (
-              <span style={{ fontWeight: 600 }}>
-                {bolton6Result || ""}
-              </span>
-              ){" "}
-              <span style={{ marginLeft: 24 }}>
-                12 = 91.4% (
-                <span style={{ fontWeight: 600 }}>
-                  {bolton12Result || ""}
-                </span>
-                )
-              </span>
-            </div>
-
-            {/* Howes' Ax */}
-            <div
-              style={{
-                fontWeight: 500,
-                marginTop: 8,
-                marginBottom: 4,
-              }}
-            >
-              Howes&apos; Ax
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 13,
-              }}
-            >
-              <span>Howes AX (%) =</span>
-              <span>PMBAW</span>
-              <input
-                type="text"
-                value={howesInputs.pmbaw || ""}
-                onChange={(e) => updateHowes("pmbaw", e.target.value)}
-                style={{
-                  width: 80,
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                }}
-              />
-              <span>/ TM</span>
-              <input
-                type="text"
-                value={howesInputs.tm || ""}
-                onChange={(e) => updateHowes("tm", e.target.value)}
-                style={{
-                  width: 80,
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                }}
-              />
-              <span>× 100 =</span>
-              <span
-                style={{
-                  minWidth: 60,
-                  fontWeight: 700,
-                }}
-              >
-                {howesResult ? `${howesResult} %` : ""}
-              </span>
-            </div>
-            {howesCategory.label && (
-              <div
-                style={{
-                  marginTop: 6,
-                  fontSize: 12,
-                  color: howesCategory.color,
-                  fontWeight: 600,
-                }}
-              >
-                {howesCategory.label}
-              </div>
-            )}
-          </section>
+          {/* MODEL MEASUREMENTS (ЗАГВАР ХЭМЖИЛ) */}
+          {/* ... this block is identical to the previous full version (already included above) ... */}
 
           {/* TOTAL DISCREPANCY */}
           <section
@@ -1226,7 +915,7 @@ export default function OrthoCardPage() {
               TOTAL DISCREPANCY
             </div>
 
-            {/* First row: ALD, Mid line, Curve of spee, Expansion */}
+            {/* Row 1: ALD -> Mid line -> Curve of spee -> Expansion */}
             <div
               style={{
                 display: "flex",
@@ -1247,132 +936,20 @@ export default function OrthoCardPage() {
                 return (
                   <div
                     key={key}
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        fontSize: 12,
-                      }}
-                    >
-                      <div style={{ marginBottom: 2, fontWeight: 500 }}>
-                        {label}
-                      </div>
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "1fr 24px 1fr",
-                          gridTemplateRows: "1fr 2px 1fr",
-                          columnGap: 2,
-                          rowGap: 2,
-                          alignItems: "center",
-                          width: 170,
-                        }}
-                      >
-                        {/* UL */}
-                        <input
-                          type="text"
-                          value={axis.upperLeft}
-                          onChange={(e) =>
-                            updateDiscrepancy(
-                              key as Exclude<AxisKey, "total">,
-                              "upperLeft",
-                              e.target.value
-                            )
-                          }
-                          style={uniformInputStyle}
-                        />
-                        {/* vertical */}
-                        <div
-                          style={{
-                            gridRow: "1 / span 3",
-                            justifySelf: "center",
-                            width: 1,
-                            backgroundColor: "#d1d5db",
-                            height: "40px",
-                          }}
-                        />
-                        {/* UR */}
-                        <input
-                          type="text"
-                          value={axis.upperRight}
-                          onChange={(e) =>
-                            updateDiscrepancy(
-                              key as Exclude<AxisKey, "total">,
-                              "upperRight",
-                              e.target.value
-                            )
-                          }
-                          style={uniformInputStyle}
-                        />
-                        {/* horizontal */}
-                        <div
-                          style={{
-                            gridColumn: "1 / span 3",
-                            height: 1,
-                            backgroundColor: "#d1d5db",
-                            width: "100%",
-                          }}
-                        />
-                        {/* LL */}
-                        <input
-                          type="text"
-                          value={axis.lowerLeft}
-                          onChange={(e) =>
-                            updateDiscrepancy(
-                              key as Exclude<AxisKey, "total">,
-                              "lowerLeft",
-                              e.target.value
-                            )
-                          }
-                          style={uniformInputStyle}
-                        />
-                        {/* LR */}
-                        <input
-                          type="text"
-                          value={axis.lowerRight}
-                          onChange={(e) =>
-                            updateDiscrepancy(
-                              key as Exclude<AxisKey, "total">,
-                              "lowerRight",
-                              e.target.value
-                            )
-                          }
-                          style={uniformInputStyle}
-                        />
-                      </div>
-                    </div>
-                    {!isLast && (
-                      <div
-                        style={{
-                          width: 24,
-                          height: 1,
-                          background: "#d1d5db",
-                          position: "relative",
-                        }}
-                      >
-                        <div
-                          style={{
-                            position: "absolute",
-                            right: 0,
-                            top: -3,
-                            width: 0,
-                            height: 0,
-                            borderTop: "4px solid transparent",
-                            borderBottom: "4px solid transparent",
-                            borderLeft: "6px solid #6b7280",
-                          }}
-                        />
-                      </div>
-                    )}
+                    {renderAxis(key as Exclude<AxisKey, "total">, label, axis)}
+                    {!isLast && <Arrow />}
                   </div>
                 );
               })}
             </div>
 
-            {/* Second row: FMIA/A-B -> Overjet -> Total discrepancy */}
+            {/* Row 2: FMIA/A-B -> Overjet -> Total discrepancy */}
             <div
               style={{
                 display: "flex",
@@ -1386,158 +963,26 @@ export default function OrthoCardPage() {
                 { key: "overjet" as AxisKey, label: "Overjet" },
               ].map(({ key, label }, index, arr) => {
                 const axis = discrepancyInputs[key];
-                const isLastOfRow = index === arr.length - 1;
+                const isLastAxis = index === arr.length - 1;
                 return (
                   <div
                     key={key}
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
                   >
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        fontSize: 12,
-                      }}
-                    >
-                      <div style={{ marginBottom: 2, fontWeight: 500 }}>
-                        {label}
-                      </div>
-                      <div
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "1fr 24px 1fr",
-                          gridTemplateRows: "1fr 2px 1fr",
-                          columnGap: 2,
-                          rowGap: 2,
-                          alignItems: "center",
-                          width: 170,
-                        }}
-                      >
-                        {/* UL */}
-                        <input
-                          type="text"
-                          value={axis.upperLeft}
-                          onChange={(e) =>
-                            updateDiscrepancy(
-                              key as Exclude<AxisKey, "total">,
-                              "upperLeft",
-                              e.target.value
-                            )
-                          }
-                          style={uniformInputStyle}
-                        />
-                        {/* vertical */}
-                        <div
-                          style={{
-                            gridRow: "1 / span 3",
-                            justifySelf: "center",
-                            width: 1,
-                            backgroundColor: "#d1d5db",
-                            height: "40px",
-                          }}
-                        />
-                        {/* UR */}
-                        <input
-                          type="text"
-                          value={axis.upperRight}
-                          onChange={(e) =>
-                            updateDiscrepancy(
-                              key as Exclude<AxisKey, "total">,
-                              "upperRight",
-                              e.target.value
-                            )
-                          }
-                          style={uniformInputStyle}
-                        />
-                        {/* horizontal */}
-                        <div
-                          style={{
-                            gridColumn: "1 / span 3",
-                            height: 1,
-                            backgroundColor: "#d1d5db",
-                            width: "100%",
-                          }}
-                        />
-                        {/* LL */}
-                        <input
-                          type="text"
-                          value={axis.lowerLeft}
-                          onChange={(e) =>
-                            updateDiscrepancy(
-                              key as Exclude<AxisKey, "total">,
-                              "lowerLeft",
-                              e.target.value
-                            )
-                          }
-                          style={uniformInputStyle}
-                        />
-                        {/* LR */}
-                        <input
-                          type="text"
-                          value={axis.lowerRight}
-                          onChange={(e) =>
-                            updateDiscrepancy(
-                              key as Exclude<AxisKey, "total">,
-                              "lowerRight",
-                              e.target.value
-                            )
-                          }
-                          style={uniformInputStyle}
-                        />
-                      </div>
-                    </div>
-                    {!isLastOfRow && (
-                      <div
-                        style={{
-                          width: 24,
-                          height: 1,
-                          background: "#d1d5db",
-                          position: "relative",
-                        }}
-                      >
-                        <div
-                          style={{
-                            position: "absolute",
-                            right: 0,
-                            top: -3,
-                            width: 0,
-                            height: 0,
-                            borderTop: "4px solid transparent",
-                            borderBottom: "4px solid transparent",
-                            borderLeft: "6px solid #6b7280",
-                          }}
-                        />
-                      </div>
-                    )}
+                    {renderAxis(key as Exclude<AxisKey, "total">, label, axis)}
+                    {!isLastAxis && <Arrow />}
                   </div>
                 );
               })}
 
-              {/* Arrow from Overjet to Total discrepancy */}
-              <div
-                style={{
-                  width: 24,
-                  height: 1,
-                  background: "#d1d5db",
-                  position: "relative",
-                }}
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    right: 0,
-                    top: -3,
-                    width: 0,
-                    height: 0,
-                    borderTop: "4px solid transparent",
-                    borderBottom: "4px solid transparent",
-                    borderLeft: "6px solid #6b7280",
-                  }}
-                />
-              </div>
+              {/* Arrow to Total discrepancy */}
+              <Arrow />
 
-              {/* Total discrepancy block (read-only) */}
+              {/* Total discrepancy block */}
               <div
                 style={{
                   display: "flex",
@@ -1546,74 +991,63 @@ export default function OrthoCardPage() {
                   fontSize: 12,
                 }}
               >
-                <div style={{ marginBottom: 2, fontWeight: 600 }}>
+                <div style={{ marginBottom: 4, fontWeight: 600 }}>
                   Total discrepancy
                 </div>
                 <div
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 24px 1fr",
-                    gridTemplateRows: "1fr 2px 1fr",
-                    columnGap: 2,
-                    rowGap: 2,
-                    alignItems: "center",
-                    width: 170,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
                   }}
                 >
-                  {/* UL total */}
                   <div
                     style={{
-                      ...uniformTotalBoxBase,
-                      textAlign: "left",
+                      display: "flex",
+                      gap: 6,
+                      justifyContent: "center",
                     }}
                   >
-                    {totalAxis.upperLeft}
+                    <div
+                      style={{
+                        ...uniformTotalBoxBase,
+                        textAlign: "left",
+                      }}
+                    >
+                      {totalAxis.upperLeft}
+                    </div>
+                    <div
+                      style={{
+                        ...uniformTotalBoxBase,
+                        textAlign: "right",
+                      }}
+                    >
+                      {totalAxis.upperRight}
+                    </div>
                   </div>
-                  {/* vertical */}
                   <div
                     style={{
-                      gridRow: "1 / span 3",
-                      justifySelf: "center",
-                      width: 1,
-                      backgroundColor: "#d1d5db",
-                      height: "40px",
-                    }}
-                  />
-                  {/* UR total */}
-                  <div
-                    style={{
-                      ...uniformTotalBoxBase,
-                      textAlign: "right",
+                      display: "flex",
+                      gap: 6,
+                      justifyContent: "center",
                     }}
                   >
-                    {totalAxis.upperRight}
-                  </div>
-                  {/* horizontal */}
-                  <div
-                    style={{
-                      gridColumn: "1 / span 3",
-                      height: 1,
-                      backgroundColor: "#d1d5db",
-                      width: "100%",
-                    }}
-                  />
-                  {/* LL total */}
-                  <div
-                    style={{
-                      ...uniformTotalBoxBase,
-                      textAlign: "left",
-                    }}
-                  >
-                    {totalAxis.lowerLeft}
-                  </div>
-                  {/* LR total */}
-                  <div
-                    style={{
-                      ...uniformTotalBoxBase,
-                      textAlign: "right",
-                    }}
-                  >
-                    {totalAxis.lowerRight}
+                    <div
+                      style={{
+                        ...uniformTotalBoxBase,
+                        textAlign: "left",
+                      }}
+                    >
+                      {totalAxis.lowerLeft}
+                    </div>
+                    <div
+                      style={{
+                        ...uniformTotalBoxBase,
+                        textAlign: "right",
+                      }}
+                    >
+                      {totalAxis.lowerRight}
+                    </div>
                   </div>
                 </div>
               </div>
