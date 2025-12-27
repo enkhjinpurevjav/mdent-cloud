@@ -1605,16 +1605,7 @@ export default function OrthoCardPage() {
             </div>
           </section>
 
-      {!loading && !error && (
-        <section
-          style={{
-            borderRadius: 12,
-            border: "1px solid #e5e7eb",
-            padding: 16,
-            background: "white",
-          }}
-        >
-          {/* ЗУРШИЛ, ХОЛБООС, ЭРҮҮНИЙ ҮЕ, УТТС, УРУУЛ */}
+              {/* БОДИТ ҮЗЛЭГ */}
           <section
             style={{
               borderRadius: 12,
@@ -1625,9 +1616,249 @@ export default function OrthoCardPage() {
               marginBottom: 16,
             }}
           >
-            {/* ЗУРШИЛ */}
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>
+              БОДИТ ҮЗЛЭГ
+            </div>
 
-          
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 12,
+                marginBottom: 8,
+              }}
+            >
+              <div>
+                <span style={{ marginRight: 4 }}>Жин:</span>
+                <input
+                  type="text"
+                  value={physicalExam.weight || ""}
+                  onChange={(e) =>
+                    setPhysicalExam((prev) => ({
+                      ...prev,
+                      weight: e.target.value,
+                    }))
+                  }
+                  style={{
+                    width: 70,
+                    borderRadius: 4,
+                    border: "1px solid #d1d5db",
+                    padding: "2px 4px",
+                    fontSize: 12,
+                    marginRight: 4,
+                  }}
+                />
+                кг
+              </div>
+              <div>
+                <span style={{ marginRight: 4 }}>Өндөр:</span>
+                <input
+                  type="text"
+                  value={physicalExam.height || ""}
+                  onChange={(e) =>
+                    setPhysicalExam((prev) => ({
+                      ...prev,
+                      height: e.target.value,
+                    }))
+                  }
+                  style={{
+                    width: 70,
+                    borderRadius: 4,
+                    border: "1px solid #d1d5db",
+                    padding: "2px 4px",
+                    fontSize: 12,
+                    marginRight: 4,
+                  }}
+                />
+                см
+              </div>
+              <div>
+                <span style={{ marginRight: 4 }}>Ясны нас:</span>
+                <input
+                  type="text"
+                  value={physicalExam.boneAge || ""}
+                  onChange={(e) =>
+                    setPhysicalExam((prev) => ({
+                      ...prev,
+                      boneAge: e.target.value,
+                    }))
+                  }
+                  style={{
+                    width: 70,
+                    borderRadius: 4,
+                    border: "1px solid #d1d5db",
+                    padding: "2px 4px",
+                    fontSize: 12,
+                  }}
+                />
+              </div>
+              <div>
+                <span style={{ marginRight: 4 }}>Шүдний нас:</span>
+                <input
+                  type="text"
+                  value={physicalExam.dentalAge || ""}
+                  onChange={(e) =>
+                    setPhysicalExam((prev) => ({
+                      ...prev,
+                      dentalAge: e.target.value,
+                    }))
+                  }
+                  style={{
+                    width: 70,
+                    borderRadius: 4,
+                    border: "1px solid #d1d5db",
+                    padding: "2px 4px",
+                    fontSize: 12,
+                  }}
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 4 }}>
+              <span style={{ width: 120, display: "inline-block" }}>
+                Growth spurt:
+              </span>
+              <label style={{ marginRight: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={!!physicalExam.growthSpurtNormal}
+                  onChange={() =>
+                    setPhysicalExam((prev) => ({
+                      ...prev,
+                      growthSpurtNormal: !prev.growthSpurtNormal,
+                    }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                Хэвийн
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!physicalExam.growthSpurtAbnormal}
+                  onChange={() =>
+                    setPhysicalExam((prev) => ({
+                      ...prev,
+                      growthSpurtAbnormal: !prev.growthSpurtAbnormal,
+                    }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                Хэвийн бус
+              </label>
+            </div>
+
+            <div style={{ marginBottom: 4 }}>
+              <span style={{ width: 120, display: "inline-block" }}>
+                Growth period:
+              </span>
+              <label style={{ marginRight: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={!!physicalExam.growthSpurtBefore}
+                  onChange={() =>
+                    setPhysicalExam((prev) => ({
+                      ...prev,
+                      growthSpurtBefore: !prev.growthSpurtBefore,
+                    }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                Өмнө
+              </label>
+              <label style={{ marginRight: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={!!physicalExam.growthSpurtMiddle}
+                  onChange={() =>
+                    setPhysicalExam((prev) => ({
+                      ...prev,
+                      growthSpurtMiddle: !prev.growthSpurtMiddle,
+                    }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                Дунд
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!physicalExam.growthSpurtAfter}
+                  onChange={() =>
+                    setPhysicalExam((prev) => ({
+                      ...prev,
+                      growthSpurtAfter: !prev.growthSpurtAfter,
+                    }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                Дараа
+              </label>
+            </div>
+
+            <div>
+              <span style={{ width: 120, display: "inline-block" }}>
+                Growth pattern:
+              </span>
+              <label style={{ marginRight: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={!!physicalExam.patternVertical}
+                  onChange={() =>
+                    setPhysicalExam((prev) => ({
+                      ...prev,
+                      patternVertical: !prev.patternVertical,
+                    }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                Босоо
+              </label>
+              <label style={{ marginRight: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={!!physicalExam.patternHorizontal}
+                  onChange={() =>
+                    setPhysicalExam((prev) => ({
+                      ...prev,
+                      patternHorizontal: !prev.patternHorizontal,
+                    }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                Хэвтээ
+              </label>
+              <label style={{ marginRight: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={!!physicalExam.patternClockwise}
+                  onChange={() =>
+                    setPhysicalExam((prev) => ({
+                      ...prev,
+                      patternClockwise: !prev.patternClockwise,
+                    }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                CW
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!physicalExam.patternCounterclockwise}
+                  onChange={() =>
+                    setPhysicalExam((prev) => ({
+                      ...prev,
+                      patternCounterclockwise:
+                        !prev.patternCounterclockwise,
+                    }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                CCW
+              </label>
+            </div>
+          </section>
           {/* ЗУРШИЛ, ХОЛБООС, ЭРҮҮНИЙ ҮЕ, УТТС, УРУУЛ */}
           <section
             style={{
