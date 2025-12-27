@@ -1034,9 +1034,9 @@ export default function OrthoCardPage() {
             </div>
 
             {/* Bolton index */}
-            <div style={{ fontWeight: 500, marginBottom: 8 }}>
-              Bolton index
-            </div>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>
+  Bolton Index
+</div>
 
             {/* 6) */}
             <div style={{ marginBottom: 10 }}>
@@ -1193,15 +1193,9 @@ export default function OrthoCardPage() {
             </div>
 
             {/* Howes' Ax */}
-            <div
-              style={{
-                fontWeight: 500,
-                marginTop: 8,
-                marginBottom: 4,
-              }}
-            >
-              Howes&apos; Ax
-            </div>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>
+  Howes' AX
+</div>
             <div
               style={{
                 display: "flex",
