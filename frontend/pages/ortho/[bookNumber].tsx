@@ -1981,8 +1981,7 @@ export default function OrthoCardPage() {
             gap: 12,
   }}
 >
-            }}
-          >
+            
             {/* ЗУРШИЛ */}
             <section
               style={{
