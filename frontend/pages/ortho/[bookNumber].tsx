@@ -1974,14 +1974,13 @@ export default function OrthoCardPage() {
           {/* ЗУРШИЛ, ХОЛБООС, ЭРҮҮНИЙ ҮЕ, УТТС, УРУУЛ */}
           <div
             style={{
-            marginTop: 0,
-            marginBottom: 16,
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-  }}
->
-            
+              marginTop: 0,
+              marginBottom: 16,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+              gap: 12,
+            }}
+          >
             {/* ЗУРШИЛ */}
             <section
               style={{
