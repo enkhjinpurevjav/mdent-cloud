@@ -83,6 +83,28 @@ type OrthoSurvey = {
   hiv?: boolean;
 };
 
+type PhysicalExam = {
+  weight?: string;      // Биеийн жин
+  height?: string;      // Биеийн өндөр
+  boneAge?: string;     // Bone age
+  dentalAge?: string;   // Dental age
+
+  // Growth spurt (Биеийн өсөлт)
+  growthSpurtNormal?: boolean;     // Хэвийн
+  growthSpurtAbnormal?: boolean;   // Хэвийн бус
+
+  // Growth spurt timing
+  growthSpurtBefore?: boolean;     // Өмнө
+  growthSpurtMiddle?: boolean;     // Дунд
+  growthSpurtAfter?: boolean;      // Дараа
+
+  // Growth pattern
+  patternVertical?: boolean;
+  patternHorizontal?: boolean;
+  patternClockwise?: boolean;
+  patternCounterclockwise?: boolean;
+};
+
 type OrthoCardData = {
   patientName?: string;
   notes?: string;
@@ -100,6 +122,7 @@ type OrthoCardData = {
 
   // Асуумж
   survey?: OrthoSurvey;
+  physicalExam?: PhysicalExam; // <‑‑ new
 };
 
 type OrthoCardApiResponse = {
@@ -236,6 +259,22 @@ export default function OrthoCardPage() {
     hiv: false,
   });
 
+  const [physicalExam, setPhysicalExam] = useState<PhysicalExam>({
+  weight: "",
+  height: "",
+  boneAge: "",
+  dentalAge: "",
+  growthSpurtNormal: false,
+  growthSpurtAbnormal: false,
+  growthSpurtBefore: false,
+  growthSpurtMiddle: false,
+  growthSpurtAfter: false,
+  patternVertical: false,
+  patternHorizontal: false,
+  patternClockwise: false,
+  patternCounterclockwise: false,
+  });
+  
   const bn =
     typeof bookNumber === "string" && bookNumber.trim()
       ? bookNumber.trim()
@@ -325,6 +364,8 @@ export default function OrthoCardPage() {
     setHowesInputs((prev) => ({ ...prev, [field]: cleaned }));
   };
 
+
+  
   const pmbawNum = parseOrZero(howesInputs.pmbaw);
   const tmNum = parseOrZero(howesInputs.tm);
   const howesResult =
@@ -349,6 +390,23 @@ export default function OrthoCardPage() {
     };
   };
 
+const updatePhysicalText = (field: keyof PhysicalExam, value: string) =>
+  setPhysicalExam(prev => ({ ...prev, [field]: value }));
+
+const togglePhysicalBool = (
+  field:
+    | "growthSpurtNormal"
+    | "growthSpurtAbnormal"
+    | "growthSpurtBefore"
+    | "growthSpurtMiddle"
+    | "growthSpurtAfter"
+    | "patternVertical"
+    | "patternHorizontal"
+    | "patternClockwise"
+    | "patternCounterclockwise"
+) =>
+  setPhysicalExam(prev => ({ ...prev, [field]: !prev[field] }));
+  
   const howesCategory = getHowesCategory();
 
   // DISCREPANCY
