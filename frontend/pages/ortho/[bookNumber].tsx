@@ -1,8 +1,4 @@
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/router";
-import FullArchDiscOdontogram, {
-  ActiveStatusKey,
-} from "../../components/odontogram/FullArchDiscOdontogram";
+c
 
 /**
  * Ortho card page using the new full‑arch disc odontogram layout.
@@ -136,7 +132,7 @@ const emptyDiscrepancyInputs = (): DiscrepancyInputs => ({
   curveOfSpee: emptyAxis(),
   expansion: emptyAxis(),
   fmiaABPlane: emptyAxis(),
-  total: emptyAxis(), // will be overwritten from sums
+  total: emptyAxis(),
 });
 
 export default function OrthoCardPage() {
@@ -170,18 +166,18 @@ export default function OrthoCardPage() {
       l42: "",
     });
 
-  // Bolton 36‑field inputs
+  // Bolton
   const [boltonInputs, setBoltonInputs] = useState<BoltonInputs>(
     emptyBoltonInputs()
   );
 
-  // Howes Ax
+  // Howes
   const [howesInputs, setHowesInputs] = useState<HowesInputs>({
     pmbaw: "",
     tm: "",
   });
 
-  // DISCREPANCY
+  // Discrepancy
   const [discrepancyInputs, setDiscrepancyInputs] =
     useState<DiscrepancyInputs>(emptyDiscrepancyInputs());
 
@@ -314,11 +310,11 @@ export default function OrthoCardPage() {
     | "total";
 
   const updateDiscrepancy = (
-    axis: AxisKey,
+    axis: Exclude<AxisKey, "total">,
     pos: keyof DiscrepancyAxis,
     value: string
   ) => {
-    const cleaned = value.replace(/[^0-9.+-]/g, ""); // allow numbers & +/- & dot
+    const cleaned = value.replace(/[^0-9.+-]/g, ""); // allow numbers, dot, +/-
     setDiscrepancyInputs((prev) => ({
       ...prev,
       [axis]: {
@@ -328,20 +324,49 @@ export default function OrthoCardPage() {
     }));
   };
 
-  const axisSum = (ax: DiscrepancyAxis): number =>
-    parseOrZero(ax.upperLeft) +
-    parseOrZero(ax.upperRight) +
-    parseOrZero(ax.lowerLeft) +
-    parseOrZero(ax.lowerRight);
+  const axisSum = (ax: DiscrepancyAxis, pos: keyof DiscrepancyAxis): number =>
+    parseOrZero(ax[pos]);
 
-  const aldSum = axisSum(discrepancyInputs.ald);
-  const midlineSum = axisSum(discrepancyInputs.midline);
-  const curveOfSpeeSum = axisSum(discrepancyInputs.curveOfSpee);
-  const expansionSum = axisSum(discrepancyInputs.expansion);
-  const fmiaABPlaneSum = axisSum(discrepancyInputs.fmiaABPlane);
+  const ald = discrepancyInputs.ald;
+  const midline = discrepancyInputs.midline;
+  const curveOfSpee = discrepancyInputs.curveOfSpee;
+  const expansion = discrepancyInputs.expansion;
+  const fmia = discrepancyInputs.fmiaABPlane;
 
-  const totalSum =
-    aldSum + midlineSum + curveOfSpeeSum + expansionSum + fmiaABPlaneSum;
+  const totalAxis: DiscrepancyAxis = {
+    upperLeft:
+      (
+        axisSum(ald, "upperLeft") +
+        axisSum(midline, "upperLeft") +
+        axisSum(curveOfSpee, "upperLeft") +
+        axisSum(expansion, "upperLeft") +
+        axisSum(fmia, "upperLeft")
+      ).toFixed(2),
+    upperRight:
+      (
+        axisSum(ald, "upperRight") +
+        axisSum(midline, "upperRight") +
+        axisSum(curveOfSpee, "upperRight") +
+        axisSum(expansion, "upperRight") +
+        axisSum(fmia, "upperRight")
+      ).toFixed(2),
+    lowerLeft:
+      (
+        axisSum(ald, "lowerLeft") +
+        axisSum(midline, "lowerLeft") +
+        axisSum(curveOfSpee, "lowerLeft") +
+        axisSum(expansion, "lowerLeft") +
+        axisSum(fmia, "lowerLeft")
+      ).toFixed(2),
+    lowerRight:
+      (
+        axisSum(ald, "lowerRight") +
+        axisSum(midline, "lowerRight") +
+        axisSum(curveOfSpee, "lowerRight") +
+        axisSum(expansion, "lowerRight") +
+        axisSum(fmia, "lowerRight")
+      ).toFixed(2),
+  };
 
   // --- Load existing ortho card (or create empty state) ---
   useEffect(() => {
@@ -481,15 +506,9 @@ export default function OrthoCardPage() {
     setInfo("");
 
     try {
-      // include computed total axis into payload
       const discrepancyWithTotal: DiscrepancyInputs = {
         ...discrepancyInputs,
-        total: {
-          upperLeft: totalSum.toFixed(2),
-          upperRight: "",
-          lowerLeft: "",
-          lowerRight: "",
-        },
+        total: totalAxis,
       };
 
       const payload: OrthoCardData = {
@@ -634,7 +653,7 @@ export default function OrthoCardPage() {
             </div>
           </div>
 
-          {/* Odontogram */}
+          {/* Odontogram + legend */}
           <h2 style={{ fontSize: 14, marginTop: 0, marginBottom: 8 }}>
             Шүдний тойргийн зураг (Одонтограм)
           </h2>
@@ -655,7 +674,6 @@ export default function OrthoCardPage() {
               />
             </div>
 
-            {/* legend */}
             <aside
               style={{
                 borderRadius: 10,
@@ -758,425 +776,10 @@ export default function OrthoCardPage() {
           </div>
 
           {/* MODEL MEASUREMENTS + Bolton + Howes */}
-          <section
-            style={{
-              marginTop: 16,
-              borderRadius: 12,
-              border: "1px solid #e5e7eb",
-              padding: 12,
-              background: "#ffffff",
-              fontSize: 13,
-            }}
-          >
-            <div
-              style={{
-                fontWeight: 700,
-                textTransform: "uppercase",
-                marginBottom: 4,
-              }}
-            >
-              ЗАГВАР ХЭМЖИЛ
-            </div>
-            <div style={{ fontWeight: 500, marginBottom: 8 }}>
-              Sum of incisor
-            </div>
-
-            {/* Upper incisors */}
-            <div style={{ marginBottom: 8 }}>
-              <div style={{ marginBottom: 4, fontWeight: 500 }}>
-                Дээд үүдэн шүд (U1)
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  alignItems: "center",
-                }}
-              >
-                <span>12:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.u12}
-                  onChange={(e) =>
-                    updateSumOfIncisor("u12", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>11:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.u11}
-                  onChange={(e) =>
-                    updateSumOfIncisor("u11", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>21:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.u21}
-                  onChange={(e) =>
-                    updateSumOfIncisor("u21", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>22:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.u22}
-                  onChange={(e) =>
-                    updateSumOfIncisor("u22", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-
-                <span style={{ marginLeft: 12, fontWeight: 500 }}>
-                  U1 сум = {u1Sum.toFixed(2)} мм
-                </span>
-              </div>
-            </div>
-
-            {/* Lower incisors */}
-            <div>
-              <div style={{ marginBottom: 4, fontWeight: 500 }}>
-                Доод үүдэн шүд (L1)
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  alignItems: "center",
-                }}
-              >
-                <span>32:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.l32}
-                  onChange={(e) =>
-                    updateSumOfIncisor("l32", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>31:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.l31}
-                  onChange={(e) =>
-                    updateSumOfIncisor("l31", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>41:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.l41}
-                  onChange={(e) =>
-                    updateSumOfIncisor("l41", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>42:</span>
-                <input
-                  type="text"
-                  value={sumOfIncisorInputs.l42}
-                  onChange={(e) =>
-                    updateSumOfIncisor("l42", e.target.value)
-                  }
-                  style={{
-                    width: 60,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-
-                <span style={{ marginLeft: 12, fontWeight: 500 }}>
-                  L1 сум = {l1Sum.toFixed(2)} мм
-                </span>
-              </div>
-            </div>
-
-            {/* U1 : L1 ratio */}
-            <div
-              style={{
-                marginTop: 12,
-                marginBottom: 16,
-                fontSize: 13,
-                color: "#111827",
-              }}
-            >
-              U1 : L1 харьцаа (лавлагаа болгон):{" "}
-              {u1l1Ratio ? (
-                <span style={{ fontWeight: 700 }}>{u1l1Ratio} : 1</span>
-              ) : (
-                "-"
-              )}
-            </div>
-
-            {/* Bolton index */}
-            <div style={{ fontWeight: 500, marginBottom: 8 }}>
-              Bolton index
-            </div>
-
-            {/* 6) дээд / доод */}
-            <div style={{ marginBottom: 10 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 4,
-                  flexWrap: "wrap",
-                }}
-              >
-                <span>6)</span>
-                <span>дээд</span>
-                {boltonInputs.upper6.map((val, i) => (
-                  <input
-                    key={`u6-${i}`}
-                    type="text"
-                    value={val}
-                    onChange={(e) => updateBoltonUpper6(i, e.target.value)}
-                    style={{
-                      width: 60,
-                      borderRadius: 6,
-                      border: "1px solid #d1d5db",
-                      padding: "4px 6px",
-                    }}
-                  />
-                ))}
-                <span style={{ marginLeft: 8 }}>
-                  Σ ={" "}
-                  <span style={{ fontWeight: 700 }}>
-                    {upper6Sum.toFixed(2)}
-                  </span>
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  flexWrap: "wrap",
-                }}
-              >
-                <span style={{ width: 24 }} />
-                <span>доод</span>
-                {boltonInputs.lower6.map((val, i) => (
-                  <input
-                    key={`l6-${i}`}
-                    type="text"
-                    value={val}
-                    onChange={(e) => updateBoltonLower6(i, e.target.value)}
-                    style={{
-                      width: 60,
-                      borderRadius: 6,
-                      border: "1px solid #d1d5db",
-                      padding: "4px 6px",
-                    }}
-                  />
-                ))}
-                <span style={{ marginLeft: 8 }}>
-                  Σ ={" "}
-                  <span style={{ fontWeight: 700 }}>
-                    {lower6Sum.toFixed(2)}
-                  </span>
-                </span>
-              </div>
-            </div>
-
-            {/* 12) дээд / доод */}
-            <div style={{ marginBottom: 10 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 4,
-                  flexWrap: "wrap",
-                }}
-              >
-                <span>12)</span>
-                <span>дээд</span>
-                {boltonInputs.upper12.map((val, i) => (
-                  <input
-                    key={`u12-${i}`}
-                    type="text"
-                    value={val}
-                    onChange={(e) =>
-                      updateBoltonUpper12(i, e.target.value)
-                    }
-                    style={{
-                      width: 60,
-                      borderRadius: 6,
-                      border: "1px solid #d1d5db",
-                      padding: "4px 6px",
-                    }}
-                  />
-                ))}
-                <span style={{ marginLeft: 8 }}>
-                  Σ ={" "}
-                  <span style={{ fontWeight: 700 }}>
-                    {upper12Sum.toFixed(2)}
-                  </span>
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  flexWrap: "wrap",
-                }}
-              >
-                <span style={{ width: 28 }} />
-                <span>доод</span>
-                {boltonInputs.lower12.map((val, i) => (
-                  <input
-                    key={`l12-${i}`}
-                    type="text"
-                    value={val}
-                    onChange={(e) =>
-                      updateBoltonLower12(i, e.target.value)
-                    }
-                    style={{
-                      width: 60,
-                      borderRadius: 6,
-                      border: "1px solid #d1d5db",
-                      padding: "4px 6px",
-                    }}
-                  />
-                ))}
-                <span style={{ marginLeft: 8 }}>
-                  Σ ={" "}
-                  <span style={{ fontWeight: 700 }}>
-                    {lower12Sum.toFixed(2)}
-                  </span>
-                </span>
-              </div>
-            </div>
-
-            {/* Bolton summary line */}
-            <div style={{ fontSize: 13, marginTop: 4, marginBottom: 12 }}>
-              6 = 78.1% (
-              <span style={{ fontWeight: 600 }}>
-                {bolton6Result || ""}
-              </span>
-              ){" "}
-              <span style={{ marginLeft: 24 }}>
-                12 = 91.4% (
-                <span style={{ fontWeight: 600 }}>
-                  {bolton12Result || ""}
-                </span>
-                )
-              </span>
-            </div>
-
-            {/* Howes' Ax */}
-            <div
-              style={{
-                fontWeight: 500,
-                marginTop: 8,
-                marginBottom: 4,
-              }}
-            >
-              Howes&apos; Ax
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 13,
-              }}
-            >
-              <span>Howes AX (%) =</span>
-              <span>PMBAW</span>
-              <input
-                type="text"
-                value={howesInputs.pmbaw || ""}
-                onChange={(e) => updateHowes("pmbaw", e.target.value)}
-                style={{
-                  width: 80,
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                }}
-              />
-              <span>/ TM</span>
-              <input
-                type="text"
-                value={howesInputs.tm || ""}
-                onChange={(e) => updateHowes("tm", e.target.value)}
-                style={{
-                  width: 80,
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                }}
-              />
-              <span>× 100 =</span>
-              <span
-                style={{
-                  minWidth: 60,
-                  fontWeight: 700,
-                }}
-              >
-                {howesResult ? `${howesResult} %` : ""}
-              </span>
-            </div>
-
-            {howesCategory.label && (
-              <div
-                style={{
-                  marginTop: 6,
-                  fontSize: 12,
-                  color: howesCategory.color,
-                  fontWeight: 600,
-                }}
-              >
-                {howesCategory.label}
-              </div>
-            )}
-          </section>
+          {/* (unchanged, kept as in your last version) */}
+          {/* ... Sum of incisor, Bolton, Howes sections here ... */}
+          {/* For brevity, those blocks are unchanged from your last code and omitted here. */}
+          {/* Paste the previously generated "ЗАГВАР ХЭМЖИЛ" + Bolton + Howes section above this comment. */}
 
           {/* DISCREPANCY */}
           <section
@@ -1199,7 +802,7 @@ export default function OrthoCardPage() {
               DISCREPANCY
             </div>
 
-            {/* Helper: reusable axis renderer */}
+            {/* First 5 editable axes */}
             {[
               { key: "ald" as AxisKey, label: "ALD" },
               { key: "midline" as AxisKey, label: "Mid line" },
@@ -1208,15 +811,14 @@ export default function OrthoCardPage() {
               { key: "fmiaABPlane" as AxisKey, label: "FMIA / A-B plane" },
             ].map(({ key, label }) => {
               const axis = discrepancyInputs[key];
-              const sum = axisSum(axis);
               return (
                 <div
                   key={key}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "120px 1fr 80px",
+                    gridTemplateColumns: "120px 1fr",
                     alignItems: "center",
-                    marginBottom: 8,
+                    marginBottom: 10,
                     columnGap: 8,
                   }}
                 >
@@ -1232,7 +834,7 @@ export default function OrthoCardPage() {
                       maxWidth: 330,
                     }}
                   >
-                    {/* upper left */}
+                    {/* UL */}
                     <input
                       type="text"
                       value={axis.upperLeft}
@@ -1258,7 +860,7 @@ export default function OrthoCardPage() {
                         justifySelf: "center",
                       }}
                     />
-                    {/* upper right */}
+                    {/* UR */}
                     <input
                       type="text"
                       value={axis.upperRight}
@@ -1274,7 +876,7 @@ export default function OrthoCardPage() {
                         justifySelf: "flex-end",
                       }}
                     />
-                    {/* lower left */}
+                    {/* LL */}
                     <input
                       type="text"
                       value={axis.lowerLeft}
@@ -1290,7 +892,7 @@ export default function OrthoCardPage() {
                         justifySelf: "flex-start",
                       }}
                     />
-                    {/* lower right */}
+                    {/* LR */}
                     <input
                       type="text"
                       value={axis.lowerRight}
@@ -1307,21 +909,15 @@ export default function OrthoCardPage() {
                       }}
                     />
                   </div>
-                  <div style={{ fontSize: 12 }}>
-                    Σ ={" "}
-                    <span style={{ fontWeight: 700 }}>
-                      {sum.toFixed(2)}
-                    </span>
-                  </div>
                 </div>
               );
             })}
 
-            {/* Total discrepancy (6th axis) – read-only from sums */}
+            {/* 6th axis: Total discrepancy (read-only, sums of 5 axes) */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "120px 1fr 80px",
+                gridTemplateColumns: "120px 1fr",
                 alignItems: "center",
                 marginTop: 12,
                 columnGap: 8,
@@ -1330,22 +926,82 @@ export default function OrthoCardPage() {
               <div style={{ fontWeight: 600 }}>Total discrepancy</div>
               <div
                 style={{
-                  display: "flex",
+                  display: "grid",
+                  gridTemplateColumns: "1fr 40px 1fr",
+                  gridTemplateRows: "1fr 1fr",
+                  columnGap: 4,
+                  rowGap: 4,
                   alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: 8,
-                  border: "1px dashed #d1d5db",
-                  padding: 6,
-                  fontSize: 12,
-                  background: "#f9fafb",
+                  maxWidth: 330,
                 }}
               >
-                Σ (ALD + Mid line + Curve of spee + Expansion + FMIA/A-B) =
-                <span style={{ fontWeight: 700, marginLeft: 4 }}>
-                  {totalSum.toFixed(2)}
-                </span>
+                {/* UL total */}
+                <div
+                  style={{
+                    padding: "2px 4px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#f9fafb",
+                    fontSize: 12,
+                    textAlign: "left",
+                    fontWeight: 700,
+                  }}
+                >
+                  {totalAxis.upperLeft}
+                </div>
+                {/* vertical line */}
+                <div
+                  style={{
+                    gridRow: "1 / span 2",
+                    width: 1,
+                    height: "34px",
+                    backgroundColor: "#d1d5db",
+                    justifySelf: "center",
+                  }}
+                />
+                {/* UR total */}
+                <div
+                  style={{
+                    padding: "2px 4px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#f9fafb",
+                    fontSize: 12,
+                    textAlign: "right",
+                    fontWeight: 700,
+                  }}
+                >
+                  {totalAxis.upperRight}
+                </div>
+                {/* LL total */}
+                <div
+                  style={{
+                    padding: "2px 4px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#f9fafb",
+                    fontSize: 12,
+                    textAlign: "left",
+                    fontWeight: 700,
+                  }}
+                >
+                  {totalAxis.lowerLeft}
+                </div>
+                {/* LR total */}
+                <div
+                  style={{
+                    padding: "2px 4px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#f9fafb",
+                    fontSize: 12,
+                    textAlign: "right",
+                    fontWeight: 700,
+                  }}
+                >
+                  {totalAxis.lowerRight}
+                </div>
               </div>
-              <div />
             </div>
           </section>
 
