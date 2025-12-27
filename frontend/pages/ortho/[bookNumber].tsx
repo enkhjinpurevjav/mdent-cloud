@@ -1330,6 +1330,280 @@ export default function OrthoCardPage() {
             background: "white",
           }}
         >
+                    {/* АСУУМЖ */}
+          <section
+            style={{
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              padding: 12,
+              background: "#ffffff",
+              fontSize: 13,
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>АСУУМЖ</div>
+
+            <div style={{ marginBottom: 6 }}>
+              <div style={{ marginBottom: 2 }}>
+                1. Гол шалтгаан / ирсэн шалтгаан
+              </div>
+              <textarea
+                value={survey.mainReason || ""}
+                onChange={(e) =>
+                  setSurvey((prev) => ({
+                    ...prev,
+                    mainReason: e.target.value,
+                  }))
+                }
+                rows={2}
+                style={{
+                  width: "100%",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                  fontSize: 12,
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 6 }}>
+              <div style={{ marginBottom: 2 }}>2. Одоогийн зовуурь</div>
+              <textarea
+                value={survey.currentComplaint || ""}
+                onChange={(e) =>
+                  setSurvey((prev) => ({
+                    ...prev,
+                    currentComplaint: e.target.value,
+                  }))
+                }
+                rows={2}
+                style={{
+                  width: "100%",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                  fontSize: 12,
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 6 }}>
+              <div style={{ marginBottom: 2 }}>3. Өвчний түүх</div>
+              <textarea
+                value={survey.medicalHistory || ""}
+                onChange={(e) =>
+                  setSurvey((prev) => ({
+                    ...prev,
+                    medicalHistory: e.target.value,
+                  }))
+                }
+                rows={2}
+                style={{
+                  width: "100%",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                  fontSize: 12,
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 6 }}>
+              <div style={{ marginBottom: 2 }}>
+                4. Өмнөх гажиг заслын эмчилгээ
+              </div>
+              <textarea
+                value={survey.orthoTreatment || ""}
+                onChange={(e) =>
+                  setSurvey((prev) => ({
+                    ...prev,
+                    orthoTreatment: e.target.value,
+                  }))
+                }
+                rows={2}
+                style={{
+                  width: "100%",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                  fontSize: 12,
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 6 }}>
+              <div style={{ marginBottom: 2 }}>5. Удамшлын өгүүлэмж</div>
+              <textarea
+                value={survey.familyHistory || ""}
+                onChange={(e) =>
+                  setSurvey((prev) => ({
+                    ...prev,
+                    familyHistory: e.target.value,
+                  }))
+                }
+                rows={2}
+                style={{
+                  width: "100%",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                  fontSize: 12,
+                }}
+              />
+            </div>
+
+            <div style={{ marginTop: 8, marginBottom: 4 }}>
+              <span style={{ display: "inline-block", width: 90 }}>
+                Харшил:
+              </span>
+              <label style={{ marginRight: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={!!survey.allergyPlant}
+                  onChange={() =>
+                    setSurvey((prev) => ({
+                      ...prev,
+                      allergyPlant: !prev.allergyPlant,
+                    }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                Ургамал
+              </label>
+              <label style={{ marginRight: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={!!survey.allergyMetal}
+                  onChange={() =>
+                    setSurvey((prev) => ({
+                      ...prev,
+                      allergyMetal: !prev.allergyMetal,
+                    }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                Металл
+              </label>
+              <label style={{ marginRight: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={!!survey.allergyDrug}
+                  onChange={() =>
+                    setSurvey((prev) => ({
+                      ...prev,
+                      allergyDrug: !prev.allergyDrug,
+                    }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                Эм
+              </label>
+              <label style={{ marginRight: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={!!survey.allergyFood}
+                  onChange={() =>
+                    setSurvey((prev) => ({
+                      ...prev,
+                      allergyFood: !prev.allergyFood,
+                    }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                Хоол
+              </label>
+              <label style={{ marginRight: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={!!survey.allergyPlastic}
+                  onChange={() =>
+                    setSurvey((prev) => ({
+                      ...prev,
+                      allergyPlastic: !prev.allergyPlastic,
+                    }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                Пластик
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!survey.allergyOther}
+                  onChange={() =>
+                    setSurvey((prev) => ({
+                      ...prev,
+                      allergyOther: !prev.allergyOther,
+                    }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                Бусад
+              </label>
+            </div>
+
+            <div style={{ marginBottom: 6 }}>
+              <span style={{ display: "inline-block", width: 90 }}>
+                Бусад харшил:
+              </span>
+              <input
+                type="text"
+                value={survey.allergyOtherText || ""}
+                onChange={(e) =>
+                  setSurvey((prev) => ({
+                    ...prev,
+                    allergyOtherText: e.target.value,
+                  }))
+                }
+                style={{
+                  width: "60%",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "3px 6px",
+                  fontSize: 12,
+                }}
+              />
+            </div>
+
+            <div>
+              <span style={{ display: "inline-block", width: 90 }}>
+                Халдварт:
+              </span>
+              <label style={{ marginRight: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={!!survey.hbv}
+                  onChange={() =>
+                    setSurvey((prev) => ({ ...prev, hbv: !prev.hbv }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                HBV
+              </label>
+              <label style={{ marginRight: 12 }}>
+                <input
+                  type="checkbox"
+                  checked={!!survey.hbc}
+                  onChange={() =>
+                    setSurvey((prev) => ({ ...prev, hbc: !prev.hbc }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                HBC
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={!!survey.hiv}
+                  onChange={() =>
+                    setSurvey((prev) => ({ ...prev, hiv: !prev.hiv }))
+                  }
+                  style={{ marginRight: 4 }}
+                />
+                HIV
+              </label>
+            </div>
+          </section>
           {/* ЗУРШИЛ, ХОЛБООС, ЭРҮҮНИЙ ҮЕ, УТТС, УРУУЛ */}
           <section
             style={{
