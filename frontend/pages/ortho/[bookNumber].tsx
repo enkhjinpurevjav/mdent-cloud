@@ -2529,7 +2529,6 @@ export default function OrthoCardPage() {
             >
               {saving ? "Хадгалж байна..." : "Карт хадгалах"}
             </button>
-          </div>
         </section>
       )}
     </main>
