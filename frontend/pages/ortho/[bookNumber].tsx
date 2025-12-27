@@ -412,10 +412,102 @@ export default function OrthoCardPage() {
   const parseOrZero = (v: string | undefined | null): number =>
     !v ? 0 : Number.parseFloat(v) || 0;
 
-  const updateHowes = (field: keyof HowesInputs, value: string) => {
+  // --- MISSING HELPERS (added back) ---
+
+  const updateSumOfIncisor = (
+    key: keyof SumOfIncisorInputs,
+    value: string
+  ) => {
     const cleaned = value.replace(/[^0-9.]/g, "");
-    setHowesInputs((prev) => ({ ...prev, [field]: cleaned }));
+    setSumOfIncisorInputs((prev) => ({ ...prev, [key]: cleaned }));
   };
+
+  const updateBoltonUpper6 = (index: number, value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    setBoltonInputs((prev) => {
+      const next: BoltonInputs = {
+        upper6: [...prev.upper6],
+        lower6: [...prev.lower6],
+        upper12: [...prev.upper12],
+        lower12: [...prev.lower12],
+      };
+      next.upper6[index] = cleaned;
+      next.upper12[index] = cleaned;
+      return next;
+    });
+  };
+
+  const updateBoltonLower6 = (index: number, value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    setBoltonInputs((prev) => {
+      const next: BoltonInputs = {
+        upper6: [...prev.upper6],
+        lower6: [...prev.lower6],
+        upper12: [...prev.upper12],
+        lower12: [...prev.lower12],
+      };
+      next.lower6[index] = cleaned;
+      next.lower12[index] = cleaned;
+      return next;
+    });
+  };
+
+  const updateBoltonUpper12 = (index: number, value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    setBoltonInputs((prev) => {
+      const next: BoltonInputs = {
+        upper6: [...prev.upper6],
+        lower6: [...prev.lower6],
+        upper12: [...prev.upper12],
+        lower12: [...prev.lower12],
+      };
+      next.upper12[index] = cleaned;
+      return next;
+    });
+  };
+
+  const updateBoltonLower12 = (index: number, value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    setBoltonInputs((prev) => {
+      const next: BoltonInputs = {
+        upper6: [...prev.upper6],
+        lower6: [...prev.lower6],
+        upper12: [...prev.upper12],
+        lower12: [...prev.lower12],
+      };
+      next.lower12[index] = cleaned;
+      return next;
+    });
+  };
+
+  const toggleHabitBool = (field: keyof HabitSection) =>
+    setHabits((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const updateHabitText = (field: keyof HabitSection, value: string) =>
+    setHabits((prev) => ({ ...prev, [field]: value }));
+
+  const toggleAttachmentBool = (field: keyof AttachmentSection) =>
+    setAttachment((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const toggleTmjBool = (field: keyof TmjSection) =>
+    setTmj((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const updateTmjText = (field: keyof TmjSection, value: string) =>
+    setTmj((prev) => ({ ...prev, [field]: value }));
+
+  const toggleUttsBool = (field: keyof UttsSection) =>
+    setUtts((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const updateUttsText = (field: keyof UttsSection, value: string) =>
+    setUtts((prev) => ({ ...prev, [field]: value }));
+
+  const toggleLipBool = (field: keyof LipSection) =>
+    setLip((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const updateLipText = (field: keyof LipSection, value: string) =>
+    setLip((prev) => ({ ...prev, [field]: value }));
+
+  // --- end helpers ---
 
   const pmbawNum = parseOrZero(howesInputs.pmbaw);
   const tmNum = parseOrZero(howesInputs.tm);
@@ -742,6 +834,7 @@ export default function OrthoCardPage() {
               familyHistory: data.survey.familyHistory || "",
               allergyPlant: !!data.survey.allergyPlant,
               allergyMetal: !!data.survey.allergyMetal,
+              // ...
               allergyDrug: !!data.survey.allergyDrug,
               allergyFood: !!data.survey.allergyFood,
               allergyPlastic: !!data.survey.allergyPlastic,
