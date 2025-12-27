@@ -60,6 +60,29 @@ type DiscrepancyInputs = {
   total: DiscrepancyAxis;
 };
 
+/**
+ * АСУУМЖ (survey) section data.
+ */
+type OrthoSurvey = {
+  mainReason?: string; // Гол ирсэн шалтгаан
+  currentComplaint?: string; // Одоогийн зовиур
+  medicalHistory?: string; // Өвчний түүх
+  orthoTreatment?: string; // Гажгийн эмчилгээ
+  familyHistory?: string; // Гэр бүлийн түүх
+
+  allergyPlant?: boolean; // Ургамал
+  allergyMetal?: boolean; // Метал (Co, Cr, Ni, Fe)
+  allergyDrug?: boolean; // Эм тариа
+  allergyFood?: boolean; // Хоол хүнс
+  allergyPlastic?: boolean; // Хуванцар
+  allergyOther?: boolean; // Бусад (checkbox)
+  allergyOtherText?: string; // Бусад [text]
+
+  hbv?: boolean;
+  hbc?: boolean;
+  hiv?: boolean;
+};
+
 type OrthoCardData = {
   patientName?: string;
   notes?: string;
@@ -74,6 +97,9 @@ type OrthoCardData = {
 
   // Total discrepancy
   discrepancyInputs?: DiscrepancyInputs;
+
+  // Асуумж
+  survey?: OrthoSurvey;
 };
 
 type OrthoCardApiResponse = {
@@ -188,8 +214,27 @@ export default function OrthoCardPage() {
 
   const [activeStatus, setActiveStatus] = useState<StatusKey | null>(null);
 
-  // This is the text field inside the "Илүү шүд" control.
+  // Илүү шүд тайлбар
   const [extraToothText, setExtraToothText] = useState<string>("");
+
+  // Асуумж (survey)
+  const [survey, setSurvey] = useState<OrthoSurvey>({
+    mainReason: "",
+    currentComplaint: "",
+    medicalHistory: "",
+    orthoTreatment: "",
+    familyHistory: "",
+    allergyPlant: false,
+    allergyMetal: false,
+    allergyDrug: false,
+    allergyFood: false,
+    allergyPlastic: false,
+    allergyOther: false,
+    allergyOtherText: "",
+    hbv: false,
+    hbc: false,
+    hiv: false,
+  });
 
   const bn =
     typeof bookNumber === "string" && bookNumber.trim()
@@ -376,6 +421,24 @@ export default function OrthoCardPage() {
     ).toFixed(2),
   };
 
+  // Survey helpers
+  const updateSurveyText = (field: keyof OrthoSurvey, value: string) =>
+    setSurvey((prev) => ({ ...prev, [field]: value }));
+
+  const toggleSurveyBool = (
+    field:
+      | "allergyPlant"
+      | "allergyMetal"
+      | "allergyDrug"
+      | "allergyFood"
+      | "allergyPlastic"
+      | "allergyOther"
+      | "hbv"
+      | "hbc"
+      | "hiv"
+  ) =>
+    setSurvey((prev) => ({ ...prev, [field]: !prev[field] }));
+
   // Load card
   useEffect(() => {
     if (!bn) return;
@@ -436,7 +499,6 @@ export default function OrthoCardPage() {
 
           const note = data.supernumeraryNote || "";
           setSupernumeraryNote(note);
-          // IMPORTANT: also feed it into the UI field so Илүү шүд persists
           setExtraToothText(note);
 
           setToothChart(data.toothChart || []);
@@ -487,6 +549,45 @@ export default function OrthoCardPage() {
           } else {
             setDiscrepancyInputs(emptyDiscrepancyInputs());
           }
+
+          // Survey
+          if (data.survey) {
+            setSurvey({
+              mainReason: data.survey.mainReason || "",
+              currentComplaint: data.survey.currentComplaint || "",
+              medicalHistory: data.survey.medicalHistory || "",
+              orthoTreatment: data.survey.orthoTreatment || "",
+              familyHistory: data.survey.familyHistory || "",
+              allergyPlant: !!data.survey.allergyPlant,
+              allergyMetal: !!data.survey.allergyMetal,
+              allergyDrug: !!data.survey.allergyDrug,
+              allergyFood: !!data.survey.allergyFood,
+              allergyPlastic: !!data.survey.allergyPlastic,
+              allergyOther: !!data.survey.allergyOther,
+              allergyOtherText: data.survey.allergyOtherText || "",
+              hbv: !!data.survey.hbv,
+              hbc: !!data.survey.hbc,
+              hiv: !!data.survey.hiv,
+            });
+          } else {
+            setSurvey({
+              mainReason: "",
+              currentComplaint: "",
+              medicalHistory: "",
+              orthoTreatment: "",
+              familyHistory: "",
+              allergyPlant: false,
+              allergyMetal: false,
+              allergyDrug: false,
+              allergyFood: false,
+              allergyPlastic: false,
+              allergyOther: false,
+              allergyOtherText: "",
+              hbv: false,
+              hbc: false,
+              hiv: false,
+            });
+          }
         } else {
           setCardPatientName("");
           setCardNotes("");
@@ -506,6 +607,23 @@ export default function OrthoCardPage() {
           setBoltonInputs(emptyBoltonInputs());
           setHowesInputs({ pmbaw: "", tm: "" });
           setDiscrepancyInputs(emptyDiscrepancyInputs());
+          setSurvey({
+            mainReason: "",
+            currentComplaint: "",
+            medicalHistory: "",
+            orthoTreatment: "",
+            familyHistory: "",
+            allergyPlant: false,
+            allergyMetal: false,
+            allergyDrug: false,
+            allergyFood: false,
+            allergyPlastic: false,
+            allergyOther: false,
+            allergyOtherText: "",
+            hbv: false,
+            hbc: false,
+            hiv: false,
+          });
         }
       } catch (err: any) {
         console.error("load ortho card failed", err);
@@ -541,12 +659,12 @@ export default function OrthoCardPage() {
         patientName: cardPatientName || undefined,
         notes: cardNotes || undefined,
         toothChart,
-        // IMPORTANT: persist the Илүү шүд text from the legend
         supernumeraryNote: extraToothText || undefined,
         sumOfIncisorInputs,
         boltonInputs,
         howesInputs,
         discrepancyInputs: discrepancyWithTotal,
+        survey,
       };
 
       const res = await fetch(`/api/patients/ortho-card/${patientBookId}`, {
@@ -558,7 +676,8 @@ export default function OrthoCardPage() {
 
       if (!res.ok) {
         throw new Error(
-          (json && (json as any).error) || "Гажиг заслын карт хадгалахад алдаа гарлаа."
+          (json && json.error) ||
+            "Гажиг заслын карт хадгалахад алдаа гарлаа."
         );
       }
 
@@ -818,6 +937,294 @@ export default function OrthoCardPage() {
             background: "white",
           }}
         >
+          {/* АСУУМЖ */}
+          <section
+            style={{
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              padding: 12,
+              background: "#ffffff",
+              fontSize: 13,
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>АСУУМЖ</div>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+              }}
+            >
+              <div>
+                <span style={{ width: 150, display: "inline-block" }}>
+                  Гол ирсэн шалтгаан:
+                </span>
+                <input
+                  type="text"
+                  value={survey.mainReason || ""}
+                  onChange={(e) =>
+                    updateSurveyText("mainReason", e.target.value)
+                  }
+                  style={{
+                    width: "65%",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "3px 6px",
+                  }}
+                />
+              </div>
+
+              <div>
+                <span style={{ width: 150, display: "inline-block" }}>
+                  Одоогийн зовиур:
+                </span>
+                <input
+                  type="text"
+                  value={survey.currentComplaint || ""}
+                  onChange={(e) =>
+                    updateSurveyText("currentComplaint", e.target.value)
+                  }
+                  style={{
+                    width: "65%",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "3px 6px",
+                  }}
+                />
+              </div>
+
+              <div>
+                <span style={{ width: 150, display: "inline-block" }}>
+                  Өвчний түүх:
+                </span>
+                <input
+                  type="text"
+                  value={survey.medicalHistory || ""}
+                  onChange={(e) =>
+                    updateSurveyText("medicalHistory", e.target.value)
+                  }
+                  style={{
+                    width: "65%",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "3px 6px",
+                  }}
+                />
+              </div>
+
+              <div>
+                <span style={{ width: 150, display: "inline-block" }}>
+                  Гажгийн эмчилгээ:
+                </span>
+                <input
+                  type="text"
+                  value={survey.orthoTreatment || ""}
+                  onChange={(e) =>
+                    updateSurveyText("orthoTreatment", e.target.value)
+                  }
+                  style={{
+                    width: "65%",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "3px 6px",
+                  }}
+                />
+              </div>
+
+              <div>
+                <span style={{ width: 150, display: "inline-block" }}>
+                  Гэр бүлийн түүх:
+                </span>
+                <input
+                  type="text"
+                  value={survey.familyHistory || ""}
+                  onChange={(e) =>
+                    updateSurveyText("familyHistory", e.target.value)
+                  }
+                  style={{
+                    width: "65%",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "3px 6px",
+                  }}
+                />
+              </div>
+
+              {/* Харшил */}
+              <div>
+                <span style={{ width: 150, display: "inline-block" }}>
+                  Харшил:
+                </span>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    flexWrap: "wrap",
+                    gap: 8,
+                    verticalAlign: "middle",
+                  }}
+                >
+                  <label
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!survey.allergyPlant}
+                      onChange={() => toggleSurveyBool("allergyPlant")}
+                    />
+                    <span>Ургамал</span>
+                  </label>
+                  <label
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!survey.allergyMetal}
+                      onChange={() => toggleSurveyBool("allergyMetal")}
+                    />
+                    <span>Метал (Co, Cr, Ni, Fe)</span>
+                  </label>
+                  <label
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!survey.allergyDrug}
+                      onChange={() => toggleSurveyBool("allergyDrug")}
+                    />
+                    <span>Эм тариа</span>
+                  </label>
+                  <label
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!survey.allergyFood}
+                      onChange={() => toggleSurveyBool("allergyFood")}
+                    />
+                    <span>Хоол хүнс</span>
+                  </label>
+                  <label
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!survey.allergyPlastic}
+                      onChange={() => toggleSurveyBool("allergyPlastic")}
+                    />
+                    <span>Хуванцар</span>
+                  </label>
+                  <label
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!survey.allergyOther}
+                      onChange={() => toggleSurveyBool("allergyOther")}
+                    />
+                    <span>Бусад</span>
+                  </label>
+                </span>
+                <input
+                  type="text"
+                  value={survey.allergyOtherText || ""}
+                  onChange={(e) =>
+                    updateSurveyText("allergyOtherText", e.target.value)
+                  }
+                  style={{
+                    display: "block",
+                    marginTop: 4,
+                    marginLeft: 150,
+                    width: "65%",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "3px 6px",
+                  }}
+                  placeholder=""
+                />
+              </div>
+
+              {/* HBV / HBC / HIV */}
+              <div
+                style={{
+                  marginTop: 8,
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 12,
+                  marginLeft: 150,
+                }}
+              >
+                <label
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!survey.hbv}
+                    onChange={() => toggleSurveyBool("hbv")}
+                  />
+                  <span>HBV</span>
+                </label>
+                <label
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!survey.hbc}
+                    onChange={() => toggleSurveyBool("hbc")}
+                  />
+                  <span>HBC</span>
+                </label>
+                <label
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!survey.hiv}
+                    onChange={() => toggleSurveyBool("hiv")}
+                  />
+                  <span>HIV</span>
+                </label>
+              </div>
+            </div>
+          </section>
+
           {/* Odontogram + legend */}
           <div
             style={{
