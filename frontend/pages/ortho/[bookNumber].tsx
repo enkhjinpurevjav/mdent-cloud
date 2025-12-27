@@ -1973,7 +1973,7 @@ export default function OrthoCardPage() {
 
           {/* ЗУРШИЛ, ХОЛБООС, ЭРҮҮНИЙ ҮЕ, УТТС, УРУУЛ */}
           <div
-            s style={{
+            style={{
             marginTop: 0,
             marginBottom: 16,
             display: "flex",
