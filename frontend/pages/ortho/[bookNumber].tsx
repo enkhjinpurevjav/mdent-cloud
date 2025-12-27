@@ -6,12 +6,6 @@ import FullArchDiscOdontogram, {
 
 /**
  * Ortho card page using the full‑arch disc odontogram layout.
- * Data shape supports:
- *  - toothChart: { code, status, regions }[]  (regions = caries/filled)
- *  - sumOfIncisorInputs: per‑tooth mesio‑distal widths for incisors
- *  - boltonInputs: 36 fields (6 upper + 6 lower + 12 upper + 12 lower)
- *  - howesInputs: PMBAW / TM values for Howes' Ax
- *  - discrepancyInputs: 6 axes with 4 positions each (UL, UR, LL, LR)
  */
 
 type OrthoDisc = {
@@ -62,7 +56,7 @@ type DiscrepancyInputs = {
   curveOfSpee: DiscrepancyAxis;
   expansion: DiscrepancyAxis;
   fmiaABPlane: DiscrepancyAxis;
-  total: DiscrepancyAxis; // computed, but persisted for convenience
+  total: DiscrepancyAxis; // computed, but persisted
 };
 
 type OrthoCardData = {
@@ -170,7 +164,7 @@ export default function OrthoCardPage() {
       l42: "",
     });
 
-  // Bolton 36‑field inputs
+  // Bolton 36 fields
   const [boltonInputs, setBoltonInputs] = useState<BoltonInputs>(
     emptyBoltonInputs()
   );
@@ -181,11 +175,11 @@ export default function OrthoCardPage() {
     tm: "",
   });
 
-  // DISCREPANCY
+  // Discrepancy
   const [discrepancyInputs, setDiscrepancyInputs] =
     useState<DiscrepancyInputs>(emptyDiscrepancyInputs());
 
-  // UI
+  // UI only
   const [activeStatus, setActiveStatus] = useState<StatusKey | null>(null);
   const [extraToothText, setExtraToothText] = useState<string>("");
 
@@ -318,7 +312,7 @@ export default function OrthoCardPage() {
     pos: keyof DiscrepancyAxis,
     value: string
   ) => {
-    const cleaned = value.replace(/[^0-9.+-]/g, ""); // allow numbers & +/- & dot
+    const cleaned = value.replace(/[^0-9.+-]/g, "");
     setDiscrepancyInputs((prev) => ({
       ...prev,
       [axis]: {
@@ -337,7 +331,6 @@ export default function OrthoCardPage() {
   const expansion = discrepancyInputs.expansion;
   const fmia = discrepancyInputs.fmiaABPlane;
 
-  // Total discrepancy: sum of corresponding positions across 5 axes
   const totalAxis: DiscrepancyAxis = {
     upperLeft: (
       valueAt(ald, "upperLeft") +
@@ -654,7 +647,7 @@ export default function OrthoCardPage() {
             </div>
           </div>
 
-          {/* Odontogram */}
+          {/* Odontogram + legend */}
           <h2 style={{ fontSize: 14, marginTop: 0, marginBottom: 8 }}>
             Шүдний тойргийн зураг (Одонтограм)
           </h2>
@@ -675,7 +668,6 @@ export default function OrthoCardPage() {
               />
             </div>
 
-            {/* legend */}
             <aside
               style={{
                 borderRadius: 10,
@@ -777,8 +769,8 @@ export default function OrthoCardPage() {
             </aside>
           </div>
 
-          {/* MODEL MEASUREMENTS + Bolton + Howes */}
-          {/* (the whole ЗАГВАР ХЭМЖИЛ section remains exactly as in your last working code above) */}
+          {/* MODEL MEASUREMENTS + Bolton + Howes (same as your last working version) */}
+          {/* ... keep the whole existing Загвар хэмжил / Bolton / Howes block here ... */}
 
           {/* DISCREPANCY */}
           <section
@@ -801,7 +793,7 @@ export default function OrthoCardPage() {
               DISCREPANCY
             </div>
 
-            {/* First 5 editable axes */}
+            {/* 5 editable axes */}
             {[
               { key: "ald" as AxisKey, label: "ALD" },
               { key: "midline" as AxisKey, label: "Mid line" },
@@ -833,7 +825,7 @@ export default function OrthoCardPage() {
                       maxWidth: 330,
                     }}
                   >
-                    {/* upper left */}
+                    {/* UL */}
                     <input
                       type="text"
                       value={axis.upperLeft}
@@ -863,7 +855,7 @@ export default function OrthoCardPage() {
                         justifySelf: "center",
                       }}
                     />
-                    {/* upper right */}
+                    {/* UR */}
                     <input
                       type="text"
                       value={axis.upperRight}
@@ -883,7 +875,7 @@ export default function OrthoCardPage() {
                         justifySelf: "flex-end",
                       }}
                     />
-                    {/* lower left */}
+                    {/* LL */}
                     <input
                       type="text"
                       value={axis.lowerLeft}
@@ -903,7 +895,7 @@ export default function OrthoCardPage() {
                         justifySelf: "flex-start",
                       }}
                     />
-                    {/* lower right */}
+                    {/* LR */}
                     <input
                       type="text"
                       value={axis.lowerRight}
@@ -928,7 +920,7 @@ export default function OrthoCardPage() {
               );
             })}
 
-            {/* 6th axis: Total discrepancy (read‑only, sums of first 5) */}
+            {/* 6th axis – Total discrepancy: read-only sums at each corner */}
             <div
               style={{
                 display: "grid",
@@ -950,7 +942,7 @@ export default function OrthoCardPage() {
                   maxWidth: 330,
                 }}
               >
-                {/* upper left total */}
+                {/* UL total */}
                 <div
                   style={{
                     padding: "2px 4px",
@@ -974,7 +966,7 @@ export default function OrthoCardPage() {
                     justifySelf: "center",
                   }}
                 />
-                {/* upper right total */}
+                {/* UR total */}
                 <div
                   style={{
                     padding: "2px 4px",
@@ -988,7 +980,7 @@ export default function OrthoCardPage() {
                 >
                   {totalAxis.upperRight}
                 </div>
-                {/* lower left total */}
+                {/* LL total */}
                 <div
                   style={{
                     padding: "2px 4px",
@@ -1002,7 +994,7 @@ export default function OrthoCardPage() {
                 >
                   {totalAxis.lowerLeft}
                 </div>
-                {/* lower right total */}
+                {/* LR total */}
                 <div
                   style={{
                     padding: "2px 4px",
