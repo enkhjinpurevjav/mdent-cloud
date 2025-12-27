@@ -32,10 +32,10 @@ type SumOfIncisorInputs = {
 };
 
 type BoltonInputs = {
-  upper6: string[]; // 6 fields
-  lower6: string[]; // 6 fields
-  upper12: string[]; // 12 fields
-  lower12: string[]; // 12 fields
+  upper6: string[];
+  lower6: string[];
+  upper12: string[];
+  lower12: string[];
 };
 
 type HowesInputs = {
@@ -585,36 +585,6 @@ export default function OrthoCardPage() {
     ).toFixed(2),
   };
 
-  const toggleSurveyBool = (
-    field:
-      | "allergyPlant"
-      | "allergyMetal"
-      | "allergyDrug"
-      | "allergyFood"
-      | "allergyPlastic"
-      | "allergyOther"
-      | "hbv"
-      | "hbc"
-      | "hiv"
-  ) =>
-    setSurvey((prev) => ({ ...prev, [field]: !prev[field] }));
-
-  const updatePhysicalText = (field: keyof PhysicalExam, value: string) =>
-    setPhysicalExam((prev) => ({ ...prev, [field]: value }));
-
-  const togglePhysicalBool = (
-    field:
-      | "growthSpurtNormal"
-      | "growthSpurtAbnormal"
-      | "growthSpurtBefore"
-      | "growthSpurtMiddle"
-      | "growthSpurtAfter"
-      | "patternVertical"
-      | "patternHorizontal"
-      | "patternClockwise"
-      | "patternCounterclockwise"
-  ) => setPhysicalExam((prev) => ({ ...prev, [field]: !prev[field] }));
-
   const toggleHabitBool = (field: keyof HabitSection) =>
     setHabits((prev) => ({ ...prev, [field]: !prev[field] }));
 
@@ -1120,6 +1090,118 @@ export default function OrthoCardPage() {
     }
   };
 
+  const uniformInputStyle: React.CSSProperties = {
+    width: 68,
+    borderRadius: 4,
+    border: "1px solid #d1d5db",
+    padding: "2px 4px",
+    fontSize: 11,
+  };
+
+  const uniformTotalBoxBase: React.CSSProperties = {
+    width: 68,
+    borderRadius: 4,
+    border: "1px solid #d1d5db",
+    padding: "2px 4px",
+    background: "#f9fafb",
+    fontSize: 11,
+    fontWeight: 700,
+  };
+
+  const renderAxis = (
+    axisKey: Exclude<AxisKey, "total">,
+    label: string,
+    axis: DiscrepancyAxis
+  ) => (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        fontSize: 12,
+      }}
+    >
+      <div style={{ marginBottom: 4, fontWeight: 500 }}>{label}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <input
+            type="text"
+            value={axis.upperLeft}
+            onChange={(e) =>
+              updateDiscrepancy(axisKey, "upperLeft", e.target.value)
+            }
+            style={uniformInputStyle}
+          />
+          <input
+            type="text"
+            value={axis.upperRight}
+            onChange={(e) =>
+              updateDiscrepancy(axisKey, "upperRight", e.target.value)
+            }
+            style={uniformInputStyle}
+          />
+        </div>
+        <div
+          style={{
+            display: "flex",
+            gap: 6,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <input
+            type="text"
+            value={axis.lowerLeft}
+            onChange={(e) =>
+              updateDiscrepancy(axisKey, "lowerLeft", e.target.value)
+            }
+            style={uniformInputStyle}
+          />
+          <input
+            type="text"
+            value={axis.lowerRight}
+            onChange={(e) =>
+              updateDiscrepancy(axisKey, "lowerRight", e.target.value)
+            }
+            style={uniformInputStyle}
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  const Arrow = () => (
+    <div
+      style={{
+        width: 32,
+        height: 1,
+        background: "#d1d5db",
+        position: "relative",
+        margin: "0 4px",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          right: 0,
+          top: -3,
+          width: 0,
+          height: 0,
+          borderTop: "4px solid transparent",
+          borderBottom: "4px solid transparent",
+          borderLeft: "6px solid #6b7280",
+        }}
+      />
+    </div>
+  );
+
   return (
     <main
       style={{
@@ -1166,7 +1248,6 @@ export default function OrthoCardPage() {
           marginBottom: 16,
         }}
       >
-        {/* Row 1: Картын дугаар, Үйлчлүүлэгч, РД */}
         <div
           style={{
             display: "flex",
@@ -1197,7 +1278,6 @@ export default function OrthoCardPage() {
           </div>
         </div>
 
-        {/* Row 2: Нас, Хүйс, Утас */}
         <div
           style={{
             display: "flex",
@@ -1222,7 +1302,6 @@ export default function OrthoCardPage() {
           </div>
         </div>
 
-        {/* Row 3: Хаяг */}
         <div>
           <span style={{ color: "#6b7280", marginRight: 4 }}>Хаяг:</span>
           <span style={{ fontWeight: 500 }}>{patientAddress || "—"}</span>
@@ -1250,7 +1329,7 @@ export default function OrthoCardPage() {
             background: "white",
           }}
         >
-          {/* ЗУРШИЛ, ХОЛБООС, ЭРҮҮНИЙ ҮЕ, УТТС, УРУУЛ – inline layout */}
+          {/* ЗУРШИЛ, ХОЛБООС, ЭРҮҮНИЙ ҮЕ, УТТС, УРУУЛ */}
           <section
             style={{
               borderRadius: 12,
@@ -1261,7 +1340,6 @@ export default function OrthoCardPage() {
               marginBottom: 16,
             }}
           >
-           
             {/* ЗУРШИЛ */}
             <div style={{ fontWeight: 700, marginBottom: 4 }}>ЗУРШИЛ</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1910,7 +1988,7 @@ export default function OrthoCardPage() {
             </aside>
           </div>
 
-          {/* MODEL MEASUREMENTS (ЗАГВАР ХЭМЖИЛ) – Sum of incisors + Bolton + Howes */}
+          {/* MODEL MEASUREMENTS (ЗАГВАР ХЭМЖИЛЗҮЙ) */}
           <section
             style={{
               marginTop: 16,
@@ -2490,7 +2568,7 @@ export default function OrthoCardPage() {
             </div>
           </section>
 
-                    {/* Actions */}
+          {/* Actions */}
           <div
             style={{
               marginTop: 16,
@@ -2529,7 +2607,7 @@ export default function OrthoCardPage() {
             >
               {saving ? "Хадгалж байна..." : "Карт хадгалах"}
             </button>
-          </div>   {/* <-- this was missing in your version */}
+          </div>
         </section>
       )}
     </main>
