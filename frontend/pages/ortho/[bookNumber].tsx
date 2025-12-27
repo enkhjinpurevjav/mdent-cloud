@@ -149,10 +149,10 @@ export default function OrthoCardPage() {
   const [info, setInfo] = useState("");
 
   const [patientRegNo, setPatientRegNo] = useState<string>("");
-const [patientAge, setPatientAge] = useState<string>("");
-const [patientGender, setPatientGender] = useState<string>("");
-const [patientPhone, setPatientPhone] = useState<string>("");
-const [patientAddress, setPatientAddress] = useState<string>("");
+  const [patientAge, setPatientAge] = useState<string>("");
+  const [patientGender, setPatientGender] = useState<string>("");
+  const [patientPhone, setPatientPhone] = useState<string>("");
+  const [patientAddress, setPatientAddress] = useState<string>("");
 
   const [patientBookId, setPatientBookId] = useState<number | null>(null);
   const [patientNameHeader, setPatientNameHeader] = useState<string>("");
@@ -187,6 +187,8 @@ const [patientAddress, setPatientAddress] = useState<string>("");
     useState<DiscrepancyInputs>(emptyDiscrepancyInputs());
 
   const [activeStatus, setActiveStatus] = useState<StatusKey | null>(null);
+
+  // This is the text field inside the "Илүү шүд" control.
   const [extraToothText, setExtraToothText] = useState<string>("");
 
   const bn =
@@ -220,7 +222,7 @@ const [patientAddress, setPatientAddress] = useState<string>("");
 
   const u1l1Ratio = l1Sum > 0 ? (u1Sum / l1Sum).toFixed(2) : "";
 
-  // Bolton helpers
+  // Bolton
   const updateBoltonUpper6 = (index: number, value: string) => {
     const cleaned = value.replace(/[^0-9.]/g, "");
     setBoltonInputs((prev) => {
@@ -404,32 +406,39 @@ const [patientAddress, setPatientAddress] = useState<string>("");
 
         setPatientBookId(json.patientBook.id);
 
+        // patient info for header
         if (json.patient) {
-  const { ovog, name, regNo, age, gender, phone, address } = json.patient;
+          const { ovog, name, regNo, age, gender, phone, address } =
+            json.patient;
 
-  if (name) {
-    const trimmedOvog = (ovog || "").trim();
-    const display =
-      trimmedOvog && trimmedOvog !== "null"
-        ? `${trimmedOvog.charAt(0).toUpperCase()}.${name}`
-        : name;
-    setPatientNameHeader(display);
-  }
+          if (name) {
+            const trimmedOvog = (ovog || "").trim();
+            const display =
+              trimmedOvog && trimmedOvog !== "null"
+                ? `${trimmedOvog.charAt(0).toUpperCase()}.${name}`
+                : name;
+            setPatientNameHeader(display);
+          }
 
-  setPatientRegNo(regNo || "");
-  setPatientAge(
-    age != null && !Number.isNaN(Number(age)) ? String(age) : ""
-  );
-  setPatientGender(gender || "");
-  setPatientPhone(phone || "");
-  setPatientAddress(address || "");
-}
+          setPatientRegNo(regNo || "");
+          setPatientAge(
+            age != null && !Number.isNaN(Number(age)) ? String(age) : ""
+          );
+          setPatientGender(gender || "");
+          setPatientPhone(phone || "");
+          setPatientAddress(address || "");
+        }
 
         if (json.orthoCard && json.orthoCard.data) {
           const data = json.orthoCard.data;
           setCardPatientName(data.patientName || "");
           setCardNotes(data.notes || "");
-          setSupernumeraryNote(data.supernumeraryNote || "");
+
+          const note = data.supernumeraryNote || "";
+          setSupernumeraryNote(note);
+          // IMPORTANT: also feed it into the UI field so Илүү шүд persists
+          setExtraToothText(note);
+
           setToothChart(data.toothChart || []);
           setSumOfIncisorInputs(
             data.sumOfIncisorInputs || {
@@ -482,6 +491,7 @@ const [patientAddress, setPatientAddress] = useState<string>("");
           setCardPatientName("");
           setCardNotes("");
           setSupernumeraryNote("");
+          setExtraToothText("");
           setToothChart([]);
           setSumOfIncisorInputs({
             u12: "",
@@ -531,7 +541,8 @@ const [patientAddress, setPatientAddress] = useState<string>("");
         patientName: cardPatientName || undefined,
         notes: cardNotes || undefined,
         toothChart,
-        supernumeraryNote: supernumeraryNote || undefined,
+        // IMPORTANT: persist the Илүү шүд text from the legend
+        supernumeraryNote: extraToothText || undefined,
         sumOfIncisorInputs,
         boltonInputs,
         howesInputs,
@@ -547,7 +558,7 @@ const [patientAddress, setPatientAddress] = useState<string>("");
 
       if (!res.ok) {
         throw new Error(
-          (json && json.error) || "Гажиг заслын карт хадгалахад алдаа гарлаа."
+          (json && (json as any).error) || "Гажиг заслын карт хадгалахад алдаа гарлаа."
         );
       }
 
@@ -708,78 +719,83 @@ const [patientAddress, setPatientAddress] = useState<string>("");
         ← Үйлчлүүлэгчийн хэсэг рүү буцах
       </button>
 
-     <h1 style={{ fontSize: 20, marginTop: 0, marginBottom: 8 }}>
-  Гажиг заслын үйлчлүүлэгчийн карт
-</h1>
+      <h1 style={{ fontSize: 20, marginTop: 0, marginBottom: 8 }}>
+        Гажиг заслын үйлчлүүлэгчийн карт
+      </h1>
 
-<div
-  style={{
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-    fontSize: 13,
-    color: "#111827",
-    marginBottom: 16,
-  }}
->
-  {/* Row 1: Картын дугаар, Өвчтөн, РД */}
-  <div
-    style={{
-      display: "flex",
-      flexWrap: "wrap",
-      gap: 16,
-      alignItems: "baseline",
-    }}
-  >
-    <div>
-      <span style={{ color: "#6b7280", marginRight: 4 }}>Картын дугаар:</span>
-      <span style={{ fontWeight: 600 }}>{bn || "—"}</span>
-    </div>
+      {/* Patient header */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 4,
+          fontSize: 13,
+          color: "#111827",
+          marginBottom: 16,
+        }}
+      >
+        {/* Row 1: Картын дугаар, Үйлчлүүлэгч, РД */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 16,
+            alignItems: "baseline",
+          }}
+        >
+          <div>
+            <span style={{ color: "#6b7280", marginRight: 4 }}>
+              Картын дугаар:
+            </span>
+            <span style={{ fontWeight: 600 }}>{bn || "—"}</span>
+          </div>
 
-    <div>
-      <span style={{ color: "#6b7280", marginRight: 4 }}>Үйлчлүүлэгч:</span>
-      <span style={{ fontWeight: 600 }}>
-        {patientNameHeader || "—"}
-      </span>
-    </div>
+          <div>
+            <span style={{ color: "#6b7280", marginRight: 4 }}>
+              Үйлчлүүлэгч:
+            </span>
+            <span style={{ fontWeight: 600 }}>
+              {patientNameHeader || "—"}
+            </span>
+          </div>
 
-    <div>
-      <span style={{ color: "#6b7280", marginRight: 4 }}>РД:</span>
-      <span style={{ fontWeight: 500 }}>{patientRegNo || "—"}</span>
-    </div>
-  </div>
+          <div>
+            <span style={{ color: "#6b7280", marginRight: 4 }}>РД:</span>
+            <span style={{ fontWeight: 500 }}>{patientRegNo || "—"}</span>
+          </div>
+        </div>
 
-  {/* Row 2: Нас, Хүйс, Утас */}
-  <div
-    style={{
-      display: "flex",
-      flexWrap: "wrap",
-      gap: 16,
-      alignItems: "baseline",
-    }}
-  >
-    <div>
-      <span style={{ color: "#6b7280", marginRight: 4 }}>Нас:</span>
-      <span style={{ fontWeight: 500 }}>{patientAge || "—"}</span>
-    </div>
+        {/* Row 2: Нас, Хүйс, Утас */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 16,
+            alignItems: "baseline",
+          }}
+        >
+          <div>
+            <span style={{ color: "#6b7280", marginRight: 4 }}>Нас:</span>
+            <span style={{ fontWeight: 500 }}>{patientAge || "—"}</span>
+          </div>
 
-    <div>
-      <span style={{ color: "#6b7280", marginRight: 4 }}>Хүйс:</span>
-      <span style={{ fontWeight: 500 }}>{patientGender || "—"}</span>
-    </div>
+          <div>
+            <span style={{ color: "#6b7280", marginRight: 4 }}>Хүйс:</span>
+            <span style={{ fontWeight: 500 }}>{patientGender || "—"}</span>
+          </div>
 
-    <div>
-      <span style={{ color: "#6b7280", marginRight: 4 }}>Утас:</span>
-      <span style={{ fontWeight: 500 }}>{patientPhone || "—"}</span>
-    </div>
-  </div>
+          <div>
+            <span style={{ color: "#6b7280", marginRight: 4 }}>Утас:</span>
+            <span style={{ fontWeight: 500 }}>{patientPhone || "—"}</span>
+          </div>
+        </div>
 
-  {/* Row 3: Хаяг */}
-  <div>
-    <span style={{ color: "#6b7280", marginRight: 4 }}>Хаяг:</span>
-    <span style={{ fontWeight: 500 }}>{patientAddress || "—"}</span>
-  </div>
-</div>
+        {/* Row 3: Хаяг */}
+        <div>
+          <span style={{ color: "#6b7280", marginRight: 4 }}>Хаяг:</span>
+          <span style={{ fontWeight: 500 }}>{patientAddress || "—"}</span>
+        </div>
+      </div>
 
       {loading && <div>Ачааллаж байна...</div>}
       {!loading && error && (
@@ -802,8 +818,6 @@ const [patientAddress, setPatientAddress] = useState<string>("");
             background: "white",
           }}
         >
-          
-
           {/* Odontogram + legend */}
           <div
             style={{
@@ -907,8 +921,6 @@ const [patientAddress, setPatientAddress] = useState<string>("");
                   />
                 </div>
               )}
-
-              
             </aside>
           </div>
 
@@ -933,8 +945,8 @@ const [patientAddress, setPatientAddress] = useState<string>("");
               ЗАГВАР ХЭМЖИЛЗҮЙ
             </div>
             <div style={{ fontWeight: 600, marginBottom: 8 }}>
-  Sum of incisor
-</div>
+              Sum of incisor
+            </div>
 
             {/* Upper incisors */}
             <div style={{ marginBottom: 8 }}>
@@ -1005,8 +1017,12 @@ const [patientAddress, setPatientAddress] = useState<string>("");
                     padding: "4px 6px",
                   }}
                 />
-                <span style={{ marginLeft: 12, fontWeight: 500 }}>
-                  U1 сум = {u1Sum.toFixed(2)} мм
+                <span style={{ marginLeft: 12 }}>
+                  U1 сум ={" "}
+                  <span style={{ fontWeight: 700 }}>
+                    {u1Sum.toFixed(2)}
+                  </span>{" "}
+                  мм
                 </span>
               </div>
             </div>
@@ -1080,8 +1096,12 @@ const [patientAddress, setPatientAddress] = useState<string>("");
                     padding: "4px 6px",
                   }}
                 />
-                <span style={{ marginLeft: 12, fontWeight: 500 }}>
-                  L1 сум = {l1Sum.toFixed(2)} мм
+                <span style={{ marginLeft: 12 }}>
+                  L1 сум ={" "}
+                  <span style={{ fontWeight: 700 }}>
+                    {l1Sum.toFixed(2)}
+                  </span>{" "}
+                  мм
                 </span>
               </div>
             </div>
@@ -1105,8 +1125,8 @@ const [patientAddress, setPatientAddress] = useState<string>("");
 
             {/* Bolton index */}
             <div style={{ fontWeight: 600, marginBottom: 8 }}>
-  Bolton Index
-</div>
+              Bolton Index
+            </div>
 
             {/* 6) */}
             <div style={{ marginBottom: 10 }}>
@@ -1263,9 +1283,9 @@ const [patientAddress, setPatientAddress] = useState<string>("");
             </div>
 
             {/* Howes' Ax */}
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>
-  Howes' AX
-</div>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>
+              Howes&apos; AX
+            </div>
             <div
               style={{
                 display: "flex",
@@ -1483,8 +1503,6 @@ const [patientAddress, setPatientAddress] = useState<string>("");
               </div>
             </div>
           </section>
-
-          
 
           {/* Actions */}
           <div
