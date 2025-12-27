@@ -250,16 +250,16 @@ export default function OrthoCardPage() {
     if (!howesResult || Number.isNaN(v)) return { label: "", color: "" };
     if (v < 37)
       return {
-        label: "< 37% — Basal bone deficient → extraction likely",
+        label: "< 37% — Суурь яс дутмаг → шүд авах магадлал өндөр",
         color: "#b91c1c",
       };
     if (v > 44)
       return {
-        label: "> 44% — Excess basal width → non-extraction favorable",
+        label: "> 44% — Суурь өргөн их → шүд авахгүй байх нь тохиромжтой",
         color: "#16a34a",
       };
     return {
-      label: "37–44% — Normal / borderline",
+      label: "37–44% — Хэвийн / завсрын бүс",
       color: "#f97316",
     };
   };
