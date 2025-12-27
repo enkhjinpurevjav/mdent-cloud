@@ -1604,6 +1604,30 @@ export default function OrthoCardPage() {
               </label>
             </div>
           </section>
+
+      {!loading && !error && (
+        <section
+          style={{
+            borderRadius: 12,
+            border: "1px solid #e5e7eb",
+            padding: 16,
+            background: "white",
+          }}
+        >
+          {/* ЗУРШИЛ, ХОЛБООС, ЭРҮҮНИЙ ҮЕ, УТТС, УРУУЛ */}
+          <section
+            style={{
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              padding: 12,
+              background: "#ffffff",
+              fontSize: 13,
+              marginBottom: 16,
+            }}
+          >
+            {/* ЗУРШИЛ */}
+
+          
           {/* ЗУРШИЛ, ХОЛБООС, ЭРҮҮНИЙ ҮЕ, УТТС, УРУУЛ */}
           <section
             style={{
