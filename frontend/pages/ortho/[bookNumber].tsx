@@ -908,16 +908,7 @@ const [patientAddress, setPatientAddress] = useState<string>("");
                 </div>
               )}
 
-              <div
-                style={{
-                  marginTop: 8,
-                  fontSize: 11,
-                  color: "#6b7280",
-                }}
-              >
-                Товчийг сонгоод тойрог дээр дарж тухайн шүдний байдал, хэсэг
-                тус бүрийн цоорсон / ломбодсон байдлыг тэмдэглэнэ. Илүү шүд
-                товч дээр тайлбар бичиж хадгална.
+              
               </div>
             </aside>
           </div>
