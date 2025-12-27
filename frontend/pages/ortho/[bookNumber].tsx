@@ -709,7 +709,7 @@ const [patientAddress, setPatientAddress] = useState<string>("");
       </button>
 
      <h1 style={{ fontSize: 20, marginTop: 0, marginBottom: 8 }}>
-  Гажиг заслын өвчтөний карт
+  Гажиг заслын үйлчлүүлэгчийн карт
 </h1>
 
 <div
@@ -737,7 +737,7 @@ const [patientAddress, setPatientAddress] = useState<string>("");
     </div>
 
     <div>
-      <span style={{ color: "#6b7280", marginRight: 4 }}>Өвчтөн:</span>
+      <span style={{ color: "#6b7280", marginRight: 4 }}>Үйлчлүүлэгч:</span>
       <span style={{ fontWeight: 600 }}>
         {patientNameHeader || "—"}
       </span>
