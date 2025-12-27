@@ -282,7 +282,7 @@ export default function OrthoCardPage() {
     if (!howesResult || Number.isNaN(v)) return { label: "", color: "" };
     if (v < 37)
       return {
-        label: "< 37% — Суурь яс дутмаг → шүд авах магадлал өндөр",
+        label: "< 37% — Суурь яс дутмаг → шүд авах магдалал өндөр",
         color: "#b91c1c",
       };
     if (v > 44)
@@ -769,8 +769,8 @@ export default function OrthoCardPage() {
             </aside>
           </div>
 
-          {/* MODEL MEASUREMENTS + Bolton + Howes (same as your last working version) */}
-          {/* ... keep the whole existing Загвар хэмжил / Bolton / Howes block here ... */}
+          {/* ЗАГВАР ХЭМЖИЛ – Sum of incisor + Bolton + Howes (this block is your last working version) */}
+          {/* ... keep your existing Загвар хэмжил section here unchanged ... */}
 
           {/* DISCREPANCY */}
           <section
@@ -793,7 +793,7 @@ export default function OrthoCardPage() {
               DISCREPANCY
             </div>
 
-            {/* 5 editable axes */}
+            {/* 5 editable axes as cross (UL/UR, LL/LR) */}
             {[
               { key: "ald" as AxisKey, label: "ALD" },
               { key: "midline" as AxisKey, label: "Mid line" },
@@ -845,7 +845,7 @@ export default function OrthoCardPage() {
                         justifySelf: "flex-start",
                       }}
                     />
-                    {/* vertical line */}
+                    {/* vertical midline */}
                     <div
                       style={{
                         gridRow: "1 / span 2",
@@ -920,7 +920,7 @@ export default function OrthoCardPage() {
               );
             })}
 
-            {/* 6th axis – Total discrepancy: read-only sums at each corner */}
+            {/* Total discrepancy – same cross, read-only corner sums */}
             <div
               style={{
                 display: "grid",
@@ -956,7 +956,7 @@ export default function OrthoCardPage() {
                 >
                   {totalAxis.upperLeft}
                 </div>
-                {/* vertical line */}
+                {/* vertical midline */}
                 <div
                   style={{
                     gridRow: "1 / span 2",
