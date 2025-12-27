@@ -512,7 +512,7 @@ export default function OrthoCardPage() {
     ).toFixed(2),
   };
 
-  const uniformInputStyle: React.CSSProperties = {
+  const uniformInputStyle = {
     width: 68,
     borderRadius: 4,
     border: "1px solid #d1d5db",
@@ -520,14 +520,14 @@ export default function OrthoCardPage() {
     fontSize: 11,
   };
 
-  const uniformTotalBoxBase: React.CSSProperties = {
+  const uniformTotalBoxBase = {
     width: 68,
     borderRadius: 4,
     border: "1px solid #d1d5db",
     padding: "2px 4px",
     background: "#f9fafb",
     fontSize: 11,
-    fontWeight: 700,
+    fontWeight: 700 as const,
   };
 
   const renderAxis = (
