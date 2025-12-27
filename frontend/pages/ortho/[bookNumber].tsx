@@ -1971,801 +1971,743 @@ export default function OrthoCardPage() {
             </div>
           </section>
 
-          {/* ЗУРШИЛ, УТТС / ХОЛБООС, ЭРҮҮНИЙ ҮЕ, УРУУЛ */}
+          {/* ЗУРШИЛ, ХОЛБООС, ЭРҮҮНИЙ ҮЕ, УТТС, УРУУЛ */}
           <div
             style={{
-              marginTop: 0,
-              marginBottom: 16,
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-              gap: 12,
-            }}
-          >
-            {/* LEFT COLUMN: ЗУРШИЛ + УТТС */}
-            <div
+            marginTop: 0,
+            marginBottom: 16,
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+  }}
+>
+            
+            {/* ЗУРШИЛ */}
+            <section
               style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
+                borderRadius: 10,
+                border: "1px solid #e5e7eb",
+                padding: 8,
+                background: "#ffffff",
+                fontSize: 12,
               }}
             >
-              {/* ЗУРШИЛ */}
-              <section
-                style={{
-                  borderRadius: 10,
-                  border: "1px solid #e5e7eb",
-                  padding: 8,
-                  background: "#ffffff",
-                  fontSize: 12,
-                }}
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>ЗУРШИЛ</div>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 4 }}
               >
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>ЗУРШИЛ</div>
-                <div
+                <div>Зуршил</div>
+                <label
                   style={{
                     display: "flex",
-                    flexDirection: "column",
+                    justifyContent: "space-between",
                     gap: 4,
                   }}
                 >
-                  <div>Зуршил</div>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Хэлээр түлхэх</span>
-                    <input
-                      type="checkbox"
-                      checked={!!habits.tongueThrust}
-                      onChange={() => toggleHabitBool("tongueThrust")}
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Уруул, хумс мэрэх</span>
-                    <input
-                      type="checkbox"
-                      checked={!!habits.lipNailBite}
-                      onChange={() => toggleHabitBool("lipNailBite")}
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Хуруу хөхөх</span>
-                    <input
-                      type="checkbox"
-                      checked={!!habits.fingerSucking}
-                      onChange={() => toggleHabitBool("fingerSucking")}
-                    />
-                  </label>
+                  <span>Хэлээр түлхэх</span>
+                  <input
+                    type="checkbox"
+                    checked={!!habits.tongueThrust}
+                    onChange={() => toggleHabitBool("tongueThrust")}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Уруул, хумс мэрэх</span>
+                  <input
+                    type="checkbox"
+                    checked={!!habits.lipNailBite}
+                    onChange={() => toggleHabitBool("lipNailBite")}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Хуруу хөхөх</span>
+                  <input
+                    type="checkbox"
+                    checked={!!habits.fingerSucking}
+                    onChange={() => toggleHabitBool("fingerSucking")}
+                  />
+                </label>
 
-                  <div style={{ marginTop: 4 }}>Амьсгалалт</div>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Амаар</span>
-                    <input
-                      type="checkbox"
-                      checked={!!habits.breathingMouth}
-                      onChange={() => toggleHabitBool("breathingMouth")}
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Хамраар</span>
-                    <input
-                      type="checkbox"
-                      checked={!!habits.breathingNose}
-                      onChange={() => toggleHabitBool("breathingNose")}
-                    />
-                  </label>
+                <div style={{ marginTop: 4 }}>Амьсгалалт</div>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Амаар</span>
+                  <input
+                    type="checkbox"
+                    checked={!!habits.breathingMouth}
+                    onChange={() => toggleHabitBool("breathingMouth")}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Хамраар</span>
+                  <input
+                    type="checkbox"
+                    checked={!!habits.breathingNose}
+                    onChange={() => toggleHabitBool("breathingNose")}
+                  />
+                </label>
 
-                  <div style={{ marginTop: 4 }}>Залгилт</div>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Хэвийн</span>
-                    <input
-                      type="checkbox"
-                      checked={!!habits.swallowNormal}
-                      onChange={() => toggleHabitBool("swallowNormal")}
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Хэвийн бус</span>
-                    <input
-                      type="checkbox"
-                      checked={!!habits.swallowAbnormal}
-                      onChange={() => toggleHabitBool("swallowAbnormal")}
-                    />
-                  </label>
+                <div style={{ marginTop: 4 }}>Залгилт</div>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Хэвийн</span>
+                  <input
+                    type="checkbox"
+                    checked={!!habits.swallowNormal}
+                    onChange={() => toggleHabitBool("swallowNormal")}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Хэвийн бус</span>
+                  <input
+                    type="checkbox"
+                    checked={!!habits.swallowAbnormal}
+                    onChange={() => toggleHabitBool("swallowAbnormal")}
+                  />
+                </label>
 
-                  <div style={{ marginTop: 4 }}>Бусад</div>
+                <div style={{ marginTop: 4 }}>Бусад</div>
+                <input
+                  type="text"
+                  value={habits.other || ""}
+                  onChange={(e) =>
+                    updateHabitText("other", e.target.value)
+                  }
+                  style={{
+                    width: "100%",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "2px 4px",
+                    fontSize: 12,
+                  }}
+                />
+              </div>
+            </section>
+
+            {/* ХОЛБООС */}
+            <section
+              style={{
+                borderRadius: 10,
+                border: "1px solid #e5e7eb",
+                padding: 8,
+                background: "#ffffff",
+                fontSize: 12,
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>ХОЛБООС</div>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 4 }}
+              >
+                <div>АХЭА</div>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Сайн</span>
+                  <input
+                    type="checkbox"
+                    checked={!!attachment.aheaGood}
+                    onChange={() => toggleAttachmentBool("aheaGood")}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Дунд</span>
+                  <input
+                    type="checkbox"
+                    checked={!!attachment.aheaMedium}
+                    onChange={() => toggleAttachmentBool("aheaMedium")}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Муу</span>
+                  <input
+                    type="checkbox"
+                    checked={!!attachment.aheaPoor}
+                    onChange={() => toggleAttachmentBool("aheaPoor")}
+                  />
+                </label>
+
+                <div style={{ marginTop: 4 }}>Буйлны үрэвсэл</div>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Тийм</span>
+                  <input
+                    type="checkbox"
+                    checked={!!attachment.gingivitis}
+                    onChange={() => toggleAttachmentBool("gingivitis")}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Үгүй</span>
+                  <input
+                    type="checkbox"
+                    checked={!!attachment.gingivitisNo}
+                    onChange={() => toggleAttachmentBool("gingivitisNo")}
+                  />
+                </label>
+
+                <div style={{ marginTop: 4 }}>Холбоосын үрэвсэл</div>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Тийм</span>
+                  <input
+                    type="checkbox"
+                    checked={!!attachment.frenumInflammation}
+                    onChange={() =>
+                      toggleAttachmentBool("frenumInflammation")
+                    }
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Үгүй</span>
+                  <input
+                    type="checkbox"
+                    checked={!!attachment.frenumInflammationNo}
+                    onChange={() =>
+                      toggleAttachmentBool("frenumInflammationNo")
+                    }
+                  />
+                </label>
+              </div>
+            </section>
+
+            {/* ЭРҮҮНИЙ ҮЕ */}
+            <section
+              style={{
+                borderRadius: 10,
+                border: "1px solid #e5e7eb",
+                padding: 8,
+                background: "#ffffff",
+                fontSize: 12,
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                ЭРҮҮНИЙ ҮЕ
+              </div>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 4 }}
+              >
+                <div>Өмнө өвдөж байсан эсэх</div>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Тийм</span>
+                  <input
+                    type="checkbox"
+                    checked={!!tmj.previousPainYes}
+                    onChange={() => toggleTmjBool("previousPainYes")}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Үгүй</span>
+                  <input
+                    type="checkbox"
+                    checked={!!tmj.previousPainNo}
+                    onChange={() => toggleTmjBool("previousPainNo")}
+                  />
+                </label>
+
+                <div style={{ marginTop: 4 }}>Asymptomatic / Symptomatic</div>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Asymptomatic</span>
+                  <input
+                    type="checkbox"
+                    checked={!!tmj.asymptomatic}
+                    onChange={() => toggleTmjBool("asymptomatic")}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Symptomatic</span>
+                  <input
+                    type="checkbox"
+                    checked={!!tmj.symptomatic}
+                    onChange={() => toggleTmjBool("symptomatic")}
+                  />
+                </label>
+
+                <div style={{ marginTop: 4 }}>Дуу</div>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Баруун</span>
+                  <input
+                    type="checkbox"
+                    checked={!!tmj.soundRight}
+                    onChange={() => toggleTmjBool("soundRight")}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Зүүн</span>
+                  <input
+                    type="checkbox"
+                    checked={!!tmj.soundLeft}
+                    onChange={() => toggleTmjBool("soundLeft")}
+                  />
+                </label>
+
+                <div style={{ marginTop: 4 }}>Өвдөлт</div>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Баруун</span>
+                  <input
+                    type="checkbox"
+                    checked={!!tmj.painRight}
+                    onChange={() => toggleTmjBool("painRight")}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Зүүн</span>
+                  <input
+                    type="checkbox"
+                    checked={!!tmj.painLeft}
+                    onChange={() => toggleTmjBool("painLeft")}
+                  />
+                </label>
+
+                <div style={{ marginTop: 4 }}>Толгой өвдөлт</div>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Тийм</span>
+                  <input
+                    type="checkbox"
+                    checked={!!tmj.headacheYes}
+                    onChange={() => toggleTmjBool("headacheYes")}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Үгүй</span>
+                  <input
+                    type="checkbox"
+                    checked={!!tmj.headacheNo}
+                    onChange={() => toggleTmjBool("headacheNo")}
+                  />
+                </label>
+
+                <div style={{ marginTop: 4 }}>Булчингийн чангарал</div>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Тийм</span>
+                  <input
+                    type="checkbox"
+                    checked={!!tmj.muscleTensionYes}
+                    onChange={() =>
+                      toggleTmjBool("muscleTensionYes")
+                    }
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Үгүй</span>
+                  <input
+                    type="checkbox"
+                    checked={!!tmj.muscleTensionNo}
+                    onChange={() => toggleTmjBool("muscleTensionNo")}
+                  />
+                </label>
+
+                <div style={{ marginTop: 4 }}>Ам ангайллт</div>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Хэвийн</span>
+                  <input
+                    type="checkbox"
+                    checked={!!tmj.mouthOpeningNormal}
+                    onChange={() =>
+                      toggleTmjBool("mouthOpeningNormal")
+                    }
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Хязгаарлагдсан</span>
+                  <input
+                    type="checkbox"
+                    checked={!!tmj.mouthOpeningLimited}
+                    onChange={() =>
+                      toggleTmjBool("mouthOpeningLimited")
+                    }
+                  />
+                </label>
+
+                <div style={{ marginTop: 4 }}>
+                  Max. ам ангайллт{" "}
                   <input
                     type="text"
-                    value={habits.other || ""}
+                    value={tmj.maxMouthOpeningMm || ""}
                     onChange={(e) =>
-                      updateHabitText("other", e.target.value)
+                      updateTmjText("maxMouthOpeningMm", e.target.value)
                     }
                     style={{
-                      width: "100%",
-                      borderRadius: 6,
+                      width: 60,
+                      borderRadius: 4,
                       border: "1px solid #d1d5db",
                       padding: "2px 4px",
-                      fontSize: 12,
+                      fontSize: 11,
+                      marginLeft: 4,
+                      marginRight: 4,
                     }}
                   />
+                  мм
                 </div>
-              </section>
+              </div>
+            </section>
 
-              {/* УТТС */}
-              <section
-                style={{
-                  borderRadius: 10,
-                  border: "1px solid #e5e7eb",
-                  padding: 8,
-                  background: "#ffffff",
-                  fontSize: 12,
-                }}
+            {/* УТТС */}
+            <section
+              style={{
+                borderRadius: 10,
+                border: "1px solid #e5e7eb",
+                padding: 8,
+                background: "#ffffff",
+                fontSize: 12,
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>УТТС</div>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 4 }}
               >
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>УТТС</div>
-                <div
+                <label
                   style={{
                     display: "flex",
-                    flexDirection: "column",
+                    justifyContent: "space-between",
                     gap: 4,
                   }}
                 >
-                  <label
+                  <span>Уруулын сэтэрхий</span>
+                  <input
+                    type="checkbox"
+                    checked={!!utts.lipCleft}
+                    onChange={() => toggleUttsBool("lipCleft")}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Тагнайн сэтэрхий</span>
+                  <input
+                    type="checkbox"
+                    checked={!!utts.palateCleft}
+                    onChange={() => toggleUttsBool("palateCleft")}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Нэг талын</span>
+                  <input
+                    type="checkbox"
+                    checked={!!utts.unilateral}
+                    onChange={() => toggleUttsBool("unilateral")}
+                  />
+                </label>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontSize: 11,
+                  }}
+                >
+                  <span>Тал (Б/З):</span>
+                  <input
+                    type="text"
+                    value={utts.unilateralSide || ""}
+                    onChange={(e) =>
+                      updateUttsText("unilateralSide", e.target.value)
+                    }
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Уруулын сэтэрхий</span>
-                    <input
-                      type="checkbox"
-                      checked={!!utts.lipCleft}
-                      onChange={() => toggleUttsBool("lipCleft")}
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Тагнайн сэтэрхий</span>
-                    <input
-                      type="checkbox"
-                      checked={!!utts.palateCleft}
-                      onChange={() => toggleUttsBool("palateCleft")}
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Нэг талын</span>
-                    <input
-                      type="checkbox"
-                      checked={!!utts.unilateral}
-                      onChange={() => toggleUttsBool("unilateral")}
-                    />
-                  </label>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
+                      width: 40,
+                      borderRadius: 4,
+                      border: "1px solid #d1d5db",
+                      padding: "2px 4px",
                       fontSize: 11,
                     }}
-                  >
-                    <span>Тал (Б/З):</span>
-                    <input
-                      type="text"
-                      value={utts.unilateralSide || ""}
-                      onChange={(e) =>
-                        updateUttsText("unilateralSide", e.target.value)
-                      }
-                      style={{
-                        width: 40,
-                        borderRadius: 4,
-                        border: "1px solid #d1d5db",
-                        padding: "2px 4px",
-                        fontSize: 11,
-                      }}
-                    />
-                  </div>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Хоёр талын</span>
-                    <input
-                      type="checkbox"
-                      checked={!!utts.bilateral}
-                      onChange={() => toggleUttsBool("bilateral")}
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Бусад</span>
-                    <input
-                      type="checkbox"
-                      checked={!!utts.other}
-                      onChange={() => toggleUttsBool("other")}
-                    />
-                  </label>
-                  <input
-                    type="text"
-                    value={utts.otherText || ""}
-                    onChange={(e) =>
-                      updateUttsText("otherText", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      borderRadius: 6,
-                      border: "1px solid #d1d5db",
-                      padding: "2px 4px",
-                      fontSize: 12,
-                    }}
-                    placeholder=""
                   />
                 </div>
-              </section>
-            </div>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Хоёр талын</span>
+                  <input
+                    type="checkbox"
+                    checked={!!utts.bilateral}
+                    onChange={() => toggleUttsBool("bilateral")}
+                  />
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 4,
+                  }}
+                >
+                  <span>Бусад</span>
+                  <input
+                    type="checkbox"
+                    checked={!!utts.other}
+                    onChange={() => toggleUttsBool("other")}
+                  />
+                </label>
+                <input
+                  type="text"
+                  value={utts.otherText || ""}
+                  onChange={(e) =>
+                    updateUttsText("otherText", e.target.value)
+                  }
+                  style={{
+                    width: "100%",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "2px 4px",
+                    fontSize: 12,
+                  }}
+                  placeholder=""
+                />
+              </div>
+            </section>
 
-            {/* RIGHT COLUMN: ХОЛБООС + ЭРҮҮНИЙ ҮЕ + УРУУЛ */}
-            <div
+            {/* УРУУЛ */}
+            <section
               style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
+                borderRadius: 10,
+                border: "1px solid #e5e7eb",
+                padding: 8,
+                background: "#ffffff",
+                fontSize: 12,
               }}
             >
-              {/* ХОЛБООС */}
-              <section
-                style={{
-                  borderRadius: 10,
-                  border: "1px solid #e5e7eb",
-                  padding: 8,
-                  background: "#ffffff",
-                  fontSize: 12,
-                }}
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>Уруул</div>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 4 }}
               >
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>ХОЛБООС</div>
-                <div
+                <label
                   style={{
                     display: "flex",
-                    flexDirection: "column",
+                    justifyContent: "space-between",
                     gap: 4,
                   }}
                 >
-                  <div>АХЭА</div>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Сайн</span>
-                    <input
-                      type="checkbox"
-                      checked={!!attachment.aheaGood}
-                      onChange={() => toggleAttachmentBool("aheaGood")}
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Дунд</span>
-                    <input
-                      type="checkbox"
-                      checked={!!attachment.aheaMedium}
-                      onChange={() => toggleAttachmentBool("aheaMedium")}
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Муу</span>
-                    <input
-                      type="checkbox"
-                      checked={!!attachment.aheaPoor}
-                      onChange={() => toggleAttachmentBool("aheaPoor")}
-                    />
-                  </label>
-
-                  <div style={{ marginTop: 4 }}>Буйлны үрэвсэл</div>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Тийм</span>
-                    <input
-                      type="checkbox"
-                      checked={!!attachment.gingivitis}
-                      onChange={() =>
-                        toggleAttachmentBool("gingivitis")
-                      }
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Үгүй</span>
-                    <input
-                      type="checkbox"
-                      checked={!!attachment.gingivitisNo}
-                      onChange={() =>
-                        toggleAttachmentBool("gingivitisNo")
-                      }
-                    />
-                  </label>
-
-                  <div style={{ marginTop: 4 }}>Холбоосын үрэвсэл</div>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Тийм</span>
-                    <input
-                      type="checkbox"
-                      checked={!!attachment.frenumInflammation}
-                      onChange={() =>
-                        toggleAttachmentBool("frenumInflammation")
-                      }
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Үгүй</span>
-                    <input
-                      type="checkbox"
-                      checked={!!attachment.frenumInflammationNo}
-                      onChange={() =>
-                        toggleAttachmentBool("frenumInflammationNo")
-                      }
-                    />
-                  </label>
-                </div>
-              </section>
-
-              {/* ЭРҮҮНИЙ ҮЕ */}
-              <section
-                style={{
-                  borderRadius: 10,
-                  border: "1px solid #e5e7eb",
-                  padding: 8,
-                  background: "#ffffff",
-                  fontSize: 12,
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                  ЭРҮҮНИЙ ҮЕ
-                </div>
-                <div
+                  <span>Нийлсэн</span>
+                  <input
+                    type="checkbox"
+                    checked={!!lip.closed}
+                    onChange={() => toggleLipBool("closed")}
+                  />
+                </label>
+                <label
                   style={{
                     display: "flex",
-                    flexDirection: "column",
+                    justifyContent: "space-between",
                     gap: 4,
                   }}
                 >
-                  <div>Өмнө өвдөж байсан эсэх</div>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Тийм</span>
-                    <input
-                      type="checkbox"
-                      checked={!!tmj.previousPainYes}
-                      onChange={() =>
-                        toggleTmjBool("previousPainYes")
-                      }
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Үгүй</span>
-                    <input
-                      type="checkbox"
-                      checked={!!tmj.previousPainNo}
-                      onChange={() =>
-                        toggleTmjBool("previousPainNo")
-                      }
-                    />
-                  </label>
+                  <span>Нийлээгүй</span>
+                  <input
+                    type="checkbox"
+                    checked={!!lip.open}
+                    onChange={() => toggleLipBool("open")}
+                  />
+                </label>
 
-                  <div style={{ marginTop: 4 }}>
-                    Asymptomatic / Symptomatic
-                  </div>
-                  <label
+                <div style={{ marginTop: 4 }}>
+                  rest lip{" "}
+                  <input
+                    type="text"
+                    value={lip.restLipMm || ""}
+                    onChange={(e) =>
+                      updateLipText("restLipMm", e.target.value)
+                    }
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
+                      width: 60,
+                      borderRadius: 4,
+                      border: "1px solid #d1d5db",
+                      padding: "2px 4px",
+                      fontSize: 11,
+                      marginLeft: 4,
+                      marginRight: 4,
                     }}
-                  >
-                    <span>Asymptomatic</span>
-                    <input
-                      type="checkbox"
-                      checked={!!tmj.asymptomatic}
-                      onChange={() =>
-                        toggleTmjBool("asymptomatic")
-                      }
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Symptomatic</span>
-                    <input
-                      type="checkbox"
-                      checked={!!tmj.symptomatic}
-                      onChange={() =>
-                        toggleTmjBool("symptomatic")
-                      }
-                    />
-                  </label>
-
-                  <div style={{ marginTop: 4 }}>Дуу</div>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Баруун</span>
-                    <input
-                      type="checkbox"
-                      checked={!!tmj.soundRight}
-                      onChange={() => toggleTmjBool("soundRight")}
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Зүүн</span>
-                    <input
-                      type="checkbox"
-                      checked={!!tmj.soundLeft}
-                      onChange={() => toggleTmjBool("soundLeft")}
-                    />
-                  </label>
-
-                  <div style={{ marginTop: 4 }}>Өвдөлт</div>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Баруун</span>
-                    <input
-                      type="checkbox"
-                      checked={!!tmj.painRight}
-                      onChange={() => toggleTmjBool("painRight")}
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Зүүн</span>
-                    <input
-                      type="checkbox"
-                      checked={!!tmj.painLeft}
-                      onChange={() => toggleTmjBool("painLeft")}
-                    />
-                  </label>
-
-                  <div style={{ marginTop: 4 }}>Толгой өвдөлт</div>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Тийм</span>
-                    <input
-                      type="checkbox"
-                      checked={!!tmj.headacheYes}
-                      onChange={() =>
-                        toggleTmjBool("headacheYes")
-                      }
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Үгүй</span>
-                    <input
-                      type="checkbox"
-                      checked={!!tmj.headacheNo}
-                      onChange={() => toggleTmjBool("headacheNo")}
-                    />
-                  </label>
-
-                  <div style={{ marginTop: 4 }}>Булчингийн чангарал</div>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Тийм</span>
-                    <input
-                      type="checkbox"
-                      checked={!!tmj.muscleTensionYes}
-                      onChange={() =>
-                        toggleTmjBool("muscleTensionYes")
-                      }
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Үгүй</span>
-                    <input
-                      type="checkbox"
-                      checked={!!tmj.muscleTensionNo}
-                      onChange={() =>
-                        toggleTmjBool("muscleTensionNo")
-                      }
-                    />
-                  </label>
-
-                  <div style={{ marginTop: 4 }}>Ам ангайллт</div>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Хэвийн</span>
-                    <input
-                      type="checkbox"
-                      checked={!!tmj.mouthOpeningNormal}
-                      onChange={() =>
-                        toggleTmjBool("mouthOpeningNormal")
-                      }
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Хязгаарлагдсан</span>
-                    <input
-                      type="checkbox"
-                      checked={!!tmj.mouthOpeningLimited}
-                      onChange={() =>
-                        toggleTmjBool("mouthOpeningLimited")
-                      }
-                    />
-                  </label>
-
-                  <div style={{ marginTop: 4 }}>
-                    Max. ам ангайллт{" "}
-                    <input
-                      type="text"
-                      value={tmj.maxMouthOpeningMm || ""}
-                      onChange={(e) =>
-                        updateTmjText(
-                          "maxMouthOpeningMm",
-                          e.target.value
-                        )
-                      }
-                      style={{
-                        width: 60,
-                        borderRadius: 4,
-                        border: "1px solid #d1d5db",
-                        padding: "2px 4px",
-                        fontSize: 11,
-                        marginLeft: 4,
-                        marginRight: 4,
-                      }}
-                    />
-                    мм
-                  </div>
+                  />
+                  mm
                 </div>
-              </section>
-
-              {/* УРУУЛ */}
-              <section
-                style={{
-                  borderRadius: 10,
-                  border: "1px solid #e5e7eb",
-                  padding: 8,
-                  background: "#ffffff",
-                  fontSize: 12,
-                }}
-              >
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>Уруул</div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 4,
-                  }}
-                >
-                  <label
+                <div>
+                  smiling{" "}
+                  <input
+                    type="text"
+                    value={lip.smilingMm || ""}
+                    onChange={(e) =>
+                      updateLipText("smilingMm", e.target.value)
+                    }
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
+                      width: 60,
+                      borderRadius: 4,
+                      border: "1px solid #d1d5db",
+                      padding: "2px 4px",
+                      fontSize: 11,
+                      marginLeft: 4,
+                      marginRight: 4,
                     }}
-                  >
-                    <span>Нийлсэн</span>
-                    <input
-                      type="checkbox"
-                      checked={!!lip.closed}
-                      onChange={() => toggleLipBool("closed")}
-                    />
-                  </label>
-                  <label
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 4,
-                    }}
-                  >
-                    <span>Нийлээгүй</span>
-                    <input
-                      type="checkbox"
-                      checked={!!lip.open}
-                      onChange={() => toggleLipBool("open")}
-                    />
-                  </label>
-
-                  <div style={{ marginTop: 4 }}>
-                    rest lip{" "}
-                    <input
-                      type="text"
-                      value={lip.restLipMm || ""}
-                      onChange={(e) =>
-                        updateLipText("restLipMm", e.target.value)
-                      }
-                      style={{
-                        width: 60,
-                        borderRadius: 4,
-                        border: "1px solid #d1d5db",
-                        padding: "2px 4px",
-                        fontSize: 11,
-                        marginLeft: 4,
-                        marginRight: 4,
-                      }}
-                    />
-                    mm
-                  </div>
-                  <div>
-                    smiling{" "}
-                    <input
-                      type="text"
-                      value={lip.smilingMm || ""}
-                      onChange={(e) =>
-                        updateLipText("smilingMm", e.target.value)
-                      }
-                      style={{
-                        width: 60,
-                        borderRadius: 4,
-                        border: "1px solid #d1d5db",
-                        padding: "2px 4px",
-                        fontSize: 11,
-                        marginLeft: 4,
-                        marginRight: 4,
-                      }}
-                    />
-                    mm
-                  </div>
+                  />
+                  mm
                 </div>
-              </section>
-            </div>
+              </div>
+            </section>
           </div>
 
           {/* Odontogram + legend */}
