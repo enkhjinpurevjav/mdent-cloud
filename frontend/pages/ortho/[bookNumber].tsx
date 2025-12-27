@@ -9,6 +9,7 @@ import FullArchDiscOdontogram, {
  * Data shape now supports:
  *  - toothChart: { code, status, regions }[]  (regions = caries/filled)
  *  - sumOfIncisorInputs: per‑tooth mesio‑distal widths for incisors
+ *  - boltonIndex: anterior (6) and overall (12) ratios
  */
 
 type OrthoDisc = {
@@ -34,6 +35,11 @@ type SumOfIncisorInputs = {
   l42: string;
 };
 
+type BoltonIndex = {
+  six?: string; // user-entered anterior Bolton (6) value
+  twelve?: string; // user-entered overall Bolton (12) value
+};
+
 type OrthoCardData = {
   patientName?: string;
   notes?: string;
@@ -41,8 +47,9 @@ type OrthoCardData = {
   problemList?: { id: number; label: string; checked?: boolean }[];
   supernumeraryNote?: string;
 
-  // Загвар хэмжил – Sum of incisor inputs (optional)
+  // ЗАГВАР ХЭМЖИЛ
   sumOfIncisorInputs?: SumOfIncisorInputs;
+  boltonIndex?: BoltonIndex;
 };
 
 type OrthoCardApiResponse = {
@@ -113,6 +120,12 @@ export default function OrthoCardPage() {
       l42: "",
     });
 
+  // Bolton index values (6 and 12)
+  const [boltonIndex, setBoltonIndex] = useState<BoltonIndex>({
+    six: "",
+    twelve: "",
+  });
+
   // UI‑only: selected status button on the right
   const [activeStatus, setActiveStatus] = useState<StatusKey | null>(null);
   // UI‑only: additional text for "Илүү шүд"
@@ -148,6 +161,11 @@ export default function OrthoCardPage() {
     parseOrZero(sumOfIncisorInputs.l42);
 
   const u1l1Ratio = l1Sum > 0 ? (u1Sum / l1Sum).toFixed(2) : "";
+
+  const updateBoltonIndex = (field: keyof BoltonIndex, value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    setBoltonIndex((prev) => ({ ...prev, [field]: cleaned }));
+  };
 
   // --- Load existing ortho card (or create empty state) ---
   useEffect(() => {
@@ -211,6 +229,7 @@ export default function OrthoCardPage() {
               l42: "",
             }
           );
+          setBoltonIndex(data.boltonIndex || { six: "", twelve: "" });
         } else {
           // Fresh card
           setCardPatientName("");
@@ -227,6 +246,7 @@ export default function OrthoCardPage() {
             l41: "",
             l42: "",
           });
+          setBoltonIndex({ six: "", twelve: "" });
         }
       } catch (err: any) {
         console.error("load ortho card failed", err);
@@ -259,6 +279,7 @@ export default function OrthoCardPage() {
         toothChart,
         supernumeraryNote: supernumeraryNote || undefined,
         sumOfIncisorInputs,
+        boltonIndex,
       };
 
       const res = await fetch(`/api/patients/ortho-card/${patientBookId}`, {
@@ -547,7 +568,7 @@ export default function OrthoCardPage() {
             </aside>
           </div>
 
-          {/* ЗАГВАР ХЭМЖИЛ – Sum of incisor */}
+          {/* ЗАГВАР ХЭМЖИЛ – Sum of incisor + Bolton index */}
           <section
             style={{
               marginTop: 16,
@@ -734,26 +755,76 @@ export default function OrthoCardPage() {
               </div>
             </div>
 
-            {/* U1 : L1 ratio, larger text + bold value */}
+            {/* U1 : L1 ratio, with spacing before Bolton */}
             <div
               style={{
-                marginTop: 8,
+                marginTop: 12,
+                marginBottom: 12,
                 fontSize: 13,
                 color: "#111827",
               }}
             >
               U1 : L1 харьцаа (лавлагаа болгон):{" "}
               {u1l1Ratio ? (
-                <span style={{ fontWeight: 700 }}>
-                  {u1l1Ratio} : 1
-                </span>
+                <span style={{ fontWeight: 700 }}>{u1l1Ratio} : 1</span>
               ) : (
                 "-"
               )}
             </div>
+
+            {/* Bolton index */}
+            <div
+              style={{
+                fontWeight: 500,
+                marginBottom: 6,
+              }}
+            >
+              Bolton index
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 12,
+                alignItems: "center",
+                fontSize: 13,
+              }}
+            >
+              <span>6 = 78.1% (</span>
+              <input
+                type="text"
+                value={boltonIndex.six || ""}
+                onChange={(e) =>
+                  updateBoltonIndex("six", e.target.value)
+                }
+                style={{
+                  width: 80,
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                }}
+              />
+              <span>)</span>
+
+              <span style={{ marginLeft: 16 }}>12 = 91.4% (</span>
+              <input
+                type="text"
+                value={boltonIndex.twelve || ""}
+                onChange={(e) =>
+                  updateBoltonIndex("twelve", e.target.value)
+                }
+                style={{
+                  width: 80,
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                }}
+              />
+              <span>)</span>
+            </div>
           </section>
 
-          {/* Supernumerary note (card-level) – kept for compatibility but no label above */}
+          {/* Supernumerary note (card-level) – kept for compatibility but unlabeled */}
           <section style={{ marginTop: 16 }}>
             <textarea
               value={supernumeraryNote}
