@@ -9,7 +9,7 @@ import FullArchDiscOdontogram, {
  * Data shape now supports:
  *  - toothChart: { code, status, regions }[]  (regions = caries/filled)
  *  - sumOfIncisorInputs: per‑tooth mesio‑distal widths for incisors
- *  - boltonIndex: anterior (6) and overall (12) ratios
+ *  - boltonIndex: anterior (6) and overall (12) inputs
  */
 
 type OrthoDisc = {
@@ -36,8 +36,13 @@ type SumOfIncisorInputs = {
 };
 
 type BoltonIndex = {
-  six?: string; // user-entered anterior Bolton (6) value
-  twelve?: string; // user-entered overall Bolton (12) value
+  // For 6‑teeth anterior Bolton calculation
+  lower6?: string; // sum of lower 6 anterior teeth
+  upper6?: string; // sum of upper 6 anterior teeth
+
+  // For 12‑teeth overall Bolton calculation
+  lower12?: string; // sum of lower 12 teeth
+  upper12?: string; // sum of upper 12 teeth
 };
 
 type OrthoCardData = {
@@ -120,10 +125,12 @@ export default function OrthoCardPage() {
       l42: "",
     });
 
-  // Bolton index values (6 and 12)
+  // Bolton index inputs
   const [boltonIndex, setBoltonIndex] = useState<BoltonIndex>({
-    six: "",
-    twelve: "",
+    lower6: "",
+    upper6: "",
+    lower12: "",
+    upper12: "",
   });
 
   // UI‑only: selected status button on the right
@@ -136,7 +143,11 @@ export default function OrthoCardPage() {
       ? bookNumber.trim()
       : "";
 
-  // Helpers for Sum of incisor
+  // Helpers for numeric parsing
+  const parseOrZero = (v: string | undefined | null): number =>
+    !v ? 0 : Number.parseFloat(v) || 0;
+
+  // Sum of incisor helpers
   const updateSumOfIncisor = (
     key: keyof SumOfIncisorInputs,
     value: string
@@ -144,9 +155,6 @@ export default function OrthoCardPage() {
     const cleaned = value.replace(/[^0-9.]/g, ""); // allow only digits + dot
     setSumOfIncisorInputs((prev) => ({ ...prev, [key]: cleaned }));
   };
-
-  const parseOrZero = (v: string): number =>
-    v === "" ? 0 : Number.parseFloat(v) || 0;
 
   const u1Sum =
     parseOrZero(sumOfIncisorInputs.u12) +
@@ -162,10 +170,21 @@ export default function OrthoCardPage() {
 
   const u1l1Ratio = l1Sum > 0 ? (u1Sum / l1Sum).toFixed(2) : "";
 
-  const updateBoltonIndex = (field: keyof BoltonIndex, value: string) => {
+  // Bolton input helpers
+  const updateBoltonInput = (field: keyof BoltonIndex, value: string) => {
     const cleaned = value.replace(/[^0-9.]/g, "");
     setBoltonIndex((prev) => ({ ...prev, [field]: cleaned }));
   };
+
+  const lower6 = parseOrZero(boltonIndex.lower6);
+  const upper6 = parseOrZero(boltonIndex.upper6);
+  const lower12 = parseOrZero(boltonIndex.lower12);
+  const upper12 = parseOrZero(boltonIndex.upper12);
+
+  const bolton6Result =
+    upper6 > 0 ? ((lower6 / upper6) * 100).toFixed(1) : "";
+  const bolton12Result =
+    upper12 > 0 ? ((lower12 / upper12) * 100).toFixed(1) : "";
 
   // --- Load existing ortho card (or create empty state) ---
   useEffect(() => {
@@ -229,7 +248,14 @@ export default function OrthoCardPage() {
               l42: "",
             }
           );
-          setBoltonIndex(data.boltonIndex || { six: "", twelve: "" });
+          setBoltonIndex(
+            data.boltonIndex || {
+              lower6: "",
+              upper6: "",
+              lower12: "",
+              upper12: "",
+            }
+          );
         } else {
           // Fresh card
           setCardPatientName("");
@@ -246,7 +272,12 @@ export default function OrthoCardPage() {
             l41: "",
             l42: "",
           });
-          setBoltonIndex({ six: "", twelve: "" });
+          setBoltonIndex({
+            lower6: "",
+            upper6: "",
+            lower12: "",
+            upper12: "",
+          });
         }
       } catch (err: any) {
         console.error("load ortho card failed", err);
@@ -781,46 +812,136 @@ export default function OrthoCardPage() {
             >
               Bolton index
             </div>
+
+            {/* Detailed input rows like the paper form */}
             <div
               style={{
                 display: "flex",
-                flexWrap: "wrap",
-                gap: 12,
-                alignItems: "center",
-                fontSize: 13,
+                flexDirection: "column",
+                gap: 6,
+                marginBottom: 10,
               }}
             >
-              <span>6 = 78.1% (</span>
-              <input
-                type="text"
-                value={boltonIndex.six || ""}
-                onChange={(e) =>
-                  updateBoltonIndex("six", e.target.value)
-                }
+              {/* 6) row */}
+              <div
                 style={{
-                  width: 80,
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  alignItems: "center",
                 }}
-              />
-              <span>)</span>
+              >
+                <span>6)</span>
+                <input
+                  type="text"
+                  placeholder="Доод 6 нийлбэр"
+                  value={boltonIndex.lower6 || ""}
+                  onChange={(e) =>
+                    updateBoltonInput("lower6", e.target.value)
+                  }
+                  style={{
+                    width: 70,
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "4px 6px",
+                  }}
+                />
+                <span>/</span>
+                <input
+                  type="text"
+                  placeholder="Дээд 6 нийлбэр"
+                  value={boltonIndex.upper6 || ""}
+                  onChange={(e) =>
+                    updateBoltonInput("upper6", e.target.value)
+                  }
+                  style={{
+                    width: 70,
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "4px 6px",
+                  }}
+                />
+                <span>× 100 =</span>
+                <span
+                  style={{
+                    minWidth: 60,
+                    fontWeight: 600,
+                  }}
+                >
+                  {bolton6Result ? `${bolton6Result}%` : ""}
+                </span>
+              </div>
 
-              <span style={{ marginLeft: 16 }}>12 = 91.4% (</span>
-              <input
-                type="text"
-                value={boltonIndex.twelve || ""}
-                onChange={(e) =>
-                  updateBoltonIndex("twelve", e.target.value)
-                }
+              {/* 12) row */}
+              <div
                 style={{
-                  width: 80,
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 6,
+                  alignItems: "center",
                 }}
-              />
-              <span>)</span>
+              >
+                <span>12)</span>
+                <input
+                  type="text"
+                  placeholder="Доод 12 нийлбэр"
+                  value={boltonIndex.lower12 || ""}
+                  onChange={(e) =>
+                    updateBoltonInput("lower12", e.target.value)
+                  }
+                  style={{
+                    width: 70,
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "4px 6px",
+                  }}
+                />
+                <span>/</span>
+                <input
+                  type="text"
+                  placeholder="Дээд 12 нийлбэр"
+                  value={boltonIndex.upper12 || ""}
+                  onChange={(e) =>
+                    updateBoltonInput("upper12", e.target.value)
+                  }
+                  style={{
+                    width: 70,
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "4px 6px",
+                  }}
+                />
+                <span>× 100 =</span>
+                <span
+                  style={{
+                    minWidth: 60,
+                    fontWeight: 600,
+                  }}
+                >
+                  {bolton12Result ? `${bolton12Result}%` : ""}
+                </span>
+              </div>
+            </div>
+
+            {/* Display line with brackets like on your form */}
+            <div
+              style={{
+                fontSize: 13,
+                marginTop: 2,
+              }}
+            >
+              6 = 78.1% ({" "}
+              <span style={{ fontWeight: 600 }}>
+                {bolton6Result || ""}
+              </span>{" "}
+              ){" "}
+              <span style={{ marginLeft: 20 }}>
+                12 = 91.4% ({" "}
+                <span style={{ fontWeight: 600 }}>
+                  {bolton12Result || ""}
+                </span>{" "}
+                )
+              </span>
             </div>
           </section>
 
