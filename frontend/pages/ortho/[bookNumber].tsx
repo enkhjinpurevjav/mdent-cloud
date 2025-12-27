@@ -4,10 +4,6 @@ import FullArchDiscOdontogram, {
   ActiveStatusKey,
 } from "../../components/odontogram/FullArchDiscOdontogram";
 
-/**
- * Orthodontic patient card page.
- */
-
 type OrthoDisc = {
   code: string;
   status: string;
@@ -60,16 +56,12 @@ type DiscrepancyInputs = {
   total: DiscrepancyAxis;
 };
 
-/**
- * АСУУМЖ (survey) section data.
- */
 type OrthoSurvey = {
   mainReason?: string;
   currentComplaint?: string;
   medicalHistory?: string;
   orthoTreatment?: string;
   familyHistory?: string;
-
   allergyPlant?: boolean;
   allergyMetal?: boolean;
   allergyDrug?: boolean;
@@ -77,37 +69,27 @@ type OrthoSurvey = {
   allergyPlastic?: boolean;
   allergyOther?: boolean;
   allergyOtherText?: string;
-
   hbv?: boolean;
   hbc?: boolean;
   hiv?: boolean;
 };
 
-/**
- * БОДИТ ҮЗЛЭГ (Physical Exam)
- */
 type PhysicalExam = {
   weight?: string;
   height?: string;
   boneAge?: string;
   dentalAge?: string;
-
   growthSpurtNormal?: boolean;
   growthSpurtAbnormal?: boolean;
-
   growthSpurtBefore?: boolean;
   growthSpurtMiddle?: boolean;
   growthSpurtAfter?: boolean;
-
   patternVertical?: boolean;
   patternHorizontal?: boolean;
   patternClockwise?: boolean;
   patternCounterclockwise?: boolean;
 };
 
-/**
- * ЗУРШИЛ
- */
 type HabitSection = {
   tongueThrust?: boolean;
   lipNailBite?: boolean;
@@ -119,9 +101,6 @@ type HabitSection = {
   other?: string;
 };
 
-/**
- * ХОЛБООС
- */
 type AttachmentSection = {
   aheaGood?: boolean;
   aheaMedium?: boolean;
@@ -132,9 +111,6 @@ type AttachmentSection = {
   frenumInflammationNo?: boolean;
 };
 
-/**
- * ЭРҮҮНИЙ ҮЕ (TMJ)
- */
 type TmjSection = {
   previousPainYes?: boolean;
   previousPainNo?: boolean;
@@ -153,9 +129,6 @@ type TmjSection = {
   maxMouthOpeningMm?: string;
 };
 
-/**
- * УТТС
- */
 type UttsSection = {
   lipCleft?: boolean;
   palateCleft?: boolean;
@@ -166,9 +139,6 @@ type UttsSection = {
   otherText?: string;
 };
 
-/**
- * УРУУЛ
- */
 type LipSection = {
   closed?: boolean;
   open?: boolean;
@@ -182,17 +152,12 @@ type OrthoCardData = {
   toothChart: OrthoDisc[];
   problemList?: { id: number; label: string; checked?: boolean }[];
   supernumeraryNote?: string;
-
   sumOfIncisorInputs?: SumOfIncisorInputs;
   boltonInputs?: BoltonInputs;
   howesInputs?: HowesInputs;
-
   discrepancyInputs?: DiscrepancyInputs;
-
   survey?: OrthoSurvey;
-
   physicalExam?: PhysicalExam;
-
   habits?: HabitSection;
   attachment?: AttachmentSection;
   tmj?: TmjSection;
@@ -412,8 +377,6 @@ export default function OrthoCardPage() {
   const parseOrZero = (v: string | undefined | null): number =>
     !v ? 0 : Number.parseFloat(v) || 0;
 
-  // --- MISSING HELPERS (added back) ---
-
   const updateSumOfIncisor = (
     key: keyof SumOfIncisorInputs,
     value: string
@@ -507,7 +470,32 @@ export default function OrthoCardPage() {
   const updateLipText = (field: keyof LipSection, value: string) =>
     setLip((prev) => ({ ...prev, [field]: value }));
 
-  // --- end helpers ---
+  const u1Sum =
+    parseOrZero(sumOfIncisorInputs.u12) +
+    parseOrZero(sumOfIncisorInputs.u11) +
+    parseOrZero(sumOfIncisorInputs.u21) +
+    parseOrZero(sumOfIncisorInputs.u22);
+
+  const l1Sum =
+    parseOrZero(sumOfIncisorInputs.l32) +
+    parseOrZero(sumOfIncisorInputs.l31) +
+    parseOrZero(sumOfIncisorInputs.l41) +
+    parseOrZero(sumOfIncisorInputs.l42);
+
+  const u1l1Ratio = l1Sum > 0 ? (u1Sum / l1Sum).toFixed(2) : "";
+
+  const sumArray = (arr: string[]): number =>
+    arr.reduce((acc, v) => acc + parseOrZero(v), 0);
+
+  const upper6Sum = sumArray(boltonInputs.upper6);
+  const lower6Sum = sumArray(boltonInputs.lower6);
+  const upper12Sum = sumArray(boltonInputs.upper12);
+  const lower12Sum = sumArray(boltonInputs.lower12);
+
+  const bolton6Result =
+    upper6Sum > 0 ? ((lower6Sum / upper6Sum) * 100).toFixed(1) : "";
+  const bolton12Result =
+    upper12Sum > 0 ? ((lower12Sum / upper12Sum) * 100).toFixed(1) : "";
 
   const pmbawNum = parseOrZero(howesInputs.pmbaw);
   const tmNum = parseOrZero(howesInputs.tm);
@@ -728,9 +716,9 @@ export default function OrthoCardPage() {
         const res = await fetch(
           `/api/patients/ortho-card/by-book/${encodeURIComponent(bn)}`
         );
-        const json = (await res
-          .json()
-          .catch(() => null)) as OrthoCardApiResponse | null;
+        const json = (await res.json().catch(() => null)) as
+          | OrthoCardApiResponse
+          | null;
 
         if (!res.ok) {
           throw new Error(
@@ -834,7 +822,6 @@ export default function OrthoCardPage() {
               familyHistory: data.survey.familyHistory || "",
               allergyPlant: !!data.survey.allergyPlant,
               allergyMetal: !!data.survey.allergyMetal,
-              // ...
               allergyDrug: !!data.survey.allergyDrug,
               allergyFood: !!data.survey.allergyFood,
               allergyPlastic: !!data.survey.allergyPlastic,
@@ -921,7 +908,7 @@ export default function OrthoCardPage() {
 
       if (!res.ok) {
         throw new Error(
-          (json && json.error) ||
+          (json && (json as any).error) ||
             "Гажиг заслын карт хадгалахад алдаа гарлаа."
         );
       }
@@ -972,7 +959,6 @@ export default function OrthoCardPage() {
         Гажиг заслын үйлчлүүлэгчийн карт
       </h1>
 
-      {/* Patient header */}
       <div
         style={{
           display: "flex",
@@ -983,7 +969,6 @@ export default function OrthoCardPage() {
           marginBottom: 16,
         }}
       >
-        {/* Row 1 */}
         <div
           style={{
             display: "flex",
@@ -1014,7 +999,6 @@ export default function OrthoCardPage() {
           </div>
         </div>
 
-        {/* Row 2 */}
         <div
           style={{
             display: "flex",
@@ -1039,7 +1023,6 @@ export default function OrthoCardPage() {
           </div>
         </div>
 
-        {/* Row 3 */}
         <div>
           <span style={{ color: "#6b7280", marginRight: 4 }}>Хаяг:</span>
           <span style={{ fontWeight: 500 }}>{patientAddress || "—"}</span>
@@ -1067,7 +1050,6 @@ export default function OrthoCardPage() {
             background: "white",
           }}
         >
-          {/* АСУУМЖ */}
           <section
             style={{
               borderRadius: 12,
@@ -1189,7 +1171,6 @@ export default function OrthoCardPage() {
               />
             </div>
 
-            {/* Allergies */}
             <div style={{ marginTop: 8, marginBottom: 4 }}>
               <span style={{ display: "inline-block", width: 90 }}>
                 Харшил:
@@ -1302,7 +1283,6 @@ export default function OrthoCardPage() {
               />
             </div>
 
-            {/* Infection status */}
             <div>
               <span style={{ display: "inline-block", width: 90 }}>
                 Халдварт:
@@ -1343,7 +1323,6 @@ export default function OrthoCardPage() {
             </div>
           </section>
 
-          {/* БОДИТ ҮЗЛЭГ */}
           <section
             style={{
               borderRadius: 12,
@@ -1598,7 +1577,6 @@ export default function OrthoCardPage() {
             </div>
           </section>
 
-          {/* ЗУРШИЛ, ХОЛБООС, ЭРҮҮНИЙ ҮЕ, УТТС, УРУУЛ */}
           <section
             style={{
               borderRadius: 12,
@@ -1609,7 +1587,6 @@ export default function OrthoCardPage() {
               marginBottom: 16,
             }}
           >
-            {/* ЗУРШИЛ */}
             <div style={{ fontWeight: 700, marginBottom: 4 }}>ЗУРШИЛ</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <div>
@@ -1711,7 +1688,6 @@ export default function OrthoCardPage() {
               </div>
             </div>
 
-            {/* ХОЛБООС */}
             <div
               style={{
                 fontWeight: 700,
@@ -1808,7 +1784,6 @@ export default function OrthoCardPage() {
               </div>
             </div>
 
-            {/* ЭРҮҮНИЙ ҮЕ */}
             <div
               style={{
                 fontWeight: 700,
@@ -1998,7 +1973,6 @@ export default function OrthoCardPage() {
               </div>
             </div>
 
-            {/* УТТС */}
             <div
               style={{
                 fontWeight: 700,
@@ -2081,7 +2055,6 @@ export default function OrthoCardPage() {
               </div>
             </div>
 
-            {/* УРУУЛ */}
             <div
               style={{
                 fontWeight: 700,
@@ -2151,7 +2124,6 @@ export default function OrthoCardPage() {
             </div>
           </section>
 
-          {/* Odontogram + legend */}
           <div
             style={{
               display: "grid",
@@ -2257,7 +2229,6 @@ export default function OrthoCardPage() {
             </aside>
           </div>
 
-          {/* MODEL MEASUREMENTS (ЗАГВАР ХЭМЖИЛЗҮЙ) */}
           <section
             style={{
               marginTop: 16,
@@ -2281,7 +2252,6 @@ export default function OrthoCardPage() {
               Sum of incisor
             </div>
 
-            {/* Upper incisors */}
             <div style={{ marginBottom: 8 }}>
               <div style={{ marginBottom: 4, fontWeight: 500 }}>
                 Дээд үүдэн шүд (U1)
@@ -2360,7 +2330,6 @@ export default function OrthoCardPage() {
               </div>
             </div>
 
-            {/* Lower incisors */}
             <div>
               <div style={{ marginBottom: 4, fontWeight: 500 }}>
                 Доод үүдэн шүд (L1)
@@ -2439,7 +2408,6 @@ export default function OrthoCardPage() {
               </div>
             </div>
 
-            {/* U1 : L1 ratio */}
             <div
               style={{
                 marginTop: 12,
@@ -2456,12 +2424,10 @@ export default function OrthoCardPage() {
               )}
             </div>
 
-            {/* Bolton index */}
             <div style={{ fontWeight: 600, marginBottom: 8 }}>
               Bolton Index
             </div>
 
-            {/* 6) */}
             <div style={{ marginBottom: 10 }}>
               <div
                 style={{
@@ -2528,7 +2494,6 @@ export default function OrthoCardPage() {
               </div>
             </div>
 
-            {/* 12) */}
             <div style={{ marginBottom: 10 }}>
               <div
                 style={{
@@ -2599,7 +2564,6 @@ export default function OrthoCardPage() {
               </div>
             </div>
 
-            {/* Bolton summary */}
             <div style={{ fontSize: 13, marginTop: 4, marginBottom: 12 }}>
               6 = 78.1% (
               <span style={{ fontWeight: 600 }}>
@@ -2615,7 +2579,6 @@ export default function OrthoCardPage() {
               </span>
             </div>
 
-            {/* Howes' Ax */}
             <div style={{ fontWeight: 600, marginBottom: 8 }}>
               Howes&apos; AX
             </div>
@@ -2677,7 +2640,6 @@ export default function OrthoCardPage() {
             )}
           </section>
 
-          {/* TOTAL DISCREPANCY */}
           <section
             style={{
               marginTop: 16,
@@ -2698,7 +2660,6 @@ export default function OrthoCardPage() {
               TOTAL DISCREPANCY
             </div>
 
-            {/* Row 1: ALD -> Mid line -> Curve of spee -> Expansion */}
             <div
               style={{
                 display: "flex",
@@ -2732,7 +2693,6 @@ export default function OrthoCardPage() {
               })}
             </div>
 
-            {/* Row 2: FMIA/A-B -> Overjet -> Total discrepancy */}
             <div
               style={{
                 display: "flex",
@@ -2762,10 +2722,8 @@ export default function OrthoCardPage() {
                 );
               })}
 
-              {/* Arrow to Total discrepancy */}
               <Arrow />
 
-              {/* Total discrepancy block */}
               <div
                 style={{
                   display: "flex",
@@ -2837,7 +2795,6 @@ export default function OrthoCardPage() {
             </div>
           </section>
 
-          {/* Actions */}
           <div
             style={{
               marginTop: 16,
