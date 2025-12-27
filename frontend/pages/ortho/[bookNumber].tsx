@@ -585,6 +585,482 @@ export default function OrthoCardPage() {
     ).toFixed(2),
   };
 
+  const toggleSurveyBool = (
+    field:
+      | "allergyPlant"
+      | "allergyMetal"
+      | "allergyDrug"
+      | "allergyFood"
+      | "allergyPlastic"
+      | "allergyOther"
+      | "hbv"
+      | "hbc"
+      | "hiv"
+  ) =>
+    setSurvey((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const updatePhysicalText = (field: keyof PhysicalExam, value: string) =>
+    setPhysicalExam((prev) => ({ ...prev, [field]: value }));
+
+  const togglePhysicalBool = (
+    field:
+      | "growthSpurtNormal"
+      | "growthSpurtAbnormal"
+      | "growthSpurtBefore"
+      | "growthSpurtMiddle"
+      | "growthSpurtAfter"
+      | "patternVertical"
+      | "patternHorizontal"
+      | "patternClockwise"
+      | "patternCounterclockwise"
+  ) => setPhysicalExam((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const toggleHabitBool = (field: keyof HabitSection) =>
+    setHabits((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const updateHabitText = (field: keyof HabitSection, value: string) =>
+    setHabits((prev) => ({ ...prev, [field]: value }));
+
+  const toggleAttachmentBool = (field: keyof AttachmentSection) =>
+    setAttachment((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const toggleTmjBool = (field: keyof TmjSection) =>
+    setTmj((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const updateTmjText = (field: keyof TmjSection, value: string) =>
+    setTmj((prev) => ({ ...prev, [field]: value }));
+
+  const toggleUttsBool = (field: keyof UttsSection) =>
+    setUtts((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const updateUttsText = (field: keyof UttsSection, value: string) =>
+    setUtts((prev) => ({ ...prev, [field]: value }));
+
+  const toggleLipBool = (field: keyof LipSection) =>
+    setLip((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const updateLipText = (field: keyof LipSection, value: string) =>
+    setLip((prev) => ({ ...prev, [field]: value }));
+
+  useEffect(() => {
+    if (!bn) return;
+
+    const load = async () => {
+      setLoading(true);
+      setError("");
+      setInfo("");
+
+      try {
+        const res = await fetch(
+          `/api/patients/ortho-card/by-book/${encodeURIComponent(bn)}`
+        );
+        const json = (await res
+          .json()
+          .catch(() => null)) as OrthoCardApiResponse | null;
+
+        if (!res.ok) {
+          throw new Error(
+            (json && (json as any).error) ||
+              "Гажиг заслын карт ачаалахад алдаа гарлаа."
+          );
+        }
+
+        if (!json || !json.patientBook) {
+          throw new Error("Картын мэдээлэл олдсонгүй.");
+        }
+
+        setPatientBookId(json.patientBook.id);
+
+        if (json.patient) {
+          const { ovog, name, regNo, age, gender, phone, address } =
+            json.patient;
+
+          if (name) {
+            const trimmedOvog = (ovog || "").trim();
+            const display =
+              trimmedOvog && trimmedOvog !== "null"
+                ? `${trimmedOvog.charAt(0).toUpperCase()}.${name}`
+                : name;
+            setPatientNameHeader(display);
+          }
+
+          setPatientRegNo(regNo || "");
+          setPatientAge(
+            age != null && !Number.isNaN(Number(age)) ? String(age) : ""
+          );
+          setPatientGender(gender || "");
+          setPatientPhone(phone || "");
+          setPatientAddress(address || "");
+        }
+
+        if (json.orthoCard && json.orthoCard.data) {
+          const data = json.orthoCard.data;
+          setCardPatientName(data.patientName || "");
+          setCardNotes(data.notes || "");
+
+          const note = data.supernumeraryNote || "";
+          setSupernumeraryNote(note);
+          setExtraToothText(note);
+
+          setToothChart(data.toothChart || []);
+          setSumOfIncisorInputs(
+            data.sumOfIncisorInputs || {
+              u12: "",
+              u11: "",
+              u21: "",
+              u22: "",
+              l32: "",
+              l31: "",
+              l41: "",
+              l42: "",
+            }
+          );
+          if (data.boltonInputs) {
+            const bi = data.boltonInputs;
+            setBoltonInputs({
+              upper6: bi.upper6?.length === 6 ? bi.upper6 : Array(6).fill(""),
+              lower6: bi.lower6?.length === 6 ? bi.lower6 : Array(6).fill(""),
+              upper12:
+                bi.upper12?.length === 12 ? bi.upper12 : Array(12).fill(""),
+              lower12:
+                bi.lower12?.length === 12 ? bi.lower12 : Array(12).fill(""),
+            });
+          } else {
+            setBoltonInputs(emptyBoltonInputs());
+          }
+          if (data.howesInputs) {
+            setHowesInputs({
+              pmbaw: data.howesInputs.pmbaw || "",
+              tm: data.howesInputs.tm || "",
+            });
+          } else {
+            setHowesInputs({ pmbaw: "", tm: "" });
+          }
+          if (data.discrepancyInputs) {
+            const di = data.discrepancyInputs;
+            setDiscrepancyInputs({
+              ald: di.ald || emptyAxis(),
+              midline: di.midline || emptyAxis(),
+              curveOfSpee: di.curveOfSpee || emptyAxis(),
+              expansion: di.expansion || emptyAxis(),
+              fmiaABPlane: di.fmiaABPlane || emptyAxis(),
+              overjet: di.overjet || emptyAxis(),
+              total: di.total || emptyAxis(),
+            });
+          } else {
+            setDiscrepancyInputs(emptyDiscrepancyInputs());
+          }
+
+          if (data.survey) {
+            setSurvey({
+              mainReason: data.survey.mainReason || "",
+              currentComplaint: data.survey.currentComplaint || "",
+              medicalHistory: data.survey.medicalHistory || "",
+              orthoTreatment: data.survey.orthoTreatment || "",
+              familyHistory: data.survey.familyHistory || "",
+              allergyPlant: !!data.survey.allergyPlant,
+              allergyMetal: !!data.survey.allergyMetal,
+              allergyDrug: !!data.survey.allergyDrug,
+              allergyFood: !!data.survey.allergyFood,
+              allergyPlastic: !!data.survey.allergyPlastic,
+              allergyOther: !!data.survey.allergyOther,
+              allergyOtherText: data.survey.allergyOtherText || "",
+              hbv: !!data.survey.hbv,
+              hbc: !!data.survey.hbc,
+              hiv: !!data.survey.hiv,
+            });
+          } else {
+            setSurvey({
+              mainReason: "",
+              currentComplaint: "",
+              medicalHistory: "",
+              orthoTreatment: "",
+              familyHistory: "",
+              allergyPlant: false,
+              allergyMetal: false,
+              allergyDrug: false,
+              allergyFood: false,
+              allergyPlastic: false,
+              allergyOther: false,
+              allergyOtherText: "",
+              hbv: false,
+              hbc: false,
+              hiv: false,
+            });
+          }
+
+          if (data.physicalExam) {
+            setPhysicalExam({
+              weight: data.physicalExam.weight || "",
+              height: data.physicalExam.height || "",
+              boneAge: data.physicalExam.boneAge || "",
+              dentalAge: data.physicalExam.dentalAge || "",
+              growthSpurtNormal: !!data.physicalExam.growthSpurtNormal,
+              growthSpurtAbnormal: !!data.physicalExam.growthSpurtAbnormal,
+              growthSpurtBefore: !!data.physicalExam.growthSpurtBefore,
+              growthSpurtMiddle: !!data.physicalExam.growthSpurtMiddle,
+              growthSpurtAfter: !!data.physicalExam.growthSpurtAfter,
+              patternVertical: !!data.physicalExam.patternVertical,
+              patternHorizontal: !!data.physicalExam.patternHorizontal,
+              patternClockwise: !!data.physicalExam.patternClockwise,
+              patternCounterclockwise:
+                !!data.physicalExam.patternCounterclockwise,
+            });
+          } else {
+            setPhysicalExam({
+              weight: "",
+              height: "",
+              boneAge: "",
+              dentalAge: "",
+              growthSpurtNormal: false,
+              growthSpurtAbnormal: false,
+              growthSpurtBefore: false,
+              growthSpurtMiddle: false,
+              growthSpurtAfter: false,
+              patternVertical: false,
+              patternHorizontal: false,
+              patternClockwise: false,
+              patternCounterclockwise: false,
+            });
+          }
+
+          if (data.habits) {
+            setHabits({
+              tongueThrust: !!data.habits.tongueThrust,
+              lipNailBite: !!data.habits.lipNailBite,
+              fingerSucking: !!data.habits.fingerSucking,
+              breathingMouth: !!data.habits.breathingMouth,
+              breathingNose: !!data.habits.breathingNose,
+              swallowNormal: !!data.habits.swallowNormal,
+              swallowAbnormal: !!data.habits.swallowAbnormal,
+              other: data.habits.other || "",
+            });
+          } else {
+            setHabits({
+              tongueThrust: false,
+              lipNailBite: false,
+              fingerSucking: false,
+              breathingMouth: false,
+              breathingNose: false,
+              swallowNormal: false,
+              swallowAbnormal: false,
+              other: "",
+            });
+          }
+
+          if (data.attachment) {
+            setAttachment({
+              aheaGood: !!data.attachment.aheaGood,
+              aheaMedium: !!data.attachment.aheaMedium,
+              aheaPoor: !!data.attachment.aheaPoor,
+              gingivitis: !!data.attachment.gingivitis,
+              gingivitisNo: !!data.attachment.gingivitisNo,
+              frenumInflammation: !!data.attachment.frenumInflammation,
+              frenumInflammationNo: !!data.attachment.frenumInflammationNo,
+            });
+          } else {
+            setAttachment({
+              aheaGood: false,
+              aheaMedium: false,
+              aheaPoor: false,
+              gingivitis: false,
+              gingivitisNo: false,
+              frenumInflammation: false,
+              frenumInflammationNo: false,
+            });
+          }
+
+          if (data.tmj) {
+            setTmj({
+              previousPainYes: !!data.tmj.previousPainYes,
+              previousPainNo: !!data.tmj.previousPainNo,
+              asymptomatic: !!data.tmj.asymptomatic,
+              symptomatic: !!data.tmj.symptomatic,
+              soundRight: !!data.tmj.soundRight,
+              soundLeft: !!data.tmj.soundLeft,
+              painRight: !!data.tmj.painRight,
+              painLeft: !!data.tmj.painLeft,
+              headacheYes: !!data.tmj.headacheYes,
+              headacheNo: !!data.tmj.headacheNo,
+              muscleTensionYes: !!data.tmj.muscleTensionYes,
+              muscleTensionNo: !!data.tmj.muscleTensionNo,
+              mouthOpeningNormal: !!data.tmj.mouthOpeningNormal,
+              mouthOpeningLimited: !!data.tmj.mouthOpeningLimited,
+              maxMouthOpeningMm: data.tmj.maxMouthOpeningMm || "",
+            });
+          } else {
+            setTmj({
+              previousPainYes: false,
+              previousPainNo: false,
+              asymptomatic: false,
+              symptomatic: false,
+              soundRight: false,
+              soundLeft: false,
+              painRight: false,
+              painLeft: false,
+              headacheYes: false,
+              headacheNo: false,
+              muscleTensionYes: false,
+              muscleTensionNo: false,
+              mouthOpeningNormal: false,
+              mouthOpeningLimited: false,
+              maxMouthOpeningMm: "",
+            });
+          }
+
+          if (data.utts) {
+            setUtts({
+              lipCleft: !!data.utts.lipCleft,
+              palateCleft: !!data.utts.palateCleft,
+              unilateral: !!data.utts.unilateral,
+              unilateralSide: data.utts.unilateralSide || "",
+              bilateral: !!data.utts.bilateral,
+              other: !!data.utts.other,
+              otherText: data.utts.otherText || "",
+            });
+          } else {
+            setUtts({
+              lipCleft: false,
+              palateCleft: false,
+              unilateral: false,
+              unilateralSide: "",
+              bilateral: false,
+              other: false,
+              otherText: "",
+            });
+          }
+
+          if (data.lip) {
+            setLip({
+              closed: !!data.lip.closed,
+              open: !!data.lip.open,
+              restLipMm: data.lip.restLipMm || "",
+              smilingMm: data.lip.smilingMm || "",
+            });
+          } else {
+            setLip({
+              closed: false,
+              open: false,
+              restLipMm: "",
+              smilingMm: "",
+            });
+          }
+        } else {
+          setCardPatientName("");
+          setCardNotes("");
+          setSupernumeraryNote("");
+          setExtraToothText("");
+          setToothChart([]);
+          setSumOfIncisorInputs({
+            u12: "",
+            u11: "",
+            u21: "",
+            u22: "",
+            l32: "",
+            l31: "",
+            l41: "",
+            l42: "",
+          });
+          setBoltonInputs(emptyBoltonInputs());
+          setHowesInputs({ pmbaw: "", tm: "" });
+          setDiscrepancyInputs(emptyDiscrepancyInputs());
+          setSurvey({
+            mainReason: "",
+            currentComplaint: "",
+            medicalHistory: "",
+            orthoTreatment: "",
+            familyHistory: "",
+            allergyPlant: false,
+            allergyMetal: false,
+            allergyDrug: false,
+            allergyFood: false,
+            allergyPlastic: false,
+            allergyOther: false,
+            allergyOtherText: "",
+            hbv: false,
+            hbc: false,
+            hiv: false,
+          });
+          setPhysicalExam({
+            weight: "",
+            height: "",
+            boneAge: "",
+            dentalAge: "",
+            growthSpurtNormal: false,
+            growthSpurtAbnormal: false,
+            growthSpurtBefore: false,
+            growthSpurtMiddle: false,
+            growthSpurtAfter: false,
+            patternVertical: false,
+            patternHorizontal: false,
+            patternClockwise: false,
+            patternCounterclockwise: false,
+          });
+          setHabits({
+            tongueThrust: false,
+            lipNailBite: false,
+            fingerSucking: false,
+            breathingMouth: false,
+            breathingNose: false,
+            swallowNormal: false,
+            swallowAbnormal: false,
+            other: "",
+          });
+          setAttachment({
+            aheaGood: false,
+            aheaMedium: false,
+            aheaPoor: false,
+            gingivitis: false,
+            gingivitisNo: false,
+            frenumInflammation: false,
+            frenumInflammationNo: false,
+          });
+          setTmj({
+            previousPainYes: false,
+            previousPainNo: false,
+            asymptomatic: false,
+            symptomatic: false,
+            soundRight: false,
+            soundLeft: false,
+            painRight: false,
+            painLeft: false,
+            headacheYes: false,
+            headacheNo: false,
+            muscleTensionYes: false,
+            muscleTensionNo: false,
+            mouthOpeningNormal: false,
+            mouthOpeningLimited: false,
+            maxMouthOpeningMm: "",
+          });
+          setUtts({
+            lipCleft: false,
+            palateCleft: false,
+            unilateral: false,
+            unilateralSide: "",
+            bilateral: false,
+            other: false,
+            otherText: "",
+          });
+          setLip({
+            closed: false,
+            open: false,
+            restLipMm: "",
+            smilingMm: "",
+          });
+        }
+      } catch (err: any) {
+        console.error("load ortho card failed", err);
+        setError(
+          err?.message || "Гажиг заслын карт ачаалахад алдаа гарлаа."
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void load();
+  }, [bn]);
+
   const handleSave = async () => {
     if (!patientBookId) {
       setError("PatientBook ID олдсонгүй.");
@@ -643,118 +1119,6 @@ export default function OrthoCardPage() {
       setSaving(false);
     }
   };
-
-  const uniformInputStyle: React.CSSProperties = {
-    width: 68,
-    borderRadius: 4,
-    border: "1px solid #d1d5db",
-    padding: "2px 4px",
-    fontSize: 11,
-  };
-
-  const uniformTotalBoxBase: React.CSSProperties = {
-    width: 68,
-    borderRadius: 4,
-    border: "1px solid #d1d5db",
-    padding: "2px 4px",
-    background: "#f9fafb",
-    fontSize: 11,
-    fontWeight: 700,
-  };
-
-  const renderAxis = (
-    axisKey: Exclude<AxisKey, "total">,
-    label: string,
-    axis: DiscrepancyAxis
-  ) => (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        fontSize: 12,
-      }}
-    >
-      <div style={{ marginBottom: 4, fontWeight: 500 }}>{label}</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <div
-          style={{
-            display: "flex",
-            gap: 6,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <input
-            type="text"
-            value={axis.upperLeft}
-            onChange={(e) =>
-              updateDiscrepancy(axisKey, "upperLeft", e.target.value)
-            }
-            style={uniformInputStyle}
-          />
-          <input
-            type="text"
-            value={axis.upperRight}
-            onChange={(e) =>
-              updateDiscrepancy(axisKey, "upperRight", e.target.value)
-            }
-            style={uniformInputStyle}
-          />
-        </div>
-        <div
-          style={{
-            display: "flex",
-            gap: 6,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <input
-            type="text"
-            value={axis.lowerLeft}
-            onChange={(e) =>
-              updateDiscrepancy(axisKey, "lowerLeft", e.target.value)
-            }
-            style={uniformInputStyle}
-          />
-          <input
-            type="text"
-            value={axis.lowerRight}
-            onChange={(e) =>
-              updateDiscrepancy(axisKey, "lowerRight", e.target.value)
-            }
-            style={uniformInputStyle}
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  const Arrow = () => (
-    <div
-      style={{
-        width: 32,
-        height: 1,
-        background: "#d1d5db",
-        position: "relative",
-        margin: "0 4px",
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          right: 0,
-          top: -3,
-          width: 0,
-          height: 0,
-          borderTop: "4px solid transparent",
-          borderBottom: "4px solid transparent",
-          borderLeft: "6px solid #6b7280",
-        }}
-      />
-    </div>
-  );
 
   return (
     <main
@@ -886,7 +1250,7 @@ export default function OrthoCardPage() {
             background: "white",
           }}
         >
-          {/* ЗУРШИЛ, ХОЛБООС, ЭРҮҮНИЙ ҮЕ, УТТС, УРУУЛ – inline, paper-form style */}
+          {/* ЗУРШИЛ, ХОЛБООС, ЭРҮҮНИЙ ҮЕ, УТТС, УРУУЛ – inline layout */}
           <section
             style={{
               borderRadius: 12,
@@ -897,6 +1261,7 @@ export default function OrthoCardPage() {
               marginBottom: 16,
             }}
           >
+           
             {/* ЗУРШИЛ */}
             <div style={{ fontWeight: 700, marginBottom: 4 }}>ЗУРШИЛ</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
