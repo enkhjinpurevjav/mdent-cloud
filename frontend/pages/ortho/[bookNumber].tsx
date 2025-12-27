@@ -722,53 +722,9 @@ export default function OrthoCardPage() {
             background: "white",
           }}
         >
-          {/* Top fields */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: 8,
-              fontSize: 13,
-              marginBottom: 16,
-            }}
-          >
-            <div>
-              <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                Өвчтөний овог, нэр (сонголттой)
-              </div>
-              <input
-                value={cardPatientName}
-                onChange={(e) => setCardPatientName(e.target.value)}
-                style={{
-                  width: "100%",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                }}
-              />
-            </div>
-            <div>
-              <div style={{ color: "#6b7280", marginBottom: 2 }}>
-                Тэмдэглэл (сонголттой)
-              </div>
-              <input
-                value={cardNotes}
-                onChange={(e) => setCardNotes(e.target.value)}
-                style={{
-                  width: "100%",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                }}
-              />
-            </div>
-          </div>
+          
 
           {/* Odontogram + legend */}
-          <h2 style={{ fontSize: 14, marginTop: 0, marginBottom: 8 }}>
-            Шүдний тойргийн зураг (Одонтограм)
-          </h2>
-
           <div
             style={{
               display: "grid",
@@ -1464,22 +1420,7 @@ export default function OrthoCardPage() {
             </div>
           </section>
 
-          {/* Supernumerary note */}
-          <section style={{ marginTop: 16 }}>
-            <textarea
-              value={supernumeraryNote}
-              onChange={(e) => setSupernumeraryNote(e.target.value)}
-              rows={2}
-              style={{
-                width: "100%",
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-                padding: "4px 6px",
-                resize: "vertical",
-              }}
-              placeholder=""
-            />
-          </section>
+          
 
           {/* Actions */}
           <div
