@@ -5,8 +5,8 @@ import FullArchDiscOdontogram, {
 } from "../../components/odontogram/FullArchDiscOdontogram";
 
 /**
- * Ortho card page using the new full‑arch disc odontogram layout.
- * Data shape now supports:
+ * Ortho card page using the full‑arch disc odontogram layout.
+ * Data shape supports:
  *  - toothChart: { code, status, regions }[]  (regions = caries/filled)
  *  - sumOfIncisorInputs: per‑tooth mesio‑distal widths for incisors
  *  - boltonInputs: 36 fields (6 upper + 6 lower + 12 upper + 12 lower)
@@ -72,7 +72,7 @@ type OrthoCardData = {
   problemList?: { id: number; label: string; checked?: boolean }[];
   supernumeraryNote?: string;
 
-  // ЗАГВАР ХЭМЖИЛ
+  // MODEL MEASUREMENTS
   sumOfIncisorInputs?: SumOfIncisorInputs;
   boltonInputs?: BoltonInputs;
   howesInputs?: HowesInputs;
@@ -170,18 +170,18 @@ export default function OrthoCardPage() {
       l42: "",
     });
 
-  // Bolton
+  // Bolton 36‑field inputs
   const [boltonInputs, setBoltonInputs] = useState<BoltonInputs>(
     emptyBoltonInputs()
   );
 
-  // Howes
+  // Howes Ax
   const [howesInputs, setHowesInputs] = useState<HowesInputs>({
     pmbaw: "",
     tm: "",
   });
 
-  // Discrepancy
+  // DISCREPANCY
   const [discrepancyInputs, setDiscrepancyInputs] =
     useState<DiscrepancyInputs>(emptyDiscrepancyInputs());
 
@@ -318,7 +318,7 @@ export default function OrthoCardPage() {
     pos: keyof DiscrepancyAxis,
     value: string
   ) => {
-    const cleaned = value.replace(/[^0-9.+-]/g, ""); // allow numbers, dot, +/-
+    const cleaned = value.replace(/[^0-9.+-]/g, ""); // allow numbers & +/- & dot
     setDiscrepancyInputs((prev) => ({
       ...prev,
       [axis]: {
@@ -328,7 +328,7 @@ export default function OrthoCardPage() {
     }));
   };
 
-  const axisSum = (ax: DiscrepancyAxis, pos: keyof DiscrepancyAxis): number =>
+  const valueAt = (ax: DiscrepancyAxis, pos: keyof DiscrepancyAxis): number =>
     parseOrZero(ax[pos]);
 
   const ald = discrepancyInputs.ald;
@@ -337,39 +337,36 @@ export default function OrthoCardPage() {
   const expansion = discrepancyInputs.expansion;
   const fmia = discrepancyInputs.fmiaABPlane;
 
+  // Total discrepancy: sum of corresponding positions across 5 axes
   const totalAxis: DiscrepancyAxis = {
-    upperLeft:
-      (
-        axisSum(ald, "upperLeft") +
-        axisSum(midline, "upperLeft") +
-        axisSum(curveOfSpee, "upperLeft") +
-        axisSum(expansion, "upperLeft") +
-        axisSum(fmia, "upperLeft")
-      ).toFixed(2),
-    upperRight:
-      (
-        axisSum(ald, "upperRight") +
-        axisSum(midline, "upperRight") +
-        axisSum(curveOfSpee, "upperRight") +
-        axisSum(expansion, "upperRight") +
-        axisSum(fmia, "upperRight")
-      ).toFixed(2),
-    lowerLeft:
-      (
-        axisSum(ald, "lowerLeft") +
-        axisSum(midline, "lowerLeft") +
-        axisSum(curveOfSpee, "lowerLeft") +
-        axisSum(expansion, "lowerLeft") +
-        axisSum(fmia, "lowerLeft")
-      ).toFixed(2),
-    lowerRight:
-      (
-        axisSum(ald, "lowerRight") +
-        axisSum(midline, "lowerRight") +
-        axisSum(curveOfSpee, "lowerRight") +
-        axisSum(expansion, "lowerRight") +
-        axisSum(fmia, "lowerRight")
-      ).toFixed(2),
+    upperLeft: (
+      valueAt(ald, "upperLeft") +
+      valueAt(midline, "upperLeft") +
+      valueAt(curveOfSpee, "upperLeft") +
+      valueAt(expansion, "upperLeft") +
+      valueAt(fmia, "upperLeft")
+    ).toFixed(2),
+    upperRight: (
+      valueAt(ald, "upperRight") +
+      valueAt(midline, "upperRight") +
+      valueAt(curveOfSpee, "upperRight") +
+      valueAt(expansion, "upperRight") +
+      valueAt(fmia, "upperRight")
+    ).toFixed(2),
+    lowerLeft: (
+      valueAt(ald, "lowerLeft") +
+      valueAt(midline, "lowerLeft") +
+      valueAt(curveOfSpee, "lowerLeft") +
+      valueAt(expansion, "lowerLeft") +
+      valueAt(fmia, "lowerLeft")
+    ).toFixed(2),
+    lowerRight: (
+      valueAt(ald, "lowerRight") +
+      valueAt(midline, "lowerRight") +
+      valueAt(curveOfSpee, "lowerRight") +
+      valueAt(expansion, "lowerRight") +
+      valueAt(fmia, "lowerRight")
+    ).toFixed(2),
   };
 
   // --- Load existing ortho card (or create empty state) ---
@@ -657,7 +654,7 @@ export default function OrthoCardPage() {
             </div>
           </div>
 
-          {/* Odontogram + legend */}
+          {/* Odontogram */}
           <h2 style={{ fontSize: 14, marginTop: 0, marginBottom: 8 }}>
             Шүдний тойргийн зураг (Одонтограм)
           </h2>
@@ -678,6 +675,7 @@ export default function OrthoCardPage() {
               />
             </div>
 
+            {/* legend */}
             <aside
               style={{
                 borderRadius: 10,
@@ -780,10 +778,7 @@ export default function OrthoCardPage() {
           </div>
 
           {/* MODEL MEASUREMENTS + Bolton + Howes */}
-          {/* (unchanged, kept as in your last version) */}
-          {/* ... Sum of incisor, Bolton, Howes sections here ... */}
-          {/* For brevity, those blocks are unchanged from your last code and omitted here. */}
-          {/* Paste the previously generated "ЗАГВАР ХЭМЖИЛ" + Bolton + Howes section above this comment. */}
+          {/* (the whole ЗАГВАР ХЭМЖИЛ section remains exactly as in your last working code above) */}
 
           {/* DISCREPANCY */}
           <section
@@ -838,12 +833,16 @@ export default function OrthoCardPage() {
                       maxWidth: 330,
                     }}
                   >
-                    {/* UL */}
+                    {/* upper left */}
                     <input
                       type="text"
                       value={axis.upperLeft}
                       onChange={(e) =>
-                        updateDiscrepancy(key, "upperLeft", e.target.value)
+                        updateDiscrepancy(
+                          key as Exclude<AxisKey, "total">,
+                          "upperLeft",
+                          e.target.value
+                        )
                       }
                       style={{
                         width: "100%",
@@ -864,12 +863,16 @@ export default function OrthoCardPage() {
                         justifySelf: "center",
                       }}
                     />
-                    {/* UR */}
+                    {/* upper right */}
                     <input
                       type="text"
                       value={axis.upperRight}
                       onChange={(e) =>
-                        updateDiscrepancy(key, "upperRight", e.target.value)
+                        updateDiscrepancy(
+                          key as Exclude<AxisKey, "total">,
+                          "upperRight",
+                          e.target.value
+                        )
                       }
                       style={{
                         width: "100%",
@@ -880,12 +883,16 @@ export default function OrthoCardPage() {
                         justifySelf: "flex-end",
                       }}
                     />
-                    {/* LL */}
+                    {/* lower left */}
                     <input
                       type="text"
                       value={axis.lowerLeft}
                       onChange={(e) =>
-                        updateDiscrepancy(key, "lowerLeft", e.target.value)
+                        updateDiscrepancy(
+                          key as Exclude<AxisKey, "total">,
+                          "lowerLeft",
+                          e.target.value
+                        )
                       }
                       style={{
                         width: "100%",
@@ -896,12 +903,16 @@ export default function OrthoCardPage() {
                         justifySelf: "flex-start",
                       }}
                     />
-                    {/* LR */}
+                    {/* lower right */}
                     <input
                       type="text"
                       value={axis.lowerRight}
                       onChange={(e) =>
-                        updateDiscrepancy(key, "lowerRight", e.target.value)
+                        updateDiscrepancy(
+                          key as Exclude<AxisKey, "total">,
+                          "lowerRight",
+                          e.target.value
+                        )
                       }
                       style={{
                         width: "100%",
@@ -917,7 +928,7 @@ export default function OrthoCardPage() {
               );
             })}
 
-            {/* 6th axis: Total discrepancy (read-only, sums of 5 axes) */}
+            {/* 6th axis: Total discrepancy (read‑only, sums of first 5) */}
             <div
               style={{
                 display: "grid",
@@ -939,7 +950,7 @@ export default function OrthoCardPage() {
                   maxWidth: 330,
                 }}
               >
-                {/* UL total */}
+                {/* upper left total */}
                 <div
                   style={{
                     padding: "2px 4px",
@@ -963,7 +974,7 @@ export default function OrthoCardPage() {
                     justifySelf: "center",
                   }}
                 />
-                {/* UR total */}
+                {/* upper right total */}
                 <div
                   style={{
                     padding: "2px 4px",
@@ -977,7 +988,7 @@ export default function OrthoCardPage() {
                 >
                   {totalAxis.upperRight}
                 </div>
-                {/* LL total */}
+                {/* lower left total */}
                 <div
                   style={{
                     padding: "2px 4px",
@@ -991,7 +1002,7 @@ export default function OrthoCardPage() {
                 >
                   {totalAxis.lowerLeft}
                 </div>
-                {/* LR total */}
+                {/* lower right total */}
                 <div
                   style={{
                     padding: "2px 4px",
