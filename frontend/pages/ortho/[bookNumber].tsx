@@ -9,7 +9,7 @@ import FullArchDiscOdontogram, {
  * Data shape now supports:
  *  - toothChart: { code, status, regions }[]  (regions = caries/filled)
  *  - sumOfIncisorInputs: per‑tooth mesio‑distal widths for incisors
- *  - boltonIndex: anterior (6) and overall (12) inputs
+ *  - boltonInputs: 36 fields (6 upper + 6 lower + 12 upper + 12 lower)
  */
 
 type OrthoDisc = {
@@ -35,14 +35,11 @@ type SumOfIncisorInputs = {
   l42: string;
 };
 
-type BoltonIndex = {
-  // For 6‑teeth anterior Bolton calculation
-  lower6?: string; // sum of lower 6 anterior teeth
-  upper6?: string; // sum of upper 6 anterior teeth
-
-  // For 12‑teeth overall Bolton calculation
-  lower12?: string; // sum of lower 12 teeth
-  upper12?: string; // sum of upper 12 teeth
+type BoltonInputs = {
+  upper6: string[];  // length 6
+  lower6: string[];  // length 6
+  upper12: string[]; // length 12
+  lower12: string[]; // length 12
 };
 
 type OrthoCardData = {
@@ -54,7 +51,7 @@ type OrthoCardData = {
 
   // ЗАГВАР ХЭМЖИЛ
   sumOfIncisorInputs?: SumOfIncisorInputs;
-  boltonIndex?: BoltonIndex;
+  boltonInputs?: BoltonInputs;
 };
 
 type OrthoCardApiResponse = {
@@ -84,15 +81,22 @@ const STATUS_BUTTONS: {
   label: string;
   color: string;
 }[] = [
-  { key: "caries", label: "Цоорсон", color: "#dc2626" }, // real red
-  { key: "filled", label: "Ломбодсон", color: "#2563eb" }, // real blue
-  { key: "extracted", label: "Авахуулсан", color: "#166534" }, // darker green
-  { key: "prosthesis", label: "Шүдэлбэр", color: "#9ca3af" }, // grey
-  { key: "delay", label: "Саатсан", color: "#fbbf24" }, // keep
-  { key: "anodontia", label: "Anodontia", color: "#14b8a6" }, // turquoise
-  { key: "shapeAnomaly", label: "Хэлбэрийн гажиг", color: "#6366f1" }, // keep
-  { key: "supernumerary", label: "Илүү шүд", color: "#a855f7" }, // unchanged
+  { key: "caries", label: "Цоорсон", color: "#dc2626" },
+  { key: "filled", label: "Ломбодсон", color: "#2563eb" },
+  { key: "extracted", label: "Авахуулсан", color: "#166534" },
+  { key: "prosthesis", label: "Шүдэлбэр", color: "#9ca3af" },
+  { key: "delay", label: "Саатсан", color: "#fbbf24" },
+  { key: "anodontia", label: "Anodontia", color: "#14b8a6" },
+  { key: "shapeAnomaly", label: "Хэлбэрийн гажиг", color: "#6366f1" },
+  { key: "supernumerary", label: "Илүү шүд", color: "#a855f7" },
 ];
+
+const emptyBoltonInputs = (): BoltonInputs => ({
+  upper6: Array(6).fill(""),
+  lower6: Array(6).fill(""),
+  upper12: Array(12).fill(""),
+  lower12: Array(12).fill(""),
+});
 
 export default function OrthoCardPage() {
   const router = useRouter();
@@ -125,17 +129,13 @@ export default function OrthoCardPage() {
       l42: "",
     });
 
-  // Bolton index inputs
-  const [boltonIndex, setBoltonIndex] = useState<BoltonIndex>({
-    lower6: "",
-    upper6: "",
-    lower12: "",
-    upper12: "",
-  });
+  // Bolton 36-field inputs
+  const [boltonInputs, setBoltonInputs] = useState<BoltonInputs>(
+    emptyBoltonInputs()
+  );
 
-  // UI‑only: selected status button on the right
+  // UI‑only
   const [activeStatus, setActiveStatus] = useState<StatusKey | null>(null);
-  // UI‑only: additional text for "Илүү шүд"
   const [extraToothText, setExtraToothText] = useState<string>("");
 
   const bn =
@@ -143,7 +143,6 @@ export default function OrthoCardPage() {
       ? bookNumber.trim()
       : "";
 
-  // Helpers for numeric parsing
   const parseOrZero = (v: string | undefined | null): number =>
     !v ? 0 : Number.parseFloat(v) || 0;
 
@@ -152,7 +151,7 @@ export default function OrthoCardPage() {
     key: keyof SumOfIncisorInputs,
     value: string
   ) => {
-    const cleaned = value.replace(/[^0-9.]/g, ""); // allow only digits + dot
+    const cleaned = value.replace(/[^0-9.]/g, "");
     setSumOfIncisorInputs((prev) => ({ ...prev, [key]: cleaned }));
   };
 
@@ -170,21 +169,60 @@ export default function OrthoCardPage() {
 
   const u1l1Ratio = l1Sum > 0 ? (u1Sum / l1Sum).toFixed(2) : "";
 
-  // Bolton input helpers
-  const updateBoltonInput = (field: keyof BoltonIndex, value: string) => {
+  // Bolton helpers: 36 fields with linking
+  const updateBoltonUpper6 = (index: number, value: string) => {
     const cleaned = value.replace(/[^0-9.]/g, "");
-    setBoltonIndex((prev) => ({ ...prev, [field]: cleaned }));
+    setBoltonInputs((prev) => {
+      const next = structuredClone(prev) as BoltonInputs;
+      next.upper6[index] = cleaned;
+      // Mirror into first 6 of upper12
+      next.upper12[index] = cleaned;
+      return next;
+    });
   };
 
-  const lower6 = parseOrZero(boltonIndex.lower6);
-  const upper6 = parseOrZero(boltonIndex.upper6);
-  const lower12 = parseOrZero(boltonIndex.lower12);
-  const upper12 = parseOrZero(boltonIndex.upper12);
+  const updateBoltonLower6 = (index: number, value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    setBoltonInputs((prev) => {
+      const next = structuredClone(prev) as BoltonInputs;
+      next.lower6[index] = cleaned;
+      // Mirror into first 6 of lower12
+      next.lower12[index] = cleaned;
+      return next;
+    });
+  };
+
+  const updateBoltonUpper12 = (index: number, value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    setBoltonInputs((prev) => {
+      const next = structuredClone(prev) as BoltonInputs;
+      next.upper12[index] = cleaned;
+      // Only extra 6 are independent; we don't push back into upper6
+      return next;
+    });
+  };
+
+  const updateBoltonLower12 = (index: number, value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    setBoltonInputs((prev) => {
+      const next = structuredClone(prev) as BoltonInputs;
+      next.lower12[index] = cleaned;
+      return next;
+    });
+  };
+
+  const sumArray = (arr: string[]): number =>
+    arr.reduce((acc, v) => acc + parseOrZero(v), 0);
+
+  const upper6Sum = sumArray(boltonInputs.upper6);
+  const lower6Sum = sumArray(boltonInputs.lower6);
+  const upper12Sum = sumArray(boltonInputs.upper12);
+  const lower12Sum = sumArray(boltonInputs.lower12);
 
   const bolton6Result =
-    upper6 > 0 ? ((lower6 / upper6) * 100).toFixed(1) : "";
+    upper6Sum > 0 ? ((lower6Sum / upper6Sum) * 100).toFixed(1) : "";
   const bolton12Result =
-    upper12 > 0 ? ((lower12 / upper12) * 100).toFixed(1) : "";
+    upper12Sum > 0 ? ((lower12Sum / upper12Sum) * 100).toFixed(1) : "";
 
   // --- Load existing ortho card (or create empty state) ---
   useEffect(() => {
@@ -216,7 +254,6 @@ export default function OrthoCardPage() {
 
         setPatientBookId(json.patientBook.id);
 
-        // Header patient name from patient record
         if (json.patient) {
           const { ovog, name } = json.patient;
           if (name) {
@@ -229,7 +266,6 @@ export default function OrthoCardPage() {
           }
         }
 
-        // Existing card data → page state
         if (json.orthoCard && json.orthoCard.data) {
           const data = json.orthoCard.data;
           setCardPatientName(data.patientName || "");
@@ -248,16 +284,20 @@ export default function OrthoCardPage() {
               l42: "",
             }
           );
-          setBoltonIndex(
-            data.boltonIndex || {
-              lower6: "",
-              upper6: "",
-              lower12: "",
-              upper12: "",
-            }
-          );
+          if (data.boltonInputs) {
+            const bi = data.boltonInputs;
+            setBoltonInputs({
+              upper6: bi.upper6?.length === 6 ? bi.upper6 : Array(6).fill(""),
+              lower6: bi.lower6?.length === 6 ? bi.lower6 : Array(6).fill(""),
+              upper12:
+                bi.upper12?.length === 12 ? bi.upper12 : Array(12).fill(""),
+              lower12:
+                bi.lower12?.length === 12 ? bi.lower12 : Array(12).fill(""),
+            });
+          } else {
+            setBoltonInputs(emptyBoltonInputs());
+          }
         } else {
-          // Fresh card
           setCardPatientName("");
           setCardNotes("");
           setSupernumeraryNote("");
@@ -272,12 +312,7 @@ export default function OrthoCardPage() {
             l41: "",
             l42: "",
           });
-          setBoltonIndex({
-            lower6: "",
-            upper6: "",
-            lower12: "",
-            upper12: "",
-          });
+          setBoltonInputs(emptyBoltonInputs());
         }
       } catch (err: any) {
         console.error("load ortho card failed", err);
@@ -310,7 +345,7 @@ export default function OrthoCardPage() {
         toothChart,
         supernumeraryNote: supernumeraryNote || undefined,
         sumOfIncisorInputs,
-        boltonIndex,
+        boltonInputs,
       };
 
       const res = await fetch(`/api/patients/ortho-card/${patientBookId}`, {
@@ -369,7 +404,6 @@ export default function OrthoCardPage() {
         ← Үйлчлүүлэгчийн хэсэг рүү буцах
       </button>
 
-      {/* Title + book number */}
       <h1 style={{ fontSize: 20, marginTop: 0, marginBottom: 4 }}>
         Гажиг заслын өвчтөний карт
       </h1>
@@ -382,27 +416,14 @@ export default function OrthoCardPage() {
         </div>
       )}
 
-      {/* Status messages */}
       {loading && <div>Ачааллаж байна...</div>}
       {!loading && error && (
-        <div
-          style={{
-            color: "#b91c1c",
-            fontSize: 13,
-            marginBottom: 8,
-          }}
-        >
+        <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 8 }}>
           {error}
         </div>
       )}
       {!loading && info && (
-        <div
-          style={{
-            color: "#16a34a",
-            fontSize: 13,
-            marginBottom: 8,
-          }}
-        >
+        <div style={{ color: "#16a34a", fontSize: 13, marginBottom: 8 }}>
           {info}
         </div>
       )}
@@ -416,7 +437,7 @@ export default function OrthoCardPage() {
             background: "white",
           }}
         >
-          {/* Top fields: patient name + notes (per card) */}
+          {/* Top card fields */}
           <div
             style={{
               display: "grid",
@@ -458,14 +479,8 @@ export default function OrthoCardPage() {
             </div>
           </div>
 
-          {/* Odontogram + legend/actions side by side */}
-          <h2
-            style={{
-              fontSize: 14,
-              marginTop: 0,
-              marginBottom: 8,
-            }}
-          >
+          {/* Odontogram */}
+          <h2 style={{ fontSize: 14, marginTop: 0, marginBottom: 8 }}>
             Шүдний тойргийн зураг (Одонтограм)
           </h2>
 
@@ -477,7 +492,6 @@ export default function OrthoCardPage() {
               alignItems: "flex-start",
             }}
           >
-            {/* Left: full arch chart */}
             <div>
               <FullArchDiscOdontogram
                 value={toothChart}
@@ -486,7 +500,6 @@ export default function OrthoCardPage() {
               />
             </div>
 
-            {/* Right: legend + status selection */}
             <aside
               style={{
                 borderRadius: 10,
@@ -496,12 +509,7 @@ export default function OrthoCardPage() {
                 fontSize: 12,
               }}
             >
-              <div
-                style={{
-                  fontWeight: 500,
-                  marginBottom: 8,
-                }}
-              >
+              <div style={{ fontWeight: 500, marginBottom: 8 }}>
                 Тэмдэглэгээ / Үйлдэл сонгох
               </div>
 
@@ -553,7 +561,6 @@ export default function OrthoCardPage() {
                 })}
               </div>
 
-              {/* Extra field only for Илүү шүд */}
               {activeStatus === "supernumerary" && (
                 <div
                   style={{
@@ -562,12 +569,7 @@ export default function OrthoCardPage() {
                     borderTop: "1px dashed #e5e7eb",
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: 12,
-                      marginBottom: 2,
-                    }}
-                  >
+                  <div style={{ fontSize: 12, marginBottom: 2 }}>
                     Илүү шүдний байрлал / тайлбар:
                   </div>
                   <input
@@ -599,7 +601,7 @@ export default function OrthoCardPage() {
             </aside>
           </div>
 
-          {/* ЗАГВАР ХЭМЖИЛ – Sum of incisor + Bolton index */}
+          {/* ЗАГВАР ХЭМЖИЛ – Sum of incisor + Bolton */}
           <section
             style={{
               marginTop: 16,
@@ -619,12 +621,7 @@ export default function OrthoCardPage() {
             >
               ЗАГВАР ХЭМЖИЛ
             </div>
-            <div
-              style={{
-                fontWeight: 500,
-                marginBottom: 8,
-              }}
-            >
+            <div style={{ fontWeight: 500, marginBottom: 8 }}>
               Sum of incisor
             </div>
 
@@ -655,7 +652,6 @@ export default function OrthoCardPage() {
                     padding: "4px 6px",
                   }}
                 />
-
                 <span>11:</span>
                 <input
                   type="text"
@@ -670,7 +666,6 @@ export default function OrthoCardPage() {
                     padding: "4px 6px",
                   }}
                 />
-
                 <span>21:</span>
                 <input
                   type="text"
@@ -685,7 +680,6 @@ export default function OrthoCardPage() {
                     padding: "4px 6px",
                   }}
                 />
-
                 <span>22:</span>
                 <input
                   type="text"
@@ -734,7 +728,6 @@ export default function OrthoCardPage() {
                     padding: "4px 6px",
                   }}
                 />
-
                 <span>31:</span>
                 <input
                   type="text"
@@ -749,7 +742,6 @@ export default function OrthoCardPage() {
                     padding: "4px 6px",
                   }}
                 />
-
                 <span>41:</span>
                 <input
                   type="text"
@@ -764,7 +756,6 @@ export default function OrthoCardPage() {
                     padding: "4px 6px",
                   }}
                 />
-
                 <span>42:</span>
                 <input
                   type="text"
@@ -786,11 +777,11 @@ export default function OrthoCardPage() {
               </div>
             </div>
 
-            {/* U1 : L1 ratio, with spacing before Bolton */}
+            {/* U1 : L1 ratio */}
             <div
               style={{
                 marginTop: 12,
-                marginBottom: 12,
+                marginBottom: 16,
                 fontSize: 13,
                 color: "#111827",
               }}
@@ -803,149 +794,143 @@ export default function OrthoCardPage() {
               )}
             </div>
 
-            {/* Bolton index */}
-            <div
-              style={{
-                fontWeight: 500,
-                marginBottom: 6,
-              }}
-            >
+            {/* Bolton index with 36 inputs */}
+            <div style={{ fontWeight: 500, marginBottom: 8 }}>
               Bolton index
             </div>
 
-            {/* Detailed input rows like the paper form */}
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-                marginBottom: 10,
-              }}
-            >
-              {/* 6) row */}
+            {/* 6) дээд / доод */}
+            <div style={{ marginBottom: 10 }}>
               <div
                 style={{
                   display: "flex",
-                  flexWrap: "wrap",
-                  gap: 6,
                   alignItems: "center",
+                  gap: 8,
+                  marginBottom: 4,
+                  flexWrap: "wrap",
                 }}
               >
                 <span>6)</span>
-                <input
-                  type="text"
-                  placeholder="Доод 6 нийлбэр"
-                  value={boltonIndex.lower6 || ""}
-                  onChange={(e) =>
-                    updateBoltonInput("lower6", e.target.value)
-                  }
-                  style={{
-                    width: 70,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>/</span>
-                <input
-                  type="text"
-                  placeholder="Дээд 6 нийлбэр"
-                  value={boltonIndex.upper6 || ""}
-                  onChange={(e) =>
-                    updateBoltonInput("upper6", e.target.value)
-                  }
-                  style={{
-                    width: 70,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>× 100 =</span>
-                <span
-                  style={{
-                    minWidth: 60,
-                    fontWeight: 600,
-                  }}
-                >
-                  {bolton6Result ? `${bolton6Result}%` : ""}
-                </span>
+                <span>дээд</span>
+                {boltonInputs.upper6.map((val, i) => (
+                  <input
+                    key={`u6-${i}`}
+                    type="text"
+                    value={val}
+                    onChange={(e) => updateBoltonUpper6(i, e.target.value)}
+                    style={{
+                      width: 60,
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      padding: "4px 6px",
+                    }}
+                  />
+                ))}
               </div>
-
-              {/* 12) row */}
               <div
                 style={{
                   display: "flex",
-                  flexWrap: "wrap",
-                  gap: 6,
                   alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
                 }}
               >
-                <span>12)</span>
-                <input
-                  type="text"
-                  placeholder="Доод 12 нийлбэр"
-                  value={boltonIndex.lower12 || ""}
-                  onChange={(e) =>
-                    updateBoltonInput("lower12", e.target.value)
-                  }
-                  style={{
-                    width: 70,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>/</span>
-                <input
-                  type="text"
-                  placeholder="Дээд 12 нийлбэр"
-                  value={boltonIndex.upper12 || ""}
-                  onChange={(e) =>
-                    updateBoltonInput("upper12", e.target.value)
-                  }
-                  style={{
-                    width: 70,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                  }}
-                />
-                <span>× 100 =</span>
-                <span
-                  style={{
-                    minWidth: 60,
-                    fontWeight: 600,
-                  }}
-                >
-                  {bolton12Result ? `${bolton12Result}%` : ""}
-                </span>
+                <span style={{ width: 24 }} />
+                <span>доод</span>
+                {boltonInputs.lower6.map((val, i) => (
+                  <input
+                    key={`l6-${i}`}
+                    type="text"
+                    value={val}
+                    onChange={(e) => updateBoltonLower6(i, e.target.value)}
+                    style={{
+                      width: 60,
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      padding: "4px 6px",
+                    }}
+                  />
+                ))}
               </div>
             </div>
 
-            {/* Display line with brackets like on your form */}
-            <div
-              style={{
-                fontSize: 13,
-                marginTop: 2,
-              }}
-            >
-              6 = 78.1% ({" "}
+            {/* 12) дээд / доод */}
+            <div style={{ marginBottom: 10 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 4,
+                  flexWrap: "wrap",
+                }}
+              >
+                <span>12)</span>
+                <span>дээд</span>
+                {boltonInputs.upper12.map((val, i) => (
+                  <input
+                    key={`u12-${i}`}
+                    type="text"
+                    value={val}
+                    onChange={(e) =>
+                      updateBoltonUpper12(i, e.target.value)
+                    }
+                    style={{
+                      width: 60,
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      padding: "4px 6px",
+                    }}
+                  />
+                ))}
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
+                }}
+              >
+                <span style={{ width: 28 }} />
+                <span>доод</span>
+                {boltonInputs.lower12.map((val, i) => (
+                  <input
+                    key={`l12-${i}`}
+                    type="text"
+                    value={val}
+                    onChange={(e) =>
+                      updateBoltonLower12(i, e.target.value)
+                    }
+                    style={{
+                      width: 60,
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      padding: "4px 6px",
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Summary line */}
+            <div style={{ fontSize: 13, marginTop: 4 }}>
+              6 = 78.1% (
               <span style={{ fontWeight: 600 }}>
                 {bolton6Result || ""}
-              </span>{" "}
+              </span>
               ){" "}
-              <span style={{ marginLeft: 20 }}>
-                12 = 91.4% ({" "}
+              <span style={{ marginLeft: 24 }}>
+                12 = 91.4% (
                 <span style={{ fontWeight: 600 }}>
                   {bolton12Result || ""}
-                </span>{" "}
+                </span>
                 )
               </span>
             </div>
           </section>
 
-          {/* Supernumerary note (card-level) – kept for compatibility but unlabeled */}
+          {/* Supernumerary note (kept for compatibility, unlabeled) */}
           <section style={{ marginTop: 16 }}>
             <textarea
               value={supernumeraryNote}
