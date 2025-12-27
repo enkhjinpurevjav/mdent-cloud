@@ -572,6 +572,42 @@ const togglePhysicalBool = (
               l42: "",
             }
           );
+// Physical exam
+if (data.physicalExam) {
+  setPhysicalExam({
+    weight: data.physicalExam.weight || "",
+    height: data.physicalExam.height || "",
+    boneAge: data.physicalExam.boneAge || "",
+    dentalAge: data.physicalExam.dentalAge || "",
+    growthSpurtNormal: !!data.physicalExam.growthSpurtNormal,
+    growthSpurtAbnormal: !!data.physicalExam.growthSpurtAbnormal,
+    growthSpurtBefore: !!data.physicalExam.growthSpurtBefore,
+    growthSpurtMiddle: !!data.physicalExam.growthSpurtMiddle,
+    growthSpurtAfter: !!data.physicalExam.growthSpurtAfter,
+    patternVertical: !!data.physicalExam.patternVertical,
+    patternHorizontal: !!data.physicalExam.patternHorizontal,
+    patternClockwise: !!data.physicalExam.patternClockwise,
+    patternCounterclockwise:
+      !!data.physicalExam.patternCounterclockwise,
+  });
+} else {
+  setPhysicalExam({
+    weight: "",
+    height: "",
+    boneAge: "",
+    dentalAge: "",
+    growthSpurtNormal: false,
+    growthSpurtAbnormal: false,
+    growthSpurtBefore: false,
+    growthSpurtMiddle: false,
+    growthSpurtAfter: false,
+    patternVertical: false,
+    patternHorizontal: false,
+    patternClockwise: false,
+    patternCounterclockwise: false,
+  });
+}
+          
           if (data.boltonInputs) {
             const bi = data.boltonInputs;
             setBoltonInputs({
@@ -696,6 +732,8 @@ const togglePhysicalBool = (
     void load();
   }, [bn]);
 
+
+  
   // Save
   const handleSave = async () => {
     if (!patientBookId) {
