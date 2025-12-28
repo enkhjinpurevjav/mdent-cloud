@@ -1,12 +1,21 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import FullArchDiscOdontogram, {
-  ActiveStatusKey,
-} from "../../components/odontogram/FullArchDiscOdontogram";
+import FullArchDiscOdontogram, { ActiveStatusKey } from "../../components/odontogram/FullArchDiscOdontogram";
 
-/**
- * Orthodontic patient card page.
- */
+// ... [All your type definitions: OrthoDisc, ProblemRowKey, ProblemListRow, etc.] ...
+
+type TreatmentPlanColumn = {
+  plan?: string;
+  note?: string;
+};
+type TreatmentPlanSection = {
+  orthodontic?: boolean;
+  growthModification?: boolean;
+  combinedSurgery?: boolean;
+  phaseI: TreatmentPlanColumn;
+  phaseII: TreatmentPlanColumn;
+  phaseIII: TreatmentPlanColumn;
+};
 
 type OrthoDisc = {
   code: string;
@@ -367,7 +376,14 @@ export default function OrthoCardPage() {
       l41: "",
       l42: "",
     });
-
+ const [treatmentPlan, setTreatmentPlan] = useState<TreatmentPlanSection>({
+    orthodontic: false,
+    growthModification: false,
+    combinedSurgery: false,
+    phaseI: { plan: "", note: "" },
+    phaseII: { plan: "", note: "" },
+    phaseIII: { plan: "", note: "" },
+  });
   const [boltonInputs, setBoltonInputs] = useState<BoltonInputs>(
     emptyBoltonInputs()
   );
