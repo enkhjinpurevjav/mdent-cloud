@@ -1410,14 +1410,7 @@ const updateBoltonLower12 = (index: number, value: string) => {
             diagnosis: "",
             cause: "",
             treatmentGoals: ["", "", "", "", "", ""],
-          });
-          setTreatmentPlan({
-            orthodontic: false,
-            growthModification: false,
-            combinedSurgery: false,
-            phaseI: { plan: "", note: "" },
-            phaseII: { plan: "", note: "" },
-            phaseIII: { plan: "", note: "" },
+         
           });
         }
                  else {
