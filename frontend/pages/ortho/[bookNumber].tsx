@@ -102,47 +102,7 @@ type DiscrepancyInputs = {
   total: DiscrepancyAxis;
 };
 
-type TeethSection = {
-  // Overbite
-  overbiteDeep?: boolean;
-  overbiteOpen?: boolean;
 
-  // Overjet
-  overjetEdgeToEdge?: boolean; // Ирмэг ирмэгээр
-  overjetPositive?: boolean;
-  overjetNegative?: boolean;
-
-  // Curve of Spee: 4 numeric cells (same pattern as DiscrepancyAxis)
-  curveOfSpee: DiscrepancyAxis;
-
-  // Cross bite, Scissor bite, Diastem: 4‑value grids too
-  crossBite: DiscrepancyAxis;
-  scissorBite: DiscrepancyAxis;
-  diastem: DiscrepancyAxis;
-
-  // Голын шугам – also 4 cells
-  midline: DiscrepancyAxis;
-
-  // Нумын хэлбэр (arch form) – U & L each have 4 choices
-  archFormU: {
-    square?: boolean; // Дөрвөлжин
-    parabola?: boolean; // Парабол
-    round?: boolean; // Дугуй
-    vShape?: boolean; // V хэлбэр
-  };
-  archFormL: {
-    square?: boolean;
-    parabola?: boolean;
-    round?: boolean;
-    vShape?: boolean;
-  };
-
-  // Хоршилт (occlusion classes) – right/left I/II/III
-  molarRelationRight?: "I" | "II" | "III" | "";
-  molarRelationLeft?: "I" | "II" | "III" | "";
-  canineRelationRight?: "I" | "II" | "III" | "";
-  canineRelationLeft?: "I" | "II" | "III" | "";
-};
 
 /**
  * АСУУМЖ (survey) section data.
