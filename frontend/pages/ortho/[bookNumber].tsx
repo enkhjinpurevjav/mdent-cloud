@@ -442,12 +442,12 @@ export default function OrthoCardPage() {
     otherText: "",
   });
 
-  const [lip, ] = useState<LipSection>({
-    closed: false,
-    open: false,
-    restLipMm: "",
-    smilingMm: "",
-  });
+  const [lip, setLip] = useState<LipSection>({
+  closed: false,
+  open: false,
+  restLipMm: "",
+  smilingMm: "",
+});
 
   const [teeth, setTeeth] = useState<TeethSection>({
     overbiteDeep: false,
