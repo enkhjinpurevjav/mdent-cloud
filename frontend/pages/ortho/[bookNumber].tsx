@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import FullArchDiscOdontogram, {
@@ -241,6 +240,7 @@ type OrthoCardData = {
   tmj?: TmjSection;
   utts?: UttsSection;
   lip?: LipSection;
+  teeth?: TeethSection; // NEW
 };
 
 type OrthoCardApiResponse = {
