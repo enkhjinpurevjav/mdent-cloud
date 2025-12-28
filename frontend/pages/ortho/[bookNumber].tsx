@@ -1182,20 +1182,20 @@ const updateBoltonLower12 = (index: number, value: string) => {
               diagnosis: data.problemSection.diagnosis || "",
               cause: data.problemSection.cause || "",
             });
-          } else {
-             setProblemSection({
-            rows: {
-              boneAngle: { plus: false, minus: false, text: "" },
-              boneStep: { plus: false, minus: false, text: "" },
-              tooth: { plus: false, minus: false, text: "" },
-              toothPosition: { plus: false, minus: false, text: "" },
-              functional: { plus: false, minus: false, text: "" },
-              badHabit: { plus: false, minus: false, text: "" },
-            },
-            diagnosis: "",
-            cause: "",
-          });
-          }    
+                    } else {
+            setProblemSection({
+              rows: {
+                boneAngle: { plus: false, minus: false, comment: "", problem: "" },
+                boneStep: { plus: false, minus: false, comment: "", problem: "" },
+                tooth: { plus: false, minus: false, comment: "", problem: "" },
+                toothPosition: { plus: false, minus: false, comment: "", problem: "" },
+                functional: { plus: false, minus: false, comment: "", problem: "" },
+                badHabit: { plus: false, minus: false, comment: "", problem: "" },
+              },
+              diagnosis: "",
+              cause: "",
+            });
+          }   
         } else {
           setCardPatientName("");
           setCardNotes("");
