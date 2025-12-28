@@ -20,6 +20,24 @@ type OrthoDisc = {
   };
 };
 
+type TreatmentPlanSection = {
+  orthodontic?: boolean;
+  growthModification?: boolean;
+  combinedSurgery?: boolean;
+  phaseI: { plan?: string; note?: string };
+  phaseII: { plan?: string; note?: string };
+  phaseIII: { plan?: string; note?: string };
+};
+
+const [treatmentPlan, setTreatmentPlan] = useState<TreatmentPlanSection>({
+  orthodontic: false,
+  growthModification: false,
+  combinedSurgery: false,
+  phaseI: { plan: "", note: "" },
+  phaseII: { plan: "", note: "" },
+  phaseIII: { plan: "", note: "" },
+});
+
 type ProblemRowKey =
   | "boneAngle"
   | "boneStep"
