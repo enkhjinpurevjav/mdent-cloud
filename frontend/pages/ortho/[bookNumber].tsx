@@ -1420,33 +1420,7 @@ const updateBoltonLower12 = (index: number, value: string) => {
             phaseIII: { plan: "", note: "" },
           });
         }
-                if (data.problemSection && data.problemSection.rows) {
-            const r = data.problemSection.rows;
-                        setProblemSection({
-              rows: {
-                boneAngle:
-                  r.boneAngle || { plus: false, minus: false, comment: "", problem: "" },
-                boneStep:
-                  r.boneStep || { plus: false, minus: false, comment: "", problem: "" },
-                tooth:
-                  r.tooth || { plus: false, minus: false, comment: "", problem: "" },
-                toothPosition:
-                  r.toothPosition ||
-                  { plus: false, minus: false, comment: "", problem: "" },
-                functional:
-                  r.functional || { plus: false, minus: false, comment: "", problem: "" },
-                badHabit:
-                  r.badHabit || { plus: false, minus: false, comment: "", problem: "" },
-              },
-              diagnosis: data.problemSection.diagnosis || "",
-              cause: data.problemSection.cause || "",
-              treatmentGoals:
-                data.problemSection.treatmentGoals &&
-                data.problemSection.treatmentGoals.length > 0
-                  ? data.problemSection.treatmentGoals
-                  : ["", "", "", "", "", ""],
-            });
-                              } else {
+                 else {
             setProblemSection({
               rows: {
                 boneAngle: { plus: false, minus: false, comment: "", problem: "" },
