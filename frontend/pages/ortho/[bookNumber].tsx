@@ -3849,19 +3849,37 @@ const updateBoltonLower12 = (index: number, value: string) => {
               ГАЖГИЙН ШИНЖ ТӨЛӨВ
             </div>
 
-            {/* Header row */}
+                        {/* Header row */}
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
                 fontWeight: 500,
                 marginBottom: 4,
+                fontSize: 12,
               }}
             >
-              <span style={{ width: 180 }}> </span>
+              <span style={{ width: 180 }} />
               <span style={{ width: 40, textAlign: "center" }}>-</span>
               <span style={{ width: 40, textAlign: "center" }}>+</span>
-              <span style={{ marginLeft: 8 }}>PROBLEM LIST</span>
+              <span
+                style={{
+                  width: 180,
+                  textAlign: "left",
+                  paddingLeft: 4,
+                }}
+              >
+                Тайлбар
+              </span>
+              <span
+                style={{
+                  width: 180,
+                  textAlign: "left",
+                  paddingLeft: 4,
+                }}
+              >
+                PROBLEM LIST
+              </span>
             </div>
 
             {/* Row helper */}
