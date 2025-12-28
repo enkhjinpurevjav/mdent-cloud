@@ -1046,7 +1046,35 @@ const toggleArchFormL = (field: keyof TeethSection["archFormL"]) =>
               restLipMm: data.lip.restLipMm || "",
               smilingMm: data.lip.smilingMm || "",
             });
-          } else {
+          }setTeeth({
+            overbiteDeep: false,
+            overbiteOpen: false,
+            overjetEdgeToEdge: false,
+            overjetPositive: false,
+            overjetNegative: false,
+            curveOfSpee: emptyAxis(),
+            crossBite: emptyAxis(),
+            scissorBite: emptyAxis(),
+            diastem: emptyAxis(),
+            midline: emptyAxis(),
+            archFormU: {
+              square: false,
+              parabola: false,
+              round: false,
+              vShape: false,
+            },
+            archFormL: {
+              square: false,
+              parabola: false,
+              round: false,
+              vShape: false,
+            },
+            molarRelationRight: "",
+            molarRelationLeft: "",
+            canineRelationRight: "",
+            canineRelationLeft: "",
+          });
+        } else {
             setLip({
               closed: false,
               open: false,
