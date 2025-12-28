@@ -3932,7 +3932,7 @@ const updateBoltonLower12 = (index: number, value: string) => {
                     />
                   </div>
 
-                  {/* Comment field (right after +/-) */}
+                                    {/* Comment field (right after +/-) */}
                   <input
                     type="text"
                     value={row.comment || ""}
@@ -3940,13 +3940,13 @@ const updateBoltonLower12 = (index: number, value: string) => {
                       updateProblemRow(key, "comment", e.target.value)
                     }
                     style={{
-                      flex: 1,
+                      width: 180,
                       borderRadius: 4,
                       border: "1px solid #d1d5db",
                       padding: "3px 6px",
                       fontSize: 12,
                     }}
-                    placeholder="Тайлбар"
+                    placeholder=""
                   />
 
                   {/* Problem list field (last column, numbered) */}
@@ -3957,7 +3957,7 @@ const updateBoltonLower12 = (index: number, value: string) => {
                       updateProblemRow(key, "problem", e.target.value)
                     }
                     style={{
-                      width: 80,
+                      width: 180,
                       borderRadius: 4,
                       border: "1px solid #d1d5db",
                       padding: "3px 6px",
