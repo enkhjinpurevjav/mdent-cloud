@@ -1180,18 +1180,18 @@ const updateBoltonLower12 = (index: number, value: string) => {
               cause: data.problemSection.cause || "",
             });
           } else {
-            setProblemSection({
-              rows: {
-                boneAngle: { plus: false, minus: false, text: "" },
-                boneStep: { plus: false, minus: false, text: "" },
-                tooth: { plus: false, minus: false, text: "" },
-                toothPosition: { plus: false, minus: false, text: "" },
-                functional: { plus: false, minus: false, text: "" },
-                badHabit: { plus: false, minus: false, text: "" },
-              },
-              diagnosis: "",
-              cause: "",
-            });
+             setProblemSection({
+            rows: {
+              boneAngle: { plus: false, minus: false, text: "" },
+              boneStep: { plus: false, minus: false, text: "" },
+              tooth: { plus: false, minus: false, text: "" },
+              toothPosition: { plus: false, minus: false, text: "" },
+              functional: { plus: false, minus: false, text: "" },
+              badHabit: { plus: false, minus: false, text: "" },
+            },
+            diagnosis: "",
+            cause: "",
+          });
           }    
         } else {
           setCardPatientName("");
@@ -1295,6 +1295,7 @@ const updateBoltonLower12 = (index: number, value: string) => {
             restLipMm: "",
             smilingMm: "",
           });
+          
         }
       } catch (err: any) {
         console.error("load ortho card failed", err);
@@ -1342,6 +1343,7 @@ const updateBoltonLower12 = (index: number, value: string) => {
         utts,
         lip,
         teeth, // NEW
+        problemSection, // NEW
       };
 
       const res = await fetch(`/api/patients/ortho-card/${patientBookId}`, {
