@@ -3826,7 +3826,147 @@ const updateBoltonLower12 = (index: number, value: string) => {
               </div>
             </div>
           </section>
+          {/* ГАЖГИЙН ШИНЖ ТӨЛӨВ / PROBLEM LIST / ОНОШ / ШАЛТГААН */}
+          <section
+            style={{
+              marginTop: 16,
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+              padding: 12,
+              background: "#ffffff",
+              fontSize: 13,
+            }}
+          >
+            <div
+              style={{
+                fontWeight: 700,
+                marginBottom: 8,
+              }}
+            >
+              ГАЖГИЙН ШИНЖ ТӨЛӨВ
+            </div>
 
+            {/* Header row */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                fontWeight: 500,
+                marginBottom: 4,
+              }}
+            >
+              <span style={{ width: 180 }}> </span>
+              <span style={{ width: 40, textAlign: "center" }}>-</span>
+              <span style={{ width: 40, textAlign: "center" }}>+</span>
+              <span style={{ marginLeft: 8 }}>PROBLEM LIST</span>
+            </div>
+
+            {/* Row helper */}
+            {[
+              { key: "boneAngle" as ProblemRowKey, label: "Ясны: Өнцөг" },
+              { key: "boneStep" as ProblemRowKey, label: "  Шугаман" },
+              { key: "tooth" as ProblemRowKey, label: "Шүдний" },
+              { key: "toothPosition" as ProblemRowKey, label: "Шүдлэлийн" },
+              { key: "functional" as ProblemRowKey, label: "Үйл зүйн" },
+              { key: "badHabit" as ProblemRowKey, label: "Буруу зуршил" },
+            ].map(({ key, label }, index) => {
+              const row = problemSection.rows[key] || {
+                plus: false,
+                minus: false,
+                text: "",
+              };
+              return (
+                <div
+                  key={key}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginBottom: 4,
+                  }}
+                >
+                  <span style={{ width: 180 }}>{label}</span>
+                  <div style={{ width: 40, textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={!!row.minus}
+                      onChange={() =>
+                        updateProblemRow(key, "minus", !row.minus)
+                      }
+                    />
+                  </div>
+                  <div style={{ width: 40, textAlign: "center" }}>
+                    <input
+                      type="checkbox"
+                      checked={!!row.plus}
+                      onChange={() =>
+                        updateProblemRow(key, "plus", !row.plus)
+                      }
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    value={row.text || ""}
+                    onChange={(e) =>
+                      updateProblemRow(key, "text", e.target.value)
+                    }
+                    style={{
+                      flex: 1,
+                      borderRadius: 4,
+                      border: "1px solid #d1d5db",
+                      padding: "3px 6px",
+                      fontSize: 12,
+                    }}
+                    placeholder={String(index + 1)}
+                  />
+                </div>
+              );
+            })}
+
+            {/* ОНОШ */}
+            <div style={{ marginTop: 8, marginBottom: 6 }}>
+              <div style={{ fontWeight: 500, marginBottom: 2 }}>ОНОШ</div>
+              <textarea
+                value={problemSection.diagnosis || ""}
+                onChange={(e) =>
+                  setProblemSection((prev) => ({
+                    ...prev,
+                    diagnosis: e.target.value,
+                  }))
+                }
+                rows={2}
+                style={{
+                  width: "100%",
+                  borderRadius: 4,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                  fontSize: 12,
+                }}
+              />
+            </div>
+
+            {/* ШАЛТГААН */}
+            <div>
+              <div style={{ fontWeight: 500, marginBottom: 2 }}>ШАЛТГААН</div>
+              <textarea
+                value={problemSection.cause || ""}
+                onChange={(e) =>
+                  setProblemSection((prev) => ({
+                    ...prev,
+                    cause: e.target.value,
+                  }))
+                }
+                rows={2}
+                style={{
+                  width: "100%",
+                  borderRadius: 4,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                  fontSize: 12,
+                }}
+              />
+            </div>
+          </section>
           {/* Actions */}
           <div
             style={{
