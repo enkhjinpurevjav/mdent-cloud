@@ -745,7 +745,7 @@ const updateBoltonLower12 = (index: number, value: string) => {
 
   const updateLipText = (field: keyof LipSection, value: string) =>
     setLip((prev) => ({ ...prev, [field]: value }));
-    const toggleTeethBool = (field: keyof TeethSection) =>
+  const toggleTeethBool = (field: keyof TeethSection) =>
     setTeeth((prev) => ({ ...prev, [field]: !prev[field] }));
 
   const updateTeethAxis = (
