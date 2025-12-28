@@ -31,7 +31,8 @@ type ProblemRowKey =
 type ProblemListRow = {
   plus?: boolean;
   minus?: boolean;
-  text?: string;
+  comment?: string; // NEW: doctor comment after +/- 
+  problem?: string; // NEW: main problem text (Problem list)
 };
 
 type ProblemSection = {
@@ -400,14 +401,14 @@ export default function OrthoCardPage() {
     hiv: false,
   });
 
-  const [problemSection, setProblemSection] = useState<ProblemSection>({
+    const [problemSection, setProblemSection] = useState<ProblemSection>({
     rows: {
-      boneAngle: { plus: false, minus: false, text: "" },
-      boneStep: { plus: false, minus: false, text: "" },
-      tooth: { plus: false, minus: false, text: "" },
-      toothPosition: { plus: false, minus: false, text: "" },
-      functional: { plus: false, minus: false, text: "" },
-      badHabit: { plus: false, minus: false, text: "" },
+      boneAngle: { plus: false, minus: false, comment: "", problem: "" },
+      boneStep: { plus: false, minus: false, comment: "", problem: "" },
+      tooth: { plus: false, minus: false, comment: "", problem: "" },
+      toothPosition: { plus: false, minus: false, comment: "", problem: "" },
+      functional: { plus: false, minus: false, comment: "", problem: "" },
+      badHabit: { plus: false, minus: false, comment: "", problem: "" },
     },
     diagnosis: "",
     cause: "",
