@@ -4025,6 +4025,59 @@ const updateBoltonLower12 = (index: number, value: string) => {
               />
             </div>
           </section>
+            {/* ЭМЧИЛГЭЭНИЙ ЗОРИЛГО */}
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>
+                ЭМЧИЛГЭЭНИЙ ЗОРИЛГО
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 4,
+                }}
+              >
+                {Array.from({ length: 6 }).map((_, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 18,
+                        textAlign: "right",
+                        fontSize: 12,
+                      }}
+                    >
+                      {idx + 1}.
+                    </span>
+                    <input
+                      type="text"
+                      value={problemSection.treatmentGoals?.[idx] || ""}
+                      onChange={(e) =>
+                        setProblemSection((prev) => {
+                          const goals = [...(prev.treatmentGoals || ["", "", "", "", "", ""])];
+                          goals[idx] = e.target.value;
+                          return { ...prev, treatmentGoals: goals };
+                        })
+                      }
+                      style={{
+                        flex: 1,
+                        borderRadius: 4,
+                        border: "1px solid #d1d5db",
+                        padding: "3px 6px",
+                        fontSize: 12,
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          
           {/* Actions */}
           <div
             style={{
