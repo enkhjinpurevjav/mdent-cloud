@@ -755,7 +755,8 @@ const updateBoltonLower12 = (index: number, value: string) => {
       rows: {
         ...prev.rows,
         [key]: {
-          ...(prev.rows?.[key] || { plus: false, minus: false, text: "" }),
+          ...(prev.rows?.[key] ||
+  { plus: false, minus: false, comment: "", problem: "" }),
           [field]: value,
         },
       },
@@ -1168,14 +1169,15 @@ const updateBoltonLower12 = (index: number, value: string) => {
             const r = data.problemSection.rows;
             setProblemSection({
               rows: {
-                boneAngle: r.boneAngle || { plus: false, minus: false, text: "" },
-                boneStep: r.boneStep || { plus: false, minus: false, text: "" },
-                tooth: r.tooth || { plus: false, minus: false, text: "" },
+                boneAngle:
+                         r.boneAngle || { plus: false, minus: false, comment: "", problem: "" },
+                boneStep: r.boneStep || { plus: false, minus: false, comment: "", problem: "" },
+                tooth: r.tooth || { plus: false, minus: false, comment: "", problem: "" },
                 toothPosition:
-                  r.toothPosition || { plus: false, minus: false, text: "" },
+                  r.toothPosition || { plus: false, minus: false, comment: "", problem: "" },
                 functional:
-                  r.functional || { plus: false, minus: false, text: "" },
-                badHabit: r.badHabit || { plus: false, minus: false, text: "" },
+                  r.functional || { plus: false, minus: false, comment: "", problem: "" },
+                badHabit: r.badHabit || { plus: false, minus: false, comment: "", problem: "" },
               },
               diagnosis: data.problemSection.diagnosis || "",
               cause: data.problemSection.cause || "",
@@ -3863,7 +3865,7 @@ const updateBoltonLower12 = (index: number, value: string) => {
             </div>
 
             {/* Row helper */}
-            {[
+                        {[
               { key: "boneAngle" as ProblemRowKey, label: "Ясны: Өнцөг" },
               { key: "boneStep" as ProblemRowKey, label: "  Шугаман" },
               { key: "tooth" as ProblemRowKey, label: "Шүдний" },
@@ -3871,11 +3873,13 @@ const updateBoltonLower12 = (index: number, value: string) => {
               { key: "functional" as ProblemRowKey, label: "Үйл зүйн" },
               { key: "badHabit" as ProblemRowKey, label: "Буруу зуршил" },
             ].map(({ key, label }, index) => {
-              const row = problemSection.rows[key] || {
-                plus: false,
-                minus: false,
-                text: "",
-              };
+              const row =
+                problemSection.rows[key] || {
+                  plus: false,
+                  minus: false,
+                  comment: "",
+                  problem: "",
+                };
               return (
                 <div
                   key={key}
@@ -3887,6 +3891,8 @@ const updateBoltonLower12 = (index: number, value: string) => {
                   }}
                 >
                   <span style={{ width: 180 }}>{label}</span>
+
+                  {/* - checkbox */}
                   <div style={{ width: 40, textAlign: "center" }}>
                     <input
                       type="checkbox"
@@ -3896,6 +3902,8 @@ const updateBoltonLower12 = (index: number, value: string) => {
                       }
                     />
                   </div>
+
+                  {/* + checkbox */}
                   <div style={{ width: 40, textAlign: "center" }}>
                     <input
                       type="checkbox"
@@ -3905,14 +3913,33 @@ const updateBoltonLower12 = (index: number, value: string) => {
                       }
                     />
                   </div>
+
+                  {/* Comment field (right after +/-) */}
                   <input
                     type="text"
-                    value={row.text || ""}
+                    value={row.comment || ""}
                     onChange={(e) =>
-                      updateProblemRow(key, "text", e.target.value)
+                      updateProblemRow(key, "comment", e.target.value)
                     }
                     style={{
                       flex: 1,
+                      borderRadius: 4,
+                      border: "1px solid #d1d5db",
+                      padding: "3px 6px",
+                      fontSize: 12,
+                    }}
+                    placeholder="Тайлбар"
+                  />
+
+                  {/* Problem list field (last column, numbered) */}
+                  <input
+                    type="text"
+                    value={row.problem || ""}
+                    onChange={(e) =>
+                      updateProblemRow(key, "problem", e.target.value)
+                    }
+                    style={{
+                      width: 80,
                       borderRadius: 4,
                       border: "1px solid #d1d5db",
                       padding: "3px 6px",
