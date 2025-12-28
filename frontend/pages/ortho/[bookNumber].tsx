@@ -35,6 +35,20 @@ type ProblemListRow = {
   problem?: string; // NEW: main problem text (Problem list)
 };
 
+type TreatmentPlanColumn = {
+  plan?: string;
+  note?: string;
+};
+
+type TreatmentPlanSection = {
+  orthodontic?: boolean;
+  growthModification?: boolean;
+  combinedSurgery?: boolean;
+  phaseI: TreatmentPlanColumn;
+  phaseII: TreatmentPlanColumn;
+  phaseIII: TreatmentPlanColumn;
+};
+
 type ProblemSection = {
   rows: Record<ProblemRowKey, ProblemListRow>;
   diagnosis?: string; // ОНОШ
@@ -266,6 +280,7 @@ type OrthoCardData = {
   lip?: LipSection;
   teeth?: TeethSection; // NEW
   problemSection?: ProblemSection; // NEW
+  treatmentPlan?: TreatmentPlanSection; // NEW
 };
 
 type OrthoCardApiResponse = {
@@ -414,6 +429,15 @@ export default function OrthoCardPage() {
     diagnosis: "",
     cause: "",
     treatmentGoals: ["", "", "", "", "", ""],
+  });
+
+  const [treatmentPlan, setTreatmentPlan] = useState<TreatmentPlanSection>({
+    orthodontic: false,
+    growthModification: false,
+    combinedSurgery: false,
+    phaseI: { plan: "", note: "" },
+    phaseII: { plan: "", note: "" },
+    phaseIII: { plan: "", note: "" },
   });
   
   const [physicalExam, setPhysicalExam] = useState<PhysicalExam>({
@@ -1208,7 +1232,34 @@ const updateBoltonLower12 = (index: number, value: string) => {
               treatmentGoals: ["", "", "", "", "", ""],
             });
           }   
-        } else {
+        }           if (data.treatmentPlan) {
+            setTreatmentPlan({
+              orthodontic: !!data.treatmentPlan.orthodontic,
+              growthModification: !!data.treatmentPlan.growthModification,
+              combinedSurgery: !!data.treatmentPlan.combinedSurgery,
+              phaseI: {
+                plan: data.treatmentPlan.phaseI?.plan || "",
+                note: data.treatmentPlan.phaseI?.note || "",
+              },
+              phaseII: {
+                plan: data.treatmentPlan.phaseII?.plan || "",
+                note: data.treatmentPlan.phaseII?.note || "",
+              },
+              phaseIII: {
+                plan: data.treatmentPlan.phaseIII?.plan || "",
+                note: data.treatmentPlan.phaseIII?.note || "",
+              },
+            });
+          } else {
+            setTreatmentPlan({
+              orthodontic: false,
+              growthModification: false,
+              combinedSurgery: false,
+              phaseI: { plan: "", note: "" },
+              phaseII: { plan: "", note: "" },
+              phaseIII: { plan: "", note: "" },
+            });
+          }else {
           setCardPatientName("");
           setCardNotes("");
           setSupernumeraryNote("");
