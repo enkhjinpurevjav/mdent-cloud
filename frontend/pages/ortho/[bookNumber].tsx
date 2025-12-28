@@ -821,7 +821,24 @@ const updateBoltonLower12 = (index: number, value: string) => {
       [field]: prev[field] === value ? "" : value,
     }));
   useEffect(() => {
+    if (!bookNumber) return;
+    const bn = typeof bookNumber === "string" && bookNumber.trim() ? bookNumber.trim() : "";
     if (!bn) return;
+
+    const load = async () => {
+      setLoading(true);
+      setError("");
+      setInfo("");
+
+      try {
+        const res = await fetch(`/api/patients/ortho-card/by-book/${encodeURIComponent(bn)}`);
+        const json = (await res.json().catch(() => null)) as OrthoCardApiResponse | null;
+
+        if (!res.ok) throw new Error((json && (json as any).error) || "Гажиг заслын карт ачаалахад алдаа гарлаа.");
+        if (!json || !json.patientBook) throw new Error("Картын мэдээлэл олдсонгүй.");
+
+        setPatientBookId(json.patientBook.id);
+        if (!bn) return;
 
     const load = async () => {
       setLoading(true);
@@ -913,6 +930,34 @@ const updateBoltonLower12 = (index: number, value: string) => {
             });
           } else {
             setHowesInputs({ pmbaw: "", tm: "" });
+          }
+          if (data.treatmentPlan) {
+            setTreatmentPlan({
+              orthodontic: !!data.treatmentPlan.orthodontic,
+              growthModification: !!data.treatmentPlan.growthModification,
+              combinedSurgery: !!data.treatmentPlan.combinedSurgery,
+              phaseI: {
+                plan: data.treatmentPlan.phaseI?.plan || "",
+                note: data.treatmentPlan.phaseI?.note || "",
+              },
+              phaseII: {
+                plan: data.treatmentPlan.phaseII?.plan || "",
+                note: data.treatmentPlan.phaseII?.note || "",
+              },
+              phaseIII: {
+                plan: data.treatmentPlan.phaseIII?.plan || "",
+                note: data.treatmentPlan.phaseIII?.note || "",
+              },
+            });
+          } else {
+            setTreatmentPlan({
+              orthodontic: false,
+              growthModification: false,
+              combinedSurgery: false,
+              phaseI: { plan: "", note: "" },
+              phaseII: { plan: "", note: "" },
+              phaseIII: { plan: "", note: "" },
+            });
           }
           if (data.discrepancyInputs) {
             const di = data.discrepancyInputs;
