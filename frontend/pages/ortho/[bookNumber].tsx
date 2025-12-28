@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import FullArchDiscOdontogram, {
@@ -18,55 +19,6 @@ type OrthoDisc = {
     right?: "none" | "caries" | "filled";
     center?: "none" | "caries" | "filled";
   };
-};
-
-type DiscrepancyAxis = {
-  upperLeft: string;
-  upperRight: string;
-  lowerLeft: string;
-  lowerRight: string;
-};
-
-type TeethSection = {
-  // Overbite
-  overbiteDeep?: boolean;
-  overbiteOpen?: boolean;
-
-  // Overjet
-  overjetEdgeToEdge?: boolean; // Ирмэг ирмэгээр
-  overjetPositive?: boolean;
-  overjetNegative?: boolean;
-
-  // Curve of Spee: 4 numeric cells (same pattern as DiscrepancyAxis)
-  curveOfSpee: DiscrepancyAxis;
-
-  // Cross bite, Scissor bite, Diastem: 4‑value grids too
-  crossBite: DiscrepancyAxis;
-  scissorBite: DiscrepancyAxis;
-  diastem: DiscrepancyAxis;
-
-  // Голын шугам – also 4 cells
-  midline: DiscrepancyAxis;
-
-  // Нумын хэлбэр (arch form) – U & L each have 4 choices
-  archFormU: {
-    square?: boolean; // Дөрвөлжин
-    parabola?: boolean; // Парабол
-    round?: boolean; // Дугуй
-    vShape?: boolean; // V хэлбэр
-  };
-  archFormL: {
-    square?: boolean;
-    parabola?: boolean;
-    round?: boolean;
-    vShape?: boolean;
-  };
-
-  // Хоршилт (occlusion classes) – right/left I/II/III
-  molarRelationRight?: "I" | "II" | "III" | "";
-  molarRelationLeft?: "I" | "II" | "III" | "";
-  canineRelationRight?: "I" | "II" | "III" | "";
-  canineRelationLeft?: "I" | "II" | "III" | "";
 };
 
 type SumOfIncisorInputs = {
@@ -90,6 +42,13 @@ type BoltonInputs = {
 type HowesInputs = {
   pmbaw?: string;
   tm?: string;
+};
+
+type DiscrepancyAxis = {
+  upperLeft: string;
+  upperRight: string;
+  lowerLeft: string;
+  lowerRight: string;
 };
 
 type DiscrepancyInputs = {
@@ -240,8 +199,6 @@ type OrthoCardData = {
   tmj?: TmjSection;
   utts?: UttsSection;
   lip?: LipSection;
-
-  teeth?: TeethSection;
 };
 
 type OrthoCardApiResponse = {
@@ -448,35 +405,6 @@ export default function OrthoCardPage() {
     smilingMm: "",
   });
 
-  const [teeth, setTeeth] = useState<TeethSection>({
-    overbiteDeep: false,
-    overbiteOpen: false,
-    overjetEdgeToEdge: false,
-    overjetPositive: false,
-    overjetNegative: false,
-    curveOfSpee: emptyAxis(),
-    crossBite: emptyAxis(),
-    scissorBite: emptyAxis(),
-    diastem: emptyAxis(),
-    midline: emptyAxis(),
-    archFormU: {
-      square: false,
-      parabola: false,
-      round: false,
-      vShape: false,
-    },
-    archFormL: {
-      square: false,
-      parabola: false,
-      round: false,
-      vShape: false,
-    },
-    molarRelationRight: "",
-    molarRelationLeft: "",
-    canineRelationRight: "",
-    canineRelationLeft: "",
-  });
-
   const bn =
     typeof bookNumber === "string" && bookNumber.trim()
       ? bookNumber.trim()
@@ -508,62 +436,62 @@ export default function OrthoCardPage() {
   const u1l1Ratio = l1Sum > 0 ? (u1Sum / l1Sum).toFixed(2) : "";
 
   const updateBoltonUpper6 = (index: number, value: string) => {
-    const cleaned = value.replace(/[^0-9.]/g, "");
-    setBoltonInputs((prev) => {
-      const next: BoltonInputs = {
-        upper6: [...prev.upper6],
-        lower6: [...prev.lower6],
-        upper12: [...prev.upper12],
-        lower12: [...prev.lower12],
-      };
-      next.upper6[index] = cleaned;
-      next.upper12[index] = cleaned;
-      return next;
-    });
-  };
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  setBoltonInputs((prev) => {
+    const next: BoltonInputs = {
+      upper6: [...prev.upper6],
+      lower6: [...prev.lower6],
+      upper12: [...prev.upper12],
+      lower12: [...prev.lower12],
+    };
+    next.upper6[index] = cleaned;
+    next.upper12[index] = cleaned; // keep your rule
+    return next;
+  });
+};
 
-  const updateBoltonLower6 = (index: number, value: string) => {
-    const cleaned = value.replace(/[^0-9.]/g, "");
-    setBoltonInputs((prev) => {
-      const next: BoltonInputs = {
-        upper6: [...prev.upper6],
-        lower6: [...prev.lower6],
-        upper12: [...prev.upper12],
-        lower12: [...prev.lower12],
-      };
-      next.lower6[index] = cleaned;
-      next.lower12[index] = cleaned;
-      return next;
-    });
-  };
+const updateBoltonLower6 = (index: number, value: string) => {
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  setBoltonInputs((prev) => {
+    const next: BoltonInputs = {
+      upper6: [...prev.upper6],
+      lower6: [...prev.lower6],
+      upper12: [...prev.upper12],
+      lower12: [...prev.lower12],
+    };
+    next.lower6[index] = cleaned;
+    next.lower12[index] = cleaned; // keep your rule
+    return next;
+  });
+};
 
-  const updateBoltonUpper12 = (index: number, value: string) => {
-    const cleaned = value.replace(/[^0-9.]/g, "");
-    setBoltonInputs((prev) => {
-      const next: BoltonInputs = {
-        upper6: [...prev.upper6],
-        lower6: [...prev.lower6],
-        upper12: [...prev.upper12],
-        lower12: [...prev.lower12],
-      };
-      next.upper12[index] = cleaned;
-      return next;
-    });
-  };
+const updateBoltonUpper12 = (index: number, value: string) => {
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  setBoltonInputs((prev) => {
+    const next: BoltonInputs = {
+      upper6: [...prev.upper6],
+      lower6: [...prev.lower6],
+      upper12: [...prev.upper12],
+      lower12: [...prev.lower12],
+    };
+    next.upper12[index] = cleaned;
+    return next;
+  });
+};
 
-  const updateBoltonLower12 = (index: number, value: string) => {
-    const cleaned = value.replace(/[^0-9.]/g, "");
-    setBoltonInputs((prev) => {
-      const next: BoltonInputs = {
-        upper6: [...prev.upper6],
-        lower6: [...prev.lower6],
-        upper12: [...prev.upper12],
-        lower12: [...prev.lower12],
-      };
-      next.lower12[index] = cleaned;
-      return next;
-    });
-  };
+const updateBoltonLower12 = (index: number, value: string) => {
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  setBoltonInputs((prev) => {
+    const next: BoltonInputs = {
+      upper6: [...prev.upper6],
+      lower6: [...prev.lower6],
+      upper12: [...prev.upper12],
+      lower12: [...prev.lower12],
+    };
+    next.lower12[index] = cleaned;
+    return next;
+  });
+};
 
   const sumArray = (arr: string[]): number =>
     arr.reduce((acc, v) => acc + parseOrZero(v), 0);
@@ -704,49 +632,6 @@ export default function OrthoCardPage() {
 
   const updateLipText = (field: keyof LipSection, value: string) =>
     setLip((prev) => ({ ...prev, [field]: value }));
-
-  const toggleTeethBool = (field: keyof TeethSection) =>
-    setTeeth((prev) => ({ ...prev, [field]: !prev[field] }));
-
-  const updateTeethAxis = (
-    field: keyof TeethSection,
-    pos: keyof DiscrepancyAxis,
-    value: string
-  ) => {
-    const cleaned = value.replace(/[^0-9.+-]/g, "");
-    setTeeth((prev) => ({
-      ...prev,
-      [field]: {
-        ...(prev[field] as DiscrepancyAxis),
-        [pos]: cleaned,
-      },
-    }));
-  };
-
-  const toggleArchFormU = (field: keyof TeethSection["archFormU"]) =>
-    setTeeth((prev) => ({
-      ...prev,
-      archFormU: { ...prev.archFormU, [field]: !prev.archFormU?.[field] },
-    }));
-
-  const toggleArchFormL = (field: keyof TeethSection["archFormL"]) =>
-    setTeeth((prev) => ({
-      ...prev,
-      archFormL: { ...prev.archFormL, [field]: !prev.archFormL?.[field] },
-    }));
-
-  const setTeethClass = (
-    field:
-      | "molarRelationRight"
-      | "molarRelationLeft"
-      | "canineRelationRight"
-      | "canineRelationLeft",
-    value: "I" | "II" | "III"
-  ) =>
-    setTeeth((prev) => ({
-      ...prev,
-      [field]: prev[field] === value ? "" : value,
-    }));
 
   useEffect(() => {
     if (!bn) return;
@@ -1051,68 +936,7 @@ export default function OrthoCardPage() {
               smilingMm: "",
             });
           }
-
-          if (data.teeth) {
-            setTeeth({
-              overbiteDeep: !!data.teeth.overbiteDeep,
-              overbiteOpen: !!data.teeth.overbiteOpen,
-              overjetEdgeToEdge: !!data.teeth.overjetEdgeToEdge,
-              overjetPositive: !!data.teeth.overjetPositive,
-              overjetNegative: !!data.teeth.overjetNegative,
-              curveOfSpee: data.teeth.curveOfSpee || emptyAxis(),
-              crossBite: data.teeth.crossBite || emptyAxis(),
-              scissorBite: data.teeth.scissorBite || emptyAxis(),
-              diastem: data.teeth.diastem || emptyAxis(),
-              midline: data.teeth.midline || emptyAxis(),
-              archFormU: {
-                square: !!data.teeth.archFormU?.square,
-                parabola: !!data.teeth.archFormU?.parabola,
-                round: !!data.teeth.archFormU?.round,
-                vShape: !!data.teeth.archFormU?.vShape,
-              },
-              archFormL: {
-                square: !!data.teeth.archFormL?.square,
-                parabola: !!data.teeth.archFormL?.parabola,
-                round: !!data.teeth.archFormL?.round,
-                vShape: !!data.teeth.archFormL?.vShape,
-              },
-              molarRelationRight: data.teeth.molarRelationRight || "",
-              molarRelationLeft: data.teeth.molarRelationLeft || "",
-              canineRelationRight: data.teeth.canineRelationRight || "",
-              canineRelationLeft: data.teeth.canineRelationLeft || "",
-            });
-          } else {
-            setTeeth({
-              overbiteDeep: false,
-              overbiteOpen: false,
-              overjetEdgeToEdge: false,
-              overjetPositive: false,
-              overjetNegative: false,
-              curveOfSpee: emptyAxis(),
-              crossBite: emptyAxis(),
-              scissorBite: emptyAxis(),
-              diastem: emptyAxis(),
-              midline: emptyAxis(),
-              archFormU: {
-                square: false,
-                parabola: false,
-                round: false,
-                vShape: false,
-              },
-              archFormL: {
-                square: false,
-                parabola: false,
-                round: false,
-                vShape: false,
-              },
-              molarRelationRight: "",
-              molarRelationLeft: "",
-              canineRelationRight: "",
-              canineRelationLeft: "",
-            });
-          }
         } else {
-          // No orthoCard yet: reset everything
           setCardPatientName("");
           setCardNotes("");
           setSupernumeraryNote("");
@@ -1214,34 +1038,6 @@ export default function OrthoCardPage() {
             restLipMm: "",
             smilingMm: "",
           });
-          setTeeth({
-            overbiteDeep: false,
-            overbiteOpen: false,
-            overjetEdgeToEdge: false,
-            overjetPositive: false,
-            overjetNegative: false,
-            curveOfSpee: emptyAxis(),
-            crossBite: emptyAxis(),
-            scissorBite: emptyAxis(),
-            diastem: emptyAxis(),
-            midline: emptyAxis(),
-            archFormU: {
-              square: false,
-              parabola: false,
-              round: false,
-              vShape: false,
-            },
-            archFormL: {
-              square: false,
-              parabola: false,
-              round: false,
-              vShape: false,
-            },
-            molarRelationRight: "",
-            molarRelationLeft: "",
-            canineRelationRight: "",
-            canineRelationLeft: "",
-          });
         }
       } catch (err: any) {
         console.error("load ortho card failed", err);
@@ -1288,7 +1084,6 @@ export default function OrthoCardPage() {
         tmj,
         utts,
         lip,
-        teeth,
       };
 
       const res = await fetch(`/api/patients/ortho-card/${patientBookId}`, {
@@ -1437,7 +1232,6 @@ export default function OrthoCardPage() {
         fontFamily: "sans-serif",
       }}
     >
-      
       <button
         type="button"
         onClick={() => {
@@ -2634,297 +2428,6 @@ export default function OrthoCardPage() {
                   }}
                 />
                 мм
-              </div>
-            </div>
-
-                        {/* ШҮД */}
-            <div
-              style={{
-                fontWeight: 700,
-                marginTop: 12,
-                marginBottom: 4,
-              }}
-            >
-              ШҮД
-            </div>
-
-            {/* Overbite & Overjet checkboxes */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <div>
-                <span style={{ width: 80, display: "inline-block" }}>
-                  Overbite:
-                </span>
-                <label style={{ marginRight: 12 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!teeth.overbiteDeep}
-                    onChange={() => toggleTeethBool("overbiteDeep")}
-                    style={{ marginRight: 4 }}
-                  />
-                  Deep
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={!!teeth.overbiteOpen}
-                    onChange={() => toggleTeethBool("overbiteOpen")}
-                    style={{ marginRight: 4 }}
-                  />
-                  Open
-                </label>
-              </div>
-
-              <div>
-                <span style={{ width: 80, display: "inline-block" }}>
-                  Overjet:
-                </span>
-                <label style={{ marginRight: 12 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!teeth.overjetEdgeToEdge}
-                    onChange={() => toggleTeethBool("overjetEdgeToEdge")}
-                    style={{ marginRight: 4 }}
-                  />
-                  Ирмэг ирмэгээр
-                </label>
-                <label style={{ marginRight: 12 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!teeth.overjetPositive}
-                    onChange={() => toggleTeethBool("overjetPositive")}
-                    style={{ marginRight: 4 }}
-                  />
-                  Позитив
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={!!teeth.overjetNegative}
-                    onChange={() => toggleTeethBool("overjetNegative")}
-                    style={{ marginRight: 4 }}
-                  />
-                  Негатив
-                </label>
-              </div>
-            </div>
-
-            {/* Curve of spee / Cross bite / Scissor bite / Diastem / Голын шугам */}
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 24,
-                alignItems: "flex-start",
-                marginTop: 8,
-                marginBottom: 8,
-              }}
-            >
-              <div>
-                <div style={{ marginBottom: 4, fontWeight: 500 }}>
-                  Curve of spee
-                </div>
-                {renderAxis("curveOfSpee", "", teeth.curveOfSpee)}
-              </div>
-
-              <div>
-                <div style={{ marginBottom: 4, fontWeight: 500 }}>
-                  Cross bite
-                </div>
-                {renderAxis("crossBite", "", teeth.crossBite)}
-              </div>
-
-              <div>
-                <div style={{ marginBottom: 4, fontWeight: 500 }}>
-                  Scissor bite
-                </div>
-                {renderAxis("scissorBite", "", teeth.scissorBite)}
-              </div>
-
-              <div>
-                <div style={{ marginBottom: 4, fontWeight: 500 }}>
-                  Diastem
-                </div>
-                {renderAxis("diastem", "", teeth.diastem)}
-              </div>
-
-              <div>
-                <div style={{ marginBottom: 4, fontWeight: 500 }}>
-                  Голын шугам
-                </div>
-                {renderAxis("midline", "", teeth.midline)}
-              </div>
-            </div>
-
-            {/* Нумын хэлбэр */}
-            <div style={{ marginTop: 8, marginBottom: 8 }}>
-              <div style={{ marginBottom: 4, fontWeight: 500 }}>
-                Нумын хэлбэр:
-              </div>
-              <div style={{ marginBottom: 4 }}>
-                <span style={{ width: 24, display: "inline-block" }}>U:</span>
-                <label style={{ marginRight: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!teeth.archFormU?.square}
-                    onChange={() => toggleArchFormU("square")}
-                    style={{ marginRight: 4 }}
-                  />
-                  Дөрвөлжин
-                </label>
-                <label style={{ marginRight: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!teeth.archFormU?.parabola}
-                    onChange={() => toggleArchFormU("parabola")}
-                    style={{ marginRight: 4 }}
-                  />
-                  Парабол
-                </label>
-                <label style={{ marginRight: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!teeth.archFormU?.round}
-                    onChange={() => toggleArchFormU("round")}
-                    style={{ marginRight: 4 }}
-                  />
-                  Дугуй
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={!!teeth.archFormU?.vShape}
-                    onChange={() => toggleArchFormU("vShape")}
-                    style={{ marginRight: 4 }}
-                  />
-                  V хэлбэр
-                </label>
-              </div>
-
-              <div>
-                <span style={{ width: 24, display: "inline-block" }}>L:</span>
-                <label style={{ marginRight: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!teeth.archFormL?.square}
-                    onChange={() => toggleArchFormL("square")}
-                    style={{ marginRight: 4 }}
-                  />
-                  Дөрвөлжин
-                </label>
-                <label style={{ marginRight: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!teeth.archFormL?.parabola}
-                    onChange={() => toggleArchFormL("parabola")}
-                    style={{ marginRight: 4 }}
-                  />
-                  Парабол
-                </label>
-                <label style={{ marginRight: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={!!teeth.archFormL?.round}
-                    onChange={() => toggleArchFormL("round")}
-                    style={{ marginRight: 4 }}
-                  />
-                  Дугуй
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={!!teeth.archFormL?.vShape}
-                    onChange={() => toggleArchFormL("vShape")}
-                    style={{ marginRight: 4 }}
-                  />
-                  V хэлбэр
-                </label>
-              </div>
-            </div>
-
-            {/* Хоршилт: I / II / III */}
-            <div style={{ marginTop: 8 }}>
-              <div style={{ fontWeight: 500, marginBottom: 4 }}>
-                Хоршилт:
-              </div>
-
-              <div style={{ marginBottom: 4 }}>
-                <span style={{ width: 160, display: "inline-block" }}>
-                  1-р их арааны хоршилт:
-                </span>
-                <span style={{ marginRight: 8 }}>Баруун</span>
-                {["I", "II", "III"].map((cls) => (
-                  <label key={`molarR-${cls}`} style={{ marginRight: 4 }}>
-                    <input
-                      type="checkbox"
-                      checked={teeth.molarRelationRight === cls}
-                      onChange={() =>
-                        setTeethClass(
-                          "molarRelationRight",
-                          cls as "I" | "II" | "III"
-                        )
-                      }
-                      style={{ marginRight: 2 }}
-                    />
-                    {cls}
-                  </label>
-                ))}
-                <span style={{ marginLeft: 16, marginRight: 8 }}>Зүүн</span>
-                {["I", "II", "III"].map((cls) => (
-                  <label key={`molarL-${cls}`} style={{ marginRight: 4 }}>
-                    <input
-                      type="checkbox"
-                      checked={teeth.molarRelationLeft === cls}
-                      onChange={() =>
-                        setTeethClass(
-                          "molarRelationLeft",
-                          cls as "I" | "II" | "III"
-                        )
-                      }
-                      style={{ marginRight: 2 }}
-                    />
-                    {cls}
-                  </label>
-                ))}
-              </div>
-
-              <div>
-                <span style={{ width: 160, display: "inline-block" }}>
-                  Сойёны хоршилт:
-                </span>
-                <span style={{ marginRight: 8 }}>Баруун</span>
-                {["I", "II", "III"].map((cls) => (
-                  <label key={`canineR-${cls}`} style={{ marginRight: 4 }}>
-                    <input
-                      type="checkbox"
-                      checked={teeth.canineRelationRight === cls}
-                      onChange={() =>
-                        setTeethClass(
-                          "canineRelationRight",
-                          cls as "I" | "II" | "III"
-                        )
-                      }
-                      style={{ marginRight: 2 }}
-                    />
-                    {cls}
-                  </label>
-                ))}
-                <span style={{ marginLeft: 16, marginRight: 8 }}>Зүүн</span>
-                {["I", "II", "III"].map((cls) => (
-                  <label key={`canineL-${cls}`} style={{ marginRight: 4 }}>
-                    <input
-                      type="checkbox"
-                      checked={teeth.canineRelationLeft === cls}
-                      onChange={() =>
-                        setTeethClass(
-                          "canineRelationLeft",
-                          cls as "I" | "II" | "III"
-                        )
-                      }
-                      style={{ marginRight: 2 }}
-                    />
-                    {cls}
-                  </label>
-                ))}
               </div>
             </div>
           </section>
