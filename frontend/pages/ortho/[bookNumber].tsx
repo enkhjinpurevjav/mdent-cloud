@@ -1040,7 +1040,68 @@ const updateBoltonLower12 = (index: number, value: string) => {
               restLipMm: data.lip.restLipMm || "",
               smilingMm: data.lip.smilingMm || "",
             });
+          } 
+                   if (data.teeth) {
+            setTeeth({
+              overbiteDeep: !!data.teeth.overbiteDeep,
+              overbiteOpen: !!data.teeth.overbiteOpen,
+              overjetEdgeToEdge: !!data.teeth.overjetEdgeToEdge,
+              overjetPositive: !!data.teeth.overjetPositive,
+              overjetNegative: !!data.teeth.overjetNegative,
+              curveOfSpee: data.teeth.curveOfSpee || emptyAxis(),
+              crossBite: data.teeth.crossBite || emptyAxis(),
+              scissorBite: data.teeth.scissorBite || emptyAxis(),
+              diastem: data.teeth.diastem || emptyAxis(),
+              midline: data.teeth.midline || emptyAxis(),
+              archFormU: {
+                square: !!data.teeth.archFormU?.square,
+                parabola: !!data.teeth.archFormU?.parabola,
+                round: !!data.teeth.archFormU?.round,
+                vShape: !!data.teeth.archFormU?.vShape,
+              },
+              archFormL: {
+                square: !!data.teeth.archFormL?.square,
+                parabola: !!data.teeth.archFormL?.parabola,
+                round: !!data.teeth.archFormL?.round,
+                vShape: !!data.teeth.archFormL?.vShape,
+              },
+              molarRelationRight: data.teeth.molarRelationRight || "",
+              molarRelationLeft: data.teeth.molarRelationLeft || "",
+              canineRelationRight: data.teeth.canineRelationRight || "",
+              canineRelationLeft: data.teeth.canineRelationLeft || "",
+            });
           } else {
+            setTeeth({
+              overbiteDeep: false,
+              overbiteOpen: false,
+              overjetEdgeToEdge: false,
+              overjetPositive: false,
+              overjetNegative: false,
+              curveOfSpee: emptyAxis(),
+              crossBite: emptyAxis(),
+              scissorBite: emptyAxis(),
+              diastem: emptyAxis(),
+              midline: emptyAxis(),
+              archFormU: {
+                square: false,
+                parabola: false,
+                round: false,
+                vShape: false,
+              },
+              archFormL: {
+                square: false,
+                parabola: false,
+                round: false,
+                vShape: false,
+              },
+              molarRelationRight: "",
+              molarRelationLeft: "",
+              canineRelationRight: "",
+              canineRelationLeft: "",
+            });
+          } 
+          
+          else {
             setLip({
               closed: false,
               open: false,
