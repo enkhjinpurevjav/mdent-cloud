@@ -703,7 +703,48 @@ const updateBoltonLower12 = (index: number, value: string) => {
 
   const updateLipText = (field: keyof LipSection, value: string) =>
     setLip((prev) => ({ ...prev, [field]: value }));
+    const toggleTeethBool = (field: keyof TeethSection) =>
+    setTeeth((prev) => ({ ...prev, [field]: !prev[field] }));
 
+  const updateTeethAxis = (
+    field: keyof TeethSection,
+    pos: keyof DiscrepancyAxis,
+    value: string
+  ) => {
+    const cleaned = value.replace(/[^0-9.+-]/g, "");
+    setTeeth((prev) => ({
+      ...prev,
+      [field]: {
+        ...(prev[field] as DiscrepancyAxis),
+        [pos]: cleaned,
+      },
+    }));
+  };
+
+  const toggleArchFormU = (field: keyof TeethSection["archFormU"]) =>
+    setTeeth((prev) => ({
+      ...prev,
+      archFormU: { ...prev.archFormU, [field]: !prev.archFormU?.[field] },
+    }));
+
+  const toggleArchFormL = (field: keyof TeethSection["archFormL"]) =>
+    setTeeth((prev) => ({
+      ...prev,
+      archFormL: { ...prev.archFormL, [field]: !prev.archFormL?.[field] },
+    }));
+
+  const setTeethClass = (
+    field:
+      | "molarRelationRight"
+      | "molarRelationLeft"
+      | "canineRelationRight"
+      | "canineRelationLeft",
+    value: "I" | "II" | "III"
+  ) =>
+    setTeeth((prev) => ({
+      ...prev,
+      [field]: prev[field] === value ? "" : value,
+    }));
   useEffect(() => {
     if (!bn) return;
 
