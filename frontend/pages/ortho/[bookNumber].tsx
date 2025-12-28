@@ -744,6 +744,23 @@ const updateBoltonLower12 = (index: number, value: string) => {
   const toggleTeethBool = (field: keyof TeethSection) =>
     setTeeth((prev) => ({ ...prev, [field]: !prev[field] }));
 
+  const updateProblemRow = (
+    key: ProblemRowKey,
+    field: keyof ProblemListRow,
+    value: boolean | string
+  ) => {
+    setProblemSection((prev) => ({
+      ...prev,
+      rows: {
+        ...prev.rows,
+        [key]: {
+          ...(prev.rows?.[key] || { plus: false, minus: false, text: "" }),
+          [field]: value,
+        },
+      },
+    }));
+  };
+  
   const updateTeethAxis = (
     field: keyof TeethSection,
     pos: keyof DiscrepancyAxis,
