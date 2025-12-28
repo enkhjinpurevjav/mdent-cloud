@@ -436,42 +436,62 @@ export default function OrthoCardPage() {
   const u1l1Ratio = l1Sum > 0 ? (u1Sum / l1Sum).toFixed(2) : "";
 
   const updateBoltonUpper6 = (index: number, value: string) => {
-    const cleaned = value.replace(/[^0-9.]/g, "");
-    setBoltonInputs((prev) => {
-      const next = structuredClone(prev) as BoltonInputs;
-      next.upper6[index] = cleaned;
-      next.upper12[index] = cleaned;
-      return next;
-    });
-  };
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  setBoltonInputs((prev) => {
+    const next: BoltonInputs = {
+      upper6: [...prev.upper6],
+      lower6: [...prev.lower6],
+      upper12: [...prev.upper12],
+      lower12: [...prev.lower12],
+    };
+    next.upper6[index] = cleaned;
+    next.upper12[index] = cleaned; // keep your rule
+    return next;
+  });
+};
 
-  const updateBoltonLower6 = (index: number, value: string) => {
-    const cleaned = value.replace(/[^0-9.]/g, "");
-    setBoltonInputs((prev) => {
-      const next = structuredClone(prev) as BoltonInputs;
-      next.lower6[index] = cleaned;
-      next.lower12[index] = cleaned;
-      return next;
-    });
-  };
+const updateBoltonLower6 = (index: number, value: string) => {
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  setBoltonInputs((prev) => {
+    const next: BoltonInputs = {
+      upper6: [...prev.upper6],
+      lower6: [...prev.lower6],
+      upper12: [...prev.upper12],
+      lower12: [...prev.lower12],
+    };
+    next.lower6[index] = cleaned;
+    next.lower12[index] = cleaned; // keep your rule
+    return next;
+  });
+};
 
-  const updateBoltonUpper12 = (index: number, value: string) => {
-    const cleaned = value.replace(/[^0-9.]/g, "");
-    setBoltonInputs((prev) => {
-      const next = structuredClone(prev) as BoltonInputs;
-      next.upper12[index] = cleaned;
-      return next;
-    });
-  };
+const updateBoltonUpper12 = (index: number, value: string) => {
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  setBoltonInputs((prev) => {
+    const next: BoltonInputs = {
+      upper6: [...prev.upper6],
+      lower6: [...prev.lower6],
+      upper12: [...prev.upper12],
+      lower12: [...prev.lower12],
+    };
+    next.upper12[index] = cleaned;
+    return next;
+  });
+};
 
-  const updateBoltonLower12 = (index: number, value: string) => {
-    const cleaned = value.replace(/[^0-9.]/g, "");
-    setBoltonInputs((prev) => {
-      const next = structuredClone(prev) as BoltonInputs;
-      next.lower12[index] = cleaned;
-      return next;
-    });
-  };
+const updateBoltonLower12 = (index: number, value: string) => {
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  setBoltonInputs((prev) => {
+    const next: BoltonInputs = {
+      upper6: [...prev.upper6],
+      lower6: [...prev.lower6],
+      upper12: [...prev.upper12],
+      lower12: [...prev.lower12],
+    };
+    next.lower12[index] = cleaned;
+    return next;
+  });
+};
 
   const sumArray = (arr: string[]): number =>
     arr.reduce((acc, v) => acc + parseOrZero(v), 0);
