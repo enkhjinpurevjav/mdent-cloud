@@ -1410,6 +1410,7 @@ const updateBoltonLower12 = (index: number, value: string) => {
         lip,
         teeth, // NEW
         problemSection, // NEW
+        treatmentPlan, // NEW
       };
 
       const res = await fetch(`/api/patients/ortho-card/${patientBookId}`, {
