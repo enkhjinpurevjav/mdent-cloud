@@ -20,6 +20,26 @@ type OrthoDisc = {
   };
 };
 
+type ProblemRowKey =
+  | "boneAngle"
+  | "boneStep"
+  | "tooth"
+  | "toothPosition"
+  | "functional"
+  | "badHabit";
+
+type ProblemListRow = {
+  plus?: boolean;
+  minus?: boolean;
+  text?: string;
+};
+
+type ProblemSection = {
+  rows: Record<ProblemRowKey, ProblemListRow>;
+  diagnosis?: string; // ОНОШ
+  cause?: string;     // ШАЛТГААН
+};
+
 type SumOfIncisorInputs = {
   u12: string;
   u11: string;
