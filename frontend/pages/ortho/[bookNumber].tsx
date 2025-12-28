@@ -65,6 +65,20 @@ type HowesInputs = {
   tm?: string;
 };
 
+type TreatmentPlanColumn = {
+  plan?: string;
+  note?: string;
+};
+
+type TreatmentPlanSection = {
+  orthodontic?: boolean;
+  growthModification?: boolean;
+  combinedSurgery?: boolean;
+  phaseI: TreatmentPlanColumn;
+  phaseII: TreatmentPlanColumn;
+  phaseIII: TreatmentPlanColumn;
+};
+
 type DiscrepancyAxis = {
   upperLeft: string;
   upperRight: string;
@@ -381,7 +395,14 @@ export default function OrthoCardPage() {
     useState<DiscrepancyInputs>(emptyDiscrepancyInputs());
 
   const [activeStatus, setActiveStatus] = useState<StatusKey | null>(null);
-
+const [treatmentPlan, setTreatmentPlan] = useState<TreatmentPlanSection>({
+  orthodontic: false,
+  growthModification: false,
+  combinedSurgery: false,
+  phaseI: { plan: "", note: "" },
+  phaseII: { plan: "", note: "" },
+  phaseIII: { plan: "", note: "" },
+});
   const [extraToothText, setExtraToothText] = useState<string>("");
 
   const [survey, setSurvey] = useState<OrthoSurvey>({
