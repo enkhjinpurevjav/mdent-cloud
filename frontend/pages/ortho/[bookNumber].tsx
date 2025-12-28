@@ -2607,7 +2607,454 @@ const updateBoltonLower12 = (index: number, value: string) => {
               </div>
             </div>
            
-            
+                        {/* ШҮД */}
+            <div
+              style={{
+                fontWeight: 700,
+                marginTop: 12,
+                marginBottom: 4,
+              }}
+            >
+              ШҮД
+            </div>
+
+            {/* Overbite & Overjet checkboxes */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div>
+                <span style={{ width: 80, display: "inline-block" }}>
+                  Overbite:
+                </span>
+                <label style={{ marginRight: 12 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!teeth.overbiteDeep}
+                    onChange={() => toggleTeethBool("overbiteDeep")}
+                    style={{ marginRight: 4 }}
+                  />
+                  Deep
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!teeth.overbiteOpen}
+                    onChange={() => toggleTeethBool("overbiteOpen")}
+                    style={{ marginRight: 4 }}
+                  />
+                  Open
+                </label>
+              </div>
+
+              <div>
+                <span style={{ width: 80, display: "inline-block" }}>
+                  Overjet:
+                </span>
+                <label style={{ marginRight: 12 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!teeth.overjetEdgeToEdge}
+                    onChange={() => toggleTeethBool("overjetEdgeToEdge")}
+                    style={{ marginRight: 4 }}
+                  />
+                  Ирмэг ирмэгээр
+                </label>
+                <label style={{ marginRight: 12 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!teeth.overjetPositive}
+                    onChange={() => toggleTeethBool("overjetPositive")}
+                    style={{ marginRight: 4 }}
+                  />
+                  Позитив
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!teeth.overjetNegative}
+                    onChange={() => toggleTeethBool("overjetNegative")}
+                    style={{ marginRight: 4 }}
+                  />
+                  Негатив
+                </label>
+              </div>
+            </div>
+
+            {/* Curve of spee / Cross bite / Scissor bite / Diastem / Голын шугам */}
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 24,
+                alignItems: "flex-start",
+                marginTop: 8,
+                marginBottom: 8,
+              }}
+            >
+              {/* Curve of spee – we CAN reuse renderAxis here because key exists in AxisKey */}
+              <div>
+                <div style={{ marginBottom: 4, fontWeight: 500 }}>
+                  Curve of spee
+                </div>
+                {renderAxis("curveOfSpee", "", teeth.curveOfSpee)}
+              </div>
+
+              {/* Cross bite – custom 4-cell grid using updateTeethAxis */}
+              <div>
+                <div style={{ marginBottom: 4, fontWeight: 500 }}>
+                  Cross bite
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 6,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={teeth.crossBite.upperLeft}
+                      onChange={(e) =>
+                        updateTeethAxis("crossBite", "upperLeft", e.target.value)
+                      }
+                      style={uniformInputStyle}
+                    />
+                    <input
+                      type="text"
+                      value={teeth.crossBite.upperRight}
+                      onChange={(e) =>
+                        updateTeethAxis("crossBite", "upperRight", e.target.value)
+                      }
+                      style={uniformInputStyle}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 6,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={teeth.crossBite.lowerLeft}
+                      onChange={(e) =>
+                        updateTeethAxis("crossBite", "lowerLeft", e.target.value)
+                      }
+                      style={uniformInputStyle}
+                    />
+                    <input
+                      type="text"
+                      value={teeth.crossBite.lowerRight}
+                      onChange={(e) =>
+                        updateTeethAxis("crossBite", "lowerRight", e.target.value)
+                      }
+                      style={uniformInputStyle}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Scissor bite – custom grid */}
+              <div>
+                <div style={{ marginBottom: 4, fontWeight: 500 }}>
+                  Scissor bite
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 6,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={teeth.scissorBite.upperLeft}
+                      onChange={(e) =>
+                        updateTeethAxis("scissorBite", "upperLeft", e.target.value)
+                      }
+                      style={uniformInputStyle}
+                    />
+                    <input
+                      type="text"
+                      value={teeth.scissorBite.upperRight}
+                      onChange={(e) =>
+                        updateTeethAxis("scissorBite", "upperRight", e.target.value)
+                      }
+                      style={uniformInputStyle}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 6,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={teeth.scissorBite.lowerLeft}
+                      onChange={(e) =>
+                        updateTeethAxis("scissorBite", "lowerLeft", e.target.value)
+                      }
+                      style={uniformInputStyle}
+                    />
+                    <input
+                      type="text"
+                      value={teeth.scissorBite.lowerRight}
+                      onChange={(e) =>
+                        updateTeethAxis("scissorBite", "lowerRight", e.target.value)
+                      }
+                      style={uniformInputStyle}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Diastem – custom grid */}
+              <div>
+                <div style={{ marginBottom: 4, fontWeight: 500 }}>
+                  Diastem
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 6,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={teeth.diastem.upperLeft}
+                      onChange={(e) =>
+                        updateTeethAxis("diastem", "upperLeft", e.target.value)
+                      }
+                      style={uniformInputStyle}
+                    />
+                    <input
+                      type="text"
+                      value={teeth.diastem.upperRight}
+                      onChange={(e) =>
+                        updateTeethAxis("diastem", "upperRight", e.target.value)
+                      }
+                      style={uniformInputStyle}
+                    />
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 6,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={teeth.diastem.lowerLeft}
+                      onChange={(e) =>
+                        updateTeethAxis("diastem", "lowerLeft", e.target.value)
+                      }
+                      style={uniformInputStyle}
+                    />
+                    <input
+                      type="text"
+                      value={teeth.diastem.lowerRight}
+                      onChange={(e) =>
+                        updateTeethAxis("diastem", "lowerRight", e.target.value)
+                      }
+                      style={uniformInputStyle}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Голын шугам – we can reuse renderAxis here because "midline" is valid AxisKey */}
+              <div>
+                <div style={{ marginBottom: 4, fontWeight: 500 }}>
+                  Голын шугам
+                </div>
+                {renderAxis("midline", "", teeth.midline)}
+              </div>
+            </div>
+
+            {/* Нумын хэлбэр */}
+            <div style={{ marginTop: 8, marginBottom: 8 }}>
+              <div style={{ marginBottom: 4, fontWeight: 500 }}>
+                Нумын хэлбэр:
+              </div>
+              <div style={{ marginBottom: 4 }}>
+                <span style={{ width: 24, display: "inline-block" }}>U:</span>
+                <label style={{ marginRight: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!teeth.archFormU?.square}
+                    onChange={() => toggleArchFormU("square")}
+                    style={{ marginRight: 4 }}
+                  />
+                  Дөрвөлжин
+                </label>
+                <label style={{ marginRight: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!teeth.archFormU?.parabola}
+                    onChange={() => toggleArchFormU("parabola")}
+                    style={{ marginRight: 4 }}
+                  />
+                  Парабол
+                </label>
+                <label style={{ marginRight: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!teeth.archFormU?.round}
+                    onChange={() => toggleArchFormU("round")}
+                    style={{ marginRight: 4 }}
+                  />
+                  Дугуй
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!teeth.archFormU?.vShape}
+                    onChange={() => toggleArchFormU("vShape")}
+                    style={{ marginRight: 4 }}
+                  />
+                  V хэлбэр
+                </label>
+              </div>
+
+              <div>
+                <span style={{ width: 24, display: "inline-block" }}>L:</span>
+                <label style={{ marginRight: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!teeth.archFormL?.square}
+                    onChange={() => toggleArchFormL("square")}
+                    style={{ marginRight: 4 }}
+                  />
+                  Дөрвөлжин
+                </label>
+                <label style={{ marginRight: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!teeth.archFormL?.parabola}
+                    onChange={() => toggleArchFormL("parabola")}
+                    style={{ marginRight: 4 }}
+                  />
+                  Парабол
+                </label>
+                <label style={{ marginRight: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={!!teeth.archFormL?.round}
+                    onChange={() => toggleArchFormL("round")}
+                    style={{ marginRight: 4 }}
+                  />
+                  Дугуй
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={!!teeth.archFormL?.vShape}
+                    onChange={() => toggleArchFormL("vShape")}
+                    style={{ marginRight: 4 }}
+                  />
+                  V хэлбэр
+                </label>
+              </div>
+            </div>
+
+            {/* Хоршилт: I / II / III */}
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontWeight: 500, marginBottom: 4 }}>
+                Хоршилт:
+              </div>
+
+              <div style={{ marginBottom: 4 }}>
+                <span style={{ width: 160, display: "inline-block" }}>
+                  1-р их арааны хоршилт:
+                </span>
+                <span style={{ marginRight: 8 }}>Баруун</span>
+                {["I", "II", "III"].map((cls) => (
+                  <label key={`molarR-${cls}`} style={{ marginRight: 4 }}>
+                    <input
+                      type="checkbox"
+                      checked={teeth.molarRelationRight === cls}
+                      onChange={() =>
+                        setTeethClass(
+                          "molarRelationRight",
+                          cls as "I" | "II" | "III"
+                        )
+                      }
+                      style={{ marginRight: 2 }}
+                    />
+                    {cls}
+                  </label>
+                ))}
+                <span style={{ marginLeft: 16, marginRight: 8 }}>Зүүн</span>
+                {["I", "II", "III"].map((cls) => (
+                  <label key={`molarL-${cls}`} style={{ marginRight: 4 }}>
+                    <input
+                      type="checkbox"
+                      checked={teeth.molarRelationLeft === cls}
+                      onChange={() =>
+                        setTeethClass(
+                          "molarRelationLeft",
+                          cls as "I" | "II" | "III"
+                        )
+                      }
+                      style={{ marginRight: 2 }}
+                    />
+                    {cls}
+                  </label>
+                ))}
+              </div>
+
+              <div>
+                <span style={{ width: 160, display: "inline-block" }}>
+                  Сойёны хоршилт:
+                </span>
+                <span style={{ marginRight: 8 }}>Баруун</span>
+                {["I", "II", "III"].map((cls) => (
+                  <label key={`canineR-${cls}`} style={{ marginRight: 4 }}>
+                    <input
+                      type="checkbox"
+                      checked={teeth.canineRelationRight === cls}
+                      onChange={() =>
+                        setTeethClass(
+                          "canineRelationRight",
+                          cls as "I" | "II" | "III"
+                        )
+                      }
+                      style={{ marginRight: 2 }}
+                    />
+                    {cls}
+                  </label>
+                ))}
+                <span style={{ marginLeft: 16, marginRight: 8 }}>Зүүн</span>
+                {["I", "II", "III"].map((cls) => (
+                  <label key={`canineL-${cls}`} style={{ marginRight: 4 }}>
+                    <input
+                      type="checkbox"
+                      checked={teeth.canineRelationLeft === cls}
+                      onChange={() =>
+                        setTeethClass(
+                          "canineRelationLeft",
+                          cls as "I" | "II" | "III"
+                        )
+                      }
+                      style={{ marginRight: 2 }}
+                    />
+                    {cls}
+                  </label>
+                ))}
+              </div>
+            </div>
           </section>
 
           {/* Odontogram + legend */}
