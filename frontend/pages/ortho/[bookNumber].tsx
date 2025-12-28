@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import FullArchDiscOdontogram, {
@@ -19,6 +18,13 @@ type OrthoDisc = {
     right?: "none" | "caries" | "filled";
     center?: "none" | "caries" | "filled";
   };
+};
+
+type DiscrepancyAxis = {
+  upperLeft: string;
+  upperRight: string;
+  lowerLeft: string;
+  lowerRight: string;
 };
 
 type TeethSection = {
@@ -44,10 +50,10 @@ type TeethSection = {
 
   // Нумын хэлбэр (arch form) – U & L each have 4 choices
   archFormU: {
-    square?: boolean;  // Дөрвөлжин
+    square?: boolean; // Дөрвөлжин
     parabola?: boolean; // Парабол
-    round?: boolean;    // Дугуй
-    vShape?: boolean;   // V хэлбэр
+    round?: boolean; // Дугуй
+    vShape?: boolean; // V хэлбэр
   };
   archFormL: {
     square?: boolean;
@@ -84,13 +90,6 @@ type BoltonInputs = {
 type HowesInputs = {
   pmbaw?: string;
   tm?: string;
-};
-
-type DiscrepancyAxis = {
-  upperLeft: string;
-  upperRight: string;
-  lowerLeft: string;
-  lowerRight: string;
 };
 
 type DiscrepancyInputs = {
@@ -242,7 +241,7 @@ type OrthoCardData = {
   utts?: UttsSection;
   lip?: LipSection;
 
-  teeth?: TeethSection; // NEW
+  teeth?: TeethSection;
 };
 
 type OrthoCardApiResponse = {
@@ -450,33 +449,33 @@ export default function OrthoCardPage() {
   });
 
   const [teeth, setTeeth] = useState<TeethSection>({
-  overbiteDeep: false,
-  overbiteOpen: false,
-  overjetEdgeToEdge: false,
-  overjetPositive: false,
-  overjetNegative: false,
-  curveOfSpee: emptyAxis(),
-  crossBite: emptyAxis(),
-  scissorBite: emptyAxis(),
-  diastem: emptyAxis(),
-  midline: emptyAxis(),
-  archFormU: {
-    square: false,
-    parabola: false,
-    round: false,
-    vShape: false,
-  },
-  archFormL: {
-    square: false,
-    parabola: false,
-    round: false,
-    vShape: false,
-  },
-  molarRelationRight: "",
-  molarRelationLeft: "",
-  canineRelationRight: "",
-  canineRelationLeft: "",
-});
+    overbiteDeep: false,
+    overbiteOpen: false,
+    overjetEdgeToEdge: false,
+    overjetPositive: false,
+    overjetNegative: false,
+    curveOfSpee: emptyAxis(),
+    crossBite: emptyAxis(),
+    scissorBite: emptyAxis(),
+    diastem: emptyAxis(),
+    midline: emptyAxis(),
+    archFormU: {
+      square: false,
+      parabola: false,
+      round: false,
+      vShape: false,
+    },
+    archFormL: {
+      square: false,
+      parabola: false,
+      round: false,
+      vShape: false,
+    },
+    molarRelationRight: "",
+    molarRelationLeft: "",
+    canineRelationRight: "",
+    canineRelationLeft: "",
+  });
 
   const bn =
     typeof bookNumber === "string" && bookNumber.trim()
@@ -509,62 +508,62 @@ export default function OrthoCardPage() {
   const u1l1Ratio = l1Sum > 0 ? (u1Sum / l1Sum).toFixed(2) : "";
 
   const updateBoltonUpper6 = (index: number, value: string) => {
-  const cleaned = value.replace(/[^0-9.]/g, "");
-  setBoltonInputs((prev) => {
-    const next: BoltonInputs = {
-      upper6: [...prev.upper6],
-      lower6: [...prev.lower6],
-      upper12: [...prev.upper12],
-      lower12: [...prev.lower12],
-    };
-    next.upper6[index] = cleaned;
-    next.upper12[index] = cleaned; // keep your rule
-    return next;
-  });
-};
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    setBoltonInputs((prev) => {
+      const next: BoltonInputs = {
+        upper6: [...prev.upper6],
+        lower6: [...prev.lower6],
+        upper12: [...prev.upper12],
+        lower12: [...prev.lower12],
+      };
+      next.upper6[index] = cleaned;
+      next.upper12[index] = cleaned;
+      return next;
+    });
+  };
 
-const updateBoltonLower6 = (index: number, value: string) => {
-  const cleaned = value.replace(/[^0-9.]/g, "");
-  setBoltonInputs((prev) => {
-    const next: BoltonInputs = {
-      upper6: [...prev.upper6],
-      lower6: [...prev.lower6],
-      upper12: [...prev.upper12],
-      lower12: [...prev.lower12],
-    };
-    next.lower6[index] = cleaned;
-    next.lower12[index] = cleaned; // keep your rule
-    return next;
-  });
-};
+  const updateBoltonLower6 = (index: number, value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    setBoltonInputs((prev) => {
+      const next: BoltonInputs = {
+        upper6: [...prev.upper6],
+        lower6: [...prev.lower6],
+        upper12: [...prev.upper12],
+        lower12: [...prev.lower12],
+      };
+      next.lower6[index] = cleaned;
+      next.lower12[index] = cleaned;
+      return next;
+    });
+  };
 
-const updateBoltonUpper12 = (index: number, value: string) => {
-  const cleaned = value.replace(/[^0-9.]/g, "");
-  setBoltonInputs((prev) => {
-    const next: BoltonInputs = {
-      upper6: [...prev.upper6],
-      lower6: [...prev.lower6],
-      upper12: [...prev.upper12],
-      lower12: [...prev.lower12],
-    };
-    next.upper12[index] = cleaned;
-    return next;
-  });
-};
+  const updateBoltonUpper12 = (index: number, value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    setBoltonInputs((prev) => {
+      const next: BoltonInputs = {
+        upper6: [...prev.upper6],
+        lower6: [...prev.lower6],
+        upper12: [...prev.upper12],
+        lower12: [...prev.lower12],
+      };
+      next.upper12[index] = cleaned;
+      return next;
+    });
+  };
 
-const updateBoltonLower12 = (index: number, value: string) => {
-  const cleaned = value.replace(/[^0-9.]/g, "");
-  setBoltonInputs((prev) => {
-    const next: BoltonInputs = {
-      upper6: [...prev.upper6],
-      lower6: [...prev.lower6],
-      upper12: [...prev.upper12],
-      lower12: [...prev.lower12],
-    };
-    next.lower12[index] = cleaned;
-    return next;
-  });
-};
+  const updateBoltonLower12 = (index: number, value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    setBoltonInputs((prev) => {
+      const next: BoltonInputs = {
+        upper6: [...prev.upper6],
+        lower6: [...prev.lower6],
+        upper12: [...prev.upper12],
+        lower12: [...prev.lower12],
+      };
+      next.lower12[index] = cleaned;
+      return next;
+    });
+  };
 
   const sumArray = (arr: string[]): number =>
     arr.reduce((acc, v) => acc + parseOrZero(v), 0);
@@ -703,53 +702,51 @@ const updateBoltonLower12 = (index: number, value: string) => {
   const toggleLipBool = (field: keyof LipSection) =>
     setLip((prev) => ({ ...prev, [field]: !prev[field] }));
 
-  const toggleTeethBool = (field: keyof TeethSection) =>
-  setTeeth((prev) => ({ ...prev, [field]: !prev[field] }));
-
-const updateTeethAxis = (
-  field: keyof TeethSection,
-  pos: keyof DiscrepancyAxis,
-  value: string
-) => {
-  const cleaned = value.replace(/[^0-9.+-]/g, "");
-  setTeeth((prev) => ({
-    ...prev,
-    [field]: {
-      ...(prev[field] as DiscrepancyAxis),
-      [pos]: cleaned,
-    },
-  }));
-};
-
-  const toggleArchFormU = (field: keyof TeethSection["archFormU"]) =>
-  setTeeth((prev) => ({
-    ...prev,
-    archFormU: { ...prev.archFormU, [field]: !prev.archFormU?.[field] },
-  }));
-
-const toggleArchFormL = (field: keyof TeethSection["archFormL"]) =>
-  setTeeth((prev) => ({
-    ...prev,
-    archFormL: { ...prev.archFormL, [field]: !prev.archFormL?.[field] },
-  }));
-
-  const setTeethClass = (
-  field:
-    | "molarRelationRight"
-    | "molarRelationLeft"
-    | "canineRelationRight"
-    | "canineRelationLeft",
-  value: "I" | "II" | "III"
-) =>
-  setTeeth((prev) => ({
-    ...prev,
-    [field]: prev[field] === value ? "" : value,
-  }));
-
-  
-
   const updateLipText = (field: keyof LipSection, value: string) =>
     setLip((prev) => ({ ...prev, [field]: value }));
+
+  const toggleTeethBool = (field: keyof TeethSection) =>
+    setTeeth((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const updateTeethAxis = (
+    field: keyof TeethSection,
+    pos: keyof DiscrepancyAxis,
+    value: string
+  ) => {
+    const cleaned = value.replace(/[^0-9.+-]/g, "");
+    setTeeth((prev) => ({
+      ...prev,
+      [field]: {
+        ...(prev[field] as DiscrepancyAxis),
+        [pos]: cleaned,
+      },
+    }));
+  };
+
+  const toggleArchFormU = (field: keyof TeethSection["archFormU"]) =>
+    setTeeth((prev) => ({
+      ...prev,
+      archFormU: { ...prev.archFormU, [field]: !prev.archFormU?.[field] },
+    }));
+
+  const toggleArchFormL = (field: keyof TeethSection["archFormL"]) =>
+    setTeeth((prev) => ({
+      ...prev,
+      archFormL: { ...prev.archFormL, [field]: !prev.archFormL?.[field] },
+    }));
+
+  const setTeethClass = (
+    field:
+      | "molarRelationRight"
+      | "molarRelationLeft"
+      | "canineRelationRight"
+      | "canineRelationLeft",
+    value: "I" | "II" | "III"
+  ) =>
+    setTeeth((prev) => ({
+      ...prev,
+      [field]: prev[field] === value ? "" : value,
+    }));
 
   useEffect(() => {
     if (!bn) return;
@@ -1046,35 +1043,7 @@ const toggleArchFormL = (field: keyof TeethSection["archFormL"]) =>
               restLipMm: data.lip.restLipMm || "",
               smilingMm: data.lip.smilingMm || "",
             });
-          }setTeeth({
-            overbiteDeep: false,
-            overbiteOpen: false,
-            overjetEdgeToEdge: false,
-            overjetPositive: false,
-            overjetNegative: false,
-            curveOfSpee: emptyAxis(),
-            crossBite: emptyAxis(),
-            scissorBite: emptyAxis(),
-            diastem: emptyAxis(),
-            midline: emptyAxis(),
-            archFormU: {
-              square: false,
-              parabola: false,
-              round: false,
-              vShape: false,
-            },
-            archFormL: {
-              square: false,
-              parabola: false,
-              round: false,
-              vShape: false,
-            },
-            molarRelationRight: "",
-            molarRelationLeft: "",
-            canineRelationRight: "",
-            canineRelationLeft: "",
-          });
-        } else {
+          } else {
             setLip({
               closed: false,
               open: false,
@@ -1082,7 +1051,68 @@ const toggleArchFormL = (field: keyof TeethSection["archFormL"]) =>
               smilingMm: "",
             });
           }
+
+          if (data.teeth) {
+            setTeeth({
+              overbiteDeep: !!data.teeth.overbiteDeep,
+              overbiteOpen: !!data.teeth.overbiteOpen,
+              overjetEdgeToEdge: !!data.teeth.overjetEdgeToEdge,
+              overjetPositive: !!data.teeth.overjetPositive,
+              overjetNegative: !!data.teeth.overjetNegative,
+              curveOfSpee: data.teeth.curveOfSpee || emptyAxis(),
+              crossBite: data.teeth.crossBite || emptyAxis(),
+              scissorBite: data.teeth.scissorBite || emptyAxis(),
+              diastem: data.teeth.diastem || emptyAxis(),
+              midline: data.teeth.midline || emptyAxis(),
+              archFormU: {
+                square: !!data.teeth.archFormU?.square,
+                parabola: !!data.teeth.archFormU?.parabola,
+                round: !!data.teeth.archFormU?.round,
+                vShape: !!data.teeth.archFormU?.vShape,
+              },
+              archFormL: {
+                square: !!data.teeth.archFormL?.square,
+                parabola: !!data.teeth.archFormL?.parabola,
+                round: !!data.teeth.archFormL?.round,
+                vShape: !!data.teeth.archFormL?.vShape,
+              },
+              molarRelationRight: data.teeth.molarRelationRight || "",
+              molarRelationLeft: data.teeth.molarRelationLeft || "",
+              canineRelationRight: data.teeth.canineRelationRight || "",
+              canineRelationLeft: data.teeth.canineRelationLeft || "",
+            });
+          } else {
+            setTeeth({
+              overbiteDeep: false,
+              overbiteOpen: false,
+              overjetEdgeToEdge: false,
+              overjetPositive: false,
+              overjetNegative: false,
+              curveOfSpee: emptyAxis(),
+              crossBite: emptyAxis(),
+              scissorBite: emptyAxis(),
+              diastem: emptyAxis(),
+              midline: emptyAxis(),
+              archFormU: {
+                square: false,
+                parabola: false,
+                round: false,
+                vShape: false,
+              },
+              archFormL: {
+                square: false,
+                parabola: false,
+                round: false,
+                vShape: false,
+              },
+              molarRelationRight: "",
+              molarRelationLeft: "",
+              canineRelationRight: "",
+              canineRelationLeft: "",
+            });
+          }
         } else {
+          // No orthoCard yet: reset everything
           setCardPatientName("");
           setCardNotes("");
           setSupernumeraryNote("");
@@ -1184,66 +1214,35 @@ const toggleArchFormL = (field: keyof TeethSection["archFormL"]) =>
             restLipMm: "",
             smilingMm: "",
           });
+          setTeeth({
+            overbiteDeep: false,
+            overbiteOpen: false,
+            overjetEdgeToEdge: false,
+            overjetPositive: false,
+            overjetNegative: false,
+            curveOfSpee: emptyAxis(),
+            crossBite: emptyAxis(),
+            scissorBite: emptyAxis(),
+            diastem: emptyAxis(),
+            midline: emptyAxis(),
+            archFormU: {
+              square: false,
+              parabola: false,
+              round: false,
+              vShape: false,
+            },
+            archFormL: {
+              square: false,
+              parabola: false,
+              round: false,
+              vShape: false,
+            },
+            molarRelationRight: "",
+            molarRelationLeft: "",
+            canineRelationRight: "",
+            canineRelationLeft: "",
+          });
         }
-                  if (data.teeth) {
-            setTeeth({
-              overbiteDeep: !!data.teeth.overbiteDeep,
-              overbiteOpen: !!data.teeth.overbiteOpen,
-              overjetEdgeToEdge: !!data.teeth.overjetEdgeToEdge,
-              overjetPositive: !!data.teeth.overjetPositive,
-              overjetNegative: !!data.teeth.overjetNegative,
-              curveOfSpee: data.teeth.curveOfSpee || emptyAxis(),
-              crossBite: data.teeth.crossBite || emptyAxis(),
-              scissorBite: data.teeth.scissorBite || emptyAxis(),
-              diastem: data.teeth.diastem || emptyAxis(),
-              midline: data.teeth.midline || emptyAxis(),
-              archFormU: {
-                square: !!data.teeth.archFormU?.square,
-                parabola: !!data.teeth.archFormU?.parabola,
-                round: !!data.teeth.archFormU?.round,
-                vShape: !!data.teeth.archFormU?.vShape,
-              },
-              archFormL: {
-                square: !!data.teeth.archFormL?.square,
-                parabola: !!data.teeth.archFormL?.parabola,
-                round: !!data.teeth.archFormL?.round,
-                vShape: !!data.teeth.archFormL?.vShape,
-              },
-              molarRelationRight: data.teeth.molarRelationRight || "",
-              molarRelationLeft: data.teeth.molarRelationLeft || "",
-              canineRelationRight: data.teeth.canineRelationRight || "",
-              canineRelationLeft: data.teeth.canineRelationLeft || "",
-            });
-          } else {
-            setTeeth({
-              overbiteDeep: false,
-              overbiteOpen: false,
-              overjetEdgeToEdge: false,
-              overjetPositive: false,
-              overjetNegative: false,
-              curveOfSpee: emptyAxis(),
-              crossBite: emptyAxis(),
-              scissorBite: emptyAxis(),
-              diastem: emptyAxis(),
-              midline: emptyAxis(),
-              archFormU: {
-                square: false,
-                parabola: false,
-                round: false,
-                vShape: false,
-              },
-              archFormL: {
-                square: false,
-                parabola: false,
-                round: false,
-                vShape: false,
-              },
-              molarRelationRight: "",
-              molarRelationLeft: "",
-              canineRelationRight: "",
-              canineRelationLeft: "",
-            });
-          }          
       } catch (err: any) {
         console.error("load ortho card failed", err);
         setError(
@@ -1438,6 +1437,7 @@ const toggleArchFormL = (field: keyof TeethSection["archFormL"]) =>
         fontFamily: "sans-serif",
       }}
     >
+      
       <button
         type="button"
         onClick={() => {
