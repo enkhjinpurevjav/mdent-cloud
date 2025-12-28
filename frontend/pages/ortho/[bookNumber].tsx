@@ -35,20 +35,6 @@ type ProblemListRow = {
   problem?: string; // NEW: main problem text (Problem list)
 };
 
-type TreatmentPlanColumn = {
-  plan?: string;
-  note?: string;
-};
-
-type TreatmentPlanSection = {
-  orthodontic?: boolean;
-  growthModification?: boolean;
-  combinedSurgery?: boolean;
-  phaseI: TreatmentPlanColumn;
-  phaseII: TreatmentPlanColumn;
-  phaseIII: TreatmentPlanColumn;
-};
-
 type ProblemSection = {
   rows: Record<ProblemRowKey, ProblemListRow>;
   diagnosis?: string; // ОНОШ
@@ -280,7 +266,6 @@ type OrthoCardData = {
   lip?: LipSection;
   teeth?: TeethSection; // NEW
   problemSection?: ProblemSection; // NEW
-  treatmentPlan?: TreatmentPlanSection; // NEW
 };
 
 type OrthoCardApiResponse = {
@@ -429,15 +414,6 @@ export default function OrthoCardPage() {
     diagnosis: "",
     cause: "",
     treatmentGoals: ["", "", "", "", "", ""],
-  });
-
-  const [treatmentPlan, setTreatmentPlan] = useState<TreatmentPlanSection>({
-    orthodontic: false,
-    growthModification: false,
-    combinedSurgery: false,
-    phaseI: { plan: "", note: "" },
-    phaseII: { plan: "", note: "" },
-    phaseIII: { plan: "", note: "" },
   });
   
   const [physicalExam, setPhysicalExam] = useState<PhysicalExam>({
@@ -879,7 +855,7 @@ const updateBoltonLower12 = (index: number, value: string) => {
           setPatientAddress(address || "");
         }
 
-                if (json.orthoCard && json.orthoCard.data) {
+        if (json.orthoCard && json.orthoCard.data) {
           const data = json.orthoCard.data;
           setCardPatientName(data.patientName || "");
           setCardNotes(data.notes || "");
@@ -901,7 +877,6 @@ const updateBoltonLower12 = (index: number, value: string) => {
               l42: "",
             }
           );
-
           if (data.boltonInputs) {
             const bi = data.boltonInputs;
             setBoltonInputs({
@@ -915,7 +890,6 @@ const updateBoltonLower12 = (index: number, value: string) => {
           } else {
             setBoltonInputs(emptyBoltonInputs());
           }
-
           if (data.howesInputs) {
             setHowesInputs({
               pmbaw: data.howesInputs.pmbaw || "",
@@ -924,7 +898,6 @@ const updateBoltonLower12 = (index: number, value: string) => {
           } else {
             setHowesInputs({ pmbaw: "", tm: "" });
           }
-
           if (data.discrepancyInputs) {
             const di = data.discrepancyInputs;
             setDiscrepancyInputs({
@@ -1194,11 +1167,9 @@ const updateBoltonLower12 = (index: number, value: string) => {
               canineRelationLeft: "",
             });
           }
-
-          // Problem section
-          if (data.problemSection && data.problemSection.rows) {
+                if (data.problemSection && data.problemSection.rows) {
             const r = data.problemSection.rows;
-            setProblemSection({
+                        setProblemSection({
               rows: {
                 boneAngle:
                   r.boneAngle || { plus: false, minus: false, comment: "", problem: "" },
@@ -1222,198 +1193,7 @@ const updateBoltonLower12 = (index: number, value: string) => {
                   ? data.problemSection.treatmentGoals
                   : ["", "", "", "", "", ""],
             });
-          } else {
-            setProblemSection({
-              rows: {
-                boneAngle: { plus: false, minus: false, comment: "", problem: "" },
-                boneStep: { plus: false, minus: false, comment: "", problem: "" },
-                tooth: { plus: false, minus: false, comment: "", problem: "" },
-                toothPosition: { plus: false, minus: false, comment: "", problem: "" },
-                functional: { plus: false, minus: false, comment: "", problem: "" },
-                badHabit: { plus: false, minus: false, comment: "", problem: "" },
-              },
-              diagnosis: "",
-              cause: "",
-              treatmentGoals: ["", "", "", "", "", ""],
-            });
-          }
-
-          // Treatment plan
-          if (data.treatmentPlan) {
-            setTreatmentPlan({
-              orthodontic: !!data.treatmentPlan.orthodontic,
-              growthModification: !!data.treatmentPlan.growthModification,
-              combinedSurgery: !!data.treatmentPlan.combinedSurgery,
-              phaseI: {
-                plan: data.treatmentPlan.phaseI?.plan || "",
-                note: data.treatmentPlan.phaseI?.note || "",
-              },
-              phaseII: {
-                plan: data.treatmentPlan.phaseII?.plan || "",
-                note: data.treatmentPlan.phaseII?.note || "",
-              },
-              phaseIII: {
-                plan: data.treatmentPlan.phaseIII?.plan || "",
-                note: data.treatmentPlan.phaseIII?.note || "",
-              },
-            });
-          } else {
-            setTreatmentPlan({
-              orthodontic: false,
-              growthModification: false,
-              combinedSurgery: false,
-              phaseI: { plan: "", note: "" },
-              phaseII: { plan: "", note: "" },
-              phaseIII: { plan: "", note: "" },
-            });
-          }
-        } else {
-          // RESET BRANCH (no orthoCard)
-          setCardPatientName("");
-          setCardNotes("");
-          setSupernumeraryNote("");
-          setExtraToothText("");
-          setToothChart([]);
-          setSumOfIncisorInputs({
-            u12: "",
-            u11: "",
-            u21: "",
-            u22: "",
-            l32: "",
-            l31: "",
-            l41: "",
-            l42: "",
-          });
-          setBoltonInputs(emptyBoltonInputs());
-          setHowesInputs({ pmbaw: "", tm: "" });
-          setDiscrepancyInputs(emptyDiscrepancyInputs());
-          setSurvey({
-            mainReason: "",
-            currentComplaint: "",
-            medicalHistory: "",
-            orthoTreatment: "",
-            familyHistory: "",
-            allergyPlant: false,
-            allergyMetal: false,
-            allergyDrug: false,
-            allergyFood: false,
-            allergyPlastic: false,
-            allergyOther: false,
-            allergyOtherText: "",
-            hbv: false,
-            hbc: false,
-            hiv: false,
-          });
-          setPhysicalExam({
-            weight: "",
-            height: "",
-            boneAge: "",
-            dentalAge: "",
-            growthSpurtNormal: false,
-            growthSpurtAbnormal: false,
-            growthSpurtBefore: false,
-            growthSpurtMiddle: false,
-            growthSpurtAfter: false,
-            patternVertical: false,
-            patternHorizontal: false,
-            patternClockwise: false,
-            patternCounterclockwise: false,
-          });
-          setHabits({
-            tongueThrust: false,
-            lipNailBite: false,
-            fingerSucking: false,
-            breathingMouth: false,
-            breathingNose: false,
-            swallowNormal: false,
-            swallowAbnormal: false,
-            other: "",
-          });
-          setAttachment({
-            aheaGood: false,
-            aheaMedium: false,
-            aheaPoor: false,
-            gingivitis: false,
-            gingivitisNo: false,
-            frenumInflammation: false,
-            frenumInflammationNo: false,
-          });
-          setTmj({
-            previousPainYes: false,
-            previousPainNo: false,
-            asymptomatic: false,
-            symptomatic: false,
-            soundRight: false,
-            soundLeft: false,
-            painRight: false,
-            painLeft: false,
-            headacheYes: false,
-            headacheNo: false,
-            muscleTensionYes: false,
-            muscleTensionNo: false,
-            mouthOpeningNormal: false,
-            mouthOpeningLimited: false,
-            maxMouthOpeningMm: "",
-          });
-          setUtts({
-            lipCleft: false,
-            palateCleft: false,
-            unilateral: false,
-            unilateralSide: "",
-            bilateral: false,
-            other: false,
-            otherText: "",
-          });
-          setLip({
-            closed: false,
-            open: false,
-            restLipMm: "",
-            smilingMm: "",
-          });
-          setTeeth({
-            overbiteDeep: false,
-            overbiteOpen: false,
-            overjetEdgeToEdge: false,
-            overjetPositive: false,
-            overjetNegative: false,
-            curveOfSpee: emptyAxis(),
-            crossBite: emptyAxis(),
-            scissorBite: emptyAxis(),
-            diastem: emptyAxis(),
-            midline: emptyAxis(),
-            archFormU: {
-              square: false,
-              parabola: false,
-              round: false,
-              vShape: false,
-            },
-            archFormL: {
-              square: false,
-              parabola: false,
-              round: false,
-              vShape: false,
-            },
-            molarRelationRight: "",
-            molarRelationLeft: "",
-            canineRelationRight: "",
-            canineRelationLeft: "",
-          });
-          setProblemSection({
-            rows: {
-              boneAngle: { plus: false, minus: false, comment: "", problem: "" },
-              boneStep: { plus: false, minus: false, comment: "", problem: "" },
-              tooth: { plus: false, minus: false, comment: "", problem: "" },
-              toothPosition: { plus: false, minus: false, comment: "", problem: "" },
-              functional: { plus: false, minus: false, comment: "", problem: "" },
-              badHabit: { plus: false, minus: false, comment: "", problem: "" },
-            },
-            diagnosis: "",
-            cause: "",
-            treatmentGoals: ["", "", "", "", "", ""],
-         
-          });
-        }
-                 else {
+                              } else {
             setProblemSection({
               rows: {
                 boneAngle: { plus: false, minus: false, comment: "", problem: "" },
@@ -1428,34 +1208,7 @@ const updateBoltonLower12 = (index: number, value: string) => {
               treatmentGoals: ["", "", "", "", "", ""],
             });
           }   
-        }           if (data.treatmentPlan) {
-            setTreatmentPlan({
-              orthodontic: !!data.treatmentPlan.orthodontic,
-              growthModification: !!data.treatmentPlan.growthModification,
-              combinedSurgery: !!data.treatmentPlan.combinedSurgery,
-              phaseI: {
-                plan: data.treatmentPlan.phaseI?.plan || "",
-                note: data.treatmentPlan.phaseI?.note || "",
-              },
-              phaseII: {
-                plan: data.treatmentPlan.phaseII?.plan || "",
-                note: data.treatmentPlan.phaseII?.note || "",
-              },
-              phaseIII: {
-                plan: data.treatmentPlan.phaseIII?.plan || "",
-                note: data.treatmentPlan.phaseIII?.note || "",
-              },
-            });
-          } else {
-            setTreatmentPlan({
-              orthodontic: false,
-              growthModification: false,
-              combinedSurgery: false,
-              phaseI: { plan: "", note: "" },
-              phaseII: { plan: "", note: "" },
-              phaseIII: { plan: "", note: "" },
-            });
-          }else {
+        } else {
           setCardPatientName("");
           setCardNotes("");
           setSupernumeraryNote("");
@@ -1606,7 +1359,6 @@ const updateBoltonLower12 = (index: number, value: string) => {
         lip,
         teeth, // NEW
         problemSection, // NEW
-        treatmentPlan, // NEW
       };
 
       const res = await fetch(`/api/patients/ortho-card/${patientBookId}`, {
@@ -4325,231 +4077,6 @@ const updateBoltonLower12 = (index: number, value: string) => {
                 ))}
               </div>
             </div>
-                    {/* ЭМЧИЛГЭЭНИЙ ТӨЛӨВЛӨГӨӨ */}
-          <section
-            style={{
-              marginTop: 16,
-              borderRadius: 12,
-              border: "1px solid #e5e7eb",
-              padding: 12,
-              background: "#ffffff",
-              fontSize: 13,
-            }}
-          >
-            {/* Top row: title + checkboxes */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 8,
-              }}
-            >
-              <div style={{ fontWeight: 700 }}>ЭМЧИЛГЭЭНИЙ ТӨЛӨВЛӨГӨӨ</div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 12,
-                  fontSize: 12,
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                }}
-              >
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={!!treatmentPlan.orthodontic}
-                    onChange={() =>
-                      setTreatmentPlan((prev) => ({
-                        ...prev,
-                        orthodontic: !prev.orthodontic,
-                      }))
-                    }
-                    style={{ marginRight: 4 }}
-                  />
-                  Orthodontic
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={!!treatmentPlan.growthModification}
-                    onChange={() =>
-                      setTreatmentPlan((prev) => ({
-                        ...prev,
-                        growthModification: !prev.growthModification,
-                      }))
-                    }
-                    style={{ marginRight: 4 }}
-                  />
-                  Growth modification
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={!!treatmentPlan.combinedSurgery}
-                    onChange={() =>
-                      setTreatmentPlan((prev) => ({
-                        ...prev,
-                        combinedSurgery: !prev.combinedSurgery,
-                      }))
-                    }
-                    style={{ marginRight: 4 }}
-                  />
-                  Combined surgery
-                </label>
-              </div>
-            </div>
-
-            {/* Column headers */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: 12,
-                marginBottom: 4,
-                fontSize: 12,
-                fontWeight: 500,
-              }}
-            >
-              <div>Phase I</div>
-              <div>Phase II</div>
-              <div>Phase III</div>
-            </div>
-
-            {/* Main plan row (large textareas) */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: 12,
-                marginBottom: 8,
-              }}
-            >
-              <textarea
-                value={treatmentPlan.phaseI.plan || ""}
-                onChange={(e) =>
-                  setTreatmentPlan((prev) => ({
-                    ...prev,
-                    phaseI: { ...prev.phaseI, plan: e.target.value },
-                  }))
-                }
-                rows={4}
-                style={{
-                  width: "100%",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                  fontSize: 12,
-                }}
-              />
-              <textarea
-                value={treatmentPlan.phaseII.plan || ""}
-                onChange={(e) =>
-                  setTreatmentPlan((prev) => ({
-                    ...prev,
-                    phaseII: { ...prev.phaseII, plan: e.target.value },
-                  }))
-                }
-                rows={4}
-                style={{
-                  width: "100%",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                  fontSize: 12,
-                }}
-              />
-              <textarea
-                value={treatmentPlan.phaseIII.plan || ""}
-                onChange={(e) =>
-                  setTreatmentPlan((prev) => ({
-                    ...prev,
-                    phaseIII: { ...prev.phaseIII, plan: e.target.value },
-                  }))
-                }
-                rows={4}
-                style={{
-                  width: "100%",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "4px 6px",
-                  fontSize: 12,
-                }}
-              />
-            </div>
-
-            {/* Notes row */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: 12,
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 11, marginBottom: 2 }}>Note</div>
-                <textarea
-                  value={treatmentPlan.phaseI.note || ""}
-                  onChange={(e) =>
-                    setTreatmentPlan((prev) => ({
-                      ...prev,
-                      phaseI: { ...prev.phaseI, note: e.target.value },
-                    }))
-                  }
-                  rows={2}
-                  style={{
-                    width: "100%",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                    fontSize: 12,
-                  }}
-                />
-              </div>
-
-              <div>
-                <div style={{ fontSize: 11, marginBottom: 2 }}>Note</div>
-                <textarea
-                  value={treatmentPlan.phaseII.note || ""}
-                  onChange={(e) =>
-                    setTreatmentPlan((prev) => ({
-                      ...prev,
-                      phaseII: { ...prev.phaseII, note: e.target.value },
-                    }))
-                  }
-                  rows={2}
-                  style={{
-                    width: "100%",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                    fontSize: 12,
-                  }}
-                />
-              </div>
-
-              <div>
-                <div style={{ fontSize: 11, marginBottom: 2 }}>Note</div>
-                <textarea
-                  value={treatmentPlan.phaseIII.note || ""}
-                  onChange={(e) =>
-                    setTreatmentPlan((prev) => ({
-                      ...prev,
-                      phaseIII: { ...prev.phaseIII, note: e.target.value },
-                    }))
-                  }
-                  rows={2}
-                  style={{
-                    width: "100%",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                    fontSize: 12,
-                  }}
-                />
-              </div>
-            </div>
-          </section>
           
           {/* Actions */}
           <div
