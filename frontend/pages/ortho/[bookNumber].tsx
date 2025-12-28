@@ -971,7 +971,34 @@ const updateBoltonLower12 = (index: number, value: string) => {
               hiv: false,
             });
           }
-
+if (data.treatmentPlan) {
+  setTreatmentPlan({
+    orthodontic: !!data.treatmentPlan.orthodontic,
+    growthModification: !!data.treatmentPlan.growthModification,
+    combinedSurgery: !!data.treatmentPlan.combinedSurgery,
+    phaseI: {
+      plan: data.treatmentPlan.phaseI?.plan || "",
+      note: data.treatmentPlan.phaseI?.note || "",
+    },
+    phaseII: {
+      plan: data.treatmentPlan.phaseII?.plan || "",
+      note: data.treatmentPlan.phaseII?.note || "",
+    },
+    phaseIII: {
+      plan: data.treatmentPlan.phaseIII?.plan || "",
+      note: data.treatmentPlan.phaseIII?.note || "",
+    },
+  });
+} else {
+  setTreatmentPlan({
+    orthodontic: false,
+    growthModification: false,
+    combinedSurgery: false,
+    phaseI: { plan: "", note: "" },
+    phaseII: { plan: "", note: "" },
+    phaseIII: { plan: "", note: "" },
+  });
+}
           if (data.physicalExam) {
             setPhysicalExam({
               weight: data.physicalExam.weight || "",
