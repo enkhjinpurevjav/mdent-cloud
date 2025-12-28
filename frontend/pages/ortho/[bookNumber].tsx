@@ -447,6 +447,35 @@ export default function OrthoCardPage() {
     smilingMm: "",
   });
 
+  const [teeth, setTeeth] = useState<TeethSection>({
+    overbiteDeep: false,
+    overbiteOpen: false,
+    overjetEdgeToEdge: false,
+    overjetPositive: false,
+    overjetNegative: false,
+    curveOfSpee: emptyAxis(),
+    crossBite: emptyAxis(),
+    scissorBite: emptyAxis(),
+    diastem: emptyAxis(),
+    midline: emptyAxis(),
+    archFormU: {
+      square: false,
+      parabola: false,
+      round: false,
+      vShape: false,
+    },
+    archFormL: {
+      square: false,
+      parabola: false,
+      round: false,
+      vShape: false,
+    },
+    molarRelationRight: "",
+    molarRelationLeft: "",
+    canineRelationRight: "",
+    canineRelationLeft: "",
+  });
+  
   const bn =
     typeof bookNumber === "string" && bookNumber.trim()
       ? bookNumber.trim()
