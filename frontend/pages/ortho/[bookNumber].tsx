@@ -1163,7 +1163,36 @@ const updateBoltonLower12 = (index: number, value: string) => {
               canineRelationLeft: "",
             });
           }
-          
+                if (data.problemSection && data.problemSection.rows) {
+            const r = data.problemSection.rows;
+            setProblemSection({
+              rows: {
+                boneAngle: r.boneAngle || { plus: false, minus: false, text: "" },
+                boneStep: r.boneStep || { plus: false, minus: false, text: "" },
+                tooth: r.tooth || { plus: false, minus: false, text: "" },
+                toothPosition:
+                  r.toothPosition || { plus: false, minus: false, text: "" },
+                functional:
+                  r.functional || { plus: false, minus: false, text: "" },
+                badHabit: r.badHabit || { plus: false, minus: false, text: "" },
+              },
+              diagnosis: data.problemSection.diagnosis || "",
+              cause: data.problemSection.cause || "",
+            });
+          } else {
+            setProblemSection({
+              rows: {
+                boneAngle: { plus: false, minus: false, text: "" },
+                boneStep: { plus: false, minus: false, text: "" },
+                tooth: { plus: false, minus: false, text: "" },
+                toothPosition: { plus: false, minus: false, text: "" },
+                functional: { plus: false, minus: false, text: "" },
+                badHabit: { plus: false, minus: false, text: "" },
+              },
+              diagnosis: "",
+              cause: "",
+            });
+          }    
         } else {
           setCardPatientName("");
           setCardNotes("");
