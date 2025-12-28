@@ -263,6 +263,7 @@ type OrthoCardData = {
   utts?: UttsSection;
   lip?: LipSection;
   teeth?: TeethSection; // NEW
+  problemSection?: ProblemSection; // NEW
 };
 
 type OrthoCardApiResponse = {
