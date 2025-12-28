@@ -338,6 +338,8 @@ export default function OrthoCardPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
 
+  
+
   const [patientRegNo, setPatientRegNo] = useState<string>("");
   const [patientAge, setPatientAge] = useState<string>("");
   const [patientGender, setPatientGender] = useState<string>("");
@@ -398,6 +400,19 @@ export default function OrthoCardPage() {
     hiv: false,
   });
 
+  const [problemSection, setProblemSection] = useState<ProblemSection>({
+    rows: {
+      boneAngle: { plus: false, minus: false, text: "" },
+      boneStep: { plus: false, minus: false, text: "" },
+      tooth: { plus: false, minus: false, text: "" },
+      toothPosition: { plus: false, minus: false, text: "" },
+      functional: { plus: false, minus: false, text: "" },
+      badHabit: { plus: false, minus: false, text: "" },
+    },
+    diagnosis: "",
+    cause: "",
+  });
+  
   const [physicalExam, setPhysicalExam] = useState<PhysicalExam>({
     weight: "",
     height: "",
