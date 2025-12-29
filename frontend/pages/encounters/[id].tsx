@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 
 type Branch = {
@@ -22,7 +22,7 @@ type Patient = {
   createdAt?: string;
   updatedAt?: string;
   branchId: number;
-  branch?: Branch;
+  branch?: Branch | null;
 };
 
 type PatientBook = {
@@ -144,6 +144,9 @@ type Encounter = {
 
 type EditableDiagnosis = EncounterDiagnosisRow & {
   localId: number;
+  serviceId?: number;
+  searchText?: string;
+  serviceSearchText?: string;
 };
 
 type EditablePrescriptionItem = {
@@ -168,7 +171,37 @@ type EncounterMediaType = "XRAY" | "PHOTO" | "DOCUMENT";
 type ConsentType = "root_canal" | "surgery" | "orthodontic" | "prosthodontic";
 
 type SurgeryConsentAnswers = {
-  [key: string]: any;
+  surgeryMode?: "SURGERY" | "PROCEDURE";
+  name?: string;
+  outcome?: string;
+  risks?: string;
+  complications?: string;
+  additionalProcedures?: string;
+  alternativeTreatments?: string;
+  advantages?: string;
+  anesthesiaGeneral?: boolean;
+  anesthesiaSpinal?: boolean;
+  anesthesiaLocal?: boolean;
+  anesthesiaSedation?: boolean;
+  patientQuestions?: string;
+  questionSummary?: string;
+  doctorPhone?: string;
+  doctorExplained?: boolean;
+  patientConsentMain?: boolean;
+  patientConsentInfo?: boolean;
+  patientSignatureName?: string;
+  guardianName?: string;
+  guardianRelationDescription?: string;
+  incapacityReason?: {
+    minor?: boolean;
+    unconscious?: boolean;
+    mentalDisorder?: boolean;
+    other?: boolean;
+    otherText?: string;
+  };
+  husbandConsent?: boolean;
+  husbandName?: string;
+  husbandRefuseReason?: string;
 };
 
 type EncounterConsent = {
@@ -179,8 +212,8 @@ type EncounterConsent = {
   doctorSignedAt?: string | null;
   patientSignaturePath?: string | null;
   doctorSignaturePath?: string | null;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 type EncounterMedia = {
@@ -189,7 +222,6 @@ type EncounterMedia = {
   filePath: string;
   toothCode?: string | null;
   type: EncounterMediaType;
-  // backend currently does not include createdAt, so mark optional
   createdAt?: string;
 };
 
@@ -209,6 +241,8 @@ type VisitCard = {
   type: VisitCardType;
   answers: VisitCardAnswers;
 };
+
+type WarningLine = { label: string; value: string };
 
 function formatDateTime(iso: string) {
   const d = new Date(iso);
@@ -237,7 +271,7 @@ function formatPatientName(p: Patient) {
     const first = ovog.charAt(0).toUpperCase();
     return `${first}.${name}`;
   }
-  return name;
+  return name || p.regNo || String(p.id);
 }
 
 function formatDoctorName(d: Doctor | null) {
@@ -273,7 +307,9 @@ function formatDoctorDisplayName(d: Doctor | null) {
 }
 
 function stringifyToothList(list: string[]): string {
-  return list.join(", ");
+  return Array.from(new Set(list))
+    .sort((a, b) => a.localeCompare(b))
+    .join(", ");
 }
 
 function displayOrDash(value?: string | null) {
@@ -283,19 +319,13 @@ function displayOrDash(value?: string | null) {
   return trimmed;
 }
 
-// ---- Helper: extract “Анхаарах!” lines from visit card answers ----
-
-type WarningLine = { label: string; value: string };
-
 function extractWarningLinesFromVisitCard(
   visitCard: VisitCard | null
 ): WarningLine[] {
   if (!visitCard || !visitCard.answers) return [];
-
   const a = visitCard.answers;
   const lines: WarningLine[] = [];
 
-  // 1) General medical (shared for adult/child, but labels differ slightly)
   const generalMedicalLabels: Record<string, string> =
     visitCard.type === "CHILD"
       ? {
@@ -343,7 +373,6 @@ function extractWarningLinesFromVisitCard(
       }
     });
 
-    // Extra special flags
     if ((a.generalMedical as any).pregnant === "yes") {
       lines.push({
         label: "Жирэмсэн эсэх",
@@ -358,7 +387,6 @@ function extractWarningLinesFromVisitCard(
     }
   }
 
-  // 2) Allergies
   if (a.allergies) {
     const allergyLabels: Record<string, string> = {
       drug: "Харшил - Эм тариа",
@@ -383,7 +411,6 @@ function extractWarningLinesFromVisitCard(
     );
   }
 
-  // 3) Habits
   if (a.habits) {
     const habitLabelsAdult: Record<string, string> = {
       smoking: "Зуршил - Тамхи татдаг эсэх",
@@ -416,7 +443,6 @@ function extractWarningLinesFromVisitCard(
     });
   }
 
-  // 4) Dental follow-up extras
   if (a.dentalFollowup) {
     const dentalLabels: Record<string, string> = {
       regularCheckups: "Шүдний эмчид байнга үзүүлдэг эсэх",
@@ -441,7 +467,6 @@ function extractWarningLinesFromVisitCard(
   return lines;
 }
 
-// For tooth selection UI – same arrays as original file
 const ADULT_TEETH = [
   "18",
   "17",
@@ -581,28 +606,25 @@ export default function EncounterAdminPage() {
 
   const [saveError, setSaveError] = useState("");
 
-  // search state for diagnoses/services
   const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
   const [openServiceIndex, setOpenServiceIndex] = useState<number | null>(
     null
   );
 
-  // rows is a richer structure combining dx+service search UI,
-  // but we can derive from editableDxRows + editableServices.
-  // For simplicity, keep a separate "rows" array shaped for the UI.
-  type DiagnosisServiceRow = EditableDiagnosis & {
-    serviceId?: number;
-    serviceSearchText?: string;
-    searchText?: string;
-  };
+  type DiagnosisServiceRow = EditableDiagnosis;
   const [rows, setRows] = useState<DiagnosisServiceRow[]>([]);
   const [servicesLoadError, setServicesLoadError] = useState("");
   const [dxError, setDxError] = useState("");
 
+  const encounterId = useMemo(
+    () => (typeof id === "string" ? Number(id) : NaN),
+    [id]
+  );
+
   useEffect(() => {
     if (!id || typeof id !== "string") return;
-    const encounterId = Number(id);
-    if (!encounterId || Number.isNaN(encounterId)) {
+    const eid = Number(id);
+    if (!eid || Number.isNaN(eid)) {
       setError("ID буруу байна.");
       setLoading(false);
       return;
@@ -619,7 +641,7 @@ export default function EncounterAdminPage() {
           setServicesLoadError("Үйлчилгээ ачааллахад алдаа гарлаа.");
         }
       } catch {
-        setServicesLoadError("Үйлчилгээ ачааллахад алдаа гарлаа.");
+        setServicesLoadError("Үйлчилгээ ачааллахэд алдаа гарлаа.");
       }
     };
 
@@ -653,7 +675,21 @@ export default function EncounterAdminPage() {
         const dxRows: EditableDiagnosis[] =
           enc.encounterDiagnoses?.map((row, idx) => ({
             ...row,
+            diagnosisId: row.diagnosisId ?? null,
+            diagnosis: (row as any).diagnosis ?? null,
             localId: idx + 1,
+            selectedProblemIds: Array.isArray(row.selectedProblemIds)
+              ? row.selectedProblemIds
+              : [],
+            note: row.note || "",
+            toothCode: row.toothCode || "",
+            serviceId: undefined,
+            searchText: (row as any).diagnosis
+              ? `${(row as any).diagnosis.code} – ${
+                  (row as any).diagnosis.name
+                }`
+              : "",
+            serviceSearchText: "",
           })) || [];
         setEditableDxRows(dxRows);
 
@@ -670,7 +706,6 @@ export default function EncounterAdminPage() {
             ...dxRow,
             serviceId: svc?.serviceId,
             serviceSearchText: svc?.service?.name || "",
-            searchText: "",
           };
         });
         setRows(mergedRows);
@@ -767,7 +802,6 @@ export default function EncounterAdminPage() {
         setVisitCardLoading(true);
         setVisitCard(null);
 
-        // get encounter to know bookNumber
         const encRes = await fetch(`/api/encounters/${id}`);
         const encJson = await encRes.json().catch(() => null);
         if (!encRes.ok || !encJson?.patientBook?.bookNumber) {
@@ -832,7 +866,6 @@ export default function EncounterAdminPage() {
 
   useEffect(() => {
     void reloadMedia();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, mediaTypeFilter]);
 
   const ensureProblemsLoaded = async (diagnosisId: number) => {
@@ -852,6 +885,7 @@ export default function EncounterAdminPage() {
   };
 
   const createDiagnosisRow = (initialTeeth: string[]): number => {
+    let createdIndex = 0;
     setEditableDxRows((prev) => {
       const nextLocalId =
         prev.length === 0
@@ -861,30 +895,35 @@ export default function EncounterAdminPage() {
       const newRow: EditableDiagnosis = {
         localId: nextLocalId,
         diagnosisId: null,
+        diagnosis: null,
         selectedProblemIds: [],
         note: "",
         toothCode,
+        serviceId: undefined,
+        searchText: "",
+        serviceSearchText: "",
       };
-      setRows((old) => [
-        ...old,
-        {
-          ...newRow,
-          serviceId: undefined,
-          serviceSearchText: "",
-          searchText: "",
-        },
-      ]);
-      return [...prev, newRow];
+      const nextRows = [...prev, newRow];
+      createdIndex = nextRows.length - 1;
+      setRows((old) => [...old, newRow]);
+      return nextRows;
     });
-    return 0;
+    return createdIndex;
   };
 
   const removeDiagnosisRow = (index: number) => {
     setEditableDxRows((prev) => prev.filter((_, i) => i !== index));
     setRows((prev) => prev.filter((_, i) => i !== index));
+    setOpenDxIndex((prev) => (prev === index ? null : prev));
+    setActiveDxRowIndex((prev) => {
+      if (prev === null) return prev;
+      if (prev === index) return null;
+      if (index < prev) return prev - 1;
+      return prev;
+    });
   };
 
-  const saveConsent = async (type: ConsentType | null) => {
+  const saveConsentApi = async (type: ConsentType | null) => {
     if (!id || typeof id !== "string") return;
     setConsentSaving(true);
     setConsentError("");
@@ -931,7 +970,7 @@ export default function EncounterAdminPage() {
   };
 
   const saveCurrentConsent = async () => {
-    await saveConsent(consentTypeDraft);
+    await saveConsentApi(consentTypeDraft);
   };
 
   const handleDiagnosisChange = async (
@@ -949,13 +988,16 @@ export default function EncounterAdminPage() {
           : row
       )
     );
+    const dx = diagnoses.find((d) => d.id === diagnosisId) || null;
     setRows((prev) =>
       prev.map((row, i) =>
         i === index
           ? {
               ...row,
               diagnosisId,
+              diagnosis: dx,
               selectedProblemIds: [],
+              searchText: dx ? `${dx.code} – ${dx.name}` : "",
             }
           : row
       )
@@ -1063,7 +1105,6 @@ export default function EncounterAdminPage() {
     setSaving(true);
     setSaveError("");
     try {
-      // sync rows -> editableServices
       const itemsForSave: EncounterService[] = rows
         .filter((r) => r.serviceId)
         .map((r) => ({
@@ -1212,6 +1253,10 @@ export default function EncounterAdminPage() {
     if (!id || typeof id !== "string") return;
     setFinishing(true);
     try {
+      await handleSaveDiagnoses();
+      await handleSaveServices();
+      await savePrescription();
+
       const res = await fetch(`/api/encounters/${id}/finish`, {
         method: "PUT",
       });
@@ -1236,6 +1281,7 @@ export default function EncounterAdminPage() {
       setMediaError("");
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("toothCode", selectedTeeth.join(",") || "");
       formData.append(
         "type",
         mediaTypeFilter === "ALL" ? "XRAY" : mediaTypeFilter
@@ -1270,7 +1316,12 @@ export default function EncounterAdminPage() {
   const isToothSelected = (code: string) => selectedTeeth.includes(code);
 
   const updateActiveRowToothList = (nextTeeth: string[]) => {
-    if (activeDxRowIndex === null) return;
+    if (activeDxRowIndex === null) {
+      if (nextTeeth.length === 0) return;
+      const idx = createDiagnosisRow(nextTeeth);
+      setActiveDxRowIndex(idx);
+      return;
+    }
     const toothStr = stringifyToothList(nextTeeth);
     setEditableDxRows((prev) =>
       prev.map((row, i) =>
@@ -1282,12 +1333,45 @@ export default function EncounterAdminPage() {
         i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
       )
     );
+
+    if (nextTeeth.length === 0) {
+      setEditableDxRows((prev) => {
+        const row = prev[activeDxRowIndex!];
+        const isEmpty =
+          !row.diagnosisId &&
+          (row.note || "").trim() === "" &&
+          (row.selectedProblemIds?.length ?? 0) === 0 &&
+          !row.serviceId;
+        if (!isEmpty) {
+          return prev.map((r, i) =>
+            i === activeDxRowIndex ? { ...r, toothCode: "" } : r
+          );
+        }
+        return prev.filter((_, i) => i !== activeDxRowIndex);
+      });
+      setRows((prev) => {
+        const row = prev[activeDxRowIndex!];
+        const isEmpty =
+          !row.diagnosisId &&
+          (row.note || "").trim() === "" &&
+          (row.selectedProblemIds?.length ?? 0) === 0 &&
+          !row.serviceId;
+        if (!isEmpty) {
+          return prev.map((r, i) =>
+            i === activeDxRowIndex ? { ...r, toothCode: "" } : r
+          );
+        }
+        return prev.filter((_, i) => i !== activeDxRowIndex);
+      });
+      setActiveDxRowIndex(null);
+    }
   };
 
   const setCustomToothRange = (value: string) => {
     setCustomToothRangeState(value);
-    if (!value.trim()) return;
-    const parts = value
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    const parts = trimmed
       .split(/[,\s;]+/)
       .map((p) => p.trim())
       .filter(Boolean);
@@ -1298,7 +1382,6 @@ export default function EncounterAdminPage() {
 
   const toggleToothSelection = (code: string) => {
     if (code === "ALL") {
-      // special: select all visible teeth
       const allCodes =
         toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH;
       const allSelected =
@@ -1317,7 +1400,6 @@ export default function EncounterAdminPage() {
     });
   };
 
-  // ---- Derived: warning lines from visit card ----
   const warningLines: WarningLine[] = extractWarningLinesFromVisitCard(
     visitCard
   );
@@ -1331,6 +1413,22 @@ export default function EncounterAdminPage() {
     const price = svc?.price ?? 0;
     return sum + price;
   }, 0);
+
+  if (!id || typeof id !== "string") {
+    return (
+      <main
+        style={{
+          maxWidth: 900,
+          margin: "40px auto",
+          padding: 24,
+          fontFamily: "sans-serif",
+        }}
+      >
+        <h1>Үзлэгийн дэлгэрэнгүй</h1>
+        <div style={{ color: "red" }}>ID буруу байна.</div>
+      </main>
+    );
+  }
 
   return (
     <main
@@ -1352,7 +1450,6 @@ export default function EncounterAdminPage() {
 
       {!loading && !error && encounter && (
         <>
-          {/* Encounter header */}
           <section
             style={{
               display: "grid",
@@ -1362,137 +1459,134 @@ export default function EncounterAdminPage() {
             }}
           >
             <div
-  style={{
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    padding: 16,
-    background: "#ffffff",
-  }}
->
-  <div
-    style={{
-      fontSize: 18,
-      fontWeight: 600,
-      marginBottom: 4,
-    }}
-  >
-    {formatPatientName(encounter.patientBook.patient)}
-  </div>
-  <div style={{ fontSize: 13, color: "#6b7280" }}>
-    Картын дугаар: {encounter.patientBook.bookNumber}
-  </div>
-  {encounter.patientBook.patient.regNo && (
-    <div style={{ fontSize: 13, color: "#6b7280" }}>
-      РД: {encounter.patientBook.patient.regNo}
-    </div>
-  )}
-  <div style={{ fontSize: 13, color: "#6b7280" }}>
-    Утас: {displayOrDash(encounter.patientBook.patient.phone)}
-  </div>
-  <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}>
-    Бүртгэсэн салбар:{" "}
-    {encounter.patientBook.patient.branch?.name ||
-      encounter.patientBook.patient.branchId}
-  </div>
+              style={{
+                borderRadius: 12,
+                border: "1px solid #e5e7eb",
+                padding: 16,
+                background: "#ffffff",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: 600,
+                  marginBottom: 4,
+                }}
+              >
+                {formatPatientName(encounter.patientBook.patient)}
+              </div>
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                Картын дугаар: {encounter.patientBook.bookNumber}
+              </div>
+              {encounter.patientBook.patient.regNo && (
+                <div style={{ fontSize: 13, color: "#6b7280" }}>
+                  РД: {encounter.patientBook.patient.regNo}
+                </div>
+              )}
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                Утас: {displayOrDash(encounter.patientBook.patient.phone)}
+              </div>
+              <div
+                style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}
+              >
+                Бүртгэсэн салбар:{" "}
+                {encounter.patientBook.patient.branch?.name ||
+                  encounter.patientBook.patient.branchId}
+              </div>
 
-  {/* NEW: navigation buttons based on Картын дугаар (bookNumber) */}
-  <div
-    style={{
-      display: "flex",
-      flexWrap: "wrap",
-      gap: 8,
-      marginTop: 4,
-    }}
-  >
-    {/* 1) Үйлчлүүлэгчийн дэлгэрэнгүй → patients/[bookNumber] */}
-    <button
-      type="button"
-      onClick={() =>
-        router.push(
-          `/patients/${encodeURIComponent(
-            encounter.patientBook.bookNumber
-          )}`
-        )
-      }
-      style={{
-        padding: "4px 8px",
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        background: "#f9fafb",
-        fontSize: 12,
-        cursor: "pointer",
-      }}
-    >
-      Үйлчлүүлэгчийн дэлгэрэнгүй
-    </button>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  marginTop: 4,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/patients/${encodeURIComponent(
+                        encounter.patientBook.bookNumber
+                      )}`
+                    )
+                  }
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#f9fafb",
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  Үйлчлүүлэгчийн дэлгэрэнгүй
+                </button>
 
-    {/* 2) Үйлчлүүлэгчийн карт (үзлэгийн карт) → patients/[bookNumber]?tab=visit-card */}
-    <button
-      type="button"
-      onClick={() =>
-        router.push(
-          `/patients/${encodeURIComponent(
-            encounter.patientBook.bookNumber
-          )}?tab=visit-card`
-        )
-      }
-      style={{
-        padding: "4px 8px",
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        background: "#f0f9ff",
-        fontSize: 12,
-        cursor: "pointer",
-      }}
-    >
-      Үйлчлүүлэгчийн карт
-    </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/patients/${encodeURIComponent(
+                        encounter.patientBook.bookNumber
+                      )}?tab=visit-card`
+                    )
+                  }
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#f0f9ff",
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  Үйлчлүүлэгчийн карт
+                </button>
 
-    {/* 3) Гажиг заслын карт → ortho/[bookNumber] */}
-    <button
-      type="button"
-      onClick={() =>
-        router.push(
-          `/ortho/${encodeURIComponent(
-            encounter.patientBook.bookNumber
-          )}`
-        )
-      }
-      style={{
-        padding: "4px 8px",
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        background: "#fef3c7",
-        fontSize: 12,
-        cursor: "pointer",
-      }}
-    >
-      Гажиг заслын карт
-    </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/ortho/${encodeURIComponent(
+                        encounter.patientBook.bookNumber
+                      )}`
+                    )
+                  }
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#fef3c7",
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  Гажиг заслын карт
+                </button>
 
-    {/* 4) Өмнөх үзлэгүүд → patients/[bookNumber]?tab=encounters (to implement later) */}
-    <button
-      type="button"
-      onClick={() =>
-        router.push(
-          `/patients/${encodeURIComponent(
-            encounter.patientBook.bookNumber
-          )}?tab=encounters`
-        )
-      }
-      style={{
-        padding: "4px 8px",
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        background: "#f3e8ff",
-        fontSize: 12,
-        cursor: "pointer",
-      }}
-    >
-      Өмнөх үзлэгүүд
-    </button>
-  </div>
-</div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/patients/${encodeURIComponent(
+                        encounter.patientBook.bookNumber
+                      )}?tab=encounters`
+                    )
+                  }
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#f3e8ff",
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  Өмнөх үзлэгүүд
+                </button>
+              </div>
+            </div>
 
             <div
               style={{
@@ -1558,7 +1652,6 @@ export default function EncounterAdminPage() {
                 </select>
               </div>
 
-              {/* Анхаарах! – summary from visit card */}
               {warningLines.length > 0 && (
                 <div
                   style={{
@@ -1598,7 +1691,6 @@ export default function EncounterAdminPage() {
             </div>
           </section>
 
-          {/* Consent form (Зөвшөөрлийн хуудас шаардлагатай) */}
           <section
             style={{
               marginBottom: 16,
@@ -1614,7 +1706,6 @@ export default function EncounterAdminPage() {
                 background: "#f9fafb",
               }}
             >
-              {/* Enable checkbox */}
               <div
                 style={{
                   display: "flex",
@@ -1637,9 +1728,9 @@ export default function EncounterAdminPage() {
                     disabled={consentLoading || consentSaving}
                     onChange={async (e) => {
                       if (e.target.checked) {
-                        await saveConsent(consent?.type || "root_canal");
+                        await saveConsentApi(consent?.type || "root_canal");
                       } else {
-                        await saveConsent(null);
+                        await saveConsentApi(null);
                       }
                     }}
                   />
@@ -1659,10 +1750,8 @@ export default function EncounterAdminPage() {
                 )}
               </div>
 
-              {/* Everything below only when consent exists */}
               {consent && (
                 <>
-                  {/* Type selection */}
                   <div
                     style={{
                       display: "flex",
@@ -1685,9 +1774,12 @@ export default function EncounterAdminPage() {
                         type="radio"
                         name="consentType"
                         value="root_canal"
-                        checked={consent.type === "root_canal"}
+                        checked={consentTypeDraft === "root_canal"}
                         disabled={consentSaving}
-                        onChange={() => void saveConsent("root_canal")}
+                        onChange={() => {
+                          setConsentTypeDraft("root_canal");
+                          void saveConsentApi("root_canal");
+                        }}
                       />
                       Сувгийн эмчилгээ
                     </label>
@@ -1703,9 +1795,12 @@ export default function EncounterAdminPage() {
                         type="radio"
                         name="consentType"
                         value="surgery"
-                        checked={consent.type === "surgery"}
+                        checked={consentTypeDraft === "surgery"}
                         disabled={consentSaving}
-                        onChange={() => void saveConsent("surgery")}
+                        onChange={() => {
+                          setConsentTypeDraft("surgery");
+                          void saveConsentApi("surgery");
+                        }}
                       />
                       Мэс засал
                     </label>
@@ -1721,9 +1816,12 @@ export default function EncounterAdminPage() {
                         type="radio"
                         name="consentType"
                         value="orthodontic"
-                        checked={consent.type === "orthodontic"}
+                        checked={consentTypeDraft === "orthodontic"}
                         disabled={consentSaving}
-                        onChange={() => void saveConsent("orthodontic")}
+                        onChange={() => {
+                          setConsentTypeDraft("orthodontic");
+                          void saveConsentApi("orthodontic");
+                        }}
                       />
                       Гажиг засал
                     </label>
@@ -1739,153 +1837,2673 @@ export default function EncounterAdminPage() {
                         type="radio"
                         name="consentType"
                         value="prosthodontic"
-                        checked={consent.type === "prosthodontic"}
+                        checked={consentTypeDraft === "prosthodontic"}
                         disabled={consentSaving}
-                        onChange={() => void saveConsent("prosthodontic")}
+                        onChange={() => {
+                          setConsentTypeDraft("prosthodontic");
+                          void saveConsentApi("prosthodontic");
+                        }}
                       />
                       Согог засал
                     </label>
                   </div>
 
-                  {/* NOTE: for brevity here we keep only the root_canal form fully;
-                      the surgery / orthodontic / prosthodontic parts follow the same
-                      structure you already have. */}
-
-                  {consent.type === "root_canal" && (
-                    <div>
-                      <div
-                        style={{
-                          textAlign: "center",
-                          fontWeight: 700,
-                          fontSize: 14,
-                          marginBottom: 8,
-                        }}
-                      >
-                        “MON FAMILY” Шүдний эмнэлгийн шүдний сувгийн эмчилгээ
-                        хийх таниулсан зөвшөөрлийн хуудас
-                      </div>
-
-                      <div
-                        style={{
-                          fontSize: 12,
-                          lineHeight: 1.5,
-                          color: "#111827",
-                          marginBottom: 8,
-                          whiteSpace: "pre-line",
-                        }}
-                      >
-                        {/* long explanatory text – kept from your current version */}
-                        Шүдний сувгийн (endodont) эмчилгээ нь шүдний цөгц болон
-                        сурвалжийн хөндийд байрлах мэдрэл судасны багц
-                        (зөөлц)-д үүссэн өвдөлт үрэвслийг эмчлэх олон удаагийн
-                        (3-5 удаагийн ирэлт болон тухайн шүдний үрэвслийн
-                        байдлаас шалтгаалан 5-с дээш 6 сар хүртэл хугацаагаар)
-                        ирэлтээр эмчлэгддэг курс эмчилгээ юм. ...
-                      </div>
-
-                      <label
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          marginBottom: 10,
-                          fontSize: 12,
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={!!consent.answers?.acknowledged}
-                          onChange={async (e) => {
-                            updateConsentAnswers({
-                              acknowledged: e.target.checked,
-                            });
-                            await saveConsent(consent.type);
-                          }}
-                        />
-                        <span>
-                          Өвчтөн / асран хамгаалагч танилцуулгыг бүрэн уншиж,
-                          ойлгож зөвшөөрсөн.
-                        </span>
-                      </label>
-
-                      <div
-                        style={{
-                          marginTop: 4,
-                          paddingTop: 6,
-                          borderTop: "1px dashed #e5e7eb",
-                          fontSize: 12,
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 4,
-                        }}
-                      >
+                  <div
+                    style={{
+                      marginTop: 4,
+                      paddingTop: 4,
+                      borderTop: "1px dashed #e5e7eb",
+                      fontSize: 12,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
+                    }}
+                  >
+                    {consentTypeDraft === "root_canal" && (
+                      <div>
                         <div
                           style={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: 8,
+                            textAlign: "center",
+                            fontWeight: 700,
+                            fontSize: 14,
+                            marginBottom: 8,
                           }}
                         >
-                          <div style={{ flex: "1 1 150px" }}>
+                          “MON FAMILY” Шүдний эмнэлгийн шүдний сувгийн эмчилгээ
+                          хийх таниулсан зөвшөөрлийн хуудас
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 12,
+                            lineHeight: 1.5,
+                            color: "#111827",
+                            marginBottom: 8,
+                            whiteSpace: "pre-line",
+                          }}
+                        >
+                          Шүдний сувгийн (endodont) эмчилгээ нь шүдний цөгц болон
+                          сурвалжийн хөндийд байрлах мэдрэл судасны багц
+                          (зөөлц)-д үүссэн өвдөлт үрэвслийг эмчлэх олон удаагийн
+                          (3-5 удаагийн ирэлт болон тухайн шүдний үрэвслийн
+                          байдлаас шалтгаалан 5-с дээш 6 сар хүртэл хугацаагаар)
+                          ирэлтээр эмчлэгддэг курс эмчилгээ юм. Сувгийн
+                          эмчилгээгээр суваг доторх үрэвслийг намдаадаг боловч
+                          шүдний сурвалжийн оройн эдийн өөрчлөлт нь хэвийн
+                          байдалд эргэн орж, эдгэрэхэд хугацаа шаардагддаг.
+                          {"\n\n"}
+                          Сувгийн эмчилгээний эхний 1-7 хоногт эмчилгээтэй
+                          шүднүүдэд эвгүй мэдрэмжүүд үүсч болно. Тэр хугацаанд
+                          тухайн шүдээр ачаалал үүсэх хэт хатуу (ааруул, хатуу
+                          чихэр, үртэй жимс, самар... гэх мэт) зүйлс хазаж идэхийг
+                          хатуу хориглоно. Хатуу зүйлс нь тухайн шүдний зовиур
+                          таагүй мэдрэмжүүдийг ихэсгэх, мөн эрдэсгүйжсэн шүдний
+                          (сувгийн эмчилгээтэй шүд нь мэдрэл судасгүй болсны
+                          улмаас хэврэг болдог) цөгцний болон сурвалжийн хугарал
+                          үүсч цаашлаад тухайн шүд авагдах хүртэл хүндрэл үүсч
+                          болдог.
+                          {"\n\n"}
+                          Эмчилгээ хийлгэсэн шүд хэсэг хугацааны дараа өнгө
+                          хувирч болно. Цоорол их хэмжээгээр үүсч шүдний цөгцний
+                          ихэнхи хэсэг цооролд өртсөн (цөгцний ½-1/3 хүртэл)
+                          шүдэнд сувгийн эмчилгээний дараа голонцор (метал,
+                          шилэн) ашиглан тухайн шүдийг сэргээдэг. Сувгийн
+                          эмчилгээ ихэнхи тохиолдолд тухайн хүний дархлааны
+                          системтэй хамааралтай байдаг ба даарч хөрөх, ханиад
+                          томуу, стресс ядаргаа, ажлын ачаалал, нойргүйдэл,
+                          дааврын өөрчлөлт (жирэмсэн, хөхүүл, архаг хууч
+                          өвчтэй хүмүүс, өндөр настнууд) зэрэг нь эмчилгээний
+                          хугацаа болон үр дүнг уртасгаж удаашруулж болно.
+                          {"\n\n"}
+                          Эмчилгээний явцад үйлчлүүлэгч эмчийн заасан хугацаанд
+                          эмчилгээндээ ирэхгүй байх, эмчийн бичиж өгсөн эм,
+                          уусмалыг зааврын дагуу уухгүй байх, огт хэрэглээгүй
+                          байх зэрэг нь эмчилгээний үр дүнд шууд нөлөөлөх ба
+                          аливаа хүндрэл (эрүүл мэнд болон санхүүгийн) эрсдэлийг
+                          тухайн үйлчлүүлэгч өөрөө бүрэн хариуцна.
+                          {"\n\n"}
+                          Үүсч болох эрсдлүүд: Сувгийн эмчилгээг шүдний сувагт
+                          тохирсон зориулалтын нарийн багажнуудаар жижгээс
+                          томруулах зарчимаар хийдэг эмчилгээ бөгөөд зарим
+                          шүдний сурвалж анатомын онцлогоос хамаарч хэт далий
+                          муруй, нарийн байснаас болж эмчийн ажиллах явцад
+                          сувагт багаж хугарах, сурвалж цоорох, сурвалж, цөгц
+                          хугарах, мэдээ алдуулах тарианд харшлах зэрэг эрсдлүүд
+                          үүсч болно.
+                        </div>
+
+                        <label
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            marginBottom: 10,
+                            fontSize: 12,
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={!!consentAnswersDraft?.acknowledged}
+                            onChange={async (e) => {
+                              updateConsentAnswers({
+                                acknowledged: e.target.checked,
+                              });
+                              await saveConsentApi(consentTypeDraft);
+                            }}
+                          />
+                          <span>
+                            Өвчтөн / асран хамгаалагч танилцуулгыг бүрэн уншиж,
+                            ойлгож зөвшөөрсөн.
+                          </span>
+                        </label>
+
+                        <div
+                          style={{
+                            marginTop: 4,
+                            paddingTop: 6,
+                            borderTop: "1px dashed #e5e7eb",
+                            fontSize: 12,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 4,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 8,
+                            }}
+                          >
+                            <div style={{ flex: "1 1 150px" }}>
+                              <div
+                                style={{
+                                  marginBottom: 2,
+                                  color: "#4b5563",
+                                }}
+                              >
+                                Үйлчлүүлэгч / асран хамгаалагчийн нэр
+                              </div>
+                              <input
+                                type="text"
+                                value={consentAnswersDraft?.patientName || ""}
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    patientName: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                placeholder="Ж: Б. Болор"
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  padding: "4px 6px",
+                                }}
+                              />
+                            </div>
+
+                            <div style={{ flex: "1 1 200px" }}>
+                              <div
+                                style={{
+                                  marginBottom: 2,
+                                  color: "#4b5563",
+                                }}
+                              >
+                                Эмчилгээ хийсэн эмчийн нэр
+                              </div>
+                              <div>
+                                <strong>
+                                  {formatDoctorDisplayName(
+                                    encounter.doctor
+                                  )}
+                                </strong>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div>
+                            Огноо:{" "}
+                            <strong>
+                              {formatShortDate(encounter.visitDate)}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {consentTypeDraft === "surgery" && (
+                      <div>
+                        <div
+                          style={{
+                            marginBottom: 8,
+                            fontSize: 13,
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: 12,
+                            alignItems: "center",
+                          }}
+                        >
+                          <span style={{ fontWeight: 600 }}>Сонголт:</span>
+                          <label
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              name="surgeryMode"
+                              checked={
+                                consentAnswersDraft?.surgeryMode !==
+                                "PROCEDURE"
+                              }
+                              onChange={async () => {
+                                updateConsentAnswers({
+                                  surgeryMode: "SURGERY",
+                                });
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                            />
+                            <span>Мэс засал</span>
+                          </label>
+                          <label
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              name="surgeryMode"
+                              checked={
+                                consentAnswersDraft?.surgeryMode ===
+                                "PROCEDURE"
+                              }
+                              onChange={async () => {
+                                updateConsentAnswers({
+                                  surgeryMode: "PROCEDURE",
+                                });
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                            />
+                            <span>Мэс ажилбар</span>
+                          </label>
+                        </div>
+
+                        {consentAnswersDraft?.surgeryMode === "PROCEDURE" ? (
+                          <div>
                             <div
                               style={{
-                                marginBottom: 2,
-                                color: "#4b5563",
+                                textAlign: "center",
+                                fontWeight: 700,
+                                fontSize: 14,
+                                marginBottom: 8,
                               }}
                             >
-                              Үйлчлүүлэгч / асран хамгаалагчийн нэр
+                              МЭС АЖИЛБАР ХИЙЛГЭХ ТУХАЙ ЗӨВШӨӨРЛИЙН ХУУДАС
                             </div>
-                            <input
-                              type="text"
-                              value={consent.answers?.patientName || ""}
+
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                fontSize: 12,
+                                marginBottom: 6,
+                              }}
+                            >
+                              А) МЭДЭЭЛЛИЙН ХУУДАС
+                            </div>
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Санал болгож буй мэс ажилбарын нэр:
+                            </label>
+                            <textarea
+                              value={consentAnswersDraft?.name || ""}
                               onChange={(e) =>
                                 updateConsentAnswers({
-                                  patientName: e.target.value,
+                                  name: e.target.value,
                                 })
                               }
                               onBlur={async () => {
-                                await saveConsent(consent.type);
+                                await saveConsentApi(consentTypeDraft);
                               }}
-                              placeholder="Ж: Б. Болор"
+                              rows={2}
                               style={{
                                 width: "100%",
                                 borderRadius: 6,
                                 border: "1px solid #d1d5db",
                                 padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
                               }}
                             />
-                          </div>
 
-                          <div style={{ flex: "1 1 200px" }}>
-                            <div
+                            <label
                               style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
                                 marginBottom: 2,
-                                color: "#4b5563",
                               }}
                             >
-                              Эмчилгээ хийсэн эмчийн нэр
+                              Санал болгож буй мэс ажилбарын үр дүн (эмнэл
+                              зүйн туршлагын дүн, нотолгоонд тулгуурлан
+                              бүрэн эдгэрэлт, сайжралт, эндэгдэл,
+                              хүндрэлийн магадлалыг хувиар илэрхийлэн
+                              ойлгомжтойгоор тайлбарлана):
+                            </label>
+                            <textarea
+                              value={consentAnswersDraft?.outcome || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  outcome: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Гарч болох эрсдлүүд (эрсдлүүдийг нэг бүрчлэн
+                              дурдана):
+                            </label>
+                            <textarea
+                              value={consentAnswersDraft?.risks || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  risks: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Гарч болох хүндрэлүүд (хүндрэлүүдийг нэг
+                              бүрчлэн дурдана):
+                            </label>
+                            <textarea
+                              value={consentAnswersDraft?.complications || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  complications: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Тухайн мэс ажилбарын үед хийгдэж болох нэмэлт
+                              ажилбарууд (ажилбаруудыг нэг бүрчлэн дурдана):
+                            </label>
+                            <textarea
+                              value={
+                                consentAnswersDraft?.additionalProcedures ||
+                                ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  additionalProcedures: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Тухайн мэс ажилбар орлуулах боломжтой эмчилгээний
+                              бусад аргууд (бусад аргуудыг дурдана):
+                            </label>
+                            <textarea
+                              value={
+                                consentAnswersDraft?.alternativeTreatments ||
+                                ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  alternativeTreatments: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Санал болгож буй мэс ажилбарын давуу тал:
+                            </label>
+                            <textarea
+                              value={consentAnswersDraft?.advantages || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  advantages: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <div
+                              style={{
+                                marginTop: 4,
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontWeight: 500,
+                                  marginBottom: 2,
+                                }}
+                              >
+                                Санал болгож буй мэс ажилбарын үед хийгдэх
+                                мэдээгүйжүүлэлт:
+                              </div>
+
+                              {[
+                                {
+                                  key: "anesthesiaGeneral",
+                                  label: "Ерөнхий",
+                                },
+                                {
+                                  key: "anesthesiaSpinal",
+                                  label: "Нугасны мэдээ алдуулалт",
+                                },
+                                {
+                                  key: "anesthesiaLocal",
+                                  label: "Хэсгийн мэдээ алдуулалт",
+                                },
+                                {
+                                  key: "anesthesiaSedation",
+                                  label: "Тайвшруулалт",
+                                },
+                              ].map((opt) => {
+                                const checked =
+                                  !!consentAnswersDraft?.[opt.key];
+                                return (
+                                  <label
+                                    key={opt.key}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      marginBottom: 2,
+                                    }}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={async (e) => {
+                                        updateConsentAnswers({
+                                          [opt.key]: e.target.checked,
+                                        });
+                                        await saveConsentApi(
+                                          consentTypeDraft
+                                        );
+                                      }}
+                                    />
+                                    <span>{opt.label}</span>
+                                  </label>
+                                );
+                              })}
                             </div>
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Үйлчлүүлэгчээс тавьсан асуулт:
+                            </label>
+                            <textarea
+                              value={
+                                consentAnswersDraft?.patientQuestions || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  patientQuestions: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={2}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 4,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Дээрх асуултын товч:
+                            </label>
+                            <textarea
+                              value={
+                                consentAnswersDraft?.questionSummary || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  questionSummary: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={2}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Эмчтэй холбоо барих утас:
+                            </label>
+                            <input
+                              type="text"
+                              value={consentAnswersDraft?.doctorPhone || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  doctorPhone: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 8,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                fontSize: 12,
+                                marginBottom: 6,
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={
+                                  !!consentAnswersDraft?.doctorExplained
+                                }
+                                onChange={async (e) => {
+                                  updateConsentAnswers({
+                                    doctorExplained: e.target.checked,
+                                  });
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                              />
+                              <span>
+                                Би үйлчлүүлэгчдээ дээрх мэдээллүүдийг
+                                дэлгэрэнгүй, энгийн ойлгомжтой хэллэгээр
+                                тайлбарлаж өгсөн болно.
+                              </span>
+                            </label>
+
+                            <div
+                              style={{
+                                marginTop: 4,
+                                paddingTop: 6,
+                                borderTop: "1px dashed #e5e7eb",
+                                fontSize: 12,
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: 8,
+                              }}
+                            >
+                              <div style={{ flex: "1 1 200px" }}>
+                                Эмчийн нэр:{" "}
+                                <strong>
+                                  {formatDoctorDisplayName(
+                                    encounter.doctor
+                                  )}
+                                </strong>
+                              </div>
+                              <div style={{ flex: "1 1 160px" }}>
+                                Огноо:{" "}
+                                <strong>
+                                  {formatShortDate(
+                                    encounter.visitDate
+                                  )}
+                                </strong>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div
+                              style={{
+                                textAlign: "center",
+                                fontWeight: 700,
+                                fontSize: 14,
+                                marginBottom: 8,
+                              }}
+                            >
+                              МЭС ЗАСАЛ ХИЙЛГЭХ ТУХАЙ ЗӨВШӨӨРЛИЙН ХУУДАС
+                            </div>
+
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                fontSize: 12,
+                                marginBottom: 6,
+                              }}
+                            >
+                              А) МЭДЭЭЛЛИЙН ХУУДАС
+                            </div>
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Санал болгож буй мэс заслын нэр:
+                            </label>
+                            <textarea
+                              value={consentAnswersDraft?.name || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  name: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={2}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Санал болгож буй мэс заслын үр дүн (эмнэл зүйн
+                              туршлагын дүн, нотолгоонд тулгуурлан бүрэн
+                              эдгэрэлт, сайжралт, эндэгдэл, хүндрэлийн
+                              магадлалыг хувиар илэрхийлэн тайлбарлана):
+                            </label>
+                            <textarea
+                              value={consentAnswersDraft?.outcome || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  outcome: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Гарч болох эрсдлүүд (эрсдлүүдийг нэг бүрчлэн
+                              дурдана):
+                            </label>
+                            <textarea
+                              value={consentAnswersDraft?.risks || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  risks: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Гарч болох хүндрэлүүд (хүндрэлүүдийг нэг
+                              бүрчлэн дурдана):
+                            </label>
+                            <textarea
+                              value={consentAnswersDraft?.complications || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  complications: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Тухайн мэс заслын үед хийгдэж болох нэмэлт
+                              ажилбарууд:
+                            </label>
+                            <textarea
+                              value={
+                                consentAnswersDraft?.additionalProcedures ||
+                                ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  additionalProcedures: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Тухайн мэс заслыг орлуулах боломжтой бусад
+                              эмчилгээний аргууд:
+                            </label>
+                            <textarea
+                              value={
+                                consentAnswersDraft?.alternativeTreatments ||
+                                ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  alternativeTreatments: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px солид #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Санал болгож буй мэс заслын давуу тал:
+                            </label>
+                            <textarea
+                              value={consentAnswersDraft?.advantages || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  advantages: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <div
+                              style={{
+                                marginTop: 4,
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontWeight: 500,
+                                  marginBottom: 2,
+                                }}
+                              >
+                                Санал болгож буй мэс заслын үед хийгдэх
+                                мэдээгүйжүүлэлт:
+                              </div>
+
+                              {[
+                                {
+                                  key: "anesthesiaGeneral",
+                                  label: "Ерөнхий",
+                                },
+                                {
+                                  key: "anesthesiaSpinal",
+                                  label: "Нугасны мэдээ алдуулалт",
+                                },
+                                {
+                                  key: "anesthesiaLocal",
+                                  label: "Хэсгийн мэдээ алдуулалт",
+                                },
+                                {
+                                  key: "anesthesiaSedation",
+                                  label: "Тайвшруулалт",
+                                },
+                              ].map((opt) => {
+                                const checked =
+                                  !!consentAnswersDraft?.[opt.key];
+                                return (
+                                  <label
+                                    key={opt.key}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      marginBottom: 2,
+                                    }}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={async (e) => {
+                                        updateConsentAnswers({
+                                          [opt.key]: e.target.checked,
+                                        });
+                                        await saveConsentApi(
+                                          consentTypeDraft
+                                        );
+                                      }}
+                                    />
+                                    <span>{opt.label}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Үйлчлүүлэгчээс тавьсан асуулт:
+                            </label>
+                            <textarea
+                              value={
+                                consentAnswersDraft?.patientQuestions || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  patientQuestions: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={2}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 4,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Дээрх асуултын товч:
+                            </label>
+                            <textarea
+                              value={
+                                consentAnswersDraft?.questionSummary || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  questionSummary: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={2}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 6,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "block",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Эмчтэй холбоо барих утас:
+                            </label>
+                            <input
+                              type="text"
+                              value={consentAnswersDraft?.doctorPhone || ""}
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  doctorPhone: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1px solid #d1d5db",
+                                padding: "4px 6px",
+                                marginBottom: 8,
+                                fontSize: 12,
+                              }}
+                            />
+
+                            <label
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                fontSize: 12,
+                                marginBottom: 6,
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={
+                                  !!consentAnswersDraft?.doctorExplained
+                                }
+                                onChange={async (e) => {
+                                  updateConsentAnswers({
+                                    doctorExplained: e.target.checked,
+                                  });
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                              />
+                              <span>
+                                Би үйлчлүүлэгчдээ дээрх мэдээллүүдийг
+                                дэлгэрэнгүй, энгийн ойлгомжтой хэллэгээр
+                                тайлбарлаж өгсөн болно.
+                              </span>
+                            </label>
+
+                            <div
+                              style={{
+                                marginTop: 4,
+                                paddingTop: 6,
+                                borderTop: "1px dashed #e5e7eb",
+                                fontSize: 12,
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: 8,
+                              }}
+                            >
+                              <div style={{ flex: "1 1 200px" }}>
+                                Эмчийн нэр:{" "}
+                                <strong>
+                                  {formatDoctorDisplayName(
+                                    encounter.doctor
+                                  )}
+                                </strong>
+                              </div>
+                              <div style={{ flex: "1 1 160px" }}>
+                                Огноо:{" "}
+                                <strong>
+                                  {formatShortDate(
+                                    encounter.visitDate
+                                  )}
+                                </strong>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div
+                          style={{
+                            marginTop: 8,
+                            paddingTop: 6,
+                            borderTop: "1px dashed #e5e7eb",
+                            fontSize: 12,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              fontSize: 12,
+                              marginBottom: 4,
+                            }}
+                          >
+                            Б) ҮЙЛЧЛҮҮЛЭГЧИЙН ЗӨВШӨӨРӨЛ
+                          </div>
+
+                          <label
+                            style={{
+                              display: "block",
+                              marginBottom: 4,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={
+                                !!consentAnswersDraft?.patientConsentMain
+                              }
+                              onChange={async (e) => {
+                                updateConsentAnswers({
+                                  patientConsentMain: e.target.checked,
+                                });
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              style={{ marginRight: 6 }}
+                            />
+                            Эмчийн санал болгож буй мэс засал / мэс
+                            ажилбарыг дээрхи мэдээ алдуулалтаар хийлгэхийг
+                            БИ ЗӨВШӨӨРЧ БАЙНА. Түүнчлэн гэмтсэн эд,
+                            эрхтний хэсэг болон эд эрхтнийг журмын дагуу
+                            устгахыг уг эмнэлэгт зөвшөөрч байна.
+                          </label>
+
+                          <label
+                            style={{
+                              display: "block",
+                              marginBottom: 4,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={
+                                !!consentAnswersDraft?.patientConsentInfo
+                              }
+                              onChange={async (e) => {
+                                updateConsentAnswers({
+                                  patientConsentInfo: e.target.checked,
+                                });
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              style={{ marginRight: 6 }}
+                            />
+                            Мэс засал / мэс ажилбарын үр дүн, гарч болох
+                            хүндрэл, эрсдэл, нэмэлт ажилбарууд, орлуулж
+                            болох эмчилгээний талаар БИ тодорхой мэдээлэл
+                            авсан болно.
+                          </label>
+
+                          <div
+                            style={{
+                              marginTop: 6,
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 6,
+                            }}
+                          >
                             <div>
+                              <div
+                                style={{
+                                  marginBottom: 2,
+                                  color: "#4b5563",
+                                }}
+                              >
+                                Үйлчлүүлэгчийн нэр (гарын үсгийн талбарын
+                                оронд):
+                              </div>
+                              <input
+                                type="text"
+                                value={
+                                  consentAnswersDraft
+                                    ?.patientSignatureName || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    patientSignatureName:
+                                      e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  padding: "4px 6px",
+                                  fontSize: 12,
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <div
+                                style={{
+                                  marginBottom: 2,
+                                  color: "#4b5563",
+                                }}
+                              >
+                                Асран хамгаалагч / харгалзан дэмжигчийн нэр
+                                (хэрэв үйлчлүүлэгч эрх зүйн чадамжгүй бол):
+                              </div>
+                              <input
+                                type="text"
+                                value={
+                                  consentAnswersDraft?.guardianName || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    guardianName: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  padding: "4px 6px",
+                                  fontSize: 12,
+                                  marginBottom: 4,
+                                }}
+                              />
+
+                              <input
+                                type="text"
+                                placeholder="Нэр, үйлчлүүлэгчтэй холбоотой эсэх"
+                                value={
+                                  consentAnswersDraft
+                                    ?.guardianRelationDescription ||
+                                  ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    guardianRelationDescription:
+                                      e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  padding: "4px 6px",
+                                  fontSize: 12,
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <div
+                                style={{
+                                  marginBottom: 2,
+                                  color: "#4b5563",
+                                }}
+                              >
+                                Үйлчлүүлэгч эрх зүйн чадамжгүй байгаа
+                                шалтгаан:
+                              </div>
+                              {[
+                                "minor",
+                                "unconscious",
+                                "mentalDisorder",
+                                "other",
+                              ].map((key) => {
+                                const labels: Record<string, string> = {
+                                  minor: "Насанд хүрээгүй",
+                                  unconscious: "Ухаангүй",
+                                  mentalDisorder: "Сэтгэцийн эмгэгтэй",
+                                  other: "Бусад (тайлбарлана уу)",
+                                };
+                                const checked =
+                                  !!consentAnswersDraft?.incapacityReason?.[
+                                    key
+                                  ];
+                                return (
+                                  <label
+                                    key={key}
+                                    style={{
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                      marginBottom: 2,
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={(e) => {
+                                        const prev =
+                                          consentAnswersDraft
+                                            ?.incapacityReason || {};
+                                        updateConsentAnswers({
+                                          incapacityReason: {
+                                            ...prev,
+                                            [key]: e.target.checked,
+                                          },
+                                        });
+                                      }}
+                                      onBlur={async () => {
+                                        await saveConsentApi(
+                                          consentTypeDraft
+                                        );
+                                      }}
+                                    />
+                                    <span>{labels[key]}</span>
+                                  </label>
+                                );
+                              })}
+
+                              <textarea
+                                placeholder="Бусад шалтгааны тайлбар"
+                                value={
+                                  consentAnswersDraft?.incapacityReason
+                                    ?.otherText || ""
+                                }
+                                onChange={(e) => {
+                                  const prev =
+                                    consentAnswersDraft?.incapacityReason ||
+                                    {};
+                                  updateConsentAnswers({
+                                    incapacityReason: {
+                                      ...prev,
+                                      otherText: e.target.value,
+                                    },
+                                  });
+                                }}
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                rows={2}
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  padding: "4px 6px",
+                                  marginTop: 2,
+                                  fontSize: 12,
+                                }}
+                              />
+                            </div>
+
+                            <div
+                              style={{
+                                marginTop: 6,
+                                paddingTop: 6,
+                                borderTop: "1px dashed #e5e7eb",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  marginBottom: 4,
+                                  color: "#4b5563",
+                                  fontSize: 12,
+                                }}
+                              >
+                                Хэрэв өвчтөн жирэмсэн тохиолдолд:
+                              </div>
+                              <label
+                                style={{
+                                  display: "block",
+                                  marginBottom: 4,
+                                  fontSize: 12,
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={
+                                    !!consentAnswersDraft?.husbandConsent
+                                  }
+                                  onChange={async (e) => {
+                                    updateConsentAnswers({
+                                      husbandConsent: e.target.checked,
+                                    });
+                                    await saveConsentApi(consentTypeDraft);
+                                  }}
+                                  style={{ marginRight: 6 }}
+                                />
+                                Миний эхнэрийн хийлгэхээр зөвшөөрсөн мэс
+                                ажилбар / мэс заслыг би зөвшөөрч байна.
+                              </label>
+
+                              <div
+                                style={{
+                                  marginBottom: 2,
+                                  color: "#4b5563",
+                                }}
+                              >
+                                Нөхрийн нэр:
+                              </div>
+                              <input
+                                type="text"
+                                value={
+                                  consentAnswersDraft?.husbandName || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    husbandName: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1pxsolid #d1d5db",
+                                  padding: "4px 6px",
+                                  fontSize: 12,
+                                  marginBottom: 4,
+                                }}
+                              />
+
+                              <textarea
+                                placeholder="Хэрэв нөхөр / асран хамгаалагч / харгалзан дэмжигч нь зөвшөөрөөгүй бол тайлбарлана уу."
+                                value={
+                                  consentAnswersDraft
+                                    ?.husbandRefuseReason || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    husbandRefuseReason: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                rows={2}
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  padding: "4px 6px",
+                                  fontSize: 12,
+                                }}
+                              />
+                            </div>
+
+                            <div style={{ marginTop: 6, fontSize: 12 }}>
+                              Огноо:{" "}
                               <strong>
-                                {formatDoctorDisplayName(
-                                  encounter.doctor
-                                )}
+                                {formatShortDate(encounter.visitDate)}
+                              </strong>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {consentTypeDraft === "orthodontic" && (
+                      <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                        <div
+                          style={{
+                            textAlign: "center",
+                            fontWeight: 700,
+                            fontSize: 14,
+                            marginBottom: 8,
+                          }}
+                        >
+                          Шүд эрүүний гажиг заслын эмчилгээ хийлгэх өвчтөний
+                          зөвшөөрлийн хуудас
+                        </div>
+
+                        <div style={{ marginBottom: 8 }}>
+                          Нүүр амны гажиг заслын эмчилгээ хийлгэснээр таны:
+                          <ul style={{ marginTop: 4, paddingLeft: 20 }}>
+                            <li>
+                              Амыг хөндийд эрүүл ахуйн байдал (шүдний цоорол,
+                              тулгуур эдийн өвчлөлийг багасгана.)
+                            </li>
+                            <li>Нүүрний гадаад төрх</li>
+                            <li>Өөртөө итгэх үнэлэмж</li>
+                            <li>Үйл зүйн тохирлын байдал сайжирна.</li>
+                          </ul>
+                        </div>
+
+                        <div style={{ marginBottom: 8 }}>
+                          Нүүр амны гажиг заслын эмчилгээний үр дүн нь эмч
+                          өвчтөний хамтын үйл ажиллагаанаас шууд хамаарадаг ба
+                          өвчтөн эмчийн заавар, зөвлөгөөг дагаж мөрдөх
+                          шаардлагатай. Учир нь өвчтөн эмчийн заавар
+                          зөвлөгөөг мөрдөөгүй улмаас эмчилгээний явцад тодорхой
+                          хүндрэлүүд гарах боломжтой. Гажиг заслын эмчилгээг нь
+                          олон улсын мөрдөдөг эмчилгээний стандартыг дагуу
+                          төлөвлөгдөн эхэлдэг боловч нэр бүрийн хүчин зүйлээс
+                          шалтгаалж үйлчлүүлэгч болон эмчилгээний үр дүн
+                          харилцан адилгүй, мөн хүссэн хэмжээнд хүрэхгүй байх
+                          ч тохиолдол гардаг. Иймээс эмчилгээний үр дүнг тэр
+                          болгог урьдчилан мэдэх боломжгүй тул баталгааг
+                          өгдөггүй. Гажиг заслын эмчилгээгээр шүдний механик
+                          хүч ашиглан шүдүүдийг хөдөлгөн зуултыг засдаг бөгөөд
+                          зажлах, ярьж, залгих, үлээх үйлдлийн давтамжаас
+                          хамаарч тухайн хүч нь яс, сурвалж, буйл, шүдний тулгуур
+                          эд болон эрүүл үенд ачаалал өгдөг юм.
+                        </div>
+
+                        <div style={{ marginBottom: 8 }}>
+                          Анагаах ухааны салбарт эмчилгээг болон өөрийн
+                          хэрэгсэл эрсдэл дагуулдаг бөгөөд зөвхөн нэг шүд
+                          эрүүний гажиг заслын эмчилгээний явцад дараах
+                          хүндрэлүүд гарч болзошгүй.
+                        </div>
+
+                        <ol style={{ paddingLeft: 20, marginBottom: 8 }}>
+                          <li>
+                            Өвчтөн шүдээ тогтмол угаахгүй байх, нүүрс-ус болон
+                            чихэрний агууламж өндөртэй хүнсний
+                            бүтээгдэхүүнүүд хэрэглэхээс шүд эрдэсгүйтэн
+                            цоорох, буйл үрэвсэх. Үүний улмаас шүдийг 1 удаа
+                            фтортуулах шаардлагатай байж болно.
+                          </li>
+                          <li>
+                            Эмчилгээний явцад зарим өвчтөнүүдийн шүдний
+                            сурвалж богиносож, яс нь бага хэмжээгээр шимэгдэж
+                            болно. Харин өвчтөний наснаас хамааран (25 наснаас
+                            дээш) шүд суух, буйл шамарч, шүд хөдөлгөөнтэй болох
+                            хүндрэлүүд гарч болзошгүй.
+                          </li>
+                          <li>
+                            Амны хөндийн эрүүл ахуй дутуу сахиснаар буйл
+                            болон шүдний холбоос эдээр халдвар дамжиж, шүдийг
+                            тойрон хүрээлсэн тулгуур эд гэмтэх, улмаар шүд
+                            хөдөлгөөнтэй болох эрсдэлтэй.
+                          </li>
+                          <li>
+                            Эмчилгээний дараа бэхжүүлэх зэмсгийг тогтмол
+                            зүүхгүй байх, зажлах зуршил буруу хэвээр байх,
+                            амьсгалаа амаар авах, зуршлын өөрчлөлт хийхгүй байх
+                            зэрэг нь гажиг давтан үүсэх шалтгаан болдог.
+                          </li>
+                        </ol>
+
+                        <div
+                          style={{
+                            marginTop: 8,
+                            paddingTop: 6,
+                            borderTop: "1px dashed #e5e7eb",
+                            marginBottom: 8,
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              marginBottom: 4,
+                            }}
+                          >
+                            Сонгож хийх боломж
+                          </div>
+
+                          <div style={{ marginBottom: 8 }}>
+                            Гажиг заслын эмчилгээ хийлгэх нь хувь хүний
+                            сонголт юм. Иймээс зарим өвчтөн эмчилгээний явцад
+                            өөрийн шүдний байрлал, зуулт, бүтэц, нүүрний
+                            гадаад үзэмж зэрэгт сэтгэл ханамжтай байх
+                            тохиолдолд эмчилгээг дуусгалгүй орхих боломжтой.
+                            Энэ нь өвчтөний сонголт юм. Жишээ нь: шүд
+                            авахуулах/хийгээр засуулах, эрүү нүүрний мэс засал
+                            хийлгэхгүй байх, хиймэл шүд хийлгэх зэргийг гажиг
+                            заслын эмчилгээ эхлэхээс өмнө эмчтэй зөвлөж
+                            сонголтоо хийх хэрэгтэй.
+                          </div>
+
+                          <div
+                            style={{
+                              fontWeight: 600,
+                              marginBottom: 4,
+                            }}
+                          >
+                            Төлбөр тооцоо
+                          </div>
+
+                          <ol style={{ paddingLeft: 20 }}>
+                            <li>
+                              Гажиг заслын эмчилгээний зэмсгийн төлбөр нь
+                              таны сонголтоос хамаарна.
+                            </li>
+                            <li>
+                              Өвчтөн сар бүр давтан үзүүлэхэд{" "}
+                              <input
+                                type="text"
+                                value={
+                                  consentAnswersDraft?.orthoMonthlyFee || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    orthoMonthlyFee: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                style={{
+                                  minWidth: 80,
+                                  borderRadius: 4,
+                                  border: "1px solid #d1d5db",
+                                  padding: "0 4px",
+                                  fontSize: 12,
+                                }}
+                              />{" "}
+                              төгрөгийн төлбөр төлнө.
+                            </li>
+                            <li>
+                              Зэмсэг унасан, гэмтсэн тохиолдолд зэмсгээс
+                              хамааран{" "}
+                              <input
+                                type="text"
+                                value={
+                                  consentAnswersDraft?.orthoBrokenFee || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    orthoBrokenFee: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                style={{
+                                  minWidth: 80,
+                                  borderRadius: 4,
+                                  border: "1pxsolid #d1d5db",
+                                  padding: "0 4px",
+                                  fontSize: 12,
+                                }}
+                              />{" "}
+                              төгрөг нэмж төлнө.
+                            </li>
+                            <li>
+                              Гажиг заслын эмчилгээний үр дүнг бэхжүүлэх
+                              зэмсэг нь{" "}
+                              <input
+                                type="text"
+                                value={
+                                  consentAnswersDraft?.orthoRetainerFee ||
+                                  ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    orthoRetainerFee: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                style={{
+                                  minWidth: 80,
+                                  borderRadius: 4,
+                                  border: "1px solid #d1d5db",
+                                  padding: "0 4px",
+                                  fontSize: 12,
+                                }}
+                              />{" "}
+                              төгрөг байна.
+                            </li>
+                          </ol>
+                        </div>
+
+                        <div
+                          style={{
+                            marginTop: 8,
+                            paddingTop: 6,
+                            borderTop: "1px dashed #e5e7eb",
+                            marginBottom: 8,
+                          }}
+                        >
+                          <ol start={6} style={{ paddingLeft: 20 }}>
+                            <li>
+                              Гажиг заслын эмчилгээний явцад хэрэглэгдэх
+                              нэмэлт тоноглолууд (hook, open coil, stopper,
+                              torque spring, button, band г.м) тус бүр{" "}
+                              <input
+                                type="text"
+                                value={
+                                  consentAnswersDraft?.orthoAccessoryFee ||
+                                  ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    orthoAccessoryFee: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                style={{
+                                  minWidth: 80,
+                                  borderRadius: 4,
+                                  border: "1px solid #d1d5db",
+                                  padding: "0 4px",
+                                  fontSize: 12,
+                                }}
+                              />{" "}
+                              төгрөгийн төлбөртэй.
+                            </li>
+                            <li>
+                              Эмчилгээний явцад ирэхгүй 3 сар тутамд нэмэлт
+                              төлбөр{" "}
+                              <input
+                                type="text"
+                                value={
+                                  consentAnswersDraft?.orthoNoShowFee3m ||
+                                  ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    orthoNoShowFee3m: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                style={{
+                                  minWidth: 80,
+                                  borderRadius: 4,
+                                  border: "1px solid #d1d5db",
+                                  padding: "0 4px",
+                                  fontSize: 12,
+                                }}
+                              />{" "}
+                              төгрөг бодогдоно.
+                            </li>
+                            <li>
+                              6 сар болон түүнээс дээш хугацаагаар
+                              эмчилгээндээ ирэхгүй тохиолдолд рентген зураг
+                              дахин авч оношлогоо дахин хийнэ. Эмчилгээний
+                              төлбөр нэмэлт{" "}
+                              <input
+                                type="text"
+                                value={
+                                  consentAnswersDraft?.orthoNoShowFee6m ||
+                                  ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    orthoNoShowFee6m: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                style={{
+                                  minWidth: 80,
+                                  borderRadius: 4,
+                                  border: "1px solid #d1d5db",
+                                  padding: "0 4px",
+                                  fontSize: 12,
+                                }}
+                              />{" "}
+                              төгрөг байна.
+                            </li>
+                            <li>
+                              9 болон түүнээс дээш сараар эмчилгээндээ ирэхгүй
+                              бол нэмэлт төлбөр{" "}
+                              <input
+                                type="text"
+                                value={
+                                  consentAnswersDraft
+                                    ?.orthoNoShowFee9mOrMore || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    orthoNoShowFee9mOrMore:
+                                      e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                style={{
+                                  minWidth: 80,
+                                  borderRadius: 4,
+                                  border: "1px solid #d1d5db",
+                                  padding: "0 4px",
+                                  fontSize: 12,
+                                }}
+                              />{" "}
+                              авч эмчилгээг дахин эхлүүлнэ.
+                            </li>
+                            <li>
+                              1 жил буюу түүнээс дээш хугацаагаар
+                              эмчилгээндээ ирэхгүй тохиолдолд гажиг заслын
+                              эмчилгээг зогсоож, ахин шинээр хийлгэх
+                              эмчилгээг дахин эхлүүлнэ.
+                            </li>
+                            <li>
+                              Гажиг заслын авхдагтай зэмсэг зүүх хугацаанд 6
+                              сар тутам, эмчилгээ дууссаны дараа рентген
+                              зураг авах ба 1 рентген зургийн төлбөр{" "}
+                              <input
+                                type="text"
+                                value={
+                                  consentAnswersDraft?.orthoXrayFee || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    orthoXrayFee: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                style={{
+                                  minWidth: 80,
+                                  borderRadius: 4,
+                                  border: "1px солид #d1d5db",
+                                  padding: "0 4px",
+                                  fontSize: 12,
+                                }}
+                              />{" "}
+                              төгрөг байна.
+                            </li>
+                            <li>
+                              12.{" "}
+                              <textarea
+                                placeholder="Эмчийн нэмэлт тэмдэглэл / тусгай нөхцөл"
+                                value={
+                                  consentAnswersDraft?.orthoExtraNotes || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    orthoExtraNotes: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                rows={2}
+                                style={{
+                                  width: "100%",
+                                  borderRadius: 6,
+                                  border: "1px solid #d1d5db",
+                                  padding: "4px 6px",
+                                  fontSize: 12,
+                                  marginTop: 4,
+                                }}
+                              />
+                            </li>
+                          </ol>
+
+                          <div
+                            style={{
+                              marginTop: 8,
+                              fontSize: 12,
+                            }}
+                          >
+                            Танилцуулсан зөвшөөрлийг уншиж зөвшөөрсөн
+                            өвчтөний гарын үсэг{" "}
+                            <input
+                              type="text"
+                              placeholder="гарын үсэг"
+                              value={
+                                consentAnswersDraft
+                                  ?.orthoPatientAgreeSignature || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  orthoPatientAgreeSignature:
+                                    e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              style={{
+                                minWidth: 80,
+                                borderRadius: 4,
+                                border: "1px solid #d1d5db",
+                                padding: "0 4px",
+                                fontSize: 12,
+                              }}
+                            />{" "}
+                            /{" "}
+                            <input
+                              type="text"
+                              placeholder="нэр"
+                              value={
+                                consentAnswersDraft
+                                  ?.orthoPatientAgreeName || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  orthoPatientAgreeName: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              style={{
+                                minWidth: 80,
+                                borderRadius: 4,
+                                border: "1px solid #d1d5db",
+                                padding: "0 4px",
+                                fontSize: 12,
+                              }}
+                            />
+                            <br />
+                            Өвчтөний асран хамгаалагчийн гарын үсэг{" "}
+                            <input
+                              type="text"
+                              placeholder="гарын үсэг"
+                              value={
+                                consentAnswersDraft
+                                  ?.orthoGuardianAgreeSignature || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  orthoGuardianAgreeSignature:
+                                    e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              style={{
+                                minWidth: 80,
+                                borderRadius: 4,
+                                border: "1px solid #d1d5db",
+                                padding: "0 4px",
+                                fontSize: 12,
+                              }}
+                            />{" "}
+                            /{" "}
+                            <input
+                              type="text"
+                              placeholder="нэр"
+                              value={
+                                consentAnswersDraft
+                                  ?.orthoGuardianAgreeName || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  orthoGuardianAgreeName: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              style={{
+                                minWidth: 80,
+                                borderRadius: 4,
+                                border: "1px solid #d1d5db",
+                                padding: "0 4px",
+                                fontSize: 12,
+                              }}
+                            />
+                            <br />
+                            Эмчилгээ хийж буй эмчийн гарын үсэг{" "}
+                            <input
+                              type="text"
+                              placeholder="гарын үсэг"
+                              value={
+                                consentAnswersDraft
+                                  ?.orthoDoctorAgreeSignature || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  orthoDoctorAgreeSignature:
+                                    e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              style={{
+                                minWidth: 80,
+                                borderRadius: 4,
+                                border: "1px solid #d1d5db",
+                                padding: "0 4px",
+                                fontSize: 12,
+                              }}
+                            />{" "}
+                            /{" "}
+                            <strong>
+                              {formatDoctorDisplayName(encounter.doctor)}
+                            </strong>
+                            <div style={{ marginTop: 4 }}>
+                              Огноо:{" "}
+                              <strong>
+                                {formatShortDate(encounter.visitDate)}
                               </strong>
                             </div>
                           </div>
                         </div>
 
-                        <div>
-                          Огноо:{" "}
-                          <strong>
-                            {formatShortDate(encounter.visitDate)}
-                          </strong>
+                        <div
+                          style={{
+                            marginTop: 12,
+                            paddingTop: 8,
+                            borderTop: "1px dashed #e5e7eb",
+                          }}
+                        >
+                          <div
+                            style={{
+                              textAlign: "center",
+                              fontWeight: 600,
+                              fontSize: 13,
+                              marginBottom: 8,
+                            }}
+                          >
+                            Эмчилгээний танилцуулга гэрээ
+                          </div>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 16,
+                              marginBottom: 8,
+                            }}
+                          >
+                            <div>
+                              Овог:{" "}
+                              <input
+                                type="text"
+                                value={
+                                  consentAnswersDraft?.orthoIntroOvog || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    orthoIntroOvog: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                style={{
+                                  minWidth: 140,
+                                  borderRadius: 4,
+                                  border: "1px солид #d1d5db",
+                                  padding: "0 6px",
+                                  fontSize: 12,
+                                }}
+                              />
+                            </div>
+                            <div>
+                              Нэр:{" "}
+                              <input
+                                type="text"
+                                value={
+                                  consentAnswersDraft?.orthoIntroName || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    orthoIntroName: e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                style={{
+                                  minWidth: 140,
+                                  borderRadius: 4,
+                                  border: "1px solid #d1d5db",
+                                  padding: "0 6px",
+                                  fontSize: 12,
+                                }}
+                              />
+                            </div>
+                            <div>
+                              Огноо:{" "}
+                              <strong>
+                                {formatShortDate(encounter.visitDate)}
+                              </strong>
+                            </div>
+                          </div>
+
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                              fontSize: 12,
+                              marginBottom: 6,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={
+                                !!consentAnswersDraft
+                                  ?.orthoIntroDoctorExplained
+                              }
+                              onChange={async (e) => {
+                                updateConsentAnswers({
+                                  orthoIntroDoctorExplained:
+                                    e.target.checked,
+                                });
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                            />
+                            <span>
+                              Хийгдэхээр төлөвлөгдсөн эмчилгээ болон түүнээс
+                              гарч болох хүндрэлүүдийг эмч тайлбарлаж өгсөн
+                              болно.
+                            </span>
+                          </label>
+
+                          <div
+                            style={{
+                              fontSize: 12,
+                              marginBottom: 6,
+                            }}
+                          >
+                            НАС сургуулийн НAСЭ-т сургалт, эрдэм
+                            шинжилгээ, эмчилгээ, үйлчилгээ зэрэг явагддаг тул
+                            нэгдсэн багээр (эмч, багш, резидент эмч,
+                            оюутнууд хамтран) үзлэг, эмчилгээ хийхийг
+                            зөвшөөрч байна.
+                          </div>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 16,
+                              marginBottom: 8,
+                              fontSize: 12,
+                            }}
+                          >
+                            <div>
+                              Эмчийн нэр:{" "}
+                              <strong>
+                                {formatDoctorDisplayName(encounter.doctor)}
+                              </strong>
+                            </div>
+                            <div>
+                              Гарын үсэг:{" "}
+                              <input
+                                type="text"
+                                value={
+                                  consentAnswersDraft
+                                    ?.orthoIntroDoctorSignature || ""
+                                }
+                                onChange={(e) =>
+                                  updateConsentAnswers({
+                                    orthoIntroDoctorSignature:
+                                      e.target.value,
+                                  })
+                                }
+                                onBlur={async () => {
+                                  await saveConsentApi(consentTypeDraft);
+                                }}
+                                style={{
+                                  minWidth: 140,
+                                  borderRadius: 4,
+                                  border: "1px солид #d1d5db",
+                                  padding: "0 6px",
+                                  fontSize: 12,
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <div style={{ marginBottom: 6 }}>
+                            <div
+                              style={{
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Үйлчлүүлэгчийн асуусан асуулт:
+                            </div>
+                            <textarea
+                              value={
+                                consentAnswersDraft
+                                  ?.orthoIntroPatientQuestions || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  orthoIntroPatientQuestions:
+                                    e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1pxsolид #d1d5db",
+                                padding: "4px 6px",
+                                fontSize: 12,
+                              }}
+                            />
+                          </div>
+
+                          <div style={{ marginBottom: 6 }}>
+                            <div
+                              style={{
+                                fontWeight: 500,
+                                marginBottom: 2,
+                              }}
+                            >
+                              Эмчийн хариулт:
+                            </div>
+                            <textarea
+                              value={
+                                consentAnswersDraft?.orthoIntroDoctorAnswer ||
+                                ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  orthoIntroDoctorAnswer: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              rows={3}
+                              style={{
+                                width: "100%",
+                                borderRadius: 6,
+                                border: "1pxсолид #d1d5db",
+                                padding: "4px 6px",
+                                fontSize: 12,
+                              }}
+                            />
+                          </div>
+
+                          <label
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                              fontSize: 12,
+                              marginTop: 6,
+                              marginBottom: 4,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={
+                                !!consentAnswersDraft
+                                  ?.orthoIntroPatientUnderstood
+                              }
+                              onChange={async (e) => {
+                                updateConsentAnswers({
+                                  orthoIntroPatientUnderstood:
+                                    e.target.checked,
+                                });
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                            />
+                            <span>
+                              Хийлгэх эмчилгээний талаар дэлгэрэнгүй
+                              тайлбар авсан бөгөөд энэхүү эмчилгээг хийлгэхийг
+                              зөвшөөрч байна.
+                            </span>
+                          </label>
+
+                          <div style={{ marginTop: 4, fontSize: 12 }}>
+                            Үйлчлүүлэгчийн гарын үсэг{" "}
+                            <input
+                              type="text"
+                              value={
+                                consentAnswersDraft
+                                  ?.orthoIntroPatientSignature1 || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  orthoIntroPatientSignature1:
+                                    e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              style={{
+                                minWidth: 140,
+                                borderRadius: 4,
+                                border: "1pxсолид #d1d5db",
+                                padding: "0 6px",
+                                fontSize: 12,
+                              }}
+                            />
+                            <br />
+                            Үйлчлүүлэгчийн гарын үсэг{" "}
+                            <input
+                              type="text"
+                              value={
+                                consentAnswersDraft
+                                  ?.orthoIntroPatientSignature2 || ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  orthoIntroPatientSignature2:
+                                    e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              style={{
+                                minWidth: 140,
+                                borderRadius: 4,
+                                border: "1pxсолид #d1d5db",
+                                padding: "0 6px",
+                                fontSize: 12,
+                                marginTop: 2,
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* ... keep your full surgery / orthodontic / prosthodontic JSX here ... */}
+                    {consentTypeDraft === "prosthodontic" && (
+                      <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                        <div
+                          style={{
+                            textAlign: "center",
+                            fontWeight: 700,
+                            fontSize: 14,
+                            marginBottom: 12,
+                          }}
+                        >
+                          НАСЗ заслын эмчилгээний танилцуулах зөвшөөрөл
+                        </div>
+
+                        <textarea
+                          placeholder="Эмчилгээний ерөнхий тайлбар, зорилго, онцлог..."
+                          value={consentAnswersDraft?.prosthoIntroText || ""}
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              prosthoIntroText: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsentApi(consentTypeDraft);
+                          }}
+                          rows={3}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 8px",
+                            fontSize: 12,
+                            marginBottom: 10,
+                          }}
+                        />
+
+                        <div
+                          style={{
+                            fontWeight: 500,
+                            marginBottom: 2,
+                          }}
+                        >
+                          Хоёрдох удаагийн ирэлтээр:
+                        </div>
+                        <textarea
+                          value={
+                            consentAnswersDraft?.prosthoSecondVisit || ""
+                          }
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              prosthoSecondVisit: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsentApi(consentTypeDraft);
+                          }}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 8px",
+                            fontSize: 12,
+                            marginBottom: 10,
+                          }}
+                        />
+
+                        <div
+                          style={{
+                            fontWeight: 500,
+                            marginBottom: 2,
+                          }}
+                        >
+                          Эмчилгээний сул тал:
+                        </div>
+                        <textarea
+                          value={consentAnswersDraft?.prosthoWeakPoints || ""}
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              prosthoWeakPoints: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsentApi(consentTypeDraft);
+                          }}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 8px",
+                            fontSize: 12,
+                            marginBottom: 10,
+                          }}
+                        />
+
+                        <div
+                          style={{
+                            fontWeight: 500,
+                            marginBottom: 2,
+                          }}
+                        >
+                          Эмчилгээний явц:
+                        </div>
+                        <textarea
+                          value={consentAnswersDraft?.prosthoCourse || ""}
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              prosthoCourse: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsentApi(consentTypeDraft);
+                          }}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 8px",
+                            fontSize: 12,
+                            marginBottom: 10,
+                          }}
+                        />
+
+                        <div
+                          style={{
+                            fontWeight: 500,
+                            marginBottom: 2,
+                          }}
+                        >
+                          Эмчилгээний үнэ өртөг:
+                        </div>
+                        <textarea
+                          value={consentAnswersDraft?.prosthoCost || ""}
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              prosthoCost: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsentApi(consentTypeDraft);
+                          }}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 8px",
+                            fontSize: 12,
+                            marginBottom: 10,
+                          }}
+                        />
+
+                        <div
+                          style={{
+                            fontWeight: 500,
+                            marginBottom: 2,
+                          }}
+                        >
+                          Танилцах зөвшөөрлийг уншиж танилцсан:
+                        </div>
+                        <textarea
+                          value={
+                            consentAnswersDraft?.prosthoAcknowledgement || ""
+                          }
+                          onChange={(e) =>
+                            updateConsentAnswers({
+                              prosthoAcknowledgement: e.target.value,
+                            })
+                          }
+                          onBlur={async () => {
+                            await saveConsentApi(consentTypeDraft);
+                          }}
+                          rows={2}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 8px",
+                            fontSize: 12,
+                            marginBottom: 12,
+                          }}
+                        />
+
+                        <div
+                          style={{
+                            marginTop: 4,
+                            fontSize: 12,
+                          }}
+                        >
+                          <div style={{ marginBottom: 6 }}>
+                            Эмчлэгч эмч:{" "}
+                            <input
+                              type="text"
+                              placeholder="гарын үсэг"
+                              value={
+                                consentAnswersDraft?.prosthoDoctorSignature ||
+                                ""
+                              }
+                              onChange={(e) =>
+                                updateConsentAnswers({
+                                  prosthoDoctorSignature: e.target.value,
+                                })
+                              }
+                              onBlur={async () => {
+                                await saveConsentApi(consentTypeDraft);
+                              }}
+                              style={{
+                                minWidth: 120,
+                                borderRadius: 4,
+                                border: "1px solid #d1d5db",
+                                padding: "0 6px",
+                                fontSize: 12,
+                                marginRight: 6,
+                              }}
+                            />
+                            /{" "}
+                            <strong>
+                              {formatDoctorDisplayName(encounter.doctor)}
+                            </strong>
+                          </div>
+
+                          <div>
+                            Огноо:{" "}
+                            <strong>
+                              {formatShortDate(encounter.visitDate)}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                   <div
                     style={{
@@ -1913,19 +4531,37 @@ export default function EncounterAdminPage() {
                         ? "Хадгалж байна..."
                         : "Зөвшөөрөл хадгалах"}
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void saveCurrentConsent()}
+                      disabled={consentSaving}
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: 6,
+                        border: "1px solid #2563eb",
+                        background: "#eff6ff",
+                        color: "#2563eb",
+                        fontSize: 12,
+                        cursor: consentSaving ? "default" : "pointer",
+                      }}
+                    >
+                      {consentSaving
+                        ? "Илгээж байна..."
+                        : "Зөвшөөрөл илгээх / засах"}
+                    </button>
                   </div>
                 </>
               )}
-            </div>
 
-            {encounter.notes && (
-              <div style={{ marginTop: 4 }}>
-                <strong>Тэмдэглэл:</strong> {encounter.notes}
-              </div>
-            )}
+              {encounter.notes && (
+                <div style={{ marginTop: 4 }}>
+                  <strong>Тэмдэглэл:</strong> {encounter.notes}
+                </div>
+              )}
+            </div>
           </section>
 
-          {/* Tooth chart */}
           <section
             style={{
               marginTop: 0,
@@ -2032,6 +4668,7 @@ export default function EncounterAdminPage() {
                 key="RANGE"
                 type="text"
                 placeholder="ж: 21-24, 25-26, 11,21,22"
+                value={customToothRange}
                 onChange={(e) => setCustomToothRange(e.target.value)}
                 style={{
                   minWidth: 140,
@@ -2075,7 +4712,6 @@ export default function EncounterAdminPage() {
             </div>
           </section>
 
-          {/* Diagnoses + services + prescription + media */}
           <section
             style={{
               marginTop: 16,
@@ -2132,7 +4768,6 @@ export default function EncounterAdminPage() {
                       background: "#f9fafb",
                     }}
                   >
-                    {/* Diagnosis search */}
                     <div
                       style={{
                         display: "flex",
@@ -2274,7 +4909,6 @@ export default function EncounterAdminPage() {
                       </div>
                     </div>
 
-                    {/* Tooth list */}
                     <div
                       style={{
                         marginBottom: 8,
@@ -2294,7 +4928,7 @@ export default function EncounterAdminPage() {
                         style={{
                           maxWidth: 260,
                           borderRadius: 6,
-                          border: "1px solid #d1d5db",
+                          border: "1px солид #d1d5db",
                           padding: "6px 8px",
                           fontSize: 12,
                         }}
@@ -2305,7 +4939,6 @@ export default function EncounterAdminPage() {
                       </span>
                     </div>
 
-                    {/* Service for this diagnosis */}
                     <div
                       style={{
                         marginBottom: 8,
@@ -2438,7 +5071,6 @@ export default function EncounterAdminPage() {
                       </div>
                     </div>
 
-                    {/* Problems */}
                     {row.diagnosisId ? (
                       <>
                         {problems.length === 0 ? (
@@ -2498,7 +5130,6 @@ export default function EncounterAdminPage() {
                       </>
                     ) : null}
 
-                    {/* Note */}
                     <textarea
                       placeholder="Энэ оношид холбогдох тэмдэглэл (сонголттой)"
                       value={row.note}
@@ -2509,7 +5140,7 @@ export default function EncounterAdminPage() {
                       style={{
                         width: "100%",
                         borderRadius: 6,
-                        border: "1px solid #d1d5db",
+                        border: "1px солид #d1d5db",
                         padding: "6px 8px",
                         fontSize: 13,
                         resize: "vertical",
@@ -2524,7 +5155,6 @@ export default function EncounterAdminPage() {
               <div style={{ color: "red", marginTop: 8 }}>{saveError}</div>
             )}
 
-            {/* Totals + buttons */}
             <div
               style={{
                 marginTop: 12,
@@ -2596,7 +5226,6 @@ export default function EncounterAdminPage() {
               </div>
             </div>
 
-            {/* Media / X-ray images – directly ABOVE prescription */}
             <div
               style={{
                 marginTop: 16,
@@ -2638,7 +5267,7 @@ export default function EncounterAdminPage() {
                     alignItems: "center",
                     padding: "6px 12px",
                     borderRadius: 6,
-                    border: "1px solid #2563eb",
+                    border: "1px солид #2563eb",
                     background: "#eff6ff",
                     color: "#2563eb",
                     fontSize: 12,
@@ -2668,7 +5297,7 @@ export default function EncounterAdminPage() {
                   style={{
                     padding: "6px 12px",
                     borderRadius: 6,
-                    border: "1px solid #6b7280",
+                    border: "1px солид #6b7280",
                     background: "#f3f4f6",
                     color: "#374151",
                     fontSize: 12,
@@ -2691,7 +5320,7 @@ export default function EncounterAdminPage() {
 
               {!mediaLoading && media.length === 0 && !mediaError && (
                 <div style={{ fontSize: 13, color: "#6b7280" }}>
-                  Одоогоор энэ үзлэгт зураг хадгалагүй байна.
+                  Одоогоор энэ үзлэгт зураг хадгалаагүй байна.
                 </div>
               )}
 
@@ -2723,7 +5352,7 @@ export default function EncounterAdminPage() {
                           textDecoration: "none",
                           color: "#111827",
                           borderRadius: 8,
-                          border: "1px solid #e5e7eb",
+                          border: "1px солид #e5e7eb",
                           overflow: "hidden",
                           background: "#f9fafb",
                         }}
@@ -2751,7 +5380,7 @@ export default function EncounterAdminPage() {
                           style={{
                             padding: 6,
                             fontSize: 11,
-                            borderTop: "1px solid #e5e7eb",
+                            borderTop: "1px солид #e5e7eb",
                             background: "#ffffff",
                           }}
                         >
@@ -2772,7 +5401,6 @@ export default function EncounterAdminPage() {
               )}
             </div>
 
-            {/* Prescription section */}
             <div
               style={{
                 marginTop: 16,
@@ -2856,7 +5484,7 @@ export default function EncounterAdminPage() {
                       style={{
                         width: "100%",
                         borderRadius: 6,
-                        border: "1px solid #d1d5db",
+                        border: "1px солид #d1d5db",
                         padding: "4px 6px",
                         fontSize: 12,
                       }}
@@ -2882,7 +5510,7 @@ export default function EncounterAdminPage() {
                       style={{
                         width: "100%",
                         borderRadius: 6,
-                        border: "1px solid #d1d5db",
+                        border: "1px солид #d1d5db",
                         padding: "4px 6px",
                         fontSize: 12,
                         textAlign: "center",
@@ -2909,7 +5537,7 @@ export default function EncounterAdminPage() {
                       style={{
                         width: "100%",
                         borderRadius: 6,
-                        border: "1px solid #d1d5db",
+                        border: "1pxсолид #d1d5db",
                         padding: "4px 6px",
                         fontSize: 12,
                         textAlign: "center",
@@ -2936,7 +5564,7 @@ export default function EncounterAdminPage() {
                       style={{
                         width: "100%",
                         borderRadius: 6,
-                        border: "1px solid #d1d5db",
+                        border: "1pxсолид #d1d5db",
                         padding: "4px 6px",
                         fontSize: 12,
                         textAlign: "center",
@@ -2957,7 +5585,7 @@ export default function EncounterAdminPage() {
                       style={{
                         width: "100%",
                         borderRadius: 6,
-                        border: "1px solid #d1d5db",
+                        border: "1pxсолид #d1d5db",
                         padding: "4px 6px",
                         fontSize: 12,
                       }}
@@ -2972,7 +5600,7 @@ export default function EncounterAdminPage() {
                       style={{
                         padding: "4px 6px",
                         borderRadius: 6,
-                        border: "1px solid #dc2626",
+                        border: "1pxсолид #dc2626",
                         background: "#fef2f2",
                         color: "#b91c1c",
                         cursor: "pointer",
@@ -3018,7 +5646,7 @@ export default function EncounterAdminPage() {
                     marginTop: 4,
                     padding: "4px 10px",
                     borderRadius: 6,
-                    border: "1px solid #2563eb",
+                    border: "1pxсолид #2563eb",
                     background: "#eff6ff",
                     color: "#2563eb",
                     cursor:
@@ -3041,7 +5669,7 @@ export default function EncounterAdminPage() {
                     marginLeft: 8,
                     padding: "4px 10px",
                     borderRadius: 6,
-                    border: "1px solid #16a34a",
+                    border: "1pxсолид #16a34a",
                     background: "#ecfdf3",
                     color: "#166534",
                     cursor: prescriptionSaving ? "default" : "pointer",
