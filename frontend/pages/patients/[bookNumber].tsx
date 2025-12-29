@@ -477,7 +477,7 @@ const handleEditChange = (
     return;
   }
 
-  const type = visitCard?.type || visitCardTypeDraft;
+  const type = visitCardTypeDraft;
   if (!type) {
     setVisitCardError(
       "Эхлээд картын төрлийг сонгоно уу (том хүн / хүүхэд)."
@@ -496,6 +496,7 @@ const handleEditChange = (
         answers: visitCardAnswers,
       }),
     });
+
 
       const json = await res.json().catch(() => null);
       if (!res.ok) {
