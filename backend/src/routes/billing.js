@@ -1,11 +1,9 @@
 import express from "express";
-import { authenticateJWT } from "../middleware/auth.js"; // Correct import
+import { authenticateJWT } from "../middleware/auth.js";
+import { PrismaClient } from "@prisma/client";
 
+const prisma = new PrismaClient();
 const router = express.Router();
-
-router.get("/something-protected", authenticateJWT, async (req, res) => {
-
-
 
 /**
  * Helper: map DiscountPercent enum to numeric value
@@ -44,7 +42,7 @@ function toDiscountEnum(percent) {
  */
 router.get(
   "/encounters/:id/invoice",
-  authenticate,
+  authenticateJWT,
   async (req, res) => {
     const encounterId = Number(req.params.id);
     if (!encounterId || Number.isNaN(encounterId)) {
@@ -204,7 +202,7 @@ router.get(
  */
 router.post(
   "/encounters/:id/invoice",
-  authenticate,
+  authenticateJWT,
   async (req, res) => {
     const encounterId = Number(req.params.id);
     if (!encounterId || Number.isNaN(encounterId)) {
@@ -442,4 +440,7 @@ router.post(
  *   - wallet derived from LedgerEntry sums
  */
 
-export default router;
+// Always use CommonJS export for router if your app uses require()
+// Change to ES module export only if your app is pure ESM and your entrypoint uses import/export
+
+module.exports = router;
