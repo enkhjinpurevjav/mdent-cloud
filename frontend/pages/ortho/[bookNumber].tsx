@@ -7,6 +7,30 @@ import FullArchDiscOdontogram, {
 /**
  * Orthodontic patient card page.
  */
+
+type FacialSection = {
+  tonsilYes?: boolean;
+  tonsilNo?: boolean;
+  adenoidYes?: boolean;
+  adenoidNo?: boolean;
+
+  // Convex / Straight / Concave
+  profileConvex?: boolean;
+  profileStraight?: boolean;
+  profileConcave?: boolean;
+
+  eLineUpperMm?: string;
+  eLineLowerMm?: string;
+
+  // Facial symmetry
+  symmetryEqual?: boolean;    // Тэгш
+  symmetryUnequal?: boolean;  // Тэгш бус
+
+  skeletalShiftYes?: boolean;
+  skeletalShiftNo?: boolean;
+  skeletalShiftProbable?: boolean; // Магадлалтай
+};
+
 type TreatmentPlanColumn = {
   plan?: string;
   note?: string;
@@ -280,6 +304,7 @@ type OrthoCardData = {
   teeth?: TeethSection; // NEW
   problemSection?: ProblemSection; // NEW
   treatmentPlan?: TreatmentPlanSection; // NEW
+  facial?: FacialSection; // NEW
 };
 
 type OrthoCardApiResponse = {
@@ -509,6 +534,23 @@ export default function OrthoCardPage() {
   open: false,
   restLipMm: "",
   smilingMm: "",
+});
+
+  const [facial, setFacial] = useState<FacialSection>({
+  tonsilYes: false,
+  tonsilNo: false,
+  adenoidYes: false,
+  adenoidNo: false,
+  profileConvex: false,
+  profileStraight: false,
+  profileConcave: false,
+  eLineUpperMm: "",
+  eLineLowerMm: "",
+  symmetryEqual: false,
+  symmetryUnequal: false,
+  skeletalShiftYes: false,
+  skeletalShiftNo: false,
+  skeletalShiftProbable: false,
 });
 
   const [teeth, setTeeth] = useState<TeethSection>({
