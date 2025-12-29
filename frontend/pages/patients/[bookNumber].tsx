@@ -1477,45 +1477,72 @@ const handleEditChange = (
                 </div>
               )}
 
-                             {activeTab === "visit_card" && (
-                <>
-                  {/* Adult form */}
-                  <div
-                    style={{
-                      borderRadius: 12,
-                      border: "1px solid #e5e7eb",
-                      padding: 16,
-                      background: "white",
-                      marginBottom: 16,
-                    }}
-                  >
-                    <h2
-                      style={{
-                        fontSize: 16,
-                        marginTop: 0,
-                        marginBottom: 12,
-                      }}
-                    >
-                      Үзлэгийн карт (Том хүн)
-                    </h2>
+                               <>
+    {/* Type selector for adult vs child */}
+    <div
+      style={{
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        padding: 12,
+        background: "white",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 14,
+          fontWeight: 600,
+          marginBottom: 8,
+        }}
+      >
+        Үзлэгийн картын төрөл
+      </div>
+      <div
+        style={{
+          display: "flex",
+          gap: 20,
+          alignItems: "center",
+          fontSize: 13,
+        }}
+      >
+        <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <input
+            type="radio"
+            name="visitCardType"
+            value="ADULT"
+            checked={visitCardTypeDraft === "ADULT"}
+            onChange={() => setVisitCardTypeDraft("ADULT")}
+          />
+          <span>Үзлэгийн карт (Том хүн)</span>
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <input
+            type="radio"
+            name="visitCardType"
+            value="CHILD"
+            checked={visitCardTypeDraft === "CHILD"}
+            onChange={() => setVisitCardTypeDraft("CHILD")}
+          />
+          <span>Үзлэгийн карт (Хүүхэд)</span>
+        </label>
+      </div>
 
-                    {visitCardLoading && (
-                      <div style={{ fontSize: 13 }}>
-                        Үзлэгийн карт ачааллаж байна...
-                      </div>
-                    )}
+      {visitCardLoading && (
+        <div style={{ fontSize: 13, marginTop: 8 }}>
+          Үзлэгийн карт ачааллаж байна...
+        </div>
+      )}
 
-                    {!visitCardLoading && visitCardError && (
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: "#b91c1c",
-                          marginBottom: 8,
-                        }}
-                      >
-                        {visitCardError}
-                      </div>
-                    )}
+      {!visitCardLoading && visitCardError && (
+        <div
+          style={{
+            fontSize: 12,
+            color: "#b91c1c",
+            marginTop: 8,
+          }}
+        >
+          {visitCardError}
+        </div>
+      )}
 
                     {!visitCardLoading && (
                       <>
@@ -2558,33 +2585,35 @@ const handleEditChange = (
 
                   {/* Child form rendered below adult form */}
                   <ChildVisitCardForm
-                    answers={visitCardAnswers}
-                    visitCard={visitCard}
-                    visitCardTypeDraft={visitCardTypeDraft}
-                    setVisitCardTypeDraft={setVisitCardTypeDraft}
-                    updateVisitCardAnswer={(
-                      key: keyof VisitCardAnswers,
-                      value: VisitCardAnswers[keyof VisitCardAnswers]
-                    ) => updateVisitCardAnswer(key, value as any)}
-                    updateNested={(
-                      section: string,
-                      field: string,
-                      value: any
-                    ) =>
-                      updateNested(
-                        section as keyof VisitCardAnswers,
-                        field,
-                        value
-                      )
-                    }
-                    signatureSaving={signatureSaving}
-                    handleUploadSignature={handleUploadSignature}
-                    handleSaveVisitCard={handleSaveVisitCard}
-                    visitCardSaving={visitCardSaving}
-                    formatDate={formatDate}
-                  />
-                </>
-              )}
+          answers={visitCardAnswers}
+          visitCard={visitCard}
+          visitCardTypeDraft={visitCardTypeDraft}
+          setVisitCardTypeDraft={setVisitCardTypeDraft}
+          updateVisitCardAnswer={(
+            key: keyof VisitCardAnswers,
+            value: VisitCardAnswers[keyof VisitCardAnswers]
+          ) => updateVisitCardAnswer(key, value as any)}
+          updateNested={(
+            section: string,
+            field: string,
+            value: any
+          ) =>
+            updateNested(
+              section as keyof VisitCardAnswers,
+              field,
+              value
+            )
+          }
+          signatureSaving={signatureSaving}
+          handleUploadSignature={handleUploadSignature}
+          handleSaveVisitCard={handleSaveVisitCard}
+          visitCardSaving={visitCardSaving}
+          formatDate={formatDate}
+        />
+      </div>
+    )}
+  </>
+)}
 
             </div> 
           </section>
