@@ -203,6 +203,9 @@ model Patient {
   appointments   Appointment[]
   bookings       Booking[]
 
+  // NEW: invoices that reference this patient (from Invoice.patient)
+  invoices       Invoice[]
+
   // NEW: financial movements related to this patient
   ledgerEntries  LedgerEntry[]
 }
