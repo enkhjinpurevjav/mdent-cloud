@@ -305,9 +305,9 @@ useEffect(() => {
           setVisitCardTypeDraft(card.type);
           setVisitCardAnswers(card.answers || {});
         } else {
-          setVisitCardTypeDraft(null);
-          setVisitCardAnswers({});
-        }
+  setVisitCardTypeDraft("ADULT");
+  setVisitCardAnswers({});
+}
       } catch (err: any) {
         console.error("loadVisitCard failed", err);
         setVisitCardError(
@@ -1477,74 +1477,113 @@ const handleEditChange = (
                 </div>
               )}
 
-                               <>
-    {/* Type selector for adult vs child */}
-    <div
-      style={{
-        borderRadius: 12,
-        border: "1px solid #e5e7eb",
-        padding: 12,
-        background: "white",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 14,
-          fontWeight: 600,
-          marginBottom: 8,
-        }}
-      >
-        Үзлэгийн картын төрөл
-      </div>
-      <div
-        style={{
-          display: "flex",
-          gap: 20,
-          alignItems: "center",
-          fontSize: 13,
-        }}
-      >
-        <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <input
-            type="radio"
-            name="visitCardType"
-            value="ADULT"
-            checked={visitCardTypeDraft === "ADULT"}
-            onChange={() => setVisitCardTypeDraft("ADULT")}
-          />
-          <span>Үзлэгийн карт (Том хүн)</span>
-        </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <input
-            type="radio"
-            name="visitCardType"
-            value="CHILD"
-            checked={visitCardTypeDraft === "CHILD"}
-            onChange={() => setVisitCardTypeDraft("CHILD")}
-          />
-          <span>Үзлэгийн карт (Хүүхэд)</span>
-        </label>
-      </div>
+                                </div>
+              )}
 
-      {visitCardLoading && (
-        <div style={{ fontSize: 13, marginTop: 8 }}>
-          Үзлэгийн карт ачааллаж байна...
-        </div>
-      )}
+              {activeTab === "visit_card" && (
+                <>
+                  {/* Type selector for adult vs child */}
+                  <div
+                    style={{
+                      borderRadius: 12,
+                      border: "1px solid #e5e7eb",
+                      padding: 12,
+                      background: "white",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        marginBottom: 8,
+                      }}
+                    >
+                      Үзлэгийн картын төрөл
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 20,
+                        alignItems: "center",
+                        fontSize: 13,
+                      }}
+                    >
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="visitCardType"
+                          value="ADULT"
+                          checked={visitCardTypeDraft === "ADULT"}
+                          onChange={() => setVisitCardTypeDraft("ADULT")}
+                        />
+                        <span>Үзлэгийн карт (Том хүн)</span>
+                      </label>
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="visitCardType"
+                          value="CHILD"
+                          checked={visitCardTypeDraft === "CHILD"}
+                          onChange={() => setVisitCardTypeDraft("CHILD")}
+                        />
+                        <span>Үзлэгийн карт (Хүүхэд)</span>
+                      </label>
+                    </div>
 
-      {!visitCardLoading && visitCardError && (
-        <div
-          style={{
-            fontSize: 12,
-            color: "#b91c1c",
-            marginTop: 8,
-          }}
-        >
-          {visitCardError}
-        </div>
-      )}
+                    {visitCardLoading && (
+                      <div style={{ fontSize: 13, marginTop: 8 }}>
+                        Үзлэгийн карт ачааллаж байна...
+                      </div>
+                    )}
 
-                    {!visitCardLoading && (
+                    {!visitCardLoading && visitCardError && (
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#b91c1c",
+                          marginTop: 8,
+                        }}
+                      >
+                        {visitCardError}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Render only one form depending on visitCardTypeDraft */}
+                  {(visitCardTypeDraft ?? "ADULT") === "ADULT" ? (
+                    <div
+                      style={{
+                        borderRadius: 12,
+                        border: "1px solid #e5e7eb",
+                        padding: 16,
+                        background: "white",
+                        marginTop: 16,
+                        marginBottom: 16,
+                      }}
+                    >
+                      <h2
+                        style={{
+                          fontSize: 16,
+                          marginTop: 0,
+                          marginBottom: 12,
+                        }}
+                      >
+                        Үзлэгийн карт (Том хүн)
+                      </h2>
+
+                      {!visitCardLoading && (
                       <>
                         {/* Урьдчилан сэргийлэх асуумж */}
                         <section style={{ marginTop: 8, fontSize: 13 }}>
@@ -2549,71 +2588,71 @@ const handleEditChange = (
         {/* 6) Save button */}
          {/* 6) Save button */}
                         <div
-                          style={{
-                            marginTop: 16,
-                            display: "flex",
-                            justifyContent: "flex-end",
-                            gap: 8,
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={handleSaveVisitCard}
-                            disabled={visitCardSaving}
                             style={{
-                              padding: "6px 12px",
-                              borderRadius: 6,
-                              border: "none",
-                              background: visitCardSaving
-                                ? "#9ca3af"
-                                : "#2563eb",
-                              color: "#ffffff",
-                              fontSize: 13,
-                              cursor: visitCardSaving
-                                ? "default"
-                                : "pointer",
+                              marginTop: 16,
+                              display: "flex",
+                              justifyContent: "flex-end",
+                              gap: 8,
                             }}
                           >
-                            {visitCardSaving
-                              ? "Хадгалж байна..."
-                              : "Үзлэгийн карт хадгалах"}
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Child form rendered below adult form */}
-                  <ChildVisitCardForm
-          answers={visitCardAnswers}
-          visitCard={visitCard}
-          visitCardTypeDraft={visitCardTypeDraft}
-          setVisitCardTypeDraft={setVisitCardTypeDraft}
-          updateVisitCardAnswer={(
-            key: keyof VisitCardAnswers,
-            value: VisitCardAnswers[keyof VisitCardAnswers]
-          ) => updateVisitCardAnswer(key, value as any)}
-          updateNested={(
-            section: string,
-            field: string,
-            value: any
-          ) =>
-            updateNested(
-              section as keyof VisitCardAnswers,
-              field,
-              value
-            )
-          }
-          signatureSaving={signatureSaving}
-          handleUploadSignature={handleUploadSignature}
-          handleSaveVisitCard={handleSaveVisitCard}
-          visitCardSaving={visitCardSaving}
-          formatDate={formatDate}
-        />
-      </div>
-    )}
-  </>
-)}
+                            <button
+                              type="button"
+                              onClick={handleSaveVisitCard}
+                              disabled={visitCardSaving}
+                              style={{
+                                padding: "6px 12px",
+                                borderRadius: 6,
+                                border: "none",
+                                background: visitCardSaving
+                                  ? "#9ca3af"
+                                  : "#2563eb",
+                                color: "#ffffff",
+                                fontSize: 13,
+                                cursor: visitCardSaving
+                                  ? "default"
+                                  : "pointer",
+                              }}
+                            >
+                              {visitCardSaving
+                                ? "Хадгалж байна..."
+                                : "Үзлэгийн карт хадгалах"}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 16 }}>
+                      <ChildVisitCardForm
+                        answers={visitCardAnswers}
+                        visitCard={visitCard}
+                        visitCardTypeDraft={visitCardTypeDraft}
+                        setVisitCardTypeDraft={setVisitCardTypeDraft}
+                        updateVisitCardAnswer={(
+                          key: keyof VisitCardAnswers,
+                          value: VisitCardAnswers[keyof VisitCardAnswers]
+                        ) => updateVisitCardAnswer(key, value as any)}
+                        updateNested={(
+                          section: string,
+                          field: string,
+                          value: any
+                        ) =>
+                          updateNested(
+                            section as keyof VisitCardAnswers,
+                            field,
+                            value
+                          )
+                        }
+                        signatureSaving={signatureSaving}
+                        handleUploadSignature={handleUploadSignature}
+                        handleSaveVisitCard={handleSaveVisitCard}
+                        visitCardSaving={visitCardSaving}
+                        formatDate={formatDate}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
 
             </div> 
           </section>
