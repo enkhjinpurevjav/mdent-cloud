@@ -3248,7 +3248,7 @@ if (data.treatmentPlan) {
 
               <div>
                 <span style={{ width: 160, display: "inline-block" }}>
-                  Сойёны хоршилт:
+                  Соёоны хоршилт:
                 </span>
                 <span style={{ marginRight: 8 }}>Баруун</span>
                 {["I", "II", "III"].map((cls) => (
@@ -3287,6 +3287,252 @@ if (data.treatmentPlan) {
               </div>
             </div>
           </section>
+
+{/* ГҮЙЛСЭН БУЛЧИРХАЙ / АДЕНОЙД / НҮҮРНИЙ ТӨРХ / E LINE / НҮҮРНИЙ ТЭГШ ХЭМ / SKELETAL SHIFT */}
+<div
+  style={{
+    borderTop: "1px solid #e5e7eb",
+    marginTop: 12,
+    paddingTop: 8,
+    fontSize: 13,
+  }}
+>
+  {/* Гүйлсэн булчирхай + Аденойд */}
+  <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 4 }}>
+    <div>
+      <span style={{ marginRight: 4 }}>Гүйлсэн булчирхай:</span>
+      <label style={{ marginRight: 8 }}>
+        <input
+          type="checkbox"
+          checked={!!facial.tonsilYes}
+          onChange={() =>
+            setFacial((prev) => ({
+              ...prev,
+              tonsilYes: !prev.tonsilYes,
+            }))
+          }
+          style={{ marginRight: 4 }}
+        />
+        Тийм
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={!!facial.tonsilNo}
+          onChange={() =>
+            setFacial((prev) => ({
+              ...prev,
+              tonsilNo: !prev.tonsilNo,
+            }))
+          }
+          style={{ marginRight: 4 }}
+        />
+        Үгүй
+      </label>
+    </div>
+
+    <div>
+      <span style={{ marginRight: 4 }}>Аденоид:</span>
+      <label style={{ marginRight: 8 }}>
+        <input
+          type="checkbox"
+          checked={!!facial.adenoidYes}
+          onChange={() =>
+            setFacial((prev) => ({
+              ...prev,
+              adenoidYes: !prev.adenoidYes,
+            }))
+          }
+          style={{ marginRight: 4 }}
+        />
+        Тийм
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={!!facial.adenoidNo}
+          onChange={() =>
+            setFacial((prev) => ({
+              ...prev,
+              adenoidNo: !prev.adenoidNo,
+            }))
+          }
+          style={{ marginRight: 4 }}
+        />
+        Үгүй
+      </label>
+    </div>
+  </div>
+
+  {/* Нүүрний төрх + E line */}
+  <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 4 }}>
+    <div>
+      <span style={{ marginRight: 4 }}>Нүүрний төрх:</span>
+      <label style={{ marginRight: 8 }}>
+        <input
+          type="checkbox"
+          checked={!!facial.profileConvex}
+          onChange={() =>
+            setFacial((prev) => ({
+              ...prev,
+              profileConvex: !prev.profileConvex,
+            }))
+          }
+          style={{ marginRight: 4 }}
+        />
+        Convex
+      </label>
+      <label style={{ marginRight: 8 }}>
+        <input
+          type="checkbox"
+          checked={!!facial.profileStraight}
+          onChange={() =>
+            setFacial((prev) => ({
+              ...prev,
+              profileStraight: !prev.profileStraight,
+            }))
+          }
+          style={{ marginRight: 4 }}
+        />
+        Straight
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={!!facial.profileConcave}
+          onChange={() =>
+            setFacial((prev) => ({
+              ...prev,
+              profileConcave: !prev.profileConcave,
+            }))
+          }
+          style={{ marginRight: 4 }}
+        />
+        Concave
+      </label>
+    </div>
+
+    <div>
+      <span style={{ marginRight: 4 }}>E line:</span>
+      <span style={{ marginRight: 4 }}>Дээд</span>
+      <input
+        type="text"
+        value={facial.eLineUpperMm || ""}
+        onChange={(e) =>
+          setFacial((prev) => ({ ...prev, eLineUpperMm: e.target.value }))
+        }
+        style={{
+          width: 60,
+          borderRadius: 4,
+          border: "1px solid #d1d5db",
+          padding: "2px 4px",
+          fontSize: 12,
+          marginRight: 4,
+        }}
+      />
+      <span style={{ marginRight: 8 }}>мм</span>
+      <span style={{ marginRight: 4 }}>Доод</span>
+      <input
+        type="text"
+        value={facial.eLineLowerMm || ""}
+        onChange={(e) =>
+          setFacial((prev) => ({ ...prev, eLineLowerMm: e.target.value }))
+        }
+        style={{
+          width: 60,
+          borderRadius: 4,
+          border: "1px solid #d1d5db",
+          padding: "2px 4px",
+          fontSize: 12,
+          marginRight: 4,
+        }}
+      />
+      <span>мм</span>
+    </div>
+  </div>
+
+  {/* Нүүрний тэгш хэм + Skeletal shift */}
+  <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+    <div>
+      <span style={{ marginRight: 4 }}>Нүүрний тэгш хэм:</span>
+      <label style={{ marginRight: 8 }}>
+        <input
+          type="checkbox"
+          checked={!!facial.symmetryEqual}
+          onChange={() =>
+            setFacial((prev) => ({
+              ...prev,
+              symmetryEqual: !prev.symmetryEqual,
+            }))
+          }
+          style={{ marginRight: 4 }}
+        />
+        Тэгш
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={!!facial.symmetryUnequal}
+          onChange={() =>
+            setFacial((prev) => ({
+              ...prev,
+              symmetryUnequal: !prev.symmetryUnequal,
+            }))
+          }
+          style={{ marginRight: 4 }}
+        />
+        Тэгш бус
+      </label>
+    </div>
+
+    <div>
+      <span style={{ marginRight: 4 }}>Skeletal shift:</span>
+      <label style={{ marginRight: 8 }}>
+        <input
+          type="checkbox"
+          checked={!!facial.skeletalShiftYes}
+          onChange={() =>
+            setFacial((prev) => ({
+              ...prev,
+              skeletalShiftYes: !prev.skeletalShiftYes,
+            }))
+          }
+          style={{ marginRight: 4 }}
+        />
+        Тийм
+      </label>
+      <label style={{ marginRight: 8 }}>
+        <input
+          type="checkbox"
+          checked={!!facial.skeletalShiftNo}
+          onChange={() =>
+            setFacial((prev) => ({
+              ...prev,
+              skeletalShiftNo: !prev.skeletalShiftNo,
+            }))
+          }
+          style={{ marginRight: 4 }}
+        />
+        Үгүй
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={!!facial.skeletalShiftProbable}
+          onChange={() =>
+            setFacial((prev) => ({
+              ...prev,
+              skeletalShiftProbable: !prev.skeletalShiftProbable,
+            }))
+          }
+          style={{ marginRight: 4 }}
+        />
+        Магадлалтай
+      </label>
+    </div>
+  </div>
+</div>
+          
 
           {/* Odontogram + legend */}
           <div
