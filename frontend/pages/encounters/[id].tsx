@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 
 type Branch = {
@@ -8,11 +8,21 @@ type Branch = {
 
 type Patient = {
   id: number;
+  regNo?: string | null;
   ovog?: string | null;
   name: string;
-  regNo?: string | null;
+  gender?: string | null;
+  birthDate?: string | null;
   phone?: string | null;
-  branch?: Branch | null;
+  address?: string | null;
+  bloodType?: string | null;
+  citizenship?: string | null;
+  emergencyPhone?: string | null;
+  notes?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  branchId: number;
+  branch?: Branch;
 };
 
 type PatientBook = {
@@ -23,16 +33,16 @@ type PatientBook = {
 
 type Doctor = {
   id: number;
+  email: string;
   name?: string | null;
   ovog?: string | null;
-  email: string;
 };
 
 type Nurse = {
   id: number;
+  email: string;
   name?: string | null;
   ovog?: string | null;
-  email: string;
 };
 
 type Diagnosis = {
@@ -51,20 +61,22 @@ type DiagnosisProblem = {
 };
 
 type EncounterDiagnosisRow = {
-  id: number;
-  diagnosisId: number;
-  selectedProblemIds: number[] | null;
-  note?: string | null;
-  diagnosis: Diagnosis;
+  id?: number;
+  diagnosisId: number | null;
+  diagnosis?: Diagnosis | null;
+  selectedProblemIds: number[];
+  note?: string;
   toothCode?: string | null;
 };
 
 type ServiceCategory =
-  | "GENERAL_DENTISTRY"
-  | "IMPLANTS"
-  | "ORTHODONTICS"
-  | "COSMETIC_DENTISTRY"
-  | "CHILDRENS";
+  | "ORTHODONTIC_TREATMENT"
+  | "IMAGING"
+  | "DEFECT_CORRECTION"
+  | "ADULT_TREATMENT"
+  | "WHITENING"
+  | "CHILD_TREATMENT"
+  | "SURGERY";
 
 type ServiceBranch = {
   branchId: number;
@@ -79,20 +91,20 @@ type Service = {
   price: number;
   isActive: boolean;
   description?: string | null;
-  serviceBranches?: ServiceBranch[];
+  serviceBranches: ServiceBranch[];
 };
 
 type EncounterService = {
-  id: number;
+  id?: number;
   encounterId: number;
   serviceId: number;
+  service?: Service;
   quantity: number;
   price: number;
-  service: Service;
 };
 
 type PrescriptionItem = {
-  id: number;
+  id?: number;
   order: number;
   drugName: string;
   durationDays: number;
@@ -104,105 +116,61 @@ type PrescriptionItem = {
 type Prescription = {
   id: number;
   encounterId: number;
+  createdAt: string;
+  updatedAt: string;
+  doctorNameSnapshot?: string | null;
+  patientNameSnapshot?: string | null;
+  diagnosisSummary?: string | null;
+  clinicNameSnapshot?: string | null;
   items: PrescriptionItem[];
 };
 
 type Encounter = {
   id: number;
   patientBookId: number;
-  doctorId: number;
   visitDate: string;
   notes?: string | null;
-  patientBook: PatientBook;
+  doctorId: number;
   doctor: Doctor | null;
-  nurse?: Nurse | null;                      // <--- NEW
+  nurseId?: number | null;
+  nurse?: Nurse | null;
+  appointmentId?: number | null;
+  patientBook: PatientBook;
   encounterDiagnoses: EncounterDiagnosisRow[];
   encounterServices: EncounterService[];
+  invoice?: any | null;
   prescription?: Prescription | null;
 };
 
-type EditableDiagnosis = {
-  diagnosisId: number;
-  diagnosis?: Diagnosis;
-  selectedProblemIds: number[];
-  note: string;
-  toothCode?: string;
-  serviceId?: number;
-  searchText?: string;
-  serviceSearchText?: string;
+type EditableDiagnosis = EncounterDiagnosisRow & {
+  localId: number;
 };
 
 type EditablePrescriptionItem = {
-  id?: number;
+  localId: number;
   drugName: string;
-  durationDays: number | null;
-  quantityPerTake: number | null;
-  frequencyPerDay: number | null;
-  note: string;
+  durationDays: number;
+  quantityPerTake: number;
+  frequencyPerDay: number;
+  note?: string;
 };
 
 type ChartToothRow = {
   id?: number;
   toothCode: string;
-  toothGroup?: string | null;  // <--- NEW
+  toothGroup?: string | null;
   status?: string | null;
   notes?: string | null;
-  // chartNotes?: ChartNote[];
 };
-
-// --- Media / X-ray types ---
 
 type EncounterMediaType = "XRAY" | "PHOTO" | "DOCUMENT";
 
 type ConsentType = "root_canal" | "surgery" | "orthodontic" | "prosthodontic";
 
 type SurgeryConsentAnswers = {
-  surgeryMode?: "SURGERY" | "PROCEDURE"; // Мэс засал vs Мэс ажилбар
-
-  // Shared A) informational fields
-  name?: string;
-  outcome?: string;
-  risks?: string;
-  complications?: string;
-  additionalProcedures?: string;
-  alternativeTreatments?: string;
-  advantages?: string;
-
-  // Anesthesia options
-  anesthesiaGeneral?: boolean;
-  anesthesiaSpinal?: boolean;
-  anesthesiaLocal?: boolean;
-  anesthesiaSedation?: boolean;
-
-  patientQuestions?: string;
-  questionSummary?: string;
-  doctorPhone?: string;
-
-  // Doctor confirmation
-  doctorExplained?: boolean;
-
-  // B) patient consent
-  patientConsentMain?: boolean;
-  patientConsentInfo?: boolean;
-
-  patientSignatureName?: string;
-
-  guardianName?: string;
-  guardianRelationDescription?: string;
-
-  incapacityReason?: {
-    minor?: boolean;
-    unconscious?: boolean;
-    mentalDisorder?: boolean;
-    other?: boolean;
-    otherText?: string;
-  };
-
-  husbandConsent?: boolean;
-  husbandName?: string;
-  husbandRefuseReason?: string;
+  // kept as any for now, structure not needed for this task
+  [key: string]: any;
 };
-
 
 type EncounterConsent = {
   encounterId: number;
@@ -212,479 +180,635 @@ type EncounterConsent = {
   doctorSignedAt?: string | null;
   patientSignaturePath?: string | null;
   doctorSignaturePath?: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 type EncounterMedia = {
   id: number;
   encounterId: number;
-  filePath: string; // e.g. "/media/filename.jpg"
+  filePath: string;
   toothCode?: string | null;
   type: EncounterMediaType;
-  createdAt?: string;
+};
+
+type VisitCardType = "ADULT" | "CHILD";
+
+type VisitCardAnswers = {
+  generalMedical?: Record<string, any>;
+  allergies?: Record<string, any>;
+  habits?: Record<string, any>;
+  dentalFollowup?: Record<string, any>;
+  [key: string]: any;
+};
+
+type VisitCard = {
+  id: number;
+  patientBookId: number;
+  type: VisitCardType;
+  answers: VisitCardAnswers;
 };
 
 function formatDateTime(iso: string) {
-  try {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleString("mn-MN");
-  } catch {
-    return iso;
-  }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${y}.${m}.${day} ${hh}:${mm}`;
+}
+
+function formatShortDate(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}.${m}.${day}`;
 }
 
 function formatPatientName(p: Patient) {
-  const ovog = p.ovog ? p.ovog.trim() : "";
-  const name = p.name ? p.name.toString().trim() : "";
-  if (!ovog) return name || p.regNo || String(p.id);
-  const initial = ovog.charAt(0);
-  return `${initial}. ${name}`;
+  const name = p.name || "";
+  const ovog = (p.ovog || "").trim();
+  if (ovog) {
+    const first = ovog.charAt(0).toUpperCase();
+    return `${first}.${name}`;
+  }
+  return name;
 }
 
 function formatDoctorName(d: Doctor | null) {
   if (!d) return "-";
-  if (d.name && d.name.trim()) return d.name;
-  return d.email;
+  const name = d.name || "";
+  const ovog = (d.ovog || "").trim();
+  if (name && ovog) {
+    const first = ovog.charAt(0).toUpperCase();
+    return `${first}.${name}`;
+  }
+  if (name) return name;
+  return d.email || "-";
 }
 
-function formatStaffName(u: { name?: string | null; ovog?: string | null; email: string } | null | undefined) {
+function formatStaffName(u: {
+  name?: string | null;
+  ovog?: string | null;
+  email: string;
+} | null | undefined) {
   if (!u) return "-";
-  if (u.name && u.name.trim()) {
-    const ovogInitial = u.ovog && u.ovog.trim() ? `${u.ovog.trim().charAt(0)}. ` : "";
-    return `${ovogInitial}${u.name.trim()}`;
+  const name = u.name || "";
+  const ovog = (u.ovog || "").trim();
+  if (name && ovog) {
+    const first = ovog.charAt(0).toUpperCase();
+    return `${first}.${name}`;
   }
-  return u.email;
+  if (name) return name;
+  return u.email || "-";
 }
 
 function formatDoctorDisplayName(d: Doctor | null) {
-  if (!d) return "";
-  if (d.name && d.name.trim()) {
-    const ovogInitial = d.ovog && d.ovog.trim() ? `${d.ovog.trim().charAt(0)}. ` : "";
-    return `${ovogInitial}${d.name.trim()}`;
-  }
-  return d.email;
-}
-
-function formatShortDate(iso: string) {
-  try {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}.${m}.${day}`;
-  } catch {
-    return iso;
-  }
+  return formatDoctorName(d);
 }
 
 function stringifyToothList(list: string[]): string {
-  return Array.from(new Set(list))
-    .sort((a, b) => a.localeCompare(b))
-    .join(", ");
+  return list.join(", ");
+}
+
+// ---- Helper: extract “Анхаарах!” lines from visit card answers ----
+
+type WarningLine = { label: string; value: string };
+
+function extractWarningLinesFromVisitCard(
+  visitCard: VisitCard | null
+): WarningLine[] {
+  if (!visitCard || !visitCard.answers) return [];
+
+  const a = visitCard.answers;
+
+  const lines: WarningLine[] = [];
+
+  // 1) General medical (shared for adult/child, but labels differ slightly)
+  const generalMedicalLabels: Record<string, string> =
+    visitCard.type === "CHILD"
+      ? {
+          heartDisease: "Зүрх судасны өвчинтэй эсэх",
+          highBloodPressure: "Даралт ихсэх өвчинтэй эсэх",
+          infectiousDisease: "Халдварт өвчинтэй эсэх",
+          tuberculosis: "Сүрьеэ өвчнөөр өвчилж байсан эсэх",
+          hepatitisBC: "Халдварт гепатит В, С-ээр өвдөж байсан эсэх",
+          diabetes: "Чихрийн шижинтэй эсэх",
+          onMedication: "Одоо хэрэглэж байгаа эм, тариа байгаа эсэх",
+          seriousIllnessOrSurgery:
+            "Ойрын 5 жилд хүнд өвчнөөр өвчилсөн болон мэс ажилбарт орж байсан эсэх",
+          implant: "Зүрхний импланттай эсэх",
+          generalAnesthesia: "Бүтэн наркоз хийлгэж байсан эсэх",
+          chemoOrRadiation: "Химийн/ туяа эмчилгээ хийлгэж байгаа эсэх",
+        }
+      : {
+          heartDisease: "Зүрх судасны өвчтэй эсэх",
+          highBloodPressure: "Даралт ихсэх өвчтэй эсэх",
+          infectiousDisease: "Халдварт өвчний түүхтэй эсэх",
+          tuberculosis: "Сүрьеэ өвчнөөр өвчилж байсан эсэх",
+          hepatitisBC:
+            "Халдварт гепатит B, C‑сээр өвдөж байсан эсэх",
+          diabetes: "Чихрийн шижинтэй эсэх",
+          onMedication: "Одоо хэрэглэж байгаа эм, тариа байгаа эсэх",
+          seriousIllnessOrSurgery:
+            "Ойрын 5 жилд хүнд өвчнөөр өвчилсөн болон мэс ажилбар хийлгэж байсан эсэх",
+          implant: "Зүрхний импланттай эсэх",
+          generalAnesthesia: "Бүтэн наркоз хийлгэж байсан эсэх",
+          chemoOrRadiation: "Хими / туяа эмчилгээ хийлгэж байгаа эсэх",
+        };
+
+  if (a.generalMedical) {
+    Object.keys(generalMedicalLabels).forEach((key) => {
+      const v = (a.generalMedical as any)[key];
+      if (v === "yes") {
+        const label = generalMedicalLabels[key];
+        const detailKey = `${key}Detail`;
+        const detail =
+          (a.generalMedical as any)[detailKey] ||
+          (a.generalMedical as any).details ||
+          "";
+        const tail = detail ? `Тийм - ${detail}` : "Тийм";
+        lines.push({ label, value: tail });
+      }
+    });
+
+    // Extra special flags
+    if (a.generalMedical.pregnant === "yes") {
+      lines.push({
+        label: "Жирэмсэн эсэх",
+        value: "Тийм",
+      });
+    }
+    if (a.generalMedical.childAllergyFood === "yes") {
+      lines.push({
+        label: "Хүүхэд хүнсний харшилтай эсэх",
+        value: "Тийм",
+      });
+    }
+  }
+
+  // 2) Allergies
+  if (a.allergies) {
+    const allergyLabels: Record<string, string> = {
+      drug: "Харшил - Эм тариа",
+      metal: "Харшил - Метал",
+      localAnesthetic: "Харшил - Шүдний мэдээ алдуулах тариа",
+      latex: "Харшил - Латекс",
+      other: "Харшил - Бусад",
+    };
+
+    (["drug", "metal", "localAnesthetic", "latex", "other"] as const).forEach(
+      (key) => {
+        const v = (a.allergies as any)[key];
+        if (v === "yes") {
+          const label = allergyLabels[key];
+          const detailKey =
+            key === "other" ? "otherDetail" : `${key}Detail`;
+          const detail = (a.allergies as any)[detailKey] || "";
+          const tail = detail ? `Тийм - ${detail}` : "Тийм";
+          lines.push({ label, value: tail });
+        }
+      }
+    );
+  }
+
+  // 3) Habits
+  if (a.habits) {
+    const habitLabelsAdult: Record<string, string> = {
+      smoking: "Зуршил - Тамхи татдаг эсэх",
+      alcohol: "Зуршил - Архи хэрэглэдэг эсэх",
+      coffee: "Зуршил - Кофе хэрэглэдэг эсэх",
+      nightGrinding: "Шөнө шүдээ хавирдаг эсэх",
+      mouthBreathing: "Ам ангайж унтдаг / амаар амьсгалдаг эсэх",
+      other: "Зуршил - Бусад",
+    };
+
+    const habitLabelsChild: Record<string, string> = {
+      mouthBreathing: "Хэл, хуруу хөхдөг эсэх",
+      nightGrinding: "Шөнө амаа ангайж унтдаг эсэх",
+      other: "Зуршил - Бусад",
+    };
+
+    const labels =
+      visitCard.type === "CHILD" ? habitLabelsChild : habitLabelsAdult;
+
+    Object.keys(labels).forEach((key) => {
+      const v = (a.habits as any)[key];
+      if (v === "yes") {
+        const label = labels[key];
+        const detailKey =
+          key === "other" ? "otherDetail" : `${key}Detail`;
+        const detail = (a.habits as any)[detailKey] || "";
+        const tail = detail ? `Тийм - ${detail}` : "Тийм";
+        lines.push({ label, value: tail });
+      }
+    });
+  }
+
+  // 4) Dental follow-up extras
+  if (a.dentalFollowup) {
+    const dentalLabels: Record<string, string> = {
+      regularCheckups: "Шүдний эмчид байнга үзүүлдэг эсэх",
+      bleedingAfterExtraction:
+        "Шүд авахуулсны дараа цус тогтол удаан эсэх",
+      gumBleeding: "Буйлнаас цус гардаг эсэх",
+      badBreath: "Амнаас эвгүй үнэр гардаг эсэх",
+    };
+
+    Object.keys(dentalLabels).forEach((key) => {
+      const v = (a.dentalFollowup as any)[key];
+      if (v === "yes") {
+        const label = dentalLabels[key];
+        const detailKey = `${key}Detail`;
+        const detail = (a.dentalFollowup as any)[detailKey] || "";
+        const tail = detail ? `Тийм - ${detail}` : "Тийм";
+        lines.push({ label, value: tail });
+      }
+    });
+  }
+
+  return lines;
 }
 
 export default function EncounterAdminPage() {
   const router = useRouter();
   const { id } = router.query;
-  const encounterId = useMemo(
-    () => (typeof id === "string" ? Number(id) : NaN),
-    [id]
-  );
 
-  const [finishing, setFinishing] = useState(false);
   const [encounter, setEncounter] = useState<Encounter | null>(null);
-  const [encounterLoading, setEncounterLoading] = useState(false);
-  const [encounterError, setEncounterError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  // Diagnoses
-  const [allDiagnoses, setAllDiagnoses] = useState<Diagnosis[]>([]);
-  const [dxLoading, setDxLoading] = useState(false);
-  const [dxError, setDxError] = useState("");
+  const [services, setServices] = useState<Service[]>([]);
+  const [serviceFilterBranchId, setServiceFilterBranchId] = useState<
+    number | null
+  >(null);
+
+  const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
   const [problemsByDiagnosis, setProblemsByDiagnosis] = useState<
     Record<number, DiagnosisProblem[]>
   >({});
-  const [rows, setRows] = useState<EditableDiagnosis[]>([]);
-  const [saveError, setSaveError] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
 
-  // Services
-  const [allServices, setAllServices] = useState<Service[]>([]);
-  const [servicesLoadError, setServicesLoadError] = useState("");
-  const [openServiceIndex, setOpenServiceIndex] = useState<number | null>(null);
- // Nurse selection
-  const [allNurses, setAllNurses] = useState<Nurse[]>([]);
-  const [nurseSaving, setNurseSaving] = useState(false);
-  // Tooth chart selection
-  const [selectedTeeth, setSelectedTeeth] = useState<string[]>([]);
-  const [chartError, setChartError] = useState("");
-  const [toothMode, setToothMode] = useState<"ADULT" | "CHILD">("ADULT");
-  const [activeRowIndex, setActiveRowIndex] = useState<number | null>(null);
+  const [editableDxRows, setEditableDxRows] = useState<EditableDiagnosis[]>(
+    []
+  );
+  const [editableServices, setEditableServices] = useState<
+    EncounterService[]
+  >([]);
 
-  // Prescription
   const [prescriptionItems, setPrescriptionItems] = useState<
     EditablePrescriptionItem[]
   >([]);
-  const [prescriptionSaving, setPrescriptionSaving] = useState(false);
-  const [prescriptionError, setPrescriptionError] = useState("");
 
-  // Media (X-rays / photos)
   const [media, setMedia] = useState<EncounterMedia[]>([]);
-  const [mediaLoading, setMediaLoading] = useState(false);
-  const [mediaError, setMediaError] = useState("");
-  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [mediaTypeFilter, setMediaTypeFilter] =
+    useState<EncounterMediaType | "ALL">("ALL");
 
-    // Consent form (Step 1: type only)
+  const [chartTeeth, setChartTeeth] = useState<ChartToothRow[]>([]);
+  const [toothMode, setToothMode] = useState<"ADULT" | "CHILD">("ADULT");
+  const [selectedTeeth, setSelectedTeeth] = useState<string[]>([]);
+  const [activeDxRowIndex, setActiveDxRowIndex] = useState<number | null>(
+    null
+  );
+  const [customToothRange, setCustomToothRangeState] = useState("");
+
   const [consent, setConsent] = useState<EncounterConsent | null>(null);
-  const [consentLoading, setConsentLoading] = useState(false);
+  const [consentTypeDraft, setConsentTypeDraft] =
+    useState<ConsentType | null>(null);
+  const [consentAnswersDraft, setConsentAnswersDraft] = useState<any>({});
   const [consentSaving, setConsentSaving] = useState(false);
-  const [consentError, setConsentError] = useState("");
 
-  // --- Load master services ---
+  const [nursesForEncounter, setNursesForEncounter] = useState<
+    {
+      nurseId: number;
+      name?: string | null;
+      ovog?: string | null;
+      email: string;
+      phone?: string | null;
+      schedules: {
+        id: number;
+        date: string;
+        branch: Branch;
+        startTime: string;
+        endTime: string;
+        note?: string | null;
+      }[];
+    }[]
+  >([]);
+  const [changingNurse, setChangingNurse] = useState(false);
+
+  const [visitCard, setVisitCard] = useState<VisitCard | null>(null);
+  const [visitCardLoading, setVisitCardLoading] = useState(false);
+
   useEffect(() => {
+    if (!id || typeof id !== "string") return;
+
     const loadServices = async () => {
       try {
-        const res = await fetch("/api/services?onlyActive=true");
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !Array.isArray(data)) {
-          throw new Error(data?.error || "Алдаа гарлаа");
+        const res = await fetch("/api/services");
+        const json = await res.json().catch(() => null);
+        if (res.ok && Array.isArray(json)) {
+          setServices(json);
         }
-        setAllServices(data);
-      } catch (err: any) {
-        console.error("Failed to load services:", err);
-        setServicesLoadError(
-          err.message || "Үйлчилгээний жагсаалт ачаалахад алдаа гарлаа."
-        );
+      } catch {
+        // ignore
       }
     };
-    loadServices();
-  }, []);
-
-
-      // --- Load nurses scheduled for this encounter's date/branch ---
-  useEffect(() => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
 
     const loadNursesForEncounter = async () => {
       try {
-        const res = await fetch(`/api/encounters/${encounterId}/nurses`);
-        const data = await res.json().catch(() => null);
-        if (!res.ok || !data || !Array.isArray(data.items)) {
-          return;
+        const res = await fetch(`/api/encounters/${id}/nurses`);
+        const json = await res.json().catch(() => null);
+        if (res.ok && json && Array.isArray(json.items)) {
+          setNursesForEncounter(json.items);
+        } else {
+          setNursesForEncounter([]);
         }
-        // Map API response items to Nurse[]
-        setAllNurses(
-          data.items.map((it: any) => ({
-            id: it.nurseId,
-            name: it.name,
-            ovog: it.ovog,
-            email: it.email,
-          })) as Nurse[]
-        );
       } catch {
-        // optional: log error; field is optional
+        setNursesForEncounter([]);
       }
     };
 
-    loadNursesForEncounter();
-  }, [encounterId]);
-  // --- Load encounter (diagnoses + services + prescription) ---
-  useEffect(() => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
-
-    const load = async () => {
-      setEncounterLoading(true);
-      setEncounterError("");
+    const loadEncounter = async () => {
+      setLoading(true);
+      setError("");
       try {
-        const res = await fetch(`/api/encounters/${encounterId}`);
-        let data: any = null;
-        try {
-          data = await res.json();
-        } catch {
-          data = null;
+        const res = await fetch(`/api/encounters/${id}`);
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error((json && json.error) || "failed to load");
         }
 
-        if (!res.ok || !data || !data.id) {
-          throw new Error((data && data.error) || "Алдаа гарлаа");
+        const enc: Encounter = json;
+        setEncounter(enc);
+
+        const dxRows: EditableDiagnosis[] =
+          enc.encounterDiagnoses?.map((row, idx) => ({
+            ...row,
+            localId: idx + 1,
+          })) || [];
+        setEditableDxRows(dxRows);
+
+        const svcRows: EncounterService[] =
+          enc.encounterServices?.map((row) => ({
+            ...row,
+            quantity: row.quantity || 1,
+          })) || [];
+        setEditableServices(svcRows);
+
+        const rxItems: EditablePrescriptionItem[] =
+          enc.prescription?.items?.map((it) => ({
+            localId: it.order,
+            drugName: it.drugName,
+            durationDays: it.durationDays,
+            quantityPerTake: it.quantityPerTake,
+            frequencyPerDay: it.frequencyPerDay,
+            note: it.note || "",
+          })) || [];
+
+        while (rxItems.length < 3) {
+          rxItems.push({
+            localId: rxItems.length + 1,
+            drugName: "",
+            durationDays: 1,
+            quantityPerTake: 1,
+            frequencyPerDay: 1,
+            note: "",
+          });
         }
 
-        setEncounter(data);
-
-        const initialRows: EditableDiagnosis[] =
-          Array.isArray(data.encounterDiagnoses) &&
-          data.encounterDiagnoses.length > 0
-            ? data.encounterDiagnoses.map((r: EncounterDiagnosisRow) => ({
-                diagnosisId: r.diagnosisId,
-                diagnosis: r.diagnosis,
-                selectedProblemIds: Array.isArray(r.selectedProblemIds)
-                  ? (r.selectedProblemIds as number[])
-                  : [],
-                note: r.note || "",
-                toothCode: r.toothCode || "",
-                serviceId: undefined,
-                searchText: r.diagnosis
-                  ? `${r.diagnosis.code} – ${r.diagnosis.name}`
-                  : "",
-                serviceSearchText: "",
-              }))
-            : [];
-
-        if (
-          Array.isArray(data.encounterServices) &&
-          data.encounterServices.length > 0 &&
-          initialRows.length > 0
-        ) {
-          const services = data.encounterServices as EncounterService[];
-          for (let i = 0; i < initialRows.length && i < services.length; i++) {
-            const svc = services[i];
-            initialRows[i].serviceId = svc.serviceId;
-            initialRows[i].serviceSearchText = svc.service?.name || "";
-          }
-        }
-
-        setRows(initialRows);
-
-        // Prescription hydrate
-        if (data.prescription && Array.isArray(data.prescription.items)) {
-          setPrescriptionItems(
-            data.prescription.items
-              .sort((a: any, b: any) => a.order - b.order)
-              .map((it: any) => ({
-                id: it.id,
-                drugName: it.drugName || "",
-                durationDays: it.durationDays ?? null,
-                quantityPerTake: it.quantityPerTake ?? null,
-                frequencyPerDay: it.frequencyPerDay ?? null,
-                note: it.note || "",
-              }))
-          );
-        } else {
-          setPrescriptionItems([]);
-        }
-      } catch (err: any) {
-        console.error("Failed to load encounter:", err);
-        setEncounterError(err.message || "Алдаа гарлаа");
+        setPrescriptionItems(rxItems);
+      } catch (err) {
+        console.error(err);
+        setError("Үзлэгийн дэлгэрэнгүйг ачааллах үед алдаа гарлаа");
         setEncounter(null);
       } finally {
-        setEncounterLoading(false);
+        setLoading(false);
       }
     };
 
-    load();
-  }, [encounterId]);
-
-  // --- Load all diagnoses ---
-  useEffect(() => {
     const loadDx = async () => {
-      setDxLoading(true);
-      setDxError("");
       try {
         const res = await fetch("/api/diagnoses");
-        let data: any = null;
-        try {
-          data = await res.json();
-        } catch {
-          data = null;
+        const json = await res.json().catch(() => null);
+        if (res.ok && Array.isArray(json)) {
+          setDiagnoses(json);
         }
-        if (!res.ok || !Array.isArray(data)) {
-          throw new Error((data && data.error) || "Алдаа гарлаа");
-        }
-        setAllDiagnoses(data);
-      } catch (err: any) {
-        console.error("Failed to load diagnoses:", err);
-        setDxError(err.message || "Алдаа гарлаа");
-        setAllDiagnoses([]);
-      } finally {
-        setDxLoading(false);
+      } catch {
+        // ignore
       }
     };
 
-    loadDx();
-  }, []);
-
-  // --- Helper: reload media list from backend ---
-  const reloadMedia = async () => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
-    setMediaLoading(true);
-    setMediaError("");
-    try {
-      const res = await fetch(
-        `/api/encounters/${encounterId}/media?type=XRAY`
-      );
-      let data: any = null;
+    const loadConsent = async () => {
       try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
+        const res = await fetch(`/api/encounters/${id}/consent`);
+        const json = await res.json().catch(() => null);
+        if (!res.ok) return;
 
-      if (!res.ok || !Array.isArray(data)) {
-        throw new Error((data && data.error) || "Медиа ачаалахад алдаа гарлаа");
+        if (json) {
+          setConsent(json);
+          setConsentTypeDraft(json.type || null);
+          setConsentAnswersDraft(json.answers || {});
+        } else {
+          setConsent(null);
+          setConsentTypeDraft(null);
+          setConsentAnswersDraft({});
+        }
+      } catch (err) {
+        console.error("loadConsent failed", err);
       }
+    };
 
-      setMedia(data as EncounterMedia[]);
-    } catch (err: any) {
-      console.error("Failed to load media:", err);
-      setMediaError(
-        err.message || "Медиа (рентген зураг) ачаалахад алдаа гарлаа."
-      );
+    const loadChartTeeth = async () => {
+      try {
+        const res = await fetch(`/api/encounters/${id}/chart-teeth`);
+        const json = await res.json().catch(() => null);
+        if (res.ok && Array.isArray(json)) {
+          setChartTeeth(json);
+        } else {
+          setChartTeeth([]);
+        }
+      } catch (err) {
+        console.error("loadChartTeeth failed", err);
+        setChartTeeth([]);
+      }
+    };
+
+    const loadVisitCardForEncounter = async () => {
+      try {
+        setVisitCardLoading(true);
+        setVisitCard(null);
+
+        // we need bookNumber from encounter -> patientBook
+        const encRes = await fetch(`/api/encounters/${id}`);
+        const encJson = await encRes.json().catch(() => null);
+        if (!encRes.ok || !encJson?.patientBook?.bookNumber) {
+          setVisitCardLoading(false);
+          return;
+        }
+        const bookNumber: string = encJson.patientBook.bookNumber;
+
+        const vcRes = await fetch(
+          `/api/patients/visit-card/by-book/${encodeURIComponent(
+            bookNumber
+          )}`
+        );
+        const vcJson = await vcRes.json().catch(() => null);
+        if (vcRes.ok && vcJson?.visitCard) {
+          setVisitCard(vcJson.visitCard as VisitCard);
+        } else {
+          setVisitCard(null);
+        }
+      } catch (err) {
+        console.error("loadVisitCardForEncounter failed", err);
+        setVisitCard(null);
+      } finally {
+        setVisitCardLoading(false);
+      }
+    };
+
+    void loadServices();
+    void loadDx();
+    void loadEncounter();
+    void loadConsent();
+    void loadNursesForEncounter();
+    void loadChartTeeth();
+    void loadVisitCardForEncounter();
+  }, [id]);
+
+  const reloadMedia = async () => {
+    if (!id || typeof id !== "string") return;
+    try {
+      const query =
+        mediaTypeFilter === "ALL"
+          ? ""
+          : `?type=${encodeURIComponent(mediaTypeFilter)}`;
+      const res = await fetch(`/api/encounters/${id}/media${query}`);
+      const json = await res.json().catch(() => null);
+      if (res.ok && Array.isArray(json)) {
+        setMedia(json);
+      } else {
+        setMedia([]);
+      }
+    } catch (err) {
+      console.error("reloadMedia failed", err);
       setMedia([]);
-    } finally {
-      setMediaLoading(false);
     }
   };
 
-  // --- Load consent for this encounter (if any) ---
-  useEffect(() => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
-
-    const loadConsent = async () => {
-      setConsentLoading(true);
-      setConsentError("");
-      try {
-        const res = await fetch(`/api/encounters/${encounterId}/consent`);
-        const data = await res.json().catch(() => null);
-        if (!res.ok) {
-          throw new Error(data?.error || "Зөвшөөрлийн хуудас ачаалахад алдаа гарлаа.");
-        }
-        if (data) {
-          setConsent(data as EncounterConsent);
-        } else {
-          setConsent(null);
-        }
-      } catch (err: any) {
-        console.error("Failed to load consent:", err);
-        setConsentError(
-          err.message || "Зөвшөөрлийн хуудас ачаалахад алдаа гарлаа."
-        );
-        setConsent(null);
-      } finally {
-        setConsentLoading(false);
-      }
-    };
-
-    void loadConsent();
-  }, [encounterId]);
-
-  
-  // --- Load media on first render / when encounterId changes ---
   useEffect(() => {
     void reloadMedia();
-  }, [encounterId]);
-
-  // --- Diagnoses helpers ---
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, mediaTypeFilter]);
 
   const ensureProblemsLoaded = async (diagnosisId: number) => {
     if (problemsByDiagnosis[diagnosisId]) return;
     try {
       const res = await fetch(`/api/diagnoses/${diagnosisId}/problems`);
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
+      const json = await res.json().catch(() => null);
+      if (res.ok && Array.isArray(json)) {
+        setProblemsByDiagnosis((prev) => ({
+          ...prev,
+          [diagnosisId]: json,
+        }));
       }
-      if (!res.ok || !Array.isArray(data)) {
-        throw new Error((data && data.error) || "Алдаа гарлаа");
-      }
-      setProblemsByDiagnosis((prev) => ({
-        ...prev,
-        [diagnosisId]: data,
-      }));
     } catch (err) {
-      console.error("Failed to load problems:", err);
+      console.error("ensureProblemsLoaded failed", err);
     }
   };
 
   const createDiagnosisRow = (initialTeeth: string[]): number => {
-    const index = rows.length;
-    const toothCode = stringifyToothList(initialTeeth);
-    const newRow: EditableDiagnosis = {
-      diagnosisId: 0,
-      diagnosis: undefined,
-      selectedProblemIds: [],
-      note: "",
-      toothCode,
-      serviceId: undefined,
-      searchText: "",
-      serviceSearchText: "",
-    };
-    setRows((prev) => [...prev, newRow]);
-    return index;
+    setEditableDxRows((prev) => {
+      const nextLocalId =
+        prev.length === 0
+          ? 1
+          : Math.max(...prev.map((r) => r.localId)) + 1;
+      const toothCode = stringifyToothList(initialTeeth);
+      return [
+        ...prev,
+        {
+          localId: nextLocalId,
+          diagnosisId: null,
+          selectedProblemIds: [],
+          note: "",
+          toothCode,
+        },
+      ];
+    });
+    return 0;
   };
 
   const removeDiagnosisRow = (index: number) => {
-    setRows((prev) => prev.filter((_, i) => i !== index));
-    setOpenDxIndex((prev) => (prev === index ? null : prev));
-    setActiveRowIndex((prev) => {
-      if (prev === null) return prev;
-      if (prev === index) return null;
-      if (index < prev) return prev - 1;
-      return prev;
-    });
+    setEditableDxRows((prev) => prev.filter((_, i) => i !== index));
   };
 
   const saveConsent = async (type: ConsentType | null) => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
+    if (!id || typeof id !== "string") return;
     setConsentSaving(true);
     setConsentError("");
     try {
-      const res = await fetch(`/api/encounters/${encounterId}/consent`, {
+      const res = await fetch(`/api/encounters/${id}/consent`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type,
-          answers: consent?.answers ?? {}, // for now, keep existing answers or empty
+          answers: type ? consentAnswersDraft : undefined,
         }),
       });
-      const data = await res.json().catch(() => null);
+      const json = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error(data?.error || "Зөвшөөрлийн хуудас хадгалахад алдаа гарлаа.");
+        throw new Error(
+          (json && json.error) || "Зөвшөөрлийн хуудас хадгалахад алдаа гарлаа"
+        );
       }
-      setConsent(data || null);
+
+      if (!json) {
+        setConsent(null);
+        setConsentTypeDraft(null);
+        setConsentAnswersDraft({});
+      } else {
+        setConsent(json);
+        setConsentTypeDraft(json.type || null);
+        setConsentAnswersDraft(json.answers || {});
+      }
     } catch (err: any) {
-      console.error("Failed to save consent:", err);
+      console.error("saveConsent failed", err);
       setConsentError(
-        err.message || "Зөвшөөрлийн хуудас хадгалахад алдаа гарлаа."
+        err?.message || "Зөвшөөрлийн хуудас хадгалахад алдаа гарлаа"
       );
     } finally {
       setConsentSaving(false);
     }
   };
 
+  const [consentError, setConsentError] = useState("");
+
   const updateConsentAnswers = (partial: any) => {
-    setConsent((prev) =>
-      prev
-        ? {
-            ...prev,
-            answers: {
-              ...(prev.answers || {}),
-              ...partial,
-            },
-          }
-        : prev
-    );
+    setConsentAnswersDraft((prev: any) => ({
+      ...(prev || {}),
+      ...(partial || {}),
+    }));
   };
 
-  // Save current consent state without changing type
   const saveCurrentConsent = async () => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
-    if (!consent) return;
-    await saveConsent(consent.type as ConsentType);
+    await saveConsent(consentTypeDraft);
   };
-  
-  const handleDiagnosisChange = async (index: number, diagnosisId: number) => {
-    const dx = allDiagnoses.find((d) => d.id === diagnosisId);
-    setRows((prev) =>
+
+  const handleDiagnosisChange = async (
+    index: number,
+    diagnosisId: number
+  ) => {
+    setEditableDxRows((prev) =>
       prev.map((row, i) =>
         i === index
           ? {
               ...row,
               diagnosisId,
-              diagnosis: dx,
               selectedProblemIds: [],
-              searchText: dx ? `${dx.code} – ${dx.name}` : "",
             }
           : row
       )
@@ -695,7 +819,7 @@ export default function EncounterAdminPage() {
   };
 
   const toggleProblem = (index: number, problemId: number) => {
-    setRows((prev) =>
+    setEditableDxRows((prev) =>
       prev.map((row, i) => {
         if (i !== index) return row;
         const exists = row.selectedProblemIds.includes(problemId);
@@ -710,13 +834,13 @@ export default function EncounterAdminPage() {
   };
 
   const handleNoteChange = (index: number, value: string) => {
-    setRows((prev) =>
+    setEditableDxRows((prev) =>
       prev.map((row, i) => (i === index ? { ...row, note: value } : row))
     );
   };
 
   const handleDxToothCodeChange = (index: number, value: string) => {
-    setRows((prev) =>
+    setEditableDxRows((prev) =>
       prev.map((row, i) =>
         i === index ? { ...row, toothCode: value } : row
       )
@@ -724,360 +848,220 @@ export default function EncounterAdminPage() {
   };
 
   const handleSaveDiagnoses = async () => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
-    setSaveError("");
+    if (!id || typeof id !== "string") return;
     setSaving(true);
     try {
       const payload = {
-        items: rows
-          .filter((r) => r.diagnosisId)
-          .map((r) => ({
-            diagnosisId: r.diagnosisId,
-            selectedProblemIds: r.selectedProblemIds,
-            note: r.note || null,
-            toothCode:
-              r.toothCode && r.toothCode.trim()
-                ? r.toothCode.trim()
-                : null,
-          })),
+        items: editableDxRows.map((row) => ({
+          diagnosisId: row.diagnosisId,
+          selectedProblemIds: row.selectedProblemIds,
+          note: row.note || null,
+          toothCode: row.toothCode || null,
+        })),
       };
 
-      const res = await fetch(`/api/encounters/${encounterId}/diagnoses`, {
+      const res = await fetch(`/api/encounters/${id}/diagnoses`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
-      const data = await res.json().catch(() => null);
-
+      const json = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error(data?.error || "Хадгалах үед алдаа гарлаа");
-      }
-
-      if (Array.isArray(data)) {
-        setRows((prevRows) =>
-          data.map((r: any) => {
-            const match = prevRows.find(
-              (x) =>
-                x.diagnosisId === r.diagnosisId &&
-                (x.toothCode || "") === (r.toothCode || "")
-            );
-            const matchedService =
-              match?.serviceId &&
-              allServices.find((s) => s.id === match.serviceId);
-            return {
-              diagnosisId: r.diagnosisId,
-              diagnosis: r.diagnosis,
-              selectedProblemIds: Array.isArray(r.selectedProblemIds)
-                ? (r.selectedProblemIds as number[])
-                : [],
-              note: r.note || "",
-              toothCode: r.toothCode || "",
-              serviceId: match?.serviceId,
-              searchText: r.diagnosis
-                ? `${r.diagnosis.code} – ${r.diagnosis.name}`
-                : "",
-              serviceSearchText: matchedService?.name || "",
-            } as EditableDiagnosis;
-          })
+        throw new Error(
+          (json && json.error) || "Онош хадгалахад алдаа гарлаа"
         );
       }
 
-      setSelectedTeeth([]);
-      setActiveRowIndex(null);
-    } catch (err: any) {
-      console.error("Failed to save diagnoses:", err);
-      setSaveError(err.message || "Хадгалах үед алдаа гарлаа");
+      if (encounter) {
+        setEncounter({
+          ...encounter,
+          encounterDiagnoses: json,
+        });
+      }
+    } catch (err) {
+      console.error("handleSaveDiagnoses failed", err);
     } finally {
       setSaving(false);
     }
   };
 
-  // --- Save services ---
-
   const handleSaveServices = async () => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
-
-    const items = rows
-      .filter((r) => r.serviceId)
-      .map((r) => ({
-        serviceId: r.serviceId as number,
-        quantity: 1,
-      }));
-
+    if (!id || typeof id !== "string") return;
+    setSaving(true);
     try {
-      const res = await fetch(`/api/encounters/${encounterId}/services`, {
+      const payload = {
+        items: editableServices.map((svc) => ({
+          serviceId: svc.serviceId,
+          quantity: svc.quantity || 1,
+        })),
+      };
+
+      const res = await fetch(`/api/encounters/${id}/services`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items }),
+        body: JSON.stringify(payload),
       });
-
-      const data = await res.json().catch(() => null);
+      const json = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(
-          data?.error || "Үйлчилгээ хадгалахад алдаа гарлаа."
+          (json && json.error) || "Үйлчилгээ хадгалахад алдаа гарлаа"
         );
       }
 
-      if (Array.isArray(data)) {
-        setEncounter((prev) =>
-          prev
-            ? {
-                ...prev,
-                encounterServices: data,
-              }
-            : prev
-        );
+      if (encounter) {
+        setEncounter({
+          ...encounter,
+          encounterServices: json,
+        });
       }
-    } catch (err: any) {
-      console.error("Failed to save services:", err);
-      setSaveError(
-        err.message || "Үйлчилгээ хадгалахад алдаа гарлаа."
-      );
+      setEditableServices(json);
+    } catch (err) {
+      console.error("handleSaveServices failed", err);
+    } finally {
+      setSaving(false);
     }
   };
 
-
-    const handleChangeNurse = async (nurseIdStr: string) => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
-    setNurseSaving(true);
+  const handleChangeNurse = async (nurseIdStr: string) => {
+    if (!id || typeof id !== "string") return;
+    setChangingNurse(true);
     try {
-      const nurseId = nurseIdStr ? Number(nurseIdStr) : null;
+      const nurseId =
+        nurseIdStr === "" ? null : Number(nurseIdStr) || null;
 
-      const res = await fetch(`/api/encounters/${encounterId}/nurse`, {
+      const res = await fetch(`/api/encounters/${id}/nurse`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nurseId }),
       });
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(data?.error || "Сувилагч хадгалахад алдаа гарлаа.");
-      }
-
-      setEncounter((prev) =>
-        prev
-          ? {
-              ...prev,
-              nurse: data?.nurse ?? null,
-            }
-          : prev
-      );
-    } catch (err) {
-      console.error("Failed to save nurse:", err);
-      // optional: set a local error message
-    } finally {
-      setNurseSaving(false);
-    }
-  };
-  
-  // --- Prescription save ---
-
-  const savePrescription = async () => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
-    setPrescriptionError("");
-    setPrescriptionSaving(true);
-
-    try {
-      const filtered = prescriptionItems
-        .map((it) => ({
-          ...it,
-          drugName: it.drugName.trim(),
-        }))
-        .filter((it) => it.drugName.length > 0)
-        .slice(0, 3);
-
-      const payload =
-        filtered.length === 0
-          ? { items: [] }
-          : {
-              items: filtered.map((it) => ({
-                drugName: it.drugName,
-                durationDays:
-                  it.durationDays && it.durationDays > 0
-                    ? it.durationDays
-                    : 1,
-                quantityPerTake:
-                  it.quantityPerTake && it.quantityPerTake > 0
-                    ? it.quantityPerTake
-                    : 1,
-                frequencyPerDay:
-                  it.frequencyPerDay && it.frequencyPerDay > 0
-                    ? it.frequencyPerDay
-                    : 1,
-                note: it.note?.trim() || null,
-              })),
-            };
-
-      const res = await fetch(
-        `/api/encounters/${encounterId}/prescription`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      const data = await res.json().catch(() => null);
+      const json = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(
-          data?.error || "Жор хадгалахад алдаа гарлаа."
+          (json && json.error) || "Сувилагч сонгоход алдаа гарлаа"
         );
       }
 
-      if (data && data.prescription && Array.isArray(data.prescription.items)) {
-        setPrescriptionItems(
-          data.prescription.items
-            .sort((a: any, b: any) => a.order - b.order)
-            .map((it: any) => ({
-              id: it.id,
-              drugName: it.drugName || "",
-              durationDays: it.durationDays ?? null,
-              quantityPerTake: it.quantityPerTake ?? null,
-              frequencyPerDay: it.frequencyPerDay ?? null,
-              note: it.note || "",
-            }))
-        );
-      } else {
-        setPrescriptionItems([]);
+      if (encounter) {
+        setEncounter({
+          ...encounter,
+          nurse: json.nurse || null,
+          nurseId: json.nurse ? json.nurse.id : null,
+        });
       }
-    } catch (err: any) {
-      console.error("save prescription failed", err);
-      setPrescriptionError(
-        err.message || "Жор хадгалахад алдаа гарлаа."
-      );
+    } catch (err) {
+      console.error("handleChangeNurse failed", err);
     } finally {
-      setPrescriptionSaving(false);
+      setChangingNurse(false);
+    }
+  };
+
+  const savePrescription = async () => {
+    if (!id || typeof id !== "string") return;
+    setSaving(true);
+    try {
+      const payload = {
+        items: prescriptionItems.map((it) => ({
+          drugName: it.drugName,
+          durationDays: it.durationDays,
+          quantityPerTake: it.quantityPerTake,
+          frequencyPerDay: it.frequencyPerDay,
+          note: it.note || "",
+        })),
+      };
+
+      const res = await fetch(`/api/encounters/${id}/prescription`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          (json && json.error) || "Жор хадгалахад алдаа гарлаа"
+        );
+      }
+
+      if (encounter) {
+        setEncounter({
+          ...encounter,
+          prescription: json.prescription,
+        });
+      }
+
+      const newItems: EditablePrescriptionItem[] =
+        json.prescription?.items?.map((it: any) => ({
+          localId: it.order,
+          drugName: it.drugName,
+          durationDays: it.durationDays,
+          quantityPerTake: it.quantityPerTake,
+          frequencyPerDay: it.frequencyPerDay,
+          note: it.note || "",
+        })) || [];
+
+      while (newItems.length < 3) {
+        newItems.push({
+          localId: newItems.length + 1,
+          drugName: "",
+          durationDays: 1,
+          quantityPerTake: 1,
+          frequencyPerDay: 1,
+          note: "",
+        });
+      }
+
+      setPrescriptionItems(newItems);
+    } catch (err) {
+      console.error("savePrescription failed", err);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleFinishEncounter = async () => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
-    setFinishing(true);
-    setSaveError("");
+    if (!id || typeof id !== "string") return;
+    setSaving(true);
     try {
-      await handleSaveDiagnoses();
-      await handleSaveServices();
-      await savePrescription();
-
-      const res = await fetch(`/api/encounters/${encounterId}/finish`, {
+      const res = await fetch(`/api/encounters/${id}/finish`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
       });
-
-      const data = await res.json().catch(() => null);
+      const json = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(
-          data?.error || "Үзлэг дууссан төлөвт шилжүүлэхэд алдаа гарлаа."
+          (json && json.error) ||
+            "Үзлэг дууссаны төлөв шинэчлэх үед алдаа гарлаа."
         );
       }
-    } catch (err: any) {
-      console.error("Failed to finish encounter:", err);
-      setSaveError(
-        err.message || "Үзлэг дууссан төлөвт шилжүүлэхэд алдаа гарлаа."
-      );
+      // no special UI for now
+    } catch (err) {
+      console.error("handleFinishEncounter failed", err);
     } finally {
-      setFinishing(false);
+      setSaving(false);
     }
   };
 
-  // --- Media upload handler ---
-
   const handleMediaUpload = async (file: File) => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
-    setUploadingMedia(true);
-    setMediaError("");
-
+    if (!id || typeof id !== "string") return;
     try {
       const formData = new FormData();
       formData.append("file", file);
-      // Use currently selected teeth as toothCode (optional)
-      formData.append("toothCode", selectedTeeth.join(",") || "");
-      formData.append("type", "XRAY");
+      formData.append("type", mediaTypeFilter === "ALL" ? "XRAY" : mediaTypeFilter);
 
-      const res = await fetch(`/api/encounters/${encounterId}/media`, {
+      const res = await fetch(`/api/encounters/${id}/media`, {
         method: "POST",
         body: formData,
       });
-
-      const data = await res.json().catch(() => null);
+      const json = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error(data?.error || "Зураг хадгалахад алдаа гарлаа.");
+        throw new Error(
+          (json && json.error) || "Файл байршуулахад алдаа гарлаа"
+        );
       }
 
-      // Backend returns created media row; append and/or refresh
-      if (data && data.id) {
-        setMedia((prev) => [data as EncounterMedia, ...prev]);
-      } else {
-        await reloadMedia();
-      }
-    } catch (err: any) {
-      console.error("Media upload failed:", err);
-      setMediaError(err.message || "Зураг хадгалахад алдаа гарлаа.");
-    } finally {
-      setUploadingMedia(false);
+      await reloadMedia();
+    } catch (err) {
+      console.error("handleMediaUpload failed", err);
     }
   };
-
-  // Tooth helpers
-
-  const ADULT_TEETH: string[] = [
-    "11",
-    "12",
-    "13",
-    "14",
-    "15",
-    "16",
-    "17",
-    "18",
-    "21",
-    "22",
-    "23",
-    "24",
-    "25",
-    "26",
-    "27",
-    "28",
-    "31",
-    "32",
-    "33",
-    "34",
-    "35",
-    "36",
-    "37",
-    "38",
-    "41",
-    "42",
-    "43",
-    "44",
-    "45",
-    "46",
-    "47",
-    "48",
-  ];
-
-  const CHILD_TEETH: string[] = [
-    "51",
-    "52",
-    "53",
-    "54",
-    "55",
-    "61",
-    "62",
-    "63",
-    "64",
-    "65",
-    "71",
-    "72",
-    "73",
-    "74",
-    "75",
-    "81",
-    "82",
-    "83",
-    "84",
-    "85",
-  ];
 
   const toggleToothMode = (mode: "ADULT" | "CHILD") => {
     setToothMode(mode);
@@ -1086,76 +1070,40 @@ export default function EncounterAdminPage() {
   const isToothSelected = (code: string) => selectedTeeth.includes(code);
 
   const updateActiveRowToothList = (nextTeeth: string[]) => {
-    if (activeRowIndex === null) {
-      if (nextTeeth.length === 0) return;
-      const idx = createDiagnosisRow(nextTeeth);
-      setActiveRowIndex(idx);
-      return;
-    }
-
-    setRows((prev) =>
+    if (activeDxRowIndex === null) return;
+    const toothStr = stringifyToothList(nextTeeth);
+    setEditableDxRows((prev) =>
       prev.map((row, i) =>
-        i === activeRowIndex
-          ? { ...row, toothCode: stringifyToothList(nextTeeth) }
-          : row
+        i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
       )
     );
-
-    if (nextTeeth.length === 0) {
-      setRows((prev) => {
-        const row = prev[activeRowIndex!];
-        const isEmpty =
-          row.diagnosisId === 0 &&
-          (row.note || "").trim() === "" &&
-          (row.selectedProblemIds?.length ?? 0) === 0 &&
-          !row.serviceId;
-        if (!isEmpty) {
-          return prev.map((r, i) =>
-            i === activeRowIndex ? { ...r, toothCode: "" } : r
-          );
-        }
-        return prev.filter((_, i) => i !== activeRowIndex);
-      });
-      setActiveRowIndex(null);
-    }
   };
 
-
   const setCustomToothRange = (value: string) => {
-  const trimmed = value.trim();
+    setCustomToothRangeState(value);
+    if (!value.trim()) return;
+    const parts = value
+      .split(/[,\s;]+/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const next = Array.from(new Set([...selectedTeeth, ...parts]));
+    setSelectedTeeth(next);
+    updateActiveRowToothList(next);
+  };
 
-  if (activeRowIndex !== null) {
-    setRows((prev) =>
-      prev.map((row, i) =>
-        i === activeRowIndex ? { ...row, toothCode: trimmed } : row
-      )
-    );
-    return;
-  }
-
-  // If no active row yet, create one and set its toothCode
-  const idx = createDiagnosisRow([]);
-  setActiveRowIndex(idx);
-  setRows((prev) =>
-    prev.map((row, i) =>
-      i === idx ? { ...row, toothCode: trimmed } : row
-    )
-  );
-};
-
-  
   const toggleToothSelection = (code: string) => {
     setSelectedTeeth((prev) => {
-      let next: string[];
-      if (prev.includes(code)) {
-        next = prev.filter((c) => c !== code);
-      } else {
-        next = [...prev, code];
-      }
+      const exists = prev.includes(code);
+      const next = exists ? prev.filter((c) => c !== code) : [...prev, code];
       updateActiveRowToothList(next);
       return next;
     });
   };
+
+  // ---- Derived: warning lines from visit card ----
+  const warningLines: WarningLine[] = extractWarningLinesFromVisitCard(
+    visitCard
+  );
 
   const totalDiagnosisServicesPrice = rows.reduce((sum, r) => {
     if (!r.serviceId) return sum;
@@ -1205,57 +1153,150 @@ export default function EncounterAdminPage() {
           {/* Encounter header */}
           <section
             style={{
+              display: "grid",
+              gridTemplateColumns: "2fr 1fr",
+              gap: 16,
               marginBottom: 16,
-              padding: 16,
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              background: "#ffffff",
             }}
           >
-            <div style={{ marginBottom: 4 }}>
-              <strong>Үйлчлүүлэгч:</strong>{" "}
-              {formatPatientName(encounter.patientBook.patient)} (Карт:{" "}
-              {encounter.patientBook.bookNumber})
+            <div
+              style={{
+                borderRadius: 12,
+                border: "1px solid #e5e7eb",
+                padding: 16,
+                background: "#ffffff",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: 600,
+                  marginBottom: 4,
+                }}
+              >
+                {formatPatientName(encounter.patientBook.patient)}
+              </div>
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                Картын дугаар: {encounter.patientBook.bookNumber}
+              </div>
+              {encounter.patientBook.patient.regNo && (
+                <div style={{ fontSize: 13, color: "#6b7280" }}>
+                  РД: {encounter.patientBook.patient.regNo}
+                </div>
+              )}
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                Утас: {displayOrDash(encounter.patientBook.patient.phone)}
+              </div>
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                Бүртгэсэн салбар:{" "}
+                {encounter.patientBook.patient.branch?.name ||
+                  encounter.patientBook.patient.branchId}
+              </div>
             </div>
-            <div style={{ marginBottom: 4 }}>
-              <strong>Салбар:</strong>{" "}
-              {encounter.patientBook.patient.branch
-                ? encounter.patientBook.patient.branch.name
-                : "-"}
-            </div>
-            <div style={{ marginBottom: 4 }}>
-              <strong>Эмч:</strong> {formatDoctorName(encounter.doctor)}
-            </div>
-                        <div style={{ marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
-              <strong>Сувилагч:</strong>
-              {allNurses.length === 0 ? (
-                <span style={{ fontSize: 13, color: "#6b7280" }}>
-                  (Сувилагч бүртгээгүй эсвэл ачаалаагүй байна)
-                </span>
-              ) : (
+
+            <div
+              style={{
+                borderRadius: 12,
+                border: "1px solid #e5e7eb",
+                padding: 16,
+                background: "#ffffff",
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              <div>
+                <div
+                  style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}
+                >
+                  Огноо
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>
+                  {formatShortDate(encounter.visitDate)}
+                </div>
+              </div>
+
+              <div>
+                <div
+                  style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}
+                >
+                  Эмч
+                </div>
+                <div style={{ fontSize: 14 }}>
+                  {formatDoctorDisplayName(encounter.doctor)}
+                </div>
+              </div>
+
+              <div>
+                <div
+                  style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}
+                >
+                  Сувилагч
+                </div>
                 <select
-                  value={encounter.nurse?.id ?? ""}
+                  value={encounter.nurseId || ""}
                   onChange={(e) => void handleChangeNurse(e.target.value)}
-                  disabled={nurseSaving}
+                  disabled={changingNurse}
                   style={{
+                    width: "100%",
                     borderRadius: 6,
                     border: "1px solid #d1d5db",
-                    padding: "4px 8px",
+                    padding: "4px 6px",
                     fontSize: 13,
                   }}
                 >
-                  <option value="">— Сонгоогүй —</option>
-                  {allNurses.map((n) => (
-                    <option key={n.id} value={n.id}>
-                      {formatStaffName(n)}
+                  <option value="">Сонгоогүй</option>
+                  {nursesForEncounter.map((n) => (
+                    <option key={n.nurseId} value={n.nurseId}>
+                      {formatStaffName({
+                        name: n.name || undefined,
+                        ovog: n.ovog || undefined,
+                        email: n.email,
+                      })}
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* NEW: Анхаарах! – summary from visit card */}
+              {warningLines.length > 0 && (
+                <div
+                  style={{
+                    marginTop: 4,
+                    padding: 8,
+                    borderRadius: 8,
+                    border: "1px solid #f97316",
+                    background: "#fff7ed",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: "#b91c1c",
+                      marginBottom: 4,
+                    }}
+                  >
+                    Анхаарах!
+                  </div>
+                  <ul
+                    style={{
+                      margin: 0,
+                      paddingLeft: 16,
+                      fontSize: 12,
+                      color: "#7f1d1d",
+                    }}
+                  >
+                    {warningLines.map((w, idx) => (
+                      <li key={`${w.label}-${idx}`} style={{ marginBottom: 2 }}>
+                        {w.label} ({w.value})
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
-                        <div style={{ marginBottom: 4 }}>
-              <strong>Огноо:</strong> {formatDateTime(encounter.visitDate)}
-            </div>
+          </section>
 
                         {/* Consent form (step 1: enable + choose type) */}
             <div
