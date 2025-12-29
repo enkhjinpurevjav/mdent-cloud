@@ -6,7 +6,6 @@ const router = express.Router();
 router.get("/something-protected", authenticateJWT, async (req, res) => {
 
 
-const router = express.Router();
 
 /**
  * Helper: map DiscountPercent enum to numeric value
