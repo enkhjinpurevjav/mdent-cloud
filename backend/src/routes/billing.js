@@ -444,4 +444,4 @@ router.post(
 // Always use CommonJS export for router if your app uses require()
 // Change to ES module export only if your app is pure ESM and your entrypoint uses import/export
 
-module.exports = router;
+export default router;
