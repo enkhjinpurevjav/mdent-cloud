@@ -229,7 +229,7 @@ export default function PatientProfilePage() {
   const [visitCardLoading, setVisitCardLoading] = useState(false);
   const [visitCardError, setVisitCardError] = useState("");
   const [visitCardTypeDraft, setVisitCardTypeDraft] =
-    useState<VisitCardType | null>(null);
+  useState<VisitCardType | null>("ADULT");
   const [visitCardAnswers, setVisitCardAnswers] =
     useState<VisitCardAnswers>({});
   const [visitCardSaving, setVisitCardSaving] = useState(false);
@@ -472,30 +472,30 @@ const handleEditChange = (
   };
 
   const handleSaveVisitCard = async () => {
-    if (!patientBookId) {
-      setVisitCardError("PatientBook ID олдсонгүй.");
-      return;
-    }
+  if (!patientBookId) {
+    setVisitCardError("PatientBook ID олдсонгүй.");
+    return;
+  }
 
-    const type = visitCard?.type || visitCardTypeDraft;
-    if (!type) {
-      setVisitCardError(
-        "Эхлээд картын төрлийг сонгоно уу (том хүн / хүүхэд)."
-      );
-      return;
-    }
+  const type = visitCard?.type || visitCardTypeDraft;
+  if (!type) {
+    setVisitCardError(
+      "Эхлээд картын төрлийг сонгоно уу (том хүн / хүүхэд)."
+    );
+    return;
+  }
 
-    setVisitCardSaving(true);
-    setVisitCardError("");
-    try {
-      const res = await fetch(`/api/patients/visit-card/${patientBookId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type,
-          answers: visitCardAnswers,
-        }),
-      });
+  setVisitCardSaving(true);
+  setVisitCardError("");
+  try {
+    const res = await fetch(`/api/patients/visit-card/${patientBookId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type,
+        answers: visitCardAnswers,
+      }),
+    });
 
       const json = await res.json().catch(() => null);
       if (!res.ok) {
