@@ -49,6 +49,48 @@ enum VisitCardType {
   CHILD   // Үзлэгийн карт (хүүхэд)
 }
 
+// NEW: discount levels explicitly constrained
+enum DiscountPercent {
+  ZERO   // 0%
+  FIVE   // 5%
+  TEN    // 10%
+}
+
+// NEW: invoice status enum (source-of-truth for billing state)
+enum InvoiceStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  INSURANCE_PENDING
+}
+
+// NEW: invoice line type (service vs product)
+enum InvoiceItemType {
+  SERVICE
+  PRODUCT
+}
+
+// NEW: ledger entry type – full financial truth
+enum LedgerEntryType {
+  CASH
+  QPAY
+  POS
+  FIN_APP
+  BOOKING_ADVANCE
+  INSURANCE_PENDING
+  INSURANCE_SETTLED
+  EMPLOYEE_VOUCHER
+  BARTER
+  REFUND
+}
+
+// NEW: employee voucher status
+enum EmployeeVoucherStatus {
+  ACTIVE
+  DISABLED
+  EXPIRED
+}
+
 // ==========================================================
 // BRANCHES (Multi-Branch Support)
 // ==========================================================
@@ -85,10 +127,18 @@ model Branch {
   // NEW: Receptionist many-to-many assignment
   receptionBranches  ReceptionBranch[]
 
-// NEW for nurses
+  // NEW for nurses
   nurseSchedules     NurseSchedule[]
   nurseBranches      NurseBranch[]
 
+  // NEW: invoices created for encounters in this branch
+  invoices           Invoice[]
+
+  // NEW: ledger entries belonging to this branch
+  ledgerEntries      LedgerEntry[]
+
+  // NEW: employee vouchers scoped to this branch (if needed)
+  employeeVouchers   EmployeeVoucher[]
 }
 
 model VisitCard {
@@ -164,7 +214,7 @@ model User {
   receptionSchedules ReceptionSchedule[]
   receptionBranches  ReceptionBranch[]
 
-// NEW for nurses
+  // NEW for nurses
   nurseSchedules     NurseSchedule[]
   nurseBranches      NurseBranch[]
 
@@ -177,6 +227,14 @@ model User {
   // KEEP this if you still use calendarOrder in frontend
   calendarOrder      Int?
 
+  // NEW: employee vouchers where this user is the employee
+  employeeVouchers   EmployeeVoucher[]
+
+  // NEW: ledger entries created by this user
+  createdLedgerEntries LedgerEntry[]  @relation("LedgerCreatedBy")
+
+  // NEW: ledger entries approved by this user (for exceptional flows)
+  approvedLedgerEntries LedgerEntry[] @relation("LedgerApprovedBy")
 }
 
 // Join table for many-to-many between Doctor (User) and Branch
@@ -247,6 +305,9 @@ model Patient {
 
   // Bookings for this patient
   bookings       Booking[]
+
+  // NEW: ledger entries related to this patient (payments, advances, wallet)
+  ledgerEntries  LedgerEntry[]
 }
 
 // ==========================================================
@@ -259,7 +320,7 @@ model ChartTooth {
   toothCode   String
 
   /// Optional group/range description (e.g. "21-24", "25-26", "all molars")
-  toothGroup  String?    // <--- NEW
+  toothGroup  String?
 
   /// General tooth condition/status (optional, e.g. "Healthy", "Caries")
   status      String?
@@ -330,6 +391,8 @@ model Booking {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // NOTE: Booking advances are represented in LedgerEntry with type BOOKING_ADVANCE
 }
 
 // DIGITAL HISTORY BOOK
@@ -409,7 +472,7 @@ model Encounter {
   // Per-tooth charting for this encounter
   chartTeeth         ChartTooth[]
 
-  // Generated invoice for this encounter
+  // Generated invoice for this encounter (1:1)
   invoice            Invoice?
   prescription       Prescription?
 
@@ -491,6 +554,9 @@ model Service {
 
   /// Many-to-many to Branch through ServiceBranch
   serviceBranches   ServiceBranch[]
+
+  // NEW: invoice items referencing this service (type=SERVICE)
+  invoiceItems      InvoiceItem[]
 }
 
 // Many-to-many link: which services are available at which branches
@@ -526,33 +592,107 @@ model Procedure {
   invoiceItems InvoiceItem[]
 }
 
+// OPTIONAL: separate product catalog for retail (if needed now or later)
+model Product {
+  id           Int          @id @default(autoincrement())
+  branchId     Int          // product belongs to a branch (stock, reporting)
+  code         String?      @unique
+  name         String
+  price        Float
+  isActive     Boolean      @default(true)
+  description  String?
+
+  branch       Branch       @relation(fields: [branchId], references: [id])
+
+  // Invoice lines referencing this product (type=PRODUCT)
+  invoiceItems InvoiceItem[]
+
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([branchId, isActive])
+}
+
 // ==========================================================
 // INVOICES, PAYMENTS, E-BARIMT
 // ==========================================================
+// NEW SOURCE-OF-TRUTH INVOICE MODEL (replacing legacy Invoice/InvoiceItem/Payment)
 model Invoice {
-  id             Int           @id @default(autoincrement())
-  encounterId    Int           @unique
-  totalAmount    Float
-  status         String
-  createdAt      DateTime      @default(now())
+  id                 Int             @id @default(autoincrement())
 
-  encounter      Encounter     @relation(fields: [encounterId], references: [id])
-  invoiceItems   InvoiceItem[]
-  payment        Payment?
-  eBarimtReceipt EBarimtReceipt?
+  /// Multi-branch: every invoice belongs to exactly one branch
+  branchId           Int
+  branch             Branch          @relation(fields: [branchId], references: [id])
+
+  /// One invoice per encounter (post-treatment)
+  encounterId        Int             @unique
+  encounter          Encounter       @relation(fields: [encounterId], references: [id])
+
+  /// Patient for reporting / linking (denormalized from encounter->book->patient)
+  patientId          Int
+  patient            Patient         @relation(fields: [patientId], references: [id])
+
+  /// Clinical & retail lines:
+  /// - service items (clinical)
+  /// - product items (retail)
+  items              InvoiceItem[]
+
+  /// Sum of all item totals BEFORE discount
+  totalBeforeDiscount Float
+
+  /// Discount percent (0 / 5 / 10) – constrained by enum
+  discountPercent     DiscountPercent @default(ZERO)
+
+  /// Final amount after discount (this is what needs to be settled)
+  finalAmount         Float
+
+  /// Status controlled ONLY by settlement / insurance flow
+  status              InvoiceStatus   @default(UNPAID)
+
+  /// One e-Barimt per invoice (optional until issued)
+  eBarimtReceipt      EBarimtReceipt?
+
+  /// Ledger entries referencing this invoice (settlements, refunds, etc.)
+  ledgerEntries       LedgerEntry[]
+
+  /// Flags and metadata
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
 }
 
+// NEW: unified invoice line items (supports both services & products)
 model InvoiceItem {
-  id          Int       @id @default(autoincrement())
-  invoiceId   Int
-  procedureId String
-  price       Float
-  quantity    Int
+  id          Int             @id @default(autoincrement())
 
-  invoice     Invoice   @relation(fields: [invoiceId], references: [id])
-  procedure   Procedure @relation(fields: [procedureId], references: [code])
+  invoiceId   Int
+  invoice     Invoice         @relation(fields: [invoiceId], references: [id])
+
+  /// SERVICE or PRODUCT
+  itemType    InvoiceItemType
+
+  /// Clinical service reference (if itemType = SERVICE)
+  serviceId   Int?
+  service     Service?        @relation(fields: [serviceId], references: [id])
+
+  /// Retail product reference (if itemType = PRODUCT)
+  productId   Int?
+  product     Product?        @relation(fields: [productId], references: [id])
+
+  /// Snapshot fields to keep invoice stable over time
+  name        String
+  unitPrice   Float
+  quantity    Int             @default(1)
+
+  /// Per-line total BEFORE invoice-level discount
+  lineTotal   Float
+
+  createdAt   DateTime        @default(now())
+
+  @@index([invoiceId])
 }
 
+// Legacy Payment model is kept for backwards compatibility,
+// but must NOT be used for new flows (all new payments go into LedgerEntry).
 model Payment {
   id        Int      @id @default(autoincrement())
   invoiceId Int      @unique
@@ -561,6 +701,7 @@ model Payment {
   qpayTxnId String?
   timestamp DateTime @default(now())
 
+  // This relation is preserved for legacy data only.
   invoice   Invoice  @relation(fields: [invoiceId], references: [id])
 }
 
@@ -597,14 +738,143 @@ model PrescriptionItem {
   @@index([prescriptionId])
 }
 
-
 model EBarimtReceipt {
   id            Int      @id @default(autoincrement())
+
+  /// One e-Barimt per invoice (STRICT)
   invoiceId     Int      @unique
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
+
   receiptNumber String   @unique
   timestamp     DateTime @default(now())
+}
 
-  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
+// ==========================================================
+// LEDGER (FINANCIAL TRUTH)
+// ==========================================================
+// All financial movements are stored here. Immutable: never updated/deleted.
+model LedgerEntry {
+  id           Int             @id @default(autoincrement())
+
+  /// Multi-branch enforcement: every ledger entry must belong to a branch
+  branchId     Int
+  branch       Branch          @relation(fields: [branchId], references: [id])
+
+  /// Patient whose wallet / account this affects
+  patientId    Int
+  patient      Patient         @relation(fields: [patientId], references: [id])
+
+  /// Optional invoice this entry belongs to (null for booking advances, etc.)
+  invoiceId    Int?
+  invoice      Invoice?        @relation(fields: [invoiceId], references: [id])
+
+  /// Financial type (CASH, QPAY, BOOKING_ADVANCE, etc.)
+  type         LedgerEntryType
+
+  /// Amount: +in / −out (overpayments → positive credit)
+  amount       Float
+
+  /// Creator (who recorded the entry)
+  createdById  Int
+  createdBy    User            @relation("LedgerCreatedBy", fields: [createdById], references: [id])
+
+  /// Optional approver for exceptional flows (discounts, refunds, barter, etc.)
+  approvedById Int?
+  approvedBy   User?           @relation("LedgerApprovedBy", fields: [approvedById], references: [id])
+
+  /// Link to authorization code used (discount, barter, refund, etc.) – optional
+  approvalCodeId Int?
+  approvalCode   AuthorizationCode? @relation(fields: [approvalCodeId], references: [id])
+
+  /// Additional metadata (payment provider payload, QPay txn ref, etc.)
+  meta         Json?
+
+  createdAt    DateTime        @default(now())
+
+  @@index([branchId])
+  @@index([patientId])
+  @@index([invoiceId])
+  @@index([type])
+}
+
+// ==========================================================
+// AUTHORIZATION CODES (ADMIN CONTROLLED EXCEPTIONS)
+// ==========================================================
+model AuthorizationCode {
+  id           Int       @id @default(autoincrement())
+  code         String    @unique
+
+  /// What is this code allowed to authorize:
+  /// "DISCOUNT_5", "DISCOUNT_10", "BARTER", "REFUND", "VOUCHER_TOPUP", etc.
+  purpose      String
+
+  /// Whether this code is currently usable
+  isEnabled    Boolean   @default(true)
+
+  /// Optional expiry (date-time, not just date)
+  expiresAt    DateTime?
+
+  /// Optional usage limit (e.g. 10 times). Null = unlimited.
+  maxUses      Int?
+  usedCount    Int       @default(0)
+
+  /// Who created this code (admin)
+  createdById  Int
+  createdBy    User      @relation(fields: [createdById], references: [id])
+
+  /// Ledger entries that consumed this code
+  ledgerEntries LedgerEntry[]
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([purpose])
+}
+
+// ==========================================================
+// EMPLOYEE VOUCHERS (INTERNAL BENEFIT POOLS)
+// ==========================================================
+model EmployeeVoucher {
+  id             Int                     @id @default(autoincrement())
+
+  /// Branch this benefit pool belongs to (for reporting)
+  branchId       Int
+  branch         Branch                  @relation(fields: [branchId], references: [id])
+
+  /// Employee who owns this voucher pool
+  employeeId     Int
+  employee       User                    @relation(fields: [employeeId], references: [id])
+
+  /// Human-friendly identifier (e.g. YEAR-EMPLOYEE-CODE)
+  code           String                  @unique
+
+  /// Status (ACTIVE / DISABLED / EXPIRED)
+  status         EmployeeVoucherStatus   @default(ACTIVE)
+
+  /// Max total benefit (e.g. 1,000,000₮)
+  balanceCap     Float
+
+  /// Running total of amount consumed (derived but stored for reporting)
+  usedAmount     Float                   @default(0)
+
+  /// JSON list of eligible service IDs or categories (e.g. { serviceIds: [1,2,3] })
+  eligibility    Json
+
+  /// Patient IDs allowed to use this voucher (employee + verified family)
+  allowedPatientIds Json                 // e.g. [patientId1, patientId2]
+
+  /// Related ledger entries when this voucher is used (EMPLOYEE_VOUCHER type)
+  ledgerEntries  LedgerEntry[]
+
+  /// Audit
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  createdById    Int
+  createdBy      User                    @relation(fields: [createdById], references: [id])
+
+  @@index([branchId])
+  @@index([employeeId])
 }
 
 // ==========================================================
