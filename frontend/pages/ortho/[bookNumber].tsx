@@ -1413,6 +1413,7 @@ if (data.treatmentPlan) {
         lip,
         teeth, // NEW
         problemSection, // NEW
+        treatmentPlan, // <-- add this
       };
 
       const res = await fetch(`/api/patients/ortho-card/${patientBookId}`, {
