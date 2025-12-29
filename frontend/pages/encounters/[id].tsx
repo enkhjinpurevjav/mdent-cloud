@@ -1389,10 +1389,105 @@ export default function EncounterAdminPage() {
               <div style={{ fontSize: 13, color: "#6b7280" }}>
                 Утас: {displayOrDash(encounter.patientBook.patient.phone)}
               </div>
-              <div style={{ fontSize: 13, color: "#6b7280" }}>
+              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}>
                 Бүртгэсэн салбар:{" "}
                 {encounter.patientBook.patient.branch?.name ||
                   encounter.patientBook.patient.branchId}
+              </div>
+
+              {/* NEW: quick navigation buttons for this patient */}
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  marginTop: 4,
+                }}
+              >
+                {/* We navigate by bookNumber since that’s how patient profile / cards are keyed */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/patients/${encodeURIComponent(
+                        encounter.patientBook.bookNumber
+                      )}`
+                    )
+                  }
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#f9fafb",
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  Үйлчлүүлэгчийн дэлгэрэнгүй
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/patients/${encodeURIComponent(
+                        encounter.patientBook.bookNumber
+                      )}?tab=visit-card`
+                    )
+                  }
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#f0f9ff",
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  Үйлчлүүлэгчийн карт
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/patients/${encodeURIComponent(
+                        encounter.patientBook.bookNumber
+                      )}?tab=ortho-card`
+                    )
+                  }
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#fef3c7",
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  Гажиг заслын карт
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      `/patients/${encodeURIComponent(
+                        encounter.patientBook.bookNumber
+                      )}?tab=encounters`
+                    )
+                  }
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#f3e8ff",
+                    fontSize: 12,
+                    cursor: "pointer",
+                  }}
+                >
+                  Өмнөх үзлэгүүд
+                </button>
               </div>
             </div>
 
