@@ -507,25 +507,25 @@ model PrescriptionItem {
 model Invoice {
   id                 Int             @id @default(autoincrement())
 
-  /// NEW: allow null for existing rows; backend must treat as required for new invoices.
   branchId           Int?
   branch             Branch?         @relation(fields: [branchId], references: [id])
 
   encounterId        Int             @unique
   encounter          Encounter       @relation(fields: [encounterId], references: [id])
 
-  /// NEW: allow null for existing rows; backend must treat as required for new invoices.
   patientId          Int?
   patient            Patient?        @relation(fields: [patientId], references: [id])
 
   items              InvoiceItem[]
 
-  /// NEW: allow null so Prisma can add column without default on existing data
+  totalAmount        Float?          // legacy
+
   totalBeforeDiscount Float?
   discountPercent     DiscountPercent @default(ZERO)
   finalAmount         Float?
 
-  status              InvoiceStatus   @default(UNPAID)
+  // Keep old status column exactly as in DB
+  statusLegacy       String?         @map("status")
 
   eBarimtReceipt      EBarimtReceipt?
 
@@ -533,7 +533,6 @@ model Invoice {
   payments            Payment[]
 
   createdAt           DateTime        @default(now())
-  /// NEW: allow default now so existing rows get value
   updatedAt           DateTime        @default(now()) @updatedAt
 }
 
