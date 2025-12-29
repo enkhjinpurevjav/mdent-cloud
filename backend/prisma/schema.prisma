@@ -3,21 +3,11 @@
 // Mon Family Dental Clinic System
 // ==========================================================
 
-// DATASOURCE
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-enum BookingStatus {
-  PENDING      // Захиалсан
-  CONFIRMED    // Баталгаажсан
-  IN_PROGRESS  // Явж байна
-  COMPLETED    // Дууссан
-  CANCELLED    // Цуцалсан
-}
-
-// GENERATOR
 generator client {
   provider = "prisma-client-js"
 }
@@ -45,8 +35,16 @@ enum ServiceCategory {
 }
 
 enum VisitCardType {
-  ADULT   // Үзлэгийн карт (том хүн)
-  CHILD   // Үзлэгийн карт (хүүхэд)
+  ADULT
+  CHILD
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }
 
 // NEW: discount levels explicitly constrained
@@ -56,7 +54,7 @@ enum DiscountPercent {
   TEN    // 10%
 }
 
-// NEW: invoice status enum (source-of-truth for billing state)
+// NEW: invoice status enum
 enum InvoiceStatus {
   UNPAID
   PARTIAL
@@ -100,69 +98,29 @@ model Branch {
   address   String?
   createdAt DateTime         @default(now())
 
-  // Users directly assigned to this branch (legacy single-branch link)
-  users     User[]
-
-  // Patients registered under this branch
-  patients  Patient[]
-
-  // Doctor schedules per branch (per-day entries)
-  doctorSchedules DoctorSchedule[]
-
-  // Services available in this branch (many-to-many via ServiceBranch)
-  serviceBranches ServiceBranch[]
-
-  // Doctors assigned to this branch (many-to-many via DoctorBranch)
-  doctorBranches  DoctorBranch[]
-
-  // Appointments booked in this branch
-  appointments    Appointment[]
-
-  // Bookings in this branch
-  bookings        Booking[]
-
-  // NEW: Receptionist schedules per branch
+  users            User[]
+  patients         Patient[]
+  doctorSchedules  DoctorSchedule[]
+  serviceBranches  ServiceBranch[]
+  doctorBranches   DoctorBranch[]
+  appointments     Appointment[]
+  bookings         Booking[]
   receptionSchedules ReceptionSchedule[]
-
-  // NEW: Receptionist many-to-many assignment
   receptionBranches  ReceptionBranch[]
-
-  // NEW for nurses
   nurseSchedules     NurseSchedule[]
   nurseBranches      NurseBranch[]
 
-  // NEW: invoices created for encounters in this branch
-  invoices           Invoice[]
+  // NEW: products (retail) belong to a branch
+  products          Product[]
 
-  // NEW: ledger entries belonging to this branch
-  ledgerEntries      LedgerEntry[]
+  // NEW: invoices created in this branch
+  invoices          Invoice[]
 
-  // NEW: employee vouchers scoped to this branch (if needed)
-  employeeVouchers   EmployeeVoucher[]
-}
+  // NEW: ledger entries in this branch
+  ledgerEntries     LedgerEntry[]
 
-model VisitCard {
-  id             Int           @id @default(autoincrement())
-
-  /// One card per PatientBook (patient)
-  patientBookId  Int           @unique
-  patientBook    PatientBook   @relation(fields: [patientBookId], references: [id])
-
-  /// ADULT or CHILD
-  type           VisitCardType
-
-  /// All answers from the form.
-  /// JSON so we can evolve fields without migrations.
-  answers        Json
-
-  /// Optional path to PNG signature image stored under /media.
-  patientSignaturePath String?
-
-  /// When the card was first created (patient agreed).
-  signedAt      DateTime?
-
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  // NEW: employee voucher benefit pools in this branch
+  employeeVouchers  EmployeeVoucher[]
 }
 
 // ==========================================================
@@ -175,8 +133,10 @@ model User {
   ovog               String?
   name               String?
   role               UserRole         @default(receptionist)
+
   branchId           Int?
   branch             Branch?          @relation(fields: [branchId], references: [id])
+
   createdAt          DateTime         @default(now())
 
   encounters         Encounter[]      @relation("DoctorEncounters")
@@ -192,53 +152,28 @@ model User {
 
   doctorSchedules    DoctorSchedule[]
   doctorBranches     DoctorBranch[]
+
   receptionSchedules ReceptionSchedule[]
   receptionBranches  ReceptionBranch[]
+
   nurseSchedules     NurseSchedule[]
   nurseBranches      NurseBranch[]
+
   appointments       Appointment[]
   bookings           Booking[]
+
   calendarOrder      Int?
 
-  // --- NEW RELATIONS (ensure they use explicit names) ---
-
-  // LedgerEntry.createdBy
+  // NEW: ledger relations
   createdLedgerEntries  LedgerEntry[] @relation("LedgerCreatedBy")
-
-  // LedgerEntry.approvedBy
   approvedLedgerEntries LedgerEntry[] @relation("LedgerApprovedBy")
 
-  // EmployeeVoucher.employee
-  employeeVouchers      EmployeeVoucher[] @relation("EmployeeVoucherEmployee")
-
-  // EmployeeVoucher.createdBy
+  // NEW: employee voucher relations
+  employeeVouchers        EmployeeVoucher[] @relation("EmployeeVoucherEmployee")
   createdEmployeeVouchers EmployeeVoucher[] @relation("EmployeeVoucherCreatedBy")
-}
 
-// Join table for many-to-many between Doctor (User) and Branch
-model DoctorBranch {
-  id        Int    @id @default(autoincrement())
-
-  doctorId  Int
-  branchId  Int
-
-  doctor    User   @relation(fields: [doctorId], references: [id])
-  branch    Branch @relation(fields: [branchId], references: [id])
-
-  @@unique([doctorId, branchId])
-}
-
-// NEW: Join table for many-to-many between Receptionist (User) and Branch
-model ReceptionBranch {
-  id           Int    @id @default(autoincrement())
-
-  receptionId  Int
-  branchId     Int
-
-  reception    User   @relation(fields: [receptionId], references: [id])
-  branch       Branch @relation(fields: [branchId], references: [id])
-
-  @@unique([receptionId, branchId])
+  // NEW: authorization codes created by this user
+  authorizationCodes AuthorizationCode[]
 }
 
 // ==========================================================
@@ -246,22 +181,12 @@ model ReceptionBranch {
 // ==========================================================
 model Patient {
   id             Int          @id @default(autoincrement())
-
-  /// Mongolian citizen ID (РД), unique per patient
   regNo          String?       @unique
-
-  /// Father’s name
   ovog           String?
-
-  /// Given name
   name           String
-
   gender         String?
   birthDate      DateTime?
-
-  /// Phone numbers are non-unique (one parent can register multiple children)
   phone          String?
-
   address        String?
   bloodType      String?
   citizenship    String?      @default("Mongolian")
@@ -271,39 +196,152 @@ model Patient {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  /// Primary branch where the patient is registered
   branchId       Int
   branch         Branch       @relation(fields: [branchId], references: [id])
 
-  /// Each patient has exactly one digital history book
   patientBook    PatientBook?
-
-  // Back-relation to appointments
   appointments   Appointment[]
-
-  // Bookings for this patient
   bookings       Booking[]
 
-  // NEW: ledger entries related to this patient (payments, advances, wallet)
+  // NEW: financial movements related to this patient
   ledgerEntries  LedgerEntry[]
 }
 
 // ==========================================================
-// CHARTING (Tooth Records)
+// DIGITAL HISTORY BOOK & ORTHO CARD
 // ==========================================================
+model PatientBook {
+  id         Int         @id @default(autoincrement())
+  bookNumber String      @unique
+
+  patientId  Int         @unique
+  patient    Patient     @relation(fields: [patientId], references: [id])
+
+  encounters Encounter[]
+
+  visitCard  VisitCard?
+  orthoCard  OrthoCard?
+}
+
+model VisitCard {
+  id             Int           @id @default(autoincrement())
+  patientBookId  Int           @unique
+  patientBook    PatientBook   @relation(fields: [patientBookId], references: [id])
+
+  type           VisitCardType
+  answers        Json
+
+  patientSignaturePath String?
+  signedAt      DateTime?
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model OrthoCard {
+  id            Int         @id @default(autoincrement())
+  patientBookId Int         @unique
+  patientBook   PatientBook @relation(fields: [patientBookId], references: [id])
+
+  data          Json
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+// ==========================================================
+// APPOINTMENTS & BOOKINGS
+// ==========================================================
+model Appointment {
+  id          Int       @id @default(autoincrement())
+
+  patientId   Int
+  doctorId    Int?
+  branchId    Int
+
+  scheduledAt DateTime
+  endAt       DateTime?
+  status      String      @default("booked")
+  notes       String?
+
+  patient   Patient   @relation(fields: [patientId], references: [id])
+  doctor    User?     @relation(fields: [doctorId], references: [id])
+  branch    Branch    @relation(fields: [branchId], references: [id])
+
+  encounters  Encounter[]
+
+  @@index([branchId, scheduledAt])
+}
+
+model Booking {
+  id        Int           @id @default(autoincrement())
+  doctorId  Int
+  branchId  Int
+  patientId Int
+  date      DateTime
+  startTime String
+  endTime   String
+  status    BookingStatus @default(PENDING)
+  note      String?       @db.Text
+
+  doctor  User    @relation(fields: [doctorId], references: [id])
+  branch  Branch  @relation(fields: [branchId], references: [id])
+  patient Patient @relation(fields: [patientId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ==========================================================
+// ENCOUNTERS, DIAGNOSES, CHARTING
+// ==========================================================
+model Encounter {
+  id                 Int           @id @default(autoincrement())
+  patientBookId      Int
+  doctorId           Int
+  visitDate          DateTime
+  notes              String?
+  appointmentId      Int?
+
+  patientBook        PatientBook   @relation(fields: [patientBookId], references: [id])
+  doctor             User          @relation("DoctorEncounters", fields: [doctorId], references: [id])
+  appointment        Appointment?  @relation(fields: [appointmentId], references: [id])
+
+  nurseId            Int?
+  nurse              User?         @relation("NurseEncounters", fields: [nurseId], references: [id])
+
+  chartTeeth         ChartTooth[]
+  invoice            Invoice?
+  prescription       Prescription?
+  media              Media[]
+  encounterServices  EncounterService[]
+  diagnoses          EncounterDiagnosis[]
+  consent            EncounterConsent?
+}
+
+model EncounterConsent {
+  id                  Int       @id @default(autoincrement())
+  encounterId         Int       @unique
+  type                String
+  answers             Json
+
+  patientSignedAt     DateTime?
+  doctorSignedAt      DateTime?
+
+  patientSignaturePath String?
+  doctorSignaturePath  String?
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  encounter           Encounter @relation(fields: [encounterId], references: [id])
+}
+
 model ChartTooth {
   id          Int        @id @default(autoincrement())
-
-  /// FDI tooth code (e.g. "11", "26", "85")
   toothCode   String
-
-  /// Optional group/range description (e.g. "21-24", "25-26", "all molars")
   toothGroup  String?
-
-  /// General tooth condition/status (optional, e.g. "Healthy", "Caries")
   status      String?
-
-  /// Free-form note for this tooth in this encounter
   notes       String?
 
   encounterId Int
@@ -321,96 +359,10 @@ model ChartNote {
   chartTooth   ChartTooth @relation(fields: [chartToothId], references: [id])
 }
 
-// Appointment model
-model Appointment {
-  id          Int       @id @default(autoincrement())
-
-  patientId   Int
-  doctorId    Int?
-  branchId    Int
-
-  scheduledAt DateTime
-  endAt       DateTime?   // Дуусах цаг (шинэ)
-  status      String      @default("booked")
-  notes       String?
-
-  patient     Patient   @relation(fields: [patientId], references: [id])
-  doctor      User?     @relation(fields: [doctorId], references: [id])
-  branch      Branch    @relation(fields: [branchId], references: [id])
-
-  @@index([branchId, scheduledAt])
-
-  // Back relation to Encounter (1 appointment → 0 or 1 encounter)
-  encounters  Encounter[]
-}
-
-model Booking {
-  id        Int           @id @default(autoincrement())
-
-  doctorId  Int
-  branchId  Int
-  patientId Int
-
-  /// Stored as date-only (we normalize to 00:00:00 UTC/local)
-  date      DateTime
-
-  /// HH:MM 24h format (e.g. "09:30")
-  startTime String
-
-  /// HH:MM 24h format (e.g. "10:00")
-  endTime   String
-
-  status    BookingStatus @default(PENDING)
-  note      String?       @db.Text
-
-  doctor  User    @relation(fields: [doctorId], references: [id])
-  branch  Branch  @relation(fields: [branchId], references: [id])
-  patient Patient @relation(fields: [patientId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // NOTE: Booking advances are represented in LedgerEntry with type BOOKING_ADVANCE
-}
-
-// DIGITAL HISTORY BOOK
-model PatientBook {
-  id         Int         @id @default(autoincrement())
-
-  /// Human-friendly book number (e.g., "6", "000123")
-  bookNumber String      @unique
-
-  patientId  Int         @unique
-  patient    Patient     @relation(fields: [patientId], references: [id])
-
-  // All encounters (visits) recorded in this book
-  encounters Encounter[]
-
-  // One general visit card per patient book
-  visitCard  VisitCard?
-
-  // NEW: one orthodontic card per patient book
-  orthoCard  OrthoCard?
-}
-
-model OrthoCard {
-  id            Int         @id @default(autoincrement())
-
-  /// One orthodontic card per patient book
-  patientBookId Int         @unique
-  patientBook   PatientBook @relation(fields: [patientBookId], references: [id])
-
-  /// Full orthodontic card data as JSON (matches OrthoCardData in frontend)
-  data          Json
-
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-}
-
 model Diagnosis {
   id          Int                  @id @default(autoincrement())
   code        String               @unique
-  name        String               // Short name/title
+  name        String
   description String?
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
@@ -429,115 +381,37 @@ model DiagnosisProblem {
   diagnosis    Diagnosis  @relation(fields: [diagnosisId], references: [id])
 }
 
-model Encounter {
-  id                 Int           @id @default(autoincrement())
-  patientBookId      Int
-  doctorId           Int
-  visitDate          DateTime
-  notes              String?
-
-  // Link to Appointment (one appointment can have many encounters)
-  appointmentId      Int?
-  appointment        Appointment? @relation(fields: [appointmentId], references: [id])
-
-  patientBook        PatientBook   @relation(fields: [patientBookId], references: [id])
-  doctor             User          @relation("DoctorEncounters", fields: [doctorId], references: [id])
-
-  // NEW: optional nurse working on this encounter
-  nurseId            Int?
-  nurse              User?         @relation("NurseEncounters", fields: [nurseId], references: [id])
-
-  // Per-tooth charting for this encounter
-  chartTeeth         ChartTooth[]
-
-  // Generated invoice for this encounter (1:1)
-  invoice            Invoice?
-  prescription       Prescription?
-
-  // Attached media (photos, X-rays, docs)
-  media              Media[]
-
-  // Services performed in this encounter
-  encounterServices  EncounterService[]
-
-  diagnoses          EncounterDiagnosis[]
-
-  // NEW: optional consent form for this encounter
-  consent            EncounterConsent?
-}
-
-model EncounterConsent {
-  id                  Int       @id @default(autoincrement())
-  encounterId         Int       @unique
-  type                String    // "root_canal" | "surgery" | "orthodontic" | "prosthodontic"
-  answers             Json      // form answers (structure depends on type)
-
-  patientSignedAt     DateTime?
-  doctorSignedAt      DateTime?
-
-  patientSignaturePath String?
-  doctorSignaturePath  String?
-
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
-  encounter           Encounter @relation(fields: [encounterId], references: [id])
-}
-
 model EncounterDiagnosis {
   id                  Int        @id @default(autoincrement())
   encounterId         Int
   diagnosisId         Int
-
-  /// Which tooth this diagnosis applies to (optional, null = general)
-  toothCode           String?    // e.g. "11", "26", "85"
-
-  // List of problem IDs from DiagnosisProblem for this encounter
-  selectedProblemIds  Json?      // e.g. [1,3,5]
+  toothCode           String?
+  selectedProblemIds  Json?
   note                String?
 
   encounter           Encounter  @relation(fields: [encounterId], references: [id])
   diagnosis           Diagnosis  @relation(fields: [diagnosisId], references: [id])
 
   createdAt           DateTime   @default(now())
-
-  // TEMP: allow same diagnosis multiple times per encounter
-  // @@unique([encounterId, diagnosisId])
 }
 
 // ==========================================================
-// SERVICES, PROCEDURES, DIAGNOSES
+// SERVICES, PROCEDURES, PRODUCTS
 // ==========================================================
 model Service {
   id                Int              @id @default(autoincrement())
-
-  /// Service code / ID
-  /// - Auto-generated in backend when creating if not provided
-  /// - Must be unique, but can be edited manually
   code              String?          @unique
-
   category          ServiceCategory
   name              String
-
-  /// Price in ₮ (integer is usually safer, but Float kept to match existing)
   price             Float
-
-  /// Active/inactive flag (true = active, false = inactive)
   isActive          Boolean          @default(true)
-
   description       String?
 
-  // Link to encounters that used this service
   encounterServices EncounterService[]
-
-  /// Many-to-many to Branch through ServiceBranch
   serviceBranches   ServiceBranch[]
-
-  // NEW: invoice items referencing this service (type=SERVICE)
   invoiceItems      InvoiceItem[]
 }
 
-// Many-to-many link: which services are available at which branches
 model ServiceBranch {
   serviceId Int
   branchId  Int
@@ -548,10 +422,8 @@ model ServiceBranch {
   @@id([serviceId, branchId])
 }
 
-// Service usage in an encounter (line-like, but tied directly to Service)
 model EncounterService {
   id           Int       @id @default(autoincrement())
-
   encounterId  Int
   serviceId    Int
 
@@ -562,18 +434,20 @@ model EncounterService {
   price        Float
 }
 
-// Legacy or additional procedure catalog (if needed alongside Service)
+// Optional legacy Procedure catalog – wired to InvoiceItem
 model Procedure {
   code         String       @id
   name         String
   price        Float
+
+  // If you use this, also link InvoiceItem.procedure
   invoiceItems InvoiceItem[]
 }
 
-// OPTIONAL: separate product catalog for retail (if needed now or later)
+// NEW: Product catalog (retail)
 model Product {
   id           Int          @id @default(autoincrement())
-  branchId     Int          // product belongs to a branch (stock, reporting)
+  branchId     Int
   code         String?      @unique
   name         String
   price        Float
@@ -581,8 +455,6 @@ model Product {
   description  String?
 
   branch       Branch       @relation(fields: [branchId], references: [id])
-
-  // Invoice lines referencing this product (type=PRODUCT)
   invoiceItems InvoiceItem[]
 
   createdAt    DateTime     @default(now())
@@ -592,97 +464,8 @@ model Product {
 }
 
 // ==========================================================
-// INVOICES, PAYMENTS, E-BARIMT
+// PRESCRIPTIONS
 // ==========================================================
-// NEW SOURCE-OF-TRUTH INVOICE MODEL (replacing legacy Invoice/InvoiceItem/Payment)
-model Invoice {
-  id                 Int             @id @default(autoincrement())
-
-  /// Multi-branch: every invoice belongs to exactly one branch
-  branchId           Int
-  branch             Branch          @relation(fields: [branchId], references: [id])
-
-  /// One invoice per encounter (post-treatment)
-  encounterId        Int             @unique
-  encounter          Encounter       @relation(fields: [encounterId], references: [id])
-
-  /// Patient for reporting / linking (denormalized from encounter->book->patient)
-  patientId          Int
-  patient            Patient         @relation(fields: [patientId], references: [id])
-
-  /// Clinical & retail lines:
-  /// - service items (clinical)
-  /// - product items (retail)
-  items              InvoiceItem[]
-
-  /// Sum of all item totals BEFORE discount
-  totalBeforeDiscount Float
-
-  /// Discount percent (0 / 5 / 10) – constrained by enum
-  discountPercent     DiscountPercent @default(ZERO)
-
-  /// Final amount after discount (this is what needs to be settled)
-  finalAmount         Float
-
-  /// Status controlled ONLY by settlement / insurance flow
-  status              InvoiceStatus   @default(UNPAID)
-
-  /// One e-Barimt per invoice (optional until issued)
-  eBarimtReceipt      EBarimtReceipt?
-
-  /// Ledger entries referencing this invoice (settlements, refunds, etc.)
-  ledgerEntries       LedgerEntry[]
-
-  /// Flags and metadata
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
-}
-
-// NEW: unified invoice line items (supports both services & products)
-model InvoiceItem {
-  id          Int             @id @default(autoincrement())
-
-  invoiceId   Int
-  invoice     Invoice         @relation(fields: [invoiceId], references: [id])
-
-  /// SERVICE or PRODUCT
-  itemType    InvoiceItemType
-
-  /// Clinical service reference (if itemType = SERVICE)
-  serviceId   Int?
-  service     Service?        @relation(fields: [serviceId], references: [id])
-
-  /// Retail product reference (if itemType = PRODUCT)
-  productId   Int?
-  product     Product?        @relation(fields: [productId], references: [id])
-
-  /// Snapshot fields to keep invoice stable over time
-  name        String
-  unitPrice   Float
-  quantity    Int             @default(1)
-
-  /// Per-line total BEFORE invoice-level discount
-  lineTotal   Float
-
-  createdAt   DateTime        @default(now())
-
-  @@index([invoiceId])
-}
-
-// Legacy Payment model is kept for backwards compatibility,
-// but must NOT be used for new flows (all new payments go into LedgerEntry).
-model Payment {
-  id        Int      @id @default(autoincrement())
-  invoiceId Int      @unique
-  amount    Float
-  method    String
-  qpayTxnId String?
-  timestamp DateTime @default(now())
-
-  // This relation is preserved for legacy data only.
-  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
-}
-
 model Prescription {
   id          Int                 @id @default(autoincrement())
   encounter   Encounter           @relation(fields: [encounterId], references: [id])
@@ -691,8 +474,7 @@ model Prescription {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
-  // optional snapshot fields for printing stability
-  doctorNameSnapshot   String? 
+  doctorNameSnapshot   String?
   patientNameSnapshot  String?
   diagnosisSummary     String?
   clinicNameSnapshot   String?
@@ -705,21 +487,91 @@ model PrescriptionItem {
   prescription   Prescription @relation(fields: [prescriptionId], references: [id])
   prescriptionId Int
 
-  order          Int          // 1..3, for consistent print order
+  order          Int
 
-  drugName       String       // free text or chosen from med list
-  durationDays   Int          // e.g. 7
-  quantityPerTake Int         // e.g. 1 tab
-  frequencyPerDay Int         // e.g. 3 times/day
-  note           String?      // optional extra info
+  drugName       String
+  durationDays   Int
+  quantityPerTake Int
+  frequencyPerDay Int
+  note           String?
 
   @@index([prescriptionId])
 }
 
+// ==========================================================
+// INVOICES, INVOICE ITEMS, E-BARIMT, LEGACY PAYMENT
+// ==========================================================
+model Invoice {
+  id                 Int             @id @default(autoincrement())
+
+  branchId           Int
+  branch             Branch          @relation(fields: [branchId], references: [id])
+
+  encounterId        Int             @unique
+  encounter          Encounter       @relation(fields: [encounterId], references: [id])
+
+  patientId          Int
+  patient            Patient         @relation(fields: [patientId], references: [id])
+
+  items              InvoiceItem[]
+
+  totalBeforeDiscount Float
+  discountPercent     DiscountPercent @default(ZERO)
+  finalAmount         Float
+
+  status              InvoiceStatus   @default(UNPAID)
+
+  eBarimtReceipt      EBarimtReceipt?
+
+  ledgerEntries       LedgerEntry[]
+  payments            Payment[]       // legacy payments, if still present
+
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+}
+
+model InvoiceItem {
+  id          Int             @id @default(autoincrement())
+
+  invoiceId   Int
+  invoice     Invoice         @relation(fields: [invoiceId], references: [id])
+
+  itemType    InvoiceItemType
+
+  serviceId   Int?
+  service     Service?        @relation(fields: [serviceId], references: [id])
+
+  productId   Int?
+  product     Product?        @relation(fields: [productId], references: [id])
+
+  // Optional: link to legacy Procedure if still used
+  procedureCode String?
+  procedure     Procedure?    @relation(fields: [procedureCode], references: [code])
+
+  name        String
+  unitPrice   Float
+  quantity    Int             @default(1)
+  lineTotal   Float
+
+  createdAt   DateTime        @default(now())
+
+  @@index([invoiceId])
+}
+
+// Legacy Payment model (do NOT use for new flows)
+model Payment {
+  id        Int      @id @default(autoincrement())
+  invoiceId Int      @unique
+  amount    Float
+  method    String
+  qpayTxnId String?
+  timestamp DateTime @default(now())
+
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+}
+
 model EBarimtReceipt {
   id            Int      @id @default(autoincrement())
-
-  /// One e-Barimt per invoice (STRICT)
   invoiceId     Int      @unique
   invoice       Invoice  @relation(fields: [invoiceId], references: [id])
 
@@ -730,43 +582,35 @@ model EBarimtReceipt {
 // ==========================================================
 // LEDGER (FINANCIAL TRUTH)
 // ==========================================================
-// All financial movements are stored here. Immutable: never updated/deleted.
 model LedgerEntry {
   id           Int             @id @default(autoincrement())
 
-  /// Multi-branch enforcement: every ledger entry must belong to a branch
   branchId     Int
   branch       Branch          @relation(fields: [branchId], references: [id])
 
-  /// Patient whose wallet / account this affects
   patientId    Int
   patient      Patient         @relation(fields: [patientId], references: [id])
 
-  /// Optional invoice this entry belongs to (null for booking advances, etc.)
   invoiceId    Int?
   invoice      Invoice?        @relation(fields: [invoiceId], references: [id])
 
-  /// Financial type (CASH, QPAY, BOOKING_ADVANCE, etc.)
   type         LedgerEntryType
-
-  /// Amount: +in / −out (overpayments → positive credit)
   amount       Float
 
-  /// Creator (who recorded the entry)
   createdById  Int
   createdBy    User            @relation("LedgerCreatedBy", fields: [createdById], references: [id])
 
-  /// Optional approver for exceptional flows (discounts, refunds, barter, etc.)
   approvedById Int?
   approvedBy   User?           @relation("LedgerApprovedBy", fields: [approvedById], references: [id])
 
-  /// Link to authorization code used (discount, barter, refund, etc.) – optional
   approvalCodeId Int?
   approvalCode   AuthorizationCode? @relation(fields: [approvalCodeId], references: [id])
 
-  /// Additional metadata (payment provider payload, QPay txn ref, etc.)
-  meta         Json?
+  // If EMPLOYEE_VOUCHER, link to specific voucher
+  employeeVoucherId Int?
+  employeeVoucher   EmployeeVoucher? @relation(fields: [employeeVoucherId], references: [id])
 
+  meta         Json?
   createdAt    DateTime        @default(now())
 
   @@index([branchId])
@@ -781,26 +625,15 @@ model LedgerEntry {
 model AuthorizationCode {
   id           Int       @id @default(autoincrement())
   code         String    @unique
-
-  /// What is this code allowed to authorize:
-  /// "DISCOUNT_5", "DISCOUNT_10", "BARTER", "REFUND", "VOUCHER_TOPUP", etc.
   purpose      String
-
-  /// Whether this code is currently usable
   isEnabled    Boolean   @default(true)
-
-  /// Optional expiry (date-time, not just date)
   expiresAt    DateTime?
-
-  /// Optional usage limit (e.g. 10 times). Null = unlimited.
   maxUses      Int?
   usedCount    Int       @default(0)
 
-  /// Who created this code (admin)
   createdById  Int
   createdBy    User      @relation(fields: [createdById], references: [id])
 
-  /// Ledger entries that consumed this code
   ledgerEntries LedgerEntry[]
 
   createdAt    DateTime  @default(now())
@@ -818,7 +651,6 @@ model EmployeeVoucher {
   branchId       Int
   branch         Branch                  @relation(fields: [branchId], references: [id])
 
-  /// Employee who owns this voucher pool
   employeeId     Int
   employee       User                    @relation("EmployeeVoucherEmployee", fields: [employeeId], references: [id])
 
@@ -826,9 +658,12 @@ model EmployeeVoucher {
   status         EmployeeVoucherStatus   @default(ACTIVE)
   balanceCap     Float
   usedAmount     Float                   @default(0)
-  eligibility    Json
+
+  eligibility      Json
   allowedPatientIds Json
-  ledgerEntries  LedgerEntry[]
+
+  // Ledger entries using this voucher (EMPLOYEE_VOUCHER type)
+  ledgerEntries    LedgerEntry[]
 
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
@@ -841,7 +676,7 @@ model EmployeeVoucher {
 }
 
 // ==========================================================
-// MEDIA (Photos, Files, X-rays, etc.)
+// MEDIA
 // ==========================================================
 model Media {
   id          Int      @id @default(autoincrement())
@@ -854,51 +689,32 @@ model Media {
 }
 
 // ==========================================================
-// DOCTOR SCHEDULES (Per-day, per-branch work schedule)
+// SCHEDULES (Doctor / Reception / Nurse)
 // ==========================================================
 model DoctorSchedule {
   id        Int      @id @default(autoincrement())
-
   doctorId  Int
   branchId  Int
-
-  /// Calendar date (store as date-only; time is in startTime/endTime)
   date      DateTime
-
-  /// e.g. "09:00" — 24h format
   startTime String
-
-  /// e.g. "15:00" — 24h format
   endTime   String
-
   note      String?
 
-  doctor    User     @relation(fields: [doctorId], references: [id])
-  branch    Branch   @relation(fields: [branchId], references: [id])
+  doctor  User   @relation(fields: [doctorId], references: [id])
+  branch  Branch @relation(fields: [branchId], references: [id])
 
   @@index([doctorId, date])
   @@index([branchId, date])
   @@unique([doctorId, branchId, date])
 }
 
-// ==========================================================
-// RECEPTION SCHEDULES (Per-day, per-branch work schedule)
-// ==========================================================
 model ReceptionSchedule {
   id          Int      @id @default(autoincrement())
-
   receptionId Int
   branchId    Int
-
-  /// Calendar date (store as date-only; time is in startTime/endTime)
   date        DateTime
-
-  /// e.g. "09:00" — 24h format
   startTime   String
-
-  /// e.g. "15:00" — 24h format
   endTime     String
-
   note        String?
 
   reception   User   @relation(fields: [receptionId], references: [id])
@@ -907,6 +723,28 @@ model ReceptionSchedule {
   @@index([receptionId, date])
   @@index([branchId, date])
   @@unique([receptionId, branchId, date])
+}
+
+model DoctorBranch {
+  id        Int    @id @default(autoincrement())
+  doctorId  Int
+  branchId  Int
+
+  doctor    User   @relation(fields: [doctorId], references: [id])
+  branch    Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([doctorId, branchId])
+}
+
+model ReceptionBranch {
+  id           Int    @id @default(autoincrement())
+  receptionId  Int
+  branchId     Int
+
+  reception    User   @relation(fields: [receptionId], references: [id])
+  branch       Branch @relation(fields: [branchId], references: [id])
+
+  @@unique([receptionId, branchId])
 }
 
 model NurseBranch {
