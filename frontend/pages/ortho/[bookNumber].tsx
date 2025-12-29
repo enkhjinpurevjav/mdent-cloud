@@ -1231,7 +1231,41 @@ const updateBoltonLower12 = (index: number, value: string) => {
               canineRelationRight: "",
               canineRelationLeft: "",
             });
-          }
+          }if (data.facial) {
+  setFacial({
+    tonsilYes: !!data.facial.tonsilYes,
+    tonsilNo: !!data.facial.tonsilNo,
+    adenoidYes: !!data.facial.adenoidYes,
+    adenoidNo: !!data.facial.adenoidNo,
+    profileConvex: !!data.facial.profileConvex,
+    profileStraight: !!data.facial.profileStraight,
+    profileConcave: !!data.facial.profileConcave,
+    eLineUpperMm: data.facial.eLineUpperMm || "",
+    eLineLowerMm: data.facial.eLineLowerMm || "",
+    symmetryEqual: !!data.facial.symmetryEqual,
+    symmetryUnequal: !!data.facial.symmetryUnequal,
+    skeletalShiftYes: !!data.facial.skeletalShiftYes,
+    skeletalShiftNo: !!data.facial.skeletalShiftNo,
+    skeletalShiftProbable: !!data.facial.skeletalShiftProbable,
+  });
+} else {
+  setFacial({
+    tonsilYes: false,
+    tonsilNo: false,
+    adenoidYes: false,
+    adenoidNo: false,
+    profileConvex: false,
+    profileStraight: false,
+    profileConcave: false,
+    eLineUpperMm: "",
+    eLineLowerMm: "",
+    symmetryEqual: false,
+    symmetryUnequal: false,
+    skeletalShiftYes: false,
+    skeletalShiftNo: false,
+    skeletalShiftProbable: false,
+  });
+}
                 if (data.problemSection && data.problemSection.rows) {
             const r = data.problemSection.rows;
                         setProblemSection({
