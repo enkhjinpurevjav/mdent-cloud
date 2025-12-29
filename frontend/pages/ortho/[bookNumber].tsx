@@ -279,6 +279,7 @@ type OrthoCardData = {
   lip?: LipSection;
   teeth?: TeethSection; // NEW
   problemSection?: ProblemSection; // NEW
+  treatmentPlan?: TreatmentPlanSection; // NEW
 };
 
 type OrthoCardApiResponse = {
@@ -428,6 +429,15 @@ export default function OrthoCardPage() {
     cause: "",
     treatmentGoals: ["", "", "", "", "", ""],
   });
+
+  const [treatmentPlan, setTreatmentPlan] = useState<TreatmentPlanSection>({
+  orthodontic: false,
+  growthModification: false,
+  combinedSurgery: false,
+  phaseI: { plan: "", note: "" },
+  phaseII: { plan: "", note: "" },
+  phaseIII: { plan: "", note: "" },
+});
   
   const [physicalExam, setPhysicalExam] = useState<PhysicalExam>({
     weight: "",
