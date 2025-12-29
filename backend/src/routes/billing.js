@@ -1,7 +1,7 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
-import { authenticate } from "../middleware/auth.js"; // JWT auth middleware (assumed)
+import { authenticateJWT } from "../middleware/auth.js"; // JWT auth middleware (assumed)
 
 const router = express.Router();
 
