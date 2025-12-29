@@ -7,6 +7,19 @@ import FullArchDiscOdontogram, {
 /**
  * Orthodontic patient card page.
  */
+type TreatmentPlanColumn = {
+  plan?: string;
+  note?: string;
+};
+
+type TreatmentPlanSection = {
+  orthodontic?: boolean;
+  growthModification?: boolean;
+  combinedSurgery?: boolean;
+  phaseI: TreatmentPlanColumn;
+  phaseII: TreatmentPlanColumn;
+  phaseIII: TreatmentPlanColumn;
+};
 
 type OrthoDisc = {
   code: string;
