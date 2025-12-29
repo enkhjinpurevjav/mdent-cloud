@@ -172,31 +172,17 @@ model User {
   id                 Int              @id @default(autoincrement())
   email              String           @unique
   password           String
-
-  /// Father’s name for all users
   ovog               String?
-
-  /// Given name
   name               String?
-
   role               UserRole         @default(receptionist)
-
-  /// Legacy single-branch assignment
   branchId           Int?
   branch             Branch?          @relation(fields: [branchId], references: [id])
-
   createdAt          DateTime         @default(now())
 
-  // Encounters where this user is the doctor
   encounters         Encounter[]      @relation("DoctorEncounters")
-
-  // NEW: encounters where this user is the nurse
   nurseEncounters    Encounter[]      @relation("NurseEncounters")
 
-  // Contact
-  phone              String?          // employee phone (optional)
-
-  // Advanced Doctor/Nurse Info
+  phone              String?
   regNo              String?          @unique
   licenseNumber      String?          @unique
   licenseExpiryDate  DateTime?
@@ -204,37 +190,29 @@ model User {
   stampImagePath     String?
   idPhotoPath        String?
 
-  // Per-day work schedules across branches (doctors)
   doctorSchedules    DoctorSchedule[]
-
-  // Many-to-many doctor-to-branch assignment
   doctorBranches     DoctorBranch[]
-
-  // NEW: Receptionist multi-branch + schedules
   receptionSchedules ReceptionSchedule[]
   receptionBranches  ReceptionBranch[]
-
-  // NEW for nurses
   nurseSchedules     NurseSchedule[]
   nurseBranches      NurseBranch[]
-
-  // Appointments where this user is the doctor
   appointments       Appointment[]
-
-  // Bookings for this user as doctor
   bookings           Booking[]
-
-  // KEEP this if you still use calendarOrder in frontend
   calendarOrder      Int?
 
-  // NEW: employee vouchers where this user is the employee
-  employeeVouchers   EmployeeVoucher[]
+  // --- NEW RELATIONS (ensure they use explicit names) ---
 
-  // NEW: ledger entries created by this user
-  createdLedgerEntries LedgerEntry[]  @relation("LedgerCreatedBy")
+  // LedgerEntry.createdBy
+  createdLedgerEntries  LedgerEntry[] @relation("LedgerCreatedBy")
 
-  // NEW: ledger entries approved by this user (for exceptional flows)
+  // LedgerEntry.approvedBy
   approvedLedgerEntries LedgerEntry[] @relation("LedgerApprovedBy")
+
+  // EmployeeVoucher.employee
+  employeeVouchers      EmployeeVoucher[] @relation("EmployeeVoucherEmployee")
+
+  // EmployeeVoucher.createdBy
+  createdEmployeeVouchers EmployeeVoucher[] @relation("EmployeeVoucherCreatedBy")
 }
 
 // Join table for many-to-many between Doctor (User) and Branch
@@ -837,41 +815,26 @@ model AuthorizationCode {
 model EmployeeVoucher {
   id             Int                     @id @default(autoincrement())
 
-  /// Branch this benefit pool belongs to (for reporting)
   branchId       Int
   branch         Branch                  @relation(fields: [branchId], references: [id])
 
   /// Employee who owns this voucher pool
   employeeId     Int
-  employee       User                    @relation(fields: [employeeId], references: [id])
+  employee       User                    @relation("EmployeeVoucherEmployee", fields: [employeeId], references: [id])
 
-  /// Human-friendly identifier (e.g. YEAR-EMPLOYEE-CODE)
   code           String                  @unique
-
-  /// Status (ACTIVE / DISABLED / EXPIRED)
   status         EmployeeVoucherStatus   @default(ACTIVE)
-
-  /// Max total benefit (e.g. 1,000,000₮)
   balanceCap     Float
-
-  /// Running total of amount consumed (derived but stored for reporting)
   usedAmount     Float                   @default(0)
-
-  /// JSON list of eligible service IDs or categories (e.g. { serviceIds: [1,2,3] })
   eligibility    Json
-
-  /// Patient IDs allowed to use this voucher (employee + verified family)
-  allowedPatientIds Json                 // e.g. [patientId1, patientId2]
-
-  /// Related ledger entries when this voucher is used (EMPLOYEE_VOUCHER type)
+  allowedPatientIds Json
   ledgerEntries  LedgerEntry[]
 
-  /// Audit
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
 
   createdById    Int
-  createdBy      User                    @relation(fields: [createdById], references: [id])
+  createdBy      User                    @relation("EmployeeVoucherCreatedBy", fields: [createdById], references: [id])
 
   @@index([branchId])
   @@index([employeeId])
