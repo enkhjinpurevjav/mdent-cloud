@@ -1231,8 +1231,7 @@ const updateBoltonLower12 = (index: number, value: string) => {
               treatmentGoals: ["", "", "", "", "", ""],
             });
           }   
-        } 
-        // TREATMENT PLAN
+         // TREATMENT PLAN
 if (data.treatmentPlan) {
   setTreatmentPlan({
     orthodontic: !!data.treatmentPlan.orthodontic,
@@ -1261,6 +1260,8 @@ if (data.treatmentPlan) {
     phaseIII: { plan: "", note: "" },
   });
 }
+        
+        }    
         else {
           setCardPatientName("");
           setCardNotes("");
