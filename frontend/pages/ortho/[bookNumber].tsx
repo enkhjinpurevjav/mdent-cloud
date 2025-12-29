@@ -4132,7 +4132,228 @@ if (data.treatmentPlan) {
                 ))}
               </div>
             </div>
-          
+          {/* ЭМЧИЛГЭЭНИЙ ТӨЛӨВЛӨГӨӨ */}
+<section
+  style={{
+    marginTop: 16,
+    borderRadius: 12,
+    border: "1px solid #e5e7eb",
+    padding: 12,
+    background: "#ffffff",
+    fontSize: 13,
+  }}
+>
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 8,
+    }}
+  >
+    <div style={{ fontWeight: 700 }}>ЭМЧИЛГЭЭНИЙ ТӨЛӨВЛӨГӨӨ</div>
+    <div
+      style={{
+        display: "flex",
+        gap: 12,
+        fontSize: 12,
+        alignItems: "center",
+        flexWrap: "wrap",
+      }}
+    >
+      <label>
+        <input
+          type="checkbox"
+          checked={!!treatmentPlan.orthodontic}
+          onChange={() =>
+            setTreatmentPlan((prev) => ({
+              ...prev,
+              orthodontic: !prev.orthodontic,
+            }))
+          }
+          style={{ marginRight: 4 }}
+        />
+        Orthodontic
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={!!treatmentPlan.growthModification}
+          onChange={() =>
+            setTreatmentPlan((prev) => ({
+              ...prev,
+              growthModification: !prev.growthModification,
+            }))
+          }
+          style={{ marginRight: 4 }}
+        />
+        Growth modification
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={!!treatmentPlan.combinedSurgery}
+          onChange={() =>
+            setTreatmentPlan((prev) => ({
+              ...prev,
+              combinedSurgery: !prev.combinedSurgery,
+            }))
+          }
+          style={{ marginRight: 4 }}
+        />
+        Combined surgery
+      </label>
+    </div>
+  </div>
+
+  {/* Column headers */}
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(3, 1fr)",
+      gap: 12,
+      marginBottom: 4,
+      fontSize: 12,
+      fontWeight: 500,
+    }}
+  >
+    <div>Phase I</div>
+    <div>Phase II</div>
+    <div>Phase III</div>
+  </div>
+
+  {/* Plan textareas */}
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(3, 1fr)",
+      gap: 12,
+      marginBottom: 8,
+    }}
+  >
+    <textarea
+      value={treatmentPlan.phaseI.plan || ""}
+      onChange={(e) =>
+        setTreatmentPlan((prev) => ({
+          ...prev,
+          phaseI: { ...prev.phaseI, plan: e.target.value },
+        }))
+      }
+      rows={4}
+      style={{
+        width: "100%",
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "4px 6px",
+        fontSize: 12,
+      }}
+    />
+    <textarea
+      value={treatmentPlan.phaseII.plan || ""}
+      onChange={(e) =>
+        setTreatmentPlan((prev) => ({
+          ...prev,
+          phaseII: { ...prev.phaseII, plan: e.target.value },
+        }))
+      }
+      rows={4}
+      style={{
+        width: "100%",
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "4px 6px",
+        fontSize: 12,
+      }}
+    />
+    <textarea
+      value={treatmentPlan.phaseIII.plan || ""}
+      onChange={(e) =>
+        setTreatmentPlan((prev) => ({
+          ...prev,
+          phaseIII: { ...prev.phaseIII, plan: e.target.value },
+        }))
+      }
+      rows={4}
+      style={{
+        width: "100%",
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "4px 6px",
+        fontSize: 12,
+      }}
+    />
+  </div>
+
+  {/* Notes row */}
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(3, 1fr)",
+      gap: 12,
+    }}
+  >
+    <div>
+      <div style={{ fontSize: 11, marginBottom: 2 }}>Note</div>
+      <textarea
+        value={treatmentPlan.phaseI.note || ""}
+        onChange={(e) =>
+          setTreatmentPlan((prev) => ({
+            ...prev,
+            phaseI: { ...prev.phaseI, note: e.target.value },
+          }))
+        }
+        rows={2}
+        style={{
+          width: "100%",
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "4px 6px",
+          fontSize: 12,
+        }}
+      />
+    </div>
+    <div>
+      <div style={{ fontSize: 11, marginBottom: 2 }}>Note</div>
+      <textarea
+        value={treatmentPlan.phaseII.note || ""}
+        onChange={(e) =>
+          setTreatmentPlan((prev) => ({
+            ...prev,
+            phaseII: { ...prev.phaseII, note: e.target.value },
+          }))
+        }
+        rows={2}
+        style={{
+          width: "100%",
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "4px 6px",
+          fontSize: 12,
+        }}
+      />
+    </div>
+    <div>
+      <div style={{ fontSize: 11, marginBottom: 2 }}>Note</div>
+      <textarea
+        value={treatmentPlan.phaseIII.note || ""}
+        onChange={(e) =>
+          setTreatmentPlan((prev) => ({
+            ...prev,
+            phaseIII: { ...prev.phaseIII, note: e.target.value },
+          }))
+        }
+        rows={2}
+        style={{
+          width: "100%",
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "4px 6px",
+          fontSize: 12,
+        }}
+      />
+    </div>
+  </div>
+</section>
           {/* Actions */}
           <div
             style={{
