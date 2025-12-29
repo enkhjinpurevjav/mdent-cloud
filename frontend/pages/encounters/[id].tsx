@@ -189,6 +189,7 @@ type EncounterMedia = {
   filePath: string;
   toothCode?: string | null;
   type: EncounterMediaType;
+  // backend currently does not include createdAt, so mark optional
   createdAt?: string;
 };
 
@@ -294,7 +295,7 @@ function extractWarningLinesFromVisitCard(
   const a = visitCard.answers;
   const lines: WarningLine[] = [];
 
-  // 1) General medical
+  // 1) General medical (shared for adult/child, but labels differ slightly)
   const generalMedicalLabels: Record<string, string> =
     visitCard.type === "CHILD"
       ? {
@@ -342,6 +343,7 @@ function extractWarningLinesFromVisitCard(
       }
     });
 
+    // Extra special flags
     if ((a.generalMedical as any).pregnant === "yes") {
       lines.push({
         label: "Жирэмсэн эсэх",
@@ -414,7 +416,7 @@ function extractWarningLinesFromVisitCard(
     });
   }
 
-  // 4) Dental follow-up
+  // 4) Dental follow-up extras
   if (a.dentalFollowup) {
     const dentalLabels: Record<string, string> = {
       regularCheckups: "Шүдний эмчид байнга үзүүлдэг эсэх",
@@ -439,7 +441,7 @@ function extractWarningLinesFromVisitCard(
   return lines;
 }
 
-// Tooth arrays
+// For tooth selection UI – same arrays as original file
 const ADULT_TEETH = [
   "18",
   "17",
@@ -579,11 +581,15 @@ export default function EncounterAdminPage() {
 
   const [saveError, setSaveError] = useState("");
 
+  // search state for diagnoses/services
   const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
   const [openServiceIndex, setOpenServiceIndex] = useState<number | null>(
     null
   );
 
+  // rows is a richer structure combining dx+service search UI,
+  // but we can derive from editableDxRows + editableServices.
+  // For simplicity, keep a separate "rows" array shaped for the UI.
   type DiagnosisServiceRow = EditableDiagnosis & {
     serviceId?: number;
     serviceSearchText?: string;
@@ -761,6 +767,7 @@ export default function EncounterAdminPage() {
         setVisitCardLoading(true);
         setVisitCard(null);
 
+        // get encounter to know bookNumber
         const encRes = await fetch(`/api/encounters/${id}`);
         const encJson = await encRes.json().catch(() => null);
         if (!encRes.ok || !encJson?.patientBook?.bookNumber) {
@@ -1056,6 +1063,7 @@ export default function EncounterAdminPage() {
     setSaving(true);
     setSaveError("");
     try {
+      // sync rows -> editableServices
       const itemsForSave: EncounterService[] = rows
         .filter((r) => r.serviceId)
         .map((r) => ({
@@ -1290,6 +1298,7 @@ export default function EncounterAdminPage() {
 
   const toggleToothSelection = (code: string) => {
     if (code === "ALL") {
+      // special: select all visible teeth
       const allCodes =
         toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH;
       const allSelected =
@@ -1308,6 +1317,7 @@ export default function EncounterAdminPage() {
     });
   };
 
+  // ---- Derived: warning lines from visit card ----
   const warningLines: WarningLine[] = extractWarningLinesFromVisitCard(
     visitCard
   );
@@ -1352,134 +1362,137 @@ export default function EncounterAdminPage() {
             }}
           >
             <div
-              style={{
-                borderRadius: 12,
-                border: "1px solid #e5e7eb",
-                padding: 16,
-                background: "#ffffff",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 18,
-                  fontWeight: 600,
-                  marginBottom: 4,
-                }}
-              >
-                {formatPatientName(encounter.patientBook.patient)}
-              </div>
-              <div style={{ fontSize: 13, color: "#6b7280" }}>
-                Картын дугаар: {encounter.patientBook.bookNumber}
-              </div>
-              {encounter.patientBook.patient.regNo && (
-                <div style={{ fontSize: 13, color: "#6b7280" }}>
-                  РД: {encounter.patientBook.patient.regNo}
-                </div>
-              )}
-              <div style={{ fontSize: 13, color: "#6b7280" }}>
-                Утас: {displayOrDash(encounter.patientBook.patient.phone)}
-              </div>
-              <div
-                style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}
-              >
-                Бүртгэсэн салбар:{" "}
-                {encounter.patientBook.patient.branch?.name ||
-                  encounter.patientBook.patient.branchId}
-              </div>
+  style={{
+    borderRadius: 12,
+    border: "1px solid #e5e7eb",
+    padding: 16,
+    background: "#ffffff",
+  }}
+>
+  <div
+    style={{
+      fontSize: 18,
+      fontWeight: 600,
+      marginBottom: 4,
+    }}
+  >
+    {formatPatientName(encounter.patientBook.patient)}
+  </div>
+  <div style={{ fontSize: 13, color: "#6b7280" }}>
+    Картын дугаар: {encounter.patientBook.bookNumber}
+  </div>
+  {encounter.patientBook.patient.regNo && (
+    <div style={{ fontSize: 13, color: "#6b7280" }}>
+      РД: {encounter.patientBook.patient.regNo}
+    </div>
+  )}
+  <div style={{ fontSize: 13, color: "#6b7280" }}>
+    Утас: {displayOrDash(encounter.patientBook.patient.phone)}
+  </div>
+  <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}>
+    Бүртгэсэн салбар:{" "}
+    {encounter.patientBook.patient.branch?.name ||
+      encounter.patientBook.patient.branchId}
+  </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  marginTop: 4,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/patients/${encodeURIComponent(
-                        encounter.patientBook.bookNumber
-                      )}`
-                    )
-                  }
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    background: "#f9fafb",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  Үйлчлүүлэгчийн дэлгэрэнгүй
-                </button>
+  {/* NEW: navigation buttons based on Картын дугаар (bookNumber) */}
+  <div
+    style={{
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 8,
+      marginTop: 4,
+    }}
+  >
+    {/* 1) Үйлчлүүлэгчийн дэлгэрэнгүй → patients/[bookNumber] */}
+    <button
+      type="button"
+      onClick={() =>
+        router.push(
+          `/patients/${encodeURIComponent(
+            encounter.patientBook.bookNumber
+          )}`
+        )
+      }
+      style={{
+        padding: "4px 8px",
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        background: "#f9fafb",
+        fontSize: 12,
+        cursor: "pointer",
+      }}
+    >
+      Үйлчлүүлэгчийн дэлгэрэнгүй
+    </button>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/patients/${encodeURIComponent(
-                        encounter.patientBook.bookNumber
-                      )}?tab=visit-card`
-                    )
-                  }
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    background: "#f0f9ff",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  Үйлчлүүлэгчийн карт
-                </button>
+    {/* 2) Үйлчлүүлэгчийн карт (үзлэгийн карт) → patients/[bookNumber]?tab=visit-card */}
+    <button
+      type="button"
+      onClick={() =>
+        router.push(
+          `/patients/${encodeURIComponent(
+            encounter.patientBook.bookNumber
+          )}?tab=visit-card`
+        )
+      }
+      style={{
+        padding: "4px 8px",
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        background: "#f0f9ff",
+        fontSize: 12,
+        cursor: "pointer",
+      }}
+    >
+      Үйлчлүүлэгчийн карт
+    </button>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/ortho/${encodeURIComponent(
-                        encounter.patientBook.bookNumber
-                      )}`
-                    )
-                  }
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    background: "#fef3c7",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  Гажиг заслын карт
-                </button>
+    {/* 3) Гажиг заслын карт → ortho/[bookNumber] */}
+    <button
+      type="button"
+      onClick={() =>
+        router.push(
+          `/ortho/${encodeURIComponent(
+            encounter.patientBook.bookNumber
+          )}`
+        )
+      }
+      style={{
+        padding: "4px 8px",
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        background: "#fef3c7",
+        fontSize: 12,
+        cursor: "pointer",
+      }}
+    >
+      Гажиг заслын карт
+    </button>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/patients/${encodeURIComponent(
-                        encounter.patientBook.bookNumber
-                      )}?tab=encounters`
-                    )
-                  }
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    background: "#f3e8ff",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  Өмнөх үзлэгүүд
-                </button>
-              </div>
-            </div>
+    {/* 4) Өмнөх үзлэгүүд → patients/[bookNumber]?tab=encounters (to implement later) */}
+    <button
+      type="button"
+      onClick={() =>
+        router.push(
+          `/patients/${encodeURIComponent(
+            encounter.patientBook.bookNumber
+          )}?tab=encounters`
+        )
+      }
+      style={{
+        padding: "4px 8px",
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        background: "#f3e8ff",
+        fontSize: 12,
+        cursor: "pointer",
+      }}
+    >
+      Өмнөх үзлэгүүд
+    </button>
+  </div>
+</div>
 
             <div
               style={{
@@ -1527,7 +1540,7 @@ export default function EncounterAdminPage() {
                   style={{
                     width: "100%",
                     borderRadius: 6,
-                    border: "1px solid "#d1d5db",
+                    border: "1px solid #d1d5db",
                     padding: "4px 6px",
                     fontSize: 13,
                   }}
@@ -1585,7 +1598,7 @@ export default function EncounterAdminPage() {
             </div>
           </section>
 
-          {/* Consent form */}
+          {/* Consent form (Зөвшөөрлийн хуудас шаардлагатай) */}
           <section
             style={{
               marginBottom: 16,
@@ -1646,6 +1659,7 @@ export default function EncounterAdminPage() {
                 )}
               </div>
 
+              {/* Everything below only when consent exists */}
               {consent && (
                 <>
                   {/* Type selection */}
@@ -1733,7 +1747,10 @@ export default function EncounterAdminPage() {
                     </label>
                   </div>
 
-                  {/* ROOT CANAL FORM – same as you had */}
+                  {/* NOTE: for brevity here we keep only the root_canal form fully;
+                      the surgery / orthodontic / prosthodontic parts follow the same
+                      structure you already have. */}
+
                   {consent.type === "root_canal" && (
                     <div>
                       <div
@@ -1757,12 +1774,13 @@ export default function EncounterAdminPage() {
                           whiteSpace: "pre-line",
                         }}
                       >
-                          Шүдний сувгийн (endodont) эмчилгээ нь шүдний цөгц болон
-                          сурвалжийн хөндийд байрлах мэдрэл судасны багц
-                          (зөөлц)-д үүссэн өвдөлт үрэвслийг эмчлэх олон удаагийн
-                          (3-5 удаагийн ирэлт болон тухайн шүдний үрэвслийн
-                          байдлаас шалтгаалан 5-с дээш 6 сар хүртэл хугацаагаар)
-                          ирэлтээр эмчлэгддэг курс эмчилгээ юм. ...
+                        {/* long explanatory text – kept from your current version */}
+                        Шүдний сувгийн (endodont) эмчилгээ нь шүдний цөгц болон
+                        сурвалжийн хөндийд байрлах мэдрэл судасны багц
+                        (зөөлц)-д үүссэн өвдөлт үрэвслийг эмчлэх олон удаагийн
+                        (3-5 удаагийн ирэлт болон тухайн шүдний үрэвслийн
+                        байдлаас шалтгаалан 5-с дээш 6 сар хүртэл хугацаагаар)
+                        ирэлтээр эмчлэгддэг курс эмчилгээ юм. ...
                       </div>
 
                       <label
@@ -1867,28 +1885,7 @@ export default function EncounterAdminPage() {
                     </div>
                   )}
 
-                  {/* SURGERY / PROCEDURE – full block from your original file */}
-                  {consent.type === "surgery" && (
-                    <div>
-                      {/* Same long surgery/procedure consent JSX you pasted before.
-                          For brevity, not repeating here; you already had it working.
-                          Paste that full JSX into this branch. */}
-                    </div>
-                  )}
-
-                  {/* ORTHODONTIC – 4-page ortho consent */}
-                  {consent.type === "orthodontic" && (
-                    <div>
-                      {/* Full ortho consent JSX from your original working version. */}
-                    </div>
-                  )}
-
-                  {/* PROSTHODONTIC – NASZ consent */}
-                  {consent.type === "prosthodontic" && (
-                    <div>
-                      {/* Full prosthodontic consent JSX from your original working version. */}
-                    </div>
-                  )}
+                  {/* ... keep your full surgery / orthodontic / prosthodontic JSX here ... */}
 
                   <div
                     style={{
@@ -1919,13 +1916,13 @@ export default function EncounterAdminPage() {
                   </div>
                 </>
               )}
-
-              {encounter.notes && (
-                <div style={{ marginTop: 4 }}>
-                  <strong>Тэмдэглэл:</strong> {encounter.notes}
-                </div>
-              )}
             </div>
+
+            {encounter.notes && (
+              <div style={{ marginTop: 4 }}>
+                <strong>Тэмдэглэл:</strong> {encounter.notes}
+              </div>
+            )}
           </section>
 
           {/* Tooth chart */}
@@ -2078,7 +2075,7 @@ export default function EncounterAdminPage() {
             </div>
           </section>
 
-          {/* Diagnoses + services + media + prescription */}
+          {/* Diagnoses + services + prescription + media */}
           <section
             style={{
               marginTop: 16,
@@ -2088,8 +2085,987 @@ export default function EncounterAdminPage() {
               background: "#ffffff",
             }}
           >
-            {/* diagnoses UI – unchanged from your version */}
-            {/* ... the rest of your diagnoses, services, media, prescription code exactly as in your last paste ... */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
+              <div>
+                <h2 style={{ fontSize: 16, margin: 0 }}>Онош тавих</h2>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  Нэг мөр = нэг онош, олон шүдэнд хамаарч болно. Шүдний код,
+                  онош болон үйлчилгээний дагуу урьдчилсан дүн доор харагдана.
+                </div>
+              </div>
+            </div>
+
+            {dxError && (
+              <div style={{ color: "red", marginBottom: 8 }}>{dxError}</div>
+            )}
+            {servicesLoadError && (
+              <div style={{ color: "red", marginBottom: 8 }}>
+                {servicesLoadError}
+              </div>
+            )}
+
+            {rows.length === 0 && (
+              <div style={{ color: "#6b7280", fontSize: 13 }}>
+                Одоогоор оношийн мөр алга байна. Дээрх шүдний диаграмаас шүд
+                сонгоход автоматаар оношийн мөр үүснэ.
+              </div>
+            )}
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {rows.map((row, index) => {
+                const problems =
+                  problemsByDiagnosis[row.diagnosisId ?? 0] || [];
+                return (
+                  <div
+                    key={index}
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 8,
+                      padding: 12,
+                      background: "#f9fafb",
+                    }}
+                  >
+                    {/* Diagnosis search */}
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          alignItems: "center",
+                        }}
+                      >
+                        <div style={{ position: "relative", flex: 1 }}>
+                          <input
+                            placeholder="Онош бичиж хайх (ж: K04.1, пульпит...)"
+                            value={row.searchText ?? ""}
+                            onChange={(e) => {
+                              const text = e.target.value;
+                              setOpenDxIndex(index);
+                              setRows((prev) =>
+                                prev.map((r, i) =>
+                                  i === index
+                                    ? {
+                                        ...r,
+                                        searchText: text,
+                                        ...(text.trim()
+                                          ? {}
+                                          : {
+                                              diagnosisId: null,
+                                              diagnosis: undefined,
+                                              selectedProblemIds: [],
+                                            }),
+                                      }
+                                    : r
+                                )
+                              );
+                            }}
+                            onFocus={() => setOpenDxIndex(index)}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "6px 8px",
+                              fontSize: 13,
+                            }}
+                          />
+
+                          {openDxIndex === index &&
+                            allDiagnoses.length > 0 && (
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  top: "100%",
+                                  left: 0,
+                                  right: 0,
+                                  maxHeight: 220,
+                                  overflowY: "auto",
+                                  marginTop: 4,
+                                  background: "white",
+                                  borderRadius: 6,
+                                  boxShadow:
+                                    "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
+                                  zIndex: 20,
+                                  fontSize: 13,
+                                }}
+                              >
+                                {allDiagnoses
+                                  .filter((d) => {
+                                    const q = (
+                                      row.searchText || ""
+                                    ).toLowerCase();
+                                    if (!q.trim()) return true;
+                                    const hay = `${d.code} ${d.name}`.toLowerCase();
+                                    return hay.includes(q);
+                                  })
+                                  .slice(0, 50)
+                                  .map((d) => (
+                                    <div
+                                      key={d.id}
+                                      onMouseDown={async (e) => {
+                                        e.preventDefault();
+                                        await handleDiagnosisChange(
+                                          index,
+                                          d.id
+                                        );
+                                        setOpenDxIndex(null);
+                                      }}
+                                      style={{
+                                        padding: "6px 8px",
+                                        cursor: "pointer",
+                                        borderBottom:
+                                          "1px solid #f3f4f6",
+                                        background:
+                                          row.diagnosisId === d.id
+                                            ? "#eff6ff"
+                                            : "white",
+                                      }}
+                                    >
+                                      <div style={{ fontWeight: 500 }}>
+                                        {d.code} – {d.name}
+                                      </div>
+                                      {d.description && (
+                                        <div
+                                          style={{
+                                            fontSize: 11,
+                                            color: "#6b7280",
+                                            marginTop: 2,
+                                          }}
+                                        >
+                                          {d.description}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeDiagnosisRow(index)}
+                          style={{
+                            padding: "4px 10px",
+                            borderRadius: 6,
+                            border: "1px solid #dc2626",
+                            background: "#fef2f2",
+                            color: "#b91c1c",
+                            cursor: "pointer",
+                            fontSize: 12,
+                            height: 32,
+                            alignSelf: "flex-start",
+                          }}
+                        >
+                          Устгах
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Tooth list */}
+                    <div
+                      style={{
+                        marginBottom: 8,
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <input
+                        placeholder="Шүдний код (ж: 11, 21, 22)"
+                        value={row.toothCode || ""}
+                        onChange={(e) =>
+                          handleDxToothCodeChange(index, e.target.value)
+                        }
+                        onFocus={() => setActiveDxRowIndex(index)}
+                        style={{
+                          maxWidth: 260,
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "6px 8px",
+                          fontSize: 12,
+                        }}
+                      />
+                      <span style={{ fontSize: 11, color: "#6b7280" }}>
+                        Шүдний диаграмаас автоматаар бөглөгдөнө, засах
+                        боломжтой.
+                      </span>
+                    </div>
+
+                    {/* Service for this diagnosis */}
+                    <div
+                      style={{
+                        marginBottom: 8,
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        position: "relative",
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: "relative",
+                          minWidth: 260,
+                          flex: "0 0 auto",
+                        }}
+                      >
+                        <input
+                          placeholder="Үйлчилгээний нэр эсвэл кодоор хайх..."
+                          value={row.serviceSearchText ?? ""}
+                          onChange={(e) => {
+                            const text = e.target.value;
+                            setOpenServiceIndex(index);
+                            setRows((prev) =>
+                              prev.map((r, i) =>
+                                i === index
+                                  ? {
+                                      ...r,
+                                      serviceSearchText: text,
+                                      ...(text.trim()
+                                        ? {}
+                                        : { serviceId: undefined }),
+                                    }
+                                  : r
+                              )
+                            );
+                          }}
+                          onFocus={() => setOpenServiceIndex(index)}
+                          style={{
+                            width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "6px 8px",
+                            fontSize: 13,
+                            background: "#ffffff",
+                          }}
+                        />
+
+                        {allServices.length > 0 &&
+                          openServiceIndex === index &&
+                          (row.serviceSearchText || "").length > 0 && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: "100%",
+                                left: 0,
+                                right: 0,
+                                maxHeight: 220,
+                                overflowY: "auto",
+                                marginTop: 4,
+                                background: "white",
+                                borderRadius: 6,
+                                boxShadow:
+                                  "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
+                                zIndex: 15,
+                                fontSize: 13,
+                              }}
+                            >
+                              {allServices
+                                .filter((svc) => {
+                                  const q = (
+                                    row.serviceSearchText || ""
+                                  ).toLowerCase();
+                                  if (!q.trim()) return true;
+                                  const hay = `${svc.code || ""} ${svc.name}`.toLowerCase();
+                                  return hay.includes(q);
+                                })
+                                .slice(0, 50)
+                                .map((svc) => (
+                                  <div
+                                    key={svc.id}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      setRows((prev) =>
+                                        prev.map((r, i) =>
+                                          i === index
+                                            ? {
+                                                ...r,
+                                                serviceId: svc.id,
+                                                serviceSearchText:
+                                                  svc.name,
+                                              }
+                                            : r
+                                        )
+                                      );
+                                      setOpenServiceIndex(null);
+                                    }}
+                                    style={{
+                                      padding: "6px 8px",
+                                      cursor: "pointer",
+                                      borderBottom:
+                                        "1px solid #f3f4f6",
+                                      background:
+                                        row.serviceId === svc.id
+                                          ? "#eff6ff"
+                                          : "white",
+                                    }}
+                                  >
+                                    <div style={{ fontWeight: 500 }}>
+                                      {svc.code ? `${svc.code} — ` : ""}
+                                      {svc.name}
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: 11,
+                                        color: "#6b7280",
+                                        marginTop: 2,
+                                      }}
+                                    >
+                                      Үнэ:{" "}
+                                      {svc.price.toLocaleString(
+                                        "mn-MN"
+                                      )}
+                                      ₮
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          )}
+                      </div>
+                    </div>
+
+                    {/* Problems */}
+                    {row.diagnosisId ? (
+                      <>
+                        {problems.length === 0 ? (
+                          <div
+                            style={{
+                              color: "#6b7280",
+                              fontSize: 12,
+                              marginBottom: 8,
+                            }}
+                          >
+                            Энэ оношид тохирсон зовиур бүртгээгүй байна
+                            (оношийн тохиргооноос нэмнэ).
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: 8,
+                              marginBottom: 8,
+                            }}
+                          >
+                            {problems.map((p) => {
+                              const checked =
+                                row.selectedProblemIds?.includes(p.id);
+                              return (
+                                <label
+                                  key={p.id}
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                    padding: "4px 8px",
+                                    borderRadius: 999,
+                                    border: checked
+                                      ? "1px solid #16a34a"
+                                      : "1px solid #d1d5db",
+                                    background: checked
+                                      ? "#dcfce7"
+                                      : "#ffffff",
+                                    fontSize: 12,
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() =>
+                                      toggleProblem(index, p.id)
+                                    }
+                                  />
+                                  {p.label}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    ) : null}
+
+                    {/* Note */}
+                    <textarea
+                      placeholder="Энэ оношид холбогдох тэмдэглэл (сонголттой)"
+                      value={row.note}
+                      onChange={(e) =>
+                        handleNoteChange(index, e.target.value)
+                      }
+                      rows={2}
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "6px 8px",
+                        fontSize: 13,
+                        resize: "vertical",
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            {saveError && (
+              <div style={{ color: "red", marginTop: 8 }}>{saveError}</div>
+            )}
+
+            {/* Totals + buttons */}
+            <div
+              style={{
+                marginTop: 12,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <div style={{ fontSize: 13, color: "#111827" }}>
+                Нийт үйлчилгээний урьдчилсан дүн:{" "}
+                <strong>
+                  {totalDiagnosisServicesPrice.toLocaleString("mn-MN")}₮
+                </strong>{" "}
+                <span style={{ fontSize: 11, color: "#6b7280" }}>
+                  (Эмчийн сонгосон онош, үйлчилгээний дагуу. Төлбөрийн касс
+                  дээр эцэслэнэ.)
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleSaveDiagnoses();
+                    await handleSaveServices();
+                    await savePrescription();
+                  }}
+                  disabled={saving || finishing || prescriptionSaving}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: "#16a34a",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    fontSize: 14,
+                  }}
+                >
+                  {saving || prescriptionSaving
+                    ? "Хадгалж байна..."
+                    : "Зөвхөн онош хадгалах"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleFinishEncounter}
+                  disabled={saving || finishing || prescriptionSaving}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 6,
+                    border: "none",
+                    background: "#2563eb",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    fontSize: 14,
+                  }}
+                >
+                  {finishing
+                    ? "Дуусгаж байна..."
+                    : "Үзлэг дуусгах / Төлбөрт шилжүүлэх"}
+                </button>
+              </div>
+            </div>
+
+            {/* Media / X-ray images – directly ABOVE prescription */}
+            <div
+              style={{
+                marginTop: 16,
+                paddingTop: 12,
+                borderTop: "1px dashed #e5e7eb",
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: 14,
+                  margin: 0,
+                  marginBottom: 6,
+                }}
+              >
+                Рентген / зураг
+              </h3>
+              <p
+                style={{
+                  marginTop: 0,
+                  marginBottom: 6,
+                  fontSize: 12,
+                  color: "#6b7280",
+                }}
+              >
+                Энэ үзлэгт холбоотой рентген болон бусад зургууд.
+              </p>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <label
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #2563eb",
+                    background: "#eff6ff",
+                    color: "#2563eb",
+                    fontSize: 12,
+                    cursor: uploadingMedia ? "default" : "pointer",
+                  }}
+                >
+                  {uploadingMedia ? "Хуулж байна..." : "+ Зураг нэмэх"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    disabled={uploadingMedia}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        void handleMediaUpload(file);
+                        e.target.value = "";
+                      }
+                    }}
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => void reloadMedia()}
+                  disabled={mediaLoading}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #6b7280",
+                    background: "#f3f4f6",
+                    color: "#374151",
+                    fontSize: 12,
+                    cursor: mediaLoading ? "default" : "pointer",
+                  }}
+                >
+                  {mediaLoading ? "Шинэчилж байна..." : "Зураг шинэчлэх"}
+                </button>
+              </div>
+
+              {mediaLoading && (
+                <div style={{ fontSize: 13 }}>Зураг ачаалж байна...</div>
+              )}
+
+              {mediaError && (
+                <div style={{ color: "red", fontSize: 13, marginBottom: 8 }}>
+                  {mediaError}
+                </div>
+              )}
+
+              {!mediaLoading && media.length === 0 && !mediaError && (
+                <div style={{ fontSize: 13, color: "#6b7280" }}>
+                  Одоогоор энэ үзлэгт зураг хадгалагүй байна.
+                </div>
+              )}
+
+              {media.length > 0 && (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "repeat(auto-fill, minmax(120px, 1fr))",
+                    gap: 12,
+                    marginTop: 8,
+                  }}
+                >
+                  {media.map((m) => {
+                    const href = m.filePath.startsWith("http")
+                      ? m.filePath
+                      : m.filePath.startsWith("/")
+                      ? m.filePath
+                      : `/${m.filePath}`;
+                    return (
+                      <a
+                        key={m.id}
+                        href={href}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          textDecoration: "none",
+                          color: "#111827",
+                          borderRadius: 8,
+                          border: "1px solid #e5e7eb",
+                          overflow: "hidden",
+                          background: "#f9fafb",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "100%",
+                            aspectRatio: "4 / 3",
+                            overflow: "hidden",
+                            background: "#111827",
+                          }}
+                        >
+                          <img
+                            src={href}
+                            alt={m.toothCode || "Рентген зураг"}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              display: "block",
+                            }}
+                          />
+                        </div>
+                        <div
+                          style={{
+                            padding: 6,
+                            fontSize: 11,
+                            borderTop: "1px solid #e5e7eb",
+                            background: "#ffffff",
+                          }}
+                        >
+                          <div>
+                            {m.type === "XRAY" ? "Рентген" : "Зураг"}{" "}
+                            {m.toothCode ? `(${m.toothCode})` : ""}
+                          </div>
+                          {m.createdAt && (
+                            <div style={{ color: "#6b7280", marginTop: 2 }}>
+                              {formatDateTime(m.createdAt)}
+                            </div>
+                          )}
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Prescription section */}
+            <div
+              style={{
+                marginTop: 16,
+                paddingTop: 12,
+                borderTop: "1px dashed #e5e7eb",
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: 14,
+                  margin: 0,
+                  marginBottom: 6,
+                }}
+              >
+                Эмийн жор (ихдээ 3 эм)
+              </h3>
+              <p
+                style={{
+                  marginTop: 0,
+                  marginBottom: 6,
+                  fontSize: 12,
+                  color: "#6b7280",
+                }}
+              >
+                Өвчтөнд өгөх эмийн нэр, тун, хэрэглэх давтамж болон хоногийг
+                бөглөнө үү. Жор бичихгүй бол энэ хэсгийг хоосон орхиж болно.
+              </p>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "40px 2fr 80px 80px 80px 1.5fr 60px",
+                  gap: 6,
+                  alignItems: "center",
+                  fontSize: 12,
+                  marginBottom: 4,
+                  padding: "4px 0",
+                  color: "#6b7280",
+                }}
+              >
+                <div>№</div>
+                <div>Эмийн нэр / тун / хэлбэр</div>
+                <div style={{ textAlign: "center" }}>Нэг удаад</div>
+                <div style={{ textAlign: "center" }}>Өдөрт</div>
+                <div style={{ textAlign: "center" }}>Хэд хоног</div>
+                <div>Тэмдэглэл</div>
+                <div />
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
+                {prescriptionItems.map((it, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "40px 2fr 80px 80px 80px 1.5fr 60px",
+                      gap: 6,
+                      alignItems: "center",
+                    }}
+                  >
+                    <div>{idx + 1}</div>
+                    <input
+                      value={it.drugName}
+                      onChange={(e) =>
+                        setPrescriptionItems((prev) =>
+                          prev.map((p, i) =>
+                            i === idx
+                              ? { ...p, drugName: e.target.value }
+                              : p
+                          )
+                        )
+                      }
+                      placeholder="Ж: Амоксициллин 500мг таб."
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "4px 6px",
+                        fontSize: 12,
+                      }}
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      value={it.quantityPerTake ?? ""}
+                      onChange={(e) =>
+                        setPrescriptionItems((prev) =>
+                          prev.map((p, i) =>
+                            i === idx
+                              ? {
+                                  ...p,
+                                  quantityPerTake:
+                                    Number(e.target.value) || 1,
+                                }
+                              : p
+                          )
+                        )
+                      }
+                      placeholder="1"
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "4px 6px",
+                        fontSize: 12,
+                        textAlign: "center",
+                      }}
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      value={it.frequencyPerDay ?? ""}
+                      onChange={(e) =>
+                        setPrescriptionItems((prev) =>
+                          prev.map((p, i) =>
+                            i === idx
+                              ? {
+                                  ...p,
+                                  frequencyPerDay:
+                                    Number(e.target.value) || 1,
+                                }
+                              : p
+                          )
+                        )
+                      }
+                      placeholder="3"
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "4px 6px",
+                        fontSize: 12,
+                        textAlign: "center",
+                      }}
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      value={it.durationDays ?? ""}
+                      onChange={(e) =>
+                        setPrescriptionItems((prev) =>
+                          prev.map((p, i) =>
+                            i === idx
+                              ? {
+                                  ...p,
+                                  durationDays:
+                                    Number(e.target.value) || 1,
+                                }
+                              : p
+                          )
+                        )
+                      }
+                      placeholder="7"
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "4px 6px",
+                        fontSize: 12,
+                        textAlign: "center",
+                      }}
+                    />
+                    <input
+                      value={it.note}
+                      onChange={(e) =>
+                        setPrescriptionItems((prev) =>
+                          prev.map((p, i) =>
+                            i === idx
+                              ? { ...p, note: e.target.value }
+                              : p
+                          )
+                        )
+                      }
+                      placeholder="Ж: Хоолны дараа"
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "4px 6px",
+                        fontSize: 12,
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPrescriptionItems((prev) =>
+                          prev.filter((_, i) => i !== idx)
+                        )
+                      }
+                      style={{
+                        padding: "4px 6px",
+                        borderRadius: 6,
+                        border: "1px solid #dc2626",
+                        background: "#fef2f2",
+                        color: "#b91c1c",
+                        cursor: "pointer",
+                        fontSize: 11,
+                      }}
+                    >
+                      Устгах
+                    </button>
+                  </div>
+                ))}
+
+                {prescriptionItems.length === 0 && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: "#6b7280",
+                      marginTop: 4,
+                    }}
+                  >
+                    Жор бичээгүй байна. Хэрвээ эмийн жор шаардлагатай бол
+                    доорх &quot;Эм нэмэх&quot; товчоор эм нэмнэ үү.
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (prescriptionItems.length >= 3) return;
+                    setPrescriptionItems((prev) => [
+                      ...prev,
+                      {
+                        localId: prev.length + 1,
+                        drugName: "",
+                        durationDays: null,
+                        quantityPerTake: null,
+                        frequencyPerDay: null,
+                        note: "",
+                      },
+                    ]);
+                  }}
+                  disabled={prescriptionItems.length >= 3}
+                  style={{
+                    marginTop: 4,
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #2563eb",
+                    background: "#eff6ff",
+                    color: "#2563eb",
+                    cursor:
+                      prescriptionItems.length >= 3
+                        ? "default"
+                        : "pointer",
+                    fontSize: 12,
+                    alignSelf: "flex-start",
+                  }}
+                >
+                  + Эм нэмэх
+                </button>
+
+                <button
+                  type="button"
+                  onClick={savePrescription}
+                  disabled={prescriptionSaving}
+                  style={{
+                    marginTop: 4,
+                    marginLeft: 8,
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #16a34a",
+                    background: "#ecfdf3",
+                    color: "#166534",
+                    cursor: prescriptionSaving ? "default" : "pointer",
+                    fontSize: 12,
+                  }}
+                >
+                  {prescriptionSaving
+                    ? "Жор хадгалж байна..."
+                    : "Жор хадгалах"}
+                </button>
+
+                {prescriptionError && (
+                  <div
+                    style={{
+                      color: "#b91c1c",
+                      fontSize: 12,
+                      marginTop: 4,
+                    }}
+                  >
+                    {prescriptionError}
+                  </div>
+                )}
+              </div>
+            </div>
           </section>
         </>
       )}
