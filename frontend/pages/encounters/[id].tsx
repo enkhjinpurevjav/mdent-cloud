@@ -1362,134 +1362,137 @@ export default function EncounterAdminPage() {
             }}
           >
             <div
-              style={{
-                borderRadius: 12,
-                border: "1px solid #e5e7eb",
-                padding: 16,
-                background: "#ffffff",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 18,
-                  fontWeight: 600,
-                  marginBottom: 4,
-                }}
-              >
-                {formatPatientName(encounter.patientBook.patient)}
-              </div>
-              <div style={{ fontSize: 13, color: "#6b7280" }}>
-                Картын дугаар: {encounter.patientBook.bookNumber}
-              </div>
-              {encounter.patientBook.patient.regNo && (
-                <div style={{ fontSize: 13, color: "#6b7280" }}>
-                  РД: {encounter.patientBook.patient.regNo}
-                </div>
-              )}
-              <div style={{ fontSize: 13, color: "#6b7280" }}>
-                Утас: {displayOrDash(encounter.patientBook.patient.phone)}
-              </div>
-              <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}>
-                Бүртгэсэн салбар:{" "}
-                {encounter.patientBook.patient.branch?.name ||
-                  encounter.patientBook.patient.branchId}
-              </div>
+  style={{
+    borderRadius: 12,
+    border: "1px solid #e5e7eb",
+    padding: 16,
+    background: "#ffffff",
+  }}
+>
+  <div
+    style={{
+      fontSize: 18,
+      fontWeight: 600,
+      marginBottom: 4,
+    }}
+  >
+    {formatPatientName(encounter.patientBook.patient)}
+  </div>
+  <div style={{ fontSize: 13, color: "#6b7280" }}>
+    Картын дугаар: {encounter.patientBook.bookNumber}
+  </div>
+  {encounter.patientBook.patient.regNo && (
+    <div style={{ fontSize: 13, color: "#6b7280" }}>
+      РД: {encounter.patientBook.patient.regNo}
+    </div>
+  )}
+  <div style={{ fontSize: 13, color: "#6b7280" }}>
+    Утас: {displayOrDash(encounter.patientBook.patient.phone)}
+  </div>
+  <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}>
+    Бүртгэсэн салбар:{" "}
+    {encounter.patientBook.patient.branch?.name ||
+      encounter.patientBook.patient.branchId}
+  </div>
 
-              {/* NEW: quick navigation buttons for this patient */}
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  marginTop: 4,
-                }}
-              >
-                {/* We navigate by bookNumber since that’s how patient profile / cards are keyed */}
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/patients/${encodeURIComponent(
-                        encounter.patientBook.bookNumber
-                      )}`
-                    )
-                  }
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    background: "#f9fafb",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  Үйлчлүүлэгчийн дэлгэрэнгүй
-                </button>
+  {/* NEW: navigation buttons based on Картын дугаар (bookNumber) */}
+  <div
+    style={{
+      display: "flex",
+      flexWrap: "wrap",
+      gap: 8,
+      marginTop: 4,
+    }}
+  >
+    {/* 1) Үйлчлүүлэгчийн дэлгэрэнгүй → patients/[bookNumber] */}
+    <button
+      type="button"
+      onClick={() =>
+        router.push(
+          `/patients/${encodeURIComponent(
+            encounter.patientBook.bookNumber
+          )}`
+        )
+      }
+      style={{
+        padding: "4px 8px",
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        background: "#f9fafb",
+        fontSize: 12,
+        cursor: "pointer",
+      }}
+    >
+      Үйлчлүүлэгчийн дэлгэрэнгүй
+    </button>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/patients/${encodeURIComponent(
-                        encounter.patientBook.bookNumber
-                      )}?tab=visit-card`
-                    )
-                  }
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    background: "#f0f9ff",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  Үйлчлүүлэгчийн карт
-                </button>
+    {/* 2) Үйлчлүүлэгчийн карт (үзлэгийн карт) → patients/[bookNumber]?tab=visit-card */}
+    <button
+      type="button"
+      onClick={() =>
+        router.push(
+          `/patients/${encodeURIComponent(
+            encounter.patientBook.bookNumber
+          )}?tab=visit-card`
+        )
+      }
+      style={{
+        padding: "4px 8px",
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        background: "#f0f9ff",
+        fontSize: 12,
+        cursor: "pointer",
+      }}
+    >
+      Үйлчлүүлэгчийн карт
+    </button>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/patients/${encodeURIComponent(
-                        encounter.patientBook.bookNumber
-                      )}?tab=ortho-card`
-                    )
-                  }
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    background: "#fef3c7",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  Гажиг заслын карт
-                </button>
+    {/* 3) Гажиг заслын карт → ortho/[bookNumber] */}
+    <button
+      type="button"
+      onClick={() =>
+        router.push(
+          `/ortho/${encodeURIComponent(
+            encounter.patientBook.bookNumber
+          )}`
+        )
+      }
+      style={{
+        padding: "4px 8px",
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        background: "#fef3c7",
+        fontSize: 12,
+        cursor: "pointer",
+      }}
+    >
+      Гажиг заслын карт
+    </button>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/patients/${encodeURIComponent(
-                        encounter.patientBook.bookNumber
-                      )}?tab=encounters`
-                    )
-                  }
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    background: "#f3e8ff",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  Өмнөх үзлэгүүд
-                </button>
-              </div>
-            </div>
+    {/* 4) Өмнөх үзлэгүүд → patients/[bookNumber]?tab=encounters (to implement later) */}
+    <button
+      type="button"
+      onClick={() =>
+        router.push(
+          `/patients/${encodeURIComponent(
+            encounter.patientBook.bookNumber
+          )}?tab=encounters`
+        )
+      }
+      style={{
+        padding: "4px 8px",
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        background: "#f3e8ff",
+        fontSize: 12,
+        cursor: "pointer",
+      }}
+    >
+      Өмнөх үзлэгүүд
+    </button>
+  </div>
+</div>
 
             <div
               style={{
