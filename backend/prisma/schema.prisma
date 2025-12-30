@@ -151,12 +151,6 @@ model EmployeeBenefitUsage {
 
   employeeBenefit   EmployeeBenefit @relation(fields: [employeeBenefitId], references: [id])
   invoice           Invoice         @relation(fields: [invoiceId], references: [id])
-
-// relation to EmployeeBenefit
-  employeeBenefit EmployeeBenefit @relation(fields: [employeeBenefitId], references: [id])
-
-  // relation to Invoice, with back‑relation field in Invoice model
-  invoice         Invoice         @relation(fields: [invoiceId], references: [id])
 }
 
 
@@ -573,9 +567,7 @@ model Invoice {
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @default(now()) @updatedAt
 
-  payments  Payment[]
-
-  // NEW: back‑relation to EmployeeBenefitUsage
+  // Back‑relation to EmployeeBenefitUsage
   employeeBenefitUsages EmployeeBenefitUsage[]
 }
 
