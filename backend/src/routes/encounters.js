@@ -31,71 +31,63 @@ const upload = multer({ storage });
  */
 router.get("/:id", async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (!id || Number.isNaN(id)) {
+    const encounterId = Number(req.params.id);
+    if (!encounterId || Number.isNaN(encounterId)) {
       return res.status(400).json({ error: "Invalid encounter id" });
     }
 
     const encounter = await prisma.encounter.findUnique({
-  where: { id: encounterId },
-  include: {
-    patientBook: {
+      where: { id: encounterId },
       include: {
-        patient: {
+        patientBook: {
           include: {
-            branch: true,
+            patient: {
+              include: {
+                branch: true,
+              },
+            },
           },
         },
-      },
-    },
-    doctor: true,
-    nurse: true,
-    diagnoses: {
-      include: {
-        diagnosis: true,
-      },
-      orderBy: {
-        createdAt: "asc",
-      },
-    },
-    encounterServices: {
-      include: {
-        service: true,
-      },
-      orderBy: {
-        id: "asc",
-      },
-    },
-    invoice: {
-      include: {
-        // NEW: use items, not invoiceItems
-        items: {
-          // if you used procedure before, adapt to new model if it still exists
-          // include: { procedure: true },  // only if InvoiceItem still has a relation called procedure
+        doctor: true,
+        nurse: true,
+        diagnoses: {
+          include: {
+            diagnosis: true,
+          },
+          orderBy: {
+            createdAt: "asc",
+          },
+        },
+        encounterServices: {
+          include: {
+            service: true,
+          },
           orderBy: {
             id: "asc",
           },
         },
-        // NEW: plural payments
-        payments: true,
-        eBarimtReceipt: true,
-        branch: true,
-        encounter: true,
-        patient: true,
-        ledgerEntries: true,
-      },
-    },
-    prescription: {
-      include: {
-        items: {
-          orderBy: {
-            order: "asc",
+        invoice: {
+          include: {
+            items: {
+              orderBy: { id: "asc" },
+            },
+            payments: true,
+            eBarimtReceipt: true,
+            branch: true,
+            encounter: true,
+            patient: true,
+            ledgerEntries: true,
+          },
+        },
+        prescription: {
+          include: {
+            items: {
+              orderBy: { order: "asc" },
+            },
           },
         },
       },
-    },
-  },
-});
+    });
 
     if (!encounter) {
       return res.status(404).json({ error: "Encounter not found" });
@@ -220,9 +212,6 @@ router.put("/:id/consent", async (req, res) => {
   }
 });
 
-
-
-
 /**
  * GET /api/encounters/:id/nurses
  * Returns nurses scheduled on the encounter's visitDate and branch.
@@ -265,7 +254,7 @@ router.get("/:id/nurses", async (req, res) => {
 
     const branchId = encounter.patientBook.patient.branchId;
 
-    const whereSchedule = {
+    const whereSchedule: any = {
       date: {
         gte: start,
         lt: end,
@@ -331,10 +320,11 @@ router.get("/:id/nurses", async (req, res) => {
     return res.json({ count: items.length, items });
   } catch (err) {
     console.error("GET /api/encounters/:id/nurses error:", err);
-    return res.status(500).json({ error: "Failed to load nurses for encounter" });
+    return res
+      .status(500)
+      .json({ error: "Failed to load nurses for encounter" });
   }
 });
-
 
 /**
  * PUT /api/encounters/:id/diagnoses
@@ -382,8 +372,6 @@ router.put("/:id/diagnoses", async (req, res) => {
         });
       }
     });
-
-    
 
     const updated = await prisma.encounterDiagnosis.findMany({
       where: { encounterId },
@@ -450,6 +438,7 @@ router.put("/:id/services", async (req, res) => {
     return res.status(500).json({ error: "Failed to save services" });
   }
 });
+
 /**
  * PUT /api/encounters/:id/nurse
  * Body: { nurseId: number | null }
@@ -464,7 +453,7 @@ router.put("/:id/nurse", async (req, res) => {
     const { nurseId } = req.body || {};
 
     let nurse = null;
-    let nurseIdValue = null; // plain JS, no ": number | null"
+    let nurseIdValue = null;
 
     if (nurseId !== null && nurseId !== undefined) {
       const nid = Number(nurseId);
@@ -496,6 +485,7 @@ router.put("/:id/nurse", async (req, res) => {
     return res.status(500).json({ error: "Failed to update nurse" });
   }
 });
+
 /**
  * PUT /api/encounters/:id/prescription
  */
@@ -652,12 +642,12 @@ router.get("/:id/chart-teeth", async (req, res) => {
     }
 
     const chartTeeth = await prisma.chartTooth.findMany({
-  where: { encounterId },
-  orderBy: { id: "asc" },
-  include: {
-    chartNotes: true,
-  },
-});
+      where: { encounterId },
+      orderBy: { id: "asc" },
+      include: {
+        chartNotes: true,
+      },
+    });
 
     return res.json(chartTeeth);
   } catch (err) {
@@ -702,7 +692,7 @@ router.put("/:id/chart-teeth", async (req, res) => {
           data: {
             encounterId,
             toothCode: t.toothCode.trim(),
-            toothGroup,          // <--- NEW
+            toothGroup,
             status: t.status || null,
             notes: t.notes || null,
           },
@@ -725,6 +715,8 @@ router.put("/:id/chart-teeth", async (req, res) => {
 
 /**
  * PUT /api/encounters/:id/finish
+ *
+ * Doctor finishes encounter → mark related appointment as ready_to_pay
  */
 router.put("/:id/finish", async (req, res) => {
   try {
@@ -749,6 +741,7 @@ router.put("/:id/finish", async (req, res) => {
     const appt = await prisma.appointment.update({
       where: { id: encounter.appointmentId },
       data: {
+        // NOTE: make sure this matches your AppointmentStatus enum value
         status: "ready_to_pay",
       },
     });
@@ -763,74 +756,6 @@ router.put("/:id/finish", async (req, res) => {
 });
 
 /**
- * POST /api/encounters/:id/billing
- */
-router.post("/:id/billing", async (req, res) => {
-  const encounterId = Number(req.params.id);
-  if (!encounterId || Number.isNaN(encounterId)) {
-    return res.status(400).json({ error: "Invalid encounter id" });
-  }
-
-  const { items } = req.body || {};
-  if (!Array.isArray(items)) {
-    return res.status(400).json({ error: "items must be an array" });
-  }
-
-  try {
-    let totalAmount = 0;
-
-    for (const raw of items) {
-      const serviceId = Number(raw.serviceId);
-      const qty = Number(raw.quantity) || 1;
-      const basePrice = Number(raw.price) || 0;
-      const discountAmount = Number(raw.discountAmount) || 0;
-
-      if (!serviceId) continue;
-
-      const lineTotal = Math.max(basePrice * qty - discountAmount, 0);
-      totalAmount += lineTotal;
-    }
-
-    const encounter = await prisma.encounter.findUnique({
-      where: { id: encounterId },
-      include: { invoice: true },
-    });
-
-    if (!encounter) {
-      return res.status(404).json({ error: "Encounter not found" });
-    }
-
-    let invoice = encounter.invoice;
-
-    if (!invoice) {
-      invoice = await prisma.invoice.create({
-        data: {
-          encounterId,
-          totalAmount,
-          status: "pending",
-        },
-      });
-    } else {
-      invoice = await prisma.invoice.update({
-        where: { id: invoice.id },
-        data: {
-          totalAmount,
-        },
-      });
-    }
-
-    return res.json({
-      ok: true,
-      invoice,
-      totalAmount,
-    });
-  } catch (err) {
-    console.error("POST /api/encounters/:id/billing error:", err);
-    return res.status(500).json({ error: "Failed to save billing" });
-  }
-});
-
-/**
  * GET /api/encounters/:id/media
  */
 router.get("/:id/media", async (req, res) => {
@@ -841,7 +766,7 @@ router.get("/:id/media", async (req, res) => {
     }
 
     const { type } = req.query;
-    const where = { encounterId };
+    const where: any = { encounterId };
     if (typeof type === "string" && type.trim()) {
       where.type = type.trim();
     }
@@ -861,44 +786,40 @@ router.get("/:id/media", async (req, res) => {
 /**
  * POST /api/encounters/:id/media
  */
-router.post(
-  "/:id/media",
-  upload.single("file"),
-  async (req, res) => {
-    try {
-      const encounterId = Number(req.params.id);
-      if (!encounterId || Number.isNaN(encounterId)) {
-        return res.status(400).json({ error: "Invalid encounter id" });
-      }
-
-      if (!req.file) {
-        return res.status(400).json({ error: "file is required" });
-      }
-
-      const { toothCode, type } = req.body || {};
-      const mediaType =
-        typeof type === "string" && type.trim() ? type.trim() : "XRAY";
-
-      const publicPath = `/media/${path.basename(req.file.path)}`;
-
-      const media = await prisma.media.create({
-        data: {
-          encounterId,
-          filePath: publicPath,
-          toothCode:
-            typeof toothCode === "string" && toothCode.trim()
-              ? toothCode.trim()
-              : null,
-          type: mediaType,
-        },
-      });
-
-      return res.status(201).json(media);
-    } catch (err) {
-      console.error("POST /api/encounters/:id/media error:", err);
-      return res.status(500).json({ error: "Failed to upload media" });
+router.post("/:id/media", upload.single("file"), async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
     }
+
+    if (!req.file) {
+      return res.status(400).json({ error: "file is required" });
+    }
+
+    const { toothCode, type } = req.body || {};
+    const mediaType =
+      typeof type === "string" && type.trim() ? type.trim() : "XRAY";
+
+    const publicPath = `/media/${path.basename(req.file.path)}`;
+
+    const media = await prisma.media.create({
+      data: {
+        encounterId,
+        filePath: publicPath,
+        toothCode:
+          typeof toothCode === "string" && toothCode.trim()
+            ? toothCode.trim()
+            : null,
+        type: mediaType,
+      },
+    });
+
+    return res.status(201).json(media);
+  } catch (err) {
+    console.error("POST /api/encounters/:id/media error:", err);
+    return res.status(500).json({ error: "Failed to upload media" });
   }
-);
+});
 
 export default router;
