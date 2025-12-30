@@ -169,17 +169,20 @@ function BillingPaymentSection({
     Math.max((invoice.finalAmount ?? 0) - (invoice.paidTotal ?? 0), 0);
 
   // TODO: replace with real lists from backend/config later
-  const INSURANCE_PROVIDERS = [
-    { value: "SOCIAL_HEALTH", label: "ЭМД (Нийгмийн даатгал)" },
-    { value: "DL", label: "Далай даатгал" },
-    { value: "OTHER", label: "Бусад даатгал" },
+    const INSURANCE_PROVIDERS = [
+    { value: "BODI_DAATGAL", label: "Bodi Daatgal" },
+    { value: "NATIONAL_LIFE", label: "National Life" },
+    { value: "MANDAL_DAATGAL", label: "Mandal Daatgal" },
   ];
 
   const APP_PROVIDERS = [
-    { value: "POCKET", label: "Pocket" },
-    { value: "STOREPAY", label: "Storepay" },
-    { value: "LEND", label: "Lend" },
-    { value: "OTHER", label: "Бусад апп" },
+    { value: "STOREPAY",  label: "Storepay" },
+    { value: "POCKETPAY", label: "PocketPay" },
+    { value: "CAREPAY",   label: "CarePay" },
+    { value: "ARDPAY",    label: "ArdPay" },
+    { value: "TOKI",      label: "Toki" },
+    { value: "PAYON",     label: "payOn" },
+    { value: "SONO",      label: "Sono" },
   ];
 
   useEffect(() => {
