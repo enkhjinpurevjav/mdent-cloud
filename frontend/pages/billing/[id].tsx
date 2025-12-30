@@ -46,6 +46,13 @@ type InvoiceItem = {
   lineTotal?: number;
 };
 
+type Payment = {
+  id: number;
+  amount: number;
+  method: string;
+  timestamp: string;
+};
+
 type InvoiceResponse = {
   id: number | null;
   branchId: number;
@@ -58,6 +65,10 @@ type InvoiceResponse = {
   hasEBarimt: boolean;
   isProvisional?: boolean;
   items: InvoiceItem[];
+  // Fields returned from settlement endpoint (optional)
+  paidTotal?: number;
+  unpaidAmount?: number;
+  payments?: Payment[];
 };
 
 type Encounter = {
@@ -109,6 +120,205 @@ function formatDoctorName(d: Doctor | null) {
   return d.email;
 }
 
+// ---------- Payment form component ----------
+
+const PAYMENT_METHODS = ["CASH", "QPAY", "POS", "TRANSFER", "INSURANCE", "VOUCHER"];
+
+function formatMoney(v: number | null | undefined) {
+  if (v == null || Number.isNaN(Number(v))) return "0";
+  return new Intl.NumberFormat("mn-MN").format(Number(v));
+}
+
+function BillingPaymentForm({
+  invoice,
+  onUpdated,
+}: {
+  invoice: InvoiceResponse;
+  onUpdated: (inv: InvoiceResponse) => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState("CASH");
+  const [issueEBarimt, setIssueEBarimt] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const hasRealInvoice = !!invoice.id;
+
+  const handleSubmit: React.FormEventHandler = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+
+    if (!hasRealInvoice || !invoice.id) {
+      setError("Эхлээд нэхэмжлэлийн бүтцийг хадгална уу.");
+      return;
+    }
+
+    const amt = Number(amount);
+    if (!amt || amt <= 0) {
+      setError("Төлбөрийн дүнг зөв оруулна уу.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const res = await fetch(`/api/invoices/${invoice.id}/settlement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: amt,
+          method,
+          issueEBarimt,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data) {
+        throw new Error((data && data.error) || "Төлбөр бүртгэхэд алдаа гарлаа.");
+      }
+
+      // Backend returns full invoice with payments, paidTotal, unpaidAmount, status
+      onUpdated({
+        ...invoice,
+        ...data,
+      });
+      setSuccess("Төлбөр амжилттай бүртгэгдлээ.");
+      setAmount("");
+    } catch (err: any) {
+      console.error("Failed to settle invoice:", err);
+      setError(err.message || "Төлбөр бүртгэхэд алдаа гарлаа.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <section
+      style={{
+        marginTop: 16,
+        padding: 16,
+        borderRadius: 8,
+        border: "1px solid #e5e7eb",
+        background: "#ffffff",
+      }}
+    >
+      <h2 style={{ fontSize: 16, margin: 0, marginBottom: 8 }}>Төлбөр бүртгэх</h2>
+
+      {!hasRealInvoice && (
+        <div style={{ fontSize: 13, color: "#b91c1c", marginBottom: 8 }}>
+          Нэхэмжлэлийн мөрүүдийг хадгалсны дараа төлбөр бүртгэх боломжтой.
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <label style={{ width: 120, fontSize: 13 }}>Төлбөрийн дүн</label>
+          <input
+            type="number"
+            min={1}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            style={{
+              flex: 1,
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "4px 8px",
+              fontSize: 13,
+            }}
+            placeholder="жишээ нь: 50000"
+          />
+          <span style={{ fontSize: 13 }}>₮</span>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <label style={{ width: 120, fontSize: 13 }}>Төлбөрийн хэлбэр</label>
+          <select
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
+            style={{
+              flex: 1,
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "4px 8px",
+              fontSize: 13,
+            }}
+          >
+            {PAYMENT_METHODS.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 13 }}>
+          <input
+            id="issueEBarimt"
+            type="checkbox"
+            checked={issueEBarimt}
+            onChange={(e) => setIssueEBarimt(e.target.checked)}
+          />
+          <label htmlFor="issueEBarimt">Бүрэн төлөгдсөн үед e‑Barimt гаргах</label>
+        </div>
+
+        {invoice.paidTotal != null || invoice.unpaidAmount != null ? (
+          <div style={{ fontSize: 12, color: "#4b5563", marginTop: 4 }}>
+            <div>
+              Нийт төлсөн: <strong>{formatMoney(invoice.paidTotal || 0)} ₮</strong>
+            </div>
+            <div>
+              Үлдэгдэл: <strong>{formatMoney(invoice.unpaidAmount || 0)} ₮</strong>
+            </div>
+          </div>
+        ) : null}
+
+        {error && (
+          <div style={{ fontSize: 13, color: "#b91c1c", marginTop: 4 }}>{error}</div>
+        )}
+        {success && (
+          <div style={{ fontSize: 13, color: "#16a34a", marginTop: 4 }}>{success}</div>
+        )}
+
+        <div style={{ marginTop: 4, display: "flex", justifyContent: "flex-end" }}>
+          <button
+            type="submit"
+            disabled={submitting || !hasRealInvoice}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: "none",
+              background: hasRealInvoice ? "#16a34a" : "#9ca3af",
+              color: "#ffffff",
+              cursor: hasRealInvoice ? "pointer" : "not-allowed",
+              fontSize: 14,
+            }}
+          >
+            {submitting ? "Төлбөр хадгалж байна..." : "Төлбөр бүртгэх"}
+          </button>
+        </div>
+      </form>
+
+      {invoice.payments && invoice.payments.length > 0 && (
+        <div style={{ marginTop: 12, fontSize: 12 }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Бүртгэгдсэн төлбөрүүд</div>
+          <ul style={{ margin: 0, paddingLeft: 16 }}>
+            {invoice.payments.map((p) => (
+              <li key={p.id}>
+                {formatDateTime(p.timestamp)} — {p.method} —{" "}
+                {formatMoney(p.amount)} ₮
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ---------- Main page component ----------
+
 export default function BillingPage() {
   const router = useRouter();
   const { id } = router.query;
@@ -158,7 +368,7 @@ export default function BillingPage() {
         }
         setEncounter(encData);
 
-        // Load billing/invoice for this encounter (new backend route)
+        // Load billing/invoice for this encounter
         const invRes = await fetch(`/api/billing/encounters/${encounterId}/invoice`);
         let invData: any = null;
         try {
@@ -168,7 +378,9 @@ export default function BillingPage() {
         }
 
         if (!invRes.ok || !invData) {
-          throw new Error((invData && invData.error) || "Төлбөрийн мэдээлэл ачаалж чадсангүй.");
+          throw new Error(
+            (invData && invData.error) || "Төлбөрийн мэдээлэл ачаалж чадсангүй."
+          );
         }
 
         const inv: InvoiceResponse = invData;
@@ -453,6 +665,18 @@ export default function BillingPage() {
                 : "Одоогоор хадгалагдсан нэхэмжлэл байхгүй (түр санал болгосон тооцоо)."}
               {invoice.hasEBarimt && " • e-Barimt хэвлэгдсэн"}
             </div>
+            {invoice.paidTotal != null && (
+              <div style={{ marginTop: 4, fontSize: 13 }}>
+                Нийт төлсөн:{" "}
+                <strong>
+                  {formatMoney(invoice.paidTotal)} ₮
+                </strong>{" "}
+                • Үлдэгдэл:{" "}
+                <strong>
+                  {formatMoney(invoice.unpaidAmount || 0)} ₮
+                </strong>
+              </div>
+            )}
           </section>
 
           {/* Billing items */}
@@ -776,6 +1000,14 @@ export default function BillingPage() {
               </button>
             </div>
           </section>
+
+          {/* Payment form & payments list */}
+          <BillingPaymentForm
+            invoice={invoice}
+            onUpdated={(updated) => {
+              setInvoice(updated);
+            }}
+          />
 
           {/* Prescription summary (read-only) */}
           {encounter && (encounter as any).prescription && (
