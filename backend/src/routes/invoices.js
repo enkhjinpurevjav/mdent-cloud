@@ -20,7 +20,7 @@ function computePaidTotal(payments) {
  * {
  *   amount: number;        // required, >0
  *   method: "CASH" | "QPAY" | "POS" | "TRANSFER" | "INSURANCE" | "VOUCHER" | ...,
- *   note?: string;
+ *   note?: string;         // currently IGNORED (no column in DB)
  *   issueEBarimt?: boolean; // optional; if true and fully paid, attempt e-Barimt
  * }
  *
@@ -41,7 +41,7 @@ router.post("/:id/settlement", async (req, res) => {
       return res.status(400).json({ error: "Invalid invoice id" });
     }
 
-    const { amount, method, note, issueEBarimt } = req.body || {};
+    const { amount, method, issueEBarimt } = req.body || {};
 
     const payAmount = Number(amount || 0);
     if (!payAmount || payAmount <= 0) {
@@ -93,7 +93,7 @@ router.post("/:id/settlement", async (req, res) => {
 
     const alreadyPaid = computePaidTotal(invoice.payments);
 
-    // Optional: if already fully paid, don't accept more settlement
+    // If already fully paid, don't accept more settlement
     if (alreadyPaid >= baseAmount) {
       return res.status(409).json({
         error:
@@ -105,13 +105,12 @@ router.post("/:id/settlement", async (req, res) => {
 
     // Create payment + update invoice in a transaction
     const updated = await prisma.$transaction(async (trx) => {
-      // 1) Create payment row
+      // 1) Create payment row (NO note field in schema)
       const payment = await trx.payment.create({
         data: {
           invoiceId,
           amount: payAmount,
           method: methodStr,
-          note: typeof note === "string" ? note.trim() : null,
           timestamp: new Date(),
         },
       });
@@ -147,7 +146,6 @@ router.post("/:id/settlement", async (req, res) => {
             invoiceId,
             receiptNumber,
             timestamp: new Date(),
-            rawResponse: {}, // or null; adjust schema accordingly
           },
         });
         eBarimtReceipt = receipt;
@@ -199,7 +197,6 @@ router.post("/:id/settlement", async (req, res) => {
         amount: p.amount,
         method: p.method,
         timestamp: p.timestamp,
-        note: p.note,
       })),
     });
   } catch (err) {
