@@ -19,6 +19,7 @@ import reportsRouter from "./routes/reports.js";
 import doctorsRouter from "./routes/doctors.js";
 import bookingsRouter from "./routes/bookings.js";
 import staffSummaryRoutes from "./routes/staff-summary.js";
+import invoicesRouter from "./routes/invoices.js";
 
 // NEW: diagnoses
 import diagnosesRouter from "./routes/diagnoses.js";
@@ -69,6 +70,7 @@ app.use("/api/users", usersRouter);
 app.use("/api/employees", employeesRouter);
 app.use("/api/encounters", encountersRouter);
 app.use("/api/billing", billingRouter);
+app.use("/api/invoices", invoicesRouter); // ← add this
 app.use("/api/appointments", appointmentsRouter);
 app.use("/api/services", servicesRouter);
 app.use("/api/reports", reportsRouter);
