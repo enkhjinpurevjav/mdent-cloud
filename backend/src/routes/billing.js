@@ -43,7 +43,6 @@ function toDiscountEnum(percent) {
  */
 router.get(
   "/encounters/:id/invoice",
-  authenticateJWT,
   async (req, res) => {
     const encounterId = Number(req.params.id);
     if (!encounterId || Number.isNaN(encounterId)) {
@@ -203,7 +202,6 @@ router.get(
  */
 router.post(
   "/encounters/:id/invoice",
-  authenticateJWT,
   async (req, res) => {
     const encounterId = Number(req.params.id);
     if (!encounterId || Number.isNaN(encounterId)) {
