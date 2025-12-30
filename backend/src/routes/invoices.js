@@ -26,7 +26,7 @@ function computePaidTotal(payments) {
  *
  * Behavior:
  * - Creates a Payment tied to this invoice.
- * - Recalculates total paid vs finalAmount.
+ * - Recalculates total paid vs finalAmount (or legacy totalAmount).
  * - Updates invoice.statusLegacy:
  *      "paid"    if fully paid
  *      "partial" if >0 and < finalAmount
@@ -50,11 +50,7 @@ router.post("/:id/settlement", async (req, res) => {
         .json({ error: "amount must be a number greater than zero." });
     }
 
-    if (
-      !method ||
-      typeof method !== "string" ||
-      !method.trim()
-    ) {
+    if (!method || typeof method !== "string" || !method.trim()) {
       return res
         .status(400)
         .json({ error: "method is required for payment." });
@@ -105,8 +101,6 @@ router.post("/:id/settlement", async (req, res) => {
       });
     }
 
-    // Optional: if e-Barimt already exists, you might want to block changes
-    // or at least warn. For now, we allow more payments but do not reissue.
     const hadEBarimt = !!invoice.eBarimtReceipt;
 
     // Create payment + update invoice in a transaction
@@ -147,7 +141,6 @@ router.post("/:id/settlement", async (req, res) => {
         issueEBarimt === true
       ) {
         // TODO: replace this stub with real E-Barimt API integration.
-        // For now we just create a placeholder record.
         const receiptNumber = `MDENT-${invoiceId}-${Date.now()}`;
         const receipt = await trx.eBarimtReceipt.create({
           data: {
@@ -160,7 +153,7 @@ router.post("/:id/settlement", async (req, res) => {
         eBarimtReceipt = receipt;
       }
 
-      // 5) Update invoice with new statusLegacy (and optionally totalAmount if needed)
+      // 5) Update invoice with new statusLegacy
       const updatedInvoice = await trx.invoice.update({
         where: { id: invoiceId },
         data: {
@@ -173,10 +166,10 @@ router.post("/:id/settlement", async (req, res) => {
         },
       });
 
-      return { updatedInvoice, payment, paidTotal, baseAmount };
+      return { updatedInvoice, payment, paidTotal };
     });
 
-    const { updatedInvoice, paidTotal, baseAmount } = updated;
+    const { updatedInvoice, paidTotal } = updated;
 
     return res.json({
       id: updatedInvoice.id,
