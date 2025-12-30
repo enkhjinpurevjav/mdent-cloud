@@ -123,6 +123,39 @@ model Branch {
   employeeVouchers  EmployeeVoucher[]
 }
 
+model EmployeeBenefit {
+  id              Int       @id @default(autoincrement())
+  employeeId      Int
+  code            String    @unique        // code receptionist will type
+  branchId        Int?                      // optional
+  initialAmount   Int                       // total budget in ₮
+  remainingAmount Int                       // current remaining in ₮
+  fromDate        DateTime?                 // optional validity range
+  toDate          DateTime?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  employee        User      @relation(fields: [employeeId], references: [id])
+  usages          EmployeeBenefitUsage[]
+
+  @@index([code])
+}
+
+model EmployeeBenefitUsage {
+  id                Int       @id @default(autoincrement())
+  employeeBenefitId Int
+  invoiceId         Int
+  encounterId       Int
+  amountUsed        Int
+  patientId         Int
+  createdAt         DateTime  @default(now())
+
+  employeeBenefit   EmployeeBenefit @relation(fields: [employeeBenefitId], references: [id])
+  invoice           Invoice         @relation(fields: [invoiceId], references: [id])
+}
+
+
 // ==========================================================
 // USERS (Doctors, Nurses, Admin, etc.)
 // ==========================================================
