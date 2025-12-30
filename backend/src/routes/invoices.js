@@ -4,7 +4,7 @@ import prisma from "../db.js";
 const router = express.Router();
 
 /**
- * Helper: compute paid total for an invoice from its payments list.
+ * Helper: compute paid total from a list of payments.
  */
 function computePaidTotal(payments) {
   return (payments || []).reduce(
@@ -20,12 +20,11 @@ function computePaidTotal(payments) {
  * {
  *   amount: number;        // required, >0
  *   method: "CASH" | "QPAY" | "POS" | "TRANSFER" | "INSURANCE" | "VOUCHER" | ...,
- *   note?: string;         // currently IGNORED (no column in DB)
  *   issueEBarimt?: boolean; // optional; if true and fully paid, attempt e-Barimt
  * }
  *
  * Behavior:
- * - Creates a Payment tied to this invoice.
+ * - Creates a new Payment row tied to this invoice.
  * - Recalculates total paid vs finalAmount (or legacy totalAmount).
  * - Updates invoice.statusLegacy:
  *      "paid"    if fully paid
@@ -105,8 +104,8 @@ router.post("/:id/settlement", async (req, res) => {
 
     // Create payment + update invoice in a transaction
     const updated = await prisma.$transaction(async (trx) => {
-      // 1) Create payment row (NO note field in schema)
-      const payment = await trx.payment.create({
+      // 1) Create new payment row
+      await trx.payment.create({
         data: {
           invoiceId,
           amount: payAmount,
@@ -164,7 +163,7 @@ router.post("/:id/settlement", async (req, res) => {
         },
       });
 
-      return { updatedInvoice, payment, paidTotal };
+      return { updatedInvoice, paidTotal };
     });
 
     const { updatedInvoice, paidTotal } = updated;
