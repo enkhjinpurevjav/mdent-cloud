@@ -35,21 +35,39 @@ type Service = {
   price: number;
 };
 
-type EncounterService = {
-  id: number;
-  serviceId: number;
-  service: Service;
+type InvoiceItem = {
+  id?: number;
+  itemType: "SERVICE" | "PRODUCT";
+  serviceId?: number | null;
+  productId?: number | null;
+  name: string;
+  unitPrice: number;
   quantity: number;
+  lineTotal?: number;
 };
 
-type Invoice = {
-  id: number;
+type InvoiceResponse = {
+  id: number | null;
+  branchId: number;
   encounterId: number;
-  totalAmount: number;
+  patientId: number;
   status: string;
+  totalBeforeDiscount: number;
+  discountPercent: number; // 0, 5, 10
+  finalAmount: number;
+  hasEBarimt: boolean;
+  isProvisional?: boolean;
+  items: InvoiceItem[];
 };
 
-// --- Prescription types (added) ---
+type Encounter = {
+  id: number;
+  visitDate: string;
+  notes?: string | null;
+  patientBook: PatientBook;
+  doctor: Doctor | null;
+};
+
 type PrescriptionItem = {
   id: number;
   order: number;
@@ -64,27 +82,6 @@ type Prescription = {
   id: number;
   encounterId: number;
   items: PrescriptionItem[];
-};
-
-type Encounter = {
-  id: number;
-  visitDate: string;
-  notes?: string | null;
-  patientBook: PatientBook;
-  doctor: Doctor | null;
-  encounterServices: EncounterService[];
-  invoice?: Invoice | null;
-  prescription?: Prescription | null; // added
-};
-
-type BillingItem = {
-  id: number; // local row id for React mapping
-  encounterServiceId: number | null;
-  serviceId: number;
-  name: string;
-  basePrice: number;
-  quantity: number;
-  discountAmount: number; // flat discount per line
 };
 
 function formatDateTime(iso: string) {
@@ -122,18 +119,19 @@ export default function BillingPage() {
   );
 
   const [encounter, setEncounter] = useState<Encounter | null>(null);
+  const [invoice, setInvoice] = useState<InvoiceResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
-  const [billingItems, setBillingItems] = useState<BillingItem[]>([]);
+
+  const [items, setItems] = useState<InvoiceItem[]>([]);
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState("");
 
   // Service selector state
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
-  const [serviceModalRowId, setServiceModalRowId] = useState<number | null>(
-    null
-  );
+  const [serviceModalRowIndex, setServiceModalRowIndex] = useState<number | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
   const [servicesError, setServicesError] = useState("");
@@ -146,54 +144,59 @@ export default function BillingPage() {
       setLoading(true);
       setLoadError("");
       try {
-        const res = await fetch(`/api/encounters/${encounterId}`);
-        let data: any = null;
+        // Load encounter summary (existing endpoint)
+        const encRes = await fetch(`/api/encounters/${encounterId}`);
+        let encData: any = null;
         try {
-          data = await res.json();
+          encData = await encRes.json();
         } catch {
-          data = null;
+          encData = null;
         }
 
-        if (!res.ok || !data || !data.id) {
-          throw new Error((data && data.error) || "Алдаа гарлаа");
+        if (!encRes.ok || !encData || !encData.id) {
+          throw new Error((encData && encData.error) || "Алдаа гарлаа");
+        }
+        setEncounter(encData);
+
+        // Load billing/invoice for this encounter (new backend route)
+        const invRes = await fetch(`/api/billing/encounters/${encounterId}/invoice`);
+        let invData: any = null;
+        try {
+          invData = await invRes.json();
+        } catch {
+          invData = null;
         }
 
-        setEncounter(data);
+        if (!invRes.ok || !invData) {
+          throw new Error((invData && invData.error) || "Төлбөрийн мэдээлэл ачаалж чадсангүй.");
+        }
 
-        // Initialize billing rows from EncounterService
-        const rows: BillingItem[] = Array.isArray(data.encounterServices)
-          ? data.encounterServices.map((es: any, idx: number) => ({
-              id: idx + 1,
-              encounterServiceId: es.id ?? null,
-              serviceId: es.serviceId,
-              name: es.service?.name || "",
-              basePrice: es.service?.price ?? es.price ?? 0,
-              quantity: es.quantity ?? 1,
-              discountAmount: 0,
-            }))
-          : [];
-
-        setBillingItems(rows);
+        const inv: InvoiceResponse = invData;
+        setInvoice(inv);
+        setItems(inv.items || []);
+        setDiscountPercent(inv.discountPercent || 0);
       } catch (err: any) {
-        console.error("Failed to load encounter for billing:", err);
+        console.error("Failed to load billing:", err);
         setLoadError(err.message || "Алдаа гарлаа");
         setEncounter(null);
+        setInvoice(null);
+        setItems([]);
       } finally {
         setLoading(false);
       }
     };
 
-    load();
+    void load();
   }, [encounterId]);
 
   const handleItemChange = (
-    id: number,
-    field: "name" | "quantity" | "basePrice" | "discountAmount",
+    index: number,
+    field: "name" | "quantity" | "unitPrice",
     value: string
   ) => {
-    setBillingItems((prev) =>
-      prev.map((row) => {
-        if (row.id !== id) return row;
+    setItems((prev) =>
+      prev.map((row, i) => {
+        if (i !== index) return row;
         if (field === "name") {
           return { ...row, name: value };
         }
@@ -201,49 +204,39 @@ export default function BillingPage() {
         if (field === "quantity") {
           return { ...row, quantity: num > 0 ? num : 1 };
         }
-        if (field === "basePrice") {
-          return { ...row, basePrice: num >= 0 ? num : 0 };
-        }
-        if (field === "discountAmount") {
-          return { ...row, discountAmount: num >= 0 ? num : 0 };
+        if (field === "unitPrice") {
+          return { ...row, unitPrice: num >= 0 ? num : 0 };
         }
         return row;
       })
     );
   };
 
-  const handleRemoveRow = (id: number) => {
-    setBillingItems((prev) => prev.filter((row) => row.id !== id));
+  const handleRemoveRow = (index: number) => {
+    setItems((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleAddRowFromService = () => {
-    const nextId =
-      billingItems.length === 0
-        ? 1
-        : Math.max(...billingItems.map((r) => r.id)) + 1;
-    const newRow: BillingItem = {
-      id: nextId,
-      encounterServiceId: null,
-      serviceId: 0,
+    const newRow: InvoiceItem = {
+      itemType: "SERVICE",
+      serviceId: null,
+      productId: null,
       name: "",
-      basePrice: 0,
+      unitPrice: 0,
       quantity: 1,
-      discountAmount: 0,
     };
-    setBillingItems((prev) => [...prev, newRow]);
-    openServiceModalForRow(nextId);
+    setItems((prev) => [...prev, newRow]);
+    setServiceModalRowIndex(items.length); // index of the new row
   };
 
-  const totalBeforeDiscount = billingItems.reduce(
-    (sum, row) => sum + row.basePrice * row.quantity,
+  const totalBeforeDiscount = items.reduce(
+    (sum, row) => sum + (row.unitPrice || 0) * (row.quantity || 0),
     0
   );
-  const totalDiscount = billingItems.reduce(
-    (sum, row) => sum + row.discountAmount,
-    0
-  );
-  const totalAfterDiscount = Math.max(
-    totalBeforeDiscount - totalDiscount,
+  const discountFactor =
+    discountPercent === 0 ? 1 : (100 - discountPercent) / 100;
+  const finalAmount = Math.max(
+    Math.round(totalBeforeDiscount * discountFactor),
     0
   );
 
@@ -255,18 +248,21 @@ export default function BillingPage() {
 
     try {
       const payload = {
-        items: billingItems
-          .filter((r) => r.serviceId || r.name.trim())
+        discountPercent,
+        items: items
+          .filter((r) => (r.serviceId || r.productId || r.name.trim()))
           .map((r) => ({
-            encounterServiceId: r.encounterServiceId,
-            serviceId: r.serviceId || 0,
-            price: r.basePrice,
+            id: r.id,
+            itemType: r.itemType,
+            serviceId: r.itemType === "SERVICE" ? r.serviceId : null,
+            productId: r.itemType === "PRODUCT" ? r.productId : null,
+            name: r.name,
+            unitPrice: r.unitPrice,
             quantity: r.quantity,
-            discountAmount: r.discountAmount,
           })),
       };
 
-      const res = await fetch(`/api/encounters/${encounterId}/billing`, {
+      const res = await fetch(`/api/billing/encounters/${encounterId}/invoice`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -279,15 +275,19 @@ export default function BillingPage() {
         data = null;
       }
 
-      if (!res.ok) {
+      if (!res.ok || !data || !data.id) {
         throw new Error(
           (data && data.error) || "Төлбөр хадгалахад алдаа гарлаа."
         );
       }
 
-      setSaveSuccess("Төлбөрийн мэдээллийг хадгаллаа (түр хувилбар).");
+      const saved: InvoiceResponse = data;
+      setInvoice(saved);
+      setItems(saved.items || []);
+      setDiscountPercent(saved.discountPercent || 0);
+      setSaveSuccess("Нэхэмжлэлийн бүтцийг хадгаллаа.");
     } catch (err: any) {
-      console.error("Failed to save billing:", err);
+      console.error("Failed to save invoice:", err);
       setSaveError(err.message || "Төлбөр хадгалахад алдаа гарлаа.");
     } finally {
       setSaving(false);
@@ -332,8 +332,8 @@ export default function BillingPage() {
     }
   };
 
-  const openServiceModalForRow = (rowId: number) => {
-    setServiceModalRowId(rowId);
+  const openServiceModalForRow = (index: number) => {
+    setServiceModalRowIndex(index);
     setServiceModalOpen(true);
     setServiceQuery("");
     void loadServices();
@@ -341,20 +341,22 @@ export default function BillingPage() {
 
   const closeServiceModal = () => {
     setServiceModalOpen(false);
-    setServiceModalRowId(null);
+    setServiceModalRowIndex(null);
     setServiceQuery("");
   };
 
   const handleSelectServiceForRow = (svc: Service) => {
-    if (serviceModalRowId == null) return;
-    setBillingItems((prev) =>
-      prev.map((row) =>
-        row.id === serviceModalRowId
+    if (serviceModalRowIndex == null) return;
+    setItems((prev) =>
+      prev.map((row, i) =>
+        i === serviceModalRowIndex
           ? {
               ...row,
+              itemType: "SERVICE",
               serviceId: svc.id,
+              productId: null,
               name: svc.name,
-              basePrice: svc.price,
+              unitPrice: svc.price,
             }
           : row
       )
@@ -384,7 +386,7 @@ export default function BillingPage() {
           fontFamily: "sans-serif",
         }}
       >
-        <h1>Төлбөрийн хуудас</h1>
+        <h1>Нэхэмжлэлийн хуудас</h1>
         <div style={{ color: "red" }}>Encounter ID буруу байна.</div>
       </main>
     );
@@ -400,7 +402,7 @@ export default function BillingPage() {
       }}
     >
       <h1 style={{ fontSize: 20, marginBottom: 12 }}>
-        Төлбөрийн хуудас (Encounter ID: {encounterId})
+        Нэхэмжлэлийн хуудас (Encounter ID: {encounterId})
       </h1>
 
       {loading && <div>Ачаалж байна...</div>}
@@ -408,7 +410,7 @@ export default function BillingPage() {
         <div style={{ color: "red", marginBottom: 12 }}>{loadError}</div>
       )}
 
-      {encounter && (
+      {encounter && invoice && (
         <>
           {/* Header / Encounter summary */}
           <section
@@ -442,13 +444,15 @@ export default function BillingPage() {
                 <strong>Үзлэгийн тэмдэглэл:</strong> {encounter.notes}
               </div>
             )}
-            {encounter.invoice && (
-              <div style={{ marginTop: 8, fontSize: 13 }}>
-                <strong>Одоогийн нэхэмжлэл:</strong> #{encounter.invoice.id} –{" "}
-                {encounter.invoice.totalAmount.toLocaleString("mn-MN")}₮ (
-                {encounter.invoice.status})
-              </div>
-            )}
+            <div style={{ marginTop: 8, fontSize: 13 }}>
+              <strong>Нэхэмжлэл:</strong>{" "}
+              {invoice.id
+                ? `#${invoice.id} – ${invoice.finalAmount.toLocaleString(
+                    "mn-MN"
+                  )}₮ (${invoice.status})`
+                : "Одоогоор хадгалагдсан нэхэмжлэл байхгүй (түр санал болгосон тооцоо)."}
+              {invoice.hasEBarimt && " • e-Barimt хэвлэгдсэн"}
+            </div>
           </section>
 
           {/* Billing items */}
@@ -474,9 +478,7 @@ export default function BillingPage() {
                   Үйлчилгээний мөрүүд (Invoice lines)
                 </h2>
                 <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Доорх жагсаалт нь энэ үзлэгийн EncounterService мөрүүд дээр
-                  тулгуурласан. Та тоо хэмжээ, нэгж үнэ, хөнгөлөлтийг засварлаж
-                  болно.
+                  Доорх жагсаалт нь энэ үзлэгт гүйцэтгэсэн үйлчилгээ, бүтээгдэхүүнийг илэрхийлнэ.
                 </div>
               </div>
               <button
@@ -496,19 +498,18 @@ export default function BillingPage() {
               </button>
             </div>
 
-            {billingItems.length === 0 && (
+            {items.length === 0 && (
               <div style={{ fontSize: 13, color: "#6b7280" }}>
-                Одоогоор үйлчилгээний мөр алга байна. EncounterService бүртгэл
-                хараахан үүсээгүй эсвэл бүгд устгагдсан байж магадгүй.
+                Нэхэмжлэлийн мөр алга байна. Үйлчилгээ нэмнэ үү.
               </div>
             )}
 
             {/* Column headers */}
-            {billingItems.length > 0 && (
+            {items.length > 0 && (
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "2fr 80px 120px 120px 120px auto",
+                  gridTemplateColumns: "2fr 80px 120px 120px auto",
                   gap: 8,
                   alignItems: "center",
                   padding: "4px 8px",
@@ -517,11 +518,10 @@ export default function BillingPage() {
                   color: "#6b7280",
                 }}
               >
-                <div>Үйлчилгээ</div>
+                <div>Үйлчилгээ / Бүтээгдэхүүн</div>
                 <div style={{ textAlign: "center" }}>Тоо хэмжээ</div>
                 <div style={{ textAlign: "center" }}>Нэгж үнэ</div>
-                <div style={{ textAlign: "center" }}>Хөнгөлөлт</div>
-                <div style={{ textAlign: "right" }}>Мөрийн дүн</div>
+                <div style={{ textAlign: "center" }}>Мөрийн дүн</div>
                 <div />
               </div>
             )}
@@ -534,18 +534,15 @@ export default function BillingPage() {
                 marginTop: 4,
               }}
             >
-              {billingItems.map((row) => {
-                const lineTotal = Math.max(
-                  row.basePrice * row.quantity - row.discountAmount,
-                  0
-                );
+              {items.map((row, index) => {
+                const lineTotal =
+                  (row.unitPrice || 0) * (row.quantity || 0);
                 return (
                   <div
-                    key={row.id}
+                    key={index}
                     style={{
                       display: "grid",
-                      gridTemplateColumns:
-                        "2fr 80px 120px 120px 120px auto",
+                      gridTemplateColumns: "2fr 80px 120px 120px auto",
                       gap: 8,
                       alignItems: "center",
                       borderRadius: 8,
@@ -554,15 +551,23 @@ export default function BillingPage() {
                       background: "#f9fafb",
                     }}
                   >
-                    {/* Service name + ID + choose button */}
+                    {/* Name + item type + service picker */}
                     <div>
                       <input
                         type="text"
                         value={row.name}
                         onChange={(e) =>
-                          handleItemChange(row.id, "name", e.target.value)
+                          handleItemChange(
+                            index,
+                            "name",
+                            e.target.value
+                          )
                         }
-                        placeholder="Үйлчилгээний нэр (Service)"
+                        placeholder={
+                          row.itemType === "SERVICE"
+                            ? "Үйлчилгээний нэр"
+                            : "Бүтээгдэхүүний нэр"
+                        }
                         style={{
                           width: "100%",
                           borderRadius: 6,
@@ -583,25 +588,34 @@ export default function BillingPage() {
                         }}
                       >
                         <span>
-                          Service ID:{" "}
-                          {row.serviceId || "- (одоогоор сонгоогдоогүй)"}
+                          {row.itemType === "SERVICE"
+                            ? `Service ID: ${
+                                row.serviceId || "- (сонгоогүй)"
+                              }`
+                            : `Product ID: ${
+                                row.productId || "- (сонгоогүй)"
+                              }`}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => openServiceModalForRow(row.id)}
-                          style={{
-                            marginLeft: 8,
-                            padding: "2px 6px",
-                            borderRadius: 999,
-                            border: "1px solid #2563eb",
-                            background: "#eff6ff",
-                            color: "#2563eb",
-                            cursor: "pointer",
-                            fontSize: 11,
-                          }}
-                        >
-                          Үйлчилгээ сонгох
-                        </button>
+                        {row.itemType === "SERVICE" && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              openServiceModalForRow(index)
+                            }
+                            style={{
+                              marginLeft: 8,
+                              padding: "2px 6px",
+                              borderRadius: 999,
+                              border: "1px solid #2563eb",
+                              background: "#eff6ff",
+                              color: "#2563eb",
+                              cursor: "pointer",
+                              fontSize: 11,
+                            }}
+                          >
+                            Үйлчилгээ сонгох
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -612,7 +626,7 @@ export default function BillingPage() {
                       value={row.quantity}
                       onChange={(e) =>
                         handleItemChange(
-                          row.id,
+                          index,
                           "quantity",
                           e.target.value
                         )
@@ -631,33 +645,11 @@ export default function BillingPage() {
                     <input
                       type="number"
                       min={0}
-                      value={row.basePrice}
+                      value={row.unitPrice}
                       onChange={(e) =>
                         handleItemChange(
-                          row.id,
-                          "basePrice",
-                          e.target.value
-                        )
-                      }
-                      style={{
-                        width: "100%",
-                        borderRadius: 6,
-                        border: "1px solid #d1d5db",
-                        padding: "4px 6px",
-                        fontSize: 13,
-                        textAlign: "right",
-                      }}
-                    />
-
-                    {/* Discount */}
-                    <input
-                      type="number"
-                      min={0}
-                      value={row.discountAmount}
-                      onChange={(e) =>
-                        handleItemChange(
-                          row.id,
-                          "discountAmount",
+                          index,
+                          "unitPrice",
                           e.target.value
                         )
                       }
@@ -685,7 +677,7 @@ export default function BillingPage() {
                     {/* Remove button */}
                     <button
                       type="button"
-                      onClick={() => handleRemoveRow(row.id)}
+                      onClick={() => handleRemoveRow(index)}
                       style={{
                         padding: "4px 8px",
                         borderRadius: 6,
@@ -703,7 +695,7 @@ export default function BillingPage() {
               })}
             </div>
 
-            {/* Totals */}
+            {/* Totals and discount */}
             <div
               style={{
                 marginTop: 12,
@@ -721,15 +713,27 @@ export default function BillingPage() {
                 </strong>
               </div>
               <div>
-                Нийт хөнгөлөлт:{" "}
-                <strong>
-                  -{totalDiscount.toLocaleString("mn-MN")}₮
-                </strong>
+                Хөнгөлөлт (0 / 5 / 10%):{" "}
+                <select
+                  value={discountPercent}
+                  onChange={(e) =>
+                    setDiscountPercent(Number(e.target.value))
+                  }
+                  style={{
+                    marginLeft: 8,
+                    padding: "2px 4px",
+                    fontSize: 13,
+                  }}
+                >
+                  <option value={0}>0%</option>
+                  <option value={5}>5%</option>
+                  <option value={10}>10%</option>
+                </select>
               </div>
               <div>
                 Төлөх дүн:{" "}
                 <strong style={{ fontSize: 16 }}>
-                  {totalAfterDiscount.toLocaleString("mn-MN")}₮
+                  {finalAmount.toLocaleString("mn-MN")}₮
                 </strong>
               </div>
             </div>
@@ -767,107 +771,96 @@ export default function BillingPage() {
                 }}
               >
                 {saving
-                  ? "Төлбөр хадгалж байна..."
-                  : "Төлбөр хадгалах (түр)"}
+                  ? "Нэхэмжлэл хадгалж байна..."
+                  : "Нэхэмжлэл хадгалах"}
               </button>
             </div>
           </section>
 
           {/* Prescription summary (read-only) */}
-          <section
-            style={{
-              marginTop: 16,
-              padding: 16,
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              background: "#ffffff",
-            }}
-          >
-            <h2 style={{ fontSize: 16, margin: 0, marginBottom: 8 }}>
-              Эмийн жор (эмчийн бичсэн)
-            </h2>
+          {encounter && (encounter as any).prescription && (
+            <section
+              style={{
+                marginTop: 16,
+                padding: 16,
+                borderRadius: 8,
+                border: "1px solid #e5e7eb",
+                background: "#ffffff",
+              }}
+            >
+              <h2 style={{ fontSize: 16, margin: 0, marginBottom: 8 }}>
+                Эмийн жор (эмчийн бичсэн)
+              </h2>
 
-            {!encounter.prescription ||
-            !encounter.prescription.items ||
-            encounter.prescription.items.length === 0 ? (
-              <div style={{ fontSize: 13, color: "#6b7280" }}>
-                Энэ үзлэгт эмийн жор бичигдээгүй байна.
-              </div>
-            ) : (
-              <>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "40px 2fr 80px 80px 80px 1.5fr",
-                    gap: 6,
-                    alignItems: "center",
-                    fontSize: 12,
-                    marginBottom: 4,
-                    paddingBottom: 4,
-                    borderBottom: "1px solid #e5e7eb",
-                    color: "#6b7280",
-                  }}
-                >
-                  <div>№</div>
-                  <div>Эмийн нэр / тун / хэлбэр</div>
-                  <div style={{ textAlign: "center" }}>Нэг удаад</div>
-                  <div style={{ textAlign: "center" }}>Өдөрт</div>
-                  <div style={{ textAlign: "center" }}>Хэд хоног</div>
-                  <div>Тэмдэглэл</div>
+              {!(encounter as any).prescription.items ||
+              (encounter as any).prescription.items.length === 0 ? (
+                <div style={{ fontSize: 13, color: "#6b7280" }}>
+                  Энэ үзлэгт эмийн жор бичигдээгүй байна.
                 </div>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "40px 2fr 80px 80px 80px 1.5fr",
+                      gap: 6,
+                      alignItems: "center",
+                      fontSize: 12,
+                      marginBottom: 4,
+                      paddingBottom: 4,
+                      borderBottom: "1px solid #e5e7eb",
+                      color: "#6b7280",
+                    }}
+                  >
+                    <div>№</div>
+                    <div>Эмийн нэр / тун / хэлбэр</div>
+                    <div style={{ textAlign: "center" }}>Нэг удаад</div>
+                    <div style={{ textAlign: "center" }}>Өдөрт</div>
+                    <div style={{ textAlign: "center" }}>Хэд хоног</div>
+                    <div>Тэмдэглэл</div>
+                  </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 4,
-                    fontSize: 12,
-                  }}
-                >
-                  {encounter.prescription.items
-                    .slice()
-                    .sort((a: any, b: any) => a.order - b.order)
-                    .map((it: PrescriptionItem, idx: number) => (
-                      <div
-                        key={it.id ?? idx}
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns:
-                            "40px 2fr 80px 80px 80px 1.5fr",
-                          gap: 6,
-                          alignItems: "center",
-                        }}
-                      >
-                        <div>{it.order ?? idx + 1}</div>
-                        <div>{it.drugName}</div>
-                        <div style={{ textAlign: "center" }}>
-                          {it.quantityPerTake}x
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                      fontSize: 12,
+                    }}
+                  >
+                    {(encounter as any).prescription.items
+                      .slice()
+                      .sort((a: any, b: any) => a.order - b.order)
+                      .map((it: PrescriptionItem, idx: number) => (
+                        <div
+                          key={it.id ?? idx}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns:
+                              "40px 2fr 80px 80px 80px 1.5fr",
+                            gap: 6,
+                            alignItems: "center",
+                          }}
+                        >
+                          <div>{it.order ?? idx + 1}</div>
+                          <div>{it.drugName}</div>
+                          <div style={{ textAlign: "center" }}>
+                            {it.quantityPerTake}x
+                          </div>
+                          <div style={{ textAlign: "center" }}>
+                            {it.frequencyPerDay} / өдөр
+                          </div>
+                          <div style={{ textAlign: "center" }}>
+                            {it.durationDays} хоног
+                          </div>
+                          <div>{it.note || "-"}</div>
                         </div>
-                        <div style={{ textAlign: "center" }}>
-                          {it.frequencyPerDay} / өдөр
-                        </div>
-                        <div style={{ textAlign: "center" }}>
-                          {it.durationDays} хоног
-                        </div>
-                        <div>{it.note || "-"}</div>
-                      </div>
-                    ))}
-                </div>
-
-                <div
-                  style={{
-                    marginTop: 8,
-                    fontSize: 11,
-                    color: "#6b7280",
-                  }}
-                >
-                  Жор хэвлэх үйлдлийг дараа нь тусдаа хуудсаар дизайн хийж
-                  нэмнэ. Одоогоор зөвхөн харахад зориулсан хэсэг.
-                </div>
-              </>
-            )}
-          </section>
+                      ))}
+                  </div>
+                </>
+              )}
+            </section>
+          )}
         </>
       )}
 
