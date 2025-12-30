@@ -133,12 +133,18 @@ function formatMoney(v: number | null | undefined) {
 // ----------------- Payment section -----------------
 
 const PAYMENT_METHODS = [
+  // Direct patient payments
   { key: "CASH", label: "Бэлэн мөнгө", icon: "₮" },
   { key: "POS", label: "Карт (POS)", icon: "💳" },
   { key: "QPAY", label: "QPay", icon: "Ⓠ" },
   { key: "TRANSFER", label: "Дансны шилжүүлэг", icon: "🏦" },
+
+  // Third-party / special arrangements
   { key: "INSURANCE", label: "Даатгал", icon: "🛡" },
   { key: "VOUCHER", label: "Купон / Ваучер", icon: "🎟" },
+  { key: "BARTER", label: "Бартер", icon: "⇄" },
+  { key: "APPLICATION", label: "Аппликэйшнээр төлбөр", icon: "📱" },
+  { key: "EMPLOYEE_BENEFIT", label: "Ажилтны хөнгөлөлт", icon: "👨‍⚕️" },
 ];
 
 function BillingPaymentSection({
@@ -150,20 +156,37 @@ function BillingPaymentSection({
 }) {
   const [enabled, setEnabled] = useState<Record<string, boolean>>({});
   const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [insuranceProvider, setInsuranceProvider] = useState<string>("");
+  const [appProvider, setAppProvider] = useState<string>("");
   const [issueEBarimt, setIssueEBarimt] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   const hasRealInvoice = !!invoice.id;
-  const unpaid = invoice.unpaidAmount ?? Math.max(
-    (invoice.finalAmount ?? 0) - (invoice.paidTotal ?? 0),
-    0
-  );
+  const unpaid =
+    invoice.unpaidAmount ??
+    Math.max((invoice.finalAmount ?? 0) - (invoice.paidTotal ?? 0), 0);
+
+  // TODO: replace with real lists from backend/config later
+  const INSURANCE_PROVIDERS = [
+    { value: "SOCIAL_HEALTH", label: "ЭМД (Нийгмийн даатгал)" },
+    { value: "DL", label: "Далай даатгал" },
+    { value: "OTHER", label: "Бусад даатгал" },
+  ];
+
+  const APP_PROVIDERS = [
+    { value: "POCKET", label: "Pocket" },
+    { value: "STOREPAY", label: "Storepay" },
+    { value: "LEND", label: "Lend" },
+    { value: "OTHER", label: "Бусад апп" },
+  ];
 
   useEffect(() => {
     setEnabled({});
     setAmounts({});
+    setInsuranceProvider("");
+    setAppProvider("");
     setError("");
     setSuccess("");
   }, [invoice.id]);
@@ -172,6 +195,8 @@ function BillingPaymentSection({
     setEnabled((prev) => ({ ...prev, [methodKey]: checked }));
     if (!checked) {
       setAmounts((prev) => ({ ...prev, [methodKey]: "" }));
+      if (methodKey === "INSURANCE") setInsuranceProvider("");
+      if (methodKey === "APPLICATION") setAppProvider("");
     }
   };
 
@@ -199,14 +224,42 @@ function BillingPaymentSection({
       return;
     }
 
-    // collect methods with positive amounts and ticked
-    const entries = PAYMENT_METHODS.map((m) => {
-      if (!enabled[m.key]) return null;
+    // collect entries
+    const entries: {
+      method: string;
+      amount: number;
+      meta?: any;
+    }[] = [];
+
+    for (const m of PAYMENT_METHODS) {
+      if (!enabled[m.key]) continue;
       const raw = amounts[m.key] ?? "";
       const amt = Number(raw);
-      if (!amt || amt <= 0) return null;
-      return { method: m.key, amount: amt };
-    }).filter(Boolean) as { method: string; amount: number }[];
+      if (!amt || amt <= 0) continue;
+
+      const entry: { method: string; amount: number; meta?: any } = {
+        method: m.key,
+        amount: amt,
+      };
+
+      if (m.key === "INSURANCE") {
+        if (!insuranceProvider) {
+          setError("Даатгалын нэрийг сонгоно уу.");
+          return;
+        }
+        entry.meta = { provider: insuranceProvider };
+      }
+
+      if (m.key === "APPLICATION") {
+        if (!appProvider) {
+          setError("Аппликэйшныг сонгоно уу.");
+          return;
+        }
+        entry.meta = { provider: appProvider };
+      }
+
+      entries.push(entry);
+    }
 
     if (entries.length === 0) {
       setError("Төлбөрийн аргыг сонгож дүнгээ оруулна уу.");
@@ -227,6 +280,7 @@ function BillingPaymentSection({
               amount: entry.amount,
               method: entry.method,
               issueEBarimt,
+              meta: entry.meta ?? null, // backend can log or ignore for now
             }),
           }
         );
@@ -247,9 +301,10 @@ function BillingPaymentSection({
       }
 
       setSuccess("Төлбөр(үүд) амжилттай бүртгэгдлээ.");
-      // clear fields after save
       setEnabled({});
       setAmounts({});
+      setInsuranceProvider("");
+      setAppProvider("");
     } catch (err: any) {
       console.error("Failed to settle invoice:", err);
       setError(err.message || "Төлбөр бүртгэхэд алдаа гарлаа.");
@@ -292,53 +347,126 @@ function BillingPaymentSection({
                 key={m.key}
                 style={{
                   display: "flex",
-                  alignItems: "center",
-                  gap: 8,
+                  flexDirection: "column",
+                  gap: 4,
                   fontSize: 13,
                 }}
               >
-                <input
-                  type="checkbox"
-                  id={`pay-${m.key}`}
-                  checked={checked}
-                  onChange={(e) => handleToggle(m.key, e.target.checked)}
-                />
-               <label
-  htmlFor={`pay-${m.key}`}
-  style={{ minWidth: 160, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
->
-  <span style={{ width: 18, textAlign: "center" }}>
-    {m.icon}
-  </span>
-  <span>{m.label}</span>
-</label>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    id={`pay-${m.key}`}
+                    checked={checked}
+                    onChange={(e) =>
+                      handleToggle(m.key, e.target.checked)
+                    }
+                  />
+                  <label
+                    htmlFor={`pay-${m.key}`}
+                    style={{
+                      minWidth: 180,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <span style={{ width: 18, textAlign: "center" }}>
+                      {m.icon}
+                    </span>
+                    <span>{m.label}</span>
+                  </label>
+                </div>
+
+                {/* extra selects + amount input when enabled */}
                 {checked && (
                   <div
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: 4,
-                      flex: 1,
+                      gap: 8,
+                      marginLeft: 26, // checkbox + spacing
                     }}
                   >
-                    <input
-                      type="number"
-                      min={0}
-                      value={value}
-                      onChange={(e) =>
-                        handleAmountChange(m.key, e.target.value)
-                      }
-                      placeholder="0"
+                    {m.key === "INSURANCE" && (
+                      <select
+                        value={insuranceProvider}
+                        onChange={(e) =>
+                          setInsuranceProvider(e.target.value)
+                        }
+                        style={{
+                          minWidth: 200,
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
+                          fontSize: 13,
+                        }}
+                      >
+                        <option value="">Даатгалын компанийг сонгох...</option>
+                        {INSURANCE_PROVIDERS.map((p) => (
+                          <option key={p.value} value={p.value}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {m.key === "APPLICATION" && (
+                      <select
+                        value={appProvider}
+                        onChange={(e) => setAppProvider(e.target.value)}
+                        style={{
+                          minWidth: 200,
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
+                          fontSize: 13,
+                        }}
+                      >
+                        <option value="">
+                          Аппликэйшнийг сонгох...
+                        </option>
+                        {APP_PROVIDERS.map((p) => (
+                          <option key={p.value} value={p.value}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    <div
                       style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
                         flex: 1,
-                        borderRadius: 6,
-                        border: "1px solid #d1d5db",
-                        padding: "4px 8px",
-                        fontSize: 13,
-                        textAlign: "right",
                       }}
-                    />
-                    <span style={{ fontSize: 12 }}>₮</span>
+                    >
+                      <input
+                        type="number"
+                        min={0}
+                        value={value}
+                        onChange={(e) =>
+                          handleAmountChange(m.key, e.target.value)
+                        }
+                        placeholder="0"
+                        style={{
+                          flex: 1,
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 8px",
+                          fontSize: 13,
+                          textAlign: "right",
+                        }}
+                      />
+                      <span style={{ fontSize: 12 }}>₮</span>
+                    </div>
                   </div>
                 )}
               </div>
