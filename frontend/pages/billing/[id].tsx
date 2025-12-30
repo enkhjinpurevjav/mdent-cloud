@@ -163,6 +163,14 @@ function BillingPaymentSection({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  // NEW: codes for various methods
+  const [voucherCode, setVoucherCode] = useState("");
+  const [barterCode, setBarterCode] = useState("");
+  const [employeeCode, setEmployeeCode] = useState("");
+  const [employeeRemaining, setEmployeeRemaining] = useState<number | null>(
+    null
+  );
+
   const hasRealInvoice = !!invoice.id;
   const unpaid =
     invoice.unpaidAmount ??
@@ -189,6 +197,10 @@ function BillingPaymentSection({
     setAmounts({});
     setInsuranceProvider("");
     setAppProvider("");
+    setVoucherCode("");
+    setBarterCode("");
+    setEmployeeCode("");
+    setEmployeeRemaining(null);
     setError("");
     setSuccess("");
   }, [invoice.id]);
@@ -199,6 +211,12 @@ function BillingPaymentSection({
       setAmounts((prev) => ({ ...prev, [methodKey]: "" }));
       if (methodKey === "INSURANCE") setInsuranceProvider("");
       if (methodKey === "APPLICATION") setAppProvider("");
+      if (methodKey === "VOUCHER") setVoucherCode("");
+      if (methodKey === "BARTER") setBarterCode("");
+      if (methodKey === "EMPLOYEE_BENEFIT") {
+        setEmployeeCode("");
+        setEmployeeRemaining(null);
+      }
     }
   };
 
@@ -216,6 +234,46 @@ function BillingPaymentSection({
 
   const remainingAfterEntered = Math.max(unpaid - totalEntered, 0);
 
+  // NEW: verify employee benefit code via backend
+  const handleVerifyEmployeeCode = async () => {
+    setError("");
+    setSuccess("");
+
+    if (!employeeCode.trim()) {
+      setError("Ажилтны хөнгөлөлтийн кодыг оруулна уу.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/billing/employee-benefit/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: employeeCode.trim(),
+          invoiceId: invoice.id,
+          encounterId: invoice.encounterId,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) {
+        throw new Error(
+          (data && data.error) || "Код шалгахад алдаа гарлаа."
+        );
+      }
+
+      const remaining = data.remainingAmount ?? 0;
+      setEmployeeRemaining(remaining);
+      setSuccess(
+        `Ажилтны код баталгаажлаа. Үлдэгдэл: ${formatMoney(remaining)} ₮`
+      );
+    } catch (e: any) {
+      console.error("verify employee benefit code failed:", e);
+      setEmployeeRemaining(null);
+      setError(e.message || "Код шалгахад алдаа гарлаа.");
+    }
+  };
+
   const handleSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault();
     setError("");
@@ -226,10 +284,15 @@ function BillingPaymentSection({
       return;
     }
 
-    const entries: { method: string; amount: number; meta?: any }[] = [];
+    const entries: {
+      method: string;
+      amount: number;
+      meta?: any;
+    }[] = [];
 
     for (const m of PAYMENT_METHODS) {
       if (!enabled[m.key]) continue;
+
       const raw = amounts[m.key] ?? "";
       const amt = Number(raw);
       if (!amt || amt <= 0) continue;
@@ -244,7 +307,7 @@ function BillingPaymentSection({
           setError("Даатгалын нэрийг сонгоно уу.");
           return;
         }
-        entry.meta = { provider: insuranceProvider };
+        entry.meta = { ...(entry.meta || {}), provider: insuranceProvider };
       }
 
       if (m.key === "APPLICATION") {
@@ -252,7 +315,38 @@ function BillingPaymentSection({
           setError("Аппликэйшнийг сонгоно уу.");
           return;
         }
-        entry.meta = { provider: appProvider };
+        entry.meta = { ...(entry.meta || {}), provider: appProvider };
+      }
+
+      if (m.key === "VOUCHER") {
+        if (!voucherCode.trim()) {
+          setError("Купон / Ваучер кодыг оруулна уу.");
+          return;
+        }
+        entry.meta = { ...(entry.meta || {}), code: voucherCode.trim() };
+      }
+
+      if (m.key === "BARTER") {
+        if (!barterCode.trim()) {
+          setError("Бартерын кодыг оруулна уу.");
+          return;
+        }
+        entry.meta = { ...(entry.meta || {}), code: barterCode.trim() };
+      }
+
+      if (m.key === "EMPLOYEE_BENEFIT") {
+        if (!employeeCode.trim()) {
+          setError("Ажилтны хөнгөлөлтийн кодыг оруулна уу.");
+          return;
+        }
+        if (employeeRemaining != null && amt > employeeRemaining) {
+          setError("Оруулсан дүн ажилтны үлдэгдлээс их байна.");
+          return;
+        }
+        entry.meta = {
+          ...(entry.meta || {}),
+          employeeCode: employeeCode.trim(),
+        };
       }
 
       entries.push(entry);
@@ -299,6 +393,10 @@ function BillingPaymentSection({
       setAmounts({});
       setInsuranceProvider("");
       setAppProvider("");
+      setVoucherCode("");
+      setBarterCode("");
+      setEmployeeCode("");
+      setEmployeeRemaining(null);
     } catch (err: any) {
       console.error("Failed to settle invoice:", err);
       setError(err.message || "Төлбөр бүртгэхэд алдаа гарлаа.");
@@ -331,7 +429,6 @@ function BillingPaymentSection({
         onSubmit={handleSubmit}
         style={{ display: "flex", flexDirection: "column", gap: 8 }}
       >
-        {/* vertical list of methods with checkboxes */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {PAYMENT_METHODS.map((m) => {
             const checked = !!enabled[m.key];
@@ -385,7 +482,6 @@ function BillingPaymentSection({
                       marginLeft: 26,
                     }}
                   >
-                    {/* extra selects for some methods */}
                     {m.key === "INSURANCE" && (
                       <select
                         value={insuranceProvider}
@@ -400,7 +496,9 @@ function BillingPaymentSection({
                           fontSize: 13,
                         }}
                       >
-                        <option value="">Даатгалын компанийг сонгох...</option>
+                        <option value="">
+                          Даатгалын компанийг сонгох...
+                        </option>
                         {INSURANCE_PROVIDERS.map((p) => (
                           <option key={p.value} value={p.value}>
                             {p.label}
@@ -412,7 +510,9 @@ function BillingPaymentSection({
                     {m.key === "APPLICATION" && (
                       <select
                         value={appProvider}
-                        onChange={(e) => setAppProvider(e.target.value)}
+                        onChange={(e) =>
+                          setAppProvider(e.target.value)
+                        }
                         style={{
                           minWidth: 200,
                           borderRadius: 6,
@@ -430,7 +530,111 @@ function BillingPaymentSection({
                       </select>
                     )}
 
-                    {/* amount input */}
+                    {m.key === "VOUCHER" && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <input
+                          type="text"
+                          value={voucherCode}
+                          onChange={(e) =>
+                            setVoucherCode(e.target.value)
+                          }
+                          placeholder="Ваучерын код"
+                          style={{
+                            width: 140,
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 6px",
+                            fontSize: 12,
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {m.key === "BARTER" && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <input
+                          type="text"
+                          value={barterCode}
+                          onChange={(e) =>
+                            setBarterCode(e.target.value)
+                          }
+                          placeholder="Бартерын код"
+                          style={{
+                            width: 140,
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 6px",
+                            fontSize: 12,
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {m.key === "EMPLOYEE_BENEFIT" && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <input
+                          type="text"
+                          value={employeeCode}
+                          onChange={(e) =>
+                            setEmployeeCode(e.target.value)
+                          }
+                          placeholder="Ажилтны код"
+                          style={{
+                            width: 140,
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 6px",
+                            fontSize: 12,
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleVerifyEmployeeCode}
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: 4,
+                            border: "1px solid #2563eb",
+                            background: "#eff6ff",
+                            color: "#2563eb",
+                            fontSize: 11,
+                            cursor: "pointer",
+                          }}
+                        >
+                          Шалгах
+                        </button>
+                        {employeeRemaining != null && (
+                          <span
+                            style={{
+                              fontSize: 12,
+                              color: "#16a34a",
+                              marginLeft: 4,
+                            }}
+                          >
+                            Үлдэгдэл:{" "}
+                            {formatMoney(employeeRemaining)} ₮
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     <div
                       style={{
                         display: "flex",
@@ -459,11 +663,9 @@ function BillingPaymentSection({
                       <span style={{ fontSize: 12 }}>₮</span>
                     </div>
 
-                    {/* QPay-specific: Нэхэмжлэх үүсгэх button */}
                     {m.key === "QPAY" && (
                       <button
                         type="button"
-                        // future: call QPay API to generate QR invoice
                         style={{
                           padding: "6px 10px",
                           borderRadius: 6,
@@ -505,7 +707,6 @@ function BillingPaymentSection({
           </label>
         </div>
 
-        {/* totals and remaining */}
         <div
           style={{
             fontSize: 12,
