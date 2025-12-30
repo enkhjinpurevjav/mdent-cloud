@@ -1,5 +1,5 @@
-const express = require("express");
-const { prisma } = require("../prismaClient"); // adjust path if different
+import express from "express";
+import prisma from "../db.js";
 
 const router = express.Router();
 
@@ -7,9 +7,6 @@ const router = express.Router();
 router.post("/employee-benefit/verify", async (req, res) => {
   const body = req.body || {};
   const code = body.code;
-  // invoiceId, encounterId are optional context for logging later
-  // const invoiceId = body.invoiceId;
-  // const encounterId = body.encounterId;
 
   if (!code || typeof code !== "string") {
     return res.status(400).json({ error: "code is required" });
@@ -51,4 +48,4 @@ router.post("/employee-benefit/verify", async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
