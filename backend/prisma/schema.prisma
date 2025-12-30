@@ -126,20 +126,18 @@ model Branch {
 model EmployeeBenefit {
   id              Int       @id @default(autoincrement())
   employeeId      Int
-  code            String    @unique        // code receptionist will type
-  branchId        Int?                      // optional
-  initialAmount   Int                       // total budget in ₮
-  remainingAmount Int                       // current remaining in ₮
-  fromDate        DateTime?                 // optional validity range
-  toDate          DateTime?
+  code            String    @unique      // код, reception оруулна
+  branchId        Int?                    // хүсвэл салбараар хязгаарлаж болно
+  initialAmount   Int                     // нийт олгосон дүн (₮)
+  remainingAmount Int                     // үлдэгдэл дүн (₮)
+  fromDate        DateTime?               // хүчинтэй эхлэх огноо
+  toDate          DateTime?               // хүчинтэй дуусах огноо
   isActive        Boolean   @default(true)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   employee        User      @relation(fields: [employeeId], references: [id])
   usages          EmployeeBenefitUsage[]
-
-  @@index([code])
 }
 
 model EmployeeBenefitUsage {
