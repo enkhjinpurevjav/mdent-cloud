@@ -168,21 +168,20 @@ function BillingPaymentSection({
     invoice.unpaidAmount ??
     Math.max((invoice.finalAmount ?? 0) - (invoice.paidTotal ?? 0), 0);
 
-  // TODO: replace with real lists from backend/config later
-    const INSURANCE_PROVIDERS = [
+  const INSURANCE_PROVIDERS = [
     { value: "BODI_DAATGAL", label: "Bodi Daatgal" },
     { value: "NATIONAL_LIFE", label: "National Life" },
     { value: "MANDAL_DAATGAL", label: "Mandal Daatgal" },
   ];
 
   const APP_PROVIDERS = [
-    { value: "STOREPAY",  label: "Storepay" },
+    { value: "STOREPAY", label: "Storepay" },
     { value: "POCKETPAY", label: "PocketPay" },
-    { value: "CAREPAY",   label: "CarePay" },
-    { value: "ARDPAY",    label: "ArdPay" },
-    { value: "TOKI",      label: "Toki" },
-    { value: "PAYON",     label: "payOn" },
-    { value: "SONO",      label: "Sono" },
+    { value: "CAREPAY", label: "CarePay" },
+    { value: "ARDPAY", label: "ArdPay" },
+    { value: "TOKI", label: "Toki" },
+    { value: "PAYON", label: "payOn" },
+    { value: "SONO", label: "Sono" },
   ];
 
   useEffect(() => {
@@ -227,12 +226,7 @@ function BillingPaymentSection({
       return;
     }
 
-    // collect entries
-    const entries: {
-      method: string;
-      amount: number;
-      meta?: any;
-    }[] = [];
+    const entries: { method: string; amount: number; meta?: any }[] = [];
 
     for (const m of PAYMENT_METHODS) {
       if (!enabled[m.key]) continue;
@@ -255,7 +249,7 @@ function BillingPaymentSection({
 
       if (m.key === "APPLICATION") {
         if (!appProvider) {
-          setError("Аппликэйшныг сонгоно уу.");
+          setError("Аппликэйшнийг сонгоно уу.");
           return;
         }
         entry.meta = { provider: appProvider };
@@ -274,19 +268,16 @@ function BillingPaymentSection({
       let latest: InvoiceResponse | null = null;
 
       for (const entry of entries) {
-        const res = await fetch(
-          `/api/invoices/${invoice.id}/settlement`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              amount: entry.amount,
-              method: entry.method,
-              issueEBarimt,
-              meta: entry.meta ?? null, // backend can log or ignore for now
-            }),
-          }
-        );
+        const res = await fetch(`/api/invoices/${invoice.id}/settlement`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            amount: entry.amount,
+            method: entry.method,
+            issueEBarimt,
+            meta: entry.meta ?? null,
+          }),
+        });
 
         const data = await res.json().catch(() => null);
 
@@ -366,9 +357,7 @@ function BillingPaymentSection({
                     type="checkbox"
                     id={`pay-${m.key}`}
                     checked={checked}
-                    onChange={(e) =>
-                      handleToggle(m.key, e.target.checked)
-                    }
+                    onChange={(e) => handleToggle(m.key, e.target.checked)}
                   />
                   <label
                     htmlFor={`pay-${m.key}`}
@@ -387,16 +376,16 @@ function BillingPaymentSection({
                   </label>
                 </div>
 
-                {/* extra selects + amount input when enabled */}
                 {checked && (
                   <div
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 8,
-                      marginLeft: 26, // checkbox + spacing
+                      marginLeft: 26,
                     }}
                   >
+                    {/* extra selects for some methods */}
                     {m.key === "INSURANCE" && (
                       <select
                         value={insuranceProvider}
@@ -432,9 +421,7 @@ function BillingPaymentSection({
                           fontSize: 13,
                         }}
                       >
-                        <option value="">
-                          Аппликэйшнийг сонгох...
-                        </option>
+                        <option value="">Аппликэйшнийг сонгох...</option>
                         {APP_PROVIDERS.map((p) => (
                           <option key={p.value} value={p.value}>
                             {p.label}
@@ -443,6 +430,7 @@ function BillingPaymentSection({
                       </select>
                     )}
 
+                    {/* amount input */}
                     <div
                       style={{
                         display: "flex",
@@ -470,6 +458,26 @@ function BillingPaymentSection({
                       />
                       <span style={{ fontSize: 12 }}>₮</span>
                     </div>
+
+                    {/* QPay-specific: Нэхэмжлэх үүсгэх button */}
+                    {m.key === "QPAY" && (
+                      <button
+                        type="button"
+                        // future: call QPay API to generate QR invoice
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 6,
+                          border: "none",
+                          background: "#2563eb",
+                          color: "#ffffff",
+                          fontSize: 12,
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Нэхэмжлэх үүсгэх
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
