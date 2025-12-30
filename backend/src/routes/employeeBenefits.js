@@ -1,11 +1,15 @@
-import express from "express";
-import { prisma } from "../prismaClient"; // adjust import
+const express = require("express");
+const { prisma } = require("../prismaClient"); // adjust path if different
 
 const router = express.Router();
 
 // POST /api/billing/employee-benefit/verify
 router.post("/employee-benefit/verify", async (req, res) => {
-  const { code, invoiceId, encounterId } = req.body || {};
+  const body = req.body || {};
+  const code = body.code;
+  // invoiceId, encounterId are optional context for logging later
+  // const invoiceId = body.invoiceId;
+  // const encounterId = body.encounterId;
 
   if (!code || typeof code !== "string") {
     return res.status(400).json({ error: "code is required" });
@@ -38,7 +42,7 @@ router.post("/employee-benefit/verify", async (req, res) => {
 
     return res.json({
       employeeId: benefit.employeeId,
-      employeeName: benefit.employee.name,
+      employeeName: benefit.employee ? benefit.employee.name : null,
       remainingAmount: benefit.remainingAmount,
     });
   } catch (e) {
@@ -47,4 +51,4 @@ router.post("/employee-benefit/verify", async (req, res) => {
   }
 });
 
-export default router;
+module.exports = router;
