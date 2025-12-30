@@ -303,12 +303,15 @@ function BillingPaymentSection({
                   checked={checked}
                   onChange={(e) => handleToggle(m.key, e.target.checked)}
                 />
-                <label
-                  htmlFor={`pay-${m.key}`}
-                  style={{ minWidth: 120, cursor: "pointer" }}
-                >
-                  {m.label}
-                </label>
+               <label
+  htmlFor={`pay-${m.key}`}
+  style={{ minWidth: 160, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+>
+  <span style={{ width: 18, textAlign: "center" }}>
+    {m.icon}
+  </span>
+  <span>{m.label}</span>
+</label>
                 {checked && (
                   <div
                     style={{
