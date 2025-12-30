@@ -70,7 +70,7 @@ type InvoiceResponse = {
   hasEBarimt: boolean;
   isProvisional?: boolean;
   items: InvoiceItem[];
-  // settlement extras (may be missing on first load)
+  // settlement extras
   paidTotal?: number;
   unpaidAmount?: number;
   payments?: Payment[];
@@ -157,7 +157,6 @@ function BillingPaymentSection({
   const hasRealInvoice = !!invoice.id;
 
   useEffect(() => {
-    // reset when invoice changes
     setAmounts({});
     setError("");
     setSuccess("");
@@ -177,7 +176,6 @@ function BillingPaymentSection({
       return;
     }
 
-    // collect methods with positive amounts
     const entries = PAYMENT_METHODS.map((m) => {
       const raw = amounts[m.key] ?? "";
       const amt = Number(raw);
@@ -194,7 +192,6 @@ function BillingPaymentSection({
 
       let latest: InvoiceResponse | null = null;
 
-      // call backend for each method/amount
       for (const entry of entries) {
         const res = await fetch(
           `/api/invoices/${invoice.id}/settlement`,
@@ -223,6 +220,7 @@ function BillingPaymentSection({
       if (latest) {
         onUpdated(latest);
       }
+
       setSuccess("Төлбөр(үүд) амжилттай бүртгэгдлээ.");
       const cleared: Record<string, string> = {};
       PAYMENT_METHODS.forEach((m) => {
@@ -426,7 +424,7 @@ export default function BillingPage() {
       setLoading(true);
       setLoadError("");
       try {
-        // backend: /api/encounters/:id
+        // Load encounter summary
         const encRes = await fetch(`/api/encounters/${encounterId}`);
         let encData: any = null;
         try {
@@ -440,7 +438,7 @@ export default function BillingPage() {
         }
         setEncounter(encData);
 
-        // backend: /api/billing/encounters/:id/invoice
+        // Load billing/invoice
         const invRes = await fetch(
           `/api/billing/encounters/${encounterId}/invoice`
         );
@@ -513,7 +511,7 @@ export default function BillingPage() {
       quantity: 1,
     };
     setItems((prev) => [...prev, newRow]);
-    setServiceModalRowIndex(items.length); // index of the new row
+    setServiceModalRowIndex(items.length);
   };
 
   const totalBeforeDiscount = items.reduce(
@@ -753,8 +751,307 @@ export default function BillingPage() {
             )}
           </section>
 
-          {/* Billing items section – keep your existing implementation here */}
-          {/* ... */}
+          {/* Billing items */}
+          <section
+            style={{
+              marginTop: 0,
+              padding: 16,
+              borderRadius: 8,
+              border: "1px solid #e5e7eb",
+              background: "#ffffff",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
+              <div>
+                <h2 style={{ fontSize: 16, margin: 0 }}>
+                  Үйлчилгээний мөрүүд (Invoice lines)
+                </h2>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  Доорх жагсаалт нь энэ үзлэгт гүйцэтгэсэн үйлчилгээ,
+                  бүтээгдэхүүнийг илэрхийлнэ.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddRowFromService}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: "1px solid #2563eb",
+                  background: "#eff6ff",
+                  color: "#2563eb",
+                  cursor: "pointer",
+                  fontSize: 13,
+                }}
+              >
+                + Нэмэлт мөр
+              </button>
+            </div>
+
+            {items.length === 0 && (
+              <div style={{ fontSize: 13, color: "#6b7280" }}>
+                Нэхэмжлэлийн мөр алга байна. Үйлчилгээ нэмнэ үү.
+              </div>
+            )}
+
+            {items.length > 0 && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "2fr 80px 120px 120px auto",
+                  gap: 8,
+                  alignItems: "center",
+                  padding: "4px 8px",
+                  marginTop: 8,
+                  fontSize: 11,
+                  color: "#6b7280",
+                }}
+              >
+                <div>Үйлчилгээ / Бүтээгдэхүүн</div>
+                <div style={{ textAlign: "center" }}>Тоо хэмжээ</div>
+                <div style={{ textAlign: "center" }}>Нэгж үнэ</div>
+                <div style={{ textAlign: "center" }}>Мөрийн дүн</div>
+                <div />
+              </div>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                marginTop: 4,
+              }}
+            >
+              {items.map((row, index) => {
+                const lineTotal =
+                  (row.unitPrice || 0) * (row.quantity || 0);
+                return (
+                  <div
+                    key={index}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "2fr 80px 120px 120px auto",
+                      gap: 8,
+                      alignItems: "center",
+                      borderRadius: 8,
+                      border: "1px solid #e5e7eb",
+                      padding: 8,
+                      background: "#f9fafb",
+                    }}
+                  >
+                    <div>
+                      <input
+                        type="text"
+                        value={row.name}
+                        onChange={(e) =>
+                          handleItemChange(index, "name", e.target.value)
+                        }
+                        placeholder={
+                          row.itemType === "SERVICE"
+                            ? "Үйлчилгээний нэр"
+                            : "Бүтээгдэхүүний нэр"
+                        }
+                        style={{
+                          width: "100%",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
+                          fontSize: 13,
+                          marginBottom: 4,
+                          background: "#ffffff",
+                        }}
+                      />
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          fontSize: 11,
+                          color: "#6b7280",
+                        }}
+                      >
+                        <span>
+                          {row.itemType === "SERVICE"
+                            ? `Service ID: ${
+                                row.serviceId || "- (сонгоогүй)"
+                              }`
+                            : `Product ID: ${
+                                row.productId || "- (сонгоогүй)"
+                              }`}
+                        </span>
+                        {row.itemType === "SERVICE" && (
+                          <button
+                            type="button"
+                            onClick={() => openServiceModalForRow(index)}
+                            style={{
+                              marginLeft: 8,
+                              padding: "2px 6px",
+                              borderRadius: 999,
+                              border: "1px solid #2563eb",
+                              background: "#eff6ff",
+                              color: "#2563eb",
+                              cursor: "pointer",
+                              fontSize: 11,
+                            }}
+                          >
+                            Үйлчилгээ сонгох
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <input
+                      type="number"
+                      min={1}
+                      value={row.quantity}
+                      onChange={(e) =>
+                        handleItemChange(index, "quantity", e.target.value)
+                      }
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "4px 6px",
+                        fontSize: 13,
+                        textAlign: "center",
+                      }}
+                    />
+
+                    <input
+                      type="number"
+                      min={0}
+                      value={row.unitPrice}
+                      onChange={(e) =>
+                        handleItemChange(index, "unitPrice", e.target.value)
+                      }
+                      style={{
+                        width: "100%",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "4px 6px",
+                        fontSize: 13,
+                        textAlign: "right",
+                      }}
+                    />
+
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        textAlign: "right",
+                      }}
+                    >
+                      {lineTotal.toLocaleString("mn-MN")}₮
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRow(index)}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        border: "1px solid #dc2626",
+                        background: "#fef2f2",
+                        color: "#b91c1c",
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                    >
+                      Устгах
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div
+              style={{
+                marginTop: 12,
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+                alignItems: "flex-end",
+                fontSize: 13,
+              }}
+            >
+              <div>
+                Нийт (хөнгөлөлтгүй):{" "}
+                <strong>
+                  {totalBeforeDiscount.toLocaleString("mn-MN")}₮
+                </strong>
+              </div>
+              <div>
+                Хөнгөлөлт (0 / 5 / 10%):{" "}
+                <select
+                  value={discountPercent}
+                  onChange={(e) =>
+                    setDiscountPercent(Number(e.target.value))
+                  }
+                  style={{
+                    marginLeft: 8,
+                    padding: "2px 4px",
+                    fontSize: 13,
+                  }}
+                >
+                  <option value={0}>0%</option>
+                  <option value={5}>5%</option>
+                  <option value={10}>10%</option>
+                </select>
+              </div>
+              <div>
+                Төлөх дүн:{" "}
+                <strong style={{ fontSize: 16 }}>
+                  {finalAmount.toLocaleString("mn-MN")}₮
+                </strong>
+              </div>
+            </div>
+
+            {saveError && (
+              <div style={{ color: "#b91c1c", marginTop: 8, fontSize: 13 }}>
+                {saveError}
+              </div>
+            )}
+            {saveSuccess && (
+              <div style={{ color: "#16a34a", marginTop: 8, fontSize: 13 }}>
+                {saveSuccess}
+              </div>
+            )}
+
+            <div
+              style={{
+                marginTop: 12,
+                display: "flex",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleSaveBilling}
+                disabled={saving}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: "#2563eb",
+                  color: "#ffffff",
+                  cursor: "pointer",
+                  fontSize: 14,
+                }}
+              >
+                {saving
+                  ? "Нэхэмжлэл хадгалж байна..."
+                  : "Нэхэмжлэл хадгалах"}
+              </button>
+            </div>
+          </section>
 
           {/* Payment section */}
           <BillingPaymentSection
@@ -762,8 +1059,91 @@ export default function BillingPage() {
             onUpdated={(updated) => setInvoice(updated)}
           />
 
-          {/* Prescription summary – keep your existing implementation here */}
-          {/* ... */}
+          {/* Prescription summary (read-only) */}
+          {encounter && (encounter as any).prescription && (
+            <section
+              style={{
+                marginTop: 16,
+                padding: 16,
+                borderRadius: 8,
+                border: "1px solid #e5e7eb",
+                background: "#ffffff",
+              }}
+            >
+              <h2 style={{ fontSize: 16, margin: 0, marginBottom: 8 }}>
+                Эмийн жор (эмчийн бичсэн)
+              </h2>
+
+              {!(encounter as any).prescription.items ||
+              (encounter as any).prescription.items.length === 0 ? (
+                <div style={{ fontSize: 13, color: "#6b7280" }}>
+                  Энэ үзлэгт эмийн жор бичигдээгүй байна.
+                </div>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "40px 2fr 80px 80px 80px 1.5fr",
+                      gap: 6,
+                      alignItems: "center",
+                      fontSize: 12,
+                      marginBottom: 4,
+                      paddingBottom: 4,
+                      borderBottom: "1px solid #e5e7eb",
+                      color: "#6b7280",
+                    }}
+                  >
+                    <div>№</div>
+                    <div>Эмийн нэр / тун / хэлбэр</div>
+                    <div style={{ textAlign: "center" }}>Нэг удаад</div>
+                    <div style={{ textAlign: "center" }}>Өдөрт</div>
+                    <div style={{ textAlign: "center" }}>Хэд хоног</div>
+                    <div>Тэмдэглэл</div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 4,
+                      fontSize: 12,
+                    }}
+                  >
+                    {(encounter as any).prescription.items
+                      .slice()
+                      .sort((a: any, b: any) => a.order - b.order)
+                      .map((it: PrescriptionItem, idx: number) => (
+                        <div
+                          key={it.id ?? idx}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns:
+                              "40px 2fr 80px 80px 80px 1.5fr",
+                            gap: 6,
+                            alignItems: "center",
+                          }}
+                        >
+                          <div>{it.order ?? idx + 1}</div>
+                          <div>{it.drugName}</div>
+                          <div style={{ textAlign: "center" }}>
+                            {it.quantityPerTake}x
+                          </div>
+                          <div style={{ textAlign: "center" }}>
+                            {it.frequencyPerDay} / өдөр
+                          </div>
+                          <div style={{ textAlign: "center" }}>
+                            {it.durationDays} хоног
+                          </div>
+                          <div>{it.note || "-"}</div>
+                        </div>
+                      ))}
+                  </div>
+                </>
+              )}
+            </section>
+          )}
         </>
       )}
 
@@ -795,7 +1175,106 @@ export default function BillingPage() {
               fontSize: 13,
             }}
           >
-            {/* keep your modal UI; it now uses /api/services via loadServices */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 8,
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: 15 }}>Үйлчилгээ сонгох</h3>
+              <button
+                type="button"
+                onClick={closeServiceModal}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  fontSize: 18,
+                  lineHeight: 1,
+                }}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ marginBottom: 8 }}>
+              <input
+                type="text"
+                value={serviceQuery}
+                onChange={(e) => setServiceQuery(e.target.value)}
+                placeholder="Нэр эсвэл кодоор хайх..."
+                style={{
+                  width: "100%",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "6px 8px",
+                  fontSize: 13,
+                }}
+              />
+            </div>
+
+            {servicesLoading && (
+              <div style={{ fontSize: 12, color: "#6b7280" }}>
+                Үйлчилгээнүүдийг ачаалж байна...
+              </div>
+            )}
+            {servicesError && (
+              <div style={{ fontSize: 12, color: "#b91c1c" }}>
+                {servicesError}
+              </div>
+            )}
+
+            {!servicesLoading &&
+              !servicesError &&
+              filteredServices.length === 0 && (
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  Хайлтад тохирох үйлчилгээ олдсонгүй.
+                </div>
+              )}
+
+            <div
+              style={{
+                marginTop: 8,
+                borderRadius: 6,
+                border: "1px solid #e5e7eb",
+                maxHeight: 320,
+                overflowY: "auto",
+              }}
+            >
+              {filteredServices.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => handleSelectServiceForRow(s)}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "6px 8px",
+                    border: "none",
+                    borderBottom: "1px solid #f3f4f6",
+                    background: "#ffffff",
+                    cursor: "pointer",
+                    fontSize: 13,
+                  }}
+                >
+                  <div style={{ fontWeight: 500 }}>{s.name}</div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "#6b7280",
+                      marginTop: 2,
+                    }}
+                  >
+                    Код: {s.code || "-"} • Үнэ:{" "}
+                    {s.price.toLocaleString("mn-MN")}₮
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
