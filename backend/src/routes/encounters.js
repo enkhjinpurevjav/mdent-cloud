@@ -37,49 +37,65 @@ router.get("/:id", async (req, res) => {
     }
 
     const encounter = await prisma.encounter.findUnique({
-      where: { id },
+  where: { id: encounterId },
+  include: {
+    patientBook: {
       include: {
-        patientBook: {
+        patient: {
           include: {
-            patient: {
-              include: { branch: true },
-            },
+            branch: true,
           },
         },
-        doctor: true,
-        nurse: true,                      // <--- NEW
-        diagnoses: {
-          include: { diagnosis: true },
-          orderBy: { createdAt: "asc" },
-        },
-        encounterServices: {
-          include: {
-            service: true,
-          },
-          orderBy: { id: "asc" },
-        },
-        invoice: {
-          include: {
-            invoiceItems: {
-              include: {
-                procedure: true,
-              },
-              orderBy: { id: "asc" },
-            },
-            payment: true,
-            eBarimtReceipt: true,
-          },
-        },
-        prescription: {
-          include: {
-            items: {
-              orderBy: { order: "asc" },
-            },
-          },
-        },
-        // chartTeeth can be loaded separately via chart-teeth endpoints
       },
-    });
+    },
+    doctor: true,
+    nurse: true,
+    diagnoses: {
+      include: {
+        diagnosis: true,
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    },
+    encounterServices: {
+      include: {
+        service: true,
+      },
+      orderBy: {
+        id: "asc",
+      },
+    },
+    invoice: {
+      include: {
+        // NEW: use items, not invoiceItems
+        items: {
+          // if you used procedure before, adapt to new model if it still exists
+          // include: { procedure: true },  // only if InvoiceItem still has a relation called procedure
+          orderBy: {
+            id: "asc",
+          },
+        },
+        // NEW: plural payments
+        payments: true,
+        eBarimtReceipt: true,
+        branch: true,
+        encounter: true,
+        patient: true,
+        ledgerEntries: true,
+      },
+    },
+    prescription: {
+      include: {
+        items: {
+          orderBy: {
+            order: "asc",
+          },
+        },
+      },
+    },
+  },
+});
 
     if (!encounter) {
       return res.status(404).json({ error: "Encounter not found" });
