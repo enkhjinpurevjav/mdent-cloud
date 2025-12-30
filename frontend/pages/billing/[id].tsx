@@ -133,12 +133,12 @@ function formatMoney(v: number | null | undefined) {
 // ----------------- Payment section -----------------
 
 const PAYMENT_METHODS = [
-  { key: "CASH", label: "Бэлэн мөнгө" },
-  { key: "POS", label: "Карт (POS)" },
-  { key: "QPAY", label: "QPay" },
-  { key: "TRANSFER", label: "Дансны шилжүүлэг" },
-  { key: "INSURANCE", label: "Даатгал" },
-  { key: "VOUCHER", label: "Купон / Ваучер" },
+  { key: "CASH", label: "Бэлэн мөнгө", icon: "₮" },
+  { key: "POS", label: "Карт (POS)", icon: "💳" },
+  { key: "QPAY", label: "QPay", icon: "Ⓠ" },
+  { key: "TRANSFER", label: "Дансны шилжүүлэг", icon: "🏦" },
+  { key: "INSURANCE", label: "Даатгал", icon: "🛡" },
+  { key: "VOUCHER", label: "Купон / Ваучер", icon: "🎟" },
 ];
 
 function BillingPaymentSection({
