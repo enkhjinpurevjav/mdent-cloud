@@ -148,6 +148,7 @@ function BillingPaymentSection({
   invoice: InvoiceResponse;
   onUpdated: (inv: InvoiceResponse) => void;
 }) {
+  const [enabled, setEnabled] = useState<Record<string, boolean>>({});
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [issueEBarimt, setIssueEBarimt] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -155,16 +156,38 @@ function BillingPaymentSection({
   const [success, setSuccess] = useState("");
 
   const hasRealInvoice = !!invoice.id;
+  const unpaid = invoice.unpaidAmount ?? Math.max(
+    (invoice.finalAmount ?? 0) - (invoice.paidTotal ?? 0),
+    0
+  );
 
   useEffect(() => {
+    setEnabled({});
     setAmounts({});
     setError("");
     setSuccess("");
   }, [invoice.id]);
 
+  const handleToggle = (methodKey: string, checked: boolean) => {
+    setEnabled((prev) => ({ ...prev, [methodKey]: checked }));
+    if (!checked) {
+      setAmounts((prev) => ({ ...prev, [methodKey]: "" }));
+    }
+  };
+
   const handleAmountChange = (methodKey: string, value: string) => {
     setAmounts((prev) => ({ ...prev, [methodKey]: value }));
   };
+
+  const totalEntered = PAYMENT_METHODS.reduce((sum, m) => {
+    if (!enabled[m.key]) return sum;
+    const raw = amounts[m.key] ?? "";
+    const amt = Number(raw);
+    if (!amt || amt <= 0) return sum;
+    return sum + amt;
+  }, 0);
+
+  const remainingAfterEntered = Math.max(unpaid - totalEntered, 0);
 
   const handleSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault();
@@ -176,20 +199,22 @@ function BillingPaymentSection({
       return;
     }
 
+    // collect methods with positive amounts and ticked
     const entries = PAYMENT_METHODS.map((m) => {
+      if (!enabled[m.key]) return null;
       const raw = amounts[m.key] ?? "";
       const amt = Number(raw);
+      if (!amt || amt <= 0) return null;
       return { method: m.key, amount: amt };
-    }).filter((x) => x.amount && x.amount > 0);
+    }).filter(Boolean) as { method: string; amount: number }[];
 
     if (entries.length === 0) {
-      setError("Ядаж нэг төлбөрийн талбарт дүн оруулна уу.");
+      setError("Төлбөрийн аргыг сонгож дүнгээ оруулна уу.");
       return;
     }
 
     try {
       setSubmitting(true);
-
       let latest: InvoiceResponse | null = null;
 
       for (const entry of entries) {
@@ -222,11 +247,9 @@ function BillingPaymentSection({
       }
 
       setSuccess("Төлбөр(үүд) амжилттай бүртгэгдлээ.");
-      const cleared: Record<string, string> = {};
-      PAYMENT_METHODS.forEach((m) => {
-        cleared[m.key] = "";
-      });
-      setAmounts(cleared);
+      // clear fields after save
+      setEnabled({});
+      setAmounts({});
     } catch (err: any) {
       console.error("Failed to settle invoice:", err);
       setError(err.message || "Төлбөр бүртгэхэд алдаа гарлаа.");
@@ -259,47 +282,65 @@ function BillingPaymentSection({
         onSubmit={handleSubmit}
         style={{ display: "flex", flexDirection: "column", gap: 8 }}
       >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.5fr 1fr",
-            gap: 8,
-            fontSize: 13,
-          }}
-        >
-          {PAYMENT_METHODS.map((m) => (
-            <div
-              key={m.key}
-              style={{ display: "flex", alignItems: "center", gap: 8 }}
-            >
-              <div style={{ minWidth: 160 }}>{m.label}</div>
+        {/* vertical list of methods with checkboxes */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {PAYMENT_METHODS.map((m) => {
+            const checked = !!enabled[m.key];
+            const value = amounts[m.key] ?? "";
+            return (
               <div
+                key={m.key}
                 style={{
-                  flex: 1,
                   display: "flex",
                   alignItems: "center",
-                  gap: 4,
+                  gap: 8,
+                  fontSize: 13,
                 }}
               >
                 <input
-                  type="number"
-                  min={0}
-                  value={amounts[m.key] ?? ""}
-                  onChange={(e) => handleAmountChange(m.key, e.target.value)}
-                  placeholder="0"
-                  style={{
-                    flex: 1,
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 8px",
-                    fontSize: 13,
-                    textAlign: "right",
-                  }}
+                  type="checkbox"
+                  id={`pay-${m.key}`}
+                  checked={checked}
+                  onChange={(e) => handleToggle(m.key, e.target.checked)}
                 />
-                <span style={{ fontSize: 12 }}>₮</span>
+                <label
+                  htmlFor={`pay-${m.key}`}
+                  style={{ minWidth: 120, cursor: "pointer" }}
+                >
+                  {m.label}
+                </label>
+                {checked && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      flex: 1,
+                    }}
+                  >
+                    <input
+                      type="number"
+                      min={0}
+                      value={value}
+                      onChange={(e) =>
+                        handleAmountChange(m.key, e.target.value)
+                      }
+                      placeholder="0"
+                      style={{
+                        flex: 1,
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        padding: "4px 8px",
+                        fontSize: 13,
+                        textAlign: "right",
+                      }}
+                    />
+                    <span style={{ fontSize: 12 }}>₮</span>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div
@@ -322,18 +363,38 @@ function BillingPaymentSection({
           </label>
         </div>
 
-        {(invoice.paidTotal != null || invoice.unpaidAmount != null) && (
-          <div style={{ fontSize: 12, color: "#4b5563", marginTop: 4 }}>
-            <div>
-              Нийт төлсөн:{" "}
-              <strong>{formatMoney(invoice.paidTotal || 0)} ₮</strong>
-            </div>
-            <div>
-              Үлдэгдэл:{" "}
-              <strong>{formatMoney(invoice.unpaidAmount || 0)} ₮</strong>
-            </div>
+        {/* totals and remaining */}
+        <div
+          style={{
+            fontSize: 12,
+            color: "#4b5563",
+            marginTop: 4,
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+          }}
+        >
+          {invoice.paidTotal != null || invoice.unpaidAmount != null ? (
+            <>
+              <div>
+                Нийт төлсөн (өмнө):{" "}
+                <strong>{formatMoney(invoice.paidTotal || 0)} ₮</strong>
+              </div>
+              <div>
+                Үлдэгдэл (одоогийн):{" "}
+                <strong>{formatMoney(unpaid)} ₮</strong>
+              </div>
+            </>
+          ) : null}
+          <div>
+            Энэ удаад оруулсан дүн:{" "}
+            <strong>{formatMoney(totalEntered)} ₮</strong>
           </div>
-        )}
+          <div>
+            Үлдэгдэл (энэ удаагийн дараа, онолын):{" "}
+            <strong>{formatMoney(remainingAfterEntered)} ₮</strong>
+          </div>
+        </div>
 
         {error && (
           <div style={{ fontSize: 13, color: "#b91c1c", marginTop: 4 }}>
