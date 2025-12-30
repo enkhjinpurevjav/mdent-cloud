@@ -567,13 +567,15 @@ model InvoiceItem {
 // Legacy Payment model (do NOT use for new flows)
 model Payment {
   id        Int      @id @default(autoincrement())
-  invoiceId Int      @unique
+  invoiceId Int
   amount    Float
   method    String
   qpayTxnId String?
-  timestamp DateTime @default(now())
+  timestamp DateTime
 
   invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+
+  @@index([invoiceId]) // optional but recommended
 }
 
 model EBarimtReceipt {
