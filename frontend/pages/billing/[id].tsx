@@ -6,9 +6,6 @@ import React, {
 } from "react";
 import { useRouter } from "next/router";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://148.230.100.123:8081";
-
 type Branch = {
   id: number;
   name: string;
@@ -200,7 +197,7 @@ function BillingPaymentSection({
       // call backend for each method/amount
       for (const entry of entries) {
         const res = await fetch(
-          `${API_BASE}/api/invoices/${invoice.id}/settlement`,
+          `/api/invoices/${invoice.id}/settlement`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -430,7 +427,7 @@ export default function BillingPage() {
       setLoadError("");
       try {
         // backend: /api/encounters/:id
-        const encRes = await fetch(`${API_BASE}/api/encounters/${encounterId}`);
+        const encRes = await fetch(`/api/encounters/${encounterId}`);
         let encData: any = null;
         try {
           encData = await encRes.json();
@@ -445,7 +442,7 @@ export default function BillingPage() {
 
         // backend: /api/billing/encounters/:id/invoice
         const invRes = await fetch(
-          `${API_BASE}/api/billing/encounters/${encounterId}/invoice`
+          `/api/billing/encounters/${encounterId}/invoice`
         );
         let invData: any = null;
         try {
@@ -553,7 +550,7 @@ export default function BillingPage() {
       };
 
       const res = await fetch(
-        `${API_BASE}/api/billing/encounters/${encounterId}/invoice`,
+        `/api/billing/encounters/${encounterId}/invoice`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -594,7 +591,7 @@ export default function BillingPage() {
     setServicesLoading(true);
     setServicesError("");
     try {
-      const res = await fetch(`${API_BASE}/api/services`);
+      const res = await fetch(`/api/services`);
       let data: any = null;
       try {
         data = await res.json();
@@ -756,9 +753,8 @@ export default function BillingPage() {
             )}
           </section>
 
-          {/* Billing items (unchanged, omitted here for brevity – keep your version) */}
-          {/* ... your existing billing items section ... */}
-          {/* Use the same section you already had for items, totals, discount, and save button */}
+          {/* Billing items section – keep your existing implementation here */}
+          {/* ... */}
 
           {/* Payment section */}
           <BillingPaymentSection
@@ -766,8 +762,8 @@ export default function BillingPage() {
             onUpdated={(updated) => setInvoice(updated)}
           />
 
-          {/* Prescription summary (unchanged) */}
-          {/* ... keep your existing prescription section ... */}
+          {/* Prescription summary – keep your existing implementation here */}
+          {/* ... */}
         </>
       )}
 
@@ -799,7 +795,7 @@ export default function BillingPage() {
               fontSize: 13,
             }}
           >
-            {/* ... keep your modal UI, only change fetch URL to `${API_BASE}/api/services` as done above ... */}
+            {/* keep your modal UI; it now uses /api/services via loadServices */}
           </div>
         </div>
       )}
