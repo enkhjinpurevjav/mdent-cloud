@@ -254,7 +254,7 @@ router.get("/:id/nurses", async (req, res) => {
 
     const branchId = encounter.patientBook.patient.branchId;
 
-    const whereSchedule: any = {
+    const whereSchedule = {
       date: {
         gte: start,
         lt: end,
@@ -766,7 +766,7 @@ router.get("/:id/media", async (req, res) => {
     }
 
     const { type } = req.query;
-    const where: any = { encounterId };
+    const where = { encounterId };
     if (typeof type === "string" && type.trim()) {
       where.type = type.trim();
     }
