@@ -54,6 +54,7 @@ type InvoiceItem = {
   unitPrice: number;
   quantity: number;
   lineTotal?: number;
+  teethNumbers?: string[];
 };
 
 type Payment = {
@@ -1187,6 +1188,21 @@ export default function BillingPage() {
     );
   };
 
+const handleTeethNumbersChange = (index: number, value: string) => {
+  setItems((prev) =>
+    prev.map((row, i) => {
+      if (i !== index) return row;
+      return {
+        ...row,
+        teethNumbers: value
+          .split(",")
+          .map((n) => n.trim())
+          .filter(Boolean),
+      };
+    })
+  );
+};
+  
   const handleRemoveRow = (index: number) => {
     setItems((prev) => prev.filter((_, i) => i !== index));
   };
@@ -1234,6 +1250,7 @@ export default function BillingPage() {
             name: r.name,
             unitPrice: r.unitPrice,
             quantity: r.quantity,
+            eethNumbers: r.teethNumbers, // INCLUDE THIS!
           })),
       };
 
@@ -1570,7 +1587,7 @@ export default function BillingPage() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "2fr 80px 120px 120px auto",
+                  gridTemplateColumns: "2fr 80px 120px 80px 120px auto",
                   gap: 8,
                   alignItems: "center",
                   padding: "4px 8px",
@@ -1582,6 +1599,7 @@ export default function BillingPage() {
                 <div>Үйлчилгээ / Бүтээгдэхүүн</div>
                 <div style={{ textAlign: "center" }}>Тоо хэмжээ</div>
                 <div style={{ textAlign: "center" }}>Нэгж үнэ</div>
+                <div style={{ textAlign: "center" }}>Шүд</div>
                 <div style={{ textAlign: "center" }}>Мөрийн дүн</div>
                 <div />
               </div>
@@ -1603,7 +1621,7 @@ export default function BillingPage() {
                     key={index}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "2fr 80px 120px 120px auto",
+                      gridTemplateColumns: "2fr 80px 120px 80px 120px auto",
                       gap: 8,
                       alignItems: "center",
                       borderRadius: 8,
@@ -1612,6 +1630,40 @@ export default function BillingPage() {
                       background: "#f9fafb",
                     }}
                   >
+
+<input
+  type="text"
+  placeholder="11, 12, 16"
+  value={(row.teethNumbers || []).join(", ")}
+  onChange={e => handleTeethNumbersChange(index, e.target.value)}
+  style={{
+    width: "70px",
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    padding: "4px 6px",
+    fontSize: 13,
+    textAlign: "left",
+    background: "#fff"
+  }}
+/>
+
+<div
+  key={index}
+  style={{
+    display: "grid",
+    gridTemplateColumns: "2fr 80px 120px 80px 120px auto",
+    gap: 8,
+    alignItems: "center",
+    borderRadius: 8,
+    border: "1px solid #e5e7eb",
+    padding: 8,
+    background: "#f9fafb",
+  }}
+>
+
+                    
+
+                    
                     <div>
                       <input
                         type="text"
