@@ -381,32 +381,40 @@ function BillingPaymentSection({
     }[] = [];
 
     for (const m of PAYMENT_METHODS) {
-      if (!enabled[m.key]) continue;
+  if (!enabled[m.key]) continue;
 
-      const raw = amounts[m.key] ?? "";
-      const amt = Number(raw);
-      if (!amt || amt <= 0) continue;
+  if (m.key === "APPLICATION") {
+    const validRows = appRows.filter(
+      (r) => r.provider && Number(r.amount) > 0
+    );
 
-      const entry: { method: string; amount: number; meta?: any } = {
-        method: m.key,
+    if (validRows.length === 0) {
+      setError(
+        "Аппликэйшнээр төлбөр сонгосон бол дор хаяж нэг мөр бөглөнө үү."
+      );
+      return;
+    }
+
+    for (const row of validRows) {
+      const amt = Number(row.amount);
+      entries.push({
+        method: "APPLICATION",
         amount: amt,
-      };
+        meta: { provider: row.provider },
+      });
+    }
 
-      if (m.key === "INSURANCE") {
-        if (!insuranceProvider) {
-          setError("Даатгалын нэрийг сонгоно уу.");
-          return;
-        }
-        entry.meta = { ...(entry.meta || {}), provider: insuranceProvider };
-      }
+    continue; // skip shared logic for this method
+  }
 
-      if (m.key === "APPLICATION") {
-        if (!appProvider) {
-          setError("Аппликэйшнийг сонгоно уу.");
-          return;
-        }
-        entry.meta = { ...(entry.meta || {}), provider: appProvider };
-      }
+  const raw = amounts[m.key] ?? "";
+  const amt = Number(raw);
+  if (!amt || amt <= 0) continue;
+
+  const entry: { method: string; amount: number; meta?: any } = {
+    method: m.key,
+    amount: amt,
+  };
 
       if (m.key === "VOUCHER") {
         if (!voucherType) {
