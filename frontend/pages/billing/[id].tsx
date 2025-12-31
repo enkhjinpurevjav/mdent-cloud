@@ -11,6 +11,11 @@ type Branch = {
   name: string;
 };
 
+type AppPaymentRow = {
+  provider: string;
+  amount: string; // keep as string for input, convert later
+};
+
 type Patient = {
   id: number;
   ovog?: string | null;
@@ -161,7 +166,6 @@ function BillingPaymentSection({
   const [enabled, setEnabled] = useState<Record<string, boolean>>({});
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [insuranceProvider, setInsuranceProvider] = useState<string>("");
-  const [appProvider, setAppProvider] = useState<string>("");
   const [issueEBarimt, setIssueEBarimt] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -174,6 +178,10 @@ function BillingPaymentSection({
   const [employeeRemaining, setEmployeeRemaining] = useState<number | null>(
     null
   );
+
+  const [appRows, setAppRows] = useState<AppPaymentRow[]>([
+  { provider: "", amount: "" },
+]);
 
   // voucher type + max
   const [voucherType, setVoucherType] = useState<"MARKETING" | "GIFT" | "">(
@@ -214,7 +222,6 @@ function BillingPaymentSection({
     setEnabled({});
     setAmounts({});
     setInsuranceProvider("");
-    setAppProvider("");
     setVoucherCode("");
     setBarterCode("");
     setEmployeeCode("");
@@ -226,23 +233,25 @@ function BillingPaymentSection({
   }, [invoice.id]);
 
   const handleToggle = (methodKey: string, checked: boolean) => {
-    setEnabled((prev) => ({ ...prev, [methodKey]: checked }));
-    if (!checked) {
-      setAmounts((prev) => ({ ...prev, [methodKey]: "" }));
-      if (methodKey === "INSURANCE") setInsuranceProvider("");
-      if (methodKey === "APPLICATION") setAppProvider("");
-      if (methodKey === "BARTER") setBarterCode("");
-      if (methodKey === "EMPLOYEE_BENEFIT") {
-        setEmployeeCode("");
-        setEmployeeRemaining(null);
-      }
-      if (methodKey === "VOUCHER") {
-        setVoucherCode("");
-        setVoucherType("");
-        setVoucherMaxAmount(null);
-      }
+  setEnabled((prev) => ({ ...prev, [methodKey]: checked }));
+  if (!checked) {
+    setAmounts((prev) => ({ ...prev, [methodKey]: "" }));
+    if (methodKey === "INSURANCE") setInsuranceProvider("");
+    if (methodKey === "BARTER") setBarterCode("");
+    if (methodKey === "EMPLOYEE_BENEFIT") {
+      setEmployeeCode("");
+      setEmployeeRemaining(null);
     }
-  };
+    if (methodKey === "VOUCHER") {
+      setVoucherCode("");
+      setVoucherType("");
+      setVoucherMaxAmount(null);
+    }
+    if (methodKey === "APPLICATION") {
+      setAppRows([{ provider: "", amount: "" }]);
+    }
+  }
+};
 
   const handleAmountChange = (methodKey: string, value: string) => {
     setAmounts((prev) => ({ ...prev, [methodKey]: value }));
