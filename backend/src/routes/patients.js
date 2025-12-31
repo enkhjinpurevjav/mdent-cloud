@@ -344,7 +344,7 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
       include: {
         payments: true,
         eBarimtReceipt: true,
-        items: {                 // ✅ correct field name from Prisma model
+        items: { 
           include: {
             procedure: true,
           },
