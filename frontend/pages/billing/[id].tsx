@@ -167,7 +167,7 @@ function BillingPaymentSection({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // NEW: codes for various methods
+  // codes for various methods
   const [voucherCode, setVoucherCode] = useState("");
   const [barterCode, setBarterCode] = useState("");
   const [employeeCode, setEmployeeCode] = useState("");
@@ -175,12 +175,12 @@ function BillingPaymentSection({
     null
   );
 
-    const hasRealInvoice = !!invoice.id;
+  const hasRealInvoice = !!invoice.id;
   const unpaid =
     invoice.unpaidAmount ??
     Math.max((invoice.finalAmount ?? 0) - (invoice.paidTotal ?? 0), 0);
 
-  // NEW: wallet credit from patient's overall balance
+  // wallet credit from patient's overall balance
   const walletAvailable =
     invoice.patientBalance != null && invoice.patientBalance < 0
       ? Math.abs(invoice.patientBalance)
@@ -244,7 +244,7 @@ function BillingPaymentSection({
 
   const remainingAfterEntered = Math.max(unpaid - totalEntered, 0);
 
-  // NEW: verify employee benefit code via backend
+  // verify employee benefit code via backend
   const handleVerifyEmployeeCode = async () => {
     setError("");
     setSuccess("");
@@ -359,7 +359,7 @@ function BillingPaymentSection({
         };
       }
 
-            if (m.key === "WALLET") {
+      if (m.key === "WALLET") {
         if (walletAvailable <= 0) {
           setError(
             "Үйлчлүүлэгчид ашиглах боломжтой хэтэвчийн үлдэгдэл алга байна."
@@ -675,15 +675,6 @@ function BillingPaymentSection({
                         </strong>
                       </div>
                     )}
-
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                        flex: 1,
-                      }}
-                    >
 
                     <div
                       style={{
