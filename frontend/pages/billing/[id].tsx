@@ -171,8 +171,14 @@ function BillingPaymentSection({
   const [voucherCode, setVoucherCode] = useState("");
   const [barterCode, setBarterCode] = useState("");
   const [employeeCode, setEmployeeCode] = useState("");
-  const [employeeRemaining, setEmployeeRemaining] = useState<number
-  const [voucherType, setVoucherType] = useState<"MARKETING" | "GIFT" | "">("");
+  const [employeeRemaining, setEmployeeRemaining] = useState<number | null>(
+    null
+  );
+
+  // voucher type + max
+  const [voucherType, setVoucherType] = useState<"MARKETING" | "GIFT" | "">(
+    ""
+  );
   const [voucherMaxAmount, setVoucherMaxAmount] = useState<number | null>(
     null
   );
@@ -225,17 +231,16 @@ function BillingPaymentSection({
       setAmounts((prev) => ({ ...prev, [methodKey]: "" }));
       if (methodKey === "INSURANCE") setInsuranceProvider("");
       if (methodKey === "APPLICATION") setAppProvider("");
-      if (methodKey === "VOUCHER") setVoucherCode("");
       if (methodKey === "BARTER") setBarterCode("");
       if (methodKey === "EMPLOYEE_BENEFIT") {
         setEmployeeCode("");
         setEmployeeRemaining(null);
       }
       if (methodKey === "VOUCHER") {
-  setVoucherCode("");
-  setVoucherType("");
-  setVoucherMaxAmount(null);
-}
+        setVoucherCode("");
+        setVoucherType("");
+        setVoucherMaxAmount(null);
+      }
     }
   };
 
@@ -251,10 +256,49 @@ function BillingPaymentSection({
     return sum + amt;
   }, 0);
 
-  const remainingAfterEntered = Math.max(unpaid - totalEntered, 0);
+    const remainingAfterEntered = Math.max(unpaid - totalEntered, 0);
 
   // verify employee benefit code via backend
-    // verify voucher / coupon code via backend
+  const handleVerifyEmployeeCode = async () => {
+    setError("");
+    setSuccess("");
+
+    if (!employeeCode.trim()) {
+      setError("Ажилтны хөнгөлөлтийн кодыг оруулна уу.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/billing/employee-benefit/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: employeeCode.trim(),
+          invoiceId: invoice.id,
+          encounterId: invoice.encounterId,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) {
+        throw new Error(
+          (data && data.error) || "Код шалгахад алдаа гарлаа."
+        );
+      }
+
+      const remaining = data.remainingAmount ?? 0;
+      setEmployeeRemaining(remaining);
+      setSuccess(
+        `Ажилтны код баталгаажлаа. Үлдэгдэл: ${formatMoney(remaining)} ₮`
+      );
+    } catch (e: any) {
+      console.error("verify employee benefit code failed:", e);
+      setEmployeeRemaining(null);
+      setError(e.message || "Код шалгахад алдаа гарлаа.");
+    }
+  };
+
+  // verify voucher / coupon code via backend
   const handleVerifyVoucherCode = async () => {
     setError("");
     setSuccess("");
@@ -346,7 +390,7 @@ function BillingPaymentSection({
         entry.meta = { ...(entry.meta || {}), provider: appProvider };
       }
 
-            if (m.key === "VOUCHER") {
+      if (m.key === "VOUCHER") {
         if (!voucherType) {
           setError("Купоны төрлийг сонгоно уу.");
           return;
@@ -355,23 +399,19 @@ function BillingPaymentSection({
           setError("Купон / Ваучер кодыг оруулна уу.");
           return;
         }
-
-        // Optional: require verification first
         if (voucherMaxAmount == null) {
           setError("Купоныг эхлээд 'Шалгах' товчоор баталгаажуулна уу.");
           return;
         }
-
         if (amt > voucherMaxAmount) {
           setError(
             "Оруулсан дүн нь купоны боломжит дүнгээс их байна."
           );
           return;
         }
-
         entry.meta = {
           ...(entry.meta || {}),
-          type: voucherType, // "MARKETING" | "GIFT"
+          type: voucherType,
           code: voucherCode.trim(),
         };
       }
@@ -463,6 +503,8 @@ function BillingPaymentSection({
       setBarterCode("");
       setEmployeeCode("");
       setEmployeeRemaining(null);
+      setVoucherType("");
+      setVoucherMaxAmount(null);
     } catch (err: any) {
       console.error("Failed to settle invoice:", err);
       setError(err.message || "Төлбөр бүртгэхэд алдаа гарлаа.");
