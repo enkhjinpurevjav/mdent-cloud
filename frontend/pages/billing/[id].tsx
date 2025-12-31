@@ -230,6 +230,7 @@ function BillingPaymentSection({
     setSuccess("");
     setVoucherType("");
     setVoucherMaxAmount(null);
+    setAppRows([{ provider: "", amount: "" }]);
   }, [invoice.id]);
 
   const handleToggle = (methodKey: string, checked: boolean) => {
