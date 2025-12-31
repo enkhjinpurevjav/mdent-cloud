@@ -362,7 +362,7 @@ function BillingPaymentSection({
             if (m.key === "WALLET") {
         if (walletAvailable <= 0) {
           setError(
-            "Пациентэд ашиглах боломжтой хэтэвчийн үлдэгдэл алга байна."
+            "Үйлчлүүлэгчид ашиглах боломжтой хэтэвчийн үлдэгдэл алга байна."
           );
           return;
         }
@@ -660,6 +660,30 @@ function BillingPaymentSection({
                         )}
                       </div>
                     )}
+
+                    {m.key === "WALLET" && (
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color:
+                            walletAvailable > 0 ? "#16a34a" : "#6b7280",
+                        }}
+                      >
+                        Хэтэвчийн боломжит үлдэгдэл:{" "}
+                        <strong>
+                          {formatMoney(walletAvailable)} ₮
+                        </strong>
+                      </div>
+                    )}
+
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                        flex: 1,
+                      }}
+                    >
 
                     <div
                       style={{
