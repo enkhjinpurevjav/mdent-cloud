@@ -171,7 +171,9 @@ function BillingPaymentSection({
   const [voucherCode, setVoucherCode] = useState("");
   const [barterCode, setBarterCode] = useState("");
   const [employeeCode, setEmployeeCode] = useState("");
-  const [employeeRemaining, setEmployeeRemaining] = useState<number | null>(
+  const [employeeRemaining, setEmployeeRemaining] = useState<number
+  const [voucherType, setVoucherType] = useState<"MARKETING" | "GIFT" | "">("");
+  const [voucherMaxAmount, setVoucherMaxAmount] = useState<number | null>(
     null
   );
 
@@ -213,6 +215,8 @@ function BillingPaymentSection({
     setEmployeeRemaining(null);
     setError("");
     setSuccess("");
+    setVoucherType("");
+    setVoucherMaxAmount(null);
   }, [invoice.id]);
 
   const handleToggle = (methodKey: string, checked: boolean) => {
@@ -227,6 +231,11 @@ function BillingPaymentSection({
         setEmployeeCode("");
         setEmployeeRemaining(null);
       }
+      if (methodKey === "VOUCHER") {
+  setVoucherCode("");
+  setVoucherType("");
+  setVoucherMaxAmount(null);
+}
     }
   };
 
@@ -245,42 +254,51 @@ function BillingPaymentSection({
   const remainingAfterEntered = Math.max(unpaid - totalEntered, 0);
 
   // verify employee benefit code via backend
-  const handleVerifyEmployeeCode = async () => {
+    // verify voucher / coupon code via backend
+  const handleVerifyVoucherCode = async () => {
     setError("");
     setSuccess("");
 
-    if (!employeeCode.trim()) {
-      setError("Ажилтны хөнгөлөлтийн кодыг оруулна уу.");
+    if (!voucherType) {
+      setError("Купоны төрлийг сонгоно уу.");
+      return;
+    }
+    if (!voucherCode.trim()) {
+      setError("Купон / Ваучер кодыг оруулна уу.");
       return;
     }
 
     try {
-      const res = await fetch("/api/billing/employee-benefit/verify", {
+      const res = await fetch("/api/billing/voucher/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code: employeeCode.trim(),
+          type: voucherType, // "MARKETING" | "GIFT"
+          code: voucherCode.trim(),
           invoiceId: invoice.id,
           encounterId: invoice.encounterId,
+          patientId: invoice.patientId,
         }),
       });
 
       const data = await res.json().catch(() => null);
       if (!res.ok || !data) {
         throw new Error(
-          (data && data.error) || "Код шалгахад алдаа гарлаа."
+          (data && data.error) || "Купон шалгахад алдаа гарлаа."
         );
       }
 
-      const remaining = data.remainingAmount ?? 0;
-      setEmployeeRemaining(remaining);
+      const maxAmount = data.maxAmount ?? 0;
+      setVoucherMaxAmount(maxAmount);
       setSuccess(
-        `Ажилтны код баталгаажлаа. Үлдэгдэл: ${formatMoney(remaining)} ₮`
+        `Купон баталгаажлаа. Ашиглах дээд дүн: ${formatMoney(
+          maxAmount
+        )} ₮`
       );
     } catch (e: any) {
-      console.error("verify employee benefit code failed:", e);
-      setEmployeeRemaining(null);
-      setError(e.message || "Код шалгахад алдаа гарлаа.");
+      console.error("verify voucher code failed:", e);
+      setVoucherMaxAmount(null);
+      setError(e.message || "Купон шалгахад алдаа гарлаа.");
     }
   };
 
@@ -328,12 +346,34 @@ function BillingPaymentSection({
         entry.meta = { ...(entry.meta || {}), provider: appProvider };
       }
 
-      if (m.key === "VOUCHER") {
+            if (m.key === "VOUCHER") {
+        if (!voucherType) {
+          setError("Купоны төрлийг сонгоно уу.");
+          return;
+        }
         if (!voucherCode.trim()) {
           setError("Купон / Ваучер кодыг оруулна уу.");
           return;
         }
-        entry.meta = { ...(entry.meta || {}), code: voucherCode.trim() };
+
+        // Optional: require verification first
+        if (voucherMaxAmount == null) {
+          setError("Купоныг эхлээд 'Шалгах' товчоор баталгаажуулна уу.");
+          return;
+        }
+
+        if (amt > voucherMaxAmount) {
+          setError(
+            "Оруулсан дүн нь купоны боломжит дүнгээс их байна."
+          );
+          return;
+        }
+
+        entry.meta = {
+          ...(entry.meta || {}),
+          type: voucherType, // "MARKETING" | "GIFT"
+          code: voucherCode.trim(),
+        };
       }
 
       if (m.key === "BARTER") {
@@ -557,30 +597,77 @@ function BillingPaymentSection({
                     )}
 
                     {m.key === "VOUCHER" && (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <input
-                          type="text"
-                          value={voucherCode}
-                          onChange={(e) =>
-                            setVoucherCode(e.target.value)
-                          }
-                          placeholder="Ваучерын код"
-                          style={{
-                            width: 140,
-                            borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            padding: "4px 6px",
-                            fontSize: 12,
-                          }}
-                        />
-                      </div>
-                    )}
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+    }}
+  >
+    <select
+      value={voucherType}
+      onChange={(e) =>
+        setVoucherType(
+          e.target.value as "MARKETING" | "GIFT" | ""
+        )
+      }
+      style={{
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "4px 6px",
+        fontSize: 12,
+      }}
+    >
+      <option value="">Төрөл сонгох...</option>
+      <option value="MARKETING">
+        Маркетинг купон (15,000₮)
+      </option>
+      <option value="GIFT">Бэлгийн карт</option>
+    </select>
+
+    <input
+      type="text"
+      value={voucherCode}
+      onChange={(e) => setVoucherCode(e.target.value)}
+      placeholder="Код"
+      style={{
+        width: 120,
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        padding: "4px 6px",
+        fontSize: 12,
+      }}
+    />
+
+    <button
+      type="button"
+      onClick={handleVerifyVoucherCode}
+      style={{
+        padding: "4px 8px",
+        borderRadius: 4,
+        border: "1px solid #2563eb",
+        background: "#eff6ff",
+        color: "#2563eb",
+        fontSize: 11,
+        cursor: "pointer",
+      }}
+    >
+      Шалгах
+    </button>
+
+    {voucherMaxAmount != null && (
+      <span
+        style={{
+          fontSize: 12,
+          color: "#16a34a",
+          marginLeft: 4,
+        }}
+      >
+        Дээд дүн: {formatMoney(voucherMaxAmount)} ₮
+      </span>
+    )}
+  </div>
+)}
 
                     {m.key === "BARTER" && (
                       <div
