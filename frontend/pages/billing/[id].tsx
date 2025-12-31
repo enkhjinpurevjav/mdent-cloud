@@ -148,6 +148,7 @@ const PAYMENT_METHODS = [
   { key: "BARTER", label: "Бартер", icon: "⇄" },
   { key: "APPLICATION", label: "Аппликэйшнээр төлбөр", icon: "📱" },
   { key: "EMPLOYEE_BENEFIT", label: "Ажилтны хөнгөлөлт", icon: "👨‍⚕️" },
+  { key: "WALLET", label: "Хэтэвч (урьдчилгаа / илүү төлөлтөөс)", icon: "👛" },
 ];
 
 function BillingPaymentSection({
@@ -174,10 +175,16 @@ function BillingPaymentSection({
     null
   );
 
-  const hasRealInvoice = !!invoice.id;
+    const hasRealInvoice = !!invoice.id;
   const unpaid =
     invoice.unpaidAmount ??
     Math.max((invoice.finalAmount ?? 0) - (invoice.paidTotal ?? 0), 0);
+
+  // NEW: wallet credit from patient's overall balance
+  const walletAvailable =
+    invoice.patientBalance != null && invoice.patientBalance < 0
+      ? Math.abs(invoice.patientBalance)
+      : 0;
 
   const INSURANCE_PROVIDERS = [
     { value: "BODI_DAATGAL", label: "Bodi Daatgal" },
@@ -350,6 +357,22 @@ function BillingPaymentSection({
           ...(entry.meta || {}),
           employeeCode: employeeCode.trim(),
         };
+      }
+
+            if (m.key === "WALLET") {
+        if (walletAvailable <= 0) {
+          setError(
+            "Пациентэд ашиглах боломжтой хэтэвчийн үлдэгдэл алга байна."
+          );
+          return;
+        }
+        if (amt > walletAvailable) {
+          setError(
+            "Оруулсан хэтэвчийн дүн нь боломжит үлдэгдлээс их байна."
+          );
+          return;
+        }
+        // no extra meta needed for now
       }
 
       entries.push(entry);
