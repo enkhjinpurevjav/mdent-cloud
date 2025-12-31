@@ -258,12 +258,21 @@ function BillingPaymentSection({
   };
 
   const totalEntered = PAYMENT_METHODS.reduce((sum, m) => {
-    if (!enabled[m.key]) return sum;
-    const raw = amounts[m.key] ?? "";
-    const amt = Number(raw);
-    if (!amt || amt <= 0) return sum;
-    return sum + amt;
-  }, 0);
+  if (!enabled[m.key]) return sum;
+
+  if (m.key === "APPLICATION") {
+    const appSum = appRows.reduce((s, row) => {
+      const amt = Number(row.amount);
+      return !amt || amt <= 0 ? s : s + amt;
+    }, 0);
+    return sum + appSum;
+  }
+
+  const raw = amounts[m.key] ?? "";
+  const amt = Number(raw);
+  if (!amt || amt <= 0) return sum;
+  return sum + amt;
+}, 0);
 
     const remainingAfterEntered = Math.max(unpaid - totalEntered, 0);
 
@@ -625,27 +634,114 @@ function BillingPaymentSection({
                     )}
 
                     {m.key === "APPLICATION" && (
-                      <select
-                        value={appProvider}
-                        onChange={(e) =>
-                          setAppProvider(e.target.value)
-                        }
-                        style={{
-                          minWidth: 200,
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "4px 6px",
-                          fontSize: 13,
-                        }}
-                      >
-                        <option value="">Аппликэйшнийг сонгох...</option>
-                        {APP_PROVIDERS.map((p) => (
-                          <option key={p.value} value={p.value}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </select>
-                    )}
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+      flex: 1,
+    }}
+  >
+    {appRows.map((row, idx) => (
+      <div
+        key={idx}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        <select
+          value={row.provider}
+          onChange={(e) =>
+            setAppRows((prev) =>
+              prev.map((r, i) =>
+                i === idx ? { ...r, provider: e.target.value } : r
+              )
+            )
+          }
+          style={{
+            minWidth: 160,
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "4px 6px",
+            fontSize: 12,
+          }}
+        >
+          <option value="">Аппликэйшнийг сонгох...</option>
+          {APP_PROVIDERS.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+
+        <input
+          type="number"
+          min={0}
+          value={row.amount}
+          onChange={(e) =>
+            setAppRows((prev) =>
+              prev.map((r, i) =>
+                i === idx ? { ...r, amount: e.target.value } : r
+              )
+            )
+          }
+          placeholder="0"
+          style={{
+            width: 100,
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "4px 6px",
+            fontSize: 12,
+            textAlign: "right",
+          }}
+        />
+        <span style={{ fontSize: 12 }}>₮</span>
+
+        {appRows.length > 1 && (
+          <button
+            type="button"
+            onClick={() =>
+              setAppRows((prev) => prev.filter((_, i) => i !== idx))
+            }
+            style={{
+              padding: "2px 6px",
+              borderRadius: 4,
+              border: "1px solid #dc2626",
+              background: "#fef2f2",
+              color: "#b91c1c",
+              fontSize: 11,
+              cursor: "pointer",
+            }}
+          >
+            −
+          </button>
+        )}
+      </div>
+    ))}
+
+    <button
+      type="button"
+      onClick={() =>
+        setAppRows((prev) => [...prev, { provider: "", amount: "" }])
+      }
+      style={{
+        alignSelf: "flex-start",
+        marginTop: 2,
+        padding: "2px 6px",
+        borderRadius: 999,
+        border: "1px solid #2563eb",
+        background: "#eff6ff",
+        color: "#2563eb",
+        fontSize: 11,
+        cursor: "pointer",
+      }}
+    >
+      + Нэмэх
+    </button>
+  </div>
+)}
 
                     {m.key === "VOUCHER" && (
   <div
