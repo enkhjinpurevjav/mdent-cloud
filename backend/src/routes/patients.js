@@ -342,7 +342,7 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
         doctor: true,
         invoice: {
           include: {
-            payment: true,
+            payments: true,
             eBarimtReceipt: true,
             invoiceItems: {
               include: { procedure: true },
