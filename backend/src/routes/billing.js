@@ -149,13 +149,17 @@ router.get("/encounters/:id/invoice", async (req, res) => {
         .json({ error: "Encounter has no linked patient book / patient." });
     }
 
-    const existingInvoice = encounter.invoice;
+        const existingInvoice = encounter.invoice;
 
     // If invoice exists, return it (no mutation, source of truth).
     if (existingInvoice) {
       const discountNum = discountPercentToNumber(
         existingInvoice.discountPercent
       );
+
+      // NEW: compute patient-level balance across all invoices
+      const balanceData = await getPatientBalance(patient.id);
+
       return res.json({
         id: existingInvoice.id,
         branchId: existingInvoice.branchId,
@@ -177,11 +181,15 @@ router.get("/encounters/:id/invoice", async (req, res) => {
           quantity: it.quantity,
           lineTotal: it.lineTotal,
         })),
+        // NEW fields for frontend:
+        patientTotalBilled: balanceData.totalBilled,
+        patientTotalPaid: balanceData.totalPaid,
+        patientBalance: balanceData.balance,
       });
     }
 
     // If no invoice yet, build a read‑only “proposal” from encounter services.
-    const branchId = patient.branchId;
+        const branchId = patient.branchId;
     const patientId = patient.id;
 
     const provisionalItems =
@@ -208,6 +216,9 @@ router.get("/encounters/:id/invoice", async (req, res) => {
       0
     );
 
+    // NEW: compute patient-level balance even if invoice not yet created
+    const balanceData = await getPatientBalance(patientId);
+
     return res.json({
       // No invoice yet
       id: null,
@@ -222,6 +233,10 @@ router.get("/encounters/:id/invoice", async (req, res) => {
       items: provisionalItems,
       // Flag so frontend knows this is a draft proposal, not yet stored
       isProvisional: true,
+      // NEW fields
+      patientTotalBilled: balanceData.totalBilled,
+      patientTotalPaid: balanceData.totalPaid,
+      patientBalance: balanceData.balance,
     });
   } catch (err) {
     console.error("GET /encounters/:id/invoice failed:", err);
