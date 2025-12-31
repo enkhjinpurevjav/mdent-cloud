@@ -74,6 +74,9 @@ type InvoiceResponse = {
   paidTotal?: number;
   unpaidAmount?: number;
   payments?: Payment[];
+  patientTotalBilled?: number;
+  patientTotalPaid?: number;
+  patientBalance?: number;
 };
 
 type Encounter = {
