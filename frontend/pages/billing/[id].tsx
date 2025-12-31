@@ -520,17 +520,17 @@ function BillingPaymentSection({
         onUpdated(latest);
       }
 
-      setSuccess("Төлбөр(үүд) амжилттай бүртгэгдлээ.");
+            setSuccess("Төлбөр(үүд) амжилттай бүртгэгдлээ.");
       setEnabled({});
       setAmounts({});
       setInsuranceProvider("");
-      setAppProvider("");
       setVoucherCode("");
       setBarterCode("");
       setEmployeeCode("");
       setEmployeeRemaining(null);
       setVoucherType("");
       setVoucherMaxAmount(null);
+      setAppRows([{ provider: "", amount: "" }]); // reset application rows
     } catch (err: any) {
       console.error("Failed to settle invoice:", err);
       setError(err.message || "Төлбөр бүртгэхэд алдаа гарлаа.");
@@ -918,33 +918,35 @@ function BillingPaymentSection({
                       </div>
                     )}
 
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 4,
-                        flex: 1,
-                      }}
-                    >
-                      <input
-                        type="number"
-                        min={0}
-                        value={value}
-                        onChange={(e) =>
-                          handleAmountChange(m.key, e.target.value)
-                        }
-                        placeholder="0"
+                                        {m.key !== "APPLICATION" && (
+                      <div
                         style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
                           flex: 1,
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "4px 8px",
-                          fontSize: 13,
-                          textAlign: "right",
                         }}
-                      />
-                      <span style={{ fontSize: 12 }}>₮</span>
-                    </div>
+                      >
+                        <input
+                          type="number"
+                          min={0}
+                          value={value}
+                          onChange={(e) =>
+                            handleAmountChange(m.key, e.target.value)
+                          }
+                          placeholder="0"
+                          style={{
+                            flex: 1,
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 8px",
+                            fontSize: 13,
+                            textAlign: "right",
+                          }}
+                        />
+                        <span style={{ fontSize: 12 }}>₮</span>
+                      </div>
+                    )}
 
                     {m.key === "QPAY" && (
                       <button
