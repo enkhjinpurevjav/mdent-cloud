@@ -336,27 +336,27 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
 
     // Load encounters for this patientBook
     const encounters = await prisma.encounter.findMany({
-      where: { patientBookId: pb.id },
-      orderBy: { visitDate: "desc" },
+  where: { patientBookId: /* your existing value */ },
+  orderBy: { visitDate: "desc" },
+  include: {
+    doctor: true,
+    invoice: {
       include: {
-        doctor: true,
-        invoice: {
+        payments: true,
+        eBarimtReceipt: true,
+        items: {                 // ✅ correct field name from Prisma model
           include: {
-            payments: true,
-            eBarimtReceipt: true,
-            invoiceItems: {
-              include: { procedure: true },
-            },
+            procedure: true,
           },
         },
-        chartTeeth: {
-          include: {
-            chartNotes: true,
-          },
-        },
-        media: true,
       },
-    });
+    },
+    chartTeeth: {
+      include: { chartNotes: true },
+    },
+    media: true,
+  },
+});
 
     const invoices = encounters
       .map((e) => e.invoice)
