@@ -22,6 +22,7 @@ import staffSummaryRoutes from "./routes/staff-summary.js";
 import invoicesRouter from "./routes/invoices.js";
 // FIX: use import instead of require
 import employeeBenefitsRouter from "./routes/employeeBenefits.js";
+import reportsPatientBalancesRouter from "./routes/reports-patient-balances.js";
 
 // NEW: diagnoses
 import diagnosesRouter from "./routes/diagnoses.js";
@@ -76,6 +77,7 @@ app.use("/api/invoices", invoicesRouter);
 app.use("/api/appointments", appointmentsRouter);
 app.use("/api/services", servicesRouter);
 app.use("/api/reports", reportsRouter);
+app.use("/api/reports", reportsPatientBalancesRouter);
 
 // mount employee benefit routes under /api/billing
 app.use("/api/billing", employeeBenefitsRouter);
