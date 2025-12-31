@@ -1109,54 +1109,129 @@ export default function BillingPage() {
       {encounter && invoice && (
         <>
           {/* Header / Encounter summary */}
-          <section
-            style={{
-              marginBottom: 16,
-              padding: 16,
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              background: "#ffffff",
-            }}
-          >
-            <div style={{ marginBottom: 4 }}>
-              <strong>Үйлчлүүлэгч:</strong>{" "}
-              {formatPatientName(encounter.patientBook.patient)} (Карт:{" "}
-              {encounter.patientBook.bookNumber})
+<section
+  style={{
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 8,
+    border: "1px solid #e5e7eb",
+    background: "#ffffff",
+  }}
+>
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      gap: 16,
+    }}
+  >
+    {/* LEFT: existing patient / encounter info */}
+    <div style={{ fontSize: 16, lineHeight: 1.5 }}>
+      <div style={{ marginBottom: 4 }}>
+        <strong>Үйлчлүүлэгч:</strong>{" "}
+        {formatPatientName(encounter.patientBook.patient)} (Карт:{" "}
+        {encounter.patientBook.bookNumber})
+      </div>
+      <div style={{ marginBottom: 4 }}>
+        <strong>Салбар:</strong>{" "}
+        {encounter.patientBook.patient.branch
+          ? encounter.patientBook.patient.branch.name
+          : "-"}
+      </div>
+      <div style={{ marginBottom: 4 }}>
+        <strong>Эмч:</strong> {formatDoctorName(encounter.doctor)}
+      </div>
+      <div style={{ marginBottom: 4 }}>
+        <strong>Огноо:</strong> {formatDateTime(encounter.visitDate)}
+      </div>
+      {encounter.notes && (
+        <div style={{ marginTop: 4 }}>
+          <strong>Үзлэгийн тэмдэглэл:</strong> {encounter.notes}
+        </div>
+      )}
+      <div style={{ marginTop: 8, fontSize: 13 }}>
+        <strong>Нэхэмжлэл:</strong>{" "}
+        {invoice.id
+          ? `#${invoice.id} – ${invoice.finalAmount.toLocaleString(
+              "mn-MN"
+            )}₮ (${invoice.status})`
+          : "Одоогоор хадгалагдсан нэхэмжлэл байхгүй (түр санал болгосон тооцоо)."}
+        {invoice.hasEBarimt && " • e-Barimt хэвлэгдсэн"}
+      </div>
+      {invoice.paidTotal != null && (
+        <div style={{ marginTop: 4, fontSize: 13 }}>
+          Нийт төлсөн:{" "}
+          <strong>{formatMoney(invoice.paidTotal)} ₮</strong> • Үлдэгдэл:{" "}
+          <strong>{formatMoney(invoice.unpaidAmount || 0)} ₮</strong>
+        </div>
+      )}
+    </div>
+
+    {/* RIGHT: patient balance summary */}
+    {invoice.patientBalance != null && (
+      <div
+        style={{
+          minWidth: 260,
+          padding: 10,
+          borderRadius: 8,
+          border: "1px solid #e5e7eb",
+          background: "#f9fafb",
+          fontSize: 13,
+        }}
+      >
+        <div
+          style={{
+            fontWeight: 600,
+            marginBottom: 4,
+            textAlign: "right",
+          }}
+        >
+          Санхүүгийн үлдэгдэл
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div>
+            Нийт нэхэмжилсэн:{" "}
+            <strong>
+              {formatMoney(invoice.patientTotalBilled || 0)} ₮
+            </strong>
+          </div>
+          <div>
+            Нийт төлсөн:{" "}
+            <strong>
+              {formatMoney(invoice.patientTotalPaid || 0)} ₮
+            </strong>
+          </div>
+          <div>
+            Үлдэгдэл (бүх үзлэг):{" "}
+            <strong
+              style={{
+                color:
+                  invoice.patientBalance > 0
+                    ? "#b91c1c" // owes
+                    : invoice.patientBalance < 0
+                    ? "#15803d" // credit
+                    : "#111827",
+              }}
+            >
+              {formatMoney(invoice.patientBalance)} ₮
+            </strong>
+          </div>
+          {invoice.patientBalance < 0 && (
+            <div style={{ textAlign: "right", color: "#15803d" }}>
+              (урьдчилгаа / илүү төлөлт)
             </div>
-            <div style={{ marginBottom: 4 }}>
-              <strong>Салбар:</strong>{" "}
-              {encounter.patientBook.patient.branch
-                ? encounter.patientBook.patient.branch.name
-                : "-"}
+          )}
+          {invoice.patientBalance > 0 && (
+            <div style={{ textAlign: "right", color: "#b91c1c" }}>
+              (пациент төлөх үлдэгдэл)
             </div>
-            <div style={{ marginBottom: 4 }}>
-              <strong>Эмч:</strong> {formatDoctorName(encounter.doctor)}
-            </div>
-            <div style={{ marginBottom: 4 }}>
-              <strong>Огноо:</strong> {formatDateTime(encounter.visitDate)}
-            </div>
-            {encounter.notes && (
-              <div style={{ marginTop: 4 }}>
-                <strong>Үзлэгийн тэмдэглэл:</strong> {encounter.notes}
-              </div>
-            )}
-            <div style={{ marginTop: 8, fontSize: 13 }}>
-              <strong>Нэхэмжлэл:</strong>{" "}
-              {invoice.id
-                ? `#${invoice.id} – ${invoice.finalAmount.toLocaleString(
-                    "mn-MN"
-                  )}₮ (${invoice.status})`
-                : "Одоогоор хадгалагдсан нэхэмжлэл байхгүй (түр санал болгосон тооцоо)."}
-              {invoice.hasEBarimt && " • e-Barimt хэвлэгдсэн"}
-            </div>
-            {invoice.paidTotal != null && (
-              <div style={{ marginTop: 4, fontSize: 13 }}>
-                Нийт төлсөн:{" "}
-                <strong>{formatMoney(invoice.paidTotal)} ₮</strong> • Үлдэгдэл:{" "}
-                <strong>{formatMoney(invoice.unpaidAmount || 0)} ₮</strong>
-              </div>
-            )}
-          </section>
+          )}
+        </div>
+      </div>
+    )}
+  </div>
+</section>
 
           {/* Billing items */}
           <section
