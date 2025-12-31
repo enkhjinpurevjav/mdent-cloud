@@ -337,7 +337,7 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
     // Load encounters for this patientBook
     const encounters = await prisma.encounter.findMany({
   // KEEP whatever you had originally:
-  where: { patientBookId: book.id }, // or patientBookId: someId
+  where: { patientBookId: pb.id }, // or patientBookId: someId
   orderBy: { visitDate: "desc" },
   include: {
     doctor: true,
