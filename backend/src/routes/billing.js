@@ -180,6 +180,7 @@ router.get("/encounters/:id/invoice", async (req, res) => {
           unitPrice: it.unitPrice,
           quantity: it.quantity,
           lineTotal: it.lineTotal,
+          source: it.source,
         })),
         // NEW fields for frontend:
         patientTotalBilled: balanceData.totalBilled,
@@ -208,6 +209,7 @@ router.get("/encounters/:id/invoice", async (req, res) => {
           unitPrice,
           quantity,
           lineTotal,
+          source: "ENCOUNTER",
         };
       }) ?? [];
 
@@ -293,18 +295,13 @@ router.post("/encounters/:id/invoice", async (req, res) => {
 
     // Load encounter + patient/branch so we can enforce branchId & patientId.
     const encounter = await prisma.encounter.findUnique({
-      where: { id: encounterId },
-      include: {
-        patientBook: {
-          include: {
-            patient: true,
-          },
-        },
-        invoice: {
-          include: { items: true, eBarimtReceipt: true },
-        },
-      },
-    });
+  where: { id: encounterId },
+  include: {
+    patientBook: { include: { patient: true } },
+    encounterServices: true, // ✅ ADD THIS
+    invoice: { include: { items: true, eBarimtReceipt: true } },
+  },
+});
 
     if (!encounter) {
       return res.status(404).json({ error: "Encounter not found." });
@@ -319,6 +316,10 @@ router.post("/encounters/:id/invoice", async (req, res) => {
     const branchId = patient.branchId;
     const patientId = patient.id;
     const existingInvoice = encounter.invoice;
+    const encounterServiceIds = new Set(
+  (encounter.encounterServices || []).map((es) => Number(es.serviceId))
+);
+    
 
     // Build normalized items payload
     const normalizedItems = [];
@@ -362,16 +363,24 @@ router.post("/encounters/:id/invoice", async (req, res) => {
         }
       }
 
-      normalizedItems.push({
-        id: row.id ?? null,
-        itemType,
-        serviceId: itemType === "SERVICE" ? row.serviceId : null,
-        productId: itemType === "PRODUCT" ? row.productId : null,
-        name: String(row.name || "").trim(),
-        unitPrice: price,
-        quantity: qty,
-        lineTotal,
-      });
+      const normalizedServiceId = itemType === "SERVICE" ? Number(row.serviceId) : null;
+
+const source =
+  itemType === "SERVICE" && normalizedServiceId != null && encounterServiceIds.has(normalizedServiceId)
+    ? "ENCOUNTER"
+    : "MANUAL";
+
+normalizedItems.push({
+  id: row.id ?? null,
+  itemType,
+  serviceId: normalizedServiceId,
+  productId: itemType === "PRODUCT" ? row.productId : null,
+  name: String(row.name || "").trim(),
+  unitPrice: price,
+  quantity: qty,
+  lineTotal,
+  source, // ✅ NEW
+});
     }
 
     const totalBeforeDiscount = normalizedItems.reduce(
@@ -409,16 +418,17 @@ router.post("/encounters/:id/invoice", async (req, res) => {
           // legacy string status for now
           statusLegacy: "UNPAID",
           items: {
-            create: normalizedItems.map((it) => ({
-              itemType: it.itemType,
-              serviceId: it.serviceId,
-              productId: it.productId,
-              name: it.name,
-              unitPrice: it.unitPrice,
-              quantity: it.quantity,
-              lineTotal: it.lineTotal,
-            })),
-          },
+  create: normalizedItems.map((it) => ({
+    itemType: it.itemType,
+    serviceId: it.serviceId,
+    productId: it.productId,
+    name: it.name,
+    unitPrice: it.unitPrice,
+    quantity: it.quantity,
+    lineTotal: it.lineTotal,
+    source: it.source, // ✅ NEW
+  })),
+},
         },
         include: {
           items: true,
@@ -438,17 +448,18 @@ router.post("/encounters/:id/invoice", async (req, res) => {
           finalAmount,
           // keep statusLegacy as-is; settlement route will manage transitions
           items: {
-            deleteMany: { invoiceId: existingInvoice.id },
-            create: normalizedItems.map((it) => ({
-              itemType: it.itemType,
-              serviceId: it.serviceId,
-              productId: it.productId,
-              name: it.name,
-              unitPrice: it.unitPrice,
-              quantity: it.quantity,
-              lineTotal: it.lineTotal,
-            })),
-          },
+  deleteMany: { invoiceId: existingInvoice.id },
+  create: normalizedItems.map((it) => ({
+    itemType: it.itemType,
+    serviceId: it.serviceId,
+    productId: it.productId,
+    name: it.name,
+    unitPrice: it.unitPrice,
+    quantity: it.quantity,
+    lineTotal: it.lineTotal,
+    source: it.source, // ✅ NEW
+  })),
+},
         },
         include: {
           items: true,
@@ -477,6 +488,7 @@ router.post("/encounters/:id/invoice", async (req, res) => {
         unitPrice: it.unitPrice,
         quantity: it.quantity,
         lineTotal: it.lineTotal,
+        source: it.source,
       })),
     });
   } catch (err) {
