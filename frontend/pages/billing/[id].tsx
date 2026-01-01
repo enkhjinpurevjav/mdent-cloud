@@ -1585,157 +1585,183 @@ const handleTeethNumbersChange = (index: number, value: string) => {
 
             {items.length > 0 && (
               <div
-  key={index}
   style={{
     display: "grid",
-    gridTemplateColumns: "2fr 80px 120px 80px 120px auto",
+    gridTemplateColumns: "2fr 80px 120px 80px 120px auto", // 6 columns!
     gap: 8,
     alignItems: "center",
-    borderRadius: 8,
-    border: "1px solid #e5e7eb",
-    padding: 8,
-    background: "#f9fafb",
+    padding: "4px 8px",
+    marginTop: 8,
+    fontSize: 11,
+    color: "#6b7280",
   }}
 >
-  <div>
-    <input
-      type="text"
-      value={row.name}
-      onChange={(e) =>
-        handleItemChange(index, "name", e.target.value)
-      }
-      placeholder={
-        row.itemType === "SERVICE"
-          ? "Үйлчилгээний нэр"
-          : "Бүтээгдэхүүний нэр"
-      }
-      style={{
-        width: "100%",
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        padding: "4px 6px",
-        fontSize: 13,
-        marginBottom: 4,
-        background: "#ffffff",
-      }}
-    />
-    {/* Service/Product ID + picker button */}
+  <div>Үйлчилгээ / Бүтээгдэхүүн</div>
+  <div style={{ textAlign: "center" }}>Тоо хэмжээ</div>
+  <div style={{ textAlign: "center" }}>Нэгж үнэ</div>
+  <div style={{ textAlign: "center" }}>Шүд</div>
+  <div style={{ textAlign: "center" }}>Мөрийн дүн</div>
+  <div />
+</div>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                marginTop: 4,
+              }}
+            >
+              {items.map((row, index) => {
+  const lineTotal =
+    (row.unitPrice || 0) * (row.quantity || 0);
+  return (
     <div
+      key={index}
       style={{
-        display: "flex",
-        justifyContent: "space-between",
+        display: "grid",
+        gridTemplateColumns: "2fr 80px 120px 80px 120px auto",
+        gap: 8,
         alignItems: "center",
-        fontSize: 11,
-        color: "#6b7280",
+        borderRadius: 8,
+        border: "1px solid #e5e7eb",
+        padding: 8,
+        background: "#f9fafb",
       }}
     >
-      <span>
-        {row.itemType === "SERVICE"
-          ? `Service ID: ${row.serviceId || "- (сонгоогүй)"}`
-          : `Product ID: ${row.productId || "- (сонгоогүй)"}`}
-      </span>
-      {row.itemType === "SERVICE" && (
-        <button
-          type="button"
-          onClick={() => openServiceModalForRow(index)}
+      {/* 1 - Name cell + select button */}
+      <div>
+        <input
+          type="text"
+          value={row.name}
+          onChange={e =>
+            handleItemChange(index, "name", e.target.value)
+          }
+          placeholder={
+            row.itemType === "SERVICE"
+              ? "Үйлчилгээний нэр"
+              : "Бүтээгдэхүүний нэр"
+          }
           style={{
-            marginLeft: 8,
-            padding: "2px 6px",
-            borderRadius: 999,
-            border: "1px solid #2563eb",
-            background: "#eff6ff",
-            color: "#2563eb",
-            cursor: "pointer",
+            width: "100%",
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "4px 6px",
+            fontSize: 13,
+            marginBottom: 4,
+            background: "#fff"
+          }}
+        />
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
             fontSize: 11,
+            color: "#6b7280",
           }}
         >
-          Үйлчилгээ сонгох
-        </button>
-      )}
+          <span>
+            {row.itemType === "SERVICE"
+              ? `Service ID: ${row.serviceId || "- (сонгоогүй)"}`
+              : `Product ID: ${row.productId || "- (сонгоогүй)"}`}
+          </span>
+          {row.itemType === "SERVICE" && (
+            <button
+              type="button"
+              onClick={() => openServiceModalForRow(index)}
+              style={{
+                marginLeft: 8,
+                padding: "2px 6px",
+                borderRadius: 999,
+                border: "1px solid #2563eb",
+                background: "#eff6ff",
+                color: "#2563eb",
+                cursor: "pointer",
+                fontSize: 11,
+              }}
+            >
+              Үйлчилгээ сонгох
+            </button>
+          )}
+        </div>
+      </div>
+      {/* 2 - Quantity */}
+      <input
+        type="number"
+        min={1}
+        value={row.quantity}
+        onChange={e => handleItemChange(index, "quantity", e.target.value)}
+        style={{
+          width: "100%",
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "4px 6px",
+          fontSize: 13,
+          textAlign: "center"
+        }}
+      />
+      {/* 3 - Unit Price */}
+      <input
+        type="number"
+        min={0}
+        value={row.unitPrice}
+        onChange={e => handleItemChange(index, "unitPrice", e.target.value)}
+        style={{
+          width: "100%",
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "4px 6px",
+          fontSize: 13,
+          textAlign: "right"
+        }}
+      />
+      {/* 4 - Teeth Numbers */}
+      <input
+        type="text"
+        placeholder="11, 12, 16"
+        value={(row.teethNumbers || []).join(", ")}
+        onChange={e => handleTeethNumbersChange(index, e.target.value)}
+        style={{
+          width: "70px",
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "4px 6px",
+          fontSize: 13,
+          textAlign: "left",
+          background: "#fff"
+        }}
+      />
+      {/* 5 - Line Total */}
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 600,
+          textAlign: "right"
+        }}
+      >
+        {lineTotal.toLocaleString("mn-MN")}₮
+      </div>
+      {/* 6 - Remove Button */}
+      <button
+        type="button"
+        onClick={() => handleRemoveRow(index)}
+        style={{
+          padding: "4px 8px",
+          borderRadius: 6,
+          border: "1px solid #dc2626",
+          background: "#fef2f2",
+          color: "#b91c1c",
+          cursor: "pointer",
+          fontSize: 12
+        }}
+      >
+        Устгах
+      </button>
     </div>
-  </div>
-
-  <input
-    type="number"
-    min={1}
-    value={row.quantity}
-    onChange={(e) =>
-      handleItemChange(index, "quantity", e.target.value)
-    }
-    style={{
-      width: "100%",
-      borderRadius: 6,
-      border: "1px solid #d1d5db",
-      padding: "4px 6px",
-      fontSize: 13,
-      textAlign: "center",
-    }}
-  />
-  
-  <input
-    type="number"
-    min={0}
-    value={row.unitPrice}
-    onChange={(e) =>
-      handleItemChange(index, "unitPrice", e.target.value)
-    }
-    style={{
-      width: "100%",
-      borderRadius: 6,
-      border: "1px solid #d1d5db",
-      padding: "4px 6px",
-      fontSize: 13,
-      textAlign: "right",
-    }}
-  />
-
-  {/* TEETH NUMBERS COLUMN: after unit price */}
-  <input
-    type="text"
-    placeholder="11, 12, 16"
-    value={(row.teethNumbers || []).join(", ")}
-    onChange={e => handleTeethNumbersChange(index, e.target.value)}
-    style={{
-      width: "70px",
-      borderRadius: 6,
-      border: "1px solid #d1d5db",
-      padding: "4px 6px",
-      fontSize: 13,
-      textAlign: "left",
-      background: "#fff"
-    }}
-  />
-
-  {/* LINE TOTAL */}
-  <div
-    style={{
-      fontSize: 13,
-      fontWeight: 600,
-      textAlign: "right",
-    }}
-  >
-    {lineTotal.toLocaleString("mn-MN")}₮
-  </div>
-
-  {/* REMOVE BUTTON */}
-  <button
-    type="button"
-    onClick={() => handleRemoveRow(index)}
-    style={{
-      padding: "4px 8px",
-      borderRadius: 6,
-      border: "1px solid #dc2626",
-      background: "#fef2f2",
-      color: "#b91c1c",
-      cursor: "pointer",
-      fontSize: 12,
-    }}
-  >
-    Устгах
-  </button>
-</div>
-                );
-              })}
+  );
+})}
             </div>
 
             <div
