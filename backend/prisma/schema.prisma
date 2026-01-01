@@ -68,6 +68,11 @@ enum InvoiceItemType {
   PRODUCT
 }
 
+enum InvoiceItemSource {
+  ENCOUNTER
+  MANUAL
+}
+
 // NEW: ledger entry type – full financial truth
 enum LedgerEntryType {
   CASH
@@ -597,6 +602,8 @@ model InvoiceItem {
   createdAt   DateTime        @default(now())
 
   @@index([invoiceId])
+
+source InvoiceItemSource @default(MANUAL)
 }
 
 // Legacy Payment model (do NOT use for new flows)
