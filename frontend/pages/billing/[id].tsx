@@ -55,6 +55,7 @@ type InvoiceItem = {
   quantity: number;
   lineTotal?: number;
   teethNumbers?: string[];
+  source?: "ENCOUNTER" | "MANUAL";
 };
 
 type Payment = {
@@ -1614,6 +1615,7 @@ const handleTeethNumbersChange = (index: number, value: string) => {
               }}
             >
               {items.map((row, index) => {
+              const locked = row.source === "ENCOUNTER";
   const lineTotal =
     (row.unitPrice || 0) * (row.quantity || 0);
   return (
@@ -1635,9 +1637,8 @@ const handleTeethNumbersChange = (index: number, value: string) => {
         <input
           type="text"
           value={row.name}
-          onChange={e =>
-            handleItemChange(index, "name", e.target.value)
-          }
+          disabled={locked}
+          onChange={(e) => handleItemChange(index, "name", e.target.value)}
           placeholder={
             row.itemType === "SERVICE"
               ? "Үйлчилгээний нэр"
@@ -1650,7 +1651,8 @@ const handleTeethNumbersChange = (index: number, value: string) => {
             padding: "4px 6px",
             fontSize: 13,
             marginBottom: 4,
-            background: "#fff"
+            background: locked ? "#f3f4f6" : "#ffffff",
+            cursor: locked ? "not-allowed" : "text",
           }}
         />
         <div
