@@ -1250,7 +1250,7 @@ const handleTeethNumbersChange = (index: number, value: string) => {
             name: r.name,
             unitPrice: r.unitPrice,
             quantity: r.quantity,
-            eethNumbers: r.teethNumbers, // INCLUDE THIS!
+            teethNumbers: r.teethNumbers, // INCLUDE THIS!
           })),
       };
 
@@ -1524,7 +1524,7 @@ const handleTeethNumbersChange = (index: number, value: string) => {
           )}
           {invoice.patientBalance > 0 && (
             <div style={{ textAlign: "right", color: "#b91c1c" }}>
-              (пациент төлөх үлдэгдэл)
+              (Үйлчлүүлэгчийн төлөх үлдэгдэл)
             </div>
           )}
         </div>
@@ -1708,7 +1708,21 @@ const handleTeethNumbersChange = (index: number, value: string) => {
                         textAlign: "center",
                       }}
                     />
-
+<input
+  type="text"
+  placeholder="11, 12, 16"
+  value={(row.teethNumbers || []).join(", ")}
+  onChange={e => handleTeethNumbersChange(index, e.target.value)}
+  style={{
+    width: "70px",
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    padding: "4px 6px",
+    fontSize: 13,
+    textAlign: "left",
+    background: "#fff"
+  }}
+/>
                     <input
                       type="number"
                       min={0}
