@@ -1669,72 +1669,80 @@ const handleTeethNumbersChange = (index: number, value: string) => {
               ? `Service ID: ${row.serviceId || "- (сонгоогүй)"}`
               : `Product ID: ${row.productId || "- (сонгоогүй)"}`}
           </span>
-          {row.itemType === "SERVICE" && (
-            <button
-              type="button"
-              onClick={() => openServiceModalForRow(index)}
-              style={{
-                marginLeft: 8,
-                padding: "2px 6px",
-                borderRadius: 999,
-                border: "1px solid #2563eb",
-                background: "#eff6ff",
-                color: "#2563eb",
-                cursor: "pointer",
-                fontSize: 11,
-              }}
-            >
-              Үйлчилгээ сонгох
-            </button>
-          )}
+          {row.itemType === "SERVICE" && !locked && (
+  <button
+    type="button"
+    onClick={() => openServiceModalForRow(index)}
+    style={{
+      marginLeft: 8,
+      padding: "2px 6px",
+      borderRadius: 999,
+      border: "1px solid #2563eb",
+      background: "#eff6ff",
+      color: "#2563eb",
+      cursor: "pointer",
+      fontSize: 11,
+    }}
+  >
+    Үйлчилгээ сонгох
+  </button>
+)}
         </div>
       </div>
       {/* 2 - Quantity */}
       <input
-        type="number"
-        min={1}
-        value={row.quantity}
-        onChange={e => handleItemChange(index, "quantity", e.target.value)}
-        style={{
-          width: "100%",
-          borderRadius: 6,
-          border: "1px solid #d1d5db",
-          padding: "4px 6px",
-          fontSize: 13,
-          textAlign: "center"
-        }}
-      />
+  type="number"
+  min={1}
+  value={row.quantity}
+  disabled={locked}
+  onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+  style={{
+    width: "100%",
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    padding: "4px 6px",
+    fontSize: 13,
+    textAlign: "center",
+    background: locked ? "#f3f4f6" : "#ffffff",
+    cursor: locked ? "not-allowed" : "text",
+  }}
+/>
       {/* 3 - Unit Price */}
       <input
-        type="number"
-        min={0}
-        value={row.unitPrice}
-        onChange={e => handleItemChange(index, "unitPrice", e.target.value)}
-        style={{
-          width: "100%",
-          borderRadius: 6,
-          border: "1px solid #d1d5db",
-          padding: "4px 6px",
-          fontSize: 13,
-          textAlign: "right"
-        }}
-      />
+  type="number"
+  min={0}
+  value={row.unitPrice}
+  disabled={locked}
+  onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
+  style={{
+    width: "100%",
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    padding: "4px 6px",
+    fontSize: 13,
+    textAlign: "right",
+    background: locked ? "#f3f4f6" : "#ffffff",
+    cursor: locked ? "not-allowed" : "text",
+  }}
+/>
       {/* 4 - Teeth Numbers */}
       <input
-        type="text"
-        placeholder="11, 12, 16"
-        value={(row.teethNumbers || []).join(", ")}
-        onChange={e => handleTeethNumbersChange(index, e.target.value)}
-        style={{
-          width: "70px",
-          borderRadius: 6,
-          border: "1px solid #d1d5db",
-          padding: "4px 6px",
-          fontSize: 13,
-          textAlign: "left",
-          background: "#fff"
-        }}
-      />
+  type="text"
+  placeholder="11, 12, 16"
+  value={(row.teethNumbers || []).join(", ")}
+  disabled={locked}
+  onChange={(e) => handleTeethNumbersChange(index, e.target.value)}
+  style={{
+    width: "70px",
+    borderRadius: 6,
+    border: "1px solid #d1d5db",
+    padding: "4px 6px",
+    fontSize: 13,
+    textAlign: "left",
+    background: locked ? "#f3f4f6" : "#ffffff",
+    cursor: locked ? "not-allowed" : "text",
+  }}
+/>
       {/* 5 - Line Total */}
       <div
         style={{
@@ -1746,21 +1754,23 @@ const handleTeethNumbersChange = (index: number, value: string) => {
         {lineTotal.toLocaleString("mn-MN")}₮
       </div>
       {/* 6 - Remove Button */}
-      <button
-        type="button"
-        onClick={() => handleRemoveRow(index)}
-        style={{
-          padding: "4px 8px",
-          borderRadius: 6,
-          border: "1px solid #dc2626",
-          background: "#fef2f2",
-          color: "#b91c1c",
-          cursor: "pointer",
-          fontSize: 12
-        }}
-      >
-        Устгах
-      </button>
+      {!locked && (
+  <button
+    type="button"
+    onClick={() => handleRemoveRow(index)}
+    style={{
+      padding: "4px 8px",
+      borderRadius: 6,
+      border: "1px solid #dc2626",
+      background: "#fef2f2",
+      color: "#b91c1c",
+      cursor: "pointer",
+      fontSize: 12,
+    }}
+  >
+    Устгах
+  </button>
+)}
     </div>
   );
 })}
