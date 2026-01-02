@@ -1292,6 +1292,34 @@ export default function EncounterAdminPage() {
           encounterDiagnoses: json,
         });
       }
+
+      // Update local state with saved data from server
+      const savedDxRows: EditableDiagnosis[] =
+        json?.map((row: any, idx: number) => ({
+          ...row,
+          diagnosisId: row.diagnosisId ?? null,
+          diagnosis: row.diagnosis ?? null,
+          localId: idx + 1,
+          selectedProblemIds: Array.isArray(row.selectedProblemIds)
+            ? row.selectedProblemIds
+            : [],
+          note: row.note || "",
+          toothCode: row.toothCode || "",
+          serviceId: editableDxRows[idx]?.serviceId,
+          searchText: row.diagnosis
+            ? `${row.diagnosis.code} – ${row.diagnosis.name}`
+            : "",
+          serviceSearchText: editableDxRows[idx]?.serviceSearchText || "",
+        })) || [];
+      setEditableDxRows(savedDxRows);
+
+      // Merge with services for rows
+      const mergedRows: DiagnosisServiceRow[] = savedDxRows.map((dxRow, i) => ({
+        ...dxRow,
+        serviceId: editableDxRows[i]?.serviceId,
+        serviceSearchText: editableDxRows[i]?.serviceSearchText || "",
+      }));
+      setRows(mergedRows);
     } catch (err: any) {
       console.error("handleSaveDiagnoses failed", err);
       setSaveError(
