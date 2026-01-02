@@ -350,6 +350,12 @@ model Encounter {
   nurseId            Int?
   nurse              User?         @relation("NurseEncounters", fields: [nurseId], references: [id])
 
+  // Shared consent signatures for all consent forms
+  patientSignaturePath String?
+  patientSignedAt      DateTime?
+  doctorSignaturePath  String?
+  doctorSignedAt       DateTime?
+
   chartTeeth         ChartTooth[]
   invoice            Invoice?
   prescription       Prescription?
@@ -363,17 +369,8 @@ model EncounterConsent {
   id                  Int       @id @default(autoincrement())
 
   encounterId         Int
-  // REMOVE: @unique
-  // encounterId         Int       @unique
-
   type                String
   answers             Json
-
-  patientSignedAt     DateTime?
-  doctorSignedAt      DateTime?
-
-  patientSignaturePath String?
-  doctorSignaturePath  String?
 
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
