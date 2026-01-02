@@ -580,8 +580,6 @@ export default function EncounterAdminPage() {
 
   const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
   const [openServiceIndex, setOpenServiceIndex] = useState<number | null>(null);
-  const [forceNewDxRowOnToothPick, setForceNewDxRowOnToothPick] =
-    useState(false);
 
   const toggleToothMode = (mode: "ADULT" | "CHILD") => {
     setToothMode(mode);
@@ -594,30 +592,21 @@ export default function EncounterAdminPage() {
     return allCodes.length > 0 && allCodes.every((c) => selectedTeeth.includes(c));
   };
 
-    const resolveWritableDxRowIndex = () => {
-    if (forceNewDxRowOnToothPick) return null;
-    if (activeDxRowIndex === null) return null;
-
-    const activeRow = rows[activeDxRowIndex];
-    if (!activeRow) return null;
-    if (activeRow.locked) return null;
-
-    return activeDxRowIndex;
-  };
-
   const updateActiveRowToothList = (
     nextTeeth: string[],
     opts?: { isAllTeeth?: boolean }
   ) => {
-    const writableIndex = resolveWritableDxRowIndex();
+    // Check if we have an active row and if it's writable
+    const hasWritableActiveRow = 
+      activeDxRowIndex !== null && 
+      rows[activeDxRowIndex] && 
+      !rows[activeDxRowIndex].locked;
 
-    // If there is no writable row, ALWAYS create a new row (unless empty selection)
-    if (writableIndex === null) {
+    // If no writable active row, create a new one (unless empty selection)
+    if (!hasWritableActiveRow) {
       if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
 
       const idx = createDiagnosisRow(nextTeeth);
-
-      setForceNewDxRowOnToothPick(false);
       setActiveDxRowIndex(idx);
 
       const toothStr = opts?.isAllTeeth
@@ -634,19 +623,19 @@ export default function EncounterAdminPage() {
       return;
     }
 
-    // Update only the writable row
+    // Update the writable active row
     const toothStr = opts?.isAllTeeth
       ? ALL_TEETH_LABEL
       : stringifyToothList(nextTeeth);
 
     setEditableDxRows((prev) =>
       prev.map((row, i) =>
-        i === writableIndex ? { ...row, toothCode: toothStr } : row
+        i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
       )
     );
     setRows((prev) =>
       prev.map((row, i) =>
-        i === writableIndex ? { ...row, toothCode: toothStr } : row
+        i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
       )
     );
 
@@ -661,7 +650,6 @@ export default function EncounterAdminPage() {
     setCustomToothRange("");
     setOpenDxIndex(null);
     setOpenServiceIndex(null);
-    setForceNewDxRowOnToothPick(true);
   }, []);
 
   const toggleToothSelection = (code: string) => {
@@ -723,19 +711,10 @@ export default function EncounterAdminPage() {
 
   const [saveError, setSaveError] = useState("");
 
-    type DiagnosisServiceRow = EditableDiagnosis;
+  type DiagnosisServiceRow = EditableDiagnosis;
   const [rows, setRows] = useState<DiagnosisServiceRow[]>([]);
   const [servicesLoadError, setServicesLoadError] = useState("");
   const [dxError, setDxError] = useState("");
-
-  // Detect when active row becomes locked and reset tooth selection
-  useEffect(() => {
-    if (activeDxRowIndex === null) return;
-    const r = rows[activeDxRowIndex];
-    if (r?.locked) {
-      resetToothSelectionSession();
-    }
-  }, [activeDxRowIndex, rows, resetToothSelectionSession]);
 
   const encounterId = useMemo(
     () => (typeof id === "string" ? Number(id) : NaN),
@@ -1029,6 +1008,7 @@ export default function EncounterAdminPage() {
 
   const createDiagnosisRow = (initialTeeth: string[]): number => {
     let createdIndex = 0;
+    
     setEditableDxRows((prev) => {
       const nextLocalId =
         prev.length === 0
@@ -1049,9 +1029,33 @@ export default function EncounterAdminPage() {
       };
       const nextRows = [...prev, newRow];
       createdIndex = nextRows.length - 1;
-      setRows((old) => [...old, newRow]);
       return nextRows;
     });
+    
+    // Update rows in sync with same newRow
+    setRows((prev) => {
+      const nextLocalId =
+        prev.length === 0
+          ? 1
+          : Math.max(...prev.map((r) => r.localId)) + 1;
+      const toothCode = stringifyToothList(initialTeeth);
+      const newRow: EditableDiagnosis = {
+        localId: nextLocalId,
+        diagnosisId: null,
+        diagnosis: null,
+        selectedProblemIds: [],
+        note: "",
+        toothCode,
+        serviceId: undefined,
+        searchText: "",
+        serviceSearchText: "",
+        locked: false,
+      };
+      const nextRows = [...prev, newRow];
+      createdIndex = nextRows.length - 1;
+      return nextRows;
+    });
+    
     return createdIndex;
   };
 
