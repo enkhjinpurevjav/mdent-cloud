@@ -850,6 +850,21 @@ export default function EncounterAdminPage() {
     void loadVisitCardForEncounter();
   }, [id]);
 
+  const reloadEncounter = async () => {
+    if (!id || typeof id !== "string") return;
+    try {
+      const res = await fetch(`/api/encounters/${id}`);
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error((json && json.error) || "failed to reload");
+      }
+      const enc: Encounter = json;
+      setEncounter(enc);
+    } catch (err) {
+      console.error("reloadEncounter failed", err);
+    }
+  };
+
   const reloadMedia = async () => {
     if (!id || typeof id !== "string") return;
     try {
@@ -1026,7 +1041,7 @@ export default function EncounterAdminPage() {
       }
 
       // Reload encounter to get updated signature fields
-      await loadEncounter();
+      await reloadEncounter();
     } catch (err: any) {
       console.error("handlePatientSignatureUpload failed", err);
       setConsentError(err?.message || "Гарын үсэг хадгалахад алдаа гарлаа");
@@ -1055,7 +1070,7 @@ export default function EncounterAdminPage() {
       }
 
       // Reload encounter to get updated signature fields
-      await loadEncounter();
+      await reloadEncounter();
     } catch (err: any) {
       console.error("handleDoctorSignatureUpload failed", err);
       setConsentError(err?.message || "Эмчийн гарын үсэг хадгалахад алдаа гарлаа");
@@ -1080,7 +1095,7 @@ export default function EncounterAdminPage() {
       }
 
       // Reload encounter to get updated signature fields
-      await loadEncounter();
+      await reloadEncounter();
     } catch (err: any) {
       console.error("handleAttachDoctorSignature failed", err);
       setConsentError(err?.message || "Эмчийн гарын үсэг холбохд алдаа гарлаа");
@@ -4905,16 +4920,6 @@ export default function EncounterAdminPage() {
                         )}
                       </div>
                     </div>
-                  </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
                   </div>
                 </>
               )}
