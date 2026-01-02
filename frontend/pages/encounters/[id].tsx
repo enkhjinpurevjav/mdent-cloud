@@ -1375,26 +1375,25 @@ export default function EncounterAdminPage() {
       }
 
       // Update local state with saved data from server
-     const savedDxRows: EditableDiagnosis[] =
-  json?.map((row: any, idx: number) => ({
-    ...row,
-    diagnosisId: row.diagnosisId ?? null,
-    diagnosis: row.diagnosis ?? null,
-    localId: idx + 1,
-    selectedProblemIds: Array.isArray(row.selectedProblemIds)
-      ? row.selectedProblemIds
-      : [],
-    note: row.note || "",
-    toothCode: row.toothCode || "",
-    serviceId: editableDxRows[idx]?.serviceId,
-    searchText: row.diagnosis
-      ? `${row.diagnosis.code} – ${row.diagnosis.name}`
-      : "",
-    serviceSearchText: editableDxRows[idx]?.serviceSearchText || "",
-
-    // IMPORTANT: All saved rows should be locked
-    locked: true,
-  })) || [];
+      const savedDxRows: EditableDiagnosis[] =
+        json?.map((row: any, idx: number) => ({
+          ...row,
+          diagnosisId: row.diagnosisId ?? null,
+          diagnosis: row.diagnosis ?? null,
+          localId: idx + 1,
+          selectedProblemIds: Array.isArray(row.selectedProblemIds)
+            ? row.selectedProblemIds
+            : [],
+          note: row.note || "",
+          toothCode: row.toothCode || "",
+          serviceId: editableDxRows[idx]?.serviceId,
+          searchText: row.diagnosis
+            ? `${row.diagnosis.code} – ${row.diagnosis.name}`
+            : "",
+          serviceSearchText: editableDxRows[idx]?.serviceSearchText || "",
+          // IMPORTANT: All saved rows should be locked
+          locked: true,
+        })) || [];
       setEditableDxRows(savedDxRows);
 
       // Merge with services for rows
