@@ -1186,15 +1186,8 @@ const [consentError, setConsentError] = useState("");
     void loadXrays();
   }, [encounterId]);
 
-  // NEW: load consent
-  useEffect(() => {
-    if (!encounterId || Number.isNaN(encounterId)) return;
-
-    const loadConsent = async () => {
-      setConsentLoading(true);
-      setConsentError("");
-      try {
-        useEffect(() => {
+  // NEW: load consents (array)
+useEffect(() => {
   if (!encounterId || Number.isNaN(encounterId)) return;
 
   const loadConsents = async () => {
@@ -1927,29 +1920,16 @@ const [consentError, setConsentError] = useState("");
               Үйлчлүүлэгчид цаасаар өгөх шаардлагатай мэдээллүүд.
             </div>
 
-            {/* Prescription */}
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-  <h3 style={{ margin: 0, fontSize: 14 }}>Эмийн жор</h3>
-
-  {encounter.prescription?.items?.length ? (
-    <button
-      type="button"
-      onClick={() => window.alert("Жор хэвлэх (дараа нь template оруулна)")}
-      style={{
-        padding: "6px 10px",
-        borderRadius: 6,
-        border: "1px solid #2563eb",
-        background: "#eff6ff",
-        color: "#2563eb",
-        cursor: "pointer",
-        fontSize: 12,
-        whiteSpace: "nowrap",
-      }}
-    >
-      Хэвлэх
-    </button>
-  ) : null}
-</div>
+           {/* Prescription */}
+<div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
+  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+    <h3 style={{ margin: 0, fontSize: 14 }}>Эмийн жор</h3>
+    {encounter.prescription?.items?.length ? (
+      <button type="button" onClick={() => window.alert("Жор хэвлэх")}>
+        Хэвлэх
+      </button>
+    ) : null}
+  </div>
 
               {encounter.prescription?.items?.length ? (
                 <div style={{ marginTop: 8, fontSize: 12 }}>
@@ -1976,10 +1956,13 @@ const [consentError, setConsentError] = useState("");
                   Энэ үзлэгт эмийн жор байхгүй.
                 </div>
               )}
-            </div>
+     
 
             {/* XRAY */}
-            {!xraysLoading && !xraysError && xrays.length > 0 && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
+  <h3 style={{ margin: 0, fontSize: 14 }}>XRAY зураг</h3>  
+          
+          {!xraysLoading && !xraysError && xrays.length > 0 && (
   <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
     {xrays.map((m) => (
       <div
@@ -2028,7 +2011,6 @@ const [consentError, setConsentError] = useState("");
   </div>
 )}
 
-            {/* Consent */}
             {/* Consent */}
 <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
   <h3 style={{ margin: 0, fontSize: 14 }}>Зөвшөөрлийн маягт</h3>
