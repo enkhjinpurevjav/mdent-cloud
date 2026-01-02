@@ -527,6 +527,8 @@ const CHILD_TEETH = [
   "74",
   "75",
 ];
+const ALL_TEETH_LABEL = "Бүх шүд";
+
 
 export default function EncounterAdminPage() {
   const router = useRouter();
@@ -572,10 +574,87 @@ export default function EncounterAdminPage() {
   const [chartError, setChartError] = useState("");
   const [toothMode, setToothMode] = useState<"ADULT" | "CHILD">("ADULT");
   const [selectedTeeth, setSelectedTeeth] = useState<string[]>([]);
-  const [activeDxRowIndex, setActiveDxRowIndex] = useState<number | null>(
-    null
-  );
+  const [activeDxRowIndex, setActiveDxRowIndex] = useState<number | null>(null);
   const [customToothRange, setCustomToothRangeState] = useState("");
+
+  const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
+  const [openServiceIndex, setOpenServiceIndex] = useState<number | null>(null);
+
+  // Keep only ONE toggleToothMode
+  const toggleToothMode = (mode: "ADULT" | "CHILD") => {
+    setToothMode(mode);
+  };
+
+  // Keep only ONE isToothSelected
+  const isToothSelected = (code: string) => selectedTeeth.includes(code);
+
+  // Add helper for ALL selected
+  const areAllModeTeethSelected = () => {
+    const allCodes = toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH;
+    return allCodes.length > 0 && allCodes.every((c) => selectedTeeth.includes(c));
+  };
+
+  // Modify updateActiveRowToothList to support ALL label
+  const updateActiveRowToothList = (
+    nextTeeth: string[],
+    opts?: { isAllTeeth?: boolean }
+  ) => {
+    if (activeDxRowIndex === null) {
+      if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
+
+      const idx = createDiagnosisRow(nextTeeth);
+      setActiveDxRowIndex(idx);
+
+      if (opts?.isAllTeeth) {
+        setEditableDxRows((prev) =>
+          prev.map((row, i) => (i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row))
+        );
+        setRows((prev) =>
+          prev.map((row, i) => (i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row))
+        );
+      }
+      return;
+    }
+
+    const toothStr = opts?.isAllTeeth ? ALL_TEETH_LABEL : stringifyToothList(nextTeeth);
+
+    setEditableDxRows((prev) =>
+      prev.map((row, i) =>
+        i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
+      )
+    );
+    setRows((prev) =>
+      prev.map((row, i) =>
+        i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
+      )
+    );
+
+    if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
+      setActiveDxRowIndex(null);
+    }
+  };
+
+  const toggleToothSelection = (code: string) => {
+    if (code === "ALL") {
+      const allCodes = toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH;
+      const allSelected = allCodes.every((c) => selectedTeeth.includes(c));
+      const next = allSelected ? [] : allCodes;
+
+      setSelectedTeeth(next);
+
+      if (!allSelected) updateActiveRowToothList(next, { isAllTeeth: true });
+      else updateActiveRowToothList([], { isAllTeeth: false });
+
+      return;
+    }
+
+    setSelectedTeeth((prev) => {
+      const exists = prev.includes(code);
+      const next = exists ? prev.filter((c) => c !== code) : [...prev, code];
+      updateActiveRowToothList(next);
+      return next;
+    });
+  };
 
   const [consents, setConsents] = useState<EncounterConsent[]>([]);
   const [consentTypeDraft, setConsentTypeDraft] =
@@ -1444,16 +1523,39 @@ export default function EncounterAdminPage() {
     setToothMode(mode);
   };
 
+  // CHANGE THIS (don’t treat "ALL" as a real selected tooth)
   const isToothSelected = (code: string) => selectedTeeth.includes(code);
 
-  const updateActiveRowToothList = (nextTeeth: string[]) => {
+  // ADD THIS helper:
+  const areAllModeTeethSelected = () => {
+    const allCodes = toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH;
+    return allCodes.length > 0 && allCodes.every((c) => selectedTeeth.includes(c));
+  };
+
+  // CHANGE signature: accept isAllTeeth flag
+  const updateActiveRowToothList = (
+    nextTeeth: string[],
+    opts?: { isAllTeeth?: boolean }
+  ) => {
     if (activeDxRowIndex === null) {
-      if (nextTeeth.length === 0) return;
+      if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
       const idx = createDiagnosisRow(nextTeeth);
       setActiveDxRowIndex(idx);
+
+      // If it's "all teeth", overwrite the newly created row's toothCode
+      if (opts?.isAllTeeth) {
+        setEditableDxRows((prev) =>
+          prev.map((row, i) => (i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row))
+        );
+        setRows((prev) =>
+          prev.map((row, i) => (i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row))
+        );
+      }
       return;
     }
-    const toothStr = stringifyToothList(nextTeeth);
+
+    const toothStr = opts?.isAllTeeth ? ALL_TEETH_LABEL : stringifyToothList(nextTeeth);
+
     setEditableDxRows((prev) =>
       prev.map((row, i) =>
         i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
@@ -1465,7 +1567,8 @@ export default function EncounterAdminPage() {
       )
     );
 
-    if (nextTeeth.length === 0) {
+    // Only treat as empty when it’s truly empty AND not "all teeth"
+    if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
       setEditableDxRows((prev) => {
         const row = prev[activeDxRowIndex!];
         const isEmpty =
@@ -1498,28 +1601,20 @@ export default function EncounterAdminPage() {
     }
   };
 
-  const setCustomToothRange = (value: string) => {
-    setCustomToothRangeState(value);
-    const trimmed = value.trim();
-    if (!trimmed) return;
-    const parts = trimmed
-      .split(/[,\s;]+/)
-      .map((p) => p.trim())
-      .filter(Boolean);
-    const next = Array.from(new Set([...selectedTeeth, ...parts]));
-    setSelectedTeeth(next);
-    updateActiveRowToothList(next);
-  };
-
   const toggleToothSelection = (code: string) => {
     if (code === "ALL") {
-      const allCodes =
-        toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH;
-      const allSelected =
-        allCodes.every((c) => selectedTeeth.includes(c));
+      const allCodes = toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH;
+      const allSelected = allCodes.every((c) => selectedTeeth.includes(c));
       const next = allSelected ? [] : allCodes;
+
       setSelectedTeeth(next);
-      updateActiveRowToothList(next);
+
+      // IMPORTANT: when selecting all, set toothCode to "Бүх шүд"
+      if (!allSelected) {
+        updateActiveRowToothList(next, { isAllTeeth: true });
+      } else {
+        updateActiveRowToothList([], { isAllTeeth: false });
+      }
       return;
     }
 
@@ -5057,13 +5152,13 @@ export default function EncounterAdminPage() {
                   minWidth: 60,
                   padding: "4px 10px",
                   borderRadius: 999,
-                  border: isToothSelected("ALL")
+                  border: areAllModeTeethSelected()
                     ? "1px solid #16a34a"
                     : "1px solid #d1d5db",
-                  background: isToothSelected("ALL")
+                  background: areAllModeTeethSelected()
                     ? "#dcfce7"
                     : "white",
-                  color: isToothSelected("ALL")
+                  color: areAllModeTeethSelected()
                     ? "#166534"
                     : "#111827",
                   fontSize: 12,
@@ -5555,9 +5650,10 @@ export default function EncounterAdminPage() {
                 <button
                   type="button"
                   onClick={async () => {
+   const onSaveOnlyDiagnoses = async () => {
                     await handleSaveDiagnoses();
-                    await handleSaveServices();
-                    await savePrescription();
+    await handleSaveServices();
+    await savePrescription();
                   }}
                   disabled={saving || finishing || prescriptionSaving}
                   style={{
