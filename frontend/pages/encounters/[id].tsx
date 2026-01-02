@@ -655,7 +655,14 @@ export default function EncounterAdminPage() {
     }
   };
 
-  
+  const resetToothSelectionSession = () => {
+    setSelectedTeeth([]);
+    setActiveDxRowIndex(null);
+    setCustomToothRange("");
+    setOpenDxIndex(null);
+    setOpenServiceIndex(null);
+    setForceNewDxRowOnToothPick(true);
+  };
 
   const toggleToothSelection = (code: string) => {
     if (code === "ALL") {
@@ -721,15 +728,12 @@ export default function EncounterAdminPage() {
   const [servicesLoadError, setServicesLoadError] = useState("");
   const [dxError, setDxError] = useState("");
 
-  // ✅ Add this useEffect right here (after rows is declared)
+  // Detect when active row becomes locked and reset tooth selection
   useEffect(() => {
     if (activeDxRowIndex === null) return;
     const r = rows[activeDxRowIndex];
     if (r?.locked) {
-      setActiveDxRowIndex(null);
-      setSelectedTeeth([]);
-      setCustomToothRange("");
-      setForceNewDxRowOnToothPick(true);
+      resetToothSelectionSession();
     }
   }, [activeDxRowIndex, rows]);
 
@@ -1568,12 +1572,7 @@ export default function EncounterAdminPage() {
       await savePrescription();
       
       // Reset tooth selection session
-      setSelectedTeeth([]);
-      setActiveDxRowIndex(null);
-      setCustomToothRange("");
-      setOpenDxIndex(null);
-      setOpenServiceIndex(null);
-      setForceNewDxRowOnToothPick(true);
+      resetToothSelectionSession();
 
       const res = await fetch(`/api/encounters/${id}/finish`, {
         method: "PUT",
@@ -5749,12 +5748,7 @@ export default function EncounterAdminPage() {
                     await handleSaveServices();
                     await savePrescription();
                     // Reset tooth selection session after successful save
-                    setSelectedTeeth([]);
-                    setActiveDxRowIndex(null);
-                    setCustomToothRange("");
-                    setOpenDxIndex(null);
-                    setOpenServiceIndex(null);
-                    setForceNewDxRowOnToothPick(true);
+                    resetToothSelectionSession();
                   }}
                   disabled={saving || finishing || prescriptionSaving}
                   style={{
