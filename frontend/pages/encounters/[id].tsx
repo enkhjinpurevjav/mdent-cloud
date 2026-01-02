@@ -1007,74 +1007,60 @@ export default function EncounterAdminPage() {
   };
 
   const createDiagnosisRow = (initialTeeth: string[]): number => {
-    let createdIndex = 0;
-    
-    setEditableDxRows((prev) => {
-      const nextLocalId =
-        prev.length === 0
-          ? 1
-          : Math.max(...prev.map((r) => r.localId)) + 1;
-      const toothCode = stringifyToothList(initialTeeth);
-      const newRow: EditableDiagnosis = {
-        localId: nextLocalId,
-        diagnosisId: null,
-        diagnosis: null,
-        selectedProblemIds: [],
-        note: "",
-        toothCode,
-        serviceId: undefined,
-        searchText: "",
-        serviceSearchText: "",
-        locked: false,
-      };
-      const nextRows = [...prev, newRow];
-      createdIndex = nextRows.length - 1;
-      return nextRows;
-    });
-    
-    // Update rows in sync with same newRow
-    setRows((prev) => {
-      const nextLocalId =
-        prev.length === 0
-          ? 1
-          : Math.max(...prev.map((r) => r.localId)) + 1;
-      const toothCode = stringifyToothList(initialTeeth);
-      const newRow: EditableDiagnosis = {
-        localId: nextLocalId,
-        diagnosisId: null,
-        diagnosis: null,
-        selectedProblemIds: [],
-        note: "",
-        toothCode,
-        serviceId: undefined,
-        searchText: "",
-        serviceSearchText: "",
-        locked: false,
-      };
-      const nextRows = [...prev, newRow];
-      createdIndex = nextRows.length - 1;
-      return nextRows;
-    });
-    
-    return createdIndex;
+  const idx = rows.length; // deterministic index (append)
+  const nextLocalId =
+    rows.length === 0 ? 1 : Math.max(...rows.map((r) => r.localId)) + 1;
+
+  const newRow: EditableDiagnosis = {
+    localId: nextLocalId,
+    diagnosisId: null,
+    diagnosis: null,
+    selectedProblemIds: [],
+    note: "",
+    toothCode: stringifyToothList(initialTeeth),
+    serviceId: undefined,
+    searchText: "",
+    serviceSearchText: "",
+    locked: false,
   };
 
-  const removeDiagnosisRow = (index: number) => {
-    const row = rows[index];
-    if (row?.locked) {
-      alert("Түгжигдсэн мөрийг устгах боломжгүй. Эхлээд түгжээг тайлна уу.");
-      return;
-    }
-    setEditableDxRows((prev) => prev.filter((_, i) => i !== index));
-    setRows((prev) => prev.filter((_, i) => i !== index));
-    setOpenDxIndex((prev) => (prev === index ? null : prev));
-    setActiveDxRowIndex((prev) => {
-      if (prev === null) return prev;
-      if (prev === index) return null;
-      if (index < prev) return prev - 1;
-      return prev;
-    });
-  };
+  setEditableDxRows((prev) => [...prev, newRow]);
+  setRows((prev) => [...prev, newRow]);
+
+  return idx;
+};
+
+const removeDiagnosisRow = (index: number) => {
+  const row = rows[index];
+  if (row?.locked) {
+    alert("Түгжигдсэн мөрийг устгах боломжгүй. Эхлээд түгжээг тайлна уу.");
+    return;
+  }
+
+  setEditableDxRows((prev) => prev.filter((_, i) => i !== index));
+  setRows((prev) => prev.filter((_, i) => i !== index));
+
+  setOpenDxIndex((prev) => {
+    if (prev === null) return null;
+    if (prev === index) return null;
+    if (prev > index) return prev - 1;
+    return prev;
+  });
+
+  setOpenServiceIndex((prev) => {
+    if (prev === null) return null;
+    if (prev === index) return null;
+    if (prev > index) return prev - 1;
+    return prev;
+  });
+
+  setActiveDxRowIndex((prev) => {
+    if (prev === null) return null;
+    if (prev === index) return null;
+    if (prev > index) return prev - 1;
+    return prev;
+  });
+};
 
   const unlockRow = (index: number) => {
     if (confirm("Энэ мөрийн түгжээг тайлж, засварлахыг зөвшөөрч байна уу?")) {
