@@ -1375,6 +1375,7 @@ export default function EncounterAdminPage() {
       }
 
       // Update local state with saved data from server
+      // All rows returned from server have been saved and should be locked
       const savedDxRows: EditableDiagnosis[] =
         json?.map((row: any, idx: number) => ({
           ...row,
@@ -1391,7 +1392,6 @@ export default function EncounterAdminPage() {
             ? `${row.diagnosis.code} – ${row.diagnosis.name}`
             : "",
           serviceSearchText: editableDxRows[idx]?.serviceSearchText || "",
-          // IMPORTANT: All saved rows should be locked
           locked: true,
         })) || [];
       setEditableDxRows(savedDxRows);
@@ -1569,9 +1569,6 @@ export default function EncounterAdminPage() {
       await handleSaveDiagnoses();
       await handleSaveServices();
       await savePrescription();
-      
-      // Reset tooth selection session
-      resetToothSelectionSession();
 
       const res = await fetch(`/api/encounters/${id}/finish`, {
         method: "PUT",
@@ -1583,6 +1580,9 @@ export default function EncounterAdminPage() {
             "Үзлэг дууссаны төлөв шинэчлэх үед алдаа гарлаа."
         );
       }
+      
+      // Reset tooth selection session after successful finish
+      resetToothSelectionSession();
     } catch (err) {
       console.error("handleFinishEncounter failed", err);
     } finally {
