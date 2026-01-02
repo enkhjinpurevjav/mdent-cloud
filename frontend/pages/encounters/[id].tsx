@@ -142,6 +142,11 @@ type Encounter = {
   encounterServices: EncounterService[];
   invoice?: any | null;
   prescription?: Prescription | null;
+  // Shared consent signatures (NEW)
+  patientSignaturePath?: string | null;
+  patientSignedAt?: string | null;
+  doctorSignaturePath?: string | null;
+  doctorSignedAt?: string | null;
 };
 
 type EditableDiagnosis = EncounterDiagnosisRow & {
@@ -210,10 +215,6 @@ type EncounterConsent = {
   encounterId: number;
   type: ConsentType;
   answers: any;
-  patientSignedAt?: string | null;
-  doctorSignedAt?: string | null;
-  patientSignaturePath?: string | null;
-  doctorSignaturePath?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -583,18 +584,9 @@ export default function EncounterAdminPage() {
   const [consentSaving, setConsentSaving] = useState(false);
   const [consentLoading, setConsentLoading] = useState(false);
   const [consentError, setConsentError] = useState("");
-  const [uploadingSignature, setUploadingSignature] = useState<Record<ConsentType, boolean>>({
-    root_canal: false,
-    surgery: false,
-    orthodontic: false,
-    prosthodontic: false,
-  });
-  const [attachingDoctorSignature, setAttachingDoctorSignature] = useState<Record<ConsentType, boolean>>({
-    root_canal: false,
-    surgery: false,
-    orthodontic: false,
-    prosthodontic: false,
-  });
+  const [uploadingPatientSignature, setUploadingPatientSignature] = useState(false);
+  const [uploadingDoctorSignature, setUploadingDoctorSignature] = useState(false);
+  const [attachingDoctorSignature, setAttachingDoctorSignature] = useState(false);
 
   const [nursesForEncounter, setNursesForEncounter] = useState<
     {
@@ -858,6 +850,21 @@ export default function EncounterAdminPage() {
     void loadVisitCardForEncounter();
   }, [id]);
 
+  const reloadEncounter = async () => {
+    if (!id || typeof id !== "string") return;
+    try {
+      const res = await fetch(`/api/encounters/${id}`);
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error((json && json.error) || "failed to reload");
+      }
+      const enc: Encounter = json;
+      setEncounter(enc);
+    } catch (err) {
+      console.error("reloadEncounter failed", err);
+    }
+  };
+
   const reloadMedia = async () => {
     if (!id || typeof id !== "string") return;
     try {
@@ -1014,15 +1021,15 @@ export default function EncounterAdminPage() {
     await saveConsentApi(consentTypeDraft);
   };
 
-  const handlePatientSignatureUpload = async (type: ConsentType, blob: Blob) => {
+  const handlePatientSignatureUpload = async (blob: Blob) => {
     if (!id || typeof id !== "string") return;
-    setUploadingSignature((prev) => ({ ...prev, [type]: true }));
+    setUploadingPatientSignature(true);
     setConsentError("");
     try {
       const formData = new FormData();
       formData.append("file", blob, "patient-signature.png");
 
-      const res = await fetch(`/api/encounters/${id}/consents/${type}/patient-signature`, {
+      const res = await fetch(`/api/encounters/${id}/patient-signature`, {
         method: "POST",
         body: formData,
       });
@@ -1033,26 +1040,51 @@ export default function EncounterAdminPage() {
         );
       }
 
-      // Reload all consents
-      const consentsRes = await fetch(`/api/encounters/${id}/consents`);
-      const consentsJson = await consentsRes.json().catch(() => null);
-      if (consentsRes.ok && Array.isArray(consentsJson)) {
-        setConsents(consentsJson);
-      }
+      // Reload encounter to get updated signature fields
+      await reloadEncounter();
     } catch (err: any) {
       console.error("handlePatientSignatureUpload failed", err);
       setConsentError(err?.message || "Гарын үсэг хадгалахад алдаа гарлаа");
     } finally {
-      setUploadingSignature((prev) => ({ ...prev, [type]: false }));
+      setUploadingPatientSignature(false);
     }
   };
 
-  const handleAttachDoctorSignature = async (type: ConsentType) => {
+  const handleDoctorSignatureUpload = async (blob: Blob) => {
     if (!id || typeof id !== "string") return;
-    setAttachingDoctorSignature((prev) => ({ ...prev, [type]: true }));
+    setUploadingDoctorSignature(true);
     setConsentError("");
     try {
-      const res = await fetch(`/api/encounters/${id}/consents/${type}/doctor-signature`, {
+      const formData = new FormData();
+      formData.append("file", blob, "doctor-signature.png");
+
+      const res = await fetch(`/api/encounters/${id}/doctor-signature`, {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          (json && json.error) || "Эмчийн гарын үсэг хадгалахад алдаа гарлаа"
+        );
+      }
+
+      // Reload encounter to get updated signature fields
+      await reloadEncounter();
+    } catch (err: any) {
+      console.error("handleDoctorSignatureUpload failed", err);
+      setConsentError(err?.message || "Эмчийн гарын үсэг хадгалахад алдаа гарлаа");
+    } finally {
+      setUploadingDoctorSignature(false);
+    }
+  };
+
+  const handleAttachDoctorSignature = async () => {
+    if (!id || typeof id !== "string") return;
+    setAttachingDoctorSignature(true);
+    setConsentError("");
+    try {
+      const res = await fetch(`/api/encounters/${id}/doctor-signature`, {
         method: "POST",
       });
       const json = await res.json().catch(() => null);
@@ -1062,17 +1094,13 @@ export default function EncounterAdminPage() {
         );
       }
 
-      // Reload all consents
-      const consentsRes = await fetch(`/api/encounters/${id}/consents`);
-      const consentsJson = await consentsRes.json().catch(() => null);
-      if (consentsRes.ok && Array.isArray(consentsJson)) {
-        setConsents(consentsJson);
-      }
+      // Reload encounter to get updated signature fields
+      await reloadEncounter();
     } catch (err: any) {
       console.error("handleAttachDoctorSignature failed", err);
       setConsentError(err?.message || "Эмчийн гарын үсэг холбохд алдаа гарлаа");
     } finally {
-      setAttachingDoctorSignature((prev) => ({ ...prev, [type]: false }));
+      setAttachingDoctorSignature(false);
     }
   };
 
@@ -4679,7 +4707,7 @@ export default function EncounterAdminPage() {
                     </button>
                   </div>
 
-                  {/* Signature section for all consent types */}
+                  {/* Shared signature section for all consent types */}
                   <div
                     style={{
                       marginTop: 16,
@@ -4691,209 +4719,207 @@ export default function EncounterAdminPage() {
                       style={{
                         fontSize: 14,
                         fontWeight: 600,
+                        marginBottom: 8,
+                      }}
+                    >
+                      Гарын үсэг (бүх зөвшөөрлийн маягтад хамаарна)
+                    </h3>
+                    <p
+                      style={{
+                        fontSize: 12,
+                        color: "#6b7280",
                         marginBottom: 12,
                       }}
                     >
-                      Гарын үсэг
-                    </h3>
+                      Энэ гарын үсэг нь 4 төрлийн зөвшөөрлийн маягтад хамтдаа хэрэглэгдэнэ.
+                    </p>
 
-                    {(["root_canal", "surgery", "orthodontic", "prosthodontic"] as ConsentType[]).map((type) => {
-                      const consentForType = consents.find((c) => c.type === type);
-                      const typeLabels: Record<ConsentType, string> = {
-                        root_canal: "Сувгийн эмчилгээ",
-                        surgery: "Мэс засал",
-                        orthodontic: "Гажиг засал",
-                        prosthodontic: "Согог засал",
-                      };
-
-                      if (!consentForType) return null;
-
-                      return (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: 16,
+                        padding: 12,
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 8,
+                        background: "#fafafa",
+                      }}
+                    >
+                      {/* Patient signature */}
+                      <div>
                         <div
-                          key={type}
                           style={{
-                            marginBottom: 16,
-                            padding: 12,
-                            border: "1px solid #e5e7eb",
-                            borderRadius: 8,
-                            background: "#fafafa",
+                            fontSize: 12,
+                            fontWeight: 500,
+                            marginBottom: 8,
                           }}
                         >
-                          <div
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 600,
-                              marginBottom: 8,
-                            }}
-                          >
-                            {typeLabels[type]}
-                          </div>
-
-                          <div
-                            style={{
-                              display: "grid",
-                              gridTemplateColumns: "1fr 1fr",
-                              gap: 12,
-                            }}
-                          >
-                            {/* Patient signature */}
-                            <div>
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  fontWeight: 500,
-                                  marginBottom: 4,
-                                }}
-                              >
-                                Өвчтөн/асран хамгаалагчийн гарын үсэг
-                              </div>
-                              {consentForType.patientSignaturePath ? (
-                                <div>
-                                  <img
-                                    src={consentForType.patientSignaturePath}
-                                    alt="Patient signature"
-                                    style={{
-                                      maxWidth: "100%",
-                                      height: "auto",
-                                      border: "1px solid #d1d5db",
-                                      borderRadius: 6,
-                                      background: "#ffffff",
-                                    }}
-                                  />
-                                  {consentForType.patientSignedAt && (
-                                    <div
-                                      style={{
-                                        fontSize: 11,
-                                        color: "#6b7280",
-                                        marginTop: 4,
-                                      }}
-                                    >
-                                      Гарын үсэг зурсан:{" "}
-                                      {formatDateTime(consentForType.patientSignedAt)}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div>
-                                  <SignaturePad
-                                    disabled={uploadingSignature[type]}
-                                    onChange={(blob) =>
-                                      void handlePatientSignatureUpload(type, blob)
-                                    }
-                                  />
-                                  {uploadingSignature[type] && (
-                                    <div
-                                      style={{
-                                        fontSize: 11,
-                                        color: "#6b7280",
-                                        marginTop: 4,
-                                      }}
-                                    >
-                                      Хадгалж байна...
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Doctor signature */}
-                            <div>
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  fontWeight: 500,
-                                  marginBottom: 4,
-                                }}
-                              >
-                                Эмчийн гарын үсэг
-                              </div>
-                              {consentForType.doctorSignaturePath ? (
-                                <div>
-                                  <img
-                                    src={consentForType.doctorSignaturePath}
-                                    alt="Doctor signature"
-                                    style={{
-                                      maxWidth: "100%",
-                                      height: "auto",
-                                      border: "1px solid #d1d5db",
-                                      borderRadius: 6,
-                                      background: "#ffffff",
-                                    }}
-                                  />
-                                  {consentForType.doctorSignedAt && (
-                                    <div
-                                      style={{
-                                        fontSize: 11,
-                                        color: "#6b7280",
-                                        marginTop: 4,
-                                      }}
-                                    >
-                                      Холбосон:{" "}
-                                      {formatDateTime(consentForType.doctorSignedAt)}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div>
-                                  <button
-                                    type="button"
-                                    onClick={() => void handleAttachDoctorSignature(type)}
-                                    disabled={
-                                      attachingDoctorSignature[type] ||
-                                      !encounter.doctor?.signatureImagePath
-                                    }
-                                    style={{
-                                      padding: "8px 16px",
-                                      borderRadius: 6,
-                                      border: "1px solid #2563eb",
-                                      background: "#eff6ff",
-                                      color: "#2563eb",
-                                      fontSize: 12,
-                                      cursor:
-                                        attachingDoctorSignature[type] ||
-                                        !encounter.doctor?.signatureImagePath
-                                          ? "not-allowed"
-                                          : "pointer",
-                                      opacity:
-                                        attachingDoctorSignature[type] ||
-                                        !encounter.doctor?.signatureImagePath
-                                          ? 0.6
-                                          : 1,
-                                    }}
-                                  >
-                                    {attachingDoctorSignature[type]
-                                      ? "Холбож байна..."
-                                      : "Эмчийн гарын үсэг холбох"}
-                                  </button>
-                                  {!encounter.doctor?.signatureImagePath && (
-                                    <div
-                                      style={{
-                                        fontSize: 11,
-                                        color: "#b91c1c",
-                                        marginTop: 4,
-                                      }}
-                                    >
-                                      Эмчийн профайлд гарын үсэг байхгүй байна
-                                    </div>
-                                  )}
-                                  {attachingDoctorSignature[type] && (
-                                    <div
-                                      style={{
-                                        fontSize: 11,
-                                        color: "#6b7280",
-                                        marginTop: 4,
-                                      }}
-                                    >
-                                      Холбож байна...
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
+                          Өвчтөн/асран хамгаалагчийн гарын үсэг
                         </div>
-                      );
-                    })}
+                        {encounter.patientSignaturePath ? (
+                          <div>
+                            <img
+                              src={encounter.patientSignaturePath}
+                              alt="Patient signature"
+                              style={{
+                                maxWidth: "100%",
+                                height: "auto",
+                                border: "1px solid #d1d5db",
+                                borderRadius: 6,
+                                background: "#ffffff",
+                              }}
+                            />
+                            {encounter.patientSignedAt && (
+                              <div
+                                style={{
+                                  fontSize: 11,
+                                  color: "#6b7280",
+                                  marginTop: 4,
+                                }}
+                              >
+                                Гарын үсэг зурсан:{" "}
+                                {formatDateTime(encounter.patientSignedAt)}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div>
+                            <SignaturePad
+                              disabled={uploadingPatientSignature}
+                              onChange={(blob) =>
+                                void handlePatientSignatureUpload(blob)
+                              }
+                            />
+                            {uploadingPatientSignature && (
+                              <div
+                                style={{
+                                  fontSize: 11,
+                                  color: "#6b7280",
+                                  marginTop: 4,
+                                }}
+                              >
+                                Хадгалж байна...
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Doctor signature */}
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 500,
+                            marginBottom: 8,
+                          }}
+                        >
+                          Эмчийн гарын үсэг
+                        </div>
+                        {encounter.doctorSignaturePath ? (
+                          <div>
+                            <img
+                              src={encounter.doctorSignaturePath}
+                              alt="Doctor signature"
+                              style={{
+                                maxWidth: "100%",
+                                height: "auto",
+                                border: "1px solid #d1d5db",
+                                borderRadius: 6,
+                                background: "#ffffff",
+                              }}
+                            />
+                            {encounter.doctorSignedAt && (
+                              <div
+                                style={{
+                                  fontSize: 11,
+                                  color: "#6b7280",
+                                  marginTop: 4,
+                                }}
+                              >
+                                Холбосон:{" "}
+                                {formatDateTime(encounter.doctorSignedAt)}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{ marginBottom: 8 }}>
+                              <SignaturePad
+                                disabled={uploadingDoctorSignature}
+                                onChange={(blob) =>
+                                  void handleDoctorSignatureUpload(blob)
+                                }
+                              />
+                              {uploadingDoctorSignature && (
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    color: "#6b7280",
+                                    marginTop: 4,
+                                  }}
+                                >
+                                  Хадгалж байна...
+                                </div>
+                              )}
+                            </div>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                fontSize: 11,
+                                color: "#6b7280",
+                              }}
+                            >
+                              <span>эсвэл</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void handleAttachDoctorSignature()}
+                              disabled={
+                                attachingDoctorSignature ||
+                                !encounter.doctor?.signatureImagePath
+                              }
+                              style={{
+                                marginTop: 8,
+                                padding: "8px 16px",
+                                borderRadius: 6,
+                                border: "1px solid #2563eb",
+                                background: "#eff6ff",
+                                color: "#2563eb",
+                                fontSize: 12,
+                                cursor:
+                                  attachingDoctorSignature ||
+                                  !encounter.doctor?.signatureImagePath
+                                    ? "not-allowed"
+                                    : "pointer",
+                                opacity:
+                                  attachingDoctorSignature ||
+                                  !encounter.doctor?.signatureImagePath
+                                    ? 0.6
+                                    : 1,
+                              }}
+                            >
+                              {attachingDoctorSignature
+                                ? "Холбож байна..."
+                                : "Эмчийн гарын үсэг холбох"}
+                            </button>
+                            {!encounter.doctor?.signatureImagePath && (
+                              <div
+                                style={{
+                                  fontSize: 11,
+                                  color: "#b91c1c",
+                                  marginTop: 4,
+                                }}
+                              >
+                                Эмчийн профайлд гарын үсэг байхгүй байна
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </>
               )}
