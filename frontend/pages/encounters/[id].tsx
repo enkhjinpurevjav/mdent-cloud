@@ -596,19 +596,26 @@ export default function EncounterAdminPage() {
 
   // Modify updateActiveRowToothList to support ALL label
   const updateActiveRowToothList = (nextTeeth: string[], opts?: { isAllTeeth?: boolean }) => {
-  // If the currently active row is locked, don't update it.
-  if (activeDxRowIndex !== null) {
+  // Determine if we need to create a new row
+  // This happens when:
+  // 1. No active row is selected (activeDxRowIndex === null)
+  // 2. Force new row flag is set (forceNewDxRowOnToothPick)
+  // 3. The currently active row is locked
+  
+  let targetRowIndex = activeDxRowIndex;
+  let mustCreateNewRow = forceNewDxRowOnToothPick || activeDxRowIndex === null;
+  
+  // Check if the active row is locked - if so, we must create a new row
+  if (!mustCreateNewRow && activeDxRowIndex !== null) {
     const activeRow = rows[activeDxRowIndex];
     if (activeRow?.locked) {
-      // treat as no active row (force new row behavior)
-      setActiveDxRowIndex(null);
+      mustCreateNewRow = true;
+      targetRowIndex = null;
     }
   }
 
-  const mustCreateNewRow =
-    activeDxRowIndex === null || forceNewDxRowOnToothPick;
-
   if (mustCreateNewRow) {
+    // Don't create an empty row unless it's "all teeth"
     if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
 
     const idx = createDiagnosisRow(nextTeeth);
@@ -630,16 +637,17 @@ export default function EncounterAdminPage() {
     return;
   }
 
+  // Update existing unlocked row
   const toothStr = opts?.isAllTeeth ? ALL_TEETH_LABEL : stringifyToothList(nextTeeth);
 
   setEditableDxRows((prev) =>
     prev.map((row, i) =>
-      i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
+      i === targetRowIndex ? { ...row, toothCode: toothStr } : row
     )
   );
   setRows((prev) =>
     prev.map((row, i) =>
-      i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
+      i === targetRowIndex ? { ...row, toothCode: toothStr } : row
     )
   );
 
@@ -651,13 +659,20 @@ export default function EncounterAdminPage() {
   const toggleToothSelection = (code: string) => {
     if (code === "ALL") {
       const allCodes = toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH;
-      const allSelected = allCodes.every((c) => selectedTeeth.includes(c));
-      const next = allSelected ? [] : allCodes;
-
-      setSelectedTeeth(next);
-
-      if (!allSelected) updateActiveRowToothList(next, { isAllTeeth: true });
-      else updateActiveRowToothList([], { isAllTeeth: false });
+      
+      setSelectedTeeth((prev) => {
+        const allSelected = allCodes.every((c) => prev.includes(c));
+        const next = allSelected ? [] : allCodes;
+        
+        // Update tooth list after state change with the computed next value
+        if (!allSelected) {
+          updateActiveRowToothList(next, { isAllTeeth: true });
+        } else {
+          updateActiveRowToothList([], { isAllTeeth: false });
+        }
+        
+        return next;
+      });
 
       return;
     }
@@ -665,7 +680,10 @@ export default function EncounterAdminPage() {
     setSelectedTeeth((prev) => {
       const exists = prev.includes(code);
       const next = exists ? prev.filter((c) => c !== code) : [...prev, code];
+      
+      // Update tooth list with the computed next value to avoid stale closure
       updateActiveRowToothList(next);
+      
       return next;
     });
   };
