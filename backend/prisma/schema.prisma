@@ -356,12 +356,16 @@ model Encounter {
   media              Media[]
   encounterServices  EncounterService[]
   diagnoses          EncounterDiagnosis[]
-  consent            EncounterConsent?
+  consents            EncounterConsent[]
 }
 
 model EncounterConsent {
   id                  Int       @id @default(autoincrement())
-  encounterId         Int       @unique
+
+  encounterId         Int
+  // REMOVE: @unique
+  // encounterId         Int       @unique
+
   type                String
   answers             Json
 
@@ -375,6 +379,9 @@ model EncounterConsent {
   updatedAt           DateTime  @updatedAt
 
   encounter           Encounter @relation(fields: [encounterId], references: [id])
+
+  @@unique([encounterId, type])   // ✅ one per type per encounter
+  @@index([encounterId])
 }
 
 model ChartTooth {
