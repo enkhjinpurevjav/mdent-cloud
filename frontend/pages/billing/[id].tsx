@@ -1966,57 +1966,83 @@ useEffect(() => {
      
 
             {/* XRAY */}
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
-  <h3 style={{ margin: 0, fontSize: 14 }}>XRAY зураг</h3>  
-          
-          {!xraysLoading && !xraysError && xrays.length > 0 && (
-  <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
-    {xrays.map((m) => (
-      <div
-        key={m.id}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
-          padding: "6px 8px",
-          border: "1px solid #e5e7eb",
-          borderRadius: 8,
-          background: "#f9fafb",
-          fontSize: 12,
-        }}
-      >
-        <div style={{ overflow: "hidden" }}>
-          <a href={m.filePath} target="_blank" rel="noreferrer">
-            {m.filePath}
-          </a>
-          {m.toothCode ? (
-            <span style={{ color: "#6b7280" }}> • Шүд: {m.toothCode}</span>
-          ) : null}
-        </div>
+<div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
+  <h3 style={{ margin: 0, fontSize: 14 }}>XRAY зураг</h3>
 
-        <button
-          type="button"
-          onClick={() =>
-            window.alert(`XRAY хэвлэх: ${m.filePath} (дараа нь template)`)
-          }
+  {xraysLoading && (
+    <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+      XRAY ачаалж байна...
+    </div>
+  )}
+
+  {!xraysLoading && xraysError && (
+    <div style={{ marginTop: 6, fontSize: 12, color: "#b91c1c" }}>
+      {xraysError}
+    </div>
+  )}
+
+  {!xraysLoading && !xraysError && xrays.length === 0 && (
+    <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+      XRAY зураг хавсаргагдаагүй.
+    </div>
+  )}
+
+  {!xraysLoading && !xraysError && xrays.length > 0 && (
+    <div
+      style={{
+        marginTop: 6,
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      {xrays.map((m) => (
+        <div
+          key={m.id}
           style={{
-            padding: "4px 8px",
-            borderRadius: 6,
-            border: "1px solid #2563eb",
-            background: "#eff6ff",
-            color: "#2563eb",
-            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            padding: "6px 8px",
+            border: "1px solid #e5e7eb",
+            borderRadius: 8,
+            background: "#f9fafb",
             fontSize: 12,
-            whiteSpace: "nowrap",
           }}
         >
-          Хэвлэх
-        </button>
-      </div>
-    ))}
-  </div>
-)}
+          <div style={{ overflow: "hidden" }}>
+            <a href={m.filePath} target="_blank" rel="noreferrer">
+              {m.filePath}
+            </a>
+            {m.toothCode ? (
+              <span style={{ color: "#6b7280" }}> • Шүд: {m.toothCode}</span>
+            ) : null}
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              window.alert(`XRAY хэвлэх: ${m.filePath} (дараа нь template)`)
+            }
+            style={{
+              padding: "4px 8px",
+              borderRadius: 6,
+              border: "1px solid #2563eb",
+              background: "#eff6ff",
+              color: "#2563eb",
+              cursor: "pointer",
+              fontSize: 12,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Хэвлэх
+          </button>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
 
             {/* Consent */}
 <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
