@@ -1390,8 +1390,40 @@ const removeDiagnosisRow = (index: number) => {
       // Merge with services for rows
       const mergedRows: DiagnosisServiceRow[] = savedDxRows.map((dxRow, i) => ({
         ...dxRow,
-        serviceId: editableDxRows[i]?.serviceId,
-        serviceSearchText: editableDxRows[i]?.serviceSearchText || "",
+        // inside handleSaveDiagnoses success block:
+
+const savedDxRows: EditableDiagnosis[] =
+  json?.map((row: any, idx: number) => ({
+    ...row,
+    diagnosisId: row.diagnosisId ?? null,
+    diagnosis: row.diagnosis ?? null,
+    localId: idx + 1,
+    selectedProblemIds: Array.isArray(row.selectedProblemIds)
+      ? row.selectedProblemIds
+      : [],
+    note: row.note || "",
+    toothCode: row.toothCode || "",
+
+    // ✅ preserve service selection from rows (UI state)
+    serviceId: rows[idx]?.serviceId,
+    serviceSearchText: rows[idx]?.serviceSearchText || "",
+
+    searchText: row.diagnosis
+      ? `${row.diagnosis.code} – ${row.diagnosis.name}`
+      : "",
+    locked: true,
+  })) || [];
+setEditableDxRows(savedDxRows);
+
+// Merge with services for rows
+const mergedRows: DiagnosisServiceRow[] = savedDxRows.map((dxRow, i) => ({
+  ...dxRow,
+
+  // ✅ preserve service selection from rows (UI state)
+  serviceId: rows[i]?.serviceId,
+  serviceSearchText: rows[i]?.serviceSearchText || "",
+}));
+setRows(mergedRows);
       }));
       setRows(mergedRows);
     } catch (err: any) {
