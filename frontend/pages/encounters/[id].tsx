@@ -593,52 +593,56 @@ export default function EncounterAdminPage() {
   };
 
   const updateActiveRowToothList = (
-  nextTeeth: string[],
-  opts?: { isAllTeeth?: boolean }
-) => {
-  // If active row is locked, treat as no active row
-  const activeRow = activeDxRowIndex !== null ? rows[activeDxRowIndex] : null;
-  const hasWritableActiveRow = !!activeRow && !activeRow.locked;
+    nextTeeth: string[],
+    opts?: { isAllTeeth?: boolean }
+  ) => {
+    // Check if we have an active row and if it's writable
+    const hasWritableActiveRow = 
+      activeDxRowIndex !== null && 
+      rows[activeDxRowIndex] && 
+      !rows[activeDxRowIndex].locked;
 
-  if (!hasWritableActiveRow) {
-    if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
+    // If no writable active row, create a new one (unless empty selection)
+    if (!hasWritableActiveRow) {
+      if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
 
-    const idx = createDiagnosisRow(nextTeeth);
-    setActiveDxRowIndex(idx);
+      const idx = createDiagnosisRow(nextTeeth);
+      setActiveDxRowIndex(idx);
 
+      const toothStr = opts?.isAllTeeth
+        ? ALL_TEETH_LABEL
+        : stringifyToothList(nextTeeth);
+
+      setEditableDxRows((prev) =>
+        prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
+      );
+      setRows((prev) =>
+        prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
+      );
+
+      return;
+    }
+
+    // Update the writable active row
     const toothStr = opts?.isAllTeeth
       ? ALL_TEETH_LABEL
       : stringifyToothList(nextTeeth);
 
     setEditableDxRows((prev) =>
-      prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
+      prev.map((row, i) =>
+        i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
+      )
     );
     setRows((prev) =>
-      prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
+      prev.map((row, i) =>
+        i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
+      )
     );
-    return;
-  }
 
-  // Update writable active row only (cannot be locked here)
-  const toothStr = opts?.isAllTeeth
-    ? ALL_TEETH_LABEL
-    : stringifyToothList(nextTeeth);
-
-  setEditableDxRows((prev) =>
-    prev.map((row, i) =>
-      i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
-    )
-  );
-  setRows((prev) =>
-    prev.map((row, i) =>
-      i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
-    )
-  );
-
-  if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
-    setActiveDxRowIndex(null);
-  }
-};
+    if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
+      setActiveDxRowIndex(null);
+    }
+  };
 
   const resetToothSelectionSession = useCallback(() => {
     setSelectedTeeth([]);
@@ -1003,35 +1007,74 @@ export default function EncounterAdminPage() {
   };
 
   const createDiagnosisRow = (initialTeeth: string[]): number => {
-  // The new row index is deterministic: append at the end of rows.
-  const idx = rows.length;
-
-  // Compute next localId based on existing rows (single source).
-  const nextLocalId =
-    rows.length === 0 ? 1 : Math.max(...rows.map((r) => r.localId)) + 1;
-
-  const toothCode = stringifyToothList(initialTeeth);
-
-  const newRow: EditableDiagnosis = {
-    localId: nextLocalId,
-    diagnosisId: null,
-    diagnosis: null,
-    selectedProblemIds: [],
-    note: "",
-    toothCode,
-    serviceId: undefined,
-    searchText: "",
-    serviceSearchText: "",
-    locked: false,
+    let createdIndex = 0;
+    
+    setEditableDxRows((prev) => {
+      const nextLocalId =
+        prev.length === 0
+          ? 1
+          : Math.max(...prev.map((r) => r.localId)) + 1;
+      const toothCode = stringifyToothList(initialTeeth);
+      const newRow: EditableDiagnosis = {
+        localId: nextLocalId,
+        diagnosisId: null,
+        diagnosis: null,
+        selectedProblemIds: [],
+        note: "",
+        toothCode,
+        serviceId: undefined,
+        searchText: "",
+        serviceSearchText: "",
+        locked: false,
+      };
+      const nextRows = [...prev, newRow];
+      createdIndex = nextRows.length - 1;
+      return nextRows;
+    });
+    
+    // Update rows in sync with same newRow
+    setRows((prev) => {
+      const nextLocalId =
+        prev.length === 0
+          ? 1
+          : Math.max(...prev.map((r) => r.localId)) + 1;
+      const toothCode = stringifyToothList(initialTeeth);
+      const newRow: EditableDiagnosis = {
+        localId: nextLocalId,
+        diagnosisId: null,
+        diagnosis: null,
+        selectedProblemIds: [],
+        note: "",
+        toothCode,
+        serviceId: undefined,
+        searchText: "",
+        serviceSearchText: "",
+        locked: false,
+      };
+      const nextRows = [...prev, newRow];
+      createdIndex = nextRows.length - 1;
+      return nextRows;
+    });
+    
+    return createdIndex;
   };
 
-  // Append SAME row object to both states
-  setEditableDxRows((prev) => [...prev, newRow]);
-  setRows((prev) => [...prev, newRow]);
-
-  return idx;
-};
-
+  const removeDiagnosisRow = (index: number) => {
+    const row = rows[index];
+    if (row?.locked) {
+      alert("Түгжигдсэн мөрийг устгах боломжгүй. Эхлээд түгжээг тайлна уу.");
+      return;
+    }
+    setEditableDxRows((prev) => prev.filter((_, i) => i !== index));
+    setRows((prev) => prev.filter((_, i) => i !== index));
+    setOpenDxIndex((prev) => (prev === index ? null : prev));
+    setActiveDxRowIndex((prev) => {
+      if (prev === null) return prev;
+      if (prev === index) return null;
+      if (index < prev) return prev - 1;
+      return prev;
+    });
+  };
 
   const unlockRow = (index: number) => {
     if (confirm("Энэ мөрийн түгжээг тайлж, засварлахыг зөвшөөрч байна уу?")) {
