@@ -1029,6 +1029,11 @@ export default function EncounterAdminPage() {
   };
 
   const removeDiagnosisRow = (index: number) => {
+    const row = rows[index];
+    if (row?.locked) {
+      alert("Түгжигдсэн мөрийг устгах боломжгүй. Эхлээд түгжээг тайлна уу.");
+      return;
+    }
     setEditableDxRows((prev) => prev.filter((_, i) => i !== index));
     setRows((prev) => prev.filter((_, i) => i !== index));
     setOpenDxIndex((prev) => (prev === index ? null : prev));
@@ -1038,6 +1043,34 @@ export default function EncounterAdminPage() {
       if (index < prev) return prev - 1;
       return prev;
     });
+  };
+
+  const unlockRow = (index: number) => {
+    if (confirm("Энэ мөрийн түгжээг тайлж, засварлахыг зөвшөөрч байна уу?")) {
+      setEditableDxRows((prev) =>
+        prev.map((row, i) =>
+          i === index ? { ...row, locked: false } : row
+        )
+      );
+      setRows((prev) =>
+        prev.map((row, i) =>
+          i === index ? { ...row, locked: false } : row
+        )
+      );
+    }
+  };
+
+  const lockRow = (index: number) => {
+    setEditableDxRows((prev) =>
+      prev.map((row, i) =>
+        i === index ? { ...row, locked: true } : row
+      )
+    );
+    setRows((prev) =>
+      prev.map((row, i) =>
+        i === index ? { ...row, locked: true } : row
+      )
+    );
   };
 
   const saveConsentApi = async (type: ConsentType | null) => {
@@ -1199,29 +1232,27 @@ export default function EncounterAdminPage() {
     diagnosisId: number
   ) => {
     setEditableDxRows((prev) =>
-      prev.map((row, i) =>
-        i === index
-          ? {
-              ...row,
-              diagnosisId,
-              selectedProblemIds: [],
-            }
-          : row
-      )
+      prev.map((row, i) => {
+        if (i !== index || row.locked) return row;
+        return {
+          ...row,
+          diagnosisId,
+          selectedProblemIds: [],
+        };
+      })
     );
     const dx = diagnoses.find((d) => d.id === diagnosisId) || null;
     setRows((prev) =>
-      prev.map((row, i) =>
-        i === index
-          ? {
-              ...row,
-              diagnosisId,
-              diagnosis: dx,
-              selectedProblemIds: [],
-              searchText: dx ? `${dx.code} – ${dx.name}` : "",
-            }
-          : row
-      )
+      prev.map((row, i) => {
+        if (i !== index || row.locked) return row;
+        return {
+          ...row,
+          diagnosisId,
+          diagnosis: dx,
+          selectedProblemIds: [],
+          searchText: dx ? `${dx.code} – ${dx.name}` : "",
+        };
+      })
     );
     if (diagnosisId) {
       await ensureProblemsLoaded(diagnosisId);
@@ -1231,7 +1262,7 @@ export default function EncounterAdminPage() {
   const toggleProblem = (index: number, problemId: number) => {
     setEditableDxRows((prev) =>
       prev.map((row, i) => {
-        if (i !== index) return row;
+        if (i !== index || row.locked) return row;
         const exists = row.selectedProblemIds.includes(problemId);
         return {
           ...row,
@@ -1243,7 +1274,7 @@ export default function EncounterAdminPage() {
     );
     setRows((prev) =>
       prev.map((row, i) => {
-        if (i !== index) return row;
+        if (i !== index || row.locked) return row;
         const exists =
           row.selectedProblemIds &&
           row.selectedProblemIds.includes(problemId);
@@ -1259,22 +1290,26 @@ export default function EncounterAdminPage() {
 
   const handleNoteChange = (index: number, value: string) => {
     setEditableDxRows((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, note: value } : row))
+      prev.map((row, i) =>
+        i === index && !row.locked ? { ...row, note: value } : row
+      )
     );
     setRows((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, note: value } : row))
+      prev.map((row, i) =>
+        i === index && !row.locked ? { ...row, note: value } : row
+      )
     );
   };
 
   const handleDxToothCodeChange = (index: number, value: string) => {
     setEditableDxRows((prev) =>
       prev.map((row, i) =>
-        i === index ? { ...row, toothCode: value } : row
+        i === index && !row.locked ? { ...row, toothCode: value } : row
       )
     );
     setRows((prev) =>
       prev.map((row, i) =>
-        i === index ? { ...row, toothCode: value } : row
+        i === index && !row.locked ? { ...row, toothCode: value } : row
       )
     );
   };
@@ -5158,6 +5193,7 @@ export default function EncounterAdminPage() {
               {rows.map((row, index) => {
                 const problems =
                   problemsByDiagnosis[row.diagnosisId ?? 0] || [];
+                const isLocked = row.locked ?? false;
                 return (
                   <div
                     key={index}
@@ -5165,7 +5201,7 @@ export default function EncounterAdminPage() {
                       border: "1px solid #e5e7eb",
                       borderRadius: 8,
                       padding: 12,
-                      background: "#f9fafb",
+                      background: isLocked ? "#fef3c7" : "#f9fafb",
                     }}
                   >
                     <div
@@ -5176,6 +5212,67 @@ export default function EncounterAdminPage() {
                         marginBottom: 8,
                       }}
                     >
+                      {isLocked && (
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            marginBottom: 8,
+                            padding: "6px 10px",
+                            background: "#fef08a",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 500,
+                            color: "#854d0e",
+                          }}
+                        >
+                          <span>🔒 Түгжсэн</span>
+                          <button
+                            type="button"
+                            onClick={() => unlockRow(index)}
+                            style={{
+                              marginLeft: "auto",
+                              padding: "4px 12px",
+                              borderRadius: 4,
+                              border: "1px solid #ca8a04",
+                              background: "#ffffff",
+                              color: "#ca8a04",
+                              cursor: "pointer",
+                              fontSize: 11,
+                              fontWeight: 500,
+                            }}
+                          >
+                            Түгжээ тайлах
+                          </button>
+                        </div>
+                      )}
+                      {!isLocked && row.id && (
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "flex-end",
+                            marginBottom: 4,
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => lockRow(index)}
+                            style={{
+                              padding: "4px 12px",
+                              borderRadius: 4,
+                              border: "1px solid #9ca3af",
+                              background: "#ffffff",
+                              color: "#6b7280",
+                              cursor: "pointer",
+                              fontSize: 11,
+                              fontWeight: 500,
+                            }}
+                          >
+                            🔒 Түгжих
+                          </button>
+                        </div>
+                      )}
                       <div
                         style={{
                           display: "flex",
@@ -5188,6 +5285,7 @@ export default function EncounterAdminPage() {
                             placeholder="Онош бичиж хайх (ж: K04.1, пульпит...)"
                             value={row.searchText ?? ""}
                             onChange={(e) => {
+                              if (isLocked) return;
                               const text = e.target.value;
                               setOpenDxIndex(index);
                               setRows((prev) =>
@@ -5208,13 +5306,19 @@ export default function EncounterAdminPage() {
                                 )
                               );
                             }}
-                            onFocus={() => setOpenDxIndex(index)}
+                            onFocus={() => {
+                              if (!isLocked) setOpenDxIndex(index);
+                            }}
+                            disabled={isLocked}
                             style={{
                               width: "100%",
                               borderRadius: 6,
                               border: "1px solid #d1d5db",
                               padding: "6px 8px",
                               fontSize: 13,
+                              background: isLocked ? "#f3f4f6" : "#ffffff",
+                              cursor: isLocked ? "not-allowed" : "text",
+                              opacity: isLocked ? 0.6 : 1,
                             }}
                           />
 
@@ -5292,16 +5396,18 @@ export default function EncounterAdminPage() {
                         <button
                           type="button"
                           onClick={() => removeDiagnosisRow(index)}
+                          disabled={isLocked}
                           style={{
                             padding: "4px 10px",
                             borderRadius: 6,
                             border: "1px solid #dc2626",
-                            background: "#fef2f2",
-                            color: "#b91c1c",
-                            cursor: "pointer",
+                            background: isLocked ? "#f3f4f6" : "#fef2f2",
+                            color: isLocked ? "#9ca3af" : "#b91c1c",
+                            cursor: isLocked ? "not-allowed" : "pointer",
                             fontSize: 12,
                             height: 32,
                             alignSelf: "flex-start",
+                            opacity: isLocked ? 0.5 : 1,
                           }}
                         >
                           Устгах
@@ -5327,12 +5433,16 @@ export default function EncounterAdminPage() {
                         onFocus={() => {
   if (!row.locked) setActiveDxRowIndex(index);
 }}
+                        disabled={isLocked}
                         style={{
                           maxWidth: 260,
                           borderRadius: 6,
-                          border: "1px солид #d1d5db",
+                          border: "1px solid #d1d5db",
                           padding: "6px 8px",
                           fontSize: 12,
+                          background: isLocked ? "#f3f4f6" : "#ffffff",
+                          cursor: isLocked ? "not-allowed" : "text",
+                          opacity: isLocked ? 0.6 : 1,
                         }}
                       />
                       <span style={{ fontSize: 11, color: "#6b7280" }}>
@@ -5362,6 +5472,7 @@ export default function EncounterAdminPage() {
                           placeholder="Үйлчилгээний нэр эсвэл кодоор хайх..."
                           value={row.serviceSearchText ?? ""}
                           onChange={(e) => {
+                            if (isLocked) return;
                             const text = e.target.value;
                             setOpenServiceIndex(index);
                             setRows((prev) =>
@@ -5378,14 +5489,19 @@ export default function EncounterAdminPage() {
                               )
                             );
                           }}
-                          onFocus={() => setOpenServiceIndex(index)}
+                          onFocus={() => {
+                            if (!isLocked) setOpenServiceIndex(index);
+                          }}
+                          disabled={isLocked}
                           style={{
                             width: "100%",
                             borderRadius: 6,
                             border: "1px solid #d1d5db",
                             padding: "6px 8px",
                             fontSize: 13,
-                            background: "#ffffff",
+                            background: isLocked ? "#f3f4f6" : "#ffffff",
+                            cursor: isLocked ? "not-allowed" : "text",
+                            opacity: isLocked ? 0.6 : 1,
                           }}
                         />
 
@@ -5514,6 +5630,8 @@ export default function EncounterAdminPage() {
                                       ? "#dcfce7"
                                       : "#ffffff",
                                     fontSize: 12,
+                                    cursor: isLocked ? "not-allowed" : "pointer",
+                                    opacity: isLocked ? 0.6 : 1,
                                   }}
                                 >
                                   <input
@@ -5522,6 +5640,10 @@ export default function EncounterAdminPage() {
                                     onChange={() =>
                                       toggleProblem(index, p.id)
                                     }
+                                    disabled={isLocked}
+                                    style={{
+                                      cursor: isLocked ? "not-allowed" : "pointer",
+                                    }}
                                   />
                                   {p.label}
                                 </label>
@@ -5539,13 +5661,17 @@ export default function EncounterAdminPage() {
                         handleNoteChange(index, e.target.value)
                       }
                       rows={2}
+                      disabled={isLocked}
                       style={{
                         width: "100%",
                         borderRadius: 6,
-                        border: "1px солид #d1d5db",
+                        border: "1px solid #d1d5db",
                         padding: "6px 8px",
                         fontSize: 13,
                         resize: "vertical",
+                        background: isLocked ? "#f3f4f6" : "#ffffff",
+                        cursor: isLocked ? "not-allowed" : "text",
+                        opacity: isLocked ? 0.6 : 1,
                       }}
                     />
                   </div>
@@ -5590,6 +5716,9 @@ export default function EncounterAdminPage() {
                     await handleSaveDiagnoses();
                     await handleSaveServices();
                     await savePrescription();
+                    // Lock all rows after successful save
+                    setEditableDxRows((prev) => prev.map((r) => ({ ...r, locked: true })));
+                    setRows((prev) => prev.map((r) => ({ ...r, locked: true })));
                     // Reset tooth chart after successful save
                     setSelectedTeeth([]);
                     setActiveDxRowIndex(null);
