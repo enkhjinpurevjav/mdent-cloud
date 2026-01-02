@@ -598,23 +598,7 @@ export default function EncounterAdminPage() {
     nextTeeth: string[],
     opts?: { isAllTeeth?: boolean }
   ) => {
-    if (activeDxRowIndex === null) {
-      if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
-
-      const idx = createDiagnosisRow(nextTeeth);
-      setActiveDxRowIndex(idx);
-
-      if (opts?.isAllTeeth) {
-        setEditableDxRows((prev) =>
-          prev.map((row, i) => (i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row))
-        );
-        setRows((prev) =>
-          prev.map((row, i) => (i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row))
-        );
-      }
-      return;
-    }
-const mustCreateNewRow =
+    const mustCreateNewRow =
       activeDxRowIndex === null || forceNewDxRowOnToothPick;
 
     if (mustCreateNewRow) {
@@ -5602,6 +5586,8 @@ const mustCreateNewRow =
                     setCustomToothRange("");
                     setOpenDxIndex(null);
                     setOpenServiceIndex(null);
+                    // Force new diagnosis row on next tooth pick
+                    setForceNewDxRowOnToothPick(true);
                   }}
                   disabled={saving || finishing || prescriptionSaving}
                   style={{
