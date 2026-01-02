@@ -1388,8 +1388,8 @@ export default function EncounterAdminPage() {
       : "",
     serviceSearchText: editableDxRows[idx]?.serviceSearchText || "",
 
-    // IMPORTANT: preserve lock state
-    locked: editableDxRows[idx]?.locked ?? true,
+    // IMPORTANT: All saved rows should be locked
+    locked: true,
   })) || [];
       setEditableDxRows(savedDxRows);
 
@@ -1566,8 +1566,14 @@ export default function EncounterAdminPage() {
       await handleSaveDiagnoses();
       await handleSaveServices();
       await savePrescription();
-      setEditableDxRows((prev) => prev.map((r) => ({ ...r, locked: true })));
-      setRows((prev) => prev.map((r) => ({ ...r, locked: true })));
+      
+      // Reset tooth selection session
+      setSelectedTeeth([]);
+      setActiveDxRowIndex(null);
+      setCustomToothRange("");
+      setOpenDxIndex(null);
+      setOpenServiceIndex(null);
+      setForceNewDxRowOnToothPick(true);
 
       const res = await fetch(`/api/encounters/${id}/finish`, {
         method: "PUT",
@@ -5742,18 +5748,13 @@ export default function EncounterAdminPage() {
                     await handleSaveDiagnoses();
                     await handleSaveServices();
                     await savePrescription();
-                    // Lock all rows after successful save
-                    setEditableDxRows((prev) => prev.map((r) => ({ ...r, locked: true })));
-                    setRows((prev) => prev.map((r) => ({ ...r, locked: true })));
-                    // Reset tooth chart after successful save
+                    // Reset tooth selection session after successful save
                     setSelectedTeeth([]);
                     setActiveDxRowIndex(null);
                     setCustomToothRange("");
                     setOpenDxIndex(null);
                     setOpenServiceIndex(null);
-                    // Force new diagnosis row on next tooth pick
                     setForceNewDxRowOnToothPick(true);
-                   
                   }}
                   disabled={saving || finishing || prescriptionSaving}
                   style={{
