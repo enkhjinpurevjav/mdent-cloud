@@ -594,54 +594,57 @@ export default function EncounterAdminPage() {
     return allCodes.length > 0 && allCodes.every((c) => selectedTeeth.includes(c));
   };
 
+  const resolveWritableDxRowIndex = () => {
+  if (forceNewDxRowOnToothPick) return null;
+  if (activeDxRowIndex === null) return null;
+
+  const activeRow = rows[activeDxRowIndex];
+  if (!activeRow) return null;
+  if (activeRow.locked) return null;
+
+  return activeDxRowIndex;
+};
+
   // Modify updateActiveRowToothList to support ALL label
   const updateActiveRowToothList = (nextTeeth: string[], opts?: { isAllTeeth?: boolean }) => {
-  // If the currently active row is locked, don't update it.
-  if (activeDxRowIndex !== null) {
-    const activeRow = rows[activeDxRowIndex];
-    if (activeRow?.locked) {
-      // treat as no active row (force new row behavior)
-      setActiveDxRowIndex(null);
-    }
-  }
+  const writableIndex = resolveWritableDxRowIndex();
 
-  const mustCreateNewRow =
-    activeDxRowIndex === null || forceNewDxRowOnToothPick;
-
-  if (mustCreateNewRow) {
+  // If no writable row, ALWAYS create a new row (unless empty selection)
+  if (writableIndex === null) {
     if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
 
     const idx = createDiagnosisRow(nextTeeth);
+
     setForceNewDxRowOnToothPick(false);
     setActiveDxRowIndex(idx);
 
-    if (opts?.isAllTeeth) {
-      setEditableDxRows((prev) =>
-        prev.map((row, i) =>
-          i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row
-        )
-      );
-      setRows((prev) =>
-        prev.map((row, i) =>
-          i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row
-        )
-      );
-    }
+    const toothStr = opts?.isAllTeeth ? ALL_TEETH_LABEL : stringifyToothList(nextTeeth);
+
+    // Ensure correct toothCode for the new row even if ALL
+    setEditableDxRows((prev) =>
+      prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
+    );
+    setRows((prev) =>
+      prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
+    );
+
     return;
   }
 
+  // Otherwise update writableIndex (NOT activeDxRowIndex directly)
   const toothStr = opts?.isAllTeeth ? ALL_TEETH_LABEL : stringifyToothList(nextTeeth);
 
   setEditableDxRows((prev) =>
-    prev.map((row, i) =>
-      i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
-    )
+    prev.map((row, i) => (i === writableIndex ? { ...row, toothCode: toothStr } : row))
   );
   setRows((prev) =>
-    prev.map((row, i) =>
-      i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
-    )
+    prev.map((row, i) => (i === writableIndex ? { ...row, toothCode: toothStr } : row))
   );
+
+  if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
+    setActiveDxRowIndex(null);
+  }
+};
 
   if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
     setActiveDxRowIndex(null);
