@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import SignaturePad from "../../components/SignaturePad";
 
@@ -655,7 +655,14 @@ export default function EncounterAdminPage() {
     }
   };
 
-  
+  const resetToothSelectionSession = useCallback(() => {
+    setSelectedTeeth([]);
+    setActiveDxRowIndex(null);
+    setCustomToothRange("");
+    setOpenDxIndex(null);
+    setOpenServiceIndex(null);
+    setForceNewDxRowOnToothPick(true);
+  }, []);
 
   const toggleToothSelection = (code: string) => {
     if (code === "ALL") {
@@ -721,17 +728,14 @@ export default function EncounterAdminPage() {
   const [servicesLoadError, setServicesLoadError] = useState("");
   const [dxError, setDxError] = useState("");
 
-  // ✅ Add this useEffect right here (after rows is declared)
+  // Detect when active row becomes locked and reset tooth selection
   useEffect(() => {
     if (activeDxRowIndex === null) return;
     const r = rows[activeDxRowIndex];
     if (r?.locked) {
-      setActiveDxRowIndex(null);
-      setSelectedTeeth([]);
-      setCustomToothRange("");
-      setForceNewDxRowOnToothPick(true);
+      resetToothSelectionSession();
     }
-  }, [activeDxRowIndex, rows]);
+  }, [activeDxRowIndex, rows, resetToothSelectionSession]);
 
   const encounterId = useMemo(
     () => (typeof id === "string" ? Number(id) : NaN),
@@ -1371,26 +1375,26 @@ export default function EncounterAdminPage() {
       }
 
       // Update local state with saved data from server
-     const savedDxRows: EditableDiagnosis[] =
-  json?.map((row: any, idx: number) => ({
-    ...row,
-    diagnosisId: row.diagnosisId ?? null,
-    diagnosis: row.diagnosis ?? null,
-    localId: idx + 1,
-    selectedProblemIds: Array.isArray(row.selectedProblemIds)
-      ? row.selectedProblemIds
-      : [],
-    note: row.note || "",
-    toothCode: row.toothCode || "",
-    serviceId: editableDxRows[idx]?.serviceId,
-    searchText: row.diagnosis
-      ? `${row.diagnosis.code} – ${row.diagnosis.name}`
-      : "",
-    serviceSearchText: editableDxRows[idx]?.serviceSearchText || "",
-
-    // IMPORTANT: preserve lock state
-    locked: editableDxRows[idx]?.locked ?? true,
-  })) || [];
+      // All rows returned from server have been saved and should be locked
+      // Server response shape: Array<{ id, diagnosisId, selectedProblemIds, note, toothCode, diagnosis }>
+      const savedDxRows: EditableDiagnosis[] =
+        json?.map((row: any, idx: number) => ({
+          ...row,
+          diagnosisId: row.diagnosisId ?? null,
+          diagnosis: row.diagnosis ?? null,
+          localId: idx + 1,
+          selectedProblemIds: Array.isArray(row.selectedProblemIds)
+            ? row.selectedProblemIds
+            : [],
+          note: row.note || "",
+          toothCode: row.toothCode || "",
+          serviceId: editableDxRows[idx]?.serviceId,
+          searchText: row.diagnosis
+            ? `${row.diagnosis.code} – ${row.diagnosis.name}`
+            : "",
+          serviceSearchText: editableDxRows[idx]?.serviceSearchText || "",
+          locked: true,
+        })) || [];
       setEditableDxRows(savedDxRows);
 
       // Merge with services for rows
@@ -1566,8 +1570,6 @@ export default function EncounterAdminPage() {
       await handleSaveDiagnoses();
       await handleSaveServices();
       await savePrescription();
-      setEditableDxRows((prev) => prev.map((r) => ({ ...r, locked: true })));
-      setRows((prev) => prev.map((r) => ({ ...r, locked: true })));
 
       const res = await fetch(`/api/encounters/${id}/finish`, {
         method: "PUT",
@@ -1579,6 +1581,9 @@ export default function EncounterAdminPage() {
             "Үзлэг дууссаны төлөв шинэчлэх үед алдаа гарлаа."
         );
       }
+
+      // Reset tooth selection session after successful finish
+      resetToothSelectionSession();
     } catch (err) {
       console.error("handleFinishEncounter failed", err);
     } finally {
@@ -5742,18 +5747,8 @@ export default function EncounterAdminPage() {
                     await handleSaveDiagnoses();
                     await handleSaveServices();
                     await savePrescription();
-                    // Lock all rows after successful save
-                    setEditableDxRows((prev) => prev.map((r) => ({ ...r, locked: true })));
-                    setRows((prev) => prev.map((r) => ({ ...r, locked: true })));
-                    // Reset tooth chart after successful save
-                    setSelectedTeeth([]);
-                    setActiveDxRowIndex(null);
-                    setCustomToothRange("");
-                    setOpenDxIndex(null);
-                    setOpenServiceIndex(null);
-                    // Force new diagnosis row on next tooth pick
-                    setForceNewDxRowOnToothPick(true);
-                   
+                    // Reset tooth selection session after successful save
+                    resetToothSelectionSession();
                   }}
                   disabled={saving || finishing || prescriptionSaving}
                   style={{
