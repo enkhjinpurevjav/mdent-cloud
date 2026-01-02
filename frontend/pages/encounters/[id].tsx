@@ -1376,7 +1376,7 @@ export default function EncounterAdminPage() {
 
       // Update local state with saved data from server
       // All rows returned from server have been saved and should be locked
-      // Note: Using 'any' for server response - shape matches EncounterDiagnosisRow
+      // Server response shape: Array<{ id, diagnosisId, selectedProblemIds, note, toothCode, diagnosis }>
       const savedDxRows: EditableDiagnosis[] =
         json?.map((row: any, idx: number) => ({
           ...row,
