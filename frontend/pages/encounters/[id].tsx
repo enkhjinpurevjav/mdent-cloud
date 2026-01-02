@@ -594,73 +594,80 @@ export default function EncounterAdminPage() {
     return allCodes.length > 0 && allCodes.every((c) => selectedTeeth.includes(c));
   };
 
-  const resolveWritableDxRowIndex = () => {
-  if (forceNewDxRowOnToothPick) return null;
-  if (activeDxRowIndex === null) return null;
+    const resolveWritableDxRowIndex = () => {
+    if (forceNewDxRowOnToothPick) return null;
+    if (activeDxRowIndex === null) return null;
 
-  const activeRow = rows[activeDxRowIndex];
-  if (!activeRow) return null;
-  if (activeRow.locked) return null;
+    const activeRow = rows[activeDxRowIndex];
+    if (!activeRow) return null;
+    if (activeRow.locked) return null;
 
-  return activeDxRowIndex;
-};
+    return activeDxRowIndex;
+  };
 
-  // Modify updateActiveRowToothList to support ALL label
-  const updateActiveRowToothList = (nextTeeth: string[], opts?: { isAllTeeth?: boolean }) => {
-  const writableIndex = resolveWritableDxRowIndex();
+  const updateActiveRowToothList = (
+    nextTeeth: string[],
+    opts?: { isAllTeeth?: boolean }
+  ) => {
+    const writableIndex = resolveWritableDxRowIndex();
 
-  // If no writable row, ALWAYS create a new row (unless empty selection)
-  if (writableIndex === null) {
-    if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
+    // If there is no writable row, ALWAYS create a new row (unless empty selection)
+    if (writableIndex === null) {
+      if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
 
-    const idx = createDiagnosisRow(nextTeeth);
+      const idx = createDiagnosisRow(nextTeeth);
 
-    setForceNewDxRowOnToothPick(false);
-    setActiveDxRowIndex(idx);
+      setForceNewDxRowOnToothPick(false);
+      setActiveDxRowIndex(idx);
 
-    const toothStr = opts?.isAllTeeth ? ALL_TEETH_LABEL : stringifyToothList(nextTeeth);
+      const toothStr = opts?.isAllTeeth
+        ? ALL_TEETH_LABEL
+        : stringifyToothList(nextTeeth);
 
-    // Ensure correct toothCode for the new row even if ALL
+      setEditableDxRows((prev) =>
+        prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
+      );
+      setRows((prev) =>
+        prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
+      );
+
+      return;
+    }
+
+    // Update only the writable row
+    const toothStr = opts?.isAllTeeth
+      ? ALL_TEETH_LABEL
+      : stringifyToothList(nextTeeth);
+
     setEditableDxRows((prev) =>
-      prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
+      prev.map((row, i) =>
+        i === writableIndex ? { ...row, toothCode: toothStr } : row
+      )
     );
     setRows((prev) =>
-      prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
+      prev.map((row, i) =>
+        i === writableIndex ? { ...row, toothCode: toothStr } : row
+      )
     );
 
-    return;
-  }
+    if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
+      setActiveDxRowIndex(null);
+    }
+  };
 
-  // Otherwise update writableIndex (NOT activeDxRowIndex directly)
-  const toothStr = opts?.isAllTeeth ? ALL_TEETH_LABEL : stringifyToothList(nextTeeth);
-
-  setEditableDxRows((prev) =>
-    prev.map((row, i) => (i === writableIndex ? { ...row, toothCode: toothStr } : row))
-  );
-  setRows((prev) =>
-    prev.map((row, i) => (i === writableIndex ? { ...row, toothCode: toothStr } : row))
-  );
-
-  if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
-    setActiveDxRowIndex(null);
-  }
-};
-
-  if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
-    setActiveDxRowIndex(null);
-  }
-};
+  
 
   const toggleToothSelection = (code: string) => {
     if (code === "ALL") {
       const allCodes = toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH;
-      const allSelected = allCodes.every((c) => selectedTeeth.includes(c));
-      const next = allSelected ? [] : allCodes;
 
-      setSelectedTeeth(next);
+      setSelectedTeeth((prev) => {
+        const allSelected = allCodes.every((c) => prev.includes(c));
+        const next = allSelected ? [] : allCodes;
 
-      if (!allSelected) updateActiveRowToothList(next, { isAllTeeth: true });
-      else updateActiveRowToothList([], { isAllTeeth: false });
+        updateActiveRowToothList(next, { isAllTeeth: !allSelected });
+        return next;
+      });
 
       return;
     }
@@ -668,6 +675,7 @@ export default function EncounterAdminPage() {
     setSelectedTeeth((prev) => {
       const exists = prev.includes(code);
       const next = exists ? prev.filter((c) => c !== code) : [...prev, code];
+
       updateActiveRowToothList(next);
       return next;
     });
@@ -708,10 +716,22 @@ export default function EncounterAdminPage() {
 
   const [saveError, setSaveError] = useState("");
 
-  type DiagnosisServiceRow = EditableDiagnosis;
+    type DiagnosisServiceRow = EditableDiagnosis;
   const [rows, setRows] = useState<DiagnosisServiceRow[]>([]);
   const [servicesLoadError, setServicesLoadError] = useState("");
   const [dxError, setDxError] = useState("");
+
+  // ✅ Add this useEffect right here (after rows is declared)
+  useEffect(() => {
+    if (activeDxRowIndex === null) return;
+    const r = rows[activeDxRowIndex];
+    if (r?.locked) {
+      setActiveDxRowIndex(null);
+      setSelectedTeeth([]);
+      setCustomToothRange("");
+      setForceNewDxRowOnToothPick(true);
+    }
+  }, [activeDxRowIndex, rows]);
 
   const encounterId = useMemo(
     () => (typeof id === "string" ? Number(id) : NaN),
@@ -1351,23 +1371,26 @@ export default function EncounterAdminPage() {
       }
 
       // Update local state with saved data from server
-      const savedDxRows: EditableDiagnosis[] =
-        json?.map((row: any, idx: number) => ({
-          ...row,
-          diagnosisId: row.diagnosisId ?? null,
-          diagnosis: row.diagnosis ?? null,
-          localId: idx + 1,
-          selectedProblemIds: Array.isArray(row.selectedProblemIds)
-            ? row.selectedProblemIds
-            : [],
-          note: row.note || "",
-          toothCode: row.toothCode || "",
-          serviceId: editableDxRows[idx]?.serviceId,
-          searchText: row.diagnosis
-            ? `${row.diagnosis.code} – ${row.diagnosis.name}`
-            : "",
-          serviceSearchText: editableDxRows[idx]?.serviceSearchText || "",
-        })) || [];
+     const savedDxRows: EditableDiagnosis[] =
+  json?.map((row: any, idx: number) => ({
+    ...row,
+    diagnosisId: row.diagnosisId ?? null,
+    diagnosis: row.diagnosis ?? null,
+    localId: idx + 1,
+    selectedProblemIds: Array.isArray(row.selectedProblemIds)
+      ? row.selectedProblemIds
+      : [],
+    note: row.note || "",
+    toothCode: row.toothCode || "",
+    serviceId: editableDxRows[idx]?.serviceId,
+    searchText: row.diagnosis
+      ? `${row.diagnosis.code} – ${row.diagnosis.name}`
+      : "",
+    serviceSearchText: editableDxRows[idx]?.serviceSearchText || "",
+
+    // IMPORTANT: preserve lock state
+    locked: editableDxRows[idx]?.locked ?? true,
+  })) || [];
       setEditableDxRows(savedDxRows);
 
       // Merge with services for rows
