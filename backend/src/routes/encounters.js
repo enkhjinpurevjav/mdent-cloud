@@ -181,25 +181,21 @@ router.put("/:id/consents/:type", async (req, res) => {
 });
 
 /**
- * POST /api/encounters/:id/consents/:type/patient-signature
+ * POST /api/encounters/:id/patient-signature
  * multipart/form-data: file=<png>
  *
- * Saves patient/guardian drawn signature for this consent type.
- * NOTE: This signature is separate from VisitCard signature.
+ * Saves patient/guardian drawn signature for this encounter.
+ * Shared across all consent forms.
  */
 router.post(
-  "/:id/consents/:type/patient-signature",
+  "/:id/patient-signature",
   upload.single("file"),
   async (req, res) => {
     try {
       const encounterId = Number(req.params.id);
-      const type = String(req.params.type || "").trim();
 
       if (!encounterId || Number.isNaN(encounterId)) {
         return res.status(400).json({ error: "Invalid encounter id" });
-      }
-      if (!type) {
-        return res.status(400).json({ error: "Invalid consent type" });
       }
       if (!req.file) {
         return res.status(400).json({ error: "file is required" });
@@ -207,28 +203,25 @@ router.post(
 
       const publicPath = `/media/${path.basename(req.file.path)}`;
 
-      const consent = await prisma.encounterConsent.upsert({
-        where: { encounterId_type: { encounterId, type } },
-        create: {
-          encounterId,
-          type,
-          answers: {},
+      const encounter = await prisma.encounter.update({
+        where: { id: encounterId },
+        data: {
           patientSignaturePath: publicPath,
           patientSignedAt: new Date(),
         },
-        update: {
-          patientSignaturePath: publicPath,
-          patientSignedAt: new Date(),
+        select: {
+          patientSignaturePath: true,
+          patientSignedAt: true,
         },
       });
 
       return res.json({
-        patientSignaturePath: consent.patientSignaturePath,
-        patientSignedAt: consent.patientSignedAt,
+        patientSignaturePath: encounter.patientSignaturePath,
+        patientSignedAt: encounter.patientSignedAt,
       });
     } catch (err) {
       console.error(
-        "POST /api/encounters/:id/consents/:type/patient-signature error:",
+        "POST /api/encounters/:id/patient-signature error:",
         err
       );
       return res.status(500).json({ error: "Failed to save patient signature" });
@@ -237,67 +230,74 @@ router.post(
 );
 
 /**
- * POST /api/encounters/:id/consents/:type/doctor-signature
+ * POST /api/encounters/:id/doctor-signature
+ * multipart/form-data (optional): file=<png>
  *
- * Attaches doctor's stored signatureImagePath to this consent type.
- * Uses Encounter.doctor (assigned doctor).
+ * Saves doctor signature for this encounter (shared across all consent forms).
+ * - If file is provided: upload and store
+ * - If no file: attach from doctor's profile signatureImagePath
  */
-router.post("/:id/consents/:type/doctor-signature", async (req, res) => {
-  try {
-    const encounterId = Number(req.params.id);
-    const type = String(req.params.type || "").trim();
+router.post(
+  "/:id/doctor-signature",
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      const encounterId = Number(req.params.id);
 
-    if (!encounterId || Number.isNaN(encounterId)) {
-      return res.status(400).json({ error: "Invalid encounter id" });
-    }
-    if (!type) {
-      return res.status(400).json({ error: "Invalid consent type" });
-    }
+      if (!encounterId || Number.isNaN(encounterId)) {
+        return res.status(400).json({ error: "Invalid encounter id" });
+      }
 
-    const enc = await prisma.encounter.findUnique({
-      where: { id: encounterId },
-      select: {
-        id: true,
-        doctor: { select: { signatureImagePath: true } },
-      },
-    });
+      let signaturePath = null;
 
-    if (!enc) return res.status(404).json({ error: "Encounter not found" });
+      if (req.file) {
+        // File uploaded - use it
+        signaturePath = `/media/${path.basename(req.file.path)}`;
+      } else {
+        // No file - attach from doctor profile
+        const enc = await prisma.encounter.findUnique({
+          where: { id: encounterId },
+          select: {
+            id: true,
+            doctor: { select: { signatureImagePath: true } },
+          },
+        });
 
-    const signaturePath = enc.doctor?.signatureImagePath || null;
-    if (!signaturePath) {
-      return res.status(400).json({
-        error: "Doctor signature not found. Upload signature on doctor profile first.",
+        if (!enc) return res.status(404).json({ error: "Encounter not found" });
+
+        signaturePath = enc.doctor?.signatureImagePath || null;
+        if (!signaturePath) {
+          return res.status(400).json({
+            error: "Doctor signature not found. Upload signature on doctor profile first.",
+          });
+        }
+      }
+
+      const encounter = await prisma.encounter.update({
+        where: { id: encounterId },
+        data: {
+          doctorSignaturePath: signaturePath,
+          doctorSignedAt: new Date(),
+        },
+        select: {
+          doctorSignaturePath: true,
+          doctorSignedAt: true,
+        },
       });
+
+      return res.json({
+        doctorSignaturePath: encounter.doctorSignaturePath,
+        doctorSignedAt: encounter.doctorSignedAt,
+      });
+    } catch (err) {
+      console.error(
+        "POST /api/encounters/:id/doctor-signature error:",
+        err
+      );
+      return res.status(500).json({ error: "Failed to attach doctor signature" });
     }
-
-    const consent = await prisma.encounterConsent.upsert({
-      where: { encounterId_type: { encounterId, type } },
-      create: {
-        encounterId,
-        type,
-        answers: {},
-        doctorSignaturePath: signaturePath,
-        doctorSignedAt: new Date(),
-      },
-      update: {
-        doctorSignaturePath: signaturePath,
-        doctorSignedAt: new Date(),
-      },
-    });
-
-    return res.json({
-      doctorSignaturePath: consent.doctorSignaturePath,
-      doctorSignedAt: consent.doctorSignedAt,
-    });
-  } catch (err) {
-    console.error(
-      "POST /api/encounters/:id/consents/:type/doctor-signature error:",
-      err
-    );
-    return res.status(500).json({ error: "Failed to attach doctor signature" });
   }
-});
+);
 
 /**
  * LEGACY: GET /api/encounters/:id/consent
