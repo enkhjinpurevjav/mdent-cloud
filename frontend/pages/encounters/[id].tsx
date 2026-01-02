@@ -575,20 +575,17 @@ export default function EncounterAdminPage() {
   const [toothMode, setToothMode] = useState<"ADULT" | "CHILD">("ADULT");
   const [selectedTeeth, setSelectedTeeth] = useState<string[]>([]);
   const [activeDxRowIndex, setActiveDxRowIndex] = useState<number | null>(null);
-  const [customToothRange, setCustomToothRangeState] = useState("");
+  const [customToothRange, setCustomToothRange] = useState("");
 
   const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
   const [openServiceIndex, setOpenServiceIndex] = useState<number | null>(null);
 
-  // Keep only ONE toggleToothMode
   const toggleToothMode = (mode: "ADULT" | "CHILD") => {
     setToothMode(mode);
   };
 
-  // Keep only ONE isToothSelected
   const isToothSelected = (code: string) => selectedTeeth.includes(code);
 
-  // Add helper for ALL selected
   const areAllModeTeethSelected = () => {
     const allCodes = toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH;
     return allCodes.length > 0 && allCodes.every((c) => selectedTeeth.includes(c));
@@ -690,11 +687,6 @@ export default function EncounterAdminPage() {
   const [visitCardLoading, setVisitCardLoading] = useState(false);
 
   const [saveError, setSaveError] = useState("");
-
-  const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
-  const [openServiceIndex, setOpenServiceIndex] = useState<number | null>(
-    null
-  );
 
   type DiagnosisServiceRow = EditableDiagnosis;
   const [rows, setRows] = useState<DiagnosisServiceRow[]>([]);
@@ -1519,112 +1511,6 @@ export default function EncounterAdminPage() {
     }
   };
 
-  const toggleToothMode = (mode: "ADULT" | "CHILD") => {
-    setToothMode(mode);
-  };
-
-  // CHANGE THIS (don’t treat "ALL" as a real selected tooth)
-  const isToothSelected = (code: string) => selectedTeeth.includes(code);
-
-  // ADD THIS helper:
-  const areAllModeTeethSelected = () => {
-    const allCodes = toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH;
-    return allCodes.length > 0 && allCodes.every((c) => selectedTeeth.includes(c));
-  };
-
-  // CHANGE signature: accept isAllTeeth flag
-  const updateActiveRowToothList = (
-    nextTeeth: string[],
-    opts?: { isAllTeeth?: boolean }
-  ) => {
-    if (activeDxRowIndex === null) {
-      if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
-      const idx = createDiagnosisRow(nextTeeth);
-      setActiveDxRowIndex(idx);
-
-      // If it's "all teeth", overwrite the newly created row's toothCode
-      if (opts?.isAllTeeth) {
-        setEditableDxRows((prev) =>
-          prev.map((row, i) => (i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row))
-        );
-        setRows((prev) =>
-          prev.map((row, i) => (i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row))
-        );
-      }
-      return;
-    }
-
-    const toothStr = opts?.isAllTeeth ? ALL_TEETH_LABEL : stringifyToothList(nextTeeth);
-
-    setEditableDxRows((prev) =>
-      prev.map((row, i) =>
-        i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
-      )
-    );
-    setRows((prev) =>
-      prev.map((row, i) =>
-        i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
-      )
-    );
-
-    // Only treat as empty when it’s truly empty AND not "all teeth"
-    if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
-      setEditableDxRows((prev) => {
-        const row = prev[activeDxRowIndex!];
-        const isEmpty =
-          !row.diagnosisId &&
-          (row.note || "").trim() === "" &&
-          (row.selectedProblemIds?.length ?? 0) === 0 &&
-          !row.serviceId;
-        if (!isEmpty) {
-          return prev.map((r, i) =>
-            i === activeDxRowIndex ? { ...r, toothCode: "" } : r
-          );
-        }
-        return prev.filter((_, i) => i !== activeDxRowIndex);
-      });
-      setRows((prev) => {
-        const row = prev[activeDxRowIndex!];
-        const isEmpty =
-          !row.diagnosisId &&
-          (row.note || "").trim() === "" &&
-          (row.selectedProblemIds?.length ?? 0) === 0 &&
-          !row.serviceId;
-        if (!isEmpty) {
-          return prev.map((r, i) =>
-            i === activeDxRowIndex ? { ...r, toothCode: "" } : r
-          );
-        }
-        return prev.filter((_, i) => i !== activeDxRowIndex);
-      });
-      setActiveDxRowIndex(null);
-    }
-  };
-
-  const toggleToothSelection = (code: string) => {
-    if (code === "ALL") {
-      const allCodes = toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH;
-      const allSelected = allCodes.every((c) => selectedTeeth.includes(c));
-      const next = allSelected ? [] : allCodes;
-
-      setSelectedTeeth(next);
-
-      // IMPORTANT: when selecting all, set toothCode to "Бүх шүд"
-      if (!allSelected) {
-        updateActiveRowToothList(next, { isAllTeeth: true });
-      } else {
-        updateActiveRowToothList([], { isAllTeeth: false });
-      }
-      return;
-    }
-
-    setSelectedTeeth((prev) => {
-      const exists = prev.includes(code);
-      const next = exists ? prev.filter((c) => c !== code) : [...prev, code];
-      updateActiveRowToothList(next);
-      return next;
-    });
-  };
 
   const warningLines: WarningLine[] = extractWarningLinesFromVisitCard(
     visitCard
@@ -5650,10 +5536,15 @@ export default function EncounterAdminPage() {
                 <button
                   type="button"
                   onClick={async () => {
-   const onSaveOnlyDiagnoses = async () => {
                     await handleSaveDiagnoses();
-    await handleSaveServices();
-    await savePrescription();
+                    await handleSaveServices();
+                    await savePrescription();
+                    // Reset tooth chart after successful save
+                    setSelectedTeeth([]);
+                    setActiveDxRowIndex(null);
+                    setCustomToothRange("");
+                    setOpenDxIndex(null);
+                    setOpenServiceIndex(null);
                   }}
                   disabled={saving || finishing || prescriptionSaving}
                   style={{
