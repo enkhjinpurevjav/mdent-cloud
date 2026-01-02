@@ -1366,34 +1366,40 @@ const removeDiagnosisRow = (index: number) => {
 
       // Update local state with saved data from server
       // All rows returned from server have been saved and should be locked
-      // Server response shape: Array<{ id, diagnosisId, selectedProblemIds, note, toothCode, diagnosis }>
-      const savedDxRows: EditableDiagnosis[] =
-        json?.map((row: any, idx: number) => ({
-          ...row,
-          diagnosisId: row.diagnosisId ?? null,
-          diagnosis: row.diagnosis ?? null,
-          localId: idx + 1,
-          selectedProblemIds: Array.isArray(row.selectedProblemIds)
-            ? row.selectedProblemIds
-            : [],
-          note: row.note || "",
-          toothCode: row.toothCode || "",
-          serviceId: editableDxRows[idx]?.serviceId,
-          searchText: row.diagnosis
-            ? `${row.diagnosis.code} – ${row.diagnosis.name}`
-            : "",
-          serviceSearchText: editableDxRows[idx]?.serviceSearchText || "",
-          locked: true,
-        })) || [];
-      setEditableDxRows(savedDxRows);
+     // inside handleSaveDiagnoses success block:
 
-      // Merge with services for rows
-      const mergedRows: DiagnosisServiceRow[] = savedDxRows.map((dxRow, i) => ({
-        ...dxRow,
-        serviceId: editableDxRows[i]?.serviceId,
-        serviceSearchText: editableDxRows[i]?.serviceSearchText || "",
-      }));
-      setRows(mergedRows);
+const savedDxRows: EditableDiagnosis[] =
+  json?.map((row: any, idx: number) => ({
+    ...row,
+    diagnosisId: row.diagnosisId ?? null,
+    diagnosis: row.diagnosis ?? null,
+    localId: idx + 1,
+    selectedProblemIds: Array.isArray(row.selectedProblemIds)
+      ? row.selectedProblemIds
+      : [],
+    note: row.note || "",
+    toothCode: row.toothCode || "",
+
+    // ✅ preserve service selection from rows (UI state)
+    serviceId: rows[idx]?.serviceId,
+    serviceSearchText: rows[idx]?.serviceSearchText || "",
+
+    searchText: row.diagnosis
+      ? `${row.diagnosis.code} – ${row.diagnosis.name}`
+      : "",
+    locked: true,
+  })) || [];
+setEditableDxRows(savedDxRows);
+
+// Merge with services for rows
+const mergedRows: DiagnosisServiceRow[] = savedDxRows.map((dxRow, i) => ({
+  ...dxRow,
+
+  // ✅ preserve service selection from rows (UI state)
+  serviceId: rows[i]?.serviceId,
+  serviceSearchText: rows[i]?.serviceSearchText || "",
+}));
+setRows(mergedRows);
     } catch (err: any) {
       console.error("handleSaveDiagnoses failed", err);
       setSaveError(
