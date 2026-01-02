@@ -1580,7 +1580,7 @@ export default function EncounterAdminPage() {
             "Үзлэг дууссаны төлөв шинэчлэх үед алдаа гарлаа."
         );
       }
-      
+
       // Reset tooth selection session after successful finish
       resetToothSelectionSession();
     } catch (err) {
