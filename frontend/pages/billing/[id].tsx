@@ -92,6 +92,8 @@ type Encounter = {
   notes?: string | null;
   patientBook: PatientBook;
   doctor: Doctor | null;
+  // NOTE: server returns prescription via /api/encounters/:id include
+  prescription?: Prescription | null;
 };
 
 type PrescriptionItem = {
@@ -108,6 +110,26 @@ type Prescription = {
   id: number;
   encounterId: number;
   items: PrescriptionItem[];
+};
+
+type EncounterMedia = {
+  id: number;
+  encounterId: number;
+  filePath: string;
+  toothCode?: string | null;
+  type: string; // "XRAY" | "PHOTO" | ...
+};
+
+type EncounterConsent = {
+  encounterId: number;
+  type: string;
+  answers: any;
+  patientSignedAt?: string | null;
+  doctorSignedAt?: string | null;
+  patientSignaturePath?: string | null;
+  doctorSignaturePath?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 function formatDateTime(iso: string) {
@@ -182,8 +204,8 @@ function BillingPaymentSection({
   );
 
   const [appRows, setAppRows] = useState<AppPaymentRow[]>([
-  { provider: "", amount: "" },
-]);
+    { provider: "", amount: "" },
+  ]);
 
   // voucher type + max
   const [voucherType, setVoucherType] = useState<"MARKETING" | "GIFT" | "">(
@@ -236,48 +258,48 @@ function BillingPaymentSection({
   }, [invoice.id]);
 
   const handleToggle = (methodKey: string, checked: boolean) => {
-  setEnabled((prev) => ({ ...prev, [methodKey]: checked }));
-  if (!checked) {
-    setAmounts((prev) => ({ ...prev, [methodKey]: "" }));
-    if (methodKey === "INSURANCE") setInsuranceProvider("");
-    if (methodKey === "BARTER") setBarterCode("");
-    if (methodKey === "EMPLOYEE_BENEFIT") {
-      setEmployeeCode("");
-      setEmployeeRemaining(null);
+    setEnabled((prev) => ({ ...prev, [methodKey]: checked }));
+    if (!checked) {
+      setAmounts((prev) => ({ ...prev, [methodKey]: "" }));
+      if (methodKey === "INSURANCE") setInsuranceProvider("");
+      if (methodKey === "BARTER") setBarterCode("");
+      if (methodKey === "EMPLOYEE_BENEFIT") {
+        setEmployeeCode("");
+        setEmployeeRemaining(null);
+      }
+      if (methodKey === "VOUCHER") {
+        setVoucherCode("");
+        setVoucherType("");
+        setVoucherMaxAmount(null);
+      }
+      if (methodKey === "APPLICATION") {
+        setAppRows([{ provider: "", amount: "" }]);
+      }
     }
-    if (methodKey === "VOUCHER") {
-      setVoucherCode("");
-      setVoucherType("");
-      setVoucherMaxAmount(null);
-    }
-    if (methodKey === "APPLICATION") {
-      setAppRows([{ provider: "", amount: "" }]);
-    }
-  }
-};
+  };
 
   const handleAmountChange = (methodKey: string, value: string) => {
     setAmounts((prev) => ({ ...prev, [methodKey]: value }));
   };
 
   const totalEntered = PAYMENT_METHODS.reduce((sum, m) => {
-  if (!enabled[m.key]) return sum;
+    if (!enabled[m.key]) return sum;
 
-  if (m.key === "APPLICATION") {
-    const appSum = appRows.reduce((s, row) => {
-      const amt = Number(row.amount);
-      return !amt || amt <= 0 ? s : s + amt;
-    }, 0);
-    return sum + appSum;
-  }
+    if (m.key === "APPLICATION") {
+      const appSum = appRows.reduce((s, row) => {
+        const amt = Number(row.amount);
+        return !amt || amt <= 0 ? s : s + amt;
+      }, 0);
+      return sum + appSum;
+    }
 
-  const raw = amounts[m.key] ?? "";
-  const amt = Number(raw);
-  if (!amt || amt <= 0) return sum;
-  return sum + amt;
-}, 0);
+    const raw = amounts[m.key] ?? "";
+    const amt = Number(raw);
+    if (!amt || amt <= 0) return sum;
+    return sum + amt;
+  }, 0);
 
-    const remainingAfterEntered = Math.max(unpaid - totalEntered, 0);
+  const remainingAfterEntered = Math.max(unpaid - totalEntered, 0);
 
   // verify employee benefit code via backend
   const handleVerifyEmployeeCode = async () => {
@@ -302,16 +324,12 @@ function BillingPaymentSection({
 
       const data = await res.json().catch(() => null);
       if (!res.ok || !data) {
-        throw new Error(
-          (data && data.error) || "Код шалгахад алдаа гарлаа."
-        );
+        throw new Error((data && data.error) || "Код шалгахад алдаа гарлаа.");
       }
 
       const remaining = data.remainingAmount ?? 0;
       setEmployeeRemaining(remaining);
-      setSuccess(
-        `Ажилтны код баталгаажлаа. Үлдэгдэл: ${formatMoney(remaining)} ₮`
-      );
+      setSuccess(`Ажилтны код баталгаажлаа. Үлдэгдэл: ${formatMoney(remaining)} ₮`);
     } catch (e: any) {
       console.error("verify employee benefit code failed:", e);
       setEmployeeRemaining(null);
@@ -348,18 +366,12 @@ function BillingPaymentSection({
 
       const data = await res.json().catch(() => null);
       if (!res.ok || !data) {
-        throw new Error(
-          (data && data.error) || "Купон шалгахад алдаа гарлаа."
-        );
+        throw new Error((data && data.error) || "Купон шалгахад алдаа гарлаа.");
       }
 
       const maxAmount = data.maxAmount ?? 0;
       setVoucherMaxAmount(maxAmount);
-      setSuccess(
-        `Купон баталгаажлаа. Ашиглах дээд дүн: ${formatMoney(
-          maxAmount
-        )} ₮`
-      );
+      setSuccess(`Купон баталгаажлаа. Ашиглах дээд дүн: ${formatMoney(maxAmount)} ₮`);
     } catch (e: any) {
       console.error("verify voucher code failed:", e);
       setVoucherMaxAmount(null);
@@ -377,47 +389,39 @@ function BillingPaymentSection({
       return;
     }
 
-    const entries: {
-      method: string;
-      amount: number;
-      meta?: any;
-    }[] = [];
+    const entries: { method: string; amount: number; meta?: any }[] = [];
 
     for (const m of PAYMENT_METHODS) {
-  if (!enabled[m.key]) continue;
+      if (!enabled[m.key]) continue;
 
-  if (m.key === "APPLICATION") {
-    const validRows = appRows.filter(
-      (r) => r.provider && Number(r.amount) > 0
-    );
+      if (m.key === "APPLICATION") {
+        const validRows = appRows.filter((r) => r.provider && Number(r.amount) > 0);
 
-    if (validRows.length === 0) {
-      setError(
-        "Аппликэйшнээр төлбөр сонгосон бол дор хаяж нэг мөр бөглөнө үү."
-      );
-      return;
-    }
+        if (validRows.length === 0) {
+          setError("Аппликэйшнээр төлбөр сонгосон бол дор хаяж нэг мөр бөглөнө үү.");
+          return;
+        }
 
-    for (const row of validRows) {
-      const amt = Number(row.amount);
-      entries.push({
-        method: "APPLICATION",
+        for (const row of validRows) {
+          const amt = Number(row.amount);
+          entries.push({
+            method: "APPLICATION",
+            amount: amt,
+            meta: { provider: row.provider },
+          });
+        }
+
+        continue;
+      }
+
+      const raw = amounts[m.key] ?? "";
+      const amt = Number(raw);
+      if (!amt || amt <= 0) continue;
+
+      const entry: { method: string; amount: number; meta?: any } = {
+        method: m.key,
         amount: amt,
-        meta: { provider: row.provider },
-      });
-    }
-
-    continue; // skip shared logic for this method
-  }
-
-  const raw = amounts[m.key] ?? "";
-  const amt = Number(raw);
-  if (!amt || amt <= 0) continue;
-
-  const entry: { method: string; amount: number; meta?: any } = {
-    method: m.key,
-    amount: amt,
-  };
+      };
 
       if (m.key === "VOUCHER") {
         if (!voucherType) {
@@ -433,16 +437,10 @@ function BillingPaymentSection({
           return;
         }
         if (amt > voucherMaxAmount) {
-          setError(
-            "Оруулсан дүн нь купоны боломжит дүнгээс их байна."
-          );
+          setError("Оруулсан дүн нь купоны боломжит дүнгээс их байна.");
           return;
         }
-        entry.meta = {
-          ...(entry.meta || {}),
-          type: voucherType,
-          code: voucherCode.trim(),
-        };
+        entry.meta = { ...(entry.meta || {}), type: voucherType, code: voucherCode.trim() };
       }
 
       if (m.key === "BARTER") {
@@ -462,26 +460,18 @@ function BillingPaymentSection({
           setError("Оруулсан дүн ажилтны үлдэгдлээс их байна.");
           return;
         }
-        entry.meta = {
-          ...(entry.meta || {}),
-          employeeCode: employeeCode.trim(),
-        };
+        entry.meta = { ...(entry.meta || {}), employeeCode: employeeCode.trim() };
       }
 
       if (m.key === "WALLET") {
         if (walletAvailable <= 0) {
-          setError(
-            "Үйлчлүүлэгчид ашиглах боломжтой хэтэвчийн үлдэгдэл алга байна."
-          );
+          setError("Үйлчлүүлэгчид ашиглах боломжтой хэтэвчийн үлдэгдэл алга байна.");
           return;
         }
         if (amt > walletAvailable) {
-          setError(
-            "Оруулсан хэтэвчийн дүн нь боломжит үлдэгдлээс их байна."
-          );
+          setError("Оруулсан хэтэвчийн дүн нь боломжит үлдэгдлээс их байна.");
           return;
         }
-        // no extra meta needed for now
       }
 
       entries.push(entry);
@@ -511,9 +501,7 @@ function BillingPaymentSection({
         const data = await res.json().catch(() => null);
 
         if (!res.ok || !data) {
-          throw new Error(
-            (data && data.error) || "Төлбөр бүртгэхэд алдаа гарлаа."
-          );
+          throw new Error((data && data.error) || "Төлбөр бүртгэхэд алдаа гарлаа.");
         }
 
         latest = { ...invoice, ...data };
@@ -523,7 +511,7 @@ function BillingPaymentSection({
         onUpdated(latest);
       }
 
-            setSuccess("Төлбөр(үүд) амжилттай бүртгэгдлээ.");
+      setSuccess("Төлбөр(үүд) амжилттай бүртгэгдлээ.");
       setEnabled({});
       setAmounts({});
       setInsuranceProvider("");
@@ -533,7 +521,7 @@ function BillingPaymentSection({
       setEmployeeRemaining(null);
       setVoucherType("");
       setVoucherMaxAmount(null);
-      setAppRows([{ provider: "", amount: "" }]); // reset application rows
+      setAppRows([{ provider: "", amount: "" }]);
     } catch (err: any) {
       console.error("Failed to settle invoice:", err);
       setError(err.message || "Төлбөр бүртгэхэд алдаа гарлаа.");
@@ -1100,6 +1088,15 @@ export default function BillingPage() {
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState("");
 
+  // NEW: XRAY + consent printable info
+  const [xrays, setXrays] = useState<EncounterMedia[]>([]);
+  const [xraysLoading, setXraysLoading] = useState(false);
+  const [xraysError, setXraysError] = useState("");
+
+  const [consent, setConsent] = useState<EncounterConsent | null>(null);
+  const [consentLoading, setConsentLoading] = useState(false);
+  const [consentError, setConsentError] = useState("");
+
   // Service selector state
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
   const [serviceModalRowIndex, setServiceModalRowIndex] =
@@ -1166,6 +1163,52 @@ export default function BillingPage() {
     void load();
   }, [encounterId]);
 
+  // NEW: load XRAY media list
+  useEffect(() => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+
+    const loadXrays = async () => {
+      setXraysLoading(true);
+      setXraysError("");
+      try {
+        const res = await fetch(`/api/encounters/${encounterId}/media?type=XRAY`);
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error((data && data.error) || "XRAY ачаалж чадсангүй.");
+        setXrays(Array.isArray(data) ? data : []);
+      } catch (e: any) {
+        setXrays([]);
+        setXraysError(e.message || "XRAY ачаалж чадсангүй.");
+      } finally {
+        setXraysLoading(false);
+      }
+    };
+
+    void loadXrays();
+  }, [encounterId]);
+
+  // NEW: load consent
+  useEffect(() => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
+
+    const loadConsent = async () => {
+      setConsentLoading(true);
+      setConsentError("");
+      try {
+        const res = await fetch(`/api/encounters/${encounterId}/consent`);
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error((data && data.error) || "Зөвшөөрөл ачаалж чадсангүй.");
+        setConsent(data ? (data as EncounterConsent) : null);
+      } catch (e: any) {
+        setConsent(null);
+        setConsentError(e.message || "Зөвшөөрөл ачаалж чадсангүй.");
+      } finally {
+        setConsentLoading(false);
+      }
+    };
+
+    void loadConsent();
+  }, [encounterId]);
+
   const handleItemChange = (
     index: number,
     field: "name" | "quantity" | "unitPrice",
@@ -1189,21 +1232,21 @@ export default function BillingPage() {
     );
   };
 
-const handleTeethNumbersChange = (index: number, value: string) => {
-  setItems((prev) =>
-    prev.map((row, i) => {
-      if (i !== index) return row;
-      return {
-        ...row,
-        teethNumbers: value
-          .split(",")
-          .map((n) => n.trim())
-          .filter(Boolean),
-      };
-    })
-  );
-};
-  
+  const handleTeethNumbersChange = (index: number, value: string) => {
+    setItems((prev) =>
+      prev.map((row, i) => {
+        if (i !== index) return row;
+        return {
+          ...row,
+          teethNumbers: value
+            .split(",")
+            .map((n) => n.trim())
+            .filter(Boolean),
+        };
+      })
+    );
+  };
+
   const handleRemoveRow = (index: number) => {
     setItems((prev) => prev.filter((_, i) => i !== index));
   };
@@ -1227,10 +1270,7 @@ const handleTeethNumbersChange = (index: number, value: string) => {
   );
   const discountFactor =
     discountPercent === 0 ? 1 : (100 - discountPercent) / 100;
-  const finalAmount = Math.max(
-    Math.round(totalBeforeDiscount * discountFactor),
-    0
-  );
+  const finalAmount = Math.max(Math.round(totalBeforeDiscount * discountFactor), 0);
 
   const handleSaveBilling = async () => {
     if (!encounterId || Number.isNaN(encounterId)) return;
@@ -1251,18 +1291,15 @@ const handleTeethNumbersChange = (index: number, value: string) => {
             name: r.name,
             unitPrice: r.unitPrice,
             quantity: r.quantity,
-            teethNumbers: r.teethNumbers, // INCLUDE THIS!
+            teethNumbers: r.teethNumbers,
           })),
       };
 
-      const res = await fetch(
-        `/api/billing/encounters/${encounterId}/invoice`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
+      const res = await fetch(`/api/billing/encounters/${encounterId}/invoice`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       let data: any = null;
       try {
@@ -1272,9 +1309,7 @@ const handleTeethNumbersChange = (index: number, value: string) => {
       }
 
       if (!res.ok || !data || !data.id) {
-        throw new Error(
-          (data && data.error) || "Төлбөр хадгалахад алдаа гарлаа."
-        );
+        throw new Error((data && data.error) || "Төлбөр хадгалахад алдаа гарлаа.");
       }
 
       const saved: InvoiceResponse = data;
@@ -1291,7 +1326,6 @@ const handleTeethNumbersChange = (index: number, value: string) => {
   };
 
   // ---- Service modal logic ----
-
   const loadServices = async () => {
     if (services.length > 0 || servicesLoading) return;
     setServicesLoading(true);
@@ -1307,8 +1341,7 @@ const handleTeethNumbersChange = (index: number, value: string) => {
 
       if (!res.ok) {
         throw new Error(
-          (data && data.error) ||
-            "Үйлчилгээний жагсаалт ачаалахад алдаа гарлаа."
+          (data && data.error) || "Үйлчилгээний жагсаалт ачаалахад алдаа гарлаа."
         );
       }
 
@@ -1321,9 +1354,7 @@ const handleTeethNumbersChange = (index: number, value: string) => {
       setServices(list);
     } catch (err: any) {
       console.error("Failed to load services:", err);
-      setServicesError(
-        err.message || "Үйлчилгээний жагсаалт ачаалахад алдаа гарлаа."
-      );
+      setServicesError(err.message || "Үйлчилгээний жагсаалт ачаалахад алдаа гарлаа.");
     } finally {
       setServicesLoading(false);
     }
@@ -1370,8 +1401,6 @@ const handleTeethNumbersChange = (index: number, value: string) => {
       return name.includes(q) || code.includes(q);
     });
   }, [services, serviceQuery]);
-
-  // ---------------------------
 
   if (!encounterId || Number.isNaN(encounterId)) {
     return (
@@ -1858,95 +1887,170 @@ const handleTeethNumbersChange = (index: number, value: string) => {
           </section>
 
           {/* Payment section */}
-          <BillingPaymentSection
-            invoice={invoice}
-            onUpdated={(updated) => setInvoice(updated)}
-          />
+          <BillingPaymentSection invoice={invoice} onUpdated={(updated) => setInvoice(updated)} />
 
-          {/* Prescription summary (read-only) */}
-          {encounter && (encounter as any).prescription && (
-            <section
-              style={{
-                marginTop: 16,
-                padding: 16,
-                borderRadius: 8,
-                border: "1px solid #e5e7eb",
-                background: "#ffffff",
-              }}
-            >
-              <h2 style={{ fontSize: 16, margin: 0, marginBottom: 8 }}>
-                Эмийн жор (эмчийн бичсэн)
-              </h2>
+          {/* NEW: Printable / patient paper sections */}
+          <section
+            style={{
+              marginTop: 16,
+              padding: 16,
+              borderRadius: 8,
+              border: "1px solid #e5e7eb",
+              background: "#ffffff",
+            }}
+          >
+            <h2 style={{ fontSize: 16, margin: 0, marginBottom: 8 }}>
+              Хэвлэх боломжтой материалууд
+            </h2>
+            <div style={{ fontSize: 12, color: "#6b7280" }}>
+              Үйлчлүүлэгчид цаасаар өгөх шаардлагатай мэдээллүүд.
+            </div>
 
-              {!(encounter as any).prescription.items ||
-              (encounter as any).prescription.items.length === 0 ? (
-                <div style={{ fontSize: 13, color: "#6b7280" }}>
-                  Энэ үзлэгт эмийн жор бичигдээгүй байна.
-                </div>
-              ) : (
-                <>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "40px 2fr 80px 80px 80px 1.5fr",
-                      gap: 6,
-                      alignItems: "center",
-                      fontSize: 12,
-                      marginBottom: 4,
-                      paddingBottom: 4,
-                      borderBottom: "1px solid #e5e7eb",
-                      color: "#6b7280",
-                    }}
-                  >
-                    <div>№</div>
-                    <div>Эмийн нэр / тун / хэлбэр</div>
-                    <div style={{ textAlign: "center" }}>Нэг удаад</div>
-                    <div style={{ textAlign: "center" }}>Өдөрт</div>
-                    <div style={{ textAlign: "center" }}>Хэд хоног</div>
-                    <div>Тэмдэглэл</div>
-                  </div>
+            {/* Prescription */}
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <h3 style={{ margin: 0, fontSize: 14 }}>Эмийн жор</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // dummy print handler (template will come later)
+                    window.alert("Жор хэвлэх (дараа нь template оруулна)");
+                  }}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #2563eb",
+                    background: "#eff6ff",
+                    color: "#2563eb",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Хэвлэх
+                </button>
+              </div>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 4,
-                      fontSize: 12,
-                    }}
-                  >
-                    {(encounter as any).prescription.items
+              {encounter.prescription?.items?.length ? (
+                <div style={{ marginTop: 8, fontSize: 12 }}>
+                  <ol style={{ margin: 0, paddingLeft: 18 }}>
+                    {encounter.prescription.items
                       .slice()
-                      .sort((a: any, b: any) => a.order - b.order)
-                      .map((it: PrescriptionItem, idx: number) => (
-                        <div
-                          key={it.id ?? idx}
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns:
-                              "40px 2fr 80px 80px 80px 1.5fr",
-                            gap: 6,
-                            alignItems: "center",
-                          }}
-                        >
-                          <div>{it.order ?? idx + 1}</div>
-                          <div>{it.drugName}</div>
-                          <div style={{ textAlign: "center" }}>
-                            {it.quantityPerTake}x
-                          </div>
-                          <div style={{ textAlign: "center" }}>
-                            {it.frequencyPerDay} / өдөр
-                          </div>
-                          <div style={{ textAlign: "center" }}>
+                      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                      .map((it) => (
+                        <li key={it.id} style={{ marginBottom: 4 }}>
+                          <div>
+                            <strong>{it.drugName}</strong>{" "}
+                            — {it.quantityPerTake}x, {it.frequencyPerDay}/өдөр,{" "}
                             {it.durationDays} хоног
                           </div>
-                          <div>{it.note || "-"}</div>
-                        </div>
+                          <div style={{ color: "#6b7280" }}>
+                            Тэмдэглэл: {it.note || "-"}
+                          </div>
+                        </li>
                       ))}
-                  </div>
-                </>
+                  </ol>
+                </div>
+              ) : (
+                <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+                  Энэ үзлэгт эмийн жор байхгүй.
+                </div>
               )}
-            </section>
+            </div>
+
+            {/* XRAY */}
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
+              <h3 style={{ margin: 0, fontSize: 14 }}>XRAY зураг</h3>
+
+              {xraysLoading && (
+                <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+                  XRAY ачаалж байна...
+                </div>
+              )}
+              {!xraysLoading && xraysError && (
+                <div style={{ marginTop: 6, fontSize: 12, color: "#b91c1c" }}>
+                  {xraysError}
+                </div>
+              )}
+              {!xraysLoading && !xraysError && xrays.length === 0 && (
+                <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+                  XRAY зураг хавсаргагдаагүй.
+                </div>
+              )}
+
+              {!xraysLoading && !xraysError && xrays.length > 0 && (
+                <ul style={{ margin: 0, marginTop: 6, paddingLeft: 18, fontSize: 12 }}>
+                  {xrays.map((m) => (
+                    <li key={m.id} style={{ marginBottom: 4 }}>
+                      <a href={m.filePath} target="_blank" rel="noreferrer">
+                        {m.filePath}
+                      </a>
+                      {m.toothCode ? (
+                        <span style={{ color: "#6b7280" }}> • Шүд: {m.toothCode}</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Consent */}
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <h3 style={{ margin: 0, fontSize: 14 }}>Зөвшөөрлийн маягт</h3>
+                <button
+                  type="button"
+                  disabled={!consent}
+                  onClick={() => {
+                    window.alert("Зөвшөөрлийн маягт хэвлэх (дараа нь template оруулна)");
+                  }}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #2563eb",
+                    background: consent ? "#eff6ff" : "#f3f4f6",
+                    color: consent ? "#2563eb" : "#6b7280",
+                    cursor: consent ? "pointer" : "not-allowed",
+                    fontSize: 12,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Хэвлэх
+                </button>
+              </div>
+
+              {consentLoading && (
+                <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+                  Зөвшөөрлийн маягт ачаалж байна...
+                </div>
+              )}
+              {!consentLoading && consentError && (
+                <div style={{ marginTop: 6, fontSize: 12, color: "#b91c1c" }}>
+                  {consentError}
+                </div>
+              )}
+              {!consentLoading && !consentError && !consent && (
+                <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+                  Энэ үзлэгт бөглөгдсөн зөвшөөрлийн маягт байхгүй.
+                </div>
+              )}
+              {!consentLoading && !consentError && consent && (
+                <div style={{ marginTop: 6, fontSize: 12 }}>
+                  <div>
+                    <strong>Төрөл:</strong> {consent.type}
+                  </div>
+                  <div style={{ color: "#6b7280", marginTop: 2 }}>
+                    Өвчтөн гарын үсэг:{" "}
+                    {consent.patientSignedAt ? formatDateTime(consent.patientSignedAt) : "—"}
+                  </div>
+                  <div style={{ color: "#6b7280", marginTop: 2 }}>
+                    Эмч гарын үсэг:{" "}
+                    {consent.doctorSignedAt ? formatDateTime(consent.doctorSignedAt) : "—"}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
           )}
         </>
       )}
