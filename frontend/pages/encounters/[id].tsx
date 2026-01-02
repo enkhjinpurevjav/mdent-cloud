@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import SignaturePad from "../../components/SignaturePad";
 
@@ -655,14 +655,14 @@ export default function EncounterAdminPage() {
     }
   };
 
-  const resetToothSelectionSession = () => {
+  const resetToothSelectionSession = useCallback(() => {
     setSelectedTeeth([]);
     setActiveDxRowIndex(null);
     setCustomToothRange("");
     setOpenDxIndex(null);
     setOpenServiceIndex(null);
     setForceNewDxRowOnToothPick(true);
-  };
+  }, []);
 
   const toggleToothSelection = (code: string) => {
     if (code === "ALL") {
@@ -735,7 +735,7 @@ export default function EncounterAdminPage() {
     if (r?.locked) {
       resetToothSelectionSession();
     }
-  }, [activeDxRowIndex, rows]);
+  }, [activeDxRowIndex, rows, resetToothSelectionSession]);
 
   const encounterId = useMemo(
     () => (typeof id === "string" ? Number(id) : NaN),
@@ -1376,6 +1376,7 @@ export default function EncounterAdminPage() {
 
       // Update local state with saved data from server
       // All rows returned from server have been saved and should be locked
+      // Note: Using 'any' for server response - shape matches EncounterDiagnosisRow
       const savedDxRows: EditableDiagnosis[] =
         json?.map((row: any, idx: number) => ({
           ...row,
