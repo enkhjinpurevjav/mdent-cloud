@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import SignaturePad from "../../components/SignaturePad";
 
 type Branch = {
   id: number;
@@ -36,6 +37,7 @@ type Doctor = {
   email: string;
   name?: string | null;
   ovog?: string | null;
+  signatureImagePath?: string | null;
 };
 
 type Nurse = {
@@ -574,13 +576,25 @@ export default function EncounterAdminPage() {
   );
   const [customToothRange, setCustomToothRangeState] = useState("");
 
-  const [consent, setConsent] = useState<EncounterConsent | null>(null);
+  const [consents, setConsents] = useState<EncounterConsent[]>([]);
   const [consentTypeDraft, setConsentTypeDraft] =
     useState<ConsentType | null>(null);
   const [consentAnswersDraft, setConsentAnswersDraft] = useState<any>({});
   const [consentSaving, setConsentSaving] = useState(false);
   const [consentLoading, setConsentLoading] = useState(false);
   const [consentError, setConsentError] = useState("");
+  const [uploadingSignature, setUploadingSignature] = useState<Record<ConsentType, boolean>>({
+    root_canal: false,
+    surgery: false,
+    orthodontic: false,
+    prosthodontic: false,
+  });
+  const [attachingDoctorSignature, setAttachingDoctorSignature] = useState<Record<ConsentType, boolean>>({
+    root_canal: false,
+    surgery: false,
+    orthodontic: false,
+    prosthodontic: false,
+  });
 
   const [nursesForEncounter, setNursesForEncounter] = useState<
     {
@@ -756,24 +770,30 @@ export default function EncounterAdminPage() {
       }
     };
 
-    const loadConsent = async () => {
+    const loadConsents = async () => {
       try {
         setConsentLoading(true);
-        const res = await fetch(`/api/encounters/${id}/consent`);
+        const res = await fetch(`/api/encounters/${id}/consents`);
         const json = await res.json().catch(() => null);
         if (!res.ok) return;
 
-        if (json) {
-          setConsent(json);
-          setConsentTypeDraft(json.type || null);
-          setConsentAnswersDraft(json.answers || {});
+        if (Array.isArray(json)) {
+          setConsents(json);
+          // If there's at least one consent, set the first one as active for editing
+          if (json.length > 0) {
+            setConsentTypeDraft(json[0].type || null);
+            setConsentAnswersDraft(json[0].answers || {});
+          } else {
+            setConsentTypeDraft(null);
+            setConsentAnswersDraft({});
+          }
         } else {
-          setConsent(null);
+          setConsents([]);
           setConsentTypeDraft(null);
           setConsentAnswersDraft({});
         }
       } catch (err) {
-        console.error("loadConsent failed", err);
+        console.error("loadConsents failed", err);
       } finally {
         setConsentLoading(false);
       }
@@ -832,7 +852,7 @@ export default function EncounterAdminPage() {
     void loadServices();
     void loadDx();
     void loadEncounter();
-    void loadConsent();
+    void loadConsents();
     void loadNursesForEncounter();
     void loadChartTeeth();
     void loadVisitCardForEncounter();
@@ -925,15 +945,39 @@ export default function EncounterAdminPage() {
 
   const saveConsentApi = async (type: ConsentType | null) => {
     if (!id || typeof id !== "string") return;
+    if (!type) {
+      // Delete all consents
+      setConsentSaving(true);
+      setConsentError("");
+      try {
+        const res = await fetch(`/api/encounters/${id}/consent`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: null }),
+        });
+        if (!res.ok) {
+          throw new Error("Failed to delete consents");
+        }
+        setConsents([]);
+        setConsentTypeDraft(null);
+        setConsentAnswersDraft({});
+      } catch (err: any) {
+        console.error("delete consents failed", err);
+        setConsentError(err?.message || "Зөвшөөрөл устгахад алдаа гарлаа");
+      } finally {
+        setConsentSaving(false);
+      }
+      return;
+    }
+
     setConsentSaving(true);
     setConsentError("");
     try {
-      const res = await fetch(`/api/encounters/${id}/consent`, {
+      const res = await fetch(`/api/encounters/${id}/consents/${type}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type,
-          answers: type ? consentAnswersDraft : undefined,
+          answers: consentAnswersDraft || {},
         }),
       });
       const json = await res.json().catch(() => null);
@@ -943,14 +987,11 @@ export default function EncounterAdminPage() {
         );
       }
 
-      if (!json) {
-        setConsent(null);
-        setConsentTypeDraft(null);
-        setConsentAnswersDraft({});
-      } else {
-        setConsent(json);
-        setConsentTypeDraft(json.type || null);
-        setConsentAnswersDraft(json.answers || {});
+      // Reload all consents
+      const consentsRes = await fetch(`/api/encounters/${id}/consents`);
+      const consentsJson = await consentsRes.json().catch(() => null);
+      if (consentsRes.ok && Array.isArray(consentsJson)) {
+        setConsents(consentsJson);
       }
     } catch (err: any) {
       console.error("saveConsent failed", err);
@@ -971,6 +1012,68 @@ export default function EncounterAdminPage() {
 
   const saveCurrentConsent = async () => {
     await saveConsentApi(consentTypeDraft);
+  };
+
+  const handlePatientSignatureUpload = async (type: ConsentType, blob: Blob) => {
+    if (!id || typeof id !== "string") return;
+    setUploadingSignature((prev) => ({ ...prev, [type]: true }));
+    setConsentError("");
+    try {
+      const formData = new FormData();
+      formData.append("file", blob, "patient-signature.png");
+
+      const res = await fetch(`/api/encounters/${id}/consents/${type}/patient-signature`, {
+        method: "POST",
+        body: formData,
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          (json && json.error) || "Гарын үсэг хадгалахад алдаа гарлаа"
+        );
+      }
+
+      // Reload all consents
+      const consentsRes = await fetch(`/api/encounters/${id}/consents`);
+      const consentsJson = await consentsRes.json().catch(() => null);
+      if (consentsRes.ok && Array.isArray(consentsJson)) {
+        setConsents(consentsJson);
+      }
+    } catch (err: any) {
+      console.error("handlePatientSignatureUpload failed", err);
+      setConsentError(err?.message || "Гарын үсэг хадгалахад алдаа гарлаа");
+    } finally {
+      setUploadingSignature((prev) => ({ ...prev, [type]: false }));
+    }
+  };
+
+  const handleAttachDoctorSignature = async (type: ConsentType) => {
+    if (!id || typeof id !== "string") return;
+    setAttachingDoctorSignature((prev) => ({ ...prev, [type]: true }));
+    setConsentError("");
+    try {
+      const res = await fetch(`/api/encounters/${id}/consents/${type}/doctor-signature`, {
+        method: "POST",
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          (json && json.error) || "Эмчийн гарын үсэг холбохд алдаа гарлаа"
+        );
+      }
+
+      // Reload all consents
+      const consentsRes = await fetch(`/api/encounters/${id}/consents`);
+      const consentsJson = await consentsRes.json().catch(() => null);
+      if (consentsRes.ok && Array.isArray(consentsJson)) {
+        setConsents(consentsJson);
+      }
+    } catch (err: any) {
+      console.error("handleAttachDoctorSignature failed", err);
+      setConsentError(err?.message || "Эмчийн гарын үсэг холбохд алдаа гарлаа");
+    } finally {
+      setAttachingDoctorSignature((prev) => ({ ...prev, [type]: false }));
+    }
   };
 
   const handleDiagnosisChange = async (
@@ -1724,11 +1827,11 @@ export default function EncounterAdminPage() {
                 >
                   <input
                     type="checkbox"
-                    checked={!!consent}
+                    checked={consents.length > 0}
                     disabled={consentLoading || consentSaving}
                     onChange={async (e) => {
                       if (e.target.checked) {
-                        await saveConsentApi(consent?.type || "root_canal");
+                        await saveConsentApi("root_canal");
                       } else {
                         await saveConsentApi(null);
                       }
@@ -1750,7 +1853,7 @@ export default function EncounterAdminPage() {
                 )}
               </div>
 
-              {consent && (
+              {consents.length > 0 && (
                 <>
                   <div
                     style={{
@@ -1778,7 +1881,13 @@ export default function EncounterAdminPage() {
                         disabled={consentSaving}
                         onChange={() => {
                           setConsentTypeDraft("root_canal");
-                          void saveConsentApi("root_canal");
+                          const existingConsent = consents.find((c) => c.type === "root_canal");
+                          if (existingConsent) {
+                            setConsentAnswersDraft(existingConsent.answers || {});
+                          } else {
+                            setConsentAnswersDraft({});
+                            void saveConsentApi("root_canal");
+                          }
                         }}
                       />
                       Сувгийн эмчилгээ
@@ -1799,7 +1908,13 @@ export default function EncounterAdminPage() {
                         disabled={consentSaving}
                         onChange={() => {
                           setConsentTypeDraft("surgery");
-                          void saveConsentApi("surgery");
+                          const existingConsent = consents.find((c) => c.type === "surgery");
+                          if (existingConsent) {
+                            setConsentAnswersDraft(existingConsent.answers || {});
+                          } else {
+                            setConsentAnswersDraft({});
+                            void saveConsentApi("surgery");
+                          }
                         }}
                       />
                       Мэс засал
@@ -1820,7 +1935,13 @@ export default function EncounterAdminPage() {
                         disabled={consentSaving}
                         onChange={() => {
                           setConsentTypeDraft("orthodontic");
-                          void saveConsentApi("orthodontic");
+                          const existingConsent = consents.find((c) => c.type === "orthodontic");
+                          if (existingConsent) {
+                            setConsentAnswersDraft(existingConsent.answers || {});
+                          } else {
+                            setConsentAnswersDraft({});
+                            void saveConsentApi("orthodontic");
+                          }
                         }}
                       />
                       Гажиг засал
@@ -1841,7 +1962,13 @@ export default function EncounterAdminPage() {
                         disabled={consentSaving}
                         onChange={() => {
                           setConsentTypeDraft("prosthodontic");
-                          void saveConsentApi("prosthodontic");
+                          const existingConsent = consents.find((c) => c.type === "prosthodontic");
+                          if (existingConsent) {
+                            setConsentAnswersDraft(existingConsent.answers || {});
+                          } else {
+                            setConsentAnswersDraft({});
+                            void saveConsentApi("prosthodontic");
+                          }
                         }}
                       />
                       Согог засал
@@ -4550,6 +4677,223 @@ export default function EncounterAdminPage() {
                         ? "Илгээж байна..."
                         : "Зөвшөөрөл илгээх / засах"}
                     </button>
+                  </div>
+
+                  {/* Signature section for all consent types */}
+                  <div
+                    style={{
+                      marginTop: 16,
+                      paddingTop: 12,
+                      borderTop: "1px dashed #e5e7eb",
+                    }}
+                  >
+                    <h3
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        marginBottom: 12,
+                      }}
+                    >
+                      Гарын үсэг
+                    </h3>
+
+                    {(["root_canal", "surgery", "orthodontic", "prosthodontic"] as ConsentType[]).map((type) => {
+                      const consentForType = consents.find((c) => c.type === type);
+                      const typeLabels: Record<ConsentType, string> = {
+                        root_canal: "Сувгийн эмчилгээ",
+                        surgery: "Мэс засал",
+                        orthodontic: "Гажиг засал",
+                        prosthodontic: "Согог засал",
+                      };
+
+                      if (!consentForType) return null;
+
+                      return (
+                        <div
+                          key={type}
+                          style={{
+                            marginBottom: 16,
+                            padding: 12,
+                            border: "1px solid #e5e7eb",
+                            borderRadius: 8,
+                            background: "#fafafa",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 600,
+                              marginBottom: 8,
+                            }}
+                          >
+                            {typeLabels[type]}
+                          </div>
+
+                          <div
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1fr 1fr",
+                              gap: 12,
+                            }}
+                          >
+                            {/* Patient signature */}
+                            <div>
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 500,
+                                  marginBottom: 4,
+                                }}
+                              >
+                                Өвчтөн/асран хамгаалагчийн гарын үсэг
+                              </div>
+                              {consentForType.patientSignaturePath ? (
+                                <div>
+                                  <img
+                                    src={consentForType.patientSignaturePath}
+                                    alt="Patient signature"
+                                    style={{
+                                      maxWidth: "100%",
+                                      height: "auto",
+                                      border: "1px solid #d1d5db",
+                                      borderRadius: 6,
+                                      background: "#ffffff",
+                                    }}
+                                  />
+                                  {consentForType.patientSignedAt && (
+                                    <div
+                                      style={{
+                                        fontSize: 11,
+                                        color: "#6b7280",
+                                        marginTop: 4,
+                                      }}
+                                    >
+                                      Гарын үсэг зурсан:{" "}
+                                      {formatDateTime(consentForType.patientSignedAt)}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div>
+                                  <SignaturePad
+                                    disabled={uploadingSignature[type]}
+                                    onChange={(blob) =>
+                                      void handlePatientSignatureUpload(type, blob)
+                                    }
+                                  />
+                                  {uploadingSignature[type] && (
+                                    <div
+                                      style={{
+                                        fontSize: 11,
+                                        color: "#6b7280",
+                                        marginTop: 4,
+                                      }}
+                                    >
+                                      Хадгалж байна...
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Doctor signature */}
+                            <div>
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 500,
+                                  marginBottom: 4,
+                                }}
+                              >
+                                Эмчийн гарын үсэг
+                              </div>
+                              {consentForType.doctorSignaturePath ? (
+                                <div>
+                                  <img
+                                    src={consentForType.doctorSignaturePath}
+                                    alt="Doctor signature"
+                                    style={{
+                                      maxWidth: "100%",
+                                      height: "auto",
+                                      border: "1px solid #d1d5db",
+                                      borderRadius: 6,
+                                      background: "#ffffff",
+                                    }}
+                                  />
+                                  {consentForType.doctorSignedAt && (
+                                    <div
+                                      style={{
+                                        fontSize: 11,
+                                        color: "#6b7280",
+                                        marginTop: 4,
+                                      }}
+                                    >
+                                      Холбосон:{" "}
+                                      {formatDateTime(consentForType.doctorSignedAt)}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleAttachDoctorSignature(type)}
+                                    disabled={
+                                      attachingDoctorSignature[type] ||
+                                      !encounter.doctor?.signatureImagePath
+                                    }
+                                    style={{
+                                      padding: "8px 16px",
+                                      borderRadius: 6,
+                                      border: "1px solid #2563eb",
+                                      background: "#eff6ff",
+                                      color: "#2563eb",
+                                      fontSize: 12,
+                                      cursor:
+                                        attachingDoctorSignature[type] ||
+                                        !encounter.doctor?.signatureImagePath
+                                          ? "not-allowed"
+                                          : "pointer",
+                                      opacity:
+                                        attachingDoctorSignature[type] ||
+                                        !encounter.doctor?.signatureImagePath
+                                          ? 0.6
+                                          : 1,
+                                    }}
+                                  >
+                                    {attachingDoctorSignature[type]
+                                      ? "Холбож байна..."
+                                      : "Эмчийн гарын үсэг холбох"}
+                                  </button>
+                                  {!encounter.doctor?.signatureImagePath && (
+                                    <div
+                                      style={{
+                                        fontSize: 11,
+                                        color: "#b91c1c",
+                                        marginTop: 4,
+                                      }}
+                                    >
+                                      Эмчийн профайлд гарын үсэг байхгүй байна
+                                    </div>
+                                  )}
+                                  {attachingDoctorSignature[type] && (
+                                    <div
+                                      style={{
+                                        fontSize: 11,
+                                        color: "#6b7280",
+                                        marginTop: 4,
+                                      }}
+                                    >
+                                      Холбож байна...
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </>
               )}
