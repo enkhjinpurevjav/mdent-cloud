@@ -154,6 +154,7 @@ type EditableDiagnosis = EncounterDiagnosisRow & {
   serviceId?: number;
   searchText?: string;
   serviceSearchText?: string;
+  locked?: boolean;
 };
 
 type EditablePrescriptionItem = {
@@ -594,55 +595,58 @@ export default function EncounterAdminPage() {
   };
 
   // Modify updateActiveRowToothList to support ALL label
-  const updateActiveRowToothList = (
-    nextTeeth: string[],
-    opts?: { isAllTeeth?: boolean }
-  ) => {
-    const mustCreateNewRow =
-      activeDxRowIndex === null || forceNewDxRowOnToothPick;
-
-    if (mustCreateNewRow) {
-      if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
-
-      const idx = createDiagnosisRow(nextTeeth);
-
-      // IMPORTANT: stop forcing after we create the new row
-      setForceNewDxRowOnToothPick(false);
-
-      // We still try to set active index for subsequent clicks
-      setActiveDxRowIndex(idx);
-
-      if (opts?.isAllTeeth) {
-        setEditableDxRows((prev) =>
-          prev.map((row, i) =>
-            i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row
-          )
-        );
-        setRows((prev) =>
-          prev.map((row, i) =>
-            i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row
-          )
-        );
-      }
-      return;
-    }
-    const toothStr = opts?.isAllTeeth ? ALL_TEETH_LABEL : stringifyToothList(nextTeeth);
-
-    setEditableDxRows((prev) =>
-      prev.map((row, i) =>
-        i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
-      )
-    );
-    setRows((prev) =>
-      prev.map((row, i) =>
-        i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
-      )
-    );
-
-    if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
+  const updateActiveRowToothList = (nextTeeth: string[], opts?: { isAllTeeth?: boolean }) => {
+  // If the currently active row is locked, don't update it.
+  if (activeDxRowIndex !== null) {
+    const activeRow = rows[activeDxRowIndex];
+    if (activeRow?.locked) {
+      // treat as no active row (force new row behavior)
       setActiveDxRowIndex(null);
     }
-  };
+  }
+
+  const mustCreateNewRow =
+    activeDxRowIndex === null || forceNewDxRowOnToothPick;
+
+  if (mustCreateNewRow) {
+    if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
+
+    const idx = createDiagnosisRow(nextTeeth);
+    setForceNewDxRowOnToothPick(false);
+    setActiveDxRowIndex(idx);
+
+    if (opts?.isAllTeeth) {
+      setEditableDxRows((prev) =>
+        prev.map((row, i) =>
+          i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row
+        )
+      );
+      setRows((prev) =>
+        prev.map((row, i) =>
+          i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row
+        )
+      );
+    }
+    return;
+  }
+
+  const toothStr = opts?.isAllTeeth ? ALL_TEETH_LABEL : stringifyToothList(nextTeeth);
+
+  setEditableDxRows((prev) =>
+    prev.map((row, i) =>
+      i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
+    )
+  );
+  setRows((prev) =>
+    prev.map((row, i) =>
+      i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
+    )
+  );
+
+  if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
+    setActiveDxRowIndex(null);
+  }
+};
 
   const toggleToothSelection = (code: string) => {
     if (code === "ALL") {
@@ -780,6 +784,7 @@ export default function EncounterAdminPage() {
                 }`
               : "",
             serviceSearchText: "",
+            locked: true,
           })) || [];
         setEditableDxRows(dxRows);
 
@@ -1013,6 +1018,7 @@ export default function EncounterAdminPage() {
         serviceId: undefined,
         searchText: "",
         serviceSearchText: "",
+        locked: false,
       };
       const nextRows = [...prev, newRow];
       createdIndex = nextRows.length - 1;
@@ -1499,6 +1505,8 @@ export default function EncounterAdminPage() {
       await handleSaveDiagnoses();
       await handleSaveServices();
       await savePrescription();
+      setEditableDxRows((prev) => prev.map((r) => ({ ...r, locked: true })));
+      setRows((prev) => prev.map((r) => ({ ...r, locked: true })));
 
       const res = await fetch(`/api/encounters/${id}/finish`, {
         method: "PUT",
@@ -5316,7 +5324,9 @@ export default function EncounterAdminPage() {
                         onChange={(e) =>
                           handleDxToothCodeChange(index, e.target.value)
                         }
-                        onFocus={() => setActiveDxRowIndex(index)}
+                        onFocus={() => {
+  if (!row.locked) setActiveDxRowIndex(index);
+}}
                         style={{
                           maxWidth: 260,
                           borderRadius: 6,
@@ -5588,6 +5598,7 @@ export default function EncounterAdminPage() {
                     setOpenServiceIndex(null);
                     // Force new diagnosis row on next tooth pick
                     setForceNewDxRowOnToothPick(true);
+                   
                   }}
                   disabled={saving || finishing || prescriptionSaving}
                   style={{
