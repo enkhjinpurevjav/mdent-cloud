@@ -1093,9 +1093,9 @@ export default function BillingPage() {
   const [xraysLoading, setXraysLoading] = useState(false);
   const [xraysError, setXraysError] = useState("");
 
-  const [consent, setConsent] = useState<EncounterConsent | null>(null);
-  const [consentLoading, setConsentLoading] = useState(false);
-  const [consentError, setConsentError] = useState("");
+const [consents, setConsents] = useState<EncounterConsent[]>([]);
+const [consentLoading, setConsentLoading] = useState(false);
+const [consentError, setConsentError] = useState("");
 
   // Service selector state
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
@@ -1194,12 +1194,33 @@ export default function BillingPage() {
       setConsentLoading(true);
       setConsentError("");
       try {
-        const res = await fetch(`/api/encounters/${encounterId}/consent`);
-        const data = await res.json().catch(() => null);
-        if (!res.ok) throw new Error((data && data.error) || "Зөвшөөрөл ачаалж чадсангүй.");
-        setConsent(data ? (data as EncounterConsent) : null);
-      } catch (e: any) {
-        setConsent(null);
+        useEffect(() => {
+  if (!encounterId || Number.isNaN(encounterId)) return;
+
+  const loadConsents = async () => {
+    setConsentLoading(true);
+    setConsentError("");
+    try {
+      const res = await fetch(`/api/encounters/${encounterId}/consents`);
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(
+          (data && data.error) || "Зөвшөөрлийн маягтууд ачаалж чадсангүй."
+        );
+      }
+
+      setConsents(Array.isArray(data) ? (data as EncounterConsent[]) : []);
+    } catch (e: any) {
+      setConsents([]);
+      setConsentError(e.message || "Зөвшөөрлийн маягтууд ачаалж чадсангүй.");
+    } finally {
+      setConsentLoading(false);
+    }
+  };
+
+  void loadConsents();
+}, [encounterId]);
         setConsentError(e.message || "Зөвшөөрөл ачаалж чадсангүй.");
       } finally {
         setConsentLoading(false);
@@ -1907,29 +1928,28 @@ export default function BillingPage() {
             </div>
 
             {/* Prescription */}
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                <h3 style={{ margin: 0, fontSize: 14 }}>Эмийн жор</h3>
-                <button
-                  type="button"
-                  onClick={() => {
-                    // dummy print handler (template will come later)
-                    window.alert("Жор хэвлэх (дараа нь template оруулна)");
-                  }}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: 6,
-                    border: "1px solid #2563eb",
-                    background: "#eff6ff",
-                    color: "#2563eb",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Хэвлэх
-                </button>
-              </div>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+  <h3 style={{ margin: 0, fontSize: 14 }}>Эмийн жор</h3>
+
+  {encounter.prescription?.items?.length ? (
+    <button
+      type="button"
+      onClick={() => window.alert("Жор хэвлэх (дараа нь template оруулна)")}
+      style={{
+        padding: "6px 10px",
+        borderRadius: 6,
+        border: "1px solid #2563eb",
+        background: "#eff6ff",
+        color: "#2563eb",
+        cursor: "pointer",
+        fontSize: 12,
+        whiteSpace: "nowrap",
+      }}
+    >
+      Хэвлэх
+    </button>
+  ) : null}
+</div>
 
               {encounter.prescription?.items?.length ? (
                 <div style={{ marginTop: 8, fontSize: 12 }}>
@@ -1959,97 +1979,129 @@ export default function BillingPage() {
             </div>
 
             {/* XRAY */}
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
-              <h3 style={{ margin: 0, fontSize: 14 }}>XRAY зураг</h3>
+            {!xraysLoading && !xraysError && xrays.length > 0 && (
+  <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+    {xrays.map((m) => (
+      <div
+        key={m.id}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          padding: "6px 8px",
+          border: "1px solid #e5e7eb",
+          borderRadius: 8,
+          background: "#f9fafb",
+          fontSize: 12,
+        }}
+      >
+        <div style={{ overflow: "hidden" }}>
+          <a href={m.filePath} target="_blank" rel="noreferrer">
+            {m.filePath}
+          </a>
+          {m.toothCode ? (
+            <span style={{ color: "#6b7280" }}> • Шүд: {m.toothCode}</span>
+          ) : null}
+        </div>
 
-              {xraysLoading && (
-                <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-                  XRAY ачаалж байна...
-                </div>
-              )}
-              {!xraysLoading && xraysError && (
-                <div style={{ marginTop: 6, fontSize: 12, color: "#b91c1c" }}>
-                  {xraysError}
-                </div>
-              )}
-              {!xraysLoading && !xraysError && xrays.length === 0 && (
-                <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-                  XRAY зураг хавсаргагдаагүй.
-                </div>
-              )}
-
-              {!xraysLoading && !xraysError && xrays.length > 0 && (
-                <ul style={{ margin: 0, marginTop: 6, paddingLeft: 18, fontSize: 12 }}>
-                  {xrays.map((m) => (
-                    <li key={m.id} style={{ marginBottom: 4 }}>
-                      <a href={m.filePath} target="_blank" rel="noreferrer">
-                        {m.filePath}
-                      </a>
-                      {m.toothCode ? (
-                        <span style={{ color: "#6b7280" }}> • Шүд: {m.toothCode}</span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+        <button
+          type="button"
+          onClick={() =>
+            window.alert(`XRAY хэвлэх: ${m.filePath} (дараа нь template)`)
+          }
+          style={{
+            padding: "4px 8px",
+            borderRadius: 6,
+            border: "1px solid #2563eb",
+            background: "#eff6ff",
+            color: "#2563eb",
+            cursor: "pointer",
+            fontSize: 12,
+            whiteSpace: "nowrap",
+          }}
+        >
+          Хэвлэх
+        </button>
+      </div>
+    ))}
+  </div>
+)}
 
             {/* Consent */}
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                <h3 style={{ margin: 0, fontSize: 14 }}>Зөвшөөрлийн маягт</h3>
-                <button
-                  type="button"
-                  disabled={!consent}
-                  onClick={() => {
-                    window.alert("Зөвшөөрлийн маягт хэвлэх (дараа нь template оруулна)");
-                  }}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: 6,
-                    border: "1px solid #2563eb",
-                    background: consent ? "#eff6ff" : "#f3f4f6",
-                    color: consent ? "#2563eb" : "#6b7280",
-                    cursor: consent ? "pointer" : "not-allowed",
-                    fontSize: 12,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Хэвлэх
-                </button>
-              </div>
+            {/* Consent */}
+<div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
+  <h3 style={{ margin: 0, fontSize: 14 }}>Зөвшөөрлийн маягт</h3>
 
-              {consentLoading && (
-                <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-                  Зөвшөөрлийн маягт ачаалж байна...
-                </div>
-              )}
-              {!consentLoading && consentError && (
-                <div style={{ marginTop: 6, fontSize: 12, color: "#b91c1c" }}>
-                  {consentError}
-                </div>
-              )}
-              {!consentLoading && !consentError && !consent && (
-                <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-                  Энэ үзлэгт бөглөгдсөн зөвшөөрлийн маягт байхгүй.
-                </div>
-              )}
-              {!consentLoading && !consentError && consent && (
-                <div style={{ marginTop: 6, fontSize: 12 }}>
-                  <div>
-                    <strong>Төрөл:</strong> {consent.type}
-                  </div>
-                  <div style={{ color: "#6b7280", marginTop: 2 }}>
-                    Өвчтөн гарын үсэг:{" "}
-                    {consent.patientSignedAt ? formatDateTime(consent.patientSignedAt) : "—"}
-                  </div>
-                  <div style={{ color: "#6b7280", marginTop: 2 }}>
-                    Эмч гарын үсэг:{" "}
-                    {consent.doctorSignedAt ? formatDateTime(consent.doctorSignedAt) : "—"}
-                  </div>
-                </div>
-              )}
+  {consentLoading && (
+    <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+      Зөвшөөрлийн маягт ачаалж байна...
+    </div>
+  )}
+  {!consentLoading && consentError && (
+    <div style={{ marginTop: 6, fontSize: 12, color: "#b91c1c" }}>
+      {consentError}
+    </div>
+  )}
+  {!consentLoading && !consentError && consents.length === 0 && (
+    <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+      Энэ үзлэгт бөглөгдсөн зөвшөөрлийн маягт байхгүй.
+    </div>
+  )}
+
+  {!consentLoading && !consentError && consents.length > 0 && (
+    <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+      {consents.map((c) => (
+        <div
+          key={`${c.encounterId}-${c.type}`}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            padding: "6px 8px",
+            border: "1px solid #e5e7eb",
+            borderRadius: 8,
+            background: "#f9fafb",
+            fontSize: 12,
+          }}
+        >
+          <div>
+            <div>
+              <strong>Төрөл:</strong> {c.type}
             </div>
+            <div style={{ color: "#6b7280", marginTop: 2 }}>
+              Өвчтөн гарын үсэг:{" "}
+              {c.patientSignedAt ? formatDateTime(c.patientSignedAt) : "—"}
+              {" • "}
+              Эмч гарын үсэг:{" "}
+              {c.doctorSignedAt ? formatDateTime(c.doctorSignedAt) : "—"}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() =>
+              window.alert(`Зөвшөөрлийн маягт хэвлэх: ${c.type} (дараа нь template)`)
+            }
+            style={{
+              padding: "4px 8px",
+              borderRadius: 6,
+              border: "1px solid #2563eb",
+              background: "#eff6ff",
+              color: "#2563eb",
+              cursor: "pointer",
+              fontSize: 12,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Хэвлэх
+          </button>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
           </section>
         </>
       )}
