@@ -1214,14 +1214,7 @@ useEffect(() => {
 
   void loadConsents();
 }, [encounterId]);
-        setConsentError(e.message || "Зөвшөөрөл ачаалж чадсангүй.");
-      } finally {
-        setConsentLoading(false);
-      }
-    };
-
-    void loadConsent();
-  }, [encounterId]);
+        
 
   const handleItemChange = (
     index: number,
@@ -1924,38 +1917,52 @@ useEffect(() => {
 <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #e5e7eb" }}>
   <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
     <h3 style={{ margin: 0, fontSize: 14 }}>Эмийн жор</h3>
+
     {encounter.prescription?.items?.length ? (
-      <button type="button" onClick={() => window.alert("Жор хэвлэх")}>
+      <button
+        type="button"
+        onClick={() => window.alert("Жор хэвлэх (дараа нь template оруулна)")}
+        style={{
+          padding: "6px 10px",
+          borderRadius: 6,
+          border: "1px solid #2563eb",
+          background: "#eff6ff",
+          color: "#2563eb",
+          cursor: "pointer",
+          fontSize: 12,
+          whiteSpace: "nowrap",
+        }}
+      >
         Хэвлэх
       </button>
     ) : null}
   </div>
 
-              {encounter.prescription?.items?.length ? (
-                <div style={{ marginTop: 8, fontSize: 12 }}>
-                  <ol style={{ margin: 0, paddingLeft: 18 }}>
-                    {encounter.prescription.items
-                      .slice()
-                      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-                      .map((it) => (
-                        <li key={it.id} style={{ marginBottom: 4 }}>
-                          <div>
-                            <strong>{it.drugName}</strong>{" "}
-                            — {it.quantityPerTake}x, {it.frequencyPerDay}/өдөр,{" "}
-                            {it.durationDays} хоног
-                          </div>
-                          <div style={{ color: "#6b7280" }}>
-                            Тэмдэглэл: {it.note || "-"}
-                          </div>
-                        </li>
-                      ))}
-                  </ol>
-                </div>
-              ) : (
-                <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
-                  Энэ үзлэгт эмийн жор байхгүй.
-                </div>
-              )}
+  {encounter.prescription?.items?.length ? (
+    <div style={{ marginTop: 8, fontSize: 12 }}>
+      <ol style={{ margin: 0, paddingLeft: 18 }}>
+        {encounter.prescription.items
+          .slice()
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          .map((it) => (
+            <li key={it.id} style={{ marginBottom: 4 }}>
+              <div>
+                <strong>{it.drugName}</strong> — {it.quantityPerTake}x,{" "}
+                {it.frequencyPerDay}/өдөр, {it.durationDays} хоног
+              </div>
+              <div style={{ color: "#6b7280" }}>
+                Тэмдэглэл: {it.note || "-"}
+              </div>
+            </li>
+          ))}
+      </ol>
+    </div>
+  ) : (
+    <div style={{ marginTop: 6, fontSize: 12, color: "#6b7280" }}>
+      Энэ үзлэгт эмийн жор байхгүй.
+    </div>
+  )}
+</div>
      
 
             {/* XRAY */}
