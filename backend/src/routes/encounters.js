@@ -51,26 +51,16 @@ router.get("/:id", async (req, res) => {
         doctor: true,
         nurse: true,
         diagnoses: {
-          include: {
-            diagnosis: true,
-          },
-          orderBy: {
-            createdAt: "asc",
-          },
+          include: { diagnosis: true },
+          orderBy: { createdAt: "asc" },
         },
         encounterServices: {
-          include: {
-            service: true,
-          },
-          orderBy: {
-            id: "asc",
-          },
+          include: { service: true },
+          orderBy: { id: "asc" },
         },
         invoice: {
           include: {
-            items: {
-              orderBy: { id: "asc" },
-            },
+            items: { orderBy: { id: "asc" } },
             payments: true,
             eBarimtReceipt: true,
             branch: true,
@@ -81,9 +71,7 @@ router.get("/:id", async (req, res) => {
         },
         prescription: {
           include: {
-            items: {
-              orderBy: { order: "asc" },
-            },
+            items: { orderBy: { order: "asc" } },
           },
         },
       },
@@ -93,11 +81,7 @@ router.get("/:id", async (req, res) => {
       return res.status(404).json({ error: "Encounter not found" });
     }
 
-    const result = {
-      ...encounter,
-      encounterDiagnoses: encounter.diagnoses,
-    };
-
+    const result = { ...encounter, encounterDiagnoses: encounter.diagnoses };
     return res.json(result);
   } catch (err) {
     console.error("GET /api/encounters/:id error:", err);
@@ -106,82 +90,25 @@ router.get("/:id", async (req, res) => {
 });
 
 /**
- * GET /api/encounters/:id/consent
- * Returns the consent form for this encounter if it exists.
- */
-router.get("/:id/consent", async (req, res) => {
-  try {
-    const encounterId = Number(req.params.id);
-    if (!encounterId || Number.isNaN(encounterId)) {
-      return res.status(400).json({ error: "Invalid encounter id" });
-    }
-
-    const consent = await prisma.encounterConsent.findUnique({
-      where: { encounterId },
-    });
-
-    if (!consent) {
-      return res.json(null);
-    }
-
-    return res.json({
-      encounterId: consent.encounterId,
-      type: consent.type,
-      answers: consent.answers,
-      patientSignedAt: consent.patientSignedAt,
-      doctorSignedAt: consent.doctorSignedAt,
-      patientSignaturePath: consent.patientSignaturePath,
-      doctorSignaturePath: consent.doctorSignaturePath,
-      createdAt: consent.createdAt,
-      updatedAt: consent.updatedAt,
-    });
-  } catch (err) {
-    console.error("GET /api/encounters/:id/consent error:", err);
-    return res
-      .status(500)
-      .json({ error: "Failed to load encounter consent" });
-  }
-});
-
-/**
- * PUT /api/encounters/:id/consent
- * Body: { type: string | null, answers?: object }
+ * ============================
+ * CONSENT FORMS
+ * ============================
  *
- * - If type is null → delete consent (no consent for this encounter).
- * - Otherwise upsert consent with given type and answers.
- *   (signatures are untouched here; separate endpoints will handle them later.)
+ * You now support multiple consents per encounter, unique by (encounterId, type).
+ * DB constraint: UNIQUE(encounterId, type)
+ *
+ * - New API:
+ *   GET  /api/encounters/:id/consents
+ *   PUT  /api/encounters/:id/consents/:type
+ *
+ * - Legacy API (kept for backward compatibility):
+ *   GET  /api/encounters/:id/consent         -> returns "latest" consent or null
+ *   PUT  /api/encounters/:id/consent         -> deletes all when type is null, otherwise upserts by (encounterId, type)
  */
-router.put("/:id/consent", async (req, res) => {
-  try {
-    const encounterId = Number(req.params.id);
-    if (!encounterId || Number.isNaN(encounterId)) {
-      return res.status(400).json({ error: "Invalid encounter id" });
-    }
-
-    const { type, answers } = req.body || {};
-
-    // Ensure encounter exists
-    const existingEncounter = await prisma.encounter.findUnique({
-      where: { id: encounterId },
-      select: { id: true },
-    });
-    if (!existingEncounter) {
-      return res.status(404).json({ error: "Encounter not found" });
-    }
-
-    // No type => remove consent
-    if (type === null || type === undefined || String(type).trim() === "") {
-      await prisma.encounterConsent.deleteMany({
-        where: { encounterId },
-      });
-      return res.json(null);
-    }
-
-    const typeStr = String(type).trim();
 
 /**
  * NEW: GET /api/encounters/:id/consents
- * Returns ALL consents for the encounter (0..N), unique by type enforced by DB.
+ * Returns ALL consent forms for this encounter.
  */
 router.get("/:id/consents", async (req, res) => {
   try {
@@ -206,10 +133,8 @@ router.get("/:id/consents", async (req, res) => {
  * NEW: PUT /api/encounters/:id/consents/:type
  * Body: { answers?: object | null }
  *
- * - If answers === null => delete consent of that type (if exists)
- * - Else upsert consent of that type with answers
- *
- * NOTE: signatures are untouched here (same as old endpoint).
+ * - answers === null -> delete consent of that type
+ * - else -> upsert consent of that type
  */
 router.put("/:id/consents/:type", async (req, res) => {
   try {
@@ -234,7 +159,6 @@ router.put("/:id/consents/:type", async (req, res) => {
       return res.status(404).json({ error: "Encounter not found" });
     }
 
-    // Delete only this type
     if (answers === null) {
       await prisma.encounterConsent.deleteMany({
         where: { encounterId, type },
@@ -242,14 +166,82 @@ router.put("/:id/consents/:type", async (req, res) => {
       return res.json(null);
     }
 
-    // Upsert by compound unique key (requires @@unique([encounterId, type]))
     const consent = await prisma.encounterConsent.upsert({
-      where: {
-        encounterId_type: { encounterId, type },
-      },
+      where: { encounterId_type: { encounterId, type } },
+      create: { encounterId, type, answers: answers ?? {} },
+      update: { answers: answers ?? {} },
+    });
+
+    return res.json(consent);
+  } catch (err) {
+    console.error("PUT /api/encounters/:id/consents/:type error:", err);
+    return res.status(500).json({ error: "Failed to save encounter consent" });
+  }
+});
+
+/**
+ * LEGACY: GET /api/encounters/:id/consent
+ * Returns latest consent (or null).
+ */
+router.get("/:id/consent", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
+
+    const consent = await prisma.encounterConsent.findFirst({
+      where: { encounterId },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    return res.json(consent || null);
+  } catch (err) {
+    console.error("GET /api/encounters/:id/consent error:", err);
+    return res.status(500).json({ error: "Failed to load encounter consent" });
+  }
+});
+
+/**
+ * LEGACY: PUT /api/encounters/:id/consent
+ * Body: { type: string | null, answers?: object }
+ *
+ * - If type is null -> delete ALL consents for encounter
+ * - Otherwise upsert consent for that type (by encounterId_type)
+ */
+router.put("/:id/consent", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
+
+    const { type, answers } = req.body || {};
+
+    // Ensure encounter exists
+    const existingEncounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      select: { id: true },
+    });
+    if (!existingEncounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    // No type => remove ALL consents
+    if (type === null || type === undefined || String(type).trim() === "") {
+      await prisma.encounterConsent.deleteMany({
+        where: { encounterId },
+      });
+      return res.json(null);
+    }
+
+    const typeStr = String(type).trim();
+
+    const consent = await prisma.encounterConsent.upsert({
+      where: { encounterId_type: { encounterId, type: typeStr } },
       create: {
         encounterId,
-        type,
+        type: typeStr,
         answers: answers ?? {},
       },
       update: {
@@ -259,42 +251,8 @@ router.put("/:id/consents/:type", async (req, res) => {
 
     return res.json(consent);
   } catch (err) {
-    console.error("PUT /api/encounters/:id/consents/:type error:", err);
-    return res.status(500).json({ error: "Failed to save encounter consent" });
-  }
-});
-    
-
-    // Upsert consent
-    const consent = await prisma.encounterConsent.upsert({
-      where: { encounterId },
-      create: {
-        encounterId,
-        type: typeStr,
-        answers: answers ?? {},
-      },
-      update: {
-        type: typeStr,
-        answers: answers ?? {},
-      },
-    });
-
-    return res.json({
-      encounterId: consent.encounterId,
-      type: consent.type,
-      answers: consent.answers,
-      patientSignedAt: consent.patientSignedAt,
-      doctorSignedAt: consent.doctorSignedAt,
-      patientSignaturePath: consent.patientSignaturePath,
-      doctorSignaturePath: consent.doctorSignaturePath,
-      createdAt: consent.createdAt,
-      updatedAt: consent.updatedAt,
-    });
-  } catch (err) {
     console.error("PUT /api/encounters/:id/consent error:", err);
-    return res
-      .status(500)
-      .json({ error: "Failed to save encounter consent" });
+    return res.status(500).json({ error: "Failed to save encounter consent" });
   }
 });
 
@@ -351,24 +309,14 @@ router.get("/:id/nurses", async (req, res) => {
       whereSchedule.branchId = branchId;
     }
 
-    // Find nurse schedules for that day (and branch)
     const schedules = await prisma.nurseSchedule.findMany({
       where: whereSchedule,
       include: {
         nurse: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            ovog: true,
-            phone: true,
-          },
+          select: { id: true, email: true, name: true, ovog: true, phone: true },
         },
         branch: {
-          select: {
-            id: true,
-            name: true,
-          },
+          select: { id: true, name: true },
         },
       },
       orderBy: [{ startTime: "asc" }],
@@ -406,9 +354,7 @@ router.get("/:id/nurses", async (req, res) => {
     return res.json({ count: items.length, items });
   } catch (err) {
     console.error("GET /api/encounters/:id/nurses error:", err);
-    return res
-      .status(500)
-      .json({ error: "Failed to load nurses for encounter" });
+    return res.status(500).json({ error: "Failed to load nurses for encounter" });
   }
 });
 
@@ -428,17 +374,13 @@ router.put("/:id/diagnoses", async (req, res) => {
 
   try {
     await prisma.$transaction(async (trx) => {
-      await trx.encounterDiagnosis.deleteMany({
-        where: { encounterId },
-      });
+      await trx.encounterDiagnosis.deleteMany({ where: { encounterId } });
 
       for (const item of items) {
         if (!item.diagnosisId) continue;
 
         const selectedProblemIds = Array.isArray(item.selectedProblemIds)
-          ? item.selectedProblemIds
-              .map((id) => Number(id))
-              .filter((n) => !Number.isNaN(n))
+          ? item.selectedProblemIds.map((id) => Number(id)).filter((n) => !Number.isNaN(n))
           : [];
 
         const toothCode =
@@ -450,8 +392,7 @@ router.put("/:id/diagnoses", async (req, res) => {
           data: {
             encounterId,
             diagnosisId: item.diagnosisId,
-            selectedProblemIds:
-              selectedProblemIds.length > 0 ? selectedProblemIds : [],
+            selectedProblemIds: selectedProblemIds.length > 0 ? selectedProblemIds : [],
             note: item.note ?? null,
             toothCode,
           },
@@ -488,9 +429,7 @@ router.put("/:id/services", async (req, res) => {
 
   try {
     await prisma.$transaction(async (trx) => {
-      await trx.encounterService.deleteMany({
-        where: { encounterId },
-      });
+      await trx.encounterService.deleteMany({ where: { encounterId } });
 
       for (const item of items) {
         if (!item.serviceId) continue;
@@ -538,7 +477,6 @@ router.put("/:id/nurse", async (req, res) => {
 
     const { nurseId } = req.body || {};
 
-    let nurse = null;
     let nurseIdValue = null;
 
     if (nurseId !== null && nurseId !== undefined) {
@@ -547,9 +485,9 @@ router.put("/:id/nurse", async (req, res) => {
         return res.status(400).json({ error: "Invalid nurse id" });
       }
 
-      nurse = await prisma.user.findUnique({
+      const nurse = await prisma.user.findUnique({
         where: { id: nid },
-        select: { id: true, name: true, ovog: true, email: true, role: true },
+        select: { id: true, role: true },
       });
 
       if (!nurse || nurse.role !== "nurse") {
@@ -590,15 +528,9 @@ router.put("/:id/prescription", async (req, res) => {
     const encounter = await prisma.encounter.findUnique({
       where: { id: encounterId },
       include: {
-        patientBook: {
-          include: {
-            patient: true,
-          },
-        },
+        patientBook: { include: { patient: true } },
         doctor: true,
-        prescription: {
-          include: { items: true },
-        },
+        prescription: { include: { items: true } },
       },
     });
 
@@ -609,15 +541,11 @@ router.put("/:id/prescription", async (req, res) => {
     // Normalize + filter items (max 3, non-empty drugName)
     const normalized = items
       .map((raw) => ({
-        drugName:
-          typeof raw.drugName === "string" ? raw.drugName.trim() : "",
+        drugName: typeof raw.drugName === "string" ? raw.drugName.trim() : "",
         durationDays: Number(raw.durationDays) || 1,
         quantityPerTake: Number(raw.quantityPerTake) || 1,
         frequencyPerDay: Number(raw.frequencyPerDay) || 1,
-        note:
-          typeof raw.note === "string" && raw.note.trim()
-            ? raw.note.trim()
-            : null,
+        note: typeof raw.note === "string" && raw.note.trim() ? raw.note.trim() : null,
       }))
       .filter((it) => it.drugName.length > 0)
       .slice(0, 3);
@@ -639,19 +567,15 @@ router.put("/:id/prescription", async (req, res) => {
     const doctor = encounter.doctor;
 
     const doctorNameSnapshot = doctor
-      ? (doctor.name && doctor.name.trim()) ||
-        (doctor.email || "").split("@")[0]
+      ? (doctor.name && doctor.name.trim()) || (doctor.email || "").split("@")[0]
       : null;
 
     const patientNameSnapshot = patient
-      ? `${patient.ovog ? patient.ovog.charAt(0) + ". " : ""}${
-          patient.name || ""
-        }`.trim()
+      ? `${patient.ovog ? patient.ovog.charAt(0) + ". " : ""}${patient.name || ""}`.trim()
       : null;
 
-    const diagnosisSummary = ""; // can be filled later from EncounterDiagnosis
+    const diagnosisSummary = "";
 
-    // Upsert prescription + items in a transaction
     const updatedPrescription = await prisma.$transaction(async (trx) => {
       let prescription = encounter.prescription;
 
@@ -689,10 +613,8 @@ router.put("/:id/prescription", async (req, res) => {
             order: i + 1,
             drugName: it.drugName,
             durationDays: it.durationDays > 0 ? it.durationDays : 1,
-            quantityPerTake:
-              it.quantityPerTake > 0 ? it.quantityPerTake : 1,
-            frequencyPerDay:
-              it.frequencyPerDay > 0 ? it.frequencyPerDay : 1,
+            quantityPerTake: it.quantityPerTake > 0 ? it.quantityPerTake : 1,
+            frequencyPerDay: it.frequencyPerDay > 0 ? it.frequencyPerDay : 1,
             note: it.note,
           },
         });
@@ -700,20 +622,14 @@ router.put("/:id/prescription", async (req, res) => {
 
       return trx.prescription.findUnique({
         where: { id: prescription.id },
-        include: {
-          items: {
-            orderBy: { order: "asc" },
-          },
-        },
+        include: { items: { orderBy: { order: "asc" } } },
       });
     });
 
     return res.json({ prescription: updatedPrescription });
   } catch (err) {
     console.error("PUT /api/encounters/:id/prescription error:", err);
-    return res
-      .status(500)
-      .json({ error: "Failed to save prescription" });
+    return res.status(500).json({ error: "Failed to save prescription" });
   }
 });
 
@@ -730,9 +646,7 @@ router.get("/:id/chart-teeth", async (req, res) => {
     const chartTeeth = await prisma.chartTooth.findMany({
       where: { encounterId },
       orderBy: { id: "asc" },
-      include: {
-        chartNotes: true,
-      },
+      include: { chartNotes: true },
     });
 
     return res.json(chartTeeth);
@@ -761,18 +675,10 @@ router.put("/:id/chart-teeth", async (req, res) => {
       await trx.chartTooth.deleteMany({ where: { encounterId } });
 
       for (const t of teeth) {
-        if (
-          !t ||
-          typeof t.toothCode !== "string" ||
-          !t.toothCode.trim()
-        ) {
-          continue;
-        }
+        if (!t || typeof t.toothCode !== "string" || !t.toothCode.trim()) continue;
 
         const toothGroup =
-          typeof t.toothGroup === "string" && t.toothGroup.trim()
-            ? t.toothGroup.trim()
-            : null;
+          typeof t.toothGroup === "string" && t.toothGroup.trim() ? t.toothGroup.trim() : null;
 
         await trx.chartTooth.create({
           data: {
@@ -801,8 +707,6 @@ router.put("/:id/chart-teeth", async (req, res) => {
 
 /**
  * PUT /api/encounters/:id/finish
- *
- * Doctor finishes encounter → mark related appointment as ready_to_pay
  */
 router.put("/:id/finish", async (req, res) => {
   try {
@@ -826,10 +730,7 @@ router.put("/:id/finish", async (req, res) => {
 
     const appt = await prisma.appointment.update({
       where: { id: encounter.appointmentId },
-      data: {
-        // NOTE: make sure this matches your AppointmentStatus enum value
-        status: "ready_to_pay",
-      },
+      data: { status: "ready_to_pay" },
     });
 
     return res.json({ ok: true, updatedAppointment: appt });
@@ -884,8 +785,7 @@ router.post("/:id/media", upload.single("file"), async (req, res) => {
     }
 
     const { toothCode, type } = req.body || {};
-    const mediaType =
-      typeof type === "string" && type.trim() ? type.trim() : "XRAY";
+    const mediaType = typeof type === "string" && type.trim() ? type.trim() : "XRAY";
 
     const publicPath = `/media/${path.basename(req.file.path)}`;
 
@@ -893,10 +793,7 @@ router.post("/:id/media", upload.single("file"), async (req, res) => {
       data: {
         encounterId,
         filePath: publicPath,
-        toothCode:
-          typeof toothCode === "string" && toothCode.trim()
-            ? toothCode.trim()
-            : null,
+        toothCode: typeof toothCode === "string" && toothCode.trim() ? toothCode.trim() : null,
         type: mediaType,
       },
     });
