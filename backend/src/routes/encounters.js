@@ -179,6 +179,92 @@ router.put("/:id/consent", async (req, res) => {
 
     const typeStr = String(type).trim();
 
+/**
+ * NEW: GET /api/encounters/:id/consents
+ * Returns ALL consents for the encounter (0..N), unique by type enforced by DB.
+ */
+router.get("/:id/consents", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
+
+    const consents = await prisma.encounterConsent.findMany({
+      where: { encounterId },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    return res.json(consents);
+  } catch (err) {
+    console.error("GET /api/encounters/:id/consents error:", err);
+    return res.status(500).json({ error: "Failed to load encounter consents" });
+  }
+});
+
+/**
+ * NEW: PUT /api/encounters/:id/consents/:type
+ * Body: { answers?: object | null }
+ *
+ * - If answers === null => delete consent of that type (if exists)
+ * - Else upsert consent of that type with answers
+ *
+ * NOTE: signatures are untouched here (same as old endpoint).
+ */
+router.put("/:id/consents/:type", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    const type = String(req.params.type || "").trim();
+
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
+    if (!type) {
+      return res.status(400).json({ error: "Invalid consent type" });
+    }
+
+    const { answers } = req.body || {};
+
+    // Ensure encounter exists
+    const existingEncounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      select: { id: true },
+    });
+    if (!existingEncounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    // Delete only this type
+    if (answers === null) {
+      await prisma.encounterConsent.deleteMany({
+        where: { encounterId, type },
+      });
+      return res.json(null);
+    }
+
+    // Upsert by compound unique key (requires @@unique([encounterId, type]))
+    const consent = await prisma.encounterConsent.upsert({
+      where: {
+        encounterId_type: { encounterId, type },
+      },
+      create: {
+        encounterId,
+        type,
+        answers: answers ?? {},
+      },
+      update: {
+        answers: answers ?? {},
+      },
+    });
+
+    return res.json(consent);
+  } catch (err) {
+    console.error("PUT /api/encounters/:id/consents/:type error:", err);
+    return res.status(500).json({ error: "Failed to save encounter consent" });
+  }
+});
+    
+
     // Upsert consent
     const consent = await prisma.encounterConsent.upsert({
       where: { encounterId },
