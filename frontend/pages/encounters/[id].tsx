@@ -5586,7 +5586,8 @@ export default function EncounterAdminPage() {
                     setCustomToothRange("");
                     setOpenDxIndex(null);
                     setOpenServiceIndex(null);
-                    // Force new diagnosis row on next tooth pick
+                    // Force new diagnosis row on next tooth pick to prevent appending
+                    // to previously focused/active rows after save
                     setForceNewDxRowOnToothPick(true);
                   }}
                   disabled={saving || finishing || prescriptionSaving}
