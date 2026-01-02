@@ -579,6 +579,8 @@ export default function EncounterAdminPage() {
 
   const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
   const [openServiceIndex, setOpenServiceIndex] = useState<number | null>(null);
+  const [forceNewDxRowOnToothPick, setForceNewDxRowOnToothPick] =
+    useState(false);
 
   const toggleToothMode = (mode: "ADULT" | "CHILD") => {
     setToothMode(mode);
@@ -612,7 +614,34 @@ export default function EncounterAdminPage() {
       }
       return;
     }
+const mustCreateNewRow =
+      activeDxRowIndex === null || forceNewDxRowOnToothPick;
 
+    if (mustCreateNewRow) {
+      if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
+
+      const idx = createDiagnosisRow(nextTeeth);
+
+      // IMPORTANT: stop forcing after we create the new row
+      setForceNewDxRowOnToothPick(false);
+
+      // We still try to set active index for subsequent clicks
+      setActiveDxRowIndex(idx);
+
+      if (opts?.isAllTeeth) {
+        setEditableDxRows((prev) =>
+          prev.map((row, i) =>
+            i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row
+          )
+        );
+        setRows((prev) =>
+          prev.map((row, i) =>
+            i === idx ? { ...row, toothCode: ALL_TEETH_LABEL } : row
+          )
+        );
+      }
+      return;
+    }
     const toothStr = opts?.isAllTeeth ? ALL_TEETH_LABEL : stringifyToothList(nextTeeth);
 
     setEditableDxRows((prev) =>
