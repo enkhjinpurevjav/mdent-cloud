@@ -182,6 +182,45 @@ model SterilizationItem {
   @@index([categoryId])
 }
 
+enum SterilizationIndicatorStatus {
+  ACTIVE
+  USED
+  EXPIRED
+  CANCELLED
+}
+
+model SterilizationIndicator {
+  id               Int      @id @default(autoincrement())
+  branchId         Int
+  code             String
+  indicatorDate    DateTime
+  specialistUserId Int
+  packageQuantity  Int      @default(1)
+  status           SterilizationIndicatorStatus @default(ACTIVE)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  branch           Branch   @relation(fields: [branchId], references: [id])
+  specialist       User     @relation(fields: [specialistUserId], references: [id])
+  items            SterilizationIndicatorItem[]
+
+  @@unique([branchId, code])
+  @@index([branchId, indicatorDate])
+}
+
+model SterilizationIndicatorItem {
+  id          Int @id @default(autoincrement())
+  indicatorId Int
+  itemId      Int
+  quantity    Int @default(1)
+
+  indicator   SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  item        SterilizationItem      @relation(fields: [itemId], references: [id])
+
+  @@unique([indicatorId, itemId])
+  @@index([indicatorId])
+}
+
 
 // ==========================================================
 // USERS (Doctors, Nurses, Admin, etc.)
