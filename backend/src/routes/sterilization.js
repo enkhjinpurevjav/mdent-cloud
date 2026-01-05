@@ -232,4 +232,62 @@ router.delete("/sterilization/items/:id", async (req, res) => {
   res.json({ ok: true });
 });
 
+// GET active indicators (produced/used/current)
+router.get("/sterilization/indicators/active", async (req, res) => {
+  const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+  const q = String(req.query.q || "").trim().toLowerCase();
+
+  const where = {
+    ...(branchId ? { branchId } : {}),
+    ...(q
+      ? {
+          OR: [
+            { packageName: { contains: q, mode: "insensitive" } },
+            { code: { contains: q, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+
+  const indicators = await prisma.sterilizationIndicator.findMany({
+    where,
+    orderBy: [{ indicatorDate: "desc" }, { id: "desc" }],
+    select: {
+      id: true,
+      branchId: true,
+      packageName: true,
+      code: true,
+      indicatorDate: true,
+      packageQuantity: true,
+      branch: { select: { id: true, name: true } },
+      specialist: { select: { id: true, name: true, ovog: true, email: true } },
+      uses: { select: { usedQuantity: true } },
+    },
+  });
+
+  const rows = indicators
+    .map((it) => {
+      const used = (it.uses || []).reduce((sum, u) => sum + (u.usedQuantity || 0), 0);
+      const produced = it.packageQuantity || 0;
+      const current = Math.max(0, produced - used);
+
+      return {
+        id: it.id,
+        branch: it.branch,
+        branchId: it.branchId,
+        packageName: it.packageName,
+        code: it.code,
+        indicatorDate: it.indicatorDate,
+        produced,
+        used,
+        current,
+        specialist: it.specialist,
+      };
+    })
+    // Active = current > 0
+    .filter((x) => x.current > 0);
+
+  res.json(rows);
+});
+
 export default router;
