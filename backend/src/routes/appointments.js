@@ -104,6 +104,24 @@ function parseClinicDayEnd(value) {
   return new Date(`${s}T23:59:59.999+08:00`);
 }
 
+function clinicDateFromYmd(ymd) {
+  return new Date(`${ymd}T00:00:00.000+08:00`);
+}
+
+function addDaysYmd(ymd, days) {
+  const d = clinicDateFromYmd(ymd);
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+function weekdayMnFromClinicYmd(ymd) {
+  const names = ["Ням", "Даваа", "Мягмар", "Лхагва", "Пүрэв", "Баасан", "Бямба"];
+  return names[clinicDateFromYmd(ymd).getDay()];
+}
+
 // Helper: format date as YYYY-MM-DD using server local date parts
 function formatDateYYYYMMDD(date) {
   const y = date.getFullYear();
