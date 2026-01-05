@@ -194,11 +194,15 @@ enum SterilizationIndicatorStatus {
 model SterilizationIndicator {
   id               Int      @id @default(autoincrement())
   branchId         Int
+
+  packageName      String
   code             String
+
   indicatorDate    DateTime
   specialistUserId Int
+
   packageQuantity  Int      @default(1)
-  status           SterilizationIndicatorStatus @default(ACTIVE)
+
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -206,10 +210,10 @@ model SterilizationIndicator {
   specialist       User     @relation("UserSterilizationIndicators", fields: [specialistUserId], references: [id])
 
   items            SterilizationIndicatorItem[]
-
+  uses             EncounterSterilizationPackageUse[]
 
   @@index([branchId, indicatorDate])
-  @@index([specialistUserId])
+  @@index([code])
 }
 
 model SterilizationIndicatorItem {
@@ -220,9 +224,9 @@ model SterilizationIndicatorItem {
   indicator   SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
   item        SterilizationItem      @relation("SterilizationItemIndicatorItems", fields: [itemId], references: [id])
 
- @@index([branchId, indicatorDate])
-  @@index([specialistUserId])
-  @@index([code])
+  @@unique([indicatorId, itemId])
+  @@index([indicatorId])
+  @@index([itemId])
 }
 
 
