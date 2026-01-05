@@ -71,6 +71,7 @@ router.get("/sterilization/branch-prefixes", async (_req, res) => {
 // POST create indicator
 router.post("/sterilization/indicators", async (req, res) => {
   const branchId = Number(req.body?.branchId);
+  const packageName = String(req.body?.packageName || "").trim();
   const code = String(req.body?.code || "").trim();
   const specialistUserId = Number(req.body?.specialistUserId);
   const packageQuantity = Number(req.body?.packageQuantity ?? 1);
@@ -79,6 +80,7 @@ router.post("/sterilization/indicators", async (req, res) => {
   const items = Array.isArray(req.body?.items) ? req.body.items : [];
 
   if (!branchId) return res.status(400).json({ error: "branchId is required" });
+  if (!packageName) return res.status(400).json({ error: "packageName is required" });
   if (!code) return res.status(400).json({ error: "code is required" });
   if (!specialistUserId) return res.status(400).json({ error: "specialistUserId is required" });
 
@@ -101,6 +103,7 @@ router.post("/sterilization/indicators", async (req, res) => {
     const created = await prisma.sterilizationIndicator.create({
       data: {
         branchId,
+        packageName, // ✅ REQUIRED FIELD
         code,
         indicatorDate,
         specialistUserId,
