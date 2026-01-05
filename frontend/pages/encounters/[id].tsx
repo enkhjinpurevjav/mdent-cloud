@@ -5447,6 +5447,10 @@ const removeDiagnosisRow = (index: number) => {
                             onFocus={() => {
                               if (!isLocked) setOpenDxIndex(index);
                             }}
+                            onBlur={() => {
+    // small timeout so onMouseDown selection still works
+    setTimeout(() => setOpenDxIndex(null), 150);
+  }}
                             disabled={isLocked}
                             style={{
                               width: "100%",
