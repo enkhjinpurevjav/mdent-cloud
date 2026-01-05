@@ -166,11 +166,22 @@ model SterilizationCategory {
   items     SterilizationItem[]
 }
 
+model SterilizationCategory {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items     SterilizationItem[]
+}
+
 model SterilizationItem {
   id         Int      @id @default(autoincrement())
   categoryId Int
   name       String
+  quantity   Int      @default(1)
   createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   category   SterilizationCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
