@@ -292,6 +292,8 @@ router.get("/sterilization/indicators/active", async (req, res) => {
 
 // GET sterilization report
 // /api/sterilization/reports?from=YYYY-MM-DD&to=YYYY-MM-DD&branchId=optional
+// - todayCards: ALWAYS today's usage (calendar date) per branch
+// - rows: usage summary per indicator within [from..to] (calendar dates) and optional branch filter
 router.get("/sterilization/reports", async (req, res) => {
   try {
     const from = String(req.query.from || "");
@@ -299,7 +301,9 @@ router.get("/sterilization/reports", async (req, res) => {
     const branchIdParam = req.query.branchId ? Number(req.query.branchId) : null;
 
     if (!from || !to) {
-      return res.status(400).json({ error: "from and to are required (YYYY-MM-DD)" });
+      return res
+        .status(400)
+        .json({ error: "from and to are required (YYYY-MM-DD)" });
     }
 
     const [fy, fm, fd] = from.split("-").map(Number);
@@ -308,8 +312,34 @@ router.get("/sterilization/reports", async (req, res) => {
       return res.status(400).json({ error: "invalid date format" });
     }
 
-    const start = new Date(fy, fm - 1, fd, 0, 0, 0, 0);
-    const end = new Date(ty, tm - 1, td, 23, 59, 59, 999);
+    // Date range boundaries (calendar dates)
+    const rangeStart = new Date(fy, fm - 1, fd, 0, 0, 0, 0);
+    const rangeEnd = new Date(ty, tm - 1, td, 23, 59, 59, 999);
+
+    // Today's boundaries (calendar date, server time)
+    const now = new Date();
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      0,
+      0,
+      0,
+      0
+    );
+    const todayEnd = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      59,
+      999
+    );
+    const todayYmd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}-${String(now.getDate()).padStart(2, "0")}`;
 
     const branches = await prisma.branch.findMany({
       select: { id: true, name: true },
@@ -320,85 +350,44 @@ router.get("/sterilization/reports", async (req, res) => {
       ? branches.filter((b) => b.id === branchIdParam).map((b) => b.id)
       : branches.map((b) => b.id);
 
-    // 1) Find all package uses in date range, include indicator + branch
-    const uses = await prisma.encounterSterilizationPackageUse.findMany({
+    // 1) TODAY CARDS: sum usedQuantity per branch where createdAt is today
+    const todayUses = await prisma.encounterSterilizationPackageUse.findMany({
       where: {
-        createdAt: { gte: start, lte: end },
+        createdAt: { gte: todayStart, lte: todayEnd },
         indicator: { branchId: { in: allowedBranchIds } },
       },
       select: {
         usedQuantity: true,
-        createdAt: true,
-        indicator: {
-          select: {
-            id: true,
-            branchId: true,
-            packageName: true,
-            code: true,
-            indicatorDate: true,
-            packageQuantity: true,
-            createdAt: true,
-            specialist: { select: { id: true, name: true, ovog: true, email: true } },
-            branch: { select: { id: true, name: true } },
-          },
-        },
+        indicator: { select: { branchId: true } },
       },
     });
 
-    // Cards: total usedQuantity per branch
-    const usedByBranch = new Map();
-    for (const u of uses) {
+    const usedByBranchToday = new Map();
+    for (const u of todayUses) {
       const bid = u.indicator?.branchId;
       if (!bid) continue;
-      usedByBranch.set(bid, (usedByBranch.get(bid) || 0) + Number(u.usedQuantity || 0));
+      usedByBranchToday.set(
+        bid,
+        (usedByBranchToday.get(bid) || 0) + Number(u.usedQuantity || 0)
+      );
     }
 
-    const cards = branches
+    const todayCards = branches
       .filter((b) => allowedBranchIds.includes(b.id))
       .map((b) => ({
         branchId: b.id,
         branchName: b.name,
-        usedTotal: usedByBranch.get(b.id) || 0,
+        usedTotal: usedByBranchToday.get(b.id) || 0,
       }));
 
-    // Rows: group by indicatorId and sum used in range
-    const byIndicator = new Map();
-    for (const u of uses) {
-      const ind = u.indicator;
-      if (!ind) continue;
-      const key = ind.id;
-      const prev = byIndicator.get(key) || {
-        indicatorId: ind.id,
-        branchId: ind.branchId,
-        branchName: ind.branch?.name || "",
-        packageName: ind.packageName,
-        code: ind.code,
-        indicatorDate: ind.indicatorDate,
-        createdAt: ind.createdAt,
-        createdQuantity: ind.packageQuantity || 0,
-        usedQuantity: 0,
-        specialist: ind.specialist,
-      };
-      prev.usedQuantity += Number(u.usedQuantity || 0);
-      byIndicator.set(key, prev);
-    }
+    // 2) RANGE ROWS: group by indicator within date range
+    const rangeUses = await prisma.encounterSterilizationPackageUse.findMany({
+      where: {
+        createdAt: { gte: rangeStart, lte: rangeEnd },
+        indicator: { branchId: { in: allowedBranchIds } },
+      },
+      select: {
+        usedQuantity:
 
-    const rows = Array.from(byIndicator.values()).sort((a, b) => {
-      const ad = new Date(a.indicatorDate).getTime();
-      const bd = new Date(b.indicatorDate).getTime();
-      return bd - ad;
-    });
-
-    return res.json({
-      from: start.toISOString(),
-      to: end.toISOString(),
-      cards,
-      rows,
-    });
-  } catch (err) {
-    console.error("GET /api/sterilization/reports error:", err);
-    return res.status(500).json({ error: "internal server error" });
-  }
-});
 
 export default router;
