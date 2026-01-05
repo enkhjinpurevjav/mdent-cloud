@@ -28,6 +28,9 @@ export default function SterilizationSettingsPage() {
 
   const [filterText, setFilterText] = useState("");
 
+  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState("");
+
   // inline edit state for items
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [editItemName, setEditItemName] = useState("");
@@ -110,6 +113,45 @@ export default function SterilizationSettingsPage() {
       setLoading(false);
     }
   };
+
+  const startEditCategory = (cat: SterilizationCategory) => {
+  setEditingCategoryId(cat.id);
+  setEditCategoryName(cat.name);
+};
+
+const cancelEditCategory = () => {
+  setEditingCategoryId(null);
+  setEditCategoryName("");
+};
+
+const saveEditCategory = async () => {
+  if (editingCategoryId === null) return;
+
+  const name = editCategoryName.trim();
+  if (!name) {
+    setError("Ангиллын нэр хоосон байж болохгүй.");
+    return;
+  }
+
+  setLoading(true);
+  setError("");
+  try {
+    const res = await fetch(`/api/sterilization/categories/${editingCategoryId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(json?.error || "Failed to update category");
+
+    cancelEditCategory();
+    await loadAll();
+  } catch (e: any) {
+    setError(e?.message || "Алдаа гарлаа");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const createItem = async () => {
     const name = itemName.trim();
@@ -305,17 +347,100 @@ export default function SterilizationSettingsPage() {
           {filteredCategories.map((cat) => (
             <div key={cat.id} style={{ border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, padding: 12, borderBottom: "1px solid #f3f4f6" }}>
-                <div style={{ fontWeight: 700 }}>{cat.name}</div>
-                <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => void deleteCategory(cat.id)}
-                    disabled={loading}
-                    style={{ border: "1px solid #dc2626", background: "#fef2f2", color: "#b91c1c", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 12 }}
-                  >
-                    Устгах
-                  </button>
-                </div>
+               const isEditingCategory = editingCategoryId === cat.id;
+
+<div style={{ fontWeight: 700, flex: 1 }}>
+  {isEditingCategory ? (
+    <input
+      value={editCategoryName}
+      onChange={(e) => setEditCategoryName(e.target.value)}
+      style={{
+        width: "100%",
+        maxWidth: 420,
+        border: "1px solid #d1d5db",
+        borderRadius: 8,
+        padding: "6px 8px",
+        fontSize: 13,
+      }}
+    />
+  ) : (
+    cat.name
+  )}
+</div>
+
+<div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+  {isEditingCategory ? (
+    <>
+      <button
+        type="button"
+        onClick={() => void saveEditCategory()}
+        disabled={loading}
+        style={{
+          border: "none",
+          background: "#2563eb",
+          color: "#fff",
+          borderRadius: 8,
+          padding: "6px 10px",
+          cursor: "pointer",
+          fontSize: 12,
+        }}
+      >
+        Хадгалах
+      </button>
+      <button
+        type="button"
+        onClick={() => cancelEditCategory()}
+        disabled={loading}
+        style={{
+          border: "1px solid #d1d5db",
+          background: "#fff",
+          borderRadius: 8,
+          padding: "6px 10px",
+          cursor: "pointer",
+          fontSize: 12,
+        }}
+      >
+        Болих
+      </button>
+    </>
+  ) : (
+    <>
+      <button
+        type="button"
+        onClick={() => startEditCategory(cat)}
+        disabled={loading}
+        style={{
+          border: "1px solid #2563eb",
+          background: "#eff6ff",
+          color: "#2563eb",
+          borderRadius: 8,
+          padding: "6px 10px",
+          cursor: "pointer",
+          fontSize: 12,
+        }}
+      >
+        Засах
+      </button>
+
+      <button
+        type="button"
+        onClick={() => void deleteCategory(cat.id)}
+        disabled={loading}
+        style={{
+          border: "1px solid #dc2626",
+          background: "#fef2f2",
+          color: "#b91c1c",
+          borderRadius: 8,
+          padding: "6px 10px",
+          cursor: "pointer",
+          fontSize: 12,
+        }}
+      >
+        Устгах
+      </button>
+    </>
+  )}
+</div>
               </div>
 
               <div style={{ padding: 12 }}>
