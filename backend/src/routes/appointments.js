@@ -52,7 +52,8 @@ function normalizeStatusForDb(raw) {
 
 /**
  * Parse a clinic-local date string (YYYY-MM-DD) into [startOfDay, endOfDay].
- * We rely on server local timezone (Ubuntu VPS, Asia/Ulaanbaatar).
+ * NOTE: This is used by GET /api/appointments (calendar & lists).
+ * It relies on server local timezone.
  */
 function parseClinicDay(value) {
   const [y, m, d] = String(value).split("-").map(Number);
@@ -62,8 +63,11 @@ function parseClinicDay(value) {
   return { localStart, localEnd };
 }
 
+/**
+ * For availability grid we want clinic day boundaries in UTC+8 explicitly,
+ * so Docker/server timezone won't shift day matching.
+ */
 function parseClinicDayStart(value) {
-  // value: YYYY-MM-DD, treat as Asia/Ulaanbaatar (UTC+8)
   const s = String(value).trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
   return new Date(`${s}T00:00:00.000+08:00`);
@@ -74,6 +78,50 @@ function parseClinicDayEnd(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
   return new Date(`${s}T23:59:59.999+08:00`);
 }
+
+// Helper: format date as YYYY-MM-DD using server local date parts
+function formatDateYYYYMMDD(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// Helper: format time as HH:MM (local)
+function formatTime(date) {
+  const h = String(date.getHours()).padStart(2, "0");
+  const m = String(date.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+/**
+ * Convert a Date into a Mongolia clinic day key (YYYY-MM-DD) by applying +8h.
+ * This avoids server TZ problems when comparing day keys.
+ */
+function ymdFromClinicDate(d) {
+  const ms = d.getTime() + 8 * 60 * 60 * 1000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * Build a Date at clinic midnight for a given day key.
+ */
+function clinicDateFromYmd(ymd) {
+  return new Date(`${ymd}T00:00:00.000+08:00`);
+}
+
+/**
+ * Add days in clinic timezone and return YMD string.
+ */
+function addDaysYmd(ymd, days) {
+  const d = clinicDateFromYmd(ymd);
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
 /**
  * GET /api/appointments
  *
@@ -91,10 +139,6 @@ function parseClinicDayEnd(value) {
  *  - doctorId=number
  *  - patientId=number
  *  - search=string             (patient name / regNo / phone)
- *
- * Response:
- *  Array of rows shaped for frontend AppointmentRow:
- *  - id, patientName, regNo, branchName, doctorName, status, startTime, endTime
  */
 router.get("/", async (req, res) => {
   try {
@@ -134,31 +178,21 @@ router.get("/", async (req, res) => {
 
       if (dateFrom) {
         const parsed = parseClinicDay(dateFrom);
-        if (!parsed) {
-          return res.status(400).json({ error: "Invalid dateFrom format" });
-        }
+        if (!parsed) return res.status(400).json({ error: "Invalid dateFrom format" });
         range.gte = parsed.localStart;
       }
 
       if (dateTo) {
         const parsed = parseClinicDay(dateTo);
-        if (!parsed) {
-          return res.status(400).json({ error: "Invalid dateTo format" });
-        }
+        if (!parsed) return res.status(400).json({ error: "Invalid dateTo format" });
         range.lte = parsed.localEnd;
       }
 
       where.scheduledAt = range;
     } else if (date) {
-      // Legacy single-day mode
       const parsed = parseClinicDay(date);
-      if (!parsed) {
-        return res.status(400).json({ error: "Invalid date format" });
-      }
-      where.scheduledAt = {
-        gte: parsed.localStart,
-        lte: parsed.localEnd,
-      };
+      if (!parsed) return res.status(400).json({ error: "Invalid date format" });
+      where.scheduledAt = { gte: parsed.localStart, lte: parsed.localEnd };
     }
 
     // ----------------- Status + includeCancelled logic -----------------
@@ -166,7 +200,6 @@ router.get("/", async (req, res) => {
 
     if (status && String(status).toUpperCase() !== "ALL") {
       if (normalized === "booked" && includeCancelled === "true") {
-        // Цаг захиалсан list: booked + cancelled
         where.status = { in: ["booked", "cancelled"] };
       } else if (normalized && ALLOWED_STATUSES.includes(normalized)) {
         where.status = normalized;
@@ -174,137 +207,97 @@ router.get("/", async (req, res) => {
         return res.status(400).json({ error: "Invalid status value" });
       }
     }
-    // If status missing or "ALL", we don't filter by status.
 
     // ----------------- Text search on patient -----------------
     if (search && search.trim() !== "") {
       const s = search.trim();
-      // Prisma relation filter: appointment where patient matches OR conditions
       where.patient = {
         OR: [
-          {
-            name: {
-              contains: s,
-              mode: "insensitive",
-            },
-          },
-          {
-            regNo: {
-              contains: s,
-              mode: "insensitive",
-            },
-          },
-          {
-            phone: {
-              contains: s,
-              mode: "insensitive",
-            },
-          },
+          { name: { contains: s, mode: "insensitive" } },
+          { regNo: { contains: s, mode: "insensitive" } },
+          { phone: { contains: s, mode: "insensitive" } },
         ],
       };
     }
 
     // ----------------- Query DB -----------------
-        const appointments = await prisma.appointment.findMany({
-  where,
-  orderBy: { scheduledAt: "asc" },
-  include: {
-    patient: {
-      select: {
-        id: true,
-        name: true,
-        ovog: true,      // ← ADD THIS
-        regNo: true,
-        phone: true,
-        patientBook: true,
+    const appointments = await prisma.appointment.findMany({
+      where,
+      orderBy: { scheduledAt: "asc" },
+      include: {
+        patient: {
+          select: {
+            id: true,
+            name: true,
+            ovog: true,
+            regNo: true,
+            phone: true,
+            patientBook: true,
+          },
+        },
+        doctor: true,
+        branch: true,
       },
-    },
-    doctor: true,
-    branch: true,
-  },
-});
+    });
 
-    // ----------------- Shape for new frontend Appointment type -----------------
+    // ----------------- Shape for frontend Appointment type -----------------
     const rows = appointments.map((a) => {
-  const patient = a.patient;
-  const doctor = a.doctor;
-  const branch = a.branch;
+      const patient = a.patient;
+      const doctor = a.doctor;
+      const branch = a.branch;
 
-  const doctorName =
-    doctor && (doctor.name || doctor.ovog)
-      ? [doctor.ovog, doctor.name].filter(Boolean).join(" ")
-      : null;
+      const doctorName =
+        doctor && (doctor.name || doctor.ovog)
+          ? [doctor.ovog, doctor.name].filter(Boolean).join(" ")
+          : null;
 
-  return {
-    id: a.id,
-    branchId: a.branchId,
-    doctorId: a.doctorId,
-    patientId: a.patientId,
+      return {
+        id: a.id,
+        branchId: a.branchId,
+        doctorId: a.doctorId,
+        patientId: a.patientId,
 
-    // flat fields for quick labels
-    patientName: patient ? patient.name : null,
-    patientOvog: patient ? patient.ovog || null : null,     // ← ADD
-    patientRegNo: patient ? patient.regNo || null : null,
-    patientPhone: patient ? patient.phone || null : null,
+        patientName: patient ? patient.name : null,
+        patientOvog: patient ? patient.ovog || null : null,
+        patientRegNo: patient ? patient.regNo || null : null,
+        patientPhone: patient ? patient.phone || null : null,
 
-    doctorName,
-    doctorOvog: doctor ? doctor.ovog || null : null,
+        doctorName,
+        doctorOvog: doctor ? doctor.ovog || null : null,
 
-    scheduledAt: a.scheduledAt.toISOString(),
-    endAt: a.endAt ? a.endAt.toISOString() : null,
-    status: a.status,
-    notes: a.notes || null,
+        scheduledAt: a.scheduledAt.toISOString(),
+        endAt: a.endAt ? a.endAt.toISOString() : null,
+        status: a.status,
+        notes: a.notes || null,
 
-    // nested objects used by the details modal & labels
-    patient: patient
-      ? {
-          id: patient.id,
-          name: patient.name,
-          ovog: patient.ovog || null,                       // ← ADD
-          regNo: patient.regNo || null,
-          phone: patient.phone || null,
-          patientBook: patient.patientBook || null,
-        }
-      : null,
-    branch: branch
-      ? {
-          id: branch.id,
-          name: branch.name,
-        }
-      : null,
-  };
-});
+        patient: patient
+          ? {
+              id: patient.id,
+              name: patient.name,
+              ovog: patient.ovog || null,
+              regNo: patient.regNo || null,
+              phone: patient.phone || null,
+              patientBook: patient.patientBook || null,
+            }
+          : null,
+        branch: branch ? { id: branch.id, name: branch.name } : null,
+      };
+    });
 
-    res.json(rows);
+    return res.json(rows);
   } catch (err) {
     console.error("Error fetching appointments:", err);
-    res.status(500).json({ error: "failed to fetch appointments" });
+    return res.status(500).json({ error: "failed to fetch appointments" });
   }
 });
 
 /**
  * POST /api/appointments
- *
- * Body:
- *  - patientId (number, required)
- *  - doctorId (number, optional)
- *  - branchId (number, required)
- *  - scheduledAt (ISO string or YYYY-MM-DDTHH:mm, required)
- *  - endAt (ISO string or YYYY-MM-DDTHH:mm, optional; must be > scheduledAt)
- *  - status (string, optional, defaults to "booked")
- *  - notes (string, optional)
  */
 router.post("/", async (req, res) => {
   try {
-    const {
-      patientId,
-      doctorId,
-      branchId,
-      scheduledAt,
-      endAt,
-      status,
-      notes,
-    } = req.body || {};
+    const { patientId, doctorId, branchId, scheduledAt, endAt, status, notes } =
+      req.body || {};
 
     if (!patientId || !branchId || !scheduledAt) {
       return res.status(400).json({
@@ -324,7 +317,6 @@ router.post("/", async (req, res) => {
         .status(400)
         .json({ error: "patientId and branchId must be numbers" });
     }
-
     if (parsedDoctorId !== null && Number.isNaN(parsedDoctorId)) {
       return res.status(400).json({ error: "doctorId must be a number" });
     }
@@ -334,7 +326,6 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "scheduledAt is invalid date" });
     }
 
-    // Optional endAt
     let endDate = null;
     if (endAt !== undefined && endAt !== null && endAt !== "") {
       const tmp = new Date(endAt);
@@ -349,13 +340,10 @@ router.post("/", async (req, res) => {
       endDate = tmp;
     }
 
-    // Normalize and validate status
     let normalizedStatus = "booked";
     if (typeof status === "string" && status.trim()) {
       const maybe = normalizeStatusForDb(status);
-      if (!maybe) {
-        return res.status(400).json({ error: "invalid status" });
-      }
+      if (!maybe) return res.status(400).json({ error: "invalid status" });
       normalizedStatus = maybe;
     }
 
@@ -370,30 +358,22 @@ router.post("/", async (req, res) => {
         notes: notes || null,
       },
       include: {
-        patient: {
-          include: {
-            patientBook: true,
-          },
-        },
+        patient: { include: { patientBook: true } },
         doctor: true,
         branch: true,
       },
     });
 
-    res.status(201).json(appt);
+    return res.status(201).json(appt);
   } catch (err) {
     console.error("Error creating appointment:", err);
-    res.status(500).json({ error: "failed to create appointment" });
+    return res.status(500).json({ error: "failed to create appointment" });
   }
 });
 
 /**
  * PATCH /api/appointments/:id
- *
- * Currently used to update status only (from Цагийн дэлгэрэнгүй modal).
- *
- * Body:
- *  - status (string, required; one of ALLOWED_STATUSES or uppercase equivalent)
+ * Update status only.
  */
 router.patch("/:id", async (req, res) => {
   try {
@@ -414,36 +394,26 @@ router.patch("/:id", async (req, res) => {
 
     const appt = await prisma.appointment.update({
       where: { id },
-      data: {
-        status: normalizedStatus,
-      },
+      data: { status: normalizedStatus },
       include: {
-        patient: {
-          include: {
-            patientBook: true,
-          },
-        },
+        patient: { include: { patientBook: true } },
         doctor: true,
         branch: true,
       },
     });
 
-    res.json(appt);
+    return res.json(appt);
   } catch (err) {
     console.error("Error updating appointment:", err);
     if (err.code === "P2025") {
-      // Prisma: record not found
       return res.status(404).json({ error: "appointment not found" });
     }
-    res.status(500).json({ error: "failed to update appointment" });
+    return res.status(500).json({ error: "failed to update appointment" });
   }
 });
 
 /**
  * POST /api/appointments/:id/start-encounter
- *
- * Starts (or re-opens) an Encounter for this appointment.
- * Only allowed when appointment.status === "ongoing".
  */
 router.post("/:id/start-encounter", async (req, res) => {
   try {
@@ -452,25 +422,17 @@ router.post("/:id/start-encounter", async (req, res) => {
       return res.status(400).json({ error: "Invalid appointment id" });
     }
 
-    // 1) Load appointment with patient + patientBook
     const appt = await prisma.appointment.findUnique({
       where: { id: apptId },
       include: {
-        patient: {
-          include: {
-            patientBook: true,
-          },
-        },
+        patient: { include: { patientBook: true } },
         branch: true,
         doctor: true,
       },
     });
 
-    if (!appt) {
-      return res.status(404).json({ error: "Appointment not found" });
-    }
+    if (!appt) return res.status(404).json({ error: "Appointment not found" });
 
-    // 2) Only allow when status is "ongoing" (Явагдаж байна)
     if (appt.status !== "ongoing") {
       return res.status(400).json({
         error:
@@ -492,10 +454,8 @@ router.post("/:id/start-encounter", async (req, res) => {
 
     const patient = appt.patient;
 
-    // 3) Ensure patient has a PatientBook
     let book = patient.patientBook;
     if (!book) {
-      // TODO: replace bookNumber logic with proper generator if needed
       book = await prisma.patientBook.create({
         data: {
           patientId: patient.id,
@@ -504,13 +464,11 @@ router.post("/:id/start-encounter", async (req, res) => {
       });
     }
 
-    // 4) Find latest Encounter for this appointment, if any
     let encounter = await prisma.encounter.findFirst({
       where: { appointmentId: appt.id },
       orderBy: { id: "desc" },
     });
 
-    // 5) If none, create new Encounter
     if (!encounter) {
       encounter = await prisma.encounter.create({
         data: {
@@ -534,8 +492,6 @@ router.post("/:id/start-encounter", async (req, res) => {
 
 /**
  * GET /api/appointments/:id/encounter
- *
- * Returns the latest Encounter ID linked to this appointment, if any.
  */
 router.get("/:id/encounter", async (req, res) => {
   try {
@@ -551,9 +507,9 @@ router.get("/:id/encounter", async (req, res) => {
     });
 
     if (!encounter) {
-      return res
-        .status(404)
-        .json({ error: "Үзлэг олдсонгүй. Эмч үзлэг эхлүүлээгүй байна." });
+      return res.status(404).json({
+        error: "Үзлэг олдсонгүй. Эмч үзлэг эхлүүлээгүй байна.",
+      });
     }
 
     return res.json({ encounterId: encounter.id });
@@ -568,41 +524,16 @@ router.get("/:id/encounter", async (req, res) => {
 /**
  * GET /api/appointments/availability
  *
- * Query parameters:
- *  - doctorId (number, required)
- *  - from (YYYY-MM-DD, required)
- *  - to (YYYY-MM-DD, required)
- *  - slotMinutes (number, optional, default 30)
- *  - branchId (number, optional)
- *
- * Response:
- *  {
- *    days: [
- *      {
- *        date: 'YYYY-MM-DD',
- *        dayLabel: 'Даваа' | 'Мягмар' | ...,
- *        slots: [
- *          {
- *            start: ISO datetime,
- *            end: ISO datetime,
- *            status: 'available' | 'booked' | 'off',
- *            appointmentId?: number  (if booked)
- *          }
- *        ]
- *      }
- *    ],
- *    timeLabels: ['09:00', '09:30', ...]
- *  }
+ * NOTE:
+ * - Uses a YMD-string loop to avoid Date drift.
+ * - Matches DoctorSchedule.date (timestamp without time zone) by local date parts.
  */
 router.get("/availability", async (req, res) => {
   try {
     const { doctorId, from, to, slotMinutes, branchId } = req.query || {};
 
-    // Validate required params
     if (!doctorId || !from || !to) {
-      return res.status(400).json({
-        error: "doctorId, from, and to are required",
-      });
+      return res.status(400).json({ error: "doctorId, from, and to are required" });
     }
 
     const parsedDoctorId = Number(doctorId);
@@ -617,115 +548,80 @@ router.get("/availability", async (req, res) => {
 
     const slotDuration = slotMinutes ? Number(slotMinutes) : 30;
     if (Number.isNaN(slotDuration) || slotDuration < 5 || slotDuration > 120) {
-      return res.status(400).json({
-        error: "slotMinutes must be between 5 and 120",
-      });
-    }
-
-    // Parse date range
-    const fromParts = String(from).split("-").map(Number);
-    const toParts = String(to).split("-").map(Number);
-
-    if (
-      fromParts.length !== 3 ||
-      toParts.length !== 3 ||
-      fromParts.some((n) => Number.isNaN(n)) ||
-      toParts.some((n) => Number.isNaN(n))
-    ) {
-      return res.status(400).json({
-        error: "from and to must be in YYYY-MM-DD format",
-      });
+      return res.status(400).json({ error: "slotMinutes must be between 5 and 120" });
     }
 
     const fromDate = parseClinicDayStart(from);
-const toDate = parseClinicDayEnd(to);
+    const toDate = parseClinicDayEnd(to);
+    if (!fromDate || !toDate || Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime()) || fromDate > toDate) {
+      return res.status(400).json({ error: "Invalid date range" });
+    }
 
-if (!fromDate || !toDate || Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime()) || fromDate > toDate) {
-  return res.status(400).json({ error: "Invalid date range" });
-}
-
-    // Fetch doctor schedules for this range
     const schedules = await prisma.doctorSchedule.findMany({
       where: {
         doctorId: parsedDoctorId,
         ...(parsedBranchId && { branchId: parsedBranchId }),
-        date: {
-          gte: fromDate,
-          lte: toDate,
-        },
+        date: { gte: fromDate, lte: toDate },
       },
       orderBy: { date: "asc" },
     });
 
-    // Fetch existing appointments in this range for this doctor
     const appointments = await prisma.appointment.findMany({
       where: {
         doctorId: parsedDoctorId,
         ...(parsedBranchId && { branchId: parsedBranchId }),
-        scheduledAt: {
-          gte: fromDate,
-          lte: toDate,
-        },
-        status: {
-          notIn: ["cancelled", "completed"],
-        },
+        scheduledAt: { gte: fromDate, lte: toDate },
+        status: { notIn: ["cancelled", "completed"] },
       },
-      select: {
-        id: true,
-        scheduledAt: true,
-        endAt: true,
-      },
+      select: { id: true, scheduledAt: true, endAt: true },
       orderBy: { scheduledAt: "asc" },
     });
 
-    // Build availability grid
+    // Index schedules by stored day (timestamp without tz => use date parts)
+    const scheduleByYmd = new Map();
+    for (const s of schedules) {
+      const y = s.date.getFullYear();
+      const m = String(s.date.getMonth() + 1).padStart(2, "0");
+      const d = String(s.date.getDate()).padStart(2, "0");
+      scheduleByYmd.set(`${y}-${m}-${d}`, s);
+    }
+
     const days = [];
-    const dayNames = ["Ням", "Даваа", "Мягмар", "Лхагва", "Пүрэв", "Баасан", "Бямба"];
     const allTimeLabels = new Set();
 
-    // Iterate through each day in the range
-    let currentDate = new Date(fromDate);
-    while (currentDate <= toDate) {
-      const dateStr = formatDateYYYYMMDD(currentDate);
-      const dayOfWeek = currentDate.getDay();
-      const dayLabel = dayNames[dayOfWeek];
+    let ymd = String(from);
+    const endYmd = String(to);
 
-      // Find schedule for this day
-      const schedule = schedules.find((s) => ymdFromClinicDate(s.date) === dateStr);
-
-      let daySlots = [];
+    while (ymd <= endYmd) {
+      const schedule = scheduleByYmd.get(ymd);
+      const slots = [];
 
       if (schedule) {
-        // Parse schedule start/end times
         const [startHour, startMin] = schedule.startTime.split(":").map(Number);
         const [endHour, endMin] = schedule.endTime.split(":").map(Number);
 
-        const dayStart = new Date(currentDate);
+        const dayStart = clinicDateFromYmd(ymd);
         dayStart.setHours(startHour, startMin, 0, 0);
 
-        const dayEnd = new Date(currentDate);
+        const dayEnd = clinicDateFromYmd(ymd);
         dayEnd.setHours(endHour, endMin, 0, 0);
 
-        // Generate slots
         let slotStart = new Date(dayStart);
         while (slotStart < dayEnd) {
           const slotEnd = new Date(slotStart.getTime() + slotDuration * 60000);
 
-          // Check if this slot conflicts with any existing appointment
           const conflictingAppt = appointments.find((appt) => {
             const apptStart = new Date(appt.scheduledAt);
             const apptEnd = appt.endAt
               ? new Date(appt.endAt)
-              : new Date(apptStart.getTime() + 30 * 60000); // default 30min
-
-            // Check for overlap
+              : new Date(apptStart.getTime() + 30 * 60000);
             return slotStart < apptEnd && slotEnd > apptStart;
           });
 
-          const timeLabel = formatTime(slotStart);
-          allTimeLabels.add(timeLabel);
+          const label = formatTime(slotStart);
+          allTimeLabels.add(label);
 
-          daySlots.push({
+          slots.push({
             start: slotStart.toISOString(),
             end: slotEnd.toISOString(),
             status: conflictingAppt ? "booked" : "available",
@@ -734,94 +630,23 @@ if (!fromDate || !toDate || Number.isNaN(fromDate.getTime()) || Number.isNaN(toD
 
           slotStart = slotEnd;
         }
-      } else {
-        // No schedule for this day - use default working hours (9:00-17:00)
-        const defaultStart = new Date(currentDate);
-        defaultStart.setHours(9, 0, 0, 0);
-
-        const defaultEnd = new Date(currentDate);
-        defaultEnd.setHours(17, 0, 0, 0);
-
-        // Only show default hours for weekdays (Mon-Fri)
-        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-          let slotStart = new Date(defaultStart);
-          while (slotStart < defaultEnd) {
-            const slotEnd = new Date(
-              slotStart.getTime() + slotDuration * 60000
-            );
-
-            const conflictingAppt = appointments.find((appt) => {
-              const apptStart = new Date(appt.scheduledAt);
-              const apptEnd = appt.endAt
-                ? new Date(appt.endAt)
-                : new Date(apptStart.getTime() + 30 * 60000);
-
-              return slotStart < apptEnd && slotEnd > apptStart;
-            });
-
-            const timeLabel = formatTime(slotStart);
-            allTimeLabels.add(timeLabel);
-
-            daySlots.push({
-              start: slotStart.toISOString(),
-              end: slotEnd.toISOString(),
-              status: conflictingAppt ? "booked" : "available",
-              ...(conflictingAppt && { appointmentId: conflictingAppt.id }),
-            });
-
-            slotStart = slotEnd;
-          }
-        }
-        // For weekends without schedule, leave daySlots empty (off day)
       }
 
       days.push({
-        date: dateStr,
-        dayLabel,
-        slots: daySlots,
+        date: ymd,
+        dayLabel: weekdayMnFromClinicYmd(ymd),
+        slots,
       });
 
-      // Move to next day
-      currentDate.setDate(currentDate.getDate() + 1);
+      ymd = addDaysYmd(ymd, 1);
     }
 
-    // Convert time labels set to sorted array
     const timeLabels = Array.from(allTimeLabels).sort();
-
-    res.json({
-      days,
-      timeLabels,
-    });
+    return res.json({ days, timeLabels });
   } catch (err) {
     console.error("Error fetching appointment availability:", err);
-    res.status(500).json({ error: "failed to fetch availability" });
+    return res.status(500).json({ error: "failed to fetch availability" });
   }
 });
 
-// Helper function to format date as YYYY-MM-DD
-function formatDateYYYYMMDD(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-// Helper function to format time as HH:MM
-function formatTime(date) {
-  const h = String(date.getHours()).padStart(2, "0");
-  const m = String(date.getMinutes()).padStart(2, "0");
-  return `${h}:${m}`;
-}
-function addDaysYmd(ymd, days) {
-  const base = new Date(`${ymd}T00:00:00.000+08:00`);
-  base.setDate(base.getDate() + days);
-  return base.toISOString().slice(0, 10); // NOTE: still UTC string, but date part works for +08 midnight
-}
-
-function ymdFromClinicDate(d) {
-  // Convert a Date (stored in DB) into Mongolia day key
-  // Use +08:00 by shifting milliseconds
-  const ms = d.getTime() + 8 * 60 * 60 * 1000;
-  return new Date(ms).toISOString().slice(0, 10);
-}
 export default router;
