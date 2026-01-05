@@ -75,6 +75,7 @@ router.post("/sterilization/indicators", async (req, res) => {
   const specialistUserId = Number(req.body?.specialistUserId);
   const packageQuantity = Number(req.body?.packageQuantity ?? 1);
   const indicatorDateRaw = req.body?.indicatorDate;
+
   const items = Array.isArray(req.body?.items) ? req.body.items : [];
 
   if (!branchId) return res.status(400).json({ error: "branchId is required" });
@@ -90,17 +91,10 @@ router.post("/sterilization/indicators", async (req, res) => {
     return res.status(400).json({ error: "indicatorDate is invalid" });
   }
 
-  if (items.length === 0) {
+  // items must be item ids
+  const itemIds = items.map((x) => Number(x)).filter(Boolean);
+  if (itemIds.length === 0) {
     return res.status(400).json({ error: "At least 1 item is required" });
-  }
-
-  for (const it of items) {
-    const itemId = Number(it?.itemId);
-    const qty = Number(it?.quantity ?? 1);
-    if (!itemId) return res.status(400).json({ error: "itemId is required" });
-    if (!Number.isFinite(qty) || qty < 1) {
-      return res.status(400).json({ error: "item quantity must be >= 1" });
-    }
   }
 
   try {
@@ -111,12 +105,7 @@ router.post("/sterilization/indicators", async (req, res) => {
         indicatorDate,
         specialistUserId,
         packageQuantity: Math.floor(packageQuantity),
-        items: {
-          create: items.map((it) => ({
-            itemId: Number(it.itemId),
-            quantity: Math.floor(Number(it.quantity ?? 1)),
-          })),
-        },
+        items: { create: itemIds.map((itemId) => ({ itemId })) },
       },
       include: {
         branch: { select: { id: true, name: true } },
@@ -125,8 +114,8 @@ router.post("/sterilization/indicators", async (req, res) => {
       },
     });
     res.json(created);
-  } catch {
-    res.status(400).json({ error: "Indicator create failed (maybe duplicate code in branch)" });
+  } catch (e) {
+    res.status(400).json({ error: "Indicator create failed" });
   }
 });
 
