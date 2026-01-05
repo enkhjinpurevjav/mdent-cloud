@@ -126,6 +126,7 @@ model Branch {
 
   // NEW: employee voucher benefit pools in this branch
   employeeVouchers  EmployeeVoucher[]
+sterilizationIndicators SterilizationIndicator[] @relation("BranchSterilizationIndicators")
 }
 
 model EmployeeBenefit {
@@ -180,6 +181,7 @@ model SterilizationItem {
 
   @@unique([categoryId, name])
   @@index([categoryId])
+indicatorItems SterilizationIndicatorItem[] @relation("SterilizationItemIndicatorItems")
 }
 
 enum SterilizationIndicatorStatus {
@@ -200,25 +202,28 @@ model SterilizationIndicator {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  branch           Branch   @relation(fields: [branchId], references: [id])
-  specialist       User     @relation(fields: [specialistUserId], references: [id])
+  branch           Branch   @relation("BranchSterilizationIndicators", fields: [branchId], references: [id])
+  specialist       User     @relation("UserSterilizationIndicators", fields: [specialistUserId], references: [id])
+
   items            SterilizationIndicatorItem[]
 
   @@unique([branchId, code])
   @@index([branchId, indicatorDate])
+  @@index([specialistUserId])
 }
 
 model SterilizationIndicatorItem {
-  id          Int @id @default(autoincrement())
-  indicatorId Int
-  itemId      Int
-  quantity    Int @default(1)
+  id           Int @id @default(autoincrement())
+  indicatorId  Int
+  itemId       Int
+  quantity     Int @default(1)
 
-  indicator   SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
-  item        SterilizationItem      @relation(fields: [itemId], references: [id])
+  indicator    SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  item         SterilizationItem      @relation("SterilizationItemIndicatorItems", fields: [itemId], references: [id])
 
   @@unique([indicatorId, itemId])
   @@index([indicatorId])
+  @@index([itemId])
 }
 
 
@@ -274,6 +279,7 @@ model User {
 
   // NEW: authorization codes created by this user
   authorizationCodes AuthorizationCode[]
+sterilizationIndicators SterilizationIndicator[] @relation("UserSterilizationIndicators")
 }
 
 // ==========================================================
