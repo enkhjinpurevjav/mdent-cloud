@@ -20,6 +20,7 @@ import doctorsRouter from "./routes/doctors.js";
 import bookingsRouter from "./routes/bookings.js";
 import staffSummaryRoutes from "./routes/staff-summary.js";
 import invoicesRouter from "./routes/invoices.js";
+import sterilizationRouter from "./routes/sterilization.js";
 // FIX: use import instead of require
 import employeeBenefitsRouter from "./routes/employeeBenefits.js";
 import reportsPatientBalancesRouter from "./routes/reports-patient-balances.js";
@@ -78,6 +79,7 @@ app.use("/api/appointments", appointmentsRouter);
 app.use("/api/services", servicesRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api/reports", reportsPatientBalancesRouter);
+app.use("/api", sterilizationRouter);
 
 // mount employee benefit routes under /api/billing
 app.use("/api/billing", employeeBenefitsRouter);
