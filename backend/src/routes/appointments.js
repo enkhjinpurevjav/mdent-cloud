@@ -739,6 +739,7 @@ router.get("/availability", async (req, res) => {
         defaultEnd.setHours(17, 0, 0, 0);
 
         // Only show default hours for weekdays (Mon-Fri)
+        // dayOfWeek: 0=Sunday, 1=Monday, ..., 6=Saturday
         if (dayOfWeek >= 1 && dayOfWeek <= 5) {
           let slotStart = new Date(defaultStart);
           while (slotStart < defaultEnd) {

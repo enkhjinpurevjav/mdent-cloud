@@ -1370,7 +1370,7 @@ const removeDiagnosisRow = (index: number) => {
   };
 
   // Follow-up appointment scheduling functions
-  const loadFollowUpAvailability = async () => {
+  const loadFollowUpAvailability = useCallback(async () => {
     if (!encounter || !followUpDateFrom || !followUpDateTo) return;
 
     setFollowUpLoading(true);
@@ -1400,7 +1400,7 @@ const removeDiagnosisRow = (index: number) => {
     } finally {
       setFollowUpLoading(false);
     }
-  };
+  }, [encounter, followUpDateFrom, followUpDateTo, followUpSlotMinutes]);
 
   const createFollowUpAppointment = async (slotStart: string) => {
     if (!encounter) return;
