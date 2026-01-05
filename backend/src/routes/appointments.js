@@ -63,6 +63,31 @@ function parseClinicDay(value) {
   return { localStart, localEnd };
 }
 
+
+// ADD THESE HELPERS (place them near your other helper functions,
+// e.g., right after parseClinicDayEnd or near formatTime/ymdFromClinicDate)
+
+function clinicDateFromYmd(ymd) {
+  // clinic midnight (UTC+8)
+  return new Date(`${ymd}T00:00:00.000+08:00`);
+}
+
+function addDaysYmd(ymd, days) {
+  const d = clinicDateFromYmd(ymd);
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+function weekdayMnFromClinicYmd(ymd) {
+  const dayNames = ["Ням", "Даваа", "Мягмар", "Лхагва", "Пүрэв", "Баасан", "Бямба"];
+  const d = clinicDateFromYmd(ymd);
+  return dayNames[d.getDay()];
+}
+
+
 /**
  * For availability grid we want clinic day boundaries in UTC+8 explicitly,
  * so Docker/server timezone won't shift day matching.
