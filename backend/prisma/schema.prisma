@@ -158,6 +158,26 @@ model EmployeeBenefitUsage {
   invoice           Invoice         @relation(fields: [invoiceId], references: [id])
 }
 
+model SterilizationCategory {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  items     SterilizationItem[]
+}
+
+model SterilizationItem {
+  id         Int      @id @default(autoincrement())
+  categoryId Int
+  name       String
+  createdAt  DateTime @default(now())
+
+  category   SterilizationCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, name])
+  @@index([categoryId])
+}
+
 
 // ==========================================================
 // USERS (Doctors, Nurses, Admin, etc.)
