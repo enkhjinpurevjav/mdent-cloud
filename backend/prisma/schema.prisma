@@ -214,6 +214,7 @@ model SterilizationIndicator {
 
   @@index([branchId, indicatorDate])
   @@index([code])
+  encounterDiagnosisLinks EncounterDiagnosisSterilizationIndicator[]
 }
 
 model SterilizationIndicatorItem {
