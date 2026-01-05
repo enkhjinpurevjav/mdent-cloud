@@ -52,8 +52,7 @@ function normalizeStatusForDb(raw) {
 
 /**
  * Parse a clinic-local date string (YYYY-MM-DD) into [startOfDay, endOfDay].
- * NOTE: This is used by GET /api/appointments (calendar & lists).
- * It relies on server local timezone.
+ * We rely on server local timezone (Ubuntu VPS, Asia/Ulaanbaatar).
  */
 function parseClinicDay(value) {
   const [y, m, d] = String(value).split("-").map(Number);
@@ -63,41 +62,15 @@ function parseClinicDay(value) {
   return { localStart, localEnd };
 }
 
-
-// ADD THESE HELPERS (place them near your other helper functions,
-// e.g., right after parseClinicDayEnd or near formatTime/ymdFromClinicDate)
-
-function clinicDateFromYmd(ymd) {
-  // clinic midnight (UTC+8)
-  return new Date(`${ymd}T00:00:00.000+08:00`);
-}
-
-function addDaysYmd(ymd, days) {
-  const d = clinicDateFromYmd(ymd);
-  d.setDate(d.getDate() + days);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
-}
-
-function weekdayMnFromClinicYmd(ymd) {
-  const dayNames = ["Ням", "Даваа", "Мягмар", "Лхагва", "Пүрэв", "Баасан", "Бямба"];
-  const d = clinicDateFromYmd(ymd);
-  return dayNames[d.getDay()];
-}
-
-
 /**
- * For availability grid we want clinic day boundaries in UTC+8 explicitly,
- * so Docker/server timezone won't shift day matching.
+ * Parse clinic day boundaries as UTC+8.
+ * Used by /availability.
  */
 function parseClinicDayStart(value) {
   const s = String(value).trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
   return new Date(`${s}T00:00:00.000+08:00`);
 }
-
 function parseClinicDayEnd(value) {
   const s = String(value).trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
@@ -122,47 +95,10 @@ function weekdayMnFromClinicYmd(ymd) {
   return names[clinicDateFromYmd(ymd).getDay()];
 }
 
-// Helper: format date as YYYY-MM-DD using server local date parts
-function formatDateYYYYMMDD(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-// Helper: format time as HH:MM (local)
 function formatTime(date) {
   const h = String(date.getHours()).padStart(2, "0");
   const m = String(date.getMinutes()).padStart(2, "0");
   return `${h}:${m}`;
-}
-
-/**
- * Convert a Date into a Mongolia clinic day key (YYYY-MM-DD) by applying +8h.
- * This avoids server TZ problems when comparing day keys.
- */
-function ymdFromClinicDate(d) {
-  const ms = d.getTime() + 8 * 60 * 60 * 1000;
-  return new Date(ms).toISOString().slice(0, 10);
-}
-
-/**
- * Build a Date at clinic midnight for a given day key.
- */
-function clinicDateFromYmd(ymd) {
-  return new Date(`${ymd}T00:00:00.000+08:00`);
-}
-
-/**
- * Add days in clinic timezone and return YMD string.
- */
-function addDaysYmd(ymd, days) {
-  const d = clinicDateFromYmd(ymd);
-  d.setDate(d.getDate() + days);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
 }
 
 /**
@@ -182,6 +118,10 @@ function addDaysYmd(ymd, days) {
  *  - doctorId=number
  *  - patientId=number
  *  - search=string             (patient name / regNo / phone)
+ *
+ * Response:
+ *  Array of rows shaped for frontend AppointmentRow:
+ *  - id, patientName, regNo, branchName, doctorName, status, startTime, endTime
  */
 router.get("/", async (req, res) => {
   try {
@@ -221,21 +161,31 @@ router.get("/", async (req, res) => {
 
       if (dateFrom) {
         const parsed = parseClinicDay(dateFrom);
-        if (!parsed) return res.status(400).json({ error: "Invalid dateFrom format" });
+        if (!parsed) {
+          return res.status(400).json({ error: "Invalid dateFrom format" });
+        }
         range.gte = parsed.localStart;
       }
 
       if (dateTo) {
         const parsed = parseClinicDay(dateTo);
-        if (!parsed) return res.status(400).json({ error: "Invalid dateTo format" });
+        if (!parsed) {
+          return res.status(400).json({ error: "Invalid dateTo format" });
+        }
         range.lte = parsed.localEnd;
       }
 
       where.scheduledAt = range;
     } else if (date) {
+      // Legacy single-day mode
       const parsed = parseClinicDay(date);
-      if (!parsed) return res.status(400).json({ error: "Invalid date format" });
-      where.scheduledAt = { gte: parsed.localStart, lte: parsed.localEnd };
+      if (!parsed) {
+        return res.status(400).json({ error: "Invalid date format" });
+      }
+      where.scheduledAt = {
+        gte: parsed.localStart,
+        lte: parsed.localEnd,
+      };
     }
 
     // ----------------- Status + includeCancelled logic -----------------
@@ -243,6 +193,7 @@ router.get("/", async (req, res) => {
 
     if (status && String(status).toUpperCase() !== "ALL") {
       if (normalized === "booked" && includeCancelled === "true") {
+        // Цаг захиалсан list: booked + cancelled
         where.status = { in: ["booked", "cancelled"] };
       } else if (normalized && ALLOWED_STATUSES.includes(normalized)) {
         where.status = normalized;
@@ -283,7 +234,7 @@ router.get("/", async (req, res) => {
       },
     });
 
-    // ----------------- Shape for frontend Appointment type -----------------
+    // ----------------- Shape for new frontend Appointment type -----------------
     const rows = appointments.map((a) => {
       const patient = a.patient;
       const doctor = a.doctor;
@@ -300,6 +251,7 @@ router.get("/", async (req, res) => {
         doctorId: a.doctorId,
         patientId: a.patientId,
 
+        // flat fields for quick labels
         patientName: patient ? patient.name : null,
         patientOvog: patient ? patient.ovog || null : null,
         patientRegNo: patient ? patient.regNo || null : null,
@@ -313,6 +265,7 @@ router.get("/", async (req, res) => {
         status: a.status,
         notes: a.notes || null,
 
+        // nested objects used by the details modal & labels
         patient: patient
           ? {
               id: patient.id,
@@ -323,7 +276,12 @@ router.get("/", async (req, res) => {
               patientBook: patient.patientBook || null,
             }
           : null,
-        branch: branch ? { id: branch.id, name: branch.name } : null,
+        branch: branch
+          ? {
+              id: branch.id,
+              name: branch.name,
+            }
+          : null,
       };
     });
 
@@ -336,6 +294,15 @@ router.get("/", async (req, res) => {
 
 /**
  * POST /api/appointments
+ *
+ * Body:
+ *  - patientId (number, required)
+ *  - doctorId (number, optional)
+ *  - branchId (number, required)
+ *  - scheduledAt (ISO string or YYYY-MM-DDTHH:mm, required)
+ *  - endAt (ISO string or YYYY-MM-DDTHH:mm, optional; must be > scheduledAt)
+ *  - status (string, optional, defaults to "booked")
+ *  - notes (string, optional)
  */
 router.post("/", async (req, res) => {
   try {
@@ -360,6 +327,7 @@ router.post("/", async (req, res) => {
         .status(400)
         .json({ error: "patientId and branchId must be numbers" });
     }
+
     if (parsedDoctorId !== null && Number.isNaN(parsedDoctorId)) {
       return res.status(400).json({ error: "doctorId must be a number" });
     }
@@ -369,6 +337,7 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "scheduledAt is invalid date" });
     }
 
+    // Optional endAt
     let endDate = null;
     if (endAt !== undefined && endAt !== null && endAt !== "") {
       const tmp = new Date(endAt);
@@ -383,10 +352,13 @@ router.post("/", async (req, res) => {
       endDate = tmp;
     }
 
+    // Normalize and validate status
     let normalizedStatus = "booked";
     if (typeof status === "string" && status.trim()) {
       const maybe = normalizeStatusForDb(status);
-      if (!maybe) return res.status(400).json({ error: "invalid status" });
+      if (!maybe) {
+        return res.status(400).json({ error: "invalid status" });
+      }
       normalizedStatus = maybe;
     }
 
@@ -416,7 +388,11 @@ router.post("/", async (req, res) => {
 
 /**
  * PATCH /api/appointments/:id
- * Update status only.
+ *
+ * Currently used to update status only (from Цагийн дэлгэрэнгүй modal).
+ *
+ * Body:
+ *  - status (string, required; one of ALLOWED_STATUSES or uppercase equivalent)
  */
 router.patch("/:id", async (req, res) => {
   try {
@@ -457,6 +433,9 @@ router.patch("/:id", async (req, res) => {
 
 /**
  * POST /api/appointments/:id/start-encounter
+ *
+ * Starts (or re-opens) an Encounter for this appointment.
+ * Only allowed when appointment.status === "ongoing".
  */
 router.post("/:id/start-encounter", async (req, res) => {
   try {
@@ -465,6 +444,7 @@ router.post("/:id/start-encounter", async (req, res) => {
       return res.status(400).json({ error: "Invalid appointment id" });
     }
 
+    // 1) Load appointment with patient + patientBook
     const appt = await prisma.appointment.findUnique({
       where: { id: apptId },
       include: {
@@ -474,8 +454,11 @@ router.post("/:id/start-encounter", async (req, res) => {
       },
     });
 
-    if (!appt) return res.status(404).json({ error: "Appointment not found" });
+    if (!appt) {
+      return res.status(404).json({ error: "Appointment not found" });
+    }
 
+    // 2) Only allow when status is "ongoing" (Явагдаж байна)
     if (appt.status !== "ongoing") {
       return res.status(400).json({
         error:
@@ -497,21 +480,21 @@ router.post("/:id/start-encounter", async (req, res) => {
 
     const patient = appt.patient;
 
+    // 3) Ensure patient has a PatientBook
     let book = patient.patientBook;
     if (!book) {
       book = await prisma.patientBook.create({
-        data: {
-          patientId: patient.id,
-          bookNumber: String(patient.id),
-        },
+        data: { patientId: patient.id, bookNumber: String(patient.id) },
       });
     }
 
+    // 4) Find latest Encounter for this appointment, if any
     let encounter = await prisma.encounter.findFirst({
       where: { appointmentId: appt.id },
       orderBy: { id: "desc" },
     });
 
+    // 5) If none, create new Encounter
     if (!encounter) {
       encounter = await prisma.encounter.create({
         data: {
@@ -535,6 +518,8 @@ router.post("/:id/start-encounter", async (req, res) => {
 
 /**
  * GET /api/appointments/:id/encounter
+ *
+ * Returns the latest Encounter ID linked to this appointment, if any.
  */
 router.get("/:id/encounter", async (req, res) => {
   try {
@@ -567,9 +552,20 @@ router.get("/:id/encounter", async (req, res) => {
 /**
  * GET /api/appointments/availability
  *
- * NOTE:
- * - Uses a YMD-string loop to avoid Date drift.
- * - Matches DoctorSchedule.date (timestamp without time zone) by local date parts.
+ * Query parameters:
+ *  - doctorId (number, required)
+ *  - from (YYYY-MM-DD, required)
+ *  - to (YYYY-MM-DD, required)
+ *  - slotMinutes (number, optional, default 30)
+ *  - branchId (number, optional)
+ *
+ * Response:
+ *  {
+ *    days: [
+ *      { date: 'YYYY-MM-DD', dayLabel: 'Даваа', slots: [...] }
+ *    ],
+ *    timeLabels: ['09:00', '09:30', ...]
+ *  }
  */
 router.get("/availability", async (req, res) => {
   try {
@@ -620,7 +616,7 @@ router.get("/availability", async (req, res) => {
       orderBy: { scheduledAt: "asc" },
     });
 
-    // Index schedules by stored day (timestamp without tz => use date parts)
+    // Index schedules by stored day (DoctorSchedule.date is timestamp without tz)
     const scheduleByYmd = new Map();
     for (const s of schedules) {
       const y = s.date.getFullYear();
@@ -636,18 +632,20 @@ router.get("/availability", async (req, res) => {
     const endYmd = String(to);
 
     while (ymd <= endYmd) {
+      const dayLabel = weekdayMnFromClinicYmd(ymd);
       const schedule = scheduleByYmd.get(ymd);
+
       const slots = [];
 
       if (schedule) {
-        const [startHour, startMin] = schedule.startTime.split(":").map(Number);
-        const [endHour, endMin] = schedule.endTime.split(":").map(Number);
+        const [sh, sm] = schedule.startTime.split(":").map(Number);
+        const [eh, em] = schedule.endTime.split(":").map(Number);
 
         const dayStart = clinicDateFromYmd(ymd);
-        dayStart.setHours(startHour, startMin, 0, 0);
+        dayStart.setHours(sh, sm, 0, 0);
 
         const dayEnd = clinicDateFromYmd(ymd);
-        dayEnd.setHours(endHour, endMin, 0, 0);
+        dayEnd.setHours(eh, em, 0, 0);
 
         let slotStart = new Date(dayStart);
         while (slotStart < dayEnd) {
@@ -661,8 +659,8 @@ router.get("/availability", async (req, res) => {
             return slotStart < apptEnd && slotEnd > apptStart;
           });
 
-          const label = formatTime(slotStart);
-          allTimeLabels.add(label);
+          const timeLabel = formatTime(slotStart);
+          allTimeLabels.add(timeLabel);
 
           slots.push({
             start: slotStart.toISOString(),
@@ -675,12 +673,7 @@ router.get("/availability", async (req, res) => {
         }
       }
 
-      days.push({
-        date: ymd,
-        dayLabel: weekdayMnFromClinicYmd(ymd),
-        slots,
-      });
-
+      days.push({ date: ymd, dayLabel, slots });
       ymd = addDaysYmd(ymd, 1);
     }
 
