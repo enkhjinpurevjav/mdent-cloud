@@ -230,22 +230,20 @@ model SterilizationIndicatorItem {
 }
 
 model EncounterSterilizationPackageUse {
-  id            Int      @id @default(autoincrement())
-  encounterId   Int
-  indicatorId   Int
-  usedQuantity  Int      @default(1)
+  id             Int      @id @default(autoincrement())
+  encounterId    Int
+  indicatorId    Int
+  usedQuantity   Int      @default(1)
 
   openedByUserId Int?
+  createdAt      DateTime @default(now())
 
-  createdAt     DateTime @default(now())
-
-  encounter     Encounter             @relation(fields: [encounterId], references: [id], onDelete: Cascade)
-  indicator     SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
-  openedBy      User?                 @relation("UserOpenedSterilizationPackages", fields: [openedByUserId], references: [id])
+  encounter      Encounter              @relation("EncounterSterilizationUses", fields: [encounterId], references: [id], onDelete: Cascade)
+  indicator      SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  openedBy       User?                  @relation("UserOpenedSterilizationPackages", fields: [openedByUserId], references: [id])
 
   @@index([encounterId])
   @@index([indicatorId])
-sterilizationPackageUses EncounterSterilizationPackageUse[] @relation("EncounterSterilizationUses")
 }
 
 
@@ -455,6 +453,7 @@ model Encounter {
   encounterServices  EncounterService[]
   diagnoses          EncounterDiagnosis[]
   consents            EncounterConsent[]
+  sterilizationPackageUses EncounterSterilizationPackageUse[] @relation("EncounterSterilizationUses")
 }
 
 model EncounterConsent {
