@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import AdminLayout from "../../components/AdminLayout";
+
 
 type SterilizationCategory = {
   id: number;
@@ -152,7 +152,7 @@ export default function SterilizationSettingsPage() {
   }, [filteredItems]);
 
   return (
-    <AdminLayout>
+ 
       <div style={{ maxWidth: 1100 }}>
         <h1 style={{ fontSize: 18, marginBottom: 6 }}>Ариутгал → Тохиргоо</h1>
         <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
@@ -307,6 +307,6 @@ export default function SterilizationSettingsPage() {
           </div>
         )}
       </div>
-    </AdminLayout>
+
   );
 }
