@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 
 type Branch = { id: number; name: string };
 
-type ReportCard = {
+type TodayCard = {
   branchId: number;
   branchName: string;
   usedTotal: number;
@@ -17,7 +17,6 @@ type ReportRow = {
   packageName: string;
   code: string;
   indicatorDate: string;
-  createdAt: string;
   createdQuantity: number;
   usedQuantity: number;
   specialist: Staff | null;
@@ -44,13 +43,16 @@ function formatDate(iso: string) {
 
 export default function SterilizationReportsPage() {
   const today = useMemo(() => new Date(), []);
+  const todayYmd = useMemo(() => ymd(today), [today]);
+
+  // default range: this month to today
   const [from, setFrom] = useState<string>(ymd(new Date(today.getFullYear(), today.getMonth(), 1)));
-  const [to, setTo] = useState<string>(ymd(today));
+  const [to, setTo] = useState<string>(todayYmd);
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchId, setBranchId] = useState<number | "">("");
 
-  const [cards, setCards] = useState<ReportCard[]>([]);
+  const [todayCards, setTodayCards] = useState<TodayCard[]>([]);
   const [rows, setRows] = useState<ReportRow[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -85,7 +87,7 @@ export default function SterilizationReportsPage() {
 
       if (!res.ok) throw new Error(json?.error || "Тайлан ачааллах үед алдаа гарлаа");
 
-      setCards(Array.isArray(json?.cards) ? json.cards : []);
+      setTodayCards(Array.isArray(json?.todayCards) ? json.todayCards : []);
       setRows(Array.isArray(json?.rows) ? json.rows : []);
     } catch (e: any) {
       setError(e?.message || "Алдаа гарлаа");
@@ -99,6 +101,7 @@ export default function SterilizationReportsPage() {
   }, []);
 
   useEffect(() => {
+    // initial load
     void search();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -107,14 +110,14 @@ export default function SterilizationReportsPage() {
     <div style={{ maxWidth: 1100 }}>
       <h1 style={{ fontSize: 18, marginBottom: 6 }}>Ариутгалын тайлан</h1>
       <div style={{ color: "#6b7280", fontSize: 13, marginBottom: 12 }}>
-        Салбар тус бүрээр ашигласан (opened/used) индикаторын нийт тоо болон дэлгэрэнгүй жагсаалт.
+        Дээрх картууд: <b>өнөөдрийн</b> ашиглалт ({todayYmd}). Доорх жагсаалт: сонгосон хугацаанд ашигласан мэдээлэл.
       </div>
 
       {error && <div style={{ color: "#b91c1c", marginBottom: 10, fontSize: 13 }}>{error}</div>}
 
-      {/* Cards */}
+      {/* Today cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 14 }}>
-        {cards.map((c, idx) => {
+        {todayCards.map((c, idx) => {
           const bg = idx % 4 === 0 ? "#dbeafe" : idx % 4 === 1 ? "#fef9c3" : idx % 4 === 2 ? "#fee2e2" : "#dcfce7";
           const color = idx % 4 === 0 ? "#1d4ed8" : idx % 4 === 1 ? "#a16207" : idx % 4 === 2 ? "#b91c1c" : "#15803d";
           return (
@@ -134,13 +137,13 @@ export default function SterilizationReportsPage() {
                 {c.usedTotal}
               </div>
               <div style={{ fontSize: 12, color: "#374151", marginTop: 4 }}>
-                Сонгосон хугацаанд ашигласан багцын тоо
+                Өнөөдөр ашигласан багцын тоо
               </div>
             </div>
           );
         })}
-        {cards.length === 0 && !loading && (
-          <div style={{ fontSize: 13, color: "#6b7280" }}>Картын мэдээлэл олдсонгүй.</div>
+        {todayCards.length === 0 && !loading && (
+          <div style={{ fontSize: 13, color: "#6b7280" }}>Өнөөдрийн ашиглалт байхгүй байна.</div>
         )}
       </div>
 
