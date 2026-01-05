@@ -528,6 +528,24 @@ model EncounterDiagnosis {
   diagnosis           Diagnosis  @relation(fields: [diagnosisId], references: [id])
 
   createdAt           DateTime   @default(now())
+  sterilizationIndicators EncounterDiagnosisSterilizationIndicator[]
+}
+
+model EncounterDiagnosisSterilizationIndicator {
+  id                 Int @id @default(autoincrement())
+  encounterDiagnosisId Int
+  indicatorId         Int
+
+  usedQuantity        Int @default(1)  // optional, but useful later
+
+  createdAt           DateTime @default(now())
+
+  encounterDiagnosis  EncounterDiagnosis @relation(fields: [encounterDiagnosisId], references: [id], onDelete: Cascade)
+  indicator           SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+
+  @@unique([encounterDiagnosisId, indicatorId])
+  @@index([encounterDiagnosisId])
+  @@index([indicatorId])
 }
 
 // ==========================================================
