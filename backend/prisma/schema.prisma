@@ -245,6 +245,7 @@ model EncounterSterilizationPackageUse {
 
   @@index([encounterId])
   @@index([indicatorId])
+sterilizationPackageUses EncounterSterilizationPackageUse[] @relation("EncounterSterilizationUses")
 }
 
 
