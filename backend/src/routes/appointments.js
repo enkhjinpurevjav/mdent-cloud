@@ -553,4 +553,260 @@ router.get("/:id/encounter", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/appointments/availability
+ *
+ * Query parameters:
+ *  - doctorId (number, required)
+ *  - from (YYYY-MM-DD, required)
+ *  - to (YYYY-MM-DD, required)
+ *  - slotMinutes (number, optional, default 30)
+ *  - branchId (number, optional)
+ *
+ * Response:
+ *  {
+ *    days: [
+ *      {
+ *        date: 'YYYY-MM-DD',
+ *        dayLabel: 'Даваа' | 'Мягмар' | ...,
+ *        slots: [
+ *          {
+ *            start: ISO datetime,
+ *            end: ISO datetime,
+ *            status: 'available' | 'booked' | 'off',
+ *            appointmentId?: number  (if booked)
+ *          }
+ *        ]
+ *      }
+ *    ],
+ *    timeLabels: ['09:00', '09:30', ...]
+ *  }
+ */
+router.get("/availability", async (req, res) => {
+  try {
+    const { doctorId, from, to, slotMinutes, branchId } = req.query || {};
+
+    // Validate required params
+    if (!doctorId || !from || !to) {
+      return res.status(400).json({
+        error: "doctorId, from, and to are required",
+      });
+    }
+
+    const parsedDoctorId = Number(doctorId);
+    if (Number.isNaN(parsedDoctorId)) {
+      return res.status(400).json({ error: "doctorId must be a number" });
+    }
+
+    const parsedBranchId = branchId ? Number(branchId) : null;
+    if (branchId && Number.isNaN(parsedBranchId)) {
+      return res.status(400).json({ error: "branchId must be a number" });
+    }
+
+    const slotDuration = slotMinutes ? Number(slotMinutes) : 30;
+    if (Number.isNaN(slotDuration) || slotDuration < 5 || slotDuration > 120) {
+      return res.status(400).json({
+        error: "slotMinutes must be between 5 and 120",
+      });
+    }
+
+    // Parse date range
+    const fromParts = String(from).split("-").map(Number);
+    const toParts = String(to).split("-").map(Number);
+
+    if (
+      fromParts.length !== 3 ||
+      toParts.length !== 3 ||
+      fromParts.some((n) => Number.isNaN(n)) ||
+      toParts.some((n) => Number.isNaN(n))
+    ) {
+      return res.status(400).json({
+        error: "from and to must be in YYYY-MM-DD format",
+      });
+    }
+
+    const fromDate = new Date(fromParts[0], fromParts[1] - 1, fromParts[2]);
+    const toDate = new Date(toParts[0], toParts[1] - 1, toParts[2], 23, 59, 59);
+
+    if (
+      Number.isNaN(fromDate.getTime()) ||
+      Number.isNaN(toDate.getTime()) ||
+      fromDate > toDate
+    ) {
+      return res.status(400).json({
+        error: "Invalid date range",
+      });
+    }
+
+    // Fetch doctor schedules for this range
+    const schedules = await prisma.doctorSchedule.findMany({
+      where: {
+        doctorId: parsedDoctorId,
+        ...(parsedBranchId && { branchId: parsedBranchId }),
+        date: {
+          gte: fromDate,
+          lte: toDate,
+        },
+      },
+      orderBy: { date: "asc" },
+    });
+
+    // Fetch existing appointments in this range for this doctor
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        doctorId: parsedDoctorId,
+        ...(parsedBranchId && { branchId: parsedBranchId }),
+        scheduledAt: {
+          gte: fromDate,
+          lte: toDate,
+        },
+        status: {
+          notIn: ["cancelled", "completed"],
+        },
+      },
+      select: {
+        id: true,
+        scheduledAt: true,
+        endAt: true,
+      },
+      orderBy: { scheduledAt: "asc" },
+    });
+
+    // Build availability grid
+    const days = [];
+    const dayNames = ["Ням", "Даваа", "Мягмар", "Лхагва", "Пүрэв", "Баасан", "Бямба"];
+    const allTimeLabels = new Set();
+
+    // Iterate through each day in the range
+    let currentDate = new Date(fromDate);
+    while (currentDate <= toDate) {
+      const dateStr = formatDateYYYYMMDD(currentDate);
+      const dayOfWeek = currentDate.getDay();
+      const dayLabel = dayNames[dayOfWeek];
+
+      // Find schedule for this day
+      const schedule = schedules.find(
+        (s) => formatDateYYYYMMDD(s.date) === dateStr
+      );
+
+      let daySlots = [];
+
+      if (schedule) {
+        // Parse schedule start/end times
+        const [startHour, startMin] = schedule.startTime.split(":").map(Number);
+        const [endHour, endMin] = schedule.endTime.split(":").map(Number);
+
+        const dayStart = new Date(currentDate);
+        dayStart.setHours(startHour, startMin, 0, 0);
+
+        const dayEnd = new Date(currentDate);
+        dayEnd.setHours(endHour, endMin, 0, 0);
+
+        // Generate slots
+        let slotStart = new Date(dayStart);
+        while (slotStart < dayEnd) {
+          const slotEnd = new Date(slotStart.getTime() + slotDuration * 60000);
+
+          // Check if this slot conflicts with any existing appointment
+          const conflictingAppt = appointments.find((appt) => {
+            const apptStart = new Date(appt.scheduledAt);
+            const apptEnd = appt.endAt
+              ? new Date(appt.endAt)
+              : new Date(apptStart.getTime() + 30 * 60000); // default 30min
+
+            // Check for overlap
+            return slotStart < apptEnd && slotEnd > apptStart;
+          });
+
+          const timeLabel = formatTime(slotStart);
+          allTimeLabels.add(timeLabel);
+
+          daySlots.push({
+            start: slotStart.toISOString(),
+            end: slotEnd.toISOString(),
+            status: conflictingAppt ? "booked" : "available",
+            ...(conflictingAppt && { appointmentId: conflictingAppt.id }),
+          });
+
+          slotStart = slotEnd;
+        }
+      } else {
+        // No schedule for this day - use default working hours (9:00-17:00)
+        const defaultStart = new Date(currentDate);
+        defaultStart.setHours(9, 0, 0, 0);
+
+        const defaultEnd = new Date(currentDate);
+        defaultEnd.setHours(17, 0, 0, 0);
+
+        // Only show default hours for weekdays (Mon-Fri)
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+          let slotStart = new Date(defaultStart);
+          while (slotStart < defaultEnd) {
+            const slotEnd = new Date(
+              slotStart.getTime() + slotDuration * 60000
+            );
+
+            const conflictingAppt = appointments.find((appt) => {
+              const apptStart = new Date(appt.scheduledAt);
+              const apptEnd = appt.endAt
+                ? new Date(appt.endAt)
+                : new Date(apptStart.getTime() + 30 * 60000);
+
+              return slotStart < apptEnd && slotEnd > apptStart;
+            });
+
+            const timeLabel = formatTime(slotStart);
+            allTimeLabels.add(timeLabel);
+
+            daySlots.push({
+              start: slotStart.toISOString(),
+              end: slotEnd.toISOString(),
+              status: conflictingAppt ? "booked" : "available",
+              ...(conflictingAppt && { appointmentId: conflictingAppt.id }),
+            });
+
+            slotStart = slotEnd;
+          }
+        }
+        // For weekends without schedule, leave daySlots empty (off day)
+      }
+
+      days.push({
+        date: dateStr,
+        dayLabel,
+        slots: daySlots,
+      });
+
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Convert time labels set to sorted array
+    const timeLabels = Array.from(allTimeLabels).sort();
+
+    res.json({
+      days,
+      timeLabels,
+    });
+  } catch (err) {
+    console.error("Error fetching appointment availability:", err);
+    res.status(500).json({ error: "failed to fetch availability" });
+  }
+});
+
+// Helper function to format date as YYYY-MM-DD
+function formatDateYYYYMMDD(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// Helper function to format time as HH:MM
+function formatTime(date) {
+  const h = String(date.getHours()).padStart(2, "0");
+  const m = String(date.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
 export default router;
