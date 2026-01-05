@@ -691,108 +691,80 @@ if (!fromDate || !toDate || Number.isNaN(fromDate.getTime()) || Number.isNaN(toD
     const allTimeLabels = new Set();
 
     // Iterate through each day in the range
-    let currentDate = new Date(fromDate);
-    while (currentDate <= toDate) {
-      const dateStr = clinicYmdFromDate(currentDate);
-      const dayOfWeek = currentDate.getDay();
-      const dayLabel = dayNames[dayOfWeek];
+    // Build a map for schedules by clinic day key (YYYY-MM-DD)
+const scheduleByYmd = new Map();
+for (const s of schedules) {
+  // since DoctorSchedule.date is stored as "YYYY-MM-DD 00:00:00" (no tz),
+  // we treat it as that same day key by reading it in server local date parts.
+  // This is stable for "timestamp without time zone".
+  const y = s.date.getFullYear();
+  const m = String(s.date.getMonth() + 1).padStart(2, "0");
+  const d = String(s.date.getDate()).padStart(2, "0");
+  const ymd = `${y}-${m}-${d}`;
+  scheduleByYmd.set(ymd, s);
+}
 
-      // Find schedule for this day
-     const schedule = schedules.find(
-  (s) => clinicYmdFromDate(s.date) === dateStr
-);
+const days = [];
+const allTimeLabels = new Set();
 
-      let daySlots = [];
+// Iterate YYYY-MM-DD strings (NO drifting Date mutation)
+let ymd = String(from);
+while (ymd <= String(to)) {
+  const dayLabel = weekdayMnFromClinicYmd(ymd);
 
-      if (schedule) {
-        // Parse schedule start/end times
-        const [startHour, startMin] = schedule.startTime.split(":").map(Number);
-        const [endHour, endMin] = schedule.endTime.split(":").map(Number);
+  const schedule = scheduleByYmd.get(ymd);
 
-        const dayStart = new Date(currentDate);
-        dayStart.setHours(startHour, startMin, 0, 0);
+  let daySlots = [];
 
-        const dayEnd = new Date(currentDate);
-        dayEnd.setHours(endHour, endMin, 0, 0);
+  if (schedule) {
+    const [startHour, startMin] = schedule.startTime.split(":").map(Number);
+    const [endHour, endMin] = schedule.endTime.split(":").map(Number);
 
-        // Generate slots
-        let slotStart = new Date(dayStart);
-        while (slotStart < dayEnd) {
-          const slotEnd = new Date(slotStart.getTime() + slotDuration * 60000);
+    const dayStart = clinicDateFromYmd(ymd);
+    dayStart.setHours(startHour, startMin, 0, 0);
 
-          // Check if this slot conflicts with any existing appointment
-          const conflictingAppt = appointments.find((appt) => {
-            const apptStart = new Date(appt.scheduledAt);
-            const apptEnd = appt.endAt
-              ? new Date(appt.endAt)
-              : new Date(apptStart.getTime() + 30 * 60000); // default 30min
+    const dayEnd = clinicDateFromYmd(ymd);
+    dayEnd.setHours(endHour, endMin, 0, 0);
 
-            // Check for overlap
-            return slotStart < apptEnd && slotEnd > apptStart;
-          });
+    let slotStart = new Date(dayStart);
+    while (slotStart < dayEnd) {
+      const slotEnd = new Date(slotStart.getTime() + slotDuration * 60000);
 
-          const timeLabel = formatTime(slotStart);
-          allTimeLabels.add(timeLabel);
+      const conflictingAppt = appointments.find((appt) => {
+        const apptStart = new Date(appt.scheduledAt);
+        const apptEnd = appt.endAt
+          ? new Date(appt.endAt)
+          : new Date(apptStart.getTime() + 30 * 60000);
 
-          daySlots.push({
-            start: slotStart.toISOString(),
-            end: slotEnd.toISOString(),
-            status: conflictingAppt ? "booked" : "available",
-            ...(conflictingAppt && { appointmentId: conflictingAppt.id }),
-          });
-
-          slotStart = slotEnd;
-        }
-      } else {
-        // No schedule for this day - use default working hours (9:00-17:00)
-        const defaultStart = new Date(currentDate);
-        defaultStart.setHours(9, 0, 0, 0);
-
-        const defaultEnd = new Date(currentDate);
-        defaultEnd.setHours(17, 0, 0, 0);
-
-        // Only show default hours for weekdays (Mon-Fri)
-        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-          let slotStart = new Date(defaultStart);
-          while (slotStart < defaultEnd) {
-            const slotEnd = new Date(
-              slotStart.getTime() + slotDuration * 60000
-            );
-
-            const conflictingAppt = appointments.find((appt) => {
-              const apptStart = new Date(appt.scheduledAt);
-              const apptEnd = appt.endAt
-                ? new Date(appt.endAt)
-                : new Date(apptStart.getTime() + 30 * 60000);
-
-              return slotStart < apptEnd && slotEnd > apptStart;
-            });
-
-            const timeLabel = formatTime(slotStart);
-            allTimeLabels.add(timeLabel);
-
-            daySlots.push({
-              start: slotStart.toISOString(),
-              end: slotEnd.toISOString(),
-              status: conflictingAppt ? "booked" : "available",
-              ...(conflictingAppt && { appointmentId: conflictingAppt.id }),
-            });
-
-            slotStart = slotEnd;
-          }
-        }
-        // For weekends without schedule, leave daySlots empty (off day)
-      }
-
-      days.push({
-        date: dateStr,
-        dayLabel,
-        slots: daySlots,
+        return slotStart < apptEnd && slotEnd > apptStart;
       });
 
-      // Move to next day
-      currentDate.setDate(currentDate.getDate() + 1);
+      const timeLabel = formatTime(slotStart);
+      allTimeLabels.add(timeLabel);
+
+      daySlots.push({
+        start: slotStart.toISOString(),
+        end: slotEnd.toISOString(),
+        status: conflictingAppt ? "booked" : "available",
+        ...(conflictingAppt && { appointmentId: conflictingAppt.id }),
+      });
+
+      slotStart = slotEnd;
     }
+  }
+
+  days.push({
+    date: ymd,
+    dayLabel,
+    slots: daySlots,
+  });
+
+  ymd = addDaysYmd(ymd, 1);
+}
+
+const timeLabels = Array.from(allTimeLabels).sort();
+
+return res.json({ days, timeLabels });
 
     // Convert time labels set to sorted array
     const timeLabels = Array.from(allTimeLabels).sort();
@@ -833,4 +805,26 @@ function ymdFromClinicDate(d) {
   const ms = d.getTime() + 8 * 60 * 60 * 1000;
   return new Date(ms).toISOString().slice(0, 10);
 }
+
+function clinicDateFromYmd(ymd) {
+  // clinic midnight in UTC+8
+  return new Date(`${ymd}T00:00:00.000+08:00`);
+}
+
+function addDaysYmd(ymd, days) {
+  const d = clinicDateFromYmd(ymd);
+  d.setDate(d.getDate() + days); // safe because d is in a single timezone basis
+  // convert back to YYYY-MM-DD in clinic time:
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+function weekdayMnFromClinicYmd(ymd) {
+  const dayNames = ["Ням", "Даваа", "Мягмар", "Лхагва", "Пүрэв", "Баасан", "Бямба"];
+  const d = clinicDateFromYmd(ymd);
+  return dayNames[d.getDay()];
+}
+
 export default router;
