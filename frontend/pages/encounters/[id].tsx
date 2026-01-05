@@ -156,9 +156,9 @@ type EditableDiagnosis = EncounterDiagnosisRow & {
   searchText?: string;
   serviceSearchText?: string;
   locked?: boolean;
-  // NEW: sterilization UI state (no quantity)
+  // NEW: sterilization indicators selection per diagnosis row
+  indicatorIds?: number[];            // duplicates allowed
   indicatorSearchText?: string;
-  indicatorIds?: number[];
 };
 
 type ActiveIndicator = {
@@ -594,6 +594,22 @@ export default function EncounterAdminPage() {
   const [activeDxRowIndex, setActiveDxRowIndex] = useState<number | null>(null);
   const [customToothRange, setCustomToothRange] = useState("");
 
+  const loadActiveIndicators = async (branchId: number) => {
+  try {
+    const res = await fetch(
+      `/api/sterilization/indicators/active?branchId=${branchId}`
+    );
+    const json = await res.json().catch(() => []);
+    if (res.ok && Array.isArray(json)) {
+      setActiveIndicators(json);
+    } else {
+      setActiveIndicators([]);
+    }
+  } catch {
+    setActiveIndicators([]);
+  }
+};
+
   const [openDxIndex, setOpenDxIndex] = useState<number | null>(null);
   const [openServiceIndex, setOpenServiceIndex] = useState<number | null>(null);
 
@@ -814,7 +830,10 @@ indicatorSearchText: "",
           })) || [];
         setEditableDxRows(dxRows);
 
-        
+        const patientBranchId = enc?.patientBook?.patient?.branchId;
+if (patientBranchId) {
+  await loadActiveIndicators(patientBranchId);
+}
 
         const svcRows: EncounterService[] =
           enc.encounterServices?.map((row) => ({
@@ -983,10 +1002,7 @@ indicatorSearchText: "",
   };
 
 
-const patientBranchId = enc?.patientBook?.patient?.branchId;
-if (patientBranchId) {
-  await loadActiveIndicators(patientBranchId);
-}
+
   
   const reloadMedia = async () => {
     if (!id || typeof id !== "string") return;
@@ -1040,17 +1056,20 @@ if (patientBranchId) {
     rows.length === 0 ? 1 : Math.max(...rows.map((r) => r.localId)) + 1;
 
   const newRow: EditableDiagnosis = {
-    localId: nextLocalId,
-    diagnosisId: null,
-    diagnosis: null,
-    selectedProblemIds: [],
-    note: "",
-    toothCode: stringifyToothList(initialTeeth),
-    serviceId: undefined,
-    searchText: "",
-    serviceSearchText: "",
-    locked: false,
-  };
+  localId: nextLocalId,
+  diagnosisId: null,
+  diagnosis: null,
+  selectedProblemIds: [],
+  note: "",
+  toothCode: stringifyToothList(initialTeeth),
+  serviceId: undefined,
+  searchText: "",
+  serviceSearchText: "",
+  locked: false,
+
+  indicatorIds: [],
+  indicatorSearchText: "",
+};
 
   setEditableDxRows((prev) => [...prev, newRow]);
   setRows((prev) => [...prev, newRow]);
@@ -1360,98 +1379,120 @@ const removeDiagnosisRow = (index: number) => {
   };
 
   const handleSaveDiagnoses = async () => {
-    if (!id || typeof id !== "string") return;
-    setSaving(true);
-    setSaveError("");
-    try {
-      const payload = {
-        items: editableDxRows.map((row) => ({
-          diagnosisId: row.diagnosisId,
-          selectedProblemIds: row.selectedProblemIds,
-          note: row.note || null,
-          toothCode: row.toothCode || null,
-        })),
-      };
+  if (!id || typeof id !== "string") return;
 
-      const res = await fetch(`/api/encounters/${id}/diagnoses`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(
-          (json && json.error) || "Онош хадгалахад алдаа гарлаа"
-        );
-      }
+  setSaving(true);
+  setSaveError("");
 
-      if (encounter) {
-        setEncounter({
-          ...encounter,
-          encounterDiagnoses: json,
-        });
-      }
+  // snapshot UI state BEFORE saving (so we don’t lose indicatorIds/serviceId by re-render)
+  const rowsSnapshot = rows.map((r) => ({
+    serviceId: r.serviceId,
+    serviceSearchText: r.serviceSearchText || "",
+    indicatorIds: Array.isArray(r.indicatorIds) ? [...r.indicatorIds] : [],
+  }));
 
-
-      const loadActiveIndicators = async (branchId: number) => {
   try {
-    const res = await fetch(`/api/sterilization/indicators/active?branchId=${branchId}`);
-    const json = await res.json().catch(() => []);
-    if (res.ok && Array.isArray(json)) {
-      setActiveIndicators(json);
-    } else {
-      setActiveIndicators([]);
+    const payload = {
+      items: editableDxRows.map((row) => ({
+        diagnosisId: row.diagnosisId,
+        selectedProblemIds: row.selectedProblemIds,
+        note: row.note || null,
+        toothCode: row.toothCode || null,
+      })),
+    };
+
+    const res = await fetch(`/api/encounters/${id}/diagnoses`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error((json && json.error) || "Онош хадгалахад алдаа гарлаа");
     }
-  } catch {
-    setActiveIndicators([]);
+
+    // Update encounter diagnoses
+    if (encounter) {
+      setEncounter({
+        ...encounter,
+        encounterDiagnoses: json,
+      });
+    }
+
+    // Rebuild rows from server result and preserve UI selections from snapshot
+    const savedDxRows: EditableDiagnosis[] =
+      (Array.isArray(json) ? json : []).map((row: any, idx: number) => ({
+        ...row,
+        diagnosisId: row.diagnosisId ?? null,
+        diagnosis: row.diagnosis ?? null,
+        localId: idx + 1,
+        selectedProblemIds: Array.isArray(row.selectedProblemIds)
+          ? row.selectedProblemIds
+          : [],
+        note: row.note || "",
+        toothCode: row.toothCode || "",
+
+        // preserve service selection
+        serviceId: rowsSnapshot[idx]?.serviceId,
+        serviceSearchText: rowsSnapshot[idx]?.serviceSearchText || "",
+
+        // preserve indicators selection (important!)
+        indicatorIds: rowsSnapshot[idx]?.indicatorIds || [],
+        indicatorSearchText: "",
+
+        searchText: row.diagnosis ? `${row.diagnosis.code} – ${row.diagnosis.name}` : "",
+        locked: true,
+      }));
+
+    setEditableDxRows(savedDxRows);
+
+    const mergedRows: DiagnosisServiceRow[] = savedDxRows.map((dxRow, i) => ({
+      ...dxRow,
+      serviceId: rowsSnapshot[i]?.serviceId,
+      serviceSearchText: rowsSnapshot[i]?.serviceSearchText || "",
+      indicatorIds: rowsSnapshot[i]?.indicatorIds || [],
+    }));
+
+    setRows(mergedRows);
+
+    // Option 1: Save sterilization indicators per saved diagnosis row
+    try {
+      const savedFromServer = Array.isArray(json) ? json : [];
+
+      await Promise.all(
+        savedFromServer.map(async (savedRow: any, i: number) => {
+          const dxId = Number(savedRow?.id);
+          if (!dxId) return;
+
+          const indicatorIds = rowsSnapshot[i]?.indicatorIds || [];
+
+          const r = await fetch(
+            `/api/encounters/${id}/diagnoses/${dxId}/sterilization-indicators`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ indicatorIds }),
+            }
+          );
+
+          if (!r.ok) {
+            const j = await r.json().catch(() => null);
+            console.error("Failed saving indicators", dxId, j?.error || r.status);
+          }
+        })
+      );
+    } catch (e) {
+      console.error("Failed to save sterilization indicators", e);
+      // not blocking the main save
+    }
+  } catch (err: any) {
+    console.error("handleSaveDiagnoses failed", err);
+    setSaveError(err?.message || "Онош хадгалахад алдаа гарлаа.");
+  } finally {
+    setSaving(false);
   }
 };
-
-      // Update local state with saved data from server
-      // All rows returned from server have been saved and should be locked
-     // inside handleSaveDiagnoses success block:
-
-const savedDxRows: EditableDiagnosis[] =
-  json?.map((row: any, idx: number) => ({
-    ...row,
-    diagnosisId: row.diagnosisId ?? null,
-    diagnosis: row.diagnosis ?? null,
-    localId: idx + 1,
-    selectedProblemIds: Array.isArray(row.selectedProblemIds)
-      ? row.selectedProblemIds
-      : [],
-    note: row.note || "",
-    toothCode: row.toothCode || "",
-
-    // ✅ preserve service selection from rows (UI state)
-    serviceId: rows[idx]?.serviceId,
-    serviceSearchText: rows[idx]?.serviceSearchText || "",
-
-    searchText: row.diagnosis
-      ? `${row.diagnosis.code} – ${row.diagnosis.name}`
-      : "",
-    locked: true,
-  })) || [];
-setEditableDxRows(savedDxRows);
-
-// Merge with services for rows
-const mergedRows: DiagnosisServiceRow[] = savedDxRows.map((dxRow, i) => ({
-  ...dxRow,
-
-  // ✅ preserve service selection from rows (UI state)
-  serviceId: rows[i]?.serviceId,
-  serviceSearchText: rows[i]?.serviceSearchText || "",
-}));
-setRows(mergedRows);
-    } catch (err: any) {
-      console.error("handleSaveDiagnoses failed", err);
-      setSaveError(
-        err?.message || "Онош хадгалахад алдаа гарлаа."
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleSaveServices = async () => {
     if (!id || typeof id !== "string") return;
@@ -5734,12 +5775,12 @@ setRows(mergedRows);
   {/* selected list */}
   {(row.indicatorIds || []).length > 0 && (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
-      {(row.indicatorIds || []).map((iid) => {
+      {(row.indicatorIds || []).map((iid, k) => {
         const ind = activeIndicators.find((x) => x.id === iid);
         const label = ind ? `${ind.packageName} ${ind.code}` : `#${iid}`;
         return (
           <div
-            key={iid}
+            key={`${iid}-${k}`}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -5757,21 +5798,21 @@ setRows(mergedRows);
               <button
                 type="button"
                 onClick={() => {
-                  setRows((prev) =>
-                    prev.map((r, i) =>
-                      i === index
-                        ? { ...r, indicatorIds: (r.indicatorIds || []).filter((x) => x !== iid) }
-                        : r
-                    )
-                  );
-                  setEditableDxRows((prev) =>
-                    prev.map((r, i) =>
-                      i === index
-                        ? { ...r, indicatorIds: (r.indicatorIds || []).filter((x) => x !== iid) }
-                        : r
-                    )
-                  );
-                }}
+  setRows((prev) =>
+    prev.map((r, i) =>
+      i === index
+        ? { ...r, indicatorIds: (r.indicatorIds || []).filter((_, idx) => idx !== k) }
+        : r
+    )
+  );
+  setEditableDxRows((prev) =>
+    prev.map((r, i) =>
+      i === index
+        ? { ...r, indicatorIds: (r.indicatorIds || []).filter((_, idx) => idx !== k) }
+        : r
+    )
+  );
+}}
                 style={{
                   border: "none",
                   background: "transparent",
@@ -5849,7 +5890,7 @@ setRows(mergedRows);
                 key={it.id}
                 onMouseDown={(e) => {
                   e.preventDefault();
-                  const next = Array.from(new Set([...(row.indicatorIds || []), it.id]));
+                  const next = [...(row.indicatorIds || []), it.id]; // duplicates allowed
                   setRows((prev) =>
                     prev.map((r, i) =>
                       i === index ? { ...r, indicatorIds: next, indicatorSearchText: "" } : r
