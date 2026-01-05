@@ -390,4 +390,7 @@ router.get("/sterilization/reports", async (req, res) => {
         usedQuantity:
 
 
+}
+});
+
 export default router;
