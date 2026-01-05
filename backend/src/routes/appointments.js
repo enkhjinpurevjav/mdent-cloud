@@ -62,6 +62,18 @@ function parseClinicDay(value) {
   return { localStart, localEnd };
 }
 
+function parseClinicDayStart(value) {
+  // value: YYYY-MM-DD, treat as Asia/Ulaanbaatar (UTC+8)
+  const s = String(value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  return new Date(`${s}T00:00:00.000+08:00`);
+}
+
+function parseClinicDayEnd(value) {
+  const s = String(value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  return new Date(`${s}T23:59:59.999+08:00`);
+}
 /**
  * GET /api/appointments
  *
@@ -625,18 +637,12 @@ router.get("/availability", async (req, res) => {
       });
     }
 
-    const fromDate = new Date(fromParts[0], fromParts[1] - 1, fromParts[2]);
-    const toDate = new Date(toParts[0], toParts[1] - 1, toParts[2], 23, 59, 59);
+    const fromDate = parseClinicDayStart(from);
+const toDate = parseClinicDayEnd(to);
 
-    if (
-      Number.isNaN(fromDate.getTime()) ||
-      Number.isNaN(toDate.getTime()) ||
-      fromDate > toDate
-    ) {
-      return res.status(400).json({
-        error: "Invalid date range",
-      });
-    }
+if (!fromDate || !toDate || Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime()) || fromDate > toDate) {
+  return res.status(400).json({ error: "Invalid date range" });
+}
 
     // Fetch doctor schedules for this range
     const schedules = await prisma.doctorSchedule.findMany({
@@ -685,9 +691,7 @@ router.get("/availability", async (req, res) => {
       const dayLabel = dayNames[dayOfWeek];
 
       // Find schedule for this day
-      const schedule = schedules.find(
-        (s) => formatDateYYYYMMDD(s.date) === dateStr
-      );
+      const schedule = schedules.find((s) => ymdFromClinicDate(s.date) === dateStr);
 
       let daySlots = [];
 
@@ -808,5 +812,16 @@ function formatTime(date) {
   const m = String(date.getMinutes()).padStart(2, "0");
   return `${h}:${m}`;
 }
+function addDaysYmd(ymd, days) {
+  const base = new Date(`${ymd}T00:00:00.000+08:00`);
+  base.setDate(base.getDate() + days);
+  return base.toISOString().slice(0, 10); // NOTE: still UTC string, but date part works for +08 midnight
+}
 
+function ymdFromClinicDate(d) {
+  // Convert a Date (stored in DB) into Mongolia day key
+  // Use +08:00 by shifting milliseconds
+  const ms = d.getTime() + 8 * 60 * 60 * 1000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
 export default router;
