@@ -52,16 +52,22 @@ router.get("/:id", async (req, res) => {
         nurse: true,
         diagnoses: {
           include: {
-    diagnosis: true,
-    sterilizationIndicators: {
-  include: {
-    indicator: {
-      select: { id: true, packageName: true, code: true, branchId: true },
+            diagnosis: true,
+            sterilizationIndicators: {
+              include: {
+                indicator: {
+                  select: {
+                    id: true,
+                    packageName: true,
+                    code: true,
+                    branchId: true,
+          },
+        },
+      },
     },
   },
+  orderBy: { createdAt: "asc" },
 },
-          orderBy: { createdAt: "asc" },
-        },
         encounterServices: {
           include: { service: true },
           orderBy: { id: "asc" },
