@@ -207,23 +207,22 @@ model SterilizationIndicator {
 
   items            SterilizationIndicatorItem[]
 
-  @@unique([branchId, code])
+
   @@index([branchId, indicatorDate])
   @@index([specialistUserId])
 }
 
 model SterilizationIndicatorItem {
-  id           Int @id @default(autoincrement())
-  indicatorId  Int
-  itemId       Int
-  quantity     Int @default(1)
+  id          Int @id @default(autoincrement())
+  indicatorId Int
+  itemId      Int
 
-  indicator    SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
-  item         SterilizationItem      @relation("SterilizationItemIndicatorItems", fields: [itemId], references: [id])
+  indicator   SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  item        SterilizationItem      @relation("SterilizationItemIndicatorItems", fields: [itemId], references: [id])
 
-  @@unique([indicatorId, itemId])
-  @@index([indicatorId])
-  @@index([itemId])
+ @@index([branchId, indicatorDate])
+  @@index([specialistUserId])
+  @@index([code])
 }
 
 
