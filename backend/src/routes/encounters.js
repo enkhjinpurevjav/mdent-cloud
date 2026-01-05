@@ -54,9 +54,12 @@ router.get("/:id", async (req, res) => {
           include: {
     diagnosis: true,
     sterilizationIndicators: {
-      include: { indicator: true },
+  include: {
+    indicator: {
+      select: { id: true, packageName: true, code: true, branchId: true },
     },
   },
+},
           orderBy: { createdAt: "asc" },
         },
         encounterServices: {
@@ -963,6 +966,56 @@ router.post("/:id/media", upload.single("file"), async (req, res) => {
   } catch (err) {
     console.error("POST /api/encounters/:id/media error:", err);
     return res.status(500).json({ error: "Failed to upload media" });
+  }
+});
+
+router.put("/:id/diagnoses/:dxId/sterilization-indicators", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    const dxId = Number(req.params.dxId);
+    const indicatorIds = Array.isArray(req.body?.indicatorIds) ? req.body.indicatorIds : [];
+
+    if (!encounterId || Number.isNaN(encounterId)) return res.status(400).json({ error: "Invalid encounter id" });
+    if (!dxId || Number.isNaN(dxId)) return res.status(400).json({ error: "Invalid diagnosis id" });
+
+    const ids = indicatorIds.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0);
+
+    // Ensure diagnosis belongs to encounter
+    const dx = await prisma.encounterDiagnosis.findFirst({
+      where: { id: dxId, encounterId },
+      select: { id: true },
+    });
+    if (!dx) return res.status(404).json({ error: "Encounter diagnosis not found" });
+
+    await prisma.$transaction(async (trx) => {
+      await trx.encounterDiagnosisSterilizationIndicator.deleteMany({
+        where: { encounterDiagnosisId: dxId },
+      });
+      if (ids.length > 0) {
+        await trx.encounterDiagnosisSterilizationIndicator.createMany({
+          data: ids.map((indicatorId) => ({
+            encounterDiagnosisId: dxId,
+            indicatorId,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    });
+
+    const updated = await prisma.encounterDiagnosis.findUnique({
+      where: { id: dxId },
+      include: {
+        diagnosis: true,
+        sterilizationIndicators: {
+          include: { indicator: true },
+        },
+      },
+    });
+
+    res.json(updated);
+  } catch (err) {
+    console.error("PUT /api/encounters/:id/diagnoses/:dxId/sterilization-indicators error:", err);
+    res.status(500).json({ error: "Failed to save sterilization indicators" });
   }
 });
 
