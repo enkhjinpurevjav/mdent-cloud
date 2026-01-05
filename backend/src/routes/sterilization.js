@@ -57,14 +57,12 @@ router.get("/sterilization/items", async (_req, res) => {
 router.post("/sterilization/items", async (req, res) => {
   const name = String(req.body?.name || "").trim();
   const categoryId = Number(req.body?.categoryId);
-  const quantityRaw = req.body?.quantity;
-  const quantity = quantityRaw === undefined || quantityRaw === null ? 1 : Number(quantityRaw);
+ const quantityRaw = req.body?.quantity;
+const quantity = quantityRaw === undefined || quantityRaw === null ? 1 : Number(quantityRaw);
 
-  if (!name) return res.status(400).json({ error: "name is required" });
-  if (!categoryId) return res.status(400).json({ error: "categoryId is required" });
-  if (!Number.isFinite(quantity) || quantity < 0) {
-    return res.status(400).json({ error: "quantity must be a non-negative number" });
-  }
+if (!Number.isFinite(quantity) || quantity < 1) {
+  return res.status(400).json({ error: "quantity must be >= 1" });
+}
 
   try {
     const created = await prisma.sterilizationItem.create({
@@ -81,13 +79,12 @@ router.patch("/sterilization/items/:id", async (req, res) => {
   if (!id) return res.status(400).json({ error: "invalid id" });
 
   const name = req.body?.name !== undefined ? String(req.body?.name || "").trim() : undefined;
-  const quantityRaw = req.body?.quantity;
-  const quantity = quantityRaw === undefined ? undefined : Number(quantityRaw);
+ const quantityRaw = req.body?.quantity;
+const quantity = quantityRaw === undefined ? undefined : Number(quantityRaw);
 
-  if (name !== undefined && !name) return res.status(400).json({ error: "name cannot be empty" });
-  if (quantity !== undefined && (!Number.isFinite(quantity) || quantity < 0)) {
-    return res.status(400).json({ error: "quantity must be a non-negative number" });
-  }
+if (quantity !== undefined && (!Number.isFinite(quantity) || quantity < 1)) {
+  return res.status(400).json({ error: "quantity must be >= 1" });
+}
 
   try {
     const updated = await prisma.sterilizationItem.update({
