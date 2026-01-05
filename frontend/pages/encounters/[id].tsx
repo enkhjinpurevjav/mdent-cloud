@@ -671,9 +671,24 @@ export default function EncounterAdminPage() {
       )
     );
 
-    if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
-      setActiveDxRowIndex(null);
+   if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
+  // if the active row is a new/unsaved row and still empty -> remove it
+  const idx = activeDxRowIndex;
+
+  if (idx !== null) {
+    const r = rows[idx];
+
+    const isNewUnsaved = !r?.id;          // not saved to DB yet
+    const isUnlocked = !r?.locked;        // editable/new
+    const empty = isDxRowEffectivelyEmpty(r);
+
+    if (isNewUnsaved && isUnlocked && empty) {
+      removeDiagnosisRow(idx);
     }
+  }
+
+  setActiveDxRowIndex(null);
+}
   };
 
   const resetToothSelectionSession = useCallback(() => {
@@ -748,6 +763,18 @@ export default function EncounterAdminPage() {
   const [servicesLoadError, setServicesLoadError] = useState("");
   const [dxError, setDxError] = useState("");
 
+const isDxRowEffectivelyEmpty = (r: DiagnosisServiceRow | undefined | null) => {
+  if (!r) return true;
+
+  const hasDiagnosis = !!r.diagnosisId;
+  const hasProblems = Array.isArray(r.selectedProblemIds) && r.selectedProblemIds.length > 0;
+  const hasNote = !!(r.note || "").trim();
+  const hasService = !!r.serviceId;
+  const hasIndicators = Array.isArray(r.indicatorIds) && r.indicatorIds.length > 0;
+
+  return !hasDiagnosis && !hasProblems && !hasNote && !hasService && !hasIndicators;
+};
+  
   const encounterId = useMemo(
     () => (typeof id === "string" ? Number(id) : NaN),
     [id]
