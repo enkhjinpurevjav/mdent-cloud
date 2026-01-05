@@ -229,6 +229,24 @@ model SterilizationIndicatorItem {
   @@index([itemId])
 }
 
+model EncounterSterilizationPackageUse {
+  id            Int      @id @default(autoincrement())
+  encounterId   Int
+  indicatorId   Int
+  usedQuantity  Int      @default(1)
+
+  openedByUserId Int?
+
+  createdAt     DateTime @default(now())
+
+  encounter     Encounter             @relation(fields: [encounterId], references: [id], onDelete: Cascade)
+  indicator     SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  openedBy      User?                 @relation("UserOpenedSterilizationPackages", fields: [openedByUserId], references: [id])
+
+  @@index([encounterId])
+  @@index([indicatorId])
+}
+
 
 // ==========================================================
 // USERS (Doctors, Nurses, Admin, etc.)
@@ -283,6 +301,7 @@ model User {
   // NEW: authorization codes created by this user
   authorizationCodes AuthorizationCode[]
 sterilizationIndicators SterilizationIndicator[] @relation("UserSterilizationIndicators")
+openedSterilizationPackages EncounterSterilizationPackageUse[] @relation("UserOpenedSterilizationPackages")
 }
 
 // ==========================================================
