@@ -5860,66 +5860,71 @@ const removeDiagnosisRow = (index: number) => {
         }}
       />
 
-      {openIndicatorIndex === index && (row.indicatorSearchText || "").trim().length > 0 && (
+      {openIndicatorIndex === index && (
+  <div
+    style={{
+      position: "absolute",
+      top: "100%",
+      left: 0,
+      right: 0,
+      maxHeight: 220,
+      overflowY: "auto",
+      marginTop: 4,
+      background: "white",
+      borderRadius: 6,
+      boxShadow:
+        "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
+      zIndex: 20,
+      fontSize: 13,
+    }}
+  >
+    {activeIndicators
+      .filter((it) => {
+        const q = (row.indicatorSearchText || "").toLowerCase().trim();
+        if (!q) return true; // ✅ show all when empty
+        const hay = `${it.packageName} ${it.code}`.toLowerCase();
+        return hay.includes(q);
+      })
+      .slice(0, 200) // optional: show more since you can scroll
+      .map((it) => (
         <div
+          key={it.id}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            const next = [...(row.indicatorIds || []), it.id]; // duplicates allowed
+            setRows((prev) =>
+              prev.map((r, i) =>
+                i === index
+                  ? { ...r, indicatorIds: next, indicatorSearchText: "" }
+                  : r
+              )
+            );
+            setEditableDxRows((prev) =>
+              prev.map((r, i) =>
+                i === index
+                  ? { ...r, indicatorIds: next, indicatorSearchText: "" }
+                  : r
+              )
+            );
+            setOpenIndicatorIndex(null);
+          }}
           style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            right: 0,
-            maxHeight: 220,
-            overflowY: "auto",
-            marginTop: 4,
+            padding: "6px 8px",
+            cursor: "pointer",
+            borderBottom: "1px solid #f3f4f6",
             background: "white",
-            borderRadius: 6,
-            boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
-            zIndex: 20,
-            fontSize: 13,
           }}
         >
-          {activeIndicators
-            .filter((it) => {
-              const q = (row.indicatorSearchText || "").toLowerCase();
-              if (!q.trim()) return true;
-              const hay = `${it.packageName} ${it.code}`.toLowerCase();
-              return hay.includes(q);
-            })
-            .slice(0, 50)
-            .map((it) => (
-              <div
-                key={it.id}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  const next = [...(row.indicatorIds || []), it.id]; // duplicates allowed
-                  setRows((prev) =>
-                    prev.map((r, i) =>
-                      i === index ? { ...r, indicatorIds: next, indicatorSearchText: "" } : r
-                    )
-                  );
-                  setEditableDxRows((prev) =>
-                    prev.map((r, i) =>
-                      i === index ? { ...r, indicatorIds: next, indicatorSearchText: "" } : r
-                    )
-                  );
-                  setOpenIndicatorIndex(null);
-                }}
-                style={{
-                  padding: "6px 8px",
-                  cursor: "pointer",
-                  borderBottom: "1px solid #f3f4f6",
-                  background: (row.indicatorIds || []).includes(it.id) ? "#eff6ff" : "white",
-                }}
-              >
-                <div style={{ fontWeight: 500 }}>
-                  {it.packageName} — {it.code}
-                </div>
-                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
-                  Үлдэгдэл: {it.current} (нийт {it.produced}, ашигласан {it.used})
-                </div>
-              </div>
-            ))}
+          <div style={{ fontWeight: 500 }}>
+            {it.packageName} — {it.code}
+          </div>
+          <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+            Үлдэгдэл: {it.current} (нийт {it.produced}, ашигласан {it.used})
+          </div>
         </div>
-      )}
+      ))}
+  </div>
+)}
     </div>
 
     {/* + button just focuses/open list (selection adds to list) */}
