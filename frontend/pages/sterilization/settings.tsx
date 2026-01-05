@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-
+import AdminLayout from "../../components/AdminLayout";
 
 type SterilizationCategory = {
   id: number;
@@ -11,6 +11,7 @@ type SterilizationItem = {
   id: number;
   categoryId: number;
   name: string;
+  quantity: number;
   createdAt?: string;
 };
 
@@ -22,9 +23,15 @@ export default function SterilizationSettingsPage() {
 
   const [categoryName, setCategoryName] = useState("");
   const [itemName, setItemName] = useState("");
+  const [itemQty, setItemQty] = useState<number>(1);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | "">("");
 
   const [filterText, setFilterText] = useState("");
+
+  // inline edit state for items
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editItemName, setEditItemName] = useState("");
+  const [editItemQty, setEditItemQty] = useState<number>(1);
 
   const filteredCategories = useMemo(() => {
     const q = filterText.trim().toLowerCase();
@@ -106,18 +113,71 @@ export default function SterilizationSettingsPage() {
 
   const createItem = async () => {
     const name = itemName.trim();
+    const qty = Number(itemQty);
     if (!name || !selectedCategoryId) return;
+    if (!Number.isFinite(qty) || qty < 1) {
+      setError("Тоо ширхэг 1-с бага байж болохгүй.");
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {
       const res = await fetch("/api/sterilization/items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, categoryId: Number(selectedCategoryId) }),
+        body: JSON.stringify({ name, categoryId: Number(selectedCategoryId), quantity: qty }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Failed to create item");
       setItemName("");
+      setItemQty(1);
+      await loadAll();
+    } catch (e: any) {
+      setError(e?.message || "Алдаа гарлаа");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startEditItem = (it: SterilizationItem) => {
+    setEditingItemId(it.id);
+    setEditItemName(it.name);
+    setEditItemQty(it.quantity ?? 1);
+  };
+
+  const cancelEditItem = () => {
+    setEditingItemId(null);
+    setEditItemName("");
+    setEditItemQty(1);
+  };
+
+  const saveEditItem = async () => {
+    if (editingItemId === null) return;
+    const name = editItemName.trim();
+    const qty = Number(editItemQty);
+
+    if (!name) {
+      setError("Нэр хоосон байж болохгүй.");
+      return;
+    }
+    if (!Number.isFinite(qty) || qty < 1) {
+      setError("Тоо ширхэг 1-с бага байж болохгүй.");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/sterilization/items/${editingItemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, quantity: qty }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || "Failed to update item");
+
+      cancelEditItem();
       await loadAll();
     } catch (e: any) {
       setError(e?.message || "Алдаа гарлаа");
@@ -152,50 +212,32 @@ export default function SterilizationSettingsPage() {
   }, [filteredItems]);
 
   return (
- 
+    <AdminLayout>
       <div style={{ maxWidth: 1100 }}>
         <h1 style={{ fontSize: 18, marginBottom: 6 }}>Ариутгал → Тохиргоо</h1>
         <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
           Ариутгалд орох багажийн ангилал болон багажийн жагсаалтыг удирдана.
         </div>
 
-        {error && (
-          <div style={{ color: "#b91c1c", marginBottom: 10, fontSize: 13 }}>
-            {error}
-          </div>
-        )}
+        {error && <div style={{ color: "#b91c1c", marginBottom: 10, fontSize: 13 }}>{error}</div>}
 
         <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
           <input
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
             placeholder="Хайх (ангилал эсвэл багаж)..."
-            style={{
-              flex: "1 1 260px",
-              border: "1px solid #d1d5db",
-              borderRadius: 8,
-              padding: "8px 10px",
-              fontSize: 13,
-            }}
+            style={{ flex: "1 1 260px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
           />
           <button
             type="button"
             onClick={() => void loadAll()}
             disabled={loading}
-            style={{
-              border: "1px solid #d1d5db",
-              background: "#fff",
-              borderRadius: 8,
-              padding: "8px 10px",
-              cursor: loading ? "default" : "pointer",
-              fontSize: 13,
-            }}
+            style={{ border: "1px solid #d1d5db", background: "#fff", borderRadius: 8, padding: "8px 10px", cursor: loading ? "default" : "pointer", fontSize: 13 }}
           >
             {loading ? "Ачаалж байна..." : "Шинэчлэх"}
           </button>
         </div>
 
-        {/* Create forms */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
           <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
             <div style={{ fontWeight: 600, marginBottom: 8 }}>Ангилал нэмэх</div>
@@ -223,19 +265,30 @@ export default function SterilizationSettingsPage() {
               <select
                 value={selectedCategoryId}
                 onChange={(e) => setSelectedCategoryId(e.target.value ? Number(e.target.value) : "")}
-                style={{ flex: "1 1 220px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+                style={{ flex: "1 1 200px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
               >
                 <option value="">Ангилал сонгох</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+
               <input
                 value={itemName}
                 onChange={(e) => setItemName(e.target.value)}
-                placeholder="Ж: Толин тусгал"
-                style={{ flex: "1 1 220px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+                placeholder="Багажийн нэр"
+                style={{ flex: "1 1 200px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
               />
+
+              <input
+                type="number"
+                min={1}
+                value={itemQty}
+                onChange={(e) => setItemQty(Math.max(1, Number(e.target.value) || 1))}
+                placeholder="Тоо"
+                style={{ width: 110, border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+              />
+
               <button
                 type="button"
                 onClick={() => void createItem()}
@@ -248,7 +301,6 @@ export default function SterilizationSettingsPage() {
           </div>
         </div>
 
-        {/* Lists */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {filteredCategories.map((cat) => (
             <div key={cat.id} style={{ border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
@@ -274,25 +326,86 @@ export default function SterilizationSettingsPage() {
                     <thead>
                       <tr style={{ color: "#6b7280", textAlign: "left" }}>
                         <th style={{ padding: "6px 4px" }}>Багаж</th>
-                        <th style={{ padding: "6px 4px", width: 120 }}></th>
+                        <th style={{ padding: "6px 4px", width: 90 }}>Тоо</th>
+                        <th style={{ padding: "6px 4px", width: 220 }}></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(itemsByCategory[cat.id] || []).map((it) => (
-                        <tr key={it.id} style={{ borderTop: "1px solid #f3f4f6" }}>
-                          <td style={{ padding: "8px 4px" }}>{it.name}</td>
-                          <td style={{ padding: "8px 4px", textAlign: "right" }}>
-                            <button
-                              type="button"
-                              onClick={() => void deleteItem(it.id)}
-                              disabled={loading}
-                              style={{ border: "1px solid #dc2626", background: "#fff", color: "#b91c1c", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 12 }}
-                            >
-                              Устгах
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {(itemsByCategory[cat.id] || []).map((it) => {
+                        const isEditing = editingItemId === it.id;
+
+                        return (
+                          <tr key={it.id} style={{ borderTop: "1px solid #f3f4f6" }}>
+                            <td style={{ padding: "8px 4px" }}>
+                              {isEditing ? (
+                                <input
+                                  value={editItemName}
+                                  onChange={(e) => setEditItemName(e.target.value)}
+                                  style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "6px 8px" }}
+                                />
+                              ) : (
+                                it.name
+                              )}
+                            </td>
+
+                            <td style={{ padding: "8px 4px" }}>
+                              {isEditing ? (
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={editItemQty}
+                                  onChange={(e) => setEditItemQty(Math.max(1, Number(e.target.value) || 1))}
+                                  style={{ width: 80, border: "1px solid #d1d5db", borderRadius: 8, padding: "6px 8px" }}
+                                />
+                              ) : (
+                                it.quantity
+                              )}
+                            </td>
+
+                            <td style={{ padding: "8px 4px", textAlign: "right" }}>
+                              {isEditing ? (
+                                <div style={{ display: "inline-flex", gap: 8 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => void saveEditItem()}
+                                    disabled={loading}
+                                    style={{ border: "none", background: "#2563eb", color: "#fff", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 12 }}
+                                  >
+                                    Хадгалах
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => cancelEditItem()}
+                                    disabled={loading}
+                                    style={{ border: "1px solid #d1d5db", background: "#fff", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 12 }}
+                                  >
+                                    Болих
+                                  </button>
+                                </div>
+                              ) : (
+                                <div style={{ display: "inline-flex", gap: 8 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditItem(it)}
+                                    disabled={loading}
+                                    style={{ border: "1px solid #2563eb", background: "#eff6ff", color: "#2563eb", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 12 }}
+                                  >
+                                    Засах
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void deleteItem(it.id)}
+                                    disabled={loading}
+                                    style={{ border: "1px solid #dc2626", background: "#fff", color: "#b91c1c", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 12 }}
+                                  >
+                                    Устгах
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}
@@ -302,11 +415,9 @@ export default function SterilizationSettingsPage() {
         </div>
 
         {filteredCategories.length === 0 && !loading && (
-          <div style={{ fontSize: 13, color: "#6b7280" }}>
-            Ангилал олдсонгүй.
-          </div>
+          <div style={{ fontSize: 13, color: "#6b7280" }}>Ангилал олдсонгүй.</div>
         )}
       </div>
-
+    </AdminLayout>
   );
 }
