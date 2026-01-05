@@ -16,8 +16,25 @@ router.post("/sterilization/categories", async (req, res) => {
   try {
     const created = await prisma.sterilizationCategory.create({ data: { name } });
     res.json(created);
-  } catch (e) {
+  } catch {
     res.status(400).json({ error: "Category already exists or invalid" });
+  }
+});
+
+router.patch("/sterilization/categories/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  const name = String(req.body?.name || "").trim();
+  if (!id) return res.status(400).json({ error: "invalid id" });
+  if (!name) return res.status(400).json({ error: "name is required" });
+
+  try {
+    const updated = await prisma.sterilizationCategory.update({
+      where: { id },
+      data: { name },
+    });
+    res.json(updated);
+  } catch {
+    res.status(400).json({ error: "Category update failed" });
   }
 });
 
@@ -31,24 +48,58 @@ router.delete("/sterilization/categories/:id", async (req, res) => {
 
 // Items
 router.get("/sterilization/items", async (_req, res) => {
-  const items = await prisma.sterilizationItem.findMany({ orderBy: [{ categoryId: "asc" }, { name: "asc" }] });
+  const items = await prisma.sterilizationItem.findMany({
+    orderBy: [{ categoryId: "asc" }, { name: "asc" }],
+  });
   res.json(items);
 });
 
 router.post("/sterilization/items", async (req, res) => {
   const name = String(req.body?.name || "").trim();
   const categoryId = Number(req.body?.categoryId);
+  const quantityRaw = req.body?.quantity;
+  const quantity = quantityRaw === undefined || quantityRaw === null ? 1 : Number(quantityRaw);
 
   if (!name) return res.status(400).json({ error: "name is required" });
   if (!categoryId) return res.status(400).json({ error: "categoryId is required" });
+  if (!Number.isFinite(quantity) || quantity < 0) {
+    return res.status(400).json({ error: "quantity must be a non-negative number" });
+  }
 
   try {
     const created = await prisma.sterilizationItem.create({
-      data: { name, categoryId },
+      data: { name, categoryId, quantity: Math.floor(quantity) },
     });
     res.json(created);
-  } catch (e) {
+  } catch {
     res.status(400).json({ error: "Item already exists or invalid" });
+  }
+});
+
+router.patch("/sterilization/items/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: "invalid id" });
+
+  const name = req.body?.name !== undefined ? String(req.body?.name || "").trim() : undefined;
+  const quantityRaw = req.body?.quantity;
+  const quantity = quantityRaw === undefined ? undefined : Number(quantityRaw);
+
+  if (name !== undefined && !name) return res.status(400).json({ error: "name cannot be empty" });
+  if (quantity !== undefined && (!Number.isFinite(quantity) || quantity < 0)) {
+    return res.status(400).json({ error: "quantity must be a non-negative number" });
+  }
+
+  try {
+    const updated = await prisma.sterilizationItem.update({
+      where: { id },
+      data: {
+        ...(name !== undefined ? { name } : {}),
+        ...(quantity !== undefined ? { quantity: Math.floor(quantity) } : {}),
+      },
+    });
+    res.json(updated);
+  } catch {
+    res.status(400).json({ error: "Item update failed" });
   }
 });
 
