@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import AdminLayout from "../../components/AdminLayout";
+
 
 type SterilizationCategory = {
   id: number;
@@ -254,7 +254,7 @@ const saveEditCategory = async () => {
   }, [filteredItems]);
 
   return (
-    <AdminLayout>
+ 
       <div style={{ maxWidth: 1100 }}>
         <h1 style={{ fontSize: 18, marginBottom: 6 }}>Ариутгал → Тохиргоо</h1>
         <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
@@ -346,102 +346,263 @@ const saveEditCategory = async () => {
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {filteredCategories.map((cat) => (
             <div key={cat.id} style={{ border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: 12, borderBottom: "1px solid #f3f4f6" }}>
-               const isEditingCategory = editingCategoryId === cat.id;
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+  {filteredCategories.map((cat) => {
+    const isEditingCategory = editingCategoryId === cat.id;
 
-<div style={{ fontWeight: 700, flex: 1 }}>
-  {isEditingCategory ? (
-    <input
-      value={editCategoryName}
-      onChange={(e) => setEditCategoryName(e.target.value)}
-      style={{
-        width: "100%",
-        maxWidth: 420,
-        border: "1px solid #d1d5db",
-        borderRadius: 8,
-        padding: "6px 8px",
-        fontSize: 13,
-      }}
-    />
-  ) : (
-    cat.name
-  )}
-</div>
-
-<div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-  {isEditingCategory ? (
-    <>
-      <button
-        type="button"
-        onClick={() => void saveEditCategory()}
-        disabled={loading}
+    return (
+      <div
+        key={cat.id}
         style={{
-          border: "none",
-          background: "#2563eb",
-          color: "#fff",
-          borderRadius: 8,
-          padding: "6px 10px",
-          cursor: "pointer",
-          fontSize: 12,
-        }}
-      >
-        Хадгалах
-      </button>
-      <button
-        type="button"
-        onClick={() => cancelEditCategory()}
-        disabled={loading}
-        style={{
-          border: "1px solid #d1d5db",
+          border: "1px solid #e5e7eb",
+          borderRadius: 10,
           background: "#fff",
-          borderRadius: 8,
-          padding: "6px 10px",
-          cursor: "pointer",
-          fontSize: 12,
         }}
       >
-        Болих
-      </button>
-    </>
-  ) : (
-    <>
-      <button
-        type="button"
-        onClick={() => startEditCategory(cat)}
-        disabled={loading}
-        style={{
-          border: "1px solid #2563eb",
-          background: "#eff6ff",
-          color: "#2563eb",
-          borderRadius: 8,
-          padding: "6px 10px",
-          cursor: "pointer",
-          fontSize: 12,
-        }}
-      >
-        Засах
-      </button>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: 12,
+            borderBottom: "1px solid #f3f4f6",
+          }}
+        >
+          <div style={{ fontWeight: 700, flex: 1 }}>
+            {isEditingCategory ? (
+              <input
+                value={editCategoryName}
+                onChange={(e) => setEditCategoryName(e.target.value)}
+                style={{
+                  width: "100%",
+                  maxWidth: 420,
+                  border: "1px solid #d1d5db",
+                  borderRadius: 8,
+                  padding: "6px 8px",
+                  fontSize: 13,
+                }}
+              />
+            ) : (
+              cat.name
+            )}
+          </div>
 
-      <button
-        type="button"
-        onClick={() => void deleteCategory(cat.id)}
-        disabled={loading}
-        style={{
-          border: "1px solid #dc2626",
-          background: "#fef2f2",
-          color: "#b91c1c",
-          borderRadius: 8,
-          padding: "6px 10px",
-          cursor: "pointer",
-          fontSize: 12,
-        }}
-      >
-        Устгах
-      </button>
-    </>
-  )}
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            {isEditingCategory ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void saveEditCategory()}
+                  disabled={loading}
+                  style={{
+                    border: "none",
+                    background: "#2563eb",
+                    color: "#fff",
+                    borderRadius: 8,
+                    padding: "6px 10px",
+                    cursor: "pointer",
+                    fontSize: 12,
+                  }}
+                >
+                  Хадгалах
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelEditCategory}
+                  disabled={loading}
+                  style={{
+                    border: "1px solid #d1d5db",
+                    background: "#fff",
+                    borderRadius: 8,
+                    padding: "6px 10px",
+                    cursor: "pointer",
+                    fontSize: 12,
+                  }}
+                >
+                  Болих
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => startEditCategory(cat)}
+                  disabled={loading}
+                  style={{
+                    border: "1px solid #2563eb",
+                    background: "#eff6ff",
+                    color: "#2563eb",
+                    borderRadius: 8,
+                    padding: "6px 10px",
+                    cursor: "pointer",
+                    fontSize: 12,
+                  }}
+                >
+                  Засах
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => void deleteCategory(cat.id)}
+                  disabled={loading}
+                  style={{
+                    border: "1px solid #dc2626",
+                    background: "#fef2f2",
+                    color: "#b91c1c",
+                    borderRadius: 8,
+                    padding: "6px 10px",
+                    cursor: "pointer",
+                    fontSize: 12,
+                  }}
+                >
+                  Устгах
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div style={{ padding: 12 }}>
+          {(itemsByCategory[cat.id] || []).length === 0 ? (
+            <div style={{ fontSize: 13, color: "#6b7280" }}>
+              Энэ ангилалд багаж бүртгэгдээгүй байна.
+            </div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead>
+                <tr style={{ color: "#6b7280", textAlign: "left" }}>
+                  <th style={{ padding: "6px 4px" }}>Багаж</th>
+                  <th style={{ padding: "6px 4px", width: 90 }}>Тоо</th>
+                  <th style={{ padding: "6px 4px", width: 220 }} />
+                </tr>
+              </thead>
+              <tbody>
+                {(itemsByCategory[cat.id] || []).map((it) => {
+                  const isEditing = editingItemId === it.id;
+
+                  return (
+                    <tr key={it.id} style={{ borderTop: "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "8px 4px" }}>
+                        {isEditing ? (
+                          <input
+                            value={editItemName}
+                            onChange={(e) => setEditItemName(e.target.value)}
+                            style={{
+                              width: "100%",
+                              border: "1px solid #d1d5db",
+                              borderRadius: 8,
+                              padding: "6px 8px",
+                            }}
+                          />
+                        ) : (
+                          it.name
+                        )}
+                      </td>
+
+                      <td style={{ padding: "8px 4px" }}>
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            min={1}
+                            value={editItemQty}
+                            onChange={(e) =>
+                              setEditItemQty(Math.max(1, Number(e.target.value) || 1))
+                            }
+                            style={{
+                              width: 80,
+                              border: "1px solid #d1d5db",
+                              borderRadius: 8,
+                              padding: "6px 8px",
+                            }}
+                          />
+                        ) : (
+                          it.quantity
+                        )}
+                      </td>
+
+                      <td style={{ padding: "8px 4px", textAlign: "right" }}>
+                        {isEditing ? (
+                          <div style={{ display: "inline-flex", gap: 8 }}>
+                            <button
+                              type="button"
+                              onClick={() => void saveEditItem()}
+                              disabled={loading}
+                              style={{
+                                border: "none",
+                                background: "#2563eb",
+                                color: "#fff",
+                                borderRadius: 8,
+                                padding: "6px 10px",
+                                cursor: "pointer",
+                                fontSize: 12,
+                              }}
+                            >
+                              Хадгалах
+                            </button>
+                            <button
+                              type="button"
+                              onClick={cancelEditItem}
+                              disabled={loading}
+                              style={{
+                                border: "1px solid #d1d5db",
+                                background: "#fff",
+                                borderRadius: 8,
+                                padding: "6px 10px",
+                                cursor: "pointer",
+                                fontSize: 12,
+                              }}
+                            >
+                              Болих
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: "inline-flex", gap: 8 }}>
+                            <button
+                              type="button"
+                              onClick={() => startEditItem(it)}
+                              disabled={loading}
+                              style={{
+                                border: "1px solid #2563eb",
+                                background: "#eff6ff",
+                                color: "#2563eb",
+                                borderRadius: 8,
+                                padding: "6px 10px",
+                                cursor: "pointer",
+                                fontSize: 12,
+                              }}
+                            >
+                              Засах
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void deleteItem(it.id)}
+                              disabled={loading}
+                              style={{
+                                border: "1px solid #dc2626",
+                                background: "#fff",
+                                color: "#b91c1c",
+                                borderRadius: 8,
+                                padding: "6px 10px",
+                                cursor: "pointer",
+                                fontSize: 12,
+                              }}
+                            >
+                              Устгах
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    );
+  })}
 </div>
-              </div>
 
               <div style={{ padding: 12 }}>
                 {(itemsByCategory[cat.id] || []).length === 0 ? (
@@ -543,6 +704,6 @@ const saveEditCategory = async () => {
           <div style={{ fontSize: 13, color: "#6b7280" }}>Ангилал олдсонгүй.</div>
         )}
       </div>
-    </AdminLayout>
+   
   );
 }
