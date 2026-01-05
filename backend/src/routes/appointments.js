@@ -74,6 +74,13 @@ function parseClinicDayEnd(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
   return new Date(`${s}T23:59:59.999+08:00`);
 }
+
+function clinicYmdFromDate(d) {
+  // Interpret a JS Date as clinic time UTC+8 regardless of server TZ
+  const ms = d.getTime() + 8 * 60 * 60 * 1000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
 /**
  * GET /api/appointments
  *
@@ -686,12 +693,14 @@ if (!fromDate || !toDate || Number.isNaN(fromDate.getTime()) || Number.isNaN(toD
     // Iterate through each day in the range
     let currentDate = new Date(fromDate);
     while (currentDate <= toDate) {
-      const dateStr = formatDateYYYYMMDD(currentDate);
+      const dateStr = clinicYmdFromDate(currentDate);
       const dayOfWeek = currentDate.getDay();
       const dayLabel = dayNames[dayOfWeek];
 
       // Find schedule for this day
-      const schedule = schedules.find((s) => ymdFromClinicDate(s.date) === dateStr);
+     const schedule = schedules.find(
+  (s) => clinicYmdFromDate(s.date) === dateStr
+);
 
       let daySlots = [];
 
