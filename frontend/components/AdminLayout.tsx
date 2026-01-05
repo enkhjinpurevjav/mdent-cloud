@@ -75,6 +75,18 @@ const navItems: NavItem[] = [
     ],
   },
 
+  // Add this group somewhere appropriate in navItems, e.g. after "Үйлчилгээ"
+{
+  label: "Ариутгал",
+  icon: "🧼",
+  children: [
+    { label: "Ариутгалын тайлан", href: "/sterilization/reports", icon: "📊" },
+    { label: "Индикатор үүсгэх", href: "/sterilization/indicators/new", icon: "🧾" },
+    { label: "Идэвхитэй индикатор", href: "/sterilization/indicators/active", icon: "✅" },
+    { label: "Тохиргоо", href: "/sterilization/settings", icon: "⚙️" },
+  ],
+},
+
   // 6. Санхүү
   {
     label: "Санхүү",
