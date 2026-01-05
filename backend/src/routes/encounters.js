@@ -975,53 +975,74 @@ router.post("/:id/media", upload.single("file"), async (req, res) => {
   }
 });
 
+// PUT /api/encounters/:id/diagnoses/:dxId/sterilization-indicators
+// Body: { indicatorIds: number[] }  // duplicates allowed
 router.put("/:id/diagnoses/:dxId/sterilization-indicators", async (req, res) => {
   try {
     const encounterId = Number(req.params.id);
     const dxId = Number(req.params.dxId);
-    const indicatorIds = Array.isArray(req.body?.indicatorIds) ? req.body.indicatorIds : [];
+    const indicatorIdsRaw = Array.isArray(req.body?.indicatorIds)
+      ? req.body.indicatorIds
+      : [];
 
-    if (!encounterId || Number.isNaN(encounterId)) return res.status(400).json({ error: "Invalid encounter id" });
-    if (!dxId || Number.isNaN(dxId)) return res.status(400).json({ error: "Invalid diagnosis id" });
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
+    if (!dxId || Number.isNaN(dxId)) {
+      return res.status(400).json({ error: "Invalid diagnosis id" });
+    }
 
-    const ids = indicatorIds.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0);
+    const indicatorIds = indicatorIdsRaw
+      .map((x) => Number(x))
+      .filter((n) => Number.isFinite(n) && n > 0);
 
     // Ensure diagnosis belongs to encounter
     const dx = await prisma.encounterDiagnosis.findFirst({
       where: { id: dxId, encounterId },
       select: { id: true },
     });
-    if (!dx) return res.status(404).json({ error: "Encounter diagnosis not found" });
+    if (!dx) {
+      return res.status(404).json({ error: "Encounter diagnosis not found" });
+    }
 
     await prisma.$transaction(async (trx) => {
       await trx.encounterDiagnosisSterilizationIndicator.deleteMany({
         where: { encounterDiagnosisId: dxId },
       });
-      if (ids.length > 0) {
+
+      // duplicates allowed -> createMany but without skipDuplicates
+      if (indicatorIds.length > 0) {
         await trx.encounterDiagnosisSterilizationIndicator.createMany({
-          data: ids.map((indicatorId) => ({
+          data: indicatorIds.map((indicatorId) => ({
             encounterDiagnosisId: dxId,
             indicatorId,
           })),
-          skipDuplicates: true,
         });
       }
     });
 
+    // return updated diagnosis row with included indicators
     const updated = await prisma.encounterDiagnosis.findUnique({
       where: { id: dxId },
       include: {
         diagnosis: true,
         sterilizationIndicators: {
-          include: { indicator: true },
+          include: {
+            indicator: true,
+          },
         },
       },
     });
 
-    res.json(updated);
+    return res.json(updated);
   } catch (err) {
-    console.error("PUT /api/encounters/:id/diagnoses/:dxId/sterilization-indicators error:", err);
-    res.status(500).json({ error: "Failed to save sterilization indicators" });
+    console.error(
+      "PUT /api/encounters/:id/diagnoses/:dxId/sterilization-indicators error:",
+      err
+    );
+    return res
+      .status(500)
+      .json({ error: "Failed to save sterilization indicators" });
   }
 });
 
