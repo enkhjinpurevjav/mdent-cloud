@@ -2,10 +2,21 @@ import React, { useEffect, useMemo, useState } from "react";
 
 
 type Branch = { id: number; name: string };
-type Specialist = { id: number; name: string | null; ovog: string | null; email: string; branchId: number | null };
-type SterilizationItem = { id: number; categoryId: number; name: string; quantity: number };
 
-type Line = { itemId: number; quantity: number };
+type Specialist = {
+  id: number;
+  name: string | null;
+  ovog: string | null;
+  email: string;
+  branchId: number | null;
+};
+
+type SterilizationItem = {
+  id: number;
+  categoryId: number;
+  name: string;
+  quantity: number; // inventory count from settings (not used for indicator)
+};
 
 function yyyyMmDd(date: Date) {
   const y = date.getFullYear();
@@ -26,13 +37,13 @@ export default function SterilizationIndicatorNewPage() {
   const [indicatorDate, setIndicatorDate] = useState<string>(yyyyMmDd(new Date()));
   const [packageQuantity, setPackageQuantity] = useState<number>(1);
 
+  const [packageName, setPackageName] = useState<string>("");
   const [code, setCode] = useState<string>("");
 
   // item add controls
   const [itemSearch, setItemSearch] = useState("");
   const [selectedItemId, setSelectedItemId] = useState<number | "">("");
-  const [selectedQty, setSelectedQty] = useState<number>(1);
-  const [lines, setLines] = useState<Line[]>([]);
+  const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -50,62 +61,60 @@ export default function SterilizationIndicatorNewPage() {
           fetch("/api/sterilization/items"),
         ]);
 
-        const b = await bRes.json();
-        const p = await pRes.json();
-        const s = await sRes.json();
-        const i = await iRes.json();
+        const b = await bRes.json().catch(() => []);
+        const p = await pRes.json().catch(() => ({}));
+        const s = await sRes.json().catch(() => []);
+        const i = await iRes.json().catch(() => []);
 
-        setBranches(Array.isArray(b) ? b : []);
-        setPrefixes(p && typeof p === "object" ? p : {});
-        setSpecialists(Array.isArray(s) ? s : []);
-        setItems(Array.isArray(i) ? i : []);
+        if (bRes.ok) setBranches(Array.isArray(b) ? b : []);
+        if (pRes.ok && p && typeof p === "object") setPrefixes(p);
+        if (sRes.ok) setSpecialists(Array.isArray(s) ? s : []);
+        if (iRes.ok) setItems(Array.isArray(i) ? i : []);
       } catch {
-        // ignore
+        // ignore; error will show on submit if needed
       }
     })();
   }, []);
 
-  // whenever branch changes, auto-start code with prefix if code empty or previously auto
+  // Auto-apply prefix when branch changes (do not overwrite user custom text too aggressively)
   useEffect(() => {
     if (!branchPrefix) return;
+
     setCode((prev) => {
-      const trimmed = prev.trim();
-      if (!trimmed) return `${branchPrefix}-`;
-      // if user already typed something not matching, don't overwrite
-      if (trimmed.startsWith(branchPrefix + "-")) return trimmed;
-      // if user had old prefix auto, replace it
-      const idx = trimmed.indexOf("-");
-      if (idx > 0) return `${branchPrefix}-${trimmed.slice(idx + 1)}`;
-      return `${branchPrefix}-`;
+      const t = prev.trim();
+      if (!t) return `${branchPrefix}-`;
+
+      // If it already starts with correct prefix, keep
+      if (t.startsWith(`${branchPrefix}-`)) return t;
+
+      // If code had old prefix like X-..., replace prefix part
+      const dashIdx = t.indexOf("-");
+      if (dashIdx > 0) return `${branchPrefix}-${t.slice(dashIdx + 1)}`;
+
+      // If no dash, just prepend
+      return `${branchPrefix}-${t}`;
     });
   }, [branchPrefix]);
 
   const filteredItemOptions = useMemo(() => {
     const q = itemSearch.trim().toLowerCase();
-    const used = new Set(lines.map((l) => l.itemId));
+    const used = new Set(selectedItemIds);
     return items
       .filter((it) => !used.has(it.id))
       .filter((it) => (q ? it.name.toLowerCase().includes(q) : true))
       .slice(0, 50);
-  }, [items, itemSearch, lines]);
+  }, [items, itemSearch, selectedItemIds]);
 
-  const addLine = () => {
+  const addItem = () => {
     const id = Number(selectedItemId);
     if (!id) return;
-    const qty = Math.max(1, Number(selectedQty) || 1);
-    setLines((prev) => [...prev, { itemId: id, quantity: qty }]);
+    setSelectedItemIds((prev) => [...prev, id]);
     setSelectedItemId("");
-    setSelectedQty(1);
     setItemSearch("");
   };
 
-  const removeLine = (itemId: number) => {
-    setLines((prev) => prev.filter((l) => l.itemId !== itemId));
-  };
-
-  const updateLineQty = (itemId: number, qty: number) => {
-    const safe = Math.max(1, Math.floor(Number(qty) || 1));
-    setLines((prev) => prev.map((l) => (l.itemId === itemId ? { ...l, quantity: safe } : l)));
+  const removeItem = (id: number) => {
+    setSelectedItemIds((prev) => prev.filter((x) => x !== id));
   };
 
   const submit = async () => {
@@ -114,10 +123,13 @@ export default function SterilizationIndicatorNewPage() {
 
     if (!branchId) return setError("Салбар сонгоно уу.");
     if (!specialistUserId) return setError("Сувилагч (мэргэжилтэн) сонгоно уу.");
-    if (!code.trim()) return setError("Индикатор код оруулна уу.");
     if (!indicatorDate) return setError("Огноо сонгоно уу.");
-    if (!Number.isFinite(packageQuantity) || packageQuantity < 1) return setError("Багцын тоо 1-с бага байж болохгүй.");
-    if (lines.length === 0) return setError("Дор хаяж 1 багаж нэмнэ үү.");
+    if (!packageName.trim()) return setError("Багцын нэр оруулна уу. Ж: Үзлэгийн бахь");
+    if (!code.trim()) return setError("Индикатор код оруулна уу. Ж: T-920");
+    if (!Number.isFinite(packageQuantity) || packageQuantity < 1) {
+      return setError("Багцын тоо 1-с бага байж болохгүй.");
+    }
+    if (selectedItemIds.length === 0) return setError("Дор хаяж 1 багаж нэмнэ үү.");
 
     setLoading(true);
     try {
@@ -126,21 +138,22 @@ export default function SterilizationIndicatorNewPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           branchId: Number(branchId),
+          packageName: packageName.trim(),
           code: code.trim(),
           indicatorDate: new Date(indicatorDate).toISOString(),
           specialistUserId: Number(specialistUserId),
           packageQuantity: Math.floor(packageQuantity),
-          items: lines.map((l) => ({ itemId: l.itemId, quantity: l.quantity })),
+          items: selectedItemIds, // number[]
         }),
       });
 
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Failed to create indicator");
 
-      setSuccessMsg(`Индикатор үүсгэлээ: ${json?.code || code.trim()}`);
-      setLines([]);
+      setSuccessMsg(`Индикатор үүсгэлээ: ${json?.packageName || packageName.trim()} ${json?.code || code.trim()}`);
+      setSelectedItemIds([]);
       setPackageQuantity(1);
-      // keep branch + specialist + date for rapid entry
+      // Keep branch/date/specialist for quick next entry
     } catch (e: any) {
       setError(e?.message || "Алдаа гарлаа");
     } finally {
@@ -149,17 +162,17 @@ export default function SterilizationIndicatorNewPage() {
   };
 
   return (
- 
+
       <div style={{ maxWidth: 1100 }}>
         <h1 style={{ fontSize: 18, marginBottom: 6 }}>Ариутгал → Индикатор үүсгэх</h1>
         <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
-          Салбарт харьяалах индикатор үүсгэж, багажийн багцыг бүртгэнэ.
+          Ариутгалын багц үүсгэж (нэр + код), хэдэн ширхэг багц гарсныг бүртгэнэ.
         </div>
 
         {error && <div style={{ color: "#b91c1c", marginBottom: 10, fontSize: 13 }}>{error}</div>}
         {successMsg && <div style={{ color: "#15803d", marginBottom: 10, fontSize: 13 }}>{successMsg}</div>}
 
-        {/* Header form */}
+        {/* Header */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
           <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 12 }}>
             <div style={{ fontWeight: 600, marginBottom: 8 }}>Ерөнхий мэдээлэл</div>
@@ -197,7 +210,7 @@ export default function SterilizationIndicatorNewPage() {
               </div>
 
               <div>
-                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Сувилагч (мэргэжилтэн)</div>
+                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Сувилагч</div>
                 <select
                   value={specialistUserId}
                   onChange={(e) => setSpecialistUserId(e.target.value ? Number(e.target.value) : "")}
@@ -224,13 +237,26 @@ export default function SterilizationIndicatorNewPage() {
               </div>
 
               <div style={{ gridColumn: "1 / -1" }}>
+                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Багцын нэр</div>
+                <input
+                  value={packageName}
+                  onChange={(e) => setPackageName(e.target.value)}
+                  placeholder="Ж: Үзлэгийн бахь"
+                  style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }}
+                />
+              </div>
+
+              <div style={{ gridColumn: "1 / -1" }}>
                 <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Индикатор код</div>
                 <input
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
-                  placeholder="Ж: M-000123"
+                  placeholder="Ж: T-920"
                   style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }}
                 />
+                <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                  Encounter дээр: <b>{packageName?.trim() || "Багц"}</b> <b>{code?.trim() || ""}</b> гэж харагдана.
+                </div>
               </div>
             </div>
           </div>
@@ -239,7 +265,7 @@ export default function SterilizationIndicatorNewPage() {
           <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 12 }}>
             <div style={{ fontWeight: 600, marginBottom: 8 }}>Багцад багаж нэмэх</div>
 
-            <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
               <input
                 value={itemSearch}
                 onChange={(e) => setItemSearch(e.target.value)}
@@ -260,17 +286,9 @@ export default function SterilizationIndicatorNewPage() {
                 ))}
               </select>
 
-              <input
-                type="number"
-                min={1}
-                value={selectedQty}
-                onChange={(e) => setSelectedQty(Math.max(1, Number(e.target.value) || 1))}
-                style={{ width: 110, border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }}
-              />
-
               <button
                 type="button"
-                onClick={addLine}
+                onClick={addItem}
                 disabled={!selectedItemId}
                 style={{ border: "none", background: "#16a34a", color: "#fff", borderRadius: 8, padding: "8px 12px", cursor: "pointer" }}
               >
@@ -279,45 +297,35 @@ export default function SterilizationIndicatorNewPage() {
             </div>
 
             <div style={{ fontSize: 12, color: "#6b7280" }}>
-              * Энд оруулсан “тоо” нь <b>1 багц дахь</b> тухайн багажийн тоо.
+              * Багцын бүрэлдэхүүнд оруулах багажуудыг жагсаана (тоо оруулахгүй).
             </div>
           </div>
         </div>
 
-        {/* Lines preview */}
+        {/* Selected items */}
         <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 12 }}>
           <div style={{ fontWeight: 600, marginBottom: 8 }}>Багцын бүрэлдэхүүн</div>
 
-          {lines.length === 0 ? (
+          {selectedItemIds.length === 0 ? (
             <div style={{ fontSize: 13, color: "#6b7280" }}>Одоогоор багаж нэмээгүй байна.</div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ color: "#6b7280", textAlign: "left" }}>
                   <th style={{ padding: "6px 4px" }}>Багаж</th>
-                  <th style={{ padding: "6px 4px", width: 160 }}>1 багц дахь тоо</th>
                   <th style={{ padding: "6px 4px", width: 140 }} />
                 </tr>
               </thead>
               <tbody>
-                {lines.map((l) => {
-                  const it = items.find((x) => x.id === l.itemId);
+                {selectedItemIds.map((id) => {
+                  const it = items.find((x) => x.id === id);
                   return (
-                    <tr key={l.itemId} style={{ borderTop: "1px solid #f3f4f6" }}>
-                      <td style={{ padding: "8px 4px" }}>{it?.name || `#${l.itemId}`}</td>
-                      <td style={{ padding: "8px 4px" }}>
-                        <input
-                          type="number"
-                          min={1}
-                          value={l.quantity}
-                          onChange={(e) => updateLineQty(l.itemId, Number(e.target.value))}
-                          style={{ width: 120, border: "1px solid #d1d5db", borderRadius: 8, padding: "6px 8px" }}
-                        />
-                      </td>
+                    <tr key={id} style={{ borderTop: "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "8px 4px" }}>{it?.name || `#${id}`}</td>
                       <td style={{ padding: "8px 4px", textAlign: "right" }}>
                         <button
                           type="button"
-                          onClick={() => removeLine(l.itemId)}
+                          onClick={() => removeItem(id)}
                           style={{ border: "1px solid #dc2626", background: "#fff", color: "#b91c1c", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 12 }}
                         >
                           Устгах
@@ -342,6 +350,6 @@ export default function SterilizationIndicatorNewPage() {
           </div>
         </div>
       </div>
-   
+
   );
 }
