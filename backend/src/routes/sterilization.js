@@ -290,4 +290,115 @@ router.get("/sterilization/indicators/active", async (req, res) => {
   res.json(rows);
 });
 
+// GET sterilization report
+// /api/sterilization/reports?from=YYYY-MM-DD&to=YYYY-MM-DD&branchId=optional
+router.get("/sterilization/reports", async (req, res) => {
+  try {
+    const from = String(req.query.from || "");
+    const to = String(req.query.to || "");
+    const branchIdParam = req.query.branchId ? Number(req.query.branchId) : null;
+
+    if (!from || !to) {
+      return res.status(400).json({ error: "from and to are required (YYYY-MM-DD)" });
+    }
+
+    const [fy, fm, fd] = from.split("-").map(Number);
+    const [ty, tm, td] = to.split("-").map(Number);
+    if (!fy || !fm || !fd || !ty || !tm || !td) {
+      return res.status(400).json({ error: "invalid date format" });
+    }
+
+    const start = new Date(fy, fm - 1, fd, 0, 0, 0, 0);
+    const end = new Date(ty, tm - 1, td, 23, 59, 59, 999);
+
+    const branches = await prisma.branch.findMany({
+      select: { id: true, name: true },
+      orderBy: { id: "asc" },
+    });
+
+    const allowedBranchIds = branchIdParam
+      ? branches.filter((b) => b.id === branchIdParam).map((b) => b.id)
+      : branches.map((b) => b.id);
+
+    // 1) Find all package uses in date range, include indicator + branch
+    const uses = await prisma.encounterSterilizationPackageUse.findMany({
+      where: {
+        createdAt: { gte: start, lte: end },
+        indicator: { branchId: { in: allowedBranchIds } },
+      },
+      select: {
+        usedQuantity: true,
+        createdAt: true,
+        indicator: {
+          select: {
+            id: true,
+            branchId: true,
+            packageName: true,
+            code: true,
+            indicatorDate: true,
+            packageQuantity: true,
+            createdAt: true,
+            specialist: { select: { id: true, name: true, ovog: true, email: true } },
+            branch: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+
+    // Cards: total usedQuantity per branch
+    const usedByBranch = new Map();
+    for (const u of uses) {
+      const bid = u.indicator?.branchId;
+      if (!bid) continue;
+      usedByBranch.set(bid, (usedByBranch.get(bid) || 0) + Number(u.usedQuantity || 0));
+    }
+
+    const cards = branches
+      .filter((b) => allowedBranchIds.includes(b.id))
+      .map((b) => ({
+        branchId: b.id,
+        branchName: b.name,
+        usedTotal: usedByBranch.get(b.id) || 0,
+      }));
+
+    // Rows: group by indicatorId and sum used in range
+    const byIndicator = new Map();
+    for (const u of uses) {
+      const ind = u.indicator;
+      if (!ind) continue;
+      const key = ind.id;
+      const prev = byIndicator.get(key) || {
+        indicatorId: ind.id,
+        branchId: ind.branchId,
+        branchName: ind.branch?.name || "",
+        packageName: ind.packageName,
+        code: ind.code,
+        indicatorDate: ind.indicatorDate,
+        createdAt: ind.createdAt,
+        createdQuantity: ind.packageQuantity || 0,
+        usedQuantity: 0,
+        specialist: ind.specialist,
+      };
+      prev.usedQuantity += Number(u.usedQuantity || 0);
+      byIndicator.set(key, prev);
+    }
+
+    const rows = Array.from(byIndicator.values()).sort((a, b) => {
+      const ad = new Date(a.indicatorDate).getTime();
+      const bd = new Date(b.indicatorDate).getTime();
+      return bd - ad;
+    });
+
+    return res.json({
+      from: start.toISOString(),
+      to: end.toISOString(),
+      cards,
+      rows,
+    });
+  } catch (err) {
+    console.error("GET /api/sterilization/reports error:", err);
+    return res.status(500).json({ error: "internal server error" });
+  }
+});
+
 export default router;
