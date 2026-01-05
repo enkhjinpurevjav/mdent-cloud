@@ -301,9 +301,7 @@ router.get("/sterilization/reports", async (req, res) => {
     const branchIdParam = req.query.branchId ? Number(req.query.branchId) : null;
 
     if (!from || !to) {
-      return res
-        .status(400)
-        .json({ error: "from and to are required (YYYY-MM-DD)" });
+      return res.status(400).json({ error: "from and to are required (YYYY-MM-DD)" });
     }
 
     const [fy, fm, fd] = from.split("-").map(Number);
@@ -318,28 +316,11 @@ router.get("/sterilization/reports", async (req, res) => {
 
     // Today's boundaries (calendar date, server time)
     const now = new Date();
-    const todayStart = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      0,
-      0,
-      0,
-      0
-    );
-    const todayEnd = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      23,
-      59,
-      59,
-      999
-    );
-    const todayYmd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}-${String(now.getDate()).padStart(2, "0")}`;
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const todayYmd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+      now.getDate()
+    ).padStart(2, "0")}`;
 
     const branches = await prisma.branch.findMany({
       select: { id: true, name: true },
@@ -366,10 +347,7 @@ router.get("/sterilization/reports", async (req, res) => {
     for (const u of todayUses) {
       const bid = u.indicator?.branchId;
       if (!bid) continue;
-      usedByBranchToday.set(
-        bid,
-        (usedByBranchToday.get(bid) || 0) + Number(u.usedQuantity || 0)
-      );
+      usedByBranchToday.set(bid, (usedByBranchToday.get(bid) || 0) + Number(u.usedQuantity || 0));
     }
 
     const todayCards = branches
@@ -387,10 +365,62 @@ router.get("/sterilization/reports", async (req, res) => {
         indicator: { branchId: { in: allowedBranchIds } },
       },
       select: {
-        usedQuantity:
+        usedQuantity: true,
+        indicator: {
+          select: {
+            id: true,
+            branchId: true,
+            packageName: true,
+            code: true,
+            indicatorDate: true,
+            packageQuantity: true,
+            specialist: { select: { id: true, name: true, ovog: true, email: true } },
+            branch: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
 
+    const byIndicator = new Map();
+    for (const u of rangeUses) {
+      const ind = u.indicator;
+      if (!ind) continue;
 
-}
+      const key = ind.id;
+      const prev =
+        byIndicator.get(key) || {
+          indicatorId: ind.id,
+          branchId: ind.branchId,
+          branchName: ind.branch?.name || "",
+          packageName: ind.packageName,
+          code: ind.code,
+          indicatorDate: ind.indicatorDate,
+          createdQuantity: ind.packageQuantity || 0,
+          usedQuantity: 0,
+          specialist: ind.specialist || null,
+        };
+
+      prev.usedQuantity += Number(u.usedQuantity || 0);
+      byIndicator.set(key, prev);
+    }
+
+    const rows = Array.from(byIndicator.values()).sort((a, b) => {
+      const ad = new Date(a.indicatorDate).getTime();
+      const bd = new Date(b.indicatorDate).getTime();
+      return bd - ad;
+    });
+
+    return res.json({
+      today: todayYmd,
+      todayCards,
+      from: rangeStart.toISOString(),
+      to: rangeEnd.toISOString(),
+      rows,
+    });
+  } catch (err) {
+    console.error("GET /api/sterilization/reports error:", err);
+    return res.status(500).json({ error: "internal server error" });
+  }
 });
 
 export default router;
