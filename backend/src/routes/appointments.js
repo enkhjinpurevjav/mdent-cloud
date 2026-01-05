@@ -62,45 +62,18 @@ function parseClinicDay(value) {
   return { localStart, localEnd };
 }
 
-/**
- * Parse clinic day boundaries as UTC+8.
- * Used by /availability.
- */
 function parseClinicDayStart(value) {
+  // value: YYYY-MM-DD, treat as Asia/Ulaanbaatar (UTC+8)
   const s = String(value).trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
   return new Date(`${s}T00:00:00.000+08:00`);
 }
+
 function parseClinicDayEnd(value) {
   const s = String(value).trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
   return new Date(`${s}T23:59:59.999+08:00`);
 }
-
-function clinicDateFromYmd(ymd) {
-  return new Date(`${ymd}T00:00:00.000+08:00`);
-}
-
-function addDaysYmd(ymd, days) {
-  const d = clinicDateFromYmd(ymd);
-  d.setDate(d.getDate() + days);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
-}
-
-function weekdayMnFromClinicYmd(ymd) {
-  const names = ["Ням", "Даваа", "Мягмар", "Лхагва", "Пүрэв", "Баасан", "Бямба"];
-  return names[clinicDateFromYmd(ymd).getDay()];
-}
-
-function formatTime(date) {
-  const h = String(date.getHours()).padStart(2, "0");
-  const m = String(date.getMinutes()).padStart(2, "0");
-  return `${h}:${m}`;
-}
-
 /**
  * GET /api/appointments
  *
@@ -201,94 +174,111 @@ router.get("/", async (req, res) => {
         return res.status(400).json({ error: "Invalid status value" });
       }
     }
+    // If status missing or "ALL", we don't filter by status.
 
     // ----------------- Text search on patient -----------------
     if (search && search.trim() !== "") {
       const s = search.trim();
+      // Prisma relation filter: appointment where patient matches OR conditions
       where.patient = {
         OR: [
-          { name: { contains: s, mode: "insensitive" } },
-          { regNo: { contains: s, mode: "insensitive" } },
-          { phone: { contains: s, mode: "insensitive" } },
+          {
+            name: {
+              contains: s,
+              mode: "insensitive",
+            },
+          },
+          {
+            regNo: {
+              contains: s,
+              mode: "insensitive",
+            },
+          },
+          {
+            phone: {
+              contains: s,
+              mode: "insensitive",
+            },
+          },
         ],
       };
     }
 
     // ----------------- Query DB -----------------
-    const appointments = await prisma.appointment.findMany({
-      where,
-      orderBy: { scheduledAt: "asc" },
-      include: {
-        patient: {
-          select: {
-            id: true,
-            name: true,
-            ovog: true,
-            regNo: true,
-            phone: true,
-            patientBook: true,
-          },
-        },
-        doctor: true,
-        branch: true,
+        const appointments = await prisma.appointment.findMany({
+  where,
+  orderBy: { scheduledAt: "asc" },
+  include: {
+    patient: {
+      select: {
+        id: true,
+        name: true,
+        ovog: true,      // ← ADD THIS
+        regNo: true,
+        phone: true,
+        patientBook: true,
       },
-    });
+    },
+    doctor: true,
+    branch: true,
+  },
+});
 
     // ----------------- Shape for new frontend Appointment type -----------------
     const rows = appointments.map((a) => {
-      const patient = a.patient;
-      const doctor = a.doctor;
-      const branch = a.branch;
+  const patient = a.patient;
+  const doctor = a.doctor;
+  const branch = a.branch;
 
-      const doctorName =
-        doctor && (doctor.name || doctor.ovog)
-          ? [doctor.ovog, doctor.name].filter(Boolean).join(" ")
-          : null;
+  const doctorName =
+    doctor && (doctor.name || doctor.ovog)
+      ? [doctor.ovog, doctor.name].filter(Boolean).join(" ")
+      : null;
 
-      return {
-        id: a.id,
-        branchId: a.branchId,
-        doctorId: a.doctorId,
-        patientId: a.patientId,
+  return {
+    id: a.id,
+    branchId: a.branchId,
+    doctorId: a.doctorId,
+    patientId: a.patientId,
 
-        // flat fields for quick labels
-        patientName: patient ? patient.name : null,
-        patientOvog: patient ? patient.ovog || null : null,
-        patientRegNo: patient ? patient.regNo || null : null,
-        patientPhone: patient ? patient.phone || null : null,
+    // flat fields for quick labels
+    patientName: patient ? patient.name : null,
+    patientOvog: patient ? patient.ovog || null : null,     // ← ADD
+    patientRegNo: patient ? patient.regNo || null : null,
+    patientPhone: patient ? patient.phone || null : null,
 
-        doctorName,
-        doctorOvog: doctor ? doctor.ovog || null : null,
+    doctorName,
+    doctorOvog: doctor ? doctor.ovog || null : null,
 
-        scheduledAt: a.scheduledAt.toISOString(),
-        endAt: a.endAt ? a.endAt.toISOString() : null,
-        status: a.status,
-        notes: a.notes || null,
+    scheduledAt: a.scheduledAt.toISOString(),
+    endAt: a.endAt ? a.endAt.toISOString() : null,
+    status: a.status,
+    notes: a.notes || null,
 
-        // nested objects used by the details modal & labels
-        patient: patient
-          ? {
-              id: patient.id,
-              name: patient.name,
-              ovog: patient.ovog || null,
-              regNo: patient.regNo || null,
-              phone: patient.phone || null,
-              patientBook: patient.patientBook || null,
-            }
-          : null,
-        branch: branch
-          ? {
-              id: branch.id,
-              name: branch.name,
-            }
-          : null,
-      };
-    });
+    // nested objects used by the details modal & labels
+    patient: patient
+      ? {
+          id: patient.id,
+          name: patient.name,
+          ovog: patient.ovog || null,                       // ← ADD
+          regNo: patient.regNo || null,
+          phone: patient.phone || null,
+          patientBook: patient.patientBook || null,
+        }
+      : null,
+    branch: branch
+      ? {
+          id: branch.id,
+          name: branch.name,
+        }
+      : null,
+  };
+});
 
-    return res.json(rows);
+    res.json(rows);
   } catch (err) {
     console.error("Error fetching appointments:", err);
-    return res.status(500).json({ error: "failed to fetch appointments" });
+    res.status(500).json({ error: "failed to fetch appointments" });
   }
 });
 
@@ -306,8 +296,15 @@ router.get("/", async (req, res) => {
  */
 router.post("/", async (req, res) => {
   try {
-    const { patientId, doctorId, branchId, scheduledAt, endAt, status, notes } =
-      req.body || {};
+    const {
+      patientId,
+      doctorId,
+      branchId,
+      scheduledAt,
+      endAt,
+      status,
+      notes,
+    } = req.body || {};
 
     if (!patientId || !branchId || !scheduledAt) {
       return res.status(400).json({
@@ -373,16 +370,20 @@ router.post("/", async (req, res) => {
         notes: notes || null,
       },
       include: {
-        patient: { include: { patientBook: true } },
+        patient: {
+          include: {
+            patientBook: true,
+          },
+        },
         doctor: true,
         branch: true,
       },
     });
 
-    return res.status(201).json(appt);
+    res.status(201).json(appt);
   } catch (err) {
     console.error("Error creating appointment:", err);
-    return res.status(500).json({ error: "failed to create appointment" });
+    res.status(500).json({ error: "failed to create appointment" });
   }
 });
 
@@ -413,21 +414,28 @@ router.patch("/:id", async (req, res) => {
 
     const appt = await prisma.appointment.update({
       where: { id },
-      data: { status: normalizedStatus },
+      data: {
+        status: normalizedStatus,
+      },
       include: {
-        patient: { include: { patientBook: true } },
+        patient: {
+          include: {
+            patientBook: true,
+          },
+        },
         doctor: true,
         branch: true,
       },
     });
 
-    return res.json(appt);
+    res.json(appt);
   } catch (err) {
     console.error("Error updating appointment:", err);
     if (err.code === "P2025") {
+      // Prisma: record not found
       return res.status(404).json({ error: "appointment not found" });
     }
-    return res.status(500).json({ error: "failed to update appointment" });
+    res.status(500).json({ error: "failed to update appointment" });
   }
 });
 
@@ -448,7 +456,11 @@ router.post("/:id/start-encounter", async (req, res) => {
     const appt = await prisma.appointment.findUnique({
       where: { id: apptId },
       include: {
-        patient: { include: { patientBook: true } },
+        patient: {
+          include: {
+            patientBook: true,
+          },
+        },
         branch: true,
         doctor: true,
       },
@@ -483,8 +495,12 @@ router.post("/:id/start-encounter", async (req, res) => {
     // 3) Ensure patient has a PatientBook
     let book = patient.patientBook;
     if (!book) {
+      // TODO: replace bookNumber logic with proper generator if needed
       book = await prisma.patientBook.create({
-        data: { patientId: patient.id, bookNumber: String(patient.id) },
+        data: {
+          patientId: patient.id,
+          bookNumber: String(patient.id),
+        },
       });
     }
 
@@ -535,9 +551,9 @@ router.get("/:id/encounter", async (req, res) => {
     });
 
     if (!encounter) {
-      return res.status(404).json({
-        error: "Үзлэг олдсонгүй. Эмч үзлэг эхлүүлээгүй байна.",
-      });
+      return res
+        .status(404)
+        .json({ error: "Үзлэг олдсонгүй. Эмч үзлэг эхлүүлээгүй байна." });
     }
 
     return res.json({ encounterId: encounter.id });
@@ -562,7 +578,18 @@ router.get("/:id/encounter", async (req, res) => {
  * Response:
  *  {
  *    days: [
- *      { date: 'YYYY-MM-DD', dayLabel: 'Даваа', slots: [...] }
+ *      {
+ *        date: 'YYYY-MM-DD',
+ *        dayLabel: 'Даваа' | 'Мягмар' | ...,
+ *        slots: [
+ *          {
+ *            start: ISO datetime,
+ *            end: ISO datetime,
+ *            status: 'available' | 'booked' | 'off',
+ *            appointmentId?: number  (if booked)
+ *          }
+ *        ]
+ *      }
  *    ],
  *    timeLabels: ['09:00', '09:30', ...]
  *  }
@@ -571,8 +598,11 @@ router.get("/availability", async (req, res) => {
   try {
     const { doctorId, from, to, slotMinutes, branchId } = req.query || {};
 
+    // Validate required params
     if (!doctorId || !from || !to) {
-      return res.status(400).json({ error: "doctorId, from, and to are required" });
+      return res.status(400).json({
+        error: "doctorId, from, and to are required",
+      });
     }
 
     const parsedDoctorId = Number(doctorId);
@@ -587,82 +617,115 @@ router.get("/availability", async (req, res) => {
 
     const slotDuration = slotMinutes ? Number(slotMinutes) : 30;
     if (Number.isNaN(slotDuration) || slotDuration < 5 || slotDuration > 120) {
-      return res.status(400).json({ error: "slotMinutes must be between 5 and 120" });
+      return res.status(400).json({
+        error: "slotMinutes must be between 5 and 120",
+      });
+    }
+
+    // Parse date range
+    const fromParts = String(from).split("-").map(Number);
+    const toParts = String(to).split("-").map(Number);
+
+    if (
+      fromParts.length !== 3 ||
+      toParts.length !== 3 ||
+      fromParts.some((n) => Number.isNaN(n)) ||
+      toParts.some((n) => Number.isNaN(n))
+    ) {
+      return res.status(400).json({
+        error: "from and to must be in YYYY-MM-DD format",
+      });
     }
 
     const fromDate = parseClinicDayStart(from);
-    const toDate = parseClinicDayEnd(to);
-    if (!fromDate || !toDate || Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime()) || fromDate > toDate) {
-      return res.status(400).json({ error: "Invalid date range" });
-    }
+const toDate = parseClinicDayEnd(to);
 
+if (!fromDate || !toDate || Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime()) || fromDate > toDate) {
+  return res.status(400).json({ error: "Invalid date range" });
+}
+
+    // Fetch doctor schedules for this range
     const schedules = await prisma.doctorSchedule.findMany({
       where: {
         doctorId: parsedDoctorId,
         ...(parsedBranchId && { branchId: parsedBranchId }),
-        date: { gte: fromDate, lte: toDate },
+        date: {
+          gte: fromDate,
+          lte: toDate,
+        },
       },
       orderBy: { date: "asc" },
     });
 
+    // Fetch existing appointments in this range for this doctor
     const appointments = await prisma.appointment.findMany({
       where: {
         doctorId: parsedDoctorId,
         ...(parsedBranchId && { branchId: parsedBranchId }),
-        scheduledAt: { gte: fromDate, lte: toDate },
-        status: { notIn: ["cancelled", "completed"] },
+        scheduledAt: {
+          gte: fromDate,
+          lte: toDate,
+        },
+        status: {
+          notIn: ["cancelled", "completed"],
+        },
       },
-      select: { id: true, scheduledAt: true, endAt: true },
+      select: {
+        id: true,
+        scheduledAt: true,
+        endAt: true,
+      },
       orderBy: { scheduledAt: "asc" },
     });
 
-    // Index schedules by stored day (DoctorSchedule.date is timestamp without tz)
-    const scheduleByYmd = new Map();
-    for (const s of schedules) {
-      const y = s.date.getFullYear();
-      const m = String(s.date.getMonth() + 1).padStart(2, "0");
-      const d = String(s.date.getDate()).padStart(2, "0");
-      scheduleByYmd.set(`${y}-${m}-${d}`, s);
-    }
-
+    // Build availability grid
     const days = [];
+    const dayNames = ["Ням", "Даваа", "Мягмар", "Лхагва", "Пүрэв", "Баасан", "Бямба"];
     const allTimeLabels = new Set();
 
-    let ymd = String(from);
-    const endYmd = String(to);
+    // Iterate through each day in the range
+    let currentDate = new Date(fromDate);
+    while (currentDate <= toDate) {
+      const dateStr = formatDateYYYYMMDD(currentDate);
+      const dayOfWeek = currentDate.getDay();
+      const dayLabel = dayNames[dayOfWeek];
 
-    while (ymd <= endYmd) {
-      const dayLabel = weekdayMnFromClinicYmd(ymd);
-      const schedule = scheduleByYmd.get(ymd);
+      // Find schedule for this day
+      const schedule = schedules.find((s) => ymdFromClinicDate(s.date) === dateStr);
 
-      const slots = [];
+      let daySlots = [];
 
       if (schedule) {
-        const [sh, sm] = schedule.startTime.split(":").map(Number);
-        const [eh, em] = schedule.endTime.split(":").map(Number);
+        // Parse schedule start/end times
+        const [startHour, startMin] = schedule.startTime.split(":").map(Number);
+        const [endHour, endMin] = schedule.endTime.split(":").map(Number);
 
-        const dayStart = clinicDateFromYmd(ymd);
-        dayStart.setHours(sh, sm, 0, 0);
+        const dayStart = new Date(currentDate);
+        dayStart.setHours(startHour, startMin, 0, 0);
 
-        const dayEnd = clinicDateFromYmd(ymd);
-        dayEnd.setHours(eh, em, 0, 0);
+        const dayEnd = new Date(currentDate);
+        dayEnd.setHours(endHour, endMin, 0, 0);
 
+        // Generate slots
         let slotStart = new Date(dayStart);
         while (slotStart < dayEnd) {
           const slotEnd = new Date(slotStart.getTime() + slotDuration * 60000);
 
+          // Check if this slot conflicts with any existing appointment
           const conflictingAppt = appointments.find((appt) => {
             const apptStart = new Date(appt.scheduledAt);
             const apptEnd = appt.endAt
               ? new Date(appt.endAt)
-              : new Date(apptStart.getTime() + 30 * 60000);
+              : new Date(apptStart.getTime() + 30 * 60000); // default 30min
+
+            // Check for overlap
             return slotStart < apptEnd && slotEnd > apptStart;
           });
 
           const timeLabel = formatTime(slotStart);
           allTimeLabels.add(timeLabel);
 
-          slots.push({
+          daySlots.push({
             start: slotStart.toISOString(),
             end: slotEnd.toISOString(),
             status: conflictingAppt ? "booked" : "available",
@@ -671,18 +734,94 @@ router.get("/availability", async (req, res) => {
 
           slotStart = slotEnd;
         }
+      } else {
+        // No schedule for this day - use default working hours (9:00-17:00)
+        const defaultStart = new Date(currentDate);
+        defaultStart.setHours(9, 0, 0, 0);
+
+        const defaultEnd = new Date(currentDate);
+        defaultEnd.setHours(17, 0, 0, 0);
+
+        // Only show default hours for weekdays (Mon-Fri)
+        if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+          let slotStart = new Date(defaultStart);
+          while (slotStart < defaultEnd) {
+            const slotEnd = new Date(
+              slotStart.getTime() + slotDuration * 60000
+            );
+
+            const conflictingAppt = appointments.find((appt) => {
+              const apptStart = new Date(appt.scheduledAt);
+              const apptEnd = appt.endAt
+                ? new Date(appt.endAt)
+                : new Date(apptStart.getTime() + 30 * 60000);
+
+              return slotStart < apptEnd && slotEnd > apptStart;
+            });
+
+            const timeLabel = formatTime(slotStart);
+            allTimeLabels.add(timeLabel);
+
+            daySlots.push({
+              start: slotStart.toISOString(),
+              end: slotEnd.toISOString(),
+              status: conflictingAppt ? "booked" : "available",
+              ...(conflictingAppt && { appointmentId: conflictingAppt.id }),
+            });
+
+            slotStart = slotEnd;
+          }
+        }
+        // For weekends without schedule, leave daySlots empty (off day)
       }
 
-      days.push({ date: ymd, dayLabel, slots });
-      ymd = addDaysYmd(ymd, 1);
+      days.push({
+        date: dateStr,
+        dayLabel,
+        slots: daySlots,
+      });
+
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
     }
 
+    // Convert time labels set to sorted array
     const timeLabels = Array.from(allTimeLabels).sort();
-    return res.json({ days, timeLabels });
+
+    res.json({
+      days,
+      timeLabels,
+    });
   } catch (err) {
     console.error("Error fetching appointment availability:", err);
-    return res.status(500).json({ error: "failed to fetch availability" });
+    res.status(500).json({ error: "failed to fetch availability" });
   }
 });
 
+// Helper function to format date as YYYY-MM-DD
+function formatDateYYYYMMDD(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// Helper function to format time as HH:MM
+function formatTime(date) {
+  const h = String(date.getHours()).padStart(2, "0");
+  const m = String(date.getMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
+function addDaysYmd(ymd, days) {
+  const base = new Date(`${ymd}T00:00:00.000+08:00`);
+  base.setDate(base.getDate() + days);
+  return base.toISOString().slice(0, 10); // NOTE: still UTC string, but date part works for +08 midnight
+}
+
+function ymdFromClinicDate(d) {
+  // Convert a Date (stored in DB) into Mongolia day key
+  // Use +08:00 by shifting milliseconds
+  const ms = d.getTime() + 8 * 60 * 60 * 1000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
 export default router;
