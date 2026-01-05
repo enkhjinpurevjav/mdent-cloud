@@ -26,6 +26,7 @@ type Patient = {
   branch?: Branch | null;
 };
 
+
 type PatientBook = {
   id: number;
   bookNumber: string;
@@ -155,6 +156,19 @@ type EditableDiagnosis = EncounterDiagnosisRow & {
   searchText?: string;
   serviceSearchText?: string;
   locked?: boolean;
+  // NEW: sterilization UI state (no quantity)
+  indicatorSearchText?: string;
+  indicatorIds?: number[];
+};
+
+type ActiveIndicator = {
+  id: number;
+  packageName: string;
+  code: string;
+  current: number;
+  produced: number;
+  used: number;
+  indicatorDate: string;
 };
 
 type EditablePrescriptionItem = {
@@ -540,6 +554,8 @@ export default function EncounterAdminPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>([]);
+  const [openIndicatorIndex, setOpenIndicatorIndex] = useState<number | null>(null);
 
   const [services, setServices] = useState<Service[]>([]);
   const [serviceFilterBranchId, setServiceFilterBranchId] = useState<
@@ -791,8 +807,14 @@ export default function EncounterAdminPage() {
               : "",
             serviceSearchText: "",
             locked: true,
+            indicatorIds: Array.isArray((row as any).sterilizationIndicators)
+  ? (row as any).sterilizationIndicators.map((x: any) => x.indicatorId).filter(Boolean)
+  : [],
+indicatorSearchText: "",
           })) || [];
         setEditableDxRows(dxRows);
+
+        
 
         const svcRows: EncounterService[] =
           enc.encounterServices?.map((row) => ({
@@ -960,6 +982,12 @@ export default function EncounterAdminPage() {
     }
   };
 
+
+const patientBranchId = enc?.patientBook?.patient?.branchId;
+if (patientBranchId) {
+  await loadActiveIndicators(patientBranchId);
+}
+  
   const reloadMedia = async () => {
     if (!id || typeof id !== "string") return;
     try {
@@ -1363,6 +1391,21 @@ const removeDiagnosisRow = (index: number) => {
           encounterDiagnoses: json,
         });
       }
+
+
+      const loadActiveIndicators = async (branchId: number) => {
+  try {
+    const res = await fetch(`/api/sterilization/indicators/active?branchId=${branchId}`);
+    const json = await res.json().catch(() => []);
+    if (res.ok && Array.isArray(json)) {
+      setActiveIndicators(json);
+    } else {
+      setActiveIndicators([]);
+    }
+  } catch {
+    setActiveIndicators([]);
+  }
+};
 
       // Update local state with saved data from server
       // All rows returned from server have been saved and should be locked
@@ -5681,6 +5724,190 @@ setRows(mergedRows);
                       </>
                     ) : null}
 
+
+{/* Sterilization indicators (between Service and Note) */}
+<div style={{ marginBottom: 8, position: "relative" }}>
+  <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
+    Ариутгалын багц (идэвхитэй индикатор)
+  </div>
+
+  {/* selected list */}
+  {(row.indicatorIds || []).length > 0 && (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
+      {(row.indicatorIds || []).map((iid) => {
+        const ind = activeIndicators.find((x) => x.id === iid);
+        const label = ind ? `${ind.packageName} ${ind.code}` : `#${iid}`;
+        return (
+          <div
+            key={iid}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "4px 8px",
+              borderRadius: 999,
+              border: "1px solid #d1d5db",
+              background: "#ffffff",
+              fontSize: 12,
+              opacity: isLocked ? 0.6 : 1,
+            }}
+          >
+            <span>{label}</span>
+            {!isLocked && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRows((prev) =>
+                    prev.map((r, i) =>
+                      i === index
+                        ? { ...r, indicatorIds: (r.indicatorIds || []).filter((x) => x !== iid) }
+                        : r
+                    )
+                  );
+                  setEditableDxRows((prev) =>
+                    prev.map((r, i) =>
+                      i === index
+                        ? { ...r, indicatorIds: (r.indicatorIds || []).filter((x) => x !== iid) }
+                        : r
+                    )
+                  );
+                }}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  color: "#dc2626",
+                  fontWeight: 700,
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  )}
+
+  {/* input + plus */}
+  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+    <div style={{ position: "relative", minWidth: 260, flex: "0 0 auto" }}>
+      <input
+        placeholder="Багцын нэр эсвэл кодоор хайх..."
+        value={row.indicatorSearchText ?? ""}
+        onChange={(e) => {
+          if (isLocked) return;
+          const text = e.target.value;
+          setOpenIndicatorIndex(index);
+          setRows((prev) => prev.map((r, i) => (i === index ? { ...r, indicatorSearchText: text } : r)));
+          setEditableDxRows((prev) => prev.map((r, i) => (i === index ? { ...r, indicatorSearchText: text } : r)));
+        }}
+        onFocus={() => {
+          if (!isLocked) setOpenIndicatorIndex(index);
+        }}
+        disabled={isLocked}
+        style={{
+          width: "100%",
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "6px 8px",
+          fontSize: 13,
+          background: isLocked ? "#f3f4f6" : "#ffffff",
+          cursor: isLocked ? "not-allowed" : "text",
+          opacity: isLocked ? 0.6 : 1,
+        }}
+      />
+
+      {openIndicatorIndex === index && (row.indicatorSearchText || "").trim().length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            maxHeight: 220,
+            overflowY: "auto",
+            marginTop: 4,
+            background: "white",
+            borderRadius: 6,
+            boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
+            zIndex: 20,
+            fontSize: 13,
+          }}
+        >
+          {activeIndicators
+            .filter((it) => {
+              const q = (row.indicatorSearchText || "").toLowerCase();
+              if (!q.trim()) return true;
+              const hay = `${it.packageName} ${it.code}`.toLowerCase();
+              return hay.includes(q);
+            })
+            .slice(0, 50)
+            .map((it) => (
+              <div
+                key={it.id}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const next = Array.from(new Set([...(row.indicatorIds || []), it.id]));
+                  setRows((prev) =>
+                    prev.map((r, i) =>
+                      i === index ? { ...r, indicatorIds: next, indicatorSearchText: "" } : r
+                    )
+                  );
+                  setEditableDxRows((prev) =>
+                    prev.map((r, i) =>
+                      i === index ? { ...r, indicatorIds: next, indicatorSearchText: "" } : r
+                    )
+                  );
+                  setOpenIndicatorIndex(null);
+                }}
+                style={{
+                  padding: "6px 8px",
+                  cursor: "pointer",
+                  borderBottom: "1px solid #f3f4f6",
+                  background: (row.indicatorIds || []).includes(it.id) ? "#eff6ff" : "white",
+                }}
+              >
+                <div style={{ fontWeight: 500 }}>
+                  {it.packageName} — {it.code}
+                </div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+                  Үлдэгдэл: {it.current} (нийт {it.produced}, ашигласан {it.used})
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+
+    {/* + button just focuses/open list (selection adds to list) */}
+    <button
+      type="button"
+      disabled={isLocked}
+      onClick={() => {
+        if (isLocked) return;
+        setOpenIndicatorIndex(index);
+      }}
+      style={{
+        padding: "6px 10px",
+        borderRadius: 6,
+        border: "1px solid #d1d5db",
+        background: "#ffffff",
+        cursor: isLocked ? "not-allowed" : "pointer",
+        opacity: isLocked ? 0.6 : 1,
+        fontWeight: 700,
+      }}
+    >
+      +
+    </button>
+  </div>
+
+  <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+    * Зөвхөн тухайн өвчтөний салбарын идэвхитэй индикаторууд харагдана.
+  </div>
+</div>
+                    
                     <textarea
                       placeholder="Энэ оношид холбогдох тэмдэглэл (сонголттой)"
                       value={row.note}
