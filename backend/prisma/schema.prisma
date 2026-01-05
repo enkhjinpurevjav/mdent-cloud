@@ -532,16 +532,14 @@ model EncounterDiagnosis {
 }
 
 model EncounterDiagnosisSterilizationIndicator {
-  id                  Int @id @default(autoincrement())
+  id                   Int      @id @default(autoincrement())
   encounterDiagnosisId Int
   indicatorId          Int
-
   createdAt            DateTime @default(now())
 
   encounterDiagnosis   EncounterDiagnosis    @relation(fields: [encounterDiagnosisId], references: [id], onDelete: Cascade)
   indicator            SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
 
-  @@unique([encounterDiagnosisId, indicatorId])
   @@index([encounterDiagnosisId])
   @@index([indicatorId])
 }
