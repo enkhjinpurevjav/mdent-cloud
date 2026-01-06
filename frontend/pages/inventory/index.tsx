@@ -216,14 +216,18 @@ export default function InventoryPage() {
       if (!res.ok)
         throw new Error((data && data.error) || "Бараа нэмэхэд алдаа гарлаа.");
 
-      setNewProduct({
-        categoryId: "",
-        name: "",
-        code: "",
-        price: "",
-        isActive: true,
-      });
-      await loadProducts();
+      // better: keep category selection
+setNewProduct((prev) => ({
+  ...prev,
+  name: "",
+  code: "",
+  price: "",
+}));
+
+      setCategoryFilterId(""); // ✅ show all categories
+setProductQuery("");     // ✅ clear search
+      
+await loadProducts();
     } catch (e: any) {
       setProdError(e.message || "Бараа нэмэхэд алдаа гарлаа.");
     }
