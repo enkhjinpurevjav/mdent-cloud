@@ -7,10 +7,60 @@ const router = express.Router();
  * Helper: compute paid total from a list of payments.
  */
 function computePaidTotal(payments) {
-  return (payments || []).reduce(
-    (sum, p) => sum + Number(p.amount || 0),
-    0
+  return (payments || []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+}
+
+/**
+ * Helper: get branchId/patientId for financial + stock ops from an invoice object
+ * (Invoice.branchId and Invoice.patientId are nullable in schema).
+ */
+function getInvoiceBranchAndPatient(invoice) {
+  const patient = invoice?.encounter?.patientBook?.patient;
+  const branchId = invoice.branchId ?? patient?.branchId ?? null;
+  const patientId = invoice.patientId ?? patient?.id ?? null;
+  return { branchId, patientId };
+}
+
+/**
+ * Helper: create SALE stock movements once when invoice becomes fully paid.
+ *
+ * IMPORTANT:
+ * - Your original desired approach was "on paid LedgerEntry".
+ * - This settlement route currently creates Payment rows, not LedgerEntry rows.
+ * - Therefore idempotency here is keyed by invoiceId (type=SALE).
+ * - If you later create LedgerEntry in this route, you can key by ledgerEntryId instead.
+ */
+async function ensureSaleStockMovementsOnce(trx, invoice, invoiceId, methodStr) {
+  // Only create SALE movements if there are PRODUCT invoice items
+  const productItems = (invoice?.items || []).filter(
+    (it) => it.itemType === "PRODUCT" && it.productId && it.quantity
   );
+  if (productItems.length === 0) return;
+
+  const { branchId } = getInvoiceBranchAndPatient(invoice);
+  if (!branchId) {
+    // If branchId is missing, we cannot create valid movements
+    throw new Error("Cannot determine branchId for stock movement.");
+  }
+
+  // Idempotency: if we already created SALE movements for this invoice, do nothing
+  const already = await trx.productStockMovement.findFirst({
+    where: { invoiceId: invoiceId, type: "SALE" },
+    select: { id: true },
+  });
+  if (already) return;
+
+  await trx.productStockMovement.createMany({
+    data: productItems.map((it) => ({
+      branchId,
+      productId: it.productId,
+      type: "SALE",
+      quantityDelta: -Math.abs(Math.trunc(it.quantity)),
+      invoiceId: invoiceId,
+      ledgerEntryId: null,
+      note: `Auto SALE on invoice paid (method=${methodStr})`,
+    })),
+  });
 }
 
 /**
@@ -128,7 +178,7 @@ router.post("/:id/settlement", async (req, res) => {
           }
 
           // 1) Deduct benefit balance
-          const updatedBenefit = await trx.employeeBenefit.update({
+          await trx.employeeBenefit.update({
             where: { id: benefit.id },
             data: {
               remainingAmount: {
@@ -148,7 +198,7 @@ router.post("/:id/settlement", async (req, res) => {
             },
           });
 
-          // 3) Create payment row
+          // 3) Create payment row (legacy Payment table)
           await trx.payment.create({
             data: {
               invoiceId,
@@ -174,7 +224,17 @@ router.post("/:id/settlement", async (req, res) => {
             statusLegacy = "unpaid";
           }
 
-          // 6) Optionally issue e-Barimt (same logic as below)
+          // ✅ NEW: If fully paid, decrement stock once (SALE movements)
+          if (paidTotal >= baseAmount) {
+            await ensureSaleStockMovementsOnce(
+              trx,
+              invoice,
+              invoiceId,
+              methodStr
+            );
+          }
+
+          // 6) Optionally issue e-Barimt
           let eBarimtReceipt = invoice.eBarimtReceipt;
           if (
             !hadEBarimt &&
@@ -242,10 +302,7 @@ router.post("/:id/settlement", async (req, res) => {
           })),
         });
       } catch (err) {
-        console.error(
-          "EMPLOYEE_BENEFIT settlement transaction error:",
-          err
-        );
+        console.error("EMPLOYEE_BENEFIT settlement transaction error:", err);
         return res
           .status(400)
           .json({ error: err.message || "Төлбөр бүртгэхэд алдаа гарлаа." });
@@ -256,7 +313,6 @@ router.post("/:id/settlement", async (req, res) => {
     // DEFAULT: other methods (CASH, QPAY, POS, TRANSFER, etc.)
     // ─────────────────────────────────────────────────────────────
 
-    // Create payment + update invoice in a transaction
     const updated = await prisma.$transaction(async (trx) => {
       // 1) Create new payment row
       await trx.payment.create({
@@ -282,6 +338,11 @@ router.post("/:id/settlement", async (req, res) => {
         statusLegacy = "partial";
       } else {
         statusLegacy = "unpaid";
+      }
+
+      // ✅ NEW: If fully paid, decrement stock once (SALE movements)
+      if (paidTotal >= baseAmount) {
+        await ensureSaleStockMovementsOnce(trx, invoice, invoiceId, methodStr);
       }
 
       // 4) Optionally issue e-Barimt if fully paid and requested and not already issued
@@ -353,9 +414,7 @@ router.post("/:id/settlement", async (req, res) => {
     });
   } catch (err) {
     console.error("POST /api/invoices/:id/settlement error:", err);
-    return res
-      .status(500)
-      .json({ error: "Failed to settle invoice payment." });
+    return res.status(500).json({ error: "Failed to settle invoice payment." });
   }
 });
 
