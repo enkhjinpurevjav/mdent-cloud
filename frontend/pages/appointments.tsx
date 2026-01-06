@@ -930,9 +930,8 @@ function AppointmentDetailsModal({
         />
       </div>
     )}
-  </div>
-)
-
+    </div>
+)}
                     
                   <div style={{ color: "#4b5563" }}>
                     <strong>Цаг захиалга:</strong>{" "}
