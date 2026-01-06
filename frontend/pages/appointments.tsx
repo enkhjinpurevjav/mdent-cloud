@@ -70,11 +70,17 @@ function groupByDate(appointments: Appointment[]) {
   for (const a of appointments) {
     const scheduled = a.scheduledAt;
     if (!scheduled) continue;
-    const key = scheduled.slice(0, 10);
+    const key = clinicYmdFromIso(scheduled);
     if (!map[key]) map[key] = [];
     map[key].push(a);
   }
   return map;
+}
+
+function getAppointmentDayKey(a: Appointment): string {
+  const scheduled = a.scheduledAt;
+  if (!scheduled || typeof scheduled !== "string") return "";
+  return clinicYmdFromIso(scheduled);
 }
 
 type DoctorScheduleDay = {
@@ -164,6 +170,18 @@ function formatPatientLabel(
   if (p.phone) parts.push(`📞 ${p.phone}`);
   return parts.join(" ");
 }
+
+// Add helper near other helpers
+function clinicYmdFromIso(iso: string): string {
+  const d = new Date(iso);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ulaanbaatar",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d); // YYYY-MM-DD
+}
+
 
 // frontend helper (already in your file)
 function formatGridShortLabel(a: Appointment): string {
@@ -260,11 +278,7 @@ function isOngoing(status: string) {
   return status === "ongoing";
 }
 
-function getAppointmentDayKey(a: Appointment): string {
-  const scheduled = a.scheduledAt;
-  if (!scheduled || typeof scheduled !== "string") return "";
-  return scheduled.slice(0, 10);
-}
+
 
 /**
  * Compute stable lanes (0 or 1) for all appointments for a doctor on a given day.
@@ -2010,7 +2024,12 @@ function AppointmentForm({
   onCreated,
   onBranchChange, // NEW
 }: AppointmentFormProps) {
-  const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+const todayStr = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Ulaanbaatar",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+}).format(new Date());
 
   const [form, setForm] = useState({
     patientQuery: "",
