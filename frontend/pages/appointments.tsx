@@ -3361,34 +3361,49 @@ useEffect(() => {
   loadRevenue();
 }, [filterDate, filterBranchId]);
   
-  // current time line
+  // current time line - Mongolia time aware, minute-based positioning
   useEffect(() => {
     const updateNow = () => {
       const now = new Date();
-      const todayStr = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Asia/Ulaanbaatar",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-}).format(new Date());
-      if (nowKey !== filterDate) {
+      const todayInMongolia = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Ulaanbaatar",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(now);
+      
+      // Only show red line if filterDate is today in Mongolia
+      if (todayInMongolia !== filterDate) {
         setNowPosition(null);
         return;
       }
 
-      const clamped = Math.min(
-        Math.max(now.getTime(), firstSlot.getTime()),
-        lastSlot.getTime()
-      );
-      const minutesFromStart = (clamped - firstSlot.getTime()) / 60000;
-      const pos = (minutesFromStart / totalMinutes) * columnHeightPx;
+      // Get current time in Mongolia as minutes since midnight
+      const nowFormatter = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Ulaanbaatar",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const nowTimeStr = nowFormatter.format(now); // "HH:MM"
+      const nowMinutes = minutesFromHHMM(nowTimeStr);
+
+      // Check if current time is within the visible grid
+      if (nowMinutes < gridStartMinutes || nowMinutes >= gridEndMinutes) {
+        setNowPosition(null);
+        return;
+      }
+
+      // Calculate position based on minute-based grid
+      const minutesFromGridStart = nowMinutes - gridStartMinutes;
+      const pos = (minutesFromGridStart / gridTotalMinutes) * columnHeightPx;
       setNowPosition(pos);
     };
 
     updateNow();
     const id = setInterval(updateNow, 60_000);
     return () => clearInterval(id);
-  }, [filterDate, firstSlot, lastSlot, totalMinutes, columnHeightPx]);
+  }, [filterDate, gridStartMinutes, gridEndMinutes, gridTotalMinutes, columnHeightPx]);
 
   // gridDoctors with fallback
   const gridDoctors: ScheduledDoctor[] = useMemo(() => {
@@ -4210,90 +4225,6 @@ const totalCompletedPatientsForDay = useMemo(() => {
     </div>
   );
 })}
-
-                    {/* Appointment blocks */}
-                    {doctorAppointments.map((a) => {
-                      const startMinAbs = minutesFromClinicIso(a.scheduledAt);
-const endMinAbs = a.endAt ? minutesFromClinicIso(a.endAt) : startMinAbs + SLOT_MINUTES;
-
-// clamp to visible grid window
-const clampedStartAbs = Math.max(startMinAbs, gridStartMinutes);
-const clampedEndAbs = Math.min(endMinAbs, gridEndMinutes);
-
-// outside visible grid -> don't render
-if (clampedEndAbs <= gridStartMinutes || clampedStartAbs >= gridEndMinutes) {
-  return null;
-}
-
-const top = ((clampedStartAbs - gridStartMinutes) / gridTotalMinutes) * columnHeightPx;
-const height = ((clampedEndAbs - clampedStartAbs) / gridTotalMinutes) * columnHeightPx;
-
-                      const lane = laneById[a.id] ?? 0;
-                      const hasOverlap = overlapsWithOther[a.id];
-                    
-
-                      const widthPercent = hasOverlap ? 50 : 100;
-                      const leftPercent = hasOverlap
-                        ? lane === 0
-                          ? 0
-                          : 50
-                        : 0;
-
-                      return (
-                        <div
-                          key={a.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDetailsModalState({
-                              open: true,
-                              doctor: doc,
-                              slotLabel: "",
-                              slotTime: "",
-                              date: filterDate,
-                              appointments: [a],
-                            });
-                          }}
-                          style={{
-                            position: "absolute",
-                            left: `${leftPercent}%`,
-                            width: `${widthPercent}%`,
-                            top,
-                            height: Math.max(height, 18),
-                            padding: "1px 3px",
-                            boxSizing: "border-box",
-                            backgroundColor: getStatusColor(a.status),
-                            borderRadius: 4,
-                            border: "1px solid rgba(0,0,0,0.08)",
-                            fontSize: 11,
-                            lineHeight: 1.2,
-                            color:
-                              a.status === "completed" ||
-                              a.status === "cancelled"
-                                ? "#ffffff"
-                                : "#111827",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            textAlign: "center",
-                            overflow: "hidden",
-                            wordBreak: "break-word",
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
-                            cursor: "pointer",
-                          }}
-                          title={`${formatPatientLabel(
-                            a.patient,
-                            a.patientId
-                          )} (${formatStatus(a.status)})`}
-                        >
-                          {`${formatGridShortLabel(a)} (${formatStatus(
-                            a.status
-                          )})`}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
             </div>
           </div>
         )}
