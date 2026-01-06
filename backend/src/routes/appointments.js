@@ -394,14 +394,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-/**
- * PATCH /api/appointments/:id
- *
- * Currently used to update status only (from Цагийн дэлгэрэнгүй modal).
- *
- * Body:
- *  - status (string, required; one of ALLOWED_STATUSES or uppercase equivalent)
- */
+// PATCH /api/appointments/:id  (status + optional notes)
 router.patch("/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -409,7 +402,7 @@ router.patch("/:id", async (req, res) => {
       return res.status(400).json({ error: "Invalid appointment id" });
     }
 
-    const { status } = req.body || {};
+    const { status, notes } = req.body || {};
     if (typeof status !== "string" || !status.trim()) {
       return res.status(400).json({ error: "status is required" });
     }
@@ -419,30 +412,38 @@ router.patch("/:id", async (req, res) => {
       return res.status(400).json({ error: "invalid status" });
     }
 
+    // notes is optional; allow clearing with empty string -> null
+    let nextNotes;
+    if (notes !== undefined) {
+      if (notes === null) nextNotes = null;
+      else if (typeof notes === "string") nextNotes = notes.trim() || null;
+      else {
+        return res
+          .status(400)
+          .json({ error: "notes must be a string or null" });
+      }
+    }
+
     const appt = await prisma.appointment.update({
       where: { id },
       data: {
         status: normalizedStatus,
+        ...(notes !== undefined ? { notes: nextNotes } : {}),
       },
       include: {
-        patient: {
-          include: {
-            patientBook: true,
-          },
-        },
+        patient: { include: { patientBook: true } },
         doctor: true,
         branch: true,
       },
     });
 
-    res.json(appt);
+    return res.json(appt);
   } catch (err) {
     console.error("Error updating appointment:", err);
     if (err.code === "P2025") {
-      // Prisma: record not found
       return res.status(404).json({ error: "appointment not found" });
     }
-    res.status(500).json({ error: "failed to update appointment" });
+    return res.status(500).json({ error: "failed to update appointment" });
   }
 });
 
