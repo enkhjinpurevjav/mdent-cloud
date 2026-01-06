@@ -9,6 +9,13 @@ import { useRouter } from "next/router";
 
 const SLOT_MINUTES = 30;
 
+// API base URL configuration
+// In production on mdent.cloud, use api.mdent.cloud; in dev, use relative path
+const API_BASE_URL = 
+  typeof window !== "undefined" && process.env.NEXT_PUBLIC_API_BASE_URL
+    ? process.env.NEXT_PUBLIC_API_BASE_URL
+    : "";
+
 // ========== TYPES ==========
 type Branch = {
   id: number;
@@ -207,6 +214,18 @@ function clinicYmdFromIso(iso: string): string {
     month: "2-digit",
     day: "2-digit",
   }).format(d); // YYYY-MM-DD
+}
+
+// Helper to normalize schedule day keys for robust date comparison
+// Backend may return ISO dates like "2024-01-15T00:00:00.000Z" or "YYYY-MM-DD"
+function scheduleDayKey(dateStr: string): string {
+  if (!dateStr || typeof dateStr !== "string") return "";
+  // If already in YYYY-MM-DD format (10 chars), return as-is
+  if (dateStr.length === 10 && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    return dateStr;
+  }
+  // Otherwise, try to parse as ISO and extract YYYY-MM-DD
+  return dateStr.slice(0, 10);
 }
 
 
@@ -459,7 +478,7 @@ function AppointmentDetailsModal({
     setError("");
 
     try {
-      const res = await fetch(`/api/appointments/${a.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/appointments/${a.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: editingStatus }),
@@ -500,7 +519,7 @@ function AppointmentDetailsModal({
   const handleStartEncounter = async (a: Appointment) => {
     try {
       setError("");
-      const res = await fetch(`/api/appointments/${a.id}/start-encounter`, {
+      const res = await fetch(`${API_BASE_URL}/api/appointments/${a.id}/start-encounter`, {
         method: "POST",
       });
 
@@ -530,7 +549,7 @@ function AppointmentDetailsModal({
   const handleViewEncounterForPayment = async (a: Appointment) => {
     try {
       setError("");
-      const res = await fetch(`/api/appointments/${a.id}/encounter`, {
+      const res = await fetch(`${API_BASE_URL}/api/appointments/${a.id}/encounter`, {
         method: "GET",
       });
 
@@ -1210,7 +1229,7 @@ const workingDoctors = scheduledDoctors.length
     const t = setTimeout(async () => {
       try {
         setPatientSearchLoading(true);
-        const url = `/api/patients?query=${encodeURIComponent(query)}`;
+        const url = `${API_BASE_URL}/api/patients?query=${encodeURIComponent(query)}`;
         const res = await fetch(url);
         const data = await res.json().catch(() => []);
 
@@ -1337,7 +1356,7 @@ if (quickPatientForm.gender) {
   payload.gender = quickPatientForm.gender;
 }
 
-      const res = await fetch("/api/patients", {
+      const res = await fetch(`${API_BASE_URL}/api/patients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -1447,7 +1466,7 @@ if (quickPatientForm.gender) {
 const endAtStr = `${form.date}T${form.endTime}:00+08:00`;
 
     try {
-      const res = await fetch("/api/appointments", {
+      const res = await fetch(`${API_BASE_URL}/api/appointments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2272,7 +2291,7 @@ const todayStr = new Intl.DateTimeFormat("en-CA", {
       try {
         setPatientSearchLoading(true);
 
-        const url = `/api/patients?query=${encodeURIComponent(query)}`;
+        const url = `${API_BASE_URL}/api/patients?query=${encodeURIComponent(query)}`;
         const res = await fetch(url);
         const data = await res.json().catch(() => []);
 
@@ -2452,7 +2471,7 @@ if (quickPatientForm.gender) {
   payload.gender = quickPatientForm.gender;
 }
 
-      const res = await fetch("/api/patients", {
+      const res = await fetch(`${API_BASE_URL}/api/patients`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -2580,7 +2599,7 @@ const endAtStr = `${form.date}T${form.endTime}:00+08:00`;
     }
 
     try {
-      const res = await fetch("/api/appointments", {
+      const res = await fetch(`${API_BASE_URL}/api/appointments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2634,7 +2653,7 @@ const endAtStr = `${form.date}T${form.endTime}:00+08:00`;
 
       const filtered = scheduledDoctors.filter((sd) =>
         (sd.schedules || []).some(
-          (s) => s.branchId === branchNum && s.date === dateForFilter
+          (s) => s.branchId === branchNum && scheduleDayKey(s.date) === dateForFilter
         )
       );
 
@@ -3262,8 +3281,8 @@ const workingDoctorsForFilter = scheduledDoctors.length
       try {
         setError("");
         const [branchesRes, doctorsRes] = await Promise.all([
-          fetch("/api/branches"),
-          fetch("/api/doctors"),
+          fetch(`${API_BASE_URL}/api/branches`),
+          fetch(`${API_BASE_URL}/api/doctors`),
         ]);
         const branchesData = await branchesRes.json().catch(() => []);
         const doctorsData = await doctorsRes.json().catch(() => []);
@@ -3286,7 +3305,7 @@ const workingDoctorsForFilter = scheduledDoctors.length
       if (filterBranchId) params.set("branchId", filterBranchId);
       if (filterDoctorId) params.set("doctorId", filterDoctorId);
 
-      const res = await fetch(`/api/appointments?${params.toString()}`);
+      const res = await fetch(`${API_BASE_URL}/api/appointments?${params.toString()}`);
       const data = await res.json().catch(() => []);
       if (!res.ok || !Array.isArray(data)) {
         throw new Error("failed");
@@ -3309,7 +3328,7 @@ const workingDoctorsForFilter = scheduledDoctors.length
       if (filterBranchId) params.set("branchId", filterBranchId);
       if (filterDate) params.set("date", filterDate);
 
-      const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
+      const res = await fetch(`${API_BASE_URL}/api/doctors/scheduled?${params.toString()}`);
       const data = await res.json().catch(() => []);
       if (!res.ok || !Array.isArray(data)) return;
       setScheduledDoctors(data);
@@ -3348,7 +3367,7 @@ useEffect(() => {
       if (filterDate) params.set("date", filterDate);
       if (filterBranchId) params.set("branchId", filterBranchId);
 
-      const res = await fetch(`/api/reports/daily-revenue?${params.toString()}`);
+      const res = await fetch(`${API_BASE_URL}/api/reports/daily-revenue?${params.toString()}`);
       if (!res.ok) {
         setDailyRevenue(null);
         return;
