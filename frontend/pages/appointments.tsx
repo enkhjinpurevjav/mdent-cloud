@@ -399,18 +399,18 @@ function AppointmentDetailsModal({
   if (!open) return null;
 
     const handleCancelEdit = () => {
-    setEditingId(null);
-    setEditingStatus("");
-    setEditingNote(a.notes || "");
-    setError("");
-  };
+  setEditingId(null);
+  setEditingStatus("");
+  setEditingNote("");   // ✅ clear, do NOT use a.notes here
+  setError("");
+};
 
   const handleStartEdit = (a: Appointment) => {
-    setEditingId(a.id);
-    setEditingStatus(a.status);
-    setEditingNote(a.notes || "");
-    setError("");
-  };
+  setEditingId(a.id);
+  setEditingStatus(a.status);
+  setEditingNote(a.notes || "");   // ✅ this is the right place to read a.notes
+  setError("");
+};
   
   const handleSaveStatus = async (a: Appointment) => {
   // if status didn't change AND note didn't change -> close edit
