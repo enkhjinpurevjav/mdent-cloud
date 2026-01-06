@@ -30,6 +30,7 @@ import diagnosesRouter from "./routes/diagnoses.js";
 import diagnosisProblemsRouter from "./routes/diagnosisProblems.js";
 import encounterDiagnosesRouter from "./routes/encounterDiagnoses.js";
 import receptionRoutes from "./routes/reception.js";
+import regnoRouter from "./routes/regno.js";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const app = express();
@@ -80,6 +81,7 @@ app.use("/api/services", servicesRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api/reports", reportsPatientBalancesRouter);
 app.use("/api", sterilizationRouter);
+app.use("/api/regno", regnoRouter);
 
 // mount employee benefit routes under /api/billing
 app.use("/api/billing", employeeBenefitsRouter);
