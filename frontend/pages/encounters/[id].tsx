@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import SignaturePad from "../../components/SignaturePad";
 
@@ -1099,11 +1099,13 @@ if (patientBranchId) {
   }, [showFollowUpScheduler]);
 
   // Load availability when dates/filters change
-  useEffect(() => {
-    if (showFollowUpScheduler && followUpDateFrom && followUpDateTo) {
-      void loadFollowUpAvailability();
-    }
-  }, [showFollowUpScheduler, followUpDateFrom, followUpDateTo, followUpSlotMinutes]);
+ useEffect(() => {
+  // Disabled old availability endpoint:
+  // it caused timezone shift + backend memory issues.
+  // if (showFollowUpScheduler && followUpDateFrom && followUpDateTo) {
+  //   void loadFollowUpAvailability();
+  // }
+}, [showFollowUpScheduler, followUpDateFrom, followUpDateTo, followUpSlotMinutes]);
 
   const formatDateYYYYMMDD = (date: Date) => {
     const y = date.getFullYear();
