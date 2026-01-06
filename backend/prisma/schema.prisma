@@ -126,6 +126,10 @@ model Branch {
   // NEW: products (retail) belong to a branch
   products          Product[]
 
+  // ✅ ADD THESE TWO LINES (back-relations)
+  productCategories     ProductCategory[]
+  productStockMovements ProductStockMovement[]
+
   // NEW: invoices created in this branch
   invoices          Invoice[]
 
@@ -134,7 +138,7 @@ model Branch {
 
   // NEW: employee voucher benefit pools in this branch
   employeeVouchers  EmployeeVoucher[]
-sterilizationIndicators SterilizationIndicator[] @relation("BranchSterilizationIndicators")
+  sterilizationIndicators SterilizationIndicator[] @relation("BranchSterilizationIndicators")
 }
 
 model EmployeeBenefit {
