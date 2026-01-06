@@ -572,4 +572,51 @@ router.get("/:id/encounter", async (req, res) => {
   }
 });
 
+
+// PATCH /api/appointments/:id
+router.patch("/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid appointment id" });
+    }
+
+    const { status, notes } = req.body || {};
+    if (typeof status !== "string" || !status.trim()) {
+      return res.status(400).json({ error: "status is required" });
+    }
+
+    const normalizedStatus = normalizeStatusForDb(status);
+    if (!normalizedStatus) {
+      return res.status(400).json({ error: "invalid status" });
+    }
+
+    // notes is optional; allow clearing with empty string -> null
+    let nextNotes;
+    if (notes !== undefined) {
+      if (notes === null) nextNotes = null;
+      else if (typeof notes === "string") nextNotes = notes.trim() || null;
+      else return res.status(400).json({ error: "notes must be a string or null" });
+    }
+
+    const appt = await prisma.appointment.update({
+      where: { id },
+      data: {
+        status: normalizedStatus,
+        ...(notes !== undefined ? { notes: nextNotes } : {}),
+      },
+      include: {
+        patient: { include: { patientBook: true } },
+        doctor: true,
+        branch: true,
+      },
+    });
+
+    res.json(appt);
+  } catch (err) {
+    console.error("Error updating appointment:", err);
+    if (err.code === "P2025") return res.status(404).json({ error: "appointment not found" });
+    res.status(500).json({ error: "failed to update appointment" });
+  }
+});
 export default router;
