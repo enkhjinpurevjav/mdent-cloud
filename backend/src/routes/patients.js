@@ -2,6 +2,7 @@ import express from "express";
 import prisma from "../db.js";
 import multer from "multer";          
 import path from "path";
+import { parseRegNo } from "../utils/regno.js";
 
 const router = express.Router();
 const uploadDir = process.env.MEDIA_UPLOAD_DIR || "/data/media";
@@ -68,16 +69,17 @@ router.get("/", async (_req, res) => {
 router.post("/", async (req, res) => {
   try {
     const {
-      ovog,
-      name,
-      regNo,
-      phone,
-      branchId,
-      bookNumber,
-      gender,
-      citizenship,
-      emergencyPhone,
-    } = req.body || {};
+  ovog,
+  name,
+  regNo,
+  phone,
+  branchId,
+  bookNumber,
+  gender,
+  birthDate,        // <-- add here
+  citizenship,
+  emergencyPhone,
+} = req.body || {};
 
     // Minimal required fields: name, phone, branchId
     if (!name || !phone || !branchId) {
@@ -106,17 +108,39 @@ router.post("/", async (req, res) => {
       }
     }
 
-    // Gender is optional, but if present must be "эр" or "эм"
-    let finalGender = null;
-    if (typeof gender === "string" && gender.trim() !== "") {
-      const g = gender.trim();
-      if (g !== "эр" && g !== "эм") {
-        return res
-          .status(400)
-          .json({ error: "gender must be 'эр' or 'эм' if provided" });
-      }
-      finalGender = g;
+    // Gender is optional...
+let finalGender = null;
+if (typeof gender === "string" && gender.trim() !== "") {
+  const g = gender.trim();
+  if (g !== "эр" && g !== "эм") {
+    return res.status(400).json({ error: "gender must be 'эр' or 'эм' if provided" });
+  }
+  finalGender = g;
+}
+
+// BirthDate is optional (YYYY-MM-DD), normalize similar to PATCH
+let finalBirthDate = null;
+if (birthDate) {
+  const d = new Date(birthDate);
+  if (Number.isNaN(d.getTime())) {
+    return res.status(400).json({
+      error: "Invalid birthDate format (expected YYYY-MM-DD)",
+    });
+  }
+  finalBirthDate = d;
+}
+    // derive from regNo only when missing (override-friendly)
+if (finalRegNo && (finalGender === null || finalBirthDate === null)) {
+  const parsed = parseRegNo(finalRegNo); // import this at top
+  if (parsed.isValid) {
+    if (finalGender === null) finalGender = parsed.gender;
+
+    if (finalBirthDate === null && parsed.birthDate) {
+      // safest:
+      finalBirthDate = new Date(`${parsed.birthDate}T00:00:00.000Z`);
     }
+  }
+}
 
     // Handle bookNumber (optional, auto-generate if blank)
     let finalBookNumber = bookNumber ? String(bookNumber).trim() : "";
@@ -164,6 +188,7 @@ router.post("/", async (req, res) => {
 
         // New optional fields
         gender: finalGender,
+        birthDate: finalBirthDate,
         citizenship: citizenship
           ? String(citizenship).trim()
           : undefined, // let Prisma default("Mongolian") apply when undefined
