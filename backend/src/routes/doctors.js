@@ -89,5 +89,12 @@ const end = new Date(`${date}T23:59:59.999+08:00`);
     res.status(500).json({ error: "failed to fetch scheduled doctors" });
   }
 });
+router.get("/", async (_req, res) => {
+  const doctors = await prisma.user.findMany({
+    where: { role: "doctor" }, // adjust if your schema differs
+    orderBy: [{ calendarOrder: "asc" }, { id: "asc" }],
+  });
+  res.json(doctors);
+});
 
 export default router;
