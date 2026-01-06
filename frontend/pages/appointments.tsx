@@ -387,9 +387,15 @@ function AppointmentDetailsModal({
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingStatus, setEditingStatus] = useState<string>("");
+  const [editingNote, setEditingNote] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-
+  
+  const needsExplanation =
+    editingStatus === "no_show" ||
+    editingStatus === "cancelled" ||
+    editingStatus === "other";
+  
   if (!open) return null;
 
   const handleStartEdit = (a: Appointment) => {
@@ -401,9 +407,17 @@ function AppointmentDetailsModal({
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditingStatus("");
+    setEditingNote(a.notes || "");
     setError("");
   };
 
+  const handleStartEdit = (a: Appointment) => {
+    setEditingId(a.id);
+    setEditingStatus(a.status);
+    setEditingNote(a.notes || "");
+    setError("");
+  };
+  
   const handleSaveStatus = async (a: Appointment) => {
     if (!editingStatus || editingStatus === a.status) {
       setEditingId(null);
@@ -829,73 +843,98 @@ function AppointmentDetailsModal({
                     </>
                   ) : (
                     // editing branch stays as-is
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        marginBottom: 4,
-                      }}
-                    >
-                      <label style={{ fontSize: 12 }}>
-                        Төлөв:
-                        <select
-                          value={editingStatus}
-                          onChange={(e) =>
-                            setEditingStatus(e.target.value)
-                          }
-                          style={{
-                            marginLeft: 4,
-                            borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            padding: "2px 6px",
-                            fontSize: 12,
-                          }}
-                        >
-                          <option value="booked">Захиалсан</option>
-<option value="confirmed">Баталгаажсан</option>
-<option value="online">Онлайн</option>
-<option value="ongoing">Явагдаж байна</option>
-<option value="ready_to_pay">Төлбөр төлөх</option>
-<option value="completed">Дууссан</option>
-<option value="no_show">Ирээгүй</option>
-<option value="cancelled">Цуцалсан</option>
-<option value="other">Бусад</option>
-                        </select>
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => handleSaveStatus(a)}
-                        disabled={saving}
-                        style={{
-                          fontSize: 11,
-                          padding: "2px 8px",
-                          borderRadius: 6,
-                          border: "none",
-                          background: "#16a34a",
-                          color: "white",
-                          cursor: saving ? "default" : "pointer",
-                        }}
-                      >
-                        {saving ? "Хадгалж байна..." : "Хадгалах"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCancelEdit}
-                        disabled={saving}
-                        style={{
-                          fontSize: 11,
-                          padding: "2px 8px",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          background: "#f9fafb",
-                          cursor: saving ? "default" : "pointer",
-                        }}
-                      >
-                        Болих
-                      </button>
-                    </div>
-                  )}
+                    <div style={{ marginBottom: 4 }}>
+    {/* Row: status + buttons (your existing code) */}
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+      }}
+    >
+      <label style={{ fontSize: 12 }}>
+        Төлөв:
+        <select
+          value={editingStatus}
+          onChange={(e) => setEditingStatus(e.target.value)}
+          style={{
+            marginLeft: 4,
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "2px 6px",
+            fontSize: 12,
+          }}
+        >
+          <option value="booked">Захиалсан</option>
+          <option value="confirmed">Баталгаажсан</option>
+          <option value="online">Онлайн</option>
+          <option value="ongoing">Явагдаж байна</option>
+          <option value="ready_to_pay">Төлбөр төлөх</option>
+          <option value="completed">Дууссан</option>
+          <option value="no_show">Ирээгүй</option>
+          <option value="cancelled">Цуцалсан</option>
+          <option value="other">Бусад</option>
+        </select>
+      </label>
+
+      <button
+        type="button"
+        onClick={() => handleSaveStatus(a)}
+        disabled={saving}
+        style={{
+          fontSize: 11,
+          padding: "2px 8px",
+          borderRadius: 6,
+          border: "none",
+          background: "#16a34a",
+          color: "white",
+          cursor: saving ? "default" : "pointer",
+        }}
+      >
+        {saving ? "Хадгалж байна..." : "Хадгалах"}
+      </button>
+
+      <button
+        type="button"
+        onClick={handleCancelEdit}
+        disabled={saving}
+        style={{
+          fontSize: 11,
+          padding: "2px 8px",
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          background: "#f9fafb",
+          cursor: saving ? "default" : "pointer",
+        }}
+      >
+        Болих
+      </button>
+    </div>
+
+    {/* ✅ Add this EXACT block right here, under the row */}
+    {needsExplanation && (
+      <div style={{ marginTop: 6 }}>
+        <label style={{ fontSize: 12, display: "block", marginBottom: 4 }}>
+          Тайлбар (заавал биш)
+        </label>
+        <textarea
+          value={editingNote}
+          onChange={(e) => setEditingNote(e.target.value)}
+          placeholder="Ж: Өвчтөн ирээгүй, утас нь салгаатай байсан..."
+          style={{
+            width: "100%",
+            minHeight: 60,
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+            fontSize: 12,
+            resize: "vertical",
+          }}
+        />
+      </div>
+    )}
+  </div>
+)
 
                     
                   <div style={{ color: "#4b5563" }}>
