@@ -14,16 +14,16 @@ const router = express.Router();
 const ALLOWED_STATUSES = [
   "booked",
   "confirmed",
+  "online",
   "ongoing",
   "ready_to_pay", // Төлбөр төлөхөд бэлэн
   "completed",
   "cancelled",
+  "no_show",
+  "other",
 ];
 
-/**
- * Normalize frontend status (e.g. "BOOKED", "READY_TO_PAY") to DB value
- * (e.g. "booked", "ready_to_pay").
- */
+// AFTER (add online + no_show + other)
 function normalizeStatusForDb(raw) {
   if (!raw) return undefined;
   const v = String(raw).trim().toLowerCase();
@@ -32,19 +32,38 @@ function normalizeStatusForDb(raw) {
     case "booked":
     case "pending":
       return "booked";
+
     case "confirmed":
       return "confirmed";
+
+    case "online":
+      return "online";
+
     case "ongoing":
       return "ongoing";
+
     case "ready_to_pay":
     case "readytopay":
     case "ready-to-pay":
       return "ready_to_pay";
+
     case "completed":
       return "completed";
+
     case "cancelled":
     case "canceled":
       return "cancelled";
+
+    case "no_show":
+    case "noshow":
+    case "no-show":
+    case "no show":
+      return "no_show";
+
+    case "other":
+    case "others":
+      return "other";
+
     default:
       return undefined;
   }
