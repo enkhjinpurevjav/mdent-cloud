@@ -77,10 +77,31 @@ function groupByDate(appointments: Appointment[]) {
   return map;
 }
 
+function clinicDayFromClinicIso(iso: string): string {
+  // backend returns YYYY-MM-DDTHH:mm:ss+08:00
+  return typeof iso === "string" && iso.length >= 10 ? iso.slice(0, 10) : "";
+}
+
+function clinicHHMMFromClinicIso(iso: string): string {
+  return typeof iso === "string" && iso.length >= 16 ? iso.slice(11, 16) : "";
+}
+
+function minutesFromHHMM(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+  return h * 60 + m;
+}
+
+function minutesFromClinicIso(iso: string): number {
+  // backend returns "YYYY-MM-DDTHH:mm:ss+08:00"
+  const hhmm = clinicHHMMFromClinicIso(iso);
+  return minutesFromHHMM(hhmm);
+}
+
 function getAppointmentDayKey(a: Appointment): string {
   const scheduled = a.scheduledAt;
   if (!scheduled || typeof scheduled !== "string") return "";
-  return clinicYmdFromIso(scheduled);
+  return clinicDayFromClinicIso(scheduled);
 }
 
 type DoctorScheduleDay = {
@@ -2363,8 +2384,8 @@ const todayStr = new Intl.DateTimeFormat("en-CA", {
           ? new Date(a.endAt)
           : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
 
-      const dayStr = start.toISOString().slice(0, 10);
-      if (dayStr !== form.date) return false;
+     const dayStr = getAppointmentDayKey(a);
+if (dayStr !== form.date) return false;
 
       return start < slotEnd && end > slotStart;
     }).length;
@@ -3176,7 +3197,12 @@ export default function AppointmentsPage() {
   const branchIdFromQuery =
     typeof router.query.branchId === "string" ? router.query.branchId : "";
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Ulaanbaatar",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+}).format(new Date());
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -3296,7 +3322,12 @@ const workingDoctorsForFilter = scheduledDoctors.length
     () => generateTimeSlotsForDay(selectedDay),
     [selectedDay]
   );
-
+const gridStartMinutes = minutesFromHHMM(timeSlots[0]?.label || "09:00");
+const gridEndMinutes =
+  minutesFromHHMM(timeSlots[timeSlots.length - 1]?.label || "21:00") +
+  SLOT_MINUTES;
+const gridTotalMinutes = Math.max(1, gridEndMinutes - gridStartMinutes);
+  
   const firstSlot = timeSlots[0]?.start ?? selectedDay;
   const lastSlot = timeSlots[timeSlots.length - 1]?.end ?? selectedDay;
   const totalMinutes =
@@ -3334,7 +3365,12 @@ useEffect(() => {
   useEffect(() => {
     const updateNow = () => {
       const now = new Date();
-      const nowKey = now.toISOString().slice(0, 10);
+      const todayStr = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Ulaanbaatar",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+}).format(new Date());
       if (nowKey !== filterDate) {
         setNowPosition(null);
         return;
@@ -3945,8 +3981,7 @@ const totalCompletedPatientsForDay = useMemo(() => {
                 }}
               >
                 {timeSlots.map((slot, index) => {
-                  const slotStartMin =
-                    (slot.start.getTime() - firstSlot.getTime()) / 60000;
+                  const slotStartMin = minutesFromHHMM(slot.label) - gridStartMinutes; // 0, 30, 60, ...
                   const slotHeight =
                     (SLOT_MINUTES / totalMinutes) * columnHeightPx;
 
@@ -3975,191 +4010,227 @@ const totalCompletedPatientsForDay = useMemo(() => {
               </div>
 
               {/* Doctor columns */}
-              {gridDoctors.map((doc) => {
-                const doctorAppointments = appointments.filter(
-                  (a) =>
-                    a.doctorId === doc.id &&
-                    getAppointmentDayKey(a) === filterDate &&
-                    a.status !== "cancelled"
-                );
+{gridDoctors.map((doc) => {
+  const doctorAppointments = appointments.filter(
+    (a) =>
+      a.doctorId === doc.id &&
+      getAppointmentDayKey(a) === filterDate &&
+      a.status !== "cancelled"
+  );
 
-                const handleCellClick = (
-                  clickedMinutes: number,
-                  existingApps: Appointment[]
-                ) => {
-                  const slotTime = new Date(
-                    firstSlot.getTime() + clickedMinutes * 60000
-                  );
-                  const slotTimeStr = getSlotTimeString(slotTime);
+  const handleCellClick = (clickedMinutesFromGridStart: number, existingApps: Appointment[]) => {
+    // clickedMinutesFromGridStart is 0,30,60...
+    const slotMinutesAbs = gridStartMinutes + clickedMinutesFromGridStart;
+    const slotHH = Math.floor(slotMinutesAbs / 60);
+    const slotMM = slotMinutesAbs % 60;
+    const slotTimeStr = `${pad2(slotHH)}:${pad2(slotMM)}`;
 
-                  const validApps = existingApps.filter(
-                    (a) =>
-                      a.doctorId === doc.id &&
-                      getAppointmentDayKey(a) === filterDate
-                  );
+    const validApps = existingApps.filter(
+      (a) => a.doctorId === doc.id && getAppointmentDayKey(a) === filterDate
+    );
 
-                  if (validApps.length === 2) {
-                    setDetailsModalState({
-                      open: true,
-                      doctor: doc,
-                      slotLabel: slotTimeStr,
-                      slotTime: slotTimeStr,
-                      date: filterDate,
-                      appointments: validApps,
-                    });
-                  } else {
-                    setQuickModalState({
-                      open: true,
-                      doctorId: doc.id,
-                      date: filterDate,
-                      time: slotTimeStr,
-                    });
-                  }
-                };
+    if (validApps.length === 2) {
+      setDetailsModalState({
+        open: true,
+        doctor: doc,
+        slotLabel: slotTimeStr,
+        slotTime: slotTimeStr,
+        date: filterDate,
+        appointments: validApps,
+      });
+    } else {
+      setQuickModalState({
+        open: true,
+        doctorId: doc.id,
+        date: filterDate,
+        time: slotTimeStr,
+      });
+    }
+  };
 
-                // Precompute overlaps for this doctor's appointments
-                const overlapsWithOther: Record<number, boolean> = {};
-                for (let i = 0; i < doctorAppointments.length; i++) {
-                  const a = doctorAppointments[i];
-                  const aStart = new Date(a.scheduledAt).getTime();
-                  const aEnd =
-                    a.endAt &&
-                    !Number.isNaN(new Date(a.endAt).getTime())
-                      ? new Date(a.endAt).getTime()
-                      : aStart + SLOT_MINUTES * 60 * 1000;
+  // Overlap detection should be based on clinic minutes (not Date)
+  const overlapsWithOther: Record<number, boolean> = {};
+  for (let i = 0; i < doctorAppointments.length; i++) {
+    const a = doctorAppointments[i];
+    const aStart = minutesFromClinicIso(a.scheduledAt);
+    const aEnd = a.endAt ? minutesFromClinicIso(a.endAt) : aStart + SLOT_MINUTES;
 
-                  overlapsWithOther[a.id] = false;
+    overlapsWithOther[a.id] = false;
 
-                  for (let j = 0; j < doctorAppointments.length; j++) {
-                    if (i === j) continue;
-                    const b = doctorAppointments[j];
-                    const bStart = new Date(b.scheduledAt).getTime();
-                    const bEnd =
-                      b.endAt &&
-                      !Number.isNaN(new Date(b.endAt).getTime())
-                        ? new Date(b.endAt).getTime()
-                        : bStart + SLOT_MINUTES * 60 * 1000;
+    for (let j = 0; j < doctorAppointments.length; j++) {
+      if (i === j) continue;
+      const b = doctorAppointments[j];
+      const bStart = minutesFromClinicIso(b.scheduledAt);
+      const bEnd = b.endAt ? minutesFromClinicIso(b.endAt) : bStart + SLOT_MINUTES;
 
-                    if (aStart < bEnd && aEnd > bStart) {
-                      overlapsWithOther[a.id] = true;
-                      break;
-                    }
-                  }
-                }
+      if (aStart < bEnd && aEnd > bStart) {
+        overlapsWithOther[a.id] = true;
+        break;
+      }
+    }
+  }
 
-                return (
-                  <div
-                    key={doc.id}
-                    style={{
-                      borderLeft: "1px solid #f0f0f0",
-                      position: "relative",
-                      height: columnHeightPx,
-                      backgroundColor: "#ffffff",
-                    }}
-                  >
-                    {/* background stripes & click areas */}
-                    {timeSlots.map((slot, index) => {
-                      const slotStartMin =
-                        (slot.start.getTime() - firstSlot.getTime()) / 60000;
-                      const slotHeight =
-                        (SLOT_MINUTES / totalMinutes) * columnHeightPx;
+  return (
+    <div
+      key={doc.id}
+      style={{
+        borderLeft: "1px solid #f0f0f0",
+        position: "relative",
+        height: columnHeightPx,
+        backgroundColor: "#ffffff",
+      }}
+    >
+      {/* background stripes & click areas */}
+      {timeSlots.map((slot, index) => {
+        // minutes from grid start: 0,30,60...
+        const clickedMinutesFromGridStart = minutesFromHHMM(slot.label) - gridStartMinutes;
 
-                      const slotTimeStr = getSlotTimeString(slot.start);
-                      const schedules = (doc as any).schedules || [];
-                      const isWorkingHour = schedules.some((s: any) =>
-                        isTimeWithinRange(
-                          slotTimeStr,
-                          s.startTime,
-                          s.endTime
-                        )
-                      );
-                      const weekdayIndex = slot.start.getDay();
-                      const isWeekend =
-                        weekdayIndex === 0 || weekdayIndex === 6;
-                      const isWeekendLunch =
-                        isWeekend &&
-                        isTimeWithinRange(slotTimeStr, "14:00", "15:00");
-                      const isNonWorking = !isWorkingHour || isWeekendLunch;
+        const slotHeight = (SLOT_MINUTES / gridTotalMinutes) * columnHeightPx;
 
-                      const appsInThisSlot = doctorAppointments.filter((a) => {
-                        const start = new Date(a.scheduledAt);
-                        if (Number.isNaN(start.getTime())) return false;
-                        const end =
-                          a.endAt &&
-                          !Number.isNaN(new Date(a.endAt).getTime())
-                            ? new Date(a.endAt)
-                            : new Date(
-                                start.getTime() + SLOT_MINUTES * 60 * 1000
-                              );
-                        return start < slot.end && end > slot.start;
-                      });
+        // Use slot.label (HH:MM) which is deterministic in your generator
+        const slotTimeStr = slot.label;
 
-                      return (
-                        <div
-                          key={index}
-                          onClick={() =>
-                            isNonWorking
-                              ? undefined
-                              : handleCellClick(slotStartMin, appsInThisSlot)
-                          }
-                          style={{
-                            position: "absolute",
-                            left: 0,
-                            right: 0,
-                            top:
-                              (slotStartMin / totalMinutes) *
-                              columnHeightPx,
-                            height: slotHeight,
-                            borderBottom: "1px solid #f0f0f0",
-                            backgroundColor: isNonWorking
-                              ? "#ffc26b"
-                              : index % 2 === 0
-                              ? "#ffffff"
-                              : "#fafafa",
-                            cursor: isNonWorking
-                              ? "not-allowed"
-                              : "pointer",
-                          }}
-                        />
-                      );
-                    })}
+        const schedules = (doc as any).schedules || [];
+        const isWorkingHour = schedules.some((s: any) =>
+          isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
+        );
+
+        const weekdayIndex = slot.start.getDay();
+        const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
+        const isWeekendLunch =
+          isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+
+        const isNonWorking = !isWorkingHour || isWeekendLunch;
+
+        // find apps overlapping this 30-min cell using minutes
+        const cellStartAbs = gridStartMinutes + clickedMinutesFromGridStart;
+        const cellEndAbs = cellStartAbs + SLOT_MINUTES;
+
+        const appsInThisSlot = doctorAppointments.filter((a) => {
+          const aStart = minutesFromClinicIso(a.scheduledAt);
+          const aEnd = a.endAt ? minutesFromClinicIso(a.endAt) : aStart + SLOT_MINUTES;
+          return aStart < cellEndAbs && aEnd > cellStartAbs;
+        });
+
+        return (
+          <div
+            key={index}
+            onClick={() =>
+              isNonWorking ? undefined : handleCellClick(clickedMinutesFromGridStart, appsInThisSlot)
+            }
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: (clickedMinutesFromGridStart / gridTotalMinutes) * columnHeightPx,
+              height: slotHeight,
+              borderBottom: "1px solid #f0f0f0",
+              backgroundColor: isNonWorking
+                ? "#ffc26b"
+                : index % 2 === 0
+                ? "#ffffff"
+                : "#fafafa",
+              cursor: isNonWorking ? "not-allowed" : "pointer",
+            }}
+          />
+        );
+      })}
+
+      {/* Appointment blocks */}
+      {doctorAppointments.map((a) => {
+        const startMinAbs = minutesFromClinicIso(a.scheduledAt);
+        const endMinAbs = a.endAt ? minutesFromClinicIso(a.endAt) : startMinAbs + SLOT_MINUTES;
+
+        // clamp to visible grid window
+        const clampedStartAbs = Math.max(startMinAbs, gridStartMinutes);
+        const clampedEndAbs = Math.min(endMinAbs, gridEndMinutes);
+
+        // outside visible grid -> don't render
+        if (clampedEndAbs <= gridStartMinutes || clampedStartAbs >= gridEndMinutes) {
+          return null;
+        }
+
+        const top =
+          ((clampedStartAbs - gridStartMinutes) / gridTotalMinutes) * columnHeightPx;
+        const height =
+          ((clampedEndAbs - clampedStartAbs) / gridTotalMinutes) * columnHeightPx;
+
+        const lane = laneById[a.id] ?? 0;
+        const hasOverlap = overlapsWithOther[a.id];
+
+        const widthPercent = hasOverlap ? 50 : 100;
+        const leftPercent = hasOverlap ? (lane === 0 ? 0 : 50) : 0;
+
+        return (
+          <div
+            key={a.id}
+            onClick={(e) => {
+              e.stopPropagation();
+              setDetailsModalState({
+                open: true,
+                doctor: doc,
+                slotLabel: "",
+                slotTime: "",
+                date: filterDate,
+                appointments: [a],
+              });
+            }}
+            style={{
+              position: "absolute",
+              left: `${leftPercent}%`,
+              width: `${widthPercent}%`,
+              top,
+              height: Math.max(height, 18),
+              padding: "1px 3px",
+              boxSizing: "border-box",
+              backgroundColor: getStatusColor(a.status),
+              borderRadius: 4,
+              border: "1px solid rgba(0,0,0,0.08)",
+              fontSize: 11,
+              lineHeight: 1.2,
+              color:
+                a.status === "completed" || a.status === "cancelled"
+                  ? "#ffffff"
+                  : "#111827",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              textAlign: "center",
+              overflow: "hidden",
+              wordBreak: "break-word",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+              cursor: "pointer",
+            }}
+            title={`${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(a.status)})`}
+          >
+            {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
+          </div>
+        );
+      })}
+    </div>
+  );
+})}
 
                     {/* Appointment blocks */}
                     {doctorAppointments.map((a) => {
-                      const start = new Date(a.scheduledAt);
-                      if (Number.isNaN(start.getTime())) return null;
-                      const end =
-                        a.endAt &&
-                        !Number.isNaN(new Date(a.endAt).getTime())
-                          ? new Date(a.endAt)
-                          : new Date(
-                              start.getTime() + SLOT_MINUTES * 60 * 1000
-                            );
+                      const startMinAbs = minutesFromClinicIso(a.scheduledAt);
+const endMinAbs = a.endAt ? minutesFromClinicIso(a.endAt) : startMinAbs + SLOT_MINUTES;
 
-                      const clampedStart = new Date(
-                        Math.max(start.getTime(), firstSlot.getTime())
-                      );
-                      const clampedEnd = new Date(
-                        Math.min(end.getTime(), lastSlot.getTime())
-                      );
-                      const startMin =
-                        (clampedStart.getTime() - firstSlot.getTime()) /
-                        60000;
-                      const endMin =
-                        (clampedEnd.getTime() - firstSlot.getTime()) / 60000;
+// clamp to visible grid window
+const clampedStartAbs = Math.max(startMinAbs, gridStartMinutes);
+const clampedEndAbs = Math.min(endMinAbs, gridEndMinutes);
 
-                      if (endMin <= 0 || startMin >= totalMinutes) {
-                        return null;
-                      }
+// outside visible grid -> don't render
+if (clampedEndAbs <= gridStartMinutes || clampedStartAbs >= gridEndMinutes) {
+  return null;
+}
 
-                      const top =
-                        (startMin / totalMinutes) * columnHeightPx;
-                      const height =
-                        ((endMin - startMin) / totalMinutes) *
-                        columnHeightPx;
+const top = ((clampedStartAbs - gridStartMinutes) / gridTotalMinutes) * columnHeightPx;
+const height = ((clampedEndAbs - clampedStartAbs) / gridTotalMinutes) * columnHeightPx;
 
                       const lane = laneById[a.id] ?? 0;
                       const hasOverlap = overlapsWithOther[a.id];
+                    
 
                       const widthPercent = hasOverlap ? 50 : 100;
                       const leftPercent = hasOverlap
