@@ -9,10 +9,6 @@ import { useRouter } from "next/router";
 
 const SLOT_MINUTES = 30;
 
-// API base URL configuration
-// In production on mdent.cloud, use api.mdent.cloud; in dev, use relative path
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
-
 // ========== TYPES ==========
 type Branch = {
   id: number;
@@ -74,44 +70,11 @@ function groupByDate(appointments: Appointment[]) {
   for (const a of appointments) {
     const scheduled = a.scheduledAt;
     if (!scheduled) continue;
-    const key = clinicYmdFromIso(scheduled);
+    const key = scheduled.slice(0, 10);
     if (!map[key]) map[key] = [];
     map[key].push(a);
   }
   return map;
-}
-
-function clinicDayFromClinicIso(iso: string): string {
-  // backend returns YYYY-MM-DDTHH:mm:ss+08:00
-  return typeof iso === "string" && iso.length >= 10 ? iso.slice(0, 10) : "";
-}
-
-function clinicHHMMFromClinicIso(iso: string): string {
-  if (typeof iso !== "string") return "";
-  // supports both:
-  // "YYYY-MM-DDTHH:mm:ss+08:00"
-  // "YYYY-MM-DD HH:mm:ss"
-  // "YYYY-MM-DDTHH:mm:ss"
-  const m = iso.match(/(\d{2}):(\d{2})/);
-  return m ? `${m[1]}:${m[2]}` : "";
-}
-
-function minutesFromHHMM(hhmm: string): number {
-  const [h, m] = hhmm.split(":").map(Number);
-  if (Number.isNaN(h) || Number.isNaN(m)) return 0;
-  return h * 60 + m;
-}
-
-function minutesFromClinicIso(iso: string): number {
-  // backend returns "YYYY-MM-DDTHH:mm:ss+08:00"
-  const hhmm = clinicHHMMFromClinicIso(iso);
-  return minutesFromHHMM(hhmm);
-}
-
-function getAppointmentDayKey(a: Appointment): string {
-  const scheduled = a.scheduledAt;
-  if (!scheduled || typeof scheduled !== "string") return "";
-  return clinicDayFromClinicIso(scheduled);
 }
 
 type DoctorScheduleDay = {
@@ -202,42 +165,6 @@ function formatPatientLabel(
   return parts.join(" ");
 }
 
-// Add helper near other helpers
-function clinicYmdFromIso(iso: string): string {
-  const d = new Date(iso);
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Ulaanbaatar",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(d); // YYYY-MM-DD
-}
-
-// Helper to normalize schedule day keys for robust date comparison
-// Backend may return ISO dates like "2024-01-15T00:00:00.000Z" or "YYYY-MM-DD"
-function scheduleDayKey(dateStr: string): string {
-  if (!dateStr || typeof dateStr !== "string") return "";
-  
-  // If already in YYYY-MM-DD format (10 chars), return as-is
-  if (dateStr.length === 10 && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-    return dateStr;
-  }
-  
-  // Try to parse as ISO and extract YYYY-MM-DD
-  // This handles formats like "2024-01-15T00:00:00.000Z"
-  if (dateStr.length > 10 && dateStr.includes('-')) {
-    const extracted = dateStr.slice(0, 10);
-    // Validate extracted string is YYYY-MM-DD format
-    if (extracted.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      return extracted;
-    }
-  }
-  
-  // Fallback: return empty string for invalid dates
-  return "";
-}
-
-
 // frontend helper (already in your file)
 function formatGridShortLabel(a: Appointment): string {
   const p = a.patient as any;
@@ -315,20 +242,14 @@ function formatStatus(status: string): string {
       return "Захиалсан";
     case "confirmed":
       return "Баталгаажсан";
-    case "online":
-      return "Онлайн";
     case "ongoing":
       return "Явж байна";
     case "ready_to_pay":
       return "Төлбөр төлөх";
     case "completed":
       return "Дууссан";
-    case "no_show":
-      return "Ирээгүй";
     case "cancelled":
       return "Цуцалсан";
-    case "other":
-      return "Бусад";
     default:
       return status;
   }
@@ -339,7 +260,11 @@ function isOngoing(status: string) {
   return status === "ongoing";
 }
 
-
+function getAppointmentDayKey(a: Appointment): string {
+  const scheduled = a.scheduledAt;
+  if (!scheduled || typeof scheduled !== "string") return "";
+  return scheduled.slice(0, 10);
+}
 
 /**
  * Compute stable lanes (0 or 1) for all appointments for a doctor on a given day.
@@ -422,28 +347,23 @@ type AppointmentDetailsModalProps = {
 function formatDetailedTimeRange(start: Date, end: Date | null): string {
   if (Number.isNaN(start.getTime())) return "-";
 
-  const fmtDate = new Intl.DateTimeFormat("mn-MN", {
-    timeZone: "Asia/Ulaanbaatar",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-
-  const fmtTime = new Intl.DateTimeFormat("mn-MN", {
-    timeZone: "Asia/Ulaanbaatar",
+  const datePart = formatDateYmdDots(start);
+  const startTime = start.toLocaleTimeString("mn-MN", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
 
-  const datePart = fmtDate.format(start).replaceAll("-", "."); // if mn-MN returns with dashes
-  const startTime = fmtTime.format(start);
-
   if (!end || Number.isNaN(end.getTime())) {
     return `${datePart} ${startTime}`;
   }
 
-  const endTime = fmtTime.format(end);
+  const endTime = end.toLocaleTimeString("mn-MN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
   return `${datePart} ${startTime} – ${endTime}`;
 }
 
@@ -487,7 +407,7 @@ function AppointmentDetailsModal({
     setError("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/appointments/${a.id}`, {
+      const res = await fetch(`/api/appointments/${a.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: editingStatus }),
@@ -528,7 +448,7 @@ function AppointmentDetailsModal({
   const handleStartEncounter = async (a: Appointment) => {
     try {
       setError("");
-      const res = await fetch(`${API_BASE_URL}/api/appointments/${a.id}/start-encounter`, {
+      const res = await fetch(`/api/appointments/${a.id}/start-encounter`, {
         method: "POST",
       });
 
@@ -558,7 +478,7 @@ function AppointmentDetailsModal({
   const handleViewEncounterForPayment = async (a: Appointment) => {
     try {
       setError("");
-      const res = await fetch(`${API_BASE_URL}/api/appointments/${a.id}/encounter`, {
+      const res = await fetch(`/api/appointments/${a.id}/encounter`, {
         method: "GET",
       });
 
@@ -928,13 +848,12 @@ function AppointmentDetailsModal({
                         >
                           <option value="booked">Захиалсан</option>
                           <option value="confirmed">Баталгаажсан</option>
-                          <option value="online">Онлайн</option>
                           <option value="ongoing">Явагдаж байна</option>
-                          <option value="ready_to_pay">Төлбөр төлөх</option>
+                          <option value="ready_to_pay">
+                            Төлбөр төлөх
+                          </option>
                           <option value="completed">Дууссан</option>
-                          <option value="no_show">Ирээгүй</option>
                           <option value="cancelled">Цуцалсан</option>
-                          <option value="other">Бусад</option>
                         </select>
                       </label>
                       <button
@@ -1238,7 +1157,7 @@ const workingDoctors = scheduledDoctors.length
     const t = setTimeout(async () => {
       try {
         setPatientSearchLoading(true);
-        const url = `${API_BASE_URL}/api/patients?query=${encodeURIComponent(query)}`;
+        const url = `/api/patients?query=${encodeURIComponent(query)}`;
         const res = await fetch(url);
         const data = await res.json().catch(() => []);
 
@@ -1365,7 +1284,7 @@ if (quickPatientForm.gender) {
   payload.gender = quickPatientForm.gender;
 }
 
-      const res = await fetch(`${API_BASE_URL}/api/patients`, {
+      const res = await fetch("/api/patients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -1471,11 +1390,11 @@ if (quickPatientForm.gender) {
       return;
     }
 
-    const scheduledAtStr = `${form.date}T${form.startTime}:00+08:00`;
-const endAtStr = `${form.date}T${form.endTime}:00+08:00`;
+    const scheduledAtStr = start.toISOString();
+    const endAtStr = end.toISOString();
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/appointments`, {
+      const res = await fetch("/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1738,14 +1657,11 @@ const endAtStr = `${form.date}T${form.endTime}:00+08:00`;
               }}
             >
               <option value="booked">Захиалсан</option>
-<option value="confirmed">Баталгаажсан</option>
-<option value="online">Онлайн</option>
-<option value="ongoing">Явагдаж байна</option>
-<option value="ready_to_pay">Төлбөр төлөх</option>
-<option value="completed">Дууссан</option>
-<option value="no_show">Ирээгүй</option>
-<option value="cancelled">Цуцалсан</option>
-<option value="other">Бусад</option>
+  <option value="confirmed">Баталгаажсан</option>
+  <option value="ongoing">Явагдаж байна</option>
+  <option value="ready_to_pay">Төлбөр төлөх</option>
+  <option value="completed">Дууссан</option>
+  <option value="cancelled">Цуцалсан</option>
             </select>
           </div>
 
@@ -2094,12 +2010,7 @@ function AppointmentForm({
   onCreated,
   onBranchChange, // NEW
 }: AppointmentFormProps) {
-const todayStr = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Asia/Ulaanbaatar",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-}).format(new Date());
+  const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
   const [form, setForm] = useState({
     patientQuery: "",
@@ -2300,7 +2211,7 @@ const todayStr = new Intl.DateTimeFormat("en-CA", {
       try {
         setPatientSearchLoading(true);
 
-        const url = `${API_BASE_URL}/api/patients?query=${encodeURIComponent(query)}`;
+        const url = `/api/patients?query=${encodeURIComponent(query)}`;
         const res = await fetch(url);
         const data = await res.json().catch(() => []);
 
@@ -2418,8 +2329,8 @@ const todayStr = new Intl.DateTimeFormat("en-CA", {
           ? new Date(a.endAt)
           : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
 
-     const dayStr = getAppointmentDayKey(a);
-if (dayStr !== form.date) return false;
+      const dayStr = start.toISOString().slice(0, 10);
+      if (dayStr !== form.date) return false;
 
       return start < slotEnd && end > slotStart;
     }).length;
@@ -2480,7 +2391,7 @@ if (quickPatientForm.gender) {
   payload.gender = quickPatientForm.gender;
 }
 
-      const res = await fetch(`${API_BASE_URL}/api/patients`, {
+      const res = await fetch("/api/patients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -2582,8 +2493,8 @@ if (quickPatientForm.gender) {
       return;
     }
 
-   const scheduledAtStr = `${form.date}T${form.startTime}:00+08:00`;
-const endAtStr = `${form.date}T${form.endTime}:00+08:00`;
+    const scheduledAtStr = start.toISOString();
+    const endAtStr = end.toISOString();
     const scheduledAt = start;
 
     const patientId = selectedPatientId;
@@ -2608,7 +2519,7 @@ const endAtStr = `${form.date}T${form.endTime}:00+08:00`;
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/appointments`, {
+      const res = await fetch("/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -2662,7 +2573,7 @@ const endAtStr = `${form.date}T${form.endTime}:00+08:00`;
 
       const filtered = scheduledDoctors.filter((sd) =>
         (sd.schedules || []).some(
-          (s) => s.branchId === branchNum && scheduleDayKey(s.date) === dateForFilter
+          (s) => s.branchId === branchNum && s.date === dateForFilter
         )
       );
 
@@ -2917,14 +2828,11 @@ const endAtStr = `${form.date}T${form.endTime}:00+08:00`;
           }}
         >
           <option value="booked">Захиалсан</option>
-<option value="confirmed">Баталгаажсан</option>
-<option value="online">Онлайн</option>
-<option value="ongoing">Явагдаж байна</option>
-<option value="ready_to_pay">Төлбөр төлөх</option>
-<option value="completed">Дууссан</option>
-<option value="no_show">Ирээгүй</option>
-<option value="cancelled">Цуцалсан</option>
-<option value="other">Бусад</option>
+          <option value="confirmed">Баталгаажсан</option>
+          <option value="ongoing">Явагдаж байна</option>
+          <option value="ready_to_pay">Төлбөр төлөх</option>
+          <option value="completed">Дууссан</option>
+          <option value="cancelled">Цуцалсан</option>
         </select>
       </div>
 
@@ -3231,12 +3139,7 @@ export default function AppointmentsPage() {
   const branchIdFromQuery =
     typeof router.query.branchId === "string" ? router.query.branchId : "";
 
-  const todayStr = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Asia/Ulaanbaatar",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-}).format(new Date());
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -3290,8 +3193,8 @@ const workingDoctorsForFilter = scheduledDoctors.length
       try {
         setError("");
         const [branchesRes, doctorsRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/api/branches`),
-          fetch(`${API_BASE_URL}/api/doctors`),
+          fetch("/api/branches"),
+          fetch("/api/doctors"),
         ]);
         const branchesData = await branchesRes.json().catch(() => []);
         const doctorsData = await doctorsRes.json().catch(() => []);
@@ -3314,7 +3217,7 @@ const workingDoctorsForFilter = scheduledDoctors.length
       if (filterBranchId) params.set("branchId", filterBranchId);
       if (filterDoctorId) params.set("doctorId", filterDoctorId);
 
-      const res = await fetch(`${API_BASE_URL}/api/appointments?${params.toString()}`);
+      const res = await fetch(`/api/appointments?${params.toString()}`);
       const data = await res.json().catch(() => []);
       if (!res.ok || !Array.isArray(data)) {
         throw new Error("failed");
@@ -3337,7 +3240,7 @@ const workingDoctorsForFilter = scheduledDoctors.length
       if (filterBranchId) params.set("branchId", filterBranchId);
       if (filterDate) params.set("date", filterDate);
 
-      const res = await fetch(`${API_BASE_URL}/api/doctors/scheduled?${params.toString()}`);
+      const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
       const data = await res.json().catch(() => []);
       if (!res.ok || !Array.isArray(data)) return;
       setScheduledDoctors(data);
@@ -3356,12 +3259,7 @@ const workingDoctorsForFilter = scheduledDoctors.length
     () => generateTimeSlotsForDay(selectedDay),
     [selectedDay]
   );
-const gridStartMinutes = minutesFromHHMM(timeSlots[0]?.label || "09:00");
-const gridEndMinutes =
-  minutesFromHHMM(timeSlots[timeSlots.length - 1]?.label || "21:00") +
-  SLOT_MINUTES;
-const gridTotalMinutes = Math.max(1, gridEndMinutes - gridStartMinutes);
-  
+
   const firstSlot = timeSlots[0]?.start ?? selectedDay;
   const lastSlot = timeSlots[timeSlots.length - 1]?.end ?? selectedDay;
   const totalMinutes =
@@ -3376,7 +3274,7 @@ useEffect(() => {
       if (filterDate) params.set("date", filterDate);
       if (filterBranchId) params.set("branchId", filterBranchId);
 
-      const res = await fetch(`${API_BASE_URL}/api/reports/daily-revenue?${params.toString()}`);
+      const res = await fetch(`/api/reports/daily-revenue?${params.toString()}`);
       if (!res.ok) {
         setDailyRevenue(null);
         return;
@@ -3395,49 +3293,29 @@ useEffect(() => {
   loadRevenue();
 }, [filterDate, filterBranchId]);
   
-  // current time line - Mongolia time aware, minute-based positioning
+  // current time line
   useEffect(() => {
     const updateNow = () => {
       const now = new Date();
-      const todayInMongolia = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Ulaanbaatar",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(now);
-      
-      // Only show red line if filterDate is today in Mongolia
-      if (todayInMongolia !== filterDate) {
+      const nowKey = now.toISOString().slice(0, 10);
+      if (nowKey !== filterDate) {
         setNowPosition(null);
         return;
       }
 
-      // Get current time in Mongolia as minutes since midnight
-      const nowFormatter = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Ulaanbaatar",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      });
-      const nowTimeStr = nowFormatter.format(now); // "HH:MM"
-      const nowMinutes = minutesFromHHMM(nowTimeStr);
-
-      // Check if current time is within the visible grid
-      if (nowMinutes < gridStartMinutes || nowMinutes >= gridEndMinutes) {
-        setNowPosition(null);
-        return;
-      }
-
-      // Calculate position based on minute-based grid
-      const minutesFromGridStart = nowMinutes - gridStartMinutes;
-      const pos = (minutesFromGridStart / gridTotalMinutes) * columnHeightPx;
+      const clamped = Math.min(
+        Math.max(now.getTime(), firstSlot.getTime()),
+        lastSlot.getTime()
+      );
+      const minutesFromStart = (clamped - firstSlot.getTime()) / 60000;
+      const pos = (minutesFromStart / totalMinutes) * columnHeightPx;
       setNowPosition(pos);
     };
 
     updateNow();
     const id = setInterval(updateNow, 60_000);
     return () => clearInterval(id);
-  }, [filterDate, gridStartMinutes, gridEndMinutes, gridTotalMinutes, columnHeightPx]);
+  }, [filterDate, firstSlot, lastSlot, totalMinutes, columnHeightPx]);
 
   // gridDoctors with fallback
   const gridDoctors: ScheduledDoctor[] = useMemo(() => {
@@ -3576,27 +3454,21 @@ const totalCompletedPatientsForDay = useMemo(() => {
   };
 
   const getStatusColor = (status: string): string => {
-  switch (status) {
-    case "completed":
-      return "#fb6190";
-    case "confirmed":
-      return "#bbf7d0";
-    case "online":
-      return "#a78bfa"; // purple-ish
-    case "ongoing":
-      return "#9d9d9d";
-    case "ready_to_pay":
-      return "#facc15";
-    case "no_show":
-      return "#ef4444"; // red
-    case "cancelled":
-      return "#1889fc";
-    case "other":
-      return "#94a3b8"; // slate
-    default:
-      return "#77f9fe";
-  }
-};
+    switch (status) {
+      case "completed":
+        return "#fb6190";
+      case "confirmed":
+        return "#bbf7d0";
+      case "ongoing":
+        return "#9d9d9d";
+      case "ready_to_pay":
+        return "#facc15";
+      case "cancelled":
+        return "#1889fc";
+      default:
+        return "#77f9fe";
+    }
+  };
 
  return (
   <main
@@ -4021,242 +3893,293 @@ const totalCompletedPatientsForDay = useMemo(() => {
                 </div>
               )}
 
-{/* Time labels / background grid */}
-<div
-  style={{
-    borderRight: "1px solid #ddd",
-    position: "relative",
-    height: columnHeightPx,
-  }}
->
-  {timeSlots.map((slot, index) => {
-    const slotStartMin = minutesFromHHMM(slot.label) - gridStartMinutes; // 0, 30, 60...
-    const slotHeight = (SLOT_MINUTES / gridTotalMinutes) * columnHeightPx;
+              {/* Time labels / background grid */}
+              <div
+                style={{
+                  borderRight: "1px solid #ddd",
+                  position: "relative",
+                  height: columnHeightPx,
+                }}
+              >
+                {timeSlots.map((slot, index) => {
+                  const slotStartMin =
+                    (slot.start.getTime() - firstSlot.getTime()) / 60000;
+                  const slotHeight =
+                    (SLOT_MINUTES / totalMinutes) * columnHeightPx;
 
-    return (
-      <div
-        key={index}
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          top: (slotStartMin / gridTotalMinutes) * columnHeightPx,
-          height: slotHeight,
-          borderBottom: "1px solid #f0f0f0",
-          paddingLeft: 6,
-          display: "flex",
-          alignItems: "center",
-          fontSize: 11,
-          backgroundColor: index % 2 === 0 ? "#fafafa" : "#ffffff",
-        }}
-      >
-        {slot.label}
-      </div>
-    );
-  })}
-</div>
+                  return (
+                    <div
+                      key={index}
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        right: 0,
+                        top: (slotStartMin / totalMinutes) * columnHeightPx,
+                        height: slotHeight,
+                        borderBottom: "1px solid #f0f0f0",
+                        paddingLeft: 6,
+                        display: "flex",
+                        alignItems: "center",
+                        fontSize: 11,
+                        backgroundColor:
+                          index % 2 === 0 ? "#fafafa" : "#ffffff",
+                      }}
+                    >
+                      {slot.label}
+                    </div>
+                  );
+                })}
+              </div>
 
               {/* Doctor columns */}
-{gridDoctors.map((doc) => {
-  const doctorAppointments = appointments.filter(
-    (a) =>
-      a.doctorId === doc.id &&
-      getAppointmentDayKey(a) === filterDate &&
-      a.status !== "cancelled"
-  );
+              {gridDoctors.map((doc) => {
+                const doctorAppointments = appointments.filter(
+                  (a) =>
+                    a.doctorId === doc.id &&
+                    getAppointmentDayKey(a) === filterDate &&
+                    a.status !== "cancelled"
+                );
 
-  const handleCellClick = (clickedMinutesFromGridStart: number, existingApps: Appointment[]) => {
-    // clickedMinutesFromGridStart is 0,30,60...
-    const slotMinutesAbs = gridStartMinutes + clickedMinutesFromGridStart;
-    const slotHH = Math.floor(slotMinutesAbs / 60);
-    const slotMM = slotMinutesAbs % 60;
-    const slotTimeStr = `${pad2(slotHH)}:${pad2(slotMM)}`;
+                const handleCellClick = (
+                  clickedMinutes: number,
+                  existingApps: Appointment[]
+                ) => {
+                  const slotTime = new Date(
+                    firstSlot.getTime() + clickedMinutes * 60000
+                  );
+                  const slotTimeStr = getSlotTimeString(slotTime);
 
-    const validApps = existingApps.filter(
-      (a) => a.doctorId === doc.id && getAppointmentDayKey(a) === filterDate
-    );
+                  const validApps = existingApps.filter(
+                    (a) =>
+                      a.doctorId === doc.id &&
+                      getAppointmentDayKey(a) === filterDate
+                  );
 
-    if (validApps.length === 2) {
-      setDetailsModalState({
-        open: true,
-        doctor: doc,
-        slotLabel: slotTimeStr,
-        slotTime: slotTimeStr,
-        date: filterDate,
-        appointments: validApps,
-      });
-    } else {
-      setQuickModalState({
-        open: true,
-        doctorId: doc.id,
-        date: filterDate,
-        time: slotTimeStr,
-      });
-    }
-  };
+                  if (validApps.length === 2) {
+                    setDetailsModalState({
+                      open: true,
+                      doctor: doc,
+                      slotLabel: slotTimeStr,
+                      slotTime: slotTimeStr,
+                      date: filterDate,
+                      appointments: validApps,
+                    });
+                  } else {
+                    setQuickModalState({
+                      open: true,
+                      doctorId: doc.id,
+                      date: filterDate,
+                      time: slotTimeStr,
+                    });
+                  }
+                };
 
-  // Overlap detection should be based on clinic minutes (not Date)
-  const overlapsWithOther: Record<number, boolean> = {};
-  for (let i = 0; i < doctorAppointments.length; i++) {
-    const a = doctorAppointments[i];
-    const aStart = minutesFromClinicIso(a.scheduledAt);
-    const aEnd = a.endAt ? minutesFromClinicIso(a.endAt) : aStart + SLOT_MINUTES;
+                // Precompute overlaps for this doctor's appointments
+                const overlapsWithOther: Record<number, boolean> = {};
+                for (let i = 0; i < doctorAppointments.length; i++) {
+                  const a = doctorAppointments[i];
+                  const aStart = new Date(a.scheduledAt).getTime();
+                  const aEnd =
+                    a.endAt &&
+                    !Number.isNaN(new Date(a.endAt).getTime())
+                      ? new Date(a.endAt).getTime()
+                      : aStart + SLOT_MINUTES * 60 * 1000;
 
-    overlapsWithOther[a.id] = false;
+                  overlapsWithOther[a.id] = false;
 
-    for (let j = 0; j < doctorAppointments.length; j++) {
-      if (i === j) continue;
-      const b = doctorAppointments[j];
-      const bStart = minutesFromClinicIso(b.scheduledAt);
-      const bEnd = b.endAt ? minutesFromClinicIso(b.endAt) : bStart + SLOT_MINUTES;
+                  for (let j = 0; j < doctorAppointments.length; j++) {
+                    if (i === j) continue;
+                    const b = doctorAppointments[j];
+                    const bStart = new Date(b.scheduledAt).getTime();
+                    const bEnd =
+                      b.endAt &&
+                      !Number.isNaN(new Date(b.endAt).getTime())
+                        ? new Date(b.endAt).getTime()
+                        : bStart + SLOT_MINUTES * 60 * 1000;
 
-      if (aStart < bEnd && aEnd > bStart) {
-        overlapsWithOther[a.id] = true;
-        break;
-      }
-    }
-  }
+                    if (aStart < bEnd && aEnd > bStart) {
+                      overlapsWithOther[a.id] = true;
+                      break;
+                    }
+                  }
+                }
 
-  return (
-    <div
-      key={doc.id}
-      style={{
-        borderLeft: "1px solid #f0f0f0",
-        position: "relative",
-        height: columnHeightPx,
-        backgroundColor: "#ffffff",
-      }}
-    >
-      {/* background stripes & click areas */}
-      {timeSlots.map((slot, index) => {
-        // minutes from grid start: 0,30,60...
-        const clickedMinutesFromGridStart = minutesFromHHMM(slot.label) - gridStartMinutes;
+                return (
+                  <div
+                    key={doc.id}
+                    style={{
+                      borderLeft: "1px solid #f0f0f0",
+                      position: "relative",
+                      height: columnHeightPx,
+                      backgroundColor: "#ffffff",
+                    }}
+                  >
+                    {/* background stripes & click areas */}
+                    {timeSlots.map((slot, index) => {
+                      const slotStartMin =
+                        (slot.start.getTime() - firstSlot.getTime()) / 60000;
+                      const slotHeight =
+                        (SLOT_MINUTES / totalMinutes) * columnHeightPx;
 
-        const slotHeight = (SLOT_MINUTES / gridTotalMinutes) * columnHeightPx;
+                      const slotTimeStr = getSlotTimeString(slot.start);
+                      const schedules = (doc as any).schedules || [];
+                      const isWorkingHour = schedules.some((s: any) =>
+                        isTimeWithinRange(
+                          slotTimeStr,
+                          s.startTime,
+                          s.endTime
+                        )
+                      );
+                      const weekdayIndex = slot.start.getDay();
+                      const isWeekend =
+                        weekdayIndex === 0 || weekdayIndex === 6;
+                      const isWeekendLunch =
+                        isWeekend &&
+                        isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+                      const isNonWorking = !isWorkingHour || isWeekendLunch;
 
-        // Use slot.label (HH:MM) which is deterministic in your generator
-        const slotTimeStr = slot.label;
+                      const appsInThisSlot = doctorAppointments.filter((a) => {
+                        const start = new Date(a.scheduledAt);
+                        if (Number.isNaN(start.getTime())) return false;
+                        const end =
+                          a.endAt &&
+                          !Number.isNaN(new Date(a.endAt).getTime())
+                            ? new Date(a.endAt)
+                            : new Date(
+                                start.getTime() + SLOT_MINUTES * 60 * 1000
+                              );
+                        return start < slot.end && end > slot.start;
+                      });
 
-        const schedules = (doc as any).schedules || [];
-        const isWorkingHour = schedules.some((s: any) =>
-          isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
-        );
+                      return (
+                        <div
+                          key={index}
+                          onClick={() =>
+                            isNonWorking
+                              ? undefined
+                              : handleCellClick(slotStartMin, appsInThisSlot)
+                          }
+                          style={{
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            top:
+                              (slotStartMin / totalMinutes) *
+                              columnHeightPx,
+                            height: slotHeight,
+                            borderBottom: "1px solid #f0f0f0",
+                            backgroundColor: isNonWorking
+                              ? "#ffc26b"
+                              : index % 2 === 0
+                              ? "#ffffff"
+                              : "#fafafa",
+                            cursor: isNonWorking
+                              ? "not-allowed"
+                              : "pointer",
+                          }}
+                        />
+                      );
+                    })}
 
-        const weekdayIndex = slot.start.getDay();
-        const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
-        const isWeekendLunch =
-          isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+                    {/* Appointment blocks */}
+                    {doctorAppointments.map((a) => {
+                      const start = new Date(a.scheduledAt);
+                      if (Number.isNaN(start.getTime())) return null;
+                      const end =
+                        a.endAt &&
+                        !Number.isNaN(new Date(a.endAt).getTime())
+                          ? new Date(a.endAt)
+                          : new Date(
+                              start.getTime() + SLOT_MINUTES * 60 * 1000
+                            );
 
-        const isNonWorking = !isWorkingHour || isWeekendLunch;
+                      const clampedStart = new Date(
+                        Math.max(start.getTime(), firstSlot.getTime())
+                      );
+                      const clampedEnd = new Date(
+                        Math.min(end.getTime(), lastSlot.getTime())
+                      );
+                      const startMin =
+                        (clampedStart.getTime() - firstSlot.getTime()) /
+                        60000;
+                      const endMin =
+                        (clampedEnd.getTime() - firstSlot.getTime()) / 60000;
 
-        // find apps overlapping this 30-min cell using minutes
-        const cellStartAbs = gridStartMinutes + clickedMinutesFromGridStart;
-        const cellEndAbs = cellStartAbs + SLOT_MINUTES;
+                      if (endMin <= 0 || startMin >= totalMinutes) {
+                        return null;
+                      }
 
-        const appsInThisSlot = doctorAppointments.filter((a) => {
-          const aStart = minutesFromClinicIso(a.scheduledAt);
-          const aEnd = a.endAt ? minutesFromClinicIso(a.endAt) : aStart + SLOT_MINUTES;
-          return aStart < cellEndAbs && aEnd > cellStartAbs;
-        });
+                      const top =
+                        (startMin / totalMinutes) * columnHeightPx;
+                      const height =
+                        ((endMin - startMin) / totalMinutes) *
+                        columnHeightPx;
 
-        return (
-          <div
-            key={index}
-            onClick={() =>
-              isNonWorking ? undefined : handleCellClick(clickedMinutesFromGridStart, appsInThisSlot)
-            }
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              top: (clickedMinutesFromGridStart / gridTotalMinutes) * columnHeightPx,
-              height: slotHeight,
-              borderBottom: "1px solid #f0f0f0",
-              backgroundColor: isNonWorking
-                ? "#ffc26b"
-                : index % 2 === 0
-                ? "#ffffff"
-                : "#fafafa",
-              cursor: isNonWorking ? "not-allowed" : "pointer",
-            }}
-          />
-        );
-      })}
+                      const lane = laneById[a.id] ?? 0;
+                      const hasOverlap = overlapsWithOther[a.id];
 
-      {/* Appointment blocks */}
-      {doctorAppointments.map((a) => {
-        const startMinAbs = minutesFromClinicIso(a.scheduledAt);
-        const endMinAbs = a.endAt ? minutesFromClinicIso(a.endAt) : startMinAbs + SLOT_MINUTES;
+                      const widthPercent = hasOverlap ? 50 : 100;
+                      const leftPercent = hasOverlap
+                        ? lane === 0
+                          ? 0
+                          : 50
+                        : 0;
 
-        // clamp to visible grid window
-        const clampedStartAbs = Math.max(startMinAbs, gridStartMinutes);
-        const clampedEndAbs = Math.min(endMinAbs, gridEndMinutes);
-
-        // outside visible grid -> don't render
-        if (clampedEndAbs <= gridStartMinutes || clampedStartAbs >= gridEndMinutes) {
-          return null;
-        }
-
-        const top =
-          ((clampedStartAbs - gridStartMinutes) / gridTotalMinutes) * columnHeightPx;
-        const height =
-          ((clampedEndAbs - clampedStartAbs) / gridTotalMinutes) * columnHeightPx;
-
-        const lane = laneById[a.id] ?? 0;
-        const hasOverlap = overlapsWithOther[a.id];
-
-        const widthPercent = hasOverlap ? 50 : 100;
-        const leftPercent = hasOverlap ? (lane === 0 ? 0 : 50) : 0;
-
-        return (
-          <div
-            key={a.id}
-            onClick={(e) => {
-              e.stopPropagation();
-              setDetailsModalState({
-                open: true,
-                doctor: doc,
-                slotLabel: "",
-                slotTime: "",
-                date: filterDate,
-                appointments: [a],
-              });
-            }}
-            style={{
-              position: "absolute",
-              left: `${leftPercent}%`,
-              width: `${widthPercent}%`,
-              top,
-              height: Math.max(height, 18),
-              padding: "1px 3px",
-              boxSizing: "border-box",
-              backgroundColor: getStatusColor(a.status),
-              borderRadius: 4,
-              border: "1px solid rgba(0,0,0,0.08)",
-              fontSize: 11,
-              lineHeight: 1.2,
-              color:
-                a.status === "completed" || a.status === "cancelled"
-                  ? "#ffffff"
-                  : "#111827",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              textAlign: "center",
-              overflow: "hidden",
-              wordBreak: "break-word",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
-              cursor: "pointer",
-            }}
-            title={`${formatPatientLabel(a.patient, a.patientId)} (${formatStatus(a.status)})`}
-          >
-            {`${formatGridShortLabel(a)} (${formatStatus(a.status)})`}
-          </div>
-        );
-      })}
-    </div>
-  );
-})}
+                      return (
+                        <div
+                          key={a.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDetailsModalState({
+                              open: true,
+                              doctor: doc,
+                              slotLabel: "",
+                              slotTime: "",
+                              date: filterDate,
+                              appointments: [a],
+                            });
+                          }}
+                          style={{
+                            position: "absolute",
+                            left: `${leftPercent}%`,
+                            width: `${widthPercent}%`,
+                            top,
+                            height: Math.max(height, 18),
+                            padding: "1px 3px",
+                            boxSizing: "border-box",
+                            backgroundColor: getStatusColor(a.status),
+                            borderRadius: 4,
+                            border: "1px solid rgba(0,0,0,0.08)",
+                            fontSize: 11,
+                            lineHeight: 1.2,
+                            color:
+                              a.status === "completed" ||
+                              a.status === "cancelled"
+                                ? "#ffffff"
+                                : "#111827",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            textAlign: "center",
+                            overflow: "hidden",
+                            wordBreak: "break-word",
+                            boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+                            cursor: "pointer",
+                          }}
+                          title={`${formatPatientLabel(
+                            a.patient,
+                            a.patientId
+                          )} (${formatStatus(a.status)})`}
+                        >
+                          {`${formatGridShortLabel(a)} (${formatStatus(
+                            a.status
+                          )})`}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
