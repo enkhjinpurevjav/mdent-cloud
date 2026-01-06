@@ -260,14 +260,20 @@ function formatStatus(status: string): string {
       return "Захиалсан";
     case "confirmed":
       return "Баталгаажсан";
+    case "online":
+      return "Онлайн";
     case "ongoing":
       return "Явж байна";
     case "ready_to_pay":
       return "Төлбөр төлөх";
     case "completed":
       return "Дууссан";
+    case "no_show":
+      return "Ирээгүй";
     case "cancelled":
       return "Цуцалсан";
+    case "other":
+      return "Бусад";
     default:
       return status;
   }
@@ -862,12 +868,13 @@ function AppointmentDetailsModal({
                         >
                           <option value="booked">Захиалсан</option>
                           <option value="confirmed">Баталгаажсан</option>
+                          <option value="online">Онлайн</option>
                           <option value="ongoing">Явагдаж байна</option>
-                          <option value="ready_to_pay">
-                            Төлбөр төлөх
-                          </option>
+                          <option value="ready_to_pay">Төлбөр төлөх</option>
                           <option value="completed">Дууссан</option>
+                          <option value="no_show">Ирээгүй</option>
                           <option value="cancelled">Цуцалсан</option>
+                          <option value="other">Бусад</option>
                         </select>
                       </label>
                       <button
@@ -1671,11 +1678,14 @@ if (quickPatientForm.gender) {
               }}
             >
               <option value="booked">Захиалсан</option>
-  <option value="confirmed">Баталгаажсан</option>
-  <option value="ongoing">Явагдаж байна</option>
-  <option value="ready_to_pay">Төлбөр төлөх</option>
-  <option value="completed">Дууссан</option>
-  <option value="cancelled">Цуцалсан</option>
+<option value="confirmed">Баталгаажсан</option>
+<option value="online">Онлайн</option>
+<option value="ongoing">Явагдаж байна</option>
+<option value="ready_to_pay">Төлбөр төлөх</option>
+<option value="completed">Дууссан</option>
+<option value="no_show">Ирээгүй</option>
+<option value="cancelled">Цуцалсан</option>
+<option value="other">Бусад</option>
             </select>
           </div>
 
@@ -2847,11 +2857,14 @@ if (quickPatientForm.gender) {
           }}
         >
           <option value="booked">Захиалсан</option>
-          <option value="confirmed">Баталгаажсан</option>
-          <option value="ongoing">Явагдаж байна</option>
-          <option value="ready_to_pay">Төлбөр төлөх</option>
-          <option value="completed">Дууссан</option>
-          <option value="cancelled">Цуцалсан</option>
+<option value="confirmed">Баталгаажсан</option>
+<option value="online">Онлайн</option>
+<option value="ongoing">Явагдаж байна</option>
+<option value="ready_to_pay">Төлбөр төлөх</option>
+<option value="completed">Дууссан</option>
+<option value="no_show">Ирээгүй</option>
+<option value="cancelled">Цуцалсан</option>
+<option value="other">Бусад</option>
         </select>
       </div>
 
@@ -3473,21 +3486,27 @@ const totalCompletedPatientsForDay = useMemo(() => {
   };
 
   const getStatusColor = (status: string): string => {
-    switch (status) {
-      case "completed":
-        return "#fb6190";
-      case "confirmed":
-        return "#bbf7d0";
-      case "ongoing":
-        return "#9d9d9d";
-      case "ready_to_pay":
-        return "#facc15";
-      case "cancelled":
-        return "#1889fc";
-      default:
-        return "#77f9fe";
-    }
-  };
+  switch (status) {
+    case "completed":
+      return "#fb6190";
+    case "confirmed":
+      return "#bbf7d0";
+    case "online":
+      return "#a78bfa"; // purple-ish
+    case "ongoing":
+      return "#9d9d9d";
+    case "ready_to_pay":
+      return "#facc15";
+    case "no_show":
+      return "#ef4444"; // red
+    case "cancelled":
+      return "#1889fc";
+    case "other":
+      return "#94a3b8"; // slate
+    default:
+      return "#77f9fe";
+  }
+};
 
  return (
   <main
