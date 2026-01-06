@@ -100,30 +100,6 @@ enum EmployeeVoucherStatus {
 }
 
 
-model Product {
-  id           Int          @id @default(autoincrement())
-  branchId     Int
-  categoryId   Int
-
-  code         String?      @unique
-  name         String
-  price        Float
-  isActive     Boolean      @default(true)
-  description  String?
-
-  branch       Branch       @relation(fields: [branchId], references: [id])
-  category     ProductCategory @relation(fields: [categoryId], references: [id])
-
-  invoiceItems InvoiceItem[]
-  stockMovements ProductStockMovement[]
-
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-
-  @@index([branchId, isActive])
-  @@index([categoryId])
-}
-
 
 
 // ==========================================================
@@ -675,6 +651,23 @@ model ProductStockMovement {
   @@index([invoiceId])
   @@index([ledgerEntryId])
 }
+
+
+model ProductCategory {
+  id        Int      @id @default(autoincrement())
+  branchId  Int
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  products  Product[]
+
+  @@unique([branchId, name])
+  @@index([branchId])
+}
+
 
 // ==========================================================
 // PRESCRIPTIONS
