@@ -24,6 +24,7 @@ import sterilizationRouter from "./routes/sterilization.js";
 // FIX: use import instead of require
 import employeeBenefitsRouter from "./routes/employeeBenefits.js";
 import reportsPatientBalancesRouter from "./routes/reports-patient-balances.js";
+import inventoryRouter from "./routes/inventory.js";
 
 // NEW: diagnoses
 import diagnosesRouter from "./routes/diagnoses.js";
@@ -82,6 +83,7 @@ app.use("/api/reports", reportsRouter);
 app.use("/api/reports", reportsPatientBalancesRouter);
 app.use("/api", sterilizationRouter);
 app.use("/api/regno", regnoRouter);
+app.use("/api/inventory", inventoryRouter);
 
 // mount employee benefit routes under /api/billing
 app.use("/api/billing", employeeBenefitsRouter);
