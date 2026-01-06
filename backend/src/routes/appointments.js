@@ -540,6 +540,43 @@ router.post("/:id/start-encounter", async (req, res) => {
   }
 });
 
+// ... keep existing code above
+
+/**
+ * GET /api/appointments/:id/encounter
+ *
+ * Used by reception when appointment.status === "ready_to_pay"
+ * Returns the encounterId linked to this appointment.
+ */
+router.get("/:id/encounter", async (req, res) => {
+  try {
+    const apptId = Number(req.params.id);
+    if (!apptId || Number.isNaN(apptId)) {
+      return res.status(400).json({ error: "Invalid appointment id" });
+    }
+
+    // Find latest encounter for this appointment (in case of multiple)
+    const encounter = await prisma.encounter.findFirst({
+      where: { appointmentId: apptId },
+      orderBy: { id: "desc" },
+      select: { id: true },
+    });
+
+    if (!encounter) {
+      return res
+        .status(404)
+        .json({ error: "Encounter not found for this appointment" });
+    }
+
+    return res.json({ encounterId: encounter.id });
+  } catch (err) {
+    console.error("GET /api/appointments/:id/encounter error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to load encounter for appointment" });
+  }
+});
+
 
 
 
