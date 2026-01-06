@@ -367,23 +367,28 @@ type AppointmentDetailsModalProps = {
 function formatDetailedTimeRange(start: Date, end: Date | null): string {
   if (Number.isNaN(start.getTime())) return "-";
 
-  const datePart = formatDateYmdDots(start);
-  const startTime = start.toLocaleTimeString("mn-MN", {
+  const fmtDate = new Intl.DateTimeFormat("mn-MN", {
+    timeZone: "Asia/Ulaanbaatar",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  const fmtTime = new Intl.DateTimeFormat("mn-MN", {
+    timeZone: "Asia/Ulaanbaatar",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
+
+  const datePart = fmtDate.format(start).replaceAll("-", "."); // if mn-MN returns with dashes
+  const startTime = fmtTime.format(start);
 
   if (!end || Number.isNaN(end.getTime())) {
     return `${datePart} ${startTime}`;
   }
 
-  const endTime = end.toLocaleTimeString("mn-MN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-
+  const endTime = fmtTime.format(end);
   return `${datePart} ${startTime} – ${endTime}`;
 }
 
@@ -1411,8 +1416,8 @@ if (quickPatientForm.gender) {
       return;
     }
 
-    const scheduledAtStr = start.toISOString();
-    const endAtStr = end.toISOString();
+    const scheduledAtStr = `${form.date}T${form.startTime}:00+08:00`;
+const endAtStr = `${form.date}T${form.endTime}:00+08:00`;
 
     try {
       const res = await fetch("/api/appointments", {
@@ -2522,8 +2527,8 @@ if (quickPatientForm.gender) {
       return;
     }
 
-    const scheduledAtStr = start.toISOString();
-    const endAtStr = end.toISOString();
+   const scheduledAtStr = `${form.date}T${form.startTime}:00+08:00`;
+const endAtStr = `${form.date}T${form.endTime}:00+08:00`;
     const scheduledAt = start;
 
     const patientId = selectedPatientId;
