@@ -398,13 +398,7 @@ function AppointmentDetailsModal({
   
   if (!open) return null;
 
-  const handleStartEdit = (a: Appointment) => {
-    setEditingId(a.id);
-    setEditingStatus(a.status);
-    setError("");
-  };
-
-  const handleCancelEdit = () => {
+    const handleCancelEdit = () => {
     setEditingId(null);
     setEditingStatus("");
     setEditingNote(a.notes || "");
@@ -419,51 +413,54 @@ function AppointmentDetailsModal({
   };
   
   const handleSaveStatus = async (a: Appointment) => {
-    if (!editingStatus || editingStatus === a.status) {
-      setEditingId(null);
+  // if status didn't change AND note didn't change -> close edit
+  const currentNotes = a.notes || "";
+  if (
+    (!editingStatus || editingStatus === a.status) &&
+    editingNote === currentNotes
+  ) {
+    setEditingId(null);
+    return;
+  }
+
+  setSaving(true);
+  setError("");
+
+  try {
+    const payload: any = { status: editingStatus || a.status };
+
+    // only send notes for these statuses
+    if (needsExplanation) {
+      payload.notes = editingNote; // backend should trim/convert "" -> null
+    }
+
+    const res = await fetch(`/api/appointments/${a.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const text = await res.text().catch(() => "");
+    const data = text ? JSON.parse(text) : null;
+
+    if (!res.ok) {
+      setError((data && data.error) || `Төлөв шинэчлэхэд алдаа гарлаа (код ${res.status})`);
       return;
     }
-    setSaving(true);
-    setError("");
 
-    try {
-      const res = await fetch(`/api/appointments/${a.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: editingStatus }),
-      });
+    const updated = data as Appointment;
+    onStatusUpdated?.(updated);
 
-      let text: string | null = null;
-      let data: any = null;
-      try {
-        text = await res.text();
-        data = text ? JSON.parse(text) : null;
-      } catch {
-        data = null;
-      }
-
-      if (!res.ok) {
-        console.error("Update status failed", res.status, text);
-        setError(
-          (data && data.error) ||
-            `Төлөв шинэчлэхэд алдаа гарлаа (код ${res.status})`
-        );
-        setSaving(false);
-        return;
-      }
-
-      const updated = data as Appointment;
-      if (onStatusUpdated) onStatusUpdated(updated);
-
-      setEditingId(null);
-      setEditingStatus("");
-    } catch (e) {
-      console.error("Update status network error", e);
-      setError("Сүлжээгээ шалгана уу.");
-    } finally {
-      setSaving(false);
-    }
-  };
+    setEditingId(null);
+    setEditingStatus("");
+    setEditingNote("");
+  } catch (e) {
+    console.error("Update status network error", e);
+    setError("Сүлжээгээ шалгана уу.");
+  } finally {
+    setSaving(false);
+  }
+};
 
   const handleStartEncounter = async (a: Appointment) => {
     try {
