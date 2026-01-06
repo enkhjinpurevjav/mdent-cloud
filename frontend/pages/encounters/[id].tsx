@@ -273,6 +273,28 @@ function formatDateTime(iso: string) {
   return `${y}.${m}.${day} ${hh}:${mm}`;
 }
 
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function ymdLocal(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function addDays(d: Date, days: number) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + days);
+  return x;
+}
+
+function getTimeHHMM(d: Date) {
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+function isTimeWithinRangeStr(time: string, start: string, end: string) {
+  return time >= start && time < end;
+}
+
 function formatShortDate(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -752,6 +774,12 @@ export default function EncounterAdminPage() {
     }>;
     timeLabels: string[];
   } | null>(null);
+
+const [weekSchedules, setWeekSchedules] = useState<any[]>([]);
+const [weekAppointments, setWeekAppointments] = useState<any[]>([]);
+const [weekLoading, setWeekLoading] = useState(false);
+const [weekError, setWeekError] = useState("");
+ 
   const [followUpLoading, setFollowUpLoading] = useState(false);
   const [followUpError, setFollowUpError] = useState("");
   const [followUpBooking, setFollowUpBooking] = useState(false);
