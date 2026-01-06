@@ -540,41 +540,8 @@ router.post("/:id/start-encounter", async (req, res) => {
   }
 });
 
-/**
- * GET /api/appointments/:id/encounter
- *
- * Returns the latest Encounter ID linked to this appointment, if any.
- */
-router.get("/:id/encounter", async (req, res) => {
-  try {
-    const apptId = Number(req.params.id);
-    if (!apptId || Number.isNaN(apptId)) {
-      return res.status(400).json({ error: "Invalid appointment id" });
-    }
-
-    const encounter = await prisma.encounter.findFirst({
-      where: { appointmentId: apptId },
-      orderBy: { id: "desc" },
-      select: { id: true },
-    });
-
-    if (!encounter) {
-      return res
-        .status(404)
-        .json({ error: "Үзлэг олдсонгүй. Эмч үзлэг эхлүүлээгүй байна." });
-    }
-
-    return res.json({ encounterId: encounter.id });
-  } catch (err) {
-    console.error("GET /api/appointments/:id/encounter error:", err);
-    return res
-      .status(500)
-      .json({ error: "Үзлэгийн мэдээлэл авах үед алдаа гарлаа." });
-  }
-});
 
 
-// PATCH /api/appointments/:id
 router.patch("/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -592,7 +559,6 @@ router.patch("/:id", async (req, res) => {
       return res.status(400).json({ error: "invalid status" });
     }
 
-    // notes is optional; allow clearing with empty string -> null
     let nextNotes;
     if (notes !== undefined) {
       if (notes === null) nextNotes = null;
@@ -613,11 +579,11 @@ router.patch("/:id", async (req, res) => {
       },
     });
 
-    res.json(appt);
+    return res.json(appt);
   } catch (err) {
     console.error("Error updating appointment:", err);
     if (err.code === "P2025") return res.status(404).json({ error: "appointment not found" });
-    res.status(500).json({ error: "failed to update appointment" });
+    return res.status(500).json({ error: "failed to update appointment" });
   }
 });
 export default router;
