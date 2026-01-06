@@ -1100,10 +1100,12 @@ if (patientBranchId) {
 
   // Load availability when dates/filters change
   useEffect(() => {
-    if (showFollowUpScheduler && followUpDateFrom && followUpDateTo) {
-      void loadFollowUpAvailability();
-    }
-  }, [showFollowUpScheduler, followUpDateFrom, followUpDateTo, followUpSlotMinutes]);
+  // Disabled old availability endpoint:
+  // it caused timezone shift + backend memory issues.
+  // if (showFollowUpScheduler && followUpDateFrom && followUpDateTo) {
+  //   void loadFollowUpAvailability();
+  // }
+}, [showFollowUpScheduler, followUpDateFrom, followUpDateTo, followUpSlotMinutes]);
 
   const formatDateYYYYMMDD = (date: Date) => {
     const y = date.getFullYear();
