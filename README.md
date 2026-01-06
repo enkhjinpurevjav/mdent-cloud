@@ -14,6 +14,7 @@ Deploys Postgres + Backend (Express) + Frontend (Next.js) + Caddy via Docker Com
    - ADMIN_PASSWORD=<strong admin password>
    - DB_PASSWORD=<strong db password>
    - RUN_SEED=true (first deploy only, then set to false)
+   - NEXT_PUBLIC_API_BASE_URL=https://api.mdent.cloud (for appointments page API calls)
    - NEXT_PUBLIC_API_URL=https://api.mdent.cloud
    - NEXT_PUBLIC_PORTAL_URL=https://book.mdent.cloud
    - NEXT_PUBLIC_CAPTCHA_KEY=placeholder
@@ -30,6 +31,7 @@ Deploys Postgres + Backend (Express) + Frontend (Next.js) + Caddy via Docker Com
 
 ## DNS
 Point:
+- mdent.cloud (main app) -> VPS IP
 - api.mdent.cloud -> VPS IP
 - book.mdent.cloud -> VPS IP
 
