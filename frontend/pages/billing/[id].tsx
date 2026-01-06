@@ -195,15 +195,6 @@ function BillingPaymentSection({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Add new state for product modal
-  const [productModalOpen, setProductModalOpen] = useState(false);
-const [products, setProducts] = useState<ProductRow[]>([]);
-const [productQuery, setProductQuery] = useState("");
-const [productsLoading, setProductsLoading] = useState(false);
-const [productsError, setProductsError] = useState("");
-const [selectedProducts, setSelectedProducts] = useState<InvoiceItem[]>([]); // Selected items
-
-
   // codes for various methods
   const [voucherCode, setVoucherCode] = useState("");
   const [barterCode, setBarterCode] = useState("");
@@ -235,44 +226,6 @@ const [selectedProducts, setSelectedProducts] = useState<InvoiceItem[]>([]); // 
       ? Math.abs(invoice.patientBalance)
       : 0;
 
-
-// Function to handle product modal loading
-const loadProducts = async () => {
-  setProductsLoading(true);
-  setProductsError("");
-  try {
-    const branchId = encounter?.patientBook?.patient?.branch?.id;
-    const res = await fetch(`/api/inventory/products?branchId=${branchId}`);
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !Array.isArray(data)) {
-      throw new Error("Бүтээгдэхүүн ачаалахад алдаа гарлаа.");
-    }
-    setProducts(data);
-  } catch (err: any) {
-    console.error("Failed to load products:", err);
-    setProductsError(err.message || "Бүтээгдэхүүн ачаалахад алдаа гарлаа.");
-  } finally {
-    setProductsLoading(false);
-  }
-};
-
-// Function to handle product selection
-const handleAddProductRow = (prod: ProductRow) => {
-  const newRow: InvoiceItem = {
-    itemType: "PRODUCT",
-    productId: prod.id,
-    name: prod.name,
-    unitPrice: prod.price,
-    quantity: 1,
-    lineTotal: prod.price,
-    source: "MANUAL",
-  };
-  setItems((prev) => [...prev, newRow]);
-  setProductModalOpen(false); // Close modal after selection
-};
-
-
-  
   const INSURANCE_PROVIDERS = [
     { value: "BODI_DAATGAL", label: "Bodi Daatgal" },
     { value: "NATIONAL_LIFE", label: "National Life" },
@@ -1644,143 +1597,22 @@ useEffect(() => {
                   бүтээгдэхүүнийг илэрхийлнэ.
                 </div>
               </div>
-              // Add product modal logic & button rendering (near services)
-<div
-  style={{
-    display: "flex",
-    gap: 12,
-  }}
->
-  <button
-    type="button"
-    onClick={handleAddRowFromService}
-    style={{
-      padding: "6px 12px",
-      borderRadius: 6,
-      border: "1px solid #2563eb",
-      background: "#eff6ff",
-      color: "#2563eb",
-      cursor: "pointer",
-      fontSize: 13,
-    }}
-  >
-    + Эмчилгээ нэмэх
-  </button>
-  <button
-    type="button"
-    onClick={() => {
-      setProductModalOpen(true);
-      void loadProducts(); // Load modal
-    }}
-    style={{
-      padding: "6px 12px",
-      borderRadius: 6,
-      border: "1px solid #16a34a",
-      background: "#f0fdf4",
-      color: "#166534",
-      cursor: "pointer",
-      fontSize: 13,
-    }}
-  >
-    + Бүтээгдэхүүн нэмэх
-  </button>
-</div>
-
-// Product modal logic
-{productModalOpen && (
-  <div
-    style={{
-      position: "fixed",
-      inset: 0,
-      background: "rgba(0,0,0,0.35)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: 80,
-    }}
-    onClick={() => setProductModalOpen(false)}
-  >
-    <div
-      onClick={(e) => e.stopPropagation()}
-      style={{
-        width: 480,
-        maxWidth: "95vw",
-        maxHeight: "80vh",
-        overflowY: "auto",
-        background: "#ffffff",
-        borderRadius: 8,
-        boxShadow: "0 14px 40px rgba(0,0,0,0.25)",
-        padding: 16,
-        fontSize: 13,
-      }}
-    >
-      <div style={{ marginBottom: 12, display: "flex", justifyContent: "space-between" }}>
-        <h3 style={{ margin: 0 }}>Бүтээгдэхүүн сонгох</h3>
-        <button
-          type="button"
-          onClick={() => setProductModalOpen(false)}
-          style={{
-            fontSize: 16,
-            cursor: "pointer",
-            border: "none",
-            background: "transparent",
-          }}
-        >
-          ×
-        </button>
-      </div>
-      <input
-        type="text"
-        value={productQuery}
-        onChange={(e) => setProductQuery(e.target.value)}
-        placeholder="Нэр эсвэл кодоор хайх..."
-        style={{
-          width: "100%",
-          marginBottom: 8,
-          padding: "6px 8px",
-          borderRadius: 6,
-          border: "1px solid #d1d5db",
-        }}
-      />
-      <div>
-        {productsLoading && <div>Ачаалж байна...</div>}
-        {productsError && <div style={{ color: "red" }}>{productsError}</div>}
-        {!productsLoading && !productsError && (
-          <div>
-            {products
-              .filter((p) => {
-                const q = productQuery.trim().toLowerCase();
-                return !q || p.name.toLowerCase().includes(q);
-              })
-              .map((prod) => (
-                <div
-                  key={prod.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 4,
-                    padding: 8,
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 6,
-                    cursor: "pointer",
-                    background: "#ffffff",
-                    fontSize: 14,
-                  }}
-                  onClick={() => handleAddProductRow(prod)}
-                >
-                  <div>{prod.name}</div>
-                  <div style={{ fontStyle: "italic", color: "#6b7280" }}>
-                    {prod.price.toLocaleString("mn-MN")}₮
-                  </div>
-                </div>
-              ))}
-          </div>
-        )}
-      </div>
-    </div>
-  </div>
-)}
+              <button
+                type="button"
+                onClick={handleAddRowFromService}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: "1px solid #2563eb",
+                  background: "#eff6ff",
+                  color: "#2563eb",
+                  cursor: "pointer",
+                  fontSize: 13,
+                }}
+              >
+                + Нэмэлт мөр
+              </button>
+            </div>
 
             {items.length === 0 && (
               <div style={{ fontSize: 13, color: "#6b7280" }}>
