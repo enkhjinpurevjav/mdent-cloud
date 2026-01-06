@@ -1432,52 +1432,6 @@ const removeDiagnosisRow = (index: number) => {
     }
   };
 
- const loadFollowUpWeek = async () => {
-  if (!encounter) return;
-
-  setWeekLoading(true);
-  setWeekError("");
-
-  try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const from = ymdLocal(today);
-    const to = ymdLocal(addDays(today, 6));
-
-    const doctorId = encounter.doctorId;
-    const branchId = encounter.patientBook.patient.branchId;
-
-    // 1) Doctor schedule
-    const sRes = await fetch(
-      `/api/users/${doctorId}/schedule?from=${from}&to=${to}&branchId=${branchId}`
-    );
-    const sJson = await sRes.json().catch(() => null);
-    if (!sRes.ok) throw new Error(sJson?.error || "Schedule load failed");
-    setWeekSchedules(Array.isArray(sJson) ? sJson : []);
-
-    // 2) Appointments
-    const aRes = await fetch(
-      `/api/appointments?doctorId=${doctorId}&dateFrom=${from}&dateTo=${to}&status=ALL&branchId=${branchId}`
-    );
-    const aJson = await aRes.json().catch(() => null);
-    if (!aRes.ok) throw new Error(aJson?.error || "Appointments load failed");
-
-    const list = Array.isArray(aJson) ? aJson : [];
-    setWeekAppointments(
-      list.filter((x: any) => {
-        const st = String(x.status || "").toLowerCase();
-        return st !== "cancelled" && st !== "completed";
-      })
-    );
-  } catch (e: any) {
-    console.error(e);
-    setWeekError(e?.message || "Week load error");
-  } finally {
-    setWeekLoading(false);
-  }
-};
-
   const createFollowUpAppointment = async (slotStart: string) => {
     if (!encounter) return;
 
@@ -5375,22 +5329,14 @@ const removeDiagnosisRow = (index: number) => {
                     checked={showFollowUpScheduler}
                     disabled={followUpLoading}
                     onChange={(e) => {
-  const checked = e.target.checked;
-  setShowFollowUpScheduler(checked);
-
-  if (!checked) {
-    setFollowUpError("");
-    setFollowUpSuccess("");
-    setFollowUpAvailability(null);
-
-    setWeekSchedules([]);
-    setWeekAppointments([]);
-    setWeekError("");
-    return;
-  }
-
-  void loadFollowUpWeek();
-}}
+                      setShowFollowUpScheduler(e.target.checked);
+                      if (!e.target.checked) {
+                        setFollowUpError("");
+                        setFollowUpSuccess("");
+                        setFollowUpAvailability(null);
+                      }
+                    }}
+                  />
                   <span>Давтан үзлэгийн цаг авах</span>
                 </label>
 
