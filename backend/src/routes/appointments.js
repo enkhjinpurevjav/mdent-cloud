@@ -9,10 +9,13 @@ const router = express.Router();
 const ALLOWED_STATUSES = [
   "booked",
   "confirmed",
+  "online", // NEW (Онлайн)
   "ongoing",
   "ready_to_pay",
   "completed",
   "cancelled",
+  "no_show", // NEW (Ирээгүй)
+  "other", // NEW (Бусад)
 ];
 
 /**
@@ -26,19 +29,43 @@ function normalizeStatusForDb(raw) {
     case "booked":
     case "pending":
       return "booked";
+
     case "confirmed":
       return "confirmed";
+
+    // NEW
+    case "online":
+      return "online";
+
     case "ongoing":
       return "ongoing";
+
     case "ready_to_pay":
     case "readytopay":
     case "ready-to-pay":
       return "ready_to_pay";
+
     case "completed":
       return "completed";
+
     case "cancelled":
     case "canceled":
       return "cancelled";
+
+    // NEW (accept common spellings)
+    case "no_show":
+    case "noshow":
+    case "no-show":
+    case "no show":
+    case "no show up":
+    case "no-show-up":
+      return "no_show";
+
+    // NEW (accept plural too)
+    case "other":
+    case "others":
+      return "other";
+
     default:
       return undefined;
   }
@@ -117,17 +144,6 @@ function parseClinicWallClockDateTime(raw) {
 
 /**
  * GET /api/appointments
- *
- * Query parameters:
- *  - status=BOOKED|ONGOING|COMPLETED|CANCELLED|READY_TO_PAY|CONFIRMED|ALL
- *  - date=YYYY-MM-DD           (legacy: single day)
- *  - dateFrom=YYYY-MM-DD       (start of range, clinic day)
- *  - dateTo=YYYY-MM-DD         (end of range, clinic day)
- *  - includeCancelled=true
- *  - branchId=number
- *  - doctorId=number
- *  - patientId=number
- *  - search=string
  */
 router.get("/", async (req, res) => {
   try {
@@ -145,7 +161,6 @@ router.get("/", async (req, res) => {
 
     const where = {};
 
-    // ----------------- Branch / doctor / patient filters -----------------
     if (branchId) {
       const parsed = Number(branchId);
       if (!Number.isNaN(parsed)) where.branchId = parsed;
@@ -161,7 +176,6 @@ router.get("/", async (req, res) => {
       if (!Number.isNaN(parsed)) where.patientId = parsed;
     }
 
-    // ----------------- Date / date range filter (clinic day, +08:00) -----------------
     if (dateFrom || dateTo) {
       const range = {};
 
@@ -191,12 +205,10 @@ router.get("/", async (req, res) => {
       where.scheduledAt = { gte: start, lte: end };
     }
 
-    // ----------------- Status + includeCancelled logic -----------------
     const normalized = normalizeStatusForDb(status);
 
     if (status && String(status).toUpperCase() !== "ALL") {
       if (normalized === "booked" && includeCancelled === "true") {
-        // booked list: booked + cancelled
         where.status = { in: ["booked", "cancelled"] };
       } else if (normalized && ALLOWED_STATUSES.includes(normalized)) {
         where.status = normalized;
@@ -205,7 +217,6 @@ router.get("/", async (req, res) => {
       }
     }
 
-    // ----------------- Text search on patient -----------------
     if (search && search.trim() !== "") {
       const s = search.trim();
       where.patient = {
@@ -217,7 +228,6 @@ router.get("/", async (req, res) => {
       };
     }
 
-    // ----------------- Query DB -----------------
     const appointments = await prisma.appointment.findMany({
       where,
       orderBy: { scheduledAt: "asc" },
@@ -237,7 +247,6 @@ router.get("/", async (req, res) => {
       },
     });
 
-    // ----------------- Shape for frontend Appointment type -----------------
     const rows = appointments.map((a) => {
       const patient = a.patient;
       const doctor = a.doctor;
@@ -262,7 +271,6 @@ router.get("/", async (req, res) => {
         doctorName,
         doctorOvog: doctor ? doctor.ovog || null : null,
 
-        // IMPORTANT: preserve clinic wall-clock time (do NOT use toISOString())
         scheduledAt: formatClinicIso(a.scheduledAt),
         endAt: a.endAt ? formatClinicIso(a.endAt) : null,
 
@@ -292,15 +300,6 @@ router.get("/", async (req, res) => {
 
 /**
  * POST /api/appointments
- *
- * Body:
- *  - patientId (number, required)
- *  - doctorId (number, optional)
- *  - branchId (number, required)
- *  - scheduledAt (string, required)
- *  - endAt (string, optional; must be > scheduledAt)
- *  - status (string, optional, defaults to "booked")
- *  - notes (string, optional)
  */
 router.post("/", async (req, res) => {
   try {
@@ -337,7 +336,6 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "doctorId must be a number" });
     }
 
-    // IMPORTANT: parse as clinic wall-clock (timestamp without time zone)
     const scheduledDate = parseClinicWallClockDateTime(scheduledAt);
     if (!scheduledDate || Number.isNaN(scheduledDate.getTime())) {
       return res.status(400).json({ error: "scheduledAt is invalid date" });
@@ -357,11 +355,10 @@ router.post("/", async (req, res) => {
       endDate = tmp;
     }
 
-    // Normalize and validate status
     let normalizedStatus = "booked";
     if (typeof status === "string" && status.trim()) {
       const maybe = normalizeStatusForDb(status);
-      if (!maybe) {
+      if (!maybe || !ALLOWED_STATUSES.includes(maybe)) {
         return res.status(400).json({ error: "invalid status" });
       }
       normalizedStatus = maybe;
@@ -397,9 +394,6 @@ router.post("/", async (req, res) => {
 
 /**
  * PATCH /api/appointments/:id
- *
- * Body:
- *  - status (string, required)
  */
 router.patch("/:id", async (req, res) => {
   try {
@@ -414,7 +408,7 @@ router.patch("/:id", async (req, res) => {
     }
 
     const normalizedStatus = normalizeStatusForDb(status);
-    if (!normalizedStatus) {
+    if (!normalizedStatus || !ALLOWED_STATUSES.includes(normalizedStatus)) {
       return res.status(400).json({ error: "invalid status" });
     }
 
@@ -457,7 +451,9 @@ router.post("/:id/start-encounter", async (req, res) => {
       },
     });
 
-    if (!appt) return res.status(404).json({ error: "Appointment not found" });
+    if (!appt) {
+      return res.status(404).json({ error: "Appointment not found" });
+    }
 
     if (appt.status !== "ongoing") {
       return res.status(400).json({
@@ -483,7 +479,10 @@ router.post("/:id/start-encounter", async (req, res) => {
     let book = patient.patientBook;
     if (!book) {
       book = await prisma.patientBook.create({
-        data: { patientId: patient.id, bookNumber: String(patient.id) },
+        data: {
+          patientId: patient.id,
+          bookNumber: String(patient.id),
+        },
       });
     }
 
@@ -547,7 +546,7 @@ router.get("/:id/encounter", async (req, res) => {
 /**
  * GET /api/appointments/availability
  *
- * (kept as-is from your file)
+ * NOTE: left unchanged here (you can later align it to the same wall-clock rules)
  */
 router.get("/availability", async (req, res) => {
   try {
@@ -632,7 +631,9 @@ router.get("/availability", async (req, res) => {
       const dayOfWeek = currentDate.getDay();
       const dayLabel = dayNames[dayOfWeek];
 
-      const schedule = schedules.find((s) => clinicYmdFromDate(s.date) === dateStr);
+      const schedule = schedules.find(
+        (s) => clinicYmdFromDate(s.date) === dateStr
+      );
 
       let daySlots = [];
 
@@ -681,7 +682,9 @@ router.get("/availability", async (req, res) => {
         if (dayOfWeek >= 1 && dayOfWeek <= 5) {
           let slotStart = new Date(defaultStart);
           while (slotStart < defaultEnd) {
-            const slotEnd = new Date(slotStart.getTime() + slotDuration * 60000);
+            const slotEnd = new Date(
+              slotStart.getTime() + slotDuration * 60000
+            );
 
             const conflictingAppt = appointments.find((appt) => {
               const apptStart = new Date(appt.scheduledAt);
