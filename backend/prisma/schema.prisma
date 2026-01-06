@@ -39,6 +39,11 @@ enum VisitCardType {
   CHILD
 }
 
+enum ProductStockMovementType {
+  ADJUSTMENT  // manual change from inventory page (+/-)
+  SALE        // created when paid ledger entry is created
+}
+
 enum BookingStatus {
   PENDING
   CONFIRMED
@@ -93,6 +98,24 @@ enum EmployeeVoucherStatus {
   DISABLED
   EXPIRED
 }
+
+
+model ProductCategory {
+  id        Int      @id @default(autoincrement())
+  branchId  Int
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  products  Product[]
+
+  @@unique([branchId, name])
+  @@index([branchId])
+}
+
+
 
 // ==========================================================
 // BRANCHES (Multi-Branch Support)
@@ -598,6 +621,8 @@ model Procedure {
 model Product {
   id           Int          @id @default(autoincrement())
   branchId     Int
+  categoryId   Int
+
   code         String?      @unique
   name         String
   price        Float
@@ -605,12 +630,41 @@ model Product {
   description  String?
 
   branch       Branch       @relation(fields: [branchId], references: [id])
+  category     ProductCategory @relation(fields: [categoryId], references: [id])
+
   invoiceItems InvoiceItem[]
+  stockMovements ProductStockMovement[]
 
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
   @@index([branchId, isActive])
+  @@index([categoryId])
+}
+
+model ProductStockMovement {
+  id          Int      @id @default(autoincrement())
+  branchId    Int
+  productId   Int
+
+  type        ProductStockMovementType
+  quantityDelta Int    // positive or negative
+
+  // optional references for SALE
+  invoiceId   Int?
+  ledgerEntryId Int?
+
+  note        String?
+  createdAt   DateTime @default(now())
+
+  branch      Branch   @relation(fields: [branchId], references: [id])
+  product     Product  @relation(fields: [productId], references: [id])
+
+  @@index([branchId])
+  @@index([productId])
+  @@index([type])
+  @@index([invoiceId])
+  @@index([ledgerEntryId])
 }
 
 // ==========================================================
