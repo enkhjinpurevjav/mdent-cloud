@@ -11,10 +11,7 @@ const SLOT_MINUTES = 30;
 
 // API base URL configuration
 // In production on mdent.cloud, use api.mdent.cloud; in dev, use relative path
-const API_BASE_URL = 
-  typeof window !== "undefined" && process.env.NEXT_PUBLIC_API_BASE_URL
-    ? process.env.NEXT_PUBLIC_API_BASE_URL
-    : "";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
 // ========== TYPES ==========
 type Branch = {
@@ -220,12 +217,24 @@ function clinicYmdFromIso(iso: string): string {
 // Backend may return ISO dates like "2024-01-15T00:00:00.000Z" or "YYYY-MM-DD"
 function scheduleDayKey(dateStr: string): string {
   if (!dateStr || typeof dateStr !== "string") return "";
+  
   // If already in YYYY-MM-DD format (10 chars), return as-is
   if (dateStr.length === 10 && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
     return dateStr;
   }
-  // Otherwise, try to parse as ISO and extract YYYY-MM-DD
-  return dateStr.slice(0, 10);
+  
+  // Try to parse as ISO and extract YYYY-MM-DD
+  // This handles formats like "2024-01-15T00:00:00.000Z"
+  if (dateStr.length > 10 && dateStr.includes('-')) {
+    const extracted = dateStr.slice(0, 10);
+    // Validate extracted string is YYYY-MM-DD format
+    if (extracted.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return extracted;
+    }
+  }
+  
+  // Fallback: return empty string for invalid dates
+  return "";
 }
 
 
