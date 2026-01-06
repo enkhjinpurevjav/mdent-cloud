@@ -1866,33 +1866,7 @@ const removeDiagnosisRow = (index: number) => {
     }
   };
 
-  const handleFinishEncounter = async () => {
-    if (!id || typeof id !== "string") return;
-    setFinishing(true);
-    try {
-      await handleSaveDiagnoses();
-      await handleSaveServices();
-      await savePrescription();
-
-      const res = await fetch(`/api/encounters/${id}/finish`, {
-        method: "PUT",
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(
-          (json && json.error) ||
-            "Үзлэг дууссаны төлөв шинэчлэх үед алдаа гарлаа."
-        );
-      }
-
-      // Reset tooth selection session after successful finish
-      resetToothSelectionSession();
-    } catch (err) {
-      console.error("handleFinishEncounter failed", err);
-    } finally {
-      setFinishing(false);
-    }
-  };
+ 
 
   const handleMediaUpload = async (file: File) => {
     if (!id || typeof id !== "string") return;
