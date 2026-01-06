@@ -83,7 +83,13 @@ function clinicDayFromClinicIso(iso: string): string {
 }
 
 function clinicHHMMFromClinicIso(iso: string): string {
-  return typeof iso === "string" && iso.length >= 16 ? iso.slice(11, 16) : "";
+  if (typeof iso !== "string") return "";
+  // supports both:
+  // "YYYY-MM-DDTHH:mm:ss+08:00"
+  // "YYYY-MM-DD HH:mm:ss"
+  // "YYYY-MM-DDTHH:mm:ss"
+  const m = iso.match(/(\d{2}):(\d{2})/);
+  return m ? `${m[1]}:${m[2]}` : "";
 }
 
 function minutesFromHHMM(hhmm: string): number {
@@ -3987,42 +3993,40 @@ const totalCompletedPatientsForDay = useMemo(() => {
                 </div>
               )}
 
-              {/* Time labels / background grid */}
-              <div
-                style={{
-                  borderRight: "1px solid #ddd",
-                  position: "relative",
-                  height: columnHeightPx,
-                }}
-              >
-                {timeSlots.map((slot, index) => {
-                  const slotStartMin = minutesFromHHMM(slot.label) - gridStartMinutes; // 0, 30, 60, ...
-                  const slotHeight =
-                    (SLOT_MINUTES / totalMinutes) * columnHeightPx;
+{/* Time labels / background grid */}
+<div
+  style={{
+    borderRight: "1px solid #ddd",
+    position: "relative",
+    height: columnHeightPx,
+  }}
+>
+  {timeSlots.map((slot, index) => {
+    const slotStartMin = minutesFromHHMM(slot.label) - gridStartMinutes; // 0, 30, 60...
+    const slotHeight = (SLOT_MINUTES / gridTotalMinutes) * columnHeightPx;
 
-                  return (
-                    <div
-                      key={index}
-                      style={{
-                        position: "absolute",
-                        left: 0,
-                        right: 0,
-                        top: (slotStartMin / totalMinutes) * columnHeightPx,
-                        height: slotHeight,
-                        borderBottom: "1px solid #f0f0f0",
-                        paddingLeft: 6,
-                        display: "flex",
-                        alignItems: "center",
-                        fontSize: 11,
-                        backgroundColor:
-                          index % 2 === 0 ? "#fafafa" : "#ffffff",
-                      }}
-                    >
-                      {slot.label}
-                    </div>
-                  );
-                })}
-              </div>
+    return (
+      <div
+        key={index}
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: (slotStartMin / gridTotalMinutes) * columnHeightPx,
+          height: slotHeight,
+          borderBottom: "1px solid #f0f0f0",
+          paddingLeft: 6,
+          display: "flex",
+          alignItems: "center",
+          fontSize: 11,
+          backgroundColor: index % 2 === 0 ? "#fafafa" : "#ffffff",
+        }}
+      >
+        {slot.label}
+      </div>
+    );
+  })}
+</div>
 
               {/* Doctor columns */}
 {gridDoctors.map((doc) => {
