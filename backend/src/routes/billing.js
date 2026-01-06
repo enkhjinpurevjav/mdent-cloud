@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 const router = express.Router();
 
 /**
- * Helper: map DiscountPercent enum to numeric value
+ * Helper: Map DiscountPercent enum to numeric value
  */
 function discountPercentToNumber(discountEnum) {
   if (!discountEnum) return 0;
@@ -21,7 +21,7 @@ function discountPercentToNumber(discountEnum) {
 }
 
 /**
- * Helper: map numeric percent to DiscountPercent enum
+ * Helper: Map numeric percent to DiscountPercent enum
  * Only allow 0 / 5 / 10 (per business rule).
  */
 function toDiscountEnum(percent) {
@@ -32,16 +32,7 @@ function toDiscountEnum(percent) {
 }
 
 /**
- * GET /api/billing/encounters/:id/invoice
- *
- * Load or lazily create invoice skeleton for an encounter.
- * – NO payments
- * – NO e-Barimt
- * – Only describes what was provided.
- */
-
-/**
- * Helper: compute patient balance from all invoices + payments.
+ * Helper: Compute patient balance from all invoices + payments.
  * Returns { totalBilled, totalPaid, balance }.
  */
 async function getPatientBalance(patientId) {
@@ -68,12 +59,8 @@ async function getPatientBalance(patientId) {
   // 2) Sum payments per invoice
   const payments = await prisma.payment.groupBy({
     by: ["invoiceId"],
-    where: {
-      invoiceId: { in: invoiceIds },
-    },
-    _sum: {
-      amount: true,
-    },
+    where: { invoiceId: { in: invoiceIds } },
+    _sum: { amount: true },
   });
 
   const paidByInvoice = new Map();
@@ -86,11 +73,7 @@ async function getPatientBalance(patientId) {
   let totalPaid = 0;
 
   for (const inv of invoices) {
-    const billed =
-      inv.finalAmount != null
-        ? Number(inv.finalAmount)
-        : Number(inv.totalAmount || 0);
-
+    const billed = inv.finalAmount ?? Number(inv.totalAmount || 0);
     const paid = paidByInvoice.get(inv.id) || 0;
 
     totalBilled += billed;
@@ -104,6 +87,10 @@ async function getPatientBalance(patientId) {
   return { totalBilled, totalPaid, balance };
 }
 
+/**
+ * GET /api/billing/encounters/:id/invoice
+ * Load or lazily create invoice skeleton for an encounter.
+ */
 router.get("/encounters/:id/invoice", async (req, res) => {
   const encounterId = Number(req.params.id);
   if (!encounterId || Number.isNaN(encounterId)) {
@@ -111,30 +98,12 @@ router.get("/encounters/:id/invoice", async (req, res) => {
   }
 
   try {
-    // Load encounter with required relations
     const encounter = await prisma.encounter.findUnique({
       where: { id: encounterId },
       include: {
-        patientBook: {
-          include: {
-            patient: {
-              include: {
-                branch: true,
-              },
-            },
-          },
-        },
-        encounterServices: {
-          include: {
-            service: true,
-          },
-        },
-        invoice: {
-          include: {
-            items: true,
-            eBarimtReceipt: true,
-          },
-        },
+        patientBook: { include: { patient: { include: { branch: true } } } },
+        encounterServices: { include: { service: true } },
+        invoice: { include: { items: true, eBarimtReceipt: true } },
       },
     });
 
@@ -144,28 +113,20 @@ router.get("/encounters/:id/invoice", async (req, res) => {
 
     const patient = encounter.patientBook?.patient;
     if (!patient) {
-      return res
-        .status(409)
-        .json({ error: "Encounter has no linked patient book / patient." });
+      return res.status(409).json({ error: "Encounter has no linked patient book / patient." });
     }
 
-        const existingInvoice = encounter.invoice;
+    const existingInvoice = encounter.invoice;
+    const balanceData = await getPatientBalance(patient.id);
 
-    // If invoice exists, return it (no mutation, source of truth).
     if (existingInvoice) {
-      const discountNum = discountPercentToNumber(
-        existingInvoice.discountPercent
-      );
-
-      // NEW: compute patient-level balance across all invoices
-      const balanceData = await getPatientBalance(patient.id);
+      const discountNum = discountPercentToNumber(existingInvoice.discountPercent);
 
       return res.json({
         id: existingInvoice.id,
         branchId: existingInvoice.branchId,
         encounterId: existingInvoice.encounterId,
         patientId: existingInvoice.patientId,
-        // expose status using legacy string for now
         status: existingInvoice.statusLegacy || "UNPAID",
         totalBeforeDiscount: existingInvoice.totalBeforeDiscount,
         discountPercent: discountNum,
@@ -180,307 +141,112 @@ router.get("/encounters/:id/invoice", async (req, res) => {
           unitPrice: it.unitPrice,
           quantity: it.quantity,
           lineTotal: it.lineTotal,
-          source: it.source,
         })),
-        // NEW fields for frontend:
         patientTotalBilled: balanceData.totalBilled,
         patientTotalPaid: balanceData.totalPaid,
         patientBalance: balanceData.balance,
       });
     }
 
-    // If no invoice yet, build a read‑only “proposal” from encounter services.
-        const branchId = patient.branchId;
-    const patientId = patient.id;
+    const branchId = patient.branchId;
+    const provisionalItems = encounter.encounterServices?.map((es) => ({
+      itemType: "SERVICE",
+      serviceId: es.serviceId,
+      productId: null,
+      name: es.service?.name || `Service #${es.serviceId}`,
+      unitPrice: es.service?.price || 0,
+      quantity: es.quantity || 1,
+      lineTotal: (es.service?.price || 0) * (es.quantity || 1),
+    })) ?? [];
 
-    const provisionalItems =
-      encounter.encounterServices?.map((es) => {
-        const unitPrice =
-          es.service?.price != null ? es.service.price : es.price || 0;
-        const quantity = es.quantity || 1;
-        const lineTotal = unitPrice * quantity;
-
-        return {
-          tempId: es.id,
-          itemType: "SERVICE",
-          serviceId: es.serviceId,
-          productId: null,
-          name: es.service?.name || `Service #${es.serviceId}`,
-          unitPrice,
-          quantity,
-          lineTotal,
-          source: "ENCOUNTER",
-        };
-      }) ?? [];
-
-    const totalBeforeDiscount = provisionalItems.reduce(
-      (sum, it) => sum + it.lineTotal,
-      0
-    );
-
-    // NEW: compute patient-level balance even if invoice not yet created
-    const balanceData = await getPatientBalance(patientId);
+    const totalBeforeDiscount = provisionalItems.reduce((sum, it) => sum + it.lineTotal, 0);
 
     return res.json({
-      // No invoice yet
       id: null,
       branchId,
       encounterId,
-      patientId,
+      patientId: patient.id,
       status: "UNPAID",
       totalBeforeDiscount,
       discountPercent: 0,
       finalAmount: totalBeforeDiscount,
-      hasEBarimt: false,
       items: provisionalItems,
-      // Flag so frontend knows this is a draft proposal, not yet stored
       isProvisional: true,
-      // NEW fields
       patientTotalBilled: balanceData.totalBilled,
       patientTotalPaid: balanceData.totalPaid,
       patientBalance: balanceData.balance,
     });
   } catch (err) {
-    console.error("GET /encounters/:id/invoice failed:", err);
-    return res
-      .status(500)
-      .json({ error: "Failed to load invoice for encounter." });
+    console.error("GET /encounters/:id/invoice failed:", err.message);
+    return res.status(500).json({ error: "Failed to load invoice." });
   }
 });
 
 /**
  * POST /api/billing/encounters/:id/invoice
- *
  * Create or update invoice structure for an encounter.
- * This route:
- * – ONLY manages invoice + invoice items (services/products).
- * – DOES NOT:
- *   * create payments
- *   * touch ledger
- *   * issue e-Barimt
- *
- * Body shape:
- * {
- *   discountPercent: 0 | 5 | 10,
- *   items: [
- *     {
- *       id?: number;              // existing InvoiceItem id (for update) – optional
- *       itemType: "SERVICE" | "PRODUCT",
- *       serviceId?: number | null,
- *       productId?: number | null,
- *       name: string,
- *       unitPrice: number,
- *       quantity: number
- *     },
- *     ...
- *   ]
- * }
  */
 router.post("/encounters/:id/invoice", async (req, res) => {
   const encounterId = Number(req.params.id);
+  const { discountPercent, items } = req.body || {};
+
   if (!encounterId || Number.isNaN(encounterId)) {
     return res.status(400).json({ error: "Invalid encounter id." });
   }
 
-  const { discountPercent, items } = req.body || {};
-
   try {
     const discountEnum = toDiscountEnum(Number(discountPercent || 0));
-
-    if (!Array.isArray(items) || items.length === 0) {
-      return res
-        .status(400)
-        .json({ error: "Invoice must have at least one item." });
-    }
-
-    // Load encounter + patient/branch so we can enforce branchId & patientId.
     const encounter = await prisma.encounter.findUnique({
-  where: { id: encounterId },
-  include: {
-    patientBook: { include: { patient: true } },
-    encounterServices: true, // ✅ ADD THIS
-    invoice: { include: { items: true, eBarimtReceipt: true } },
-  },
-});
+      where: { id: encounterId },
+      include: {
+        patientBook: { include: { patient: true } },
+        encounterServices: true,
+        invoice: { include: { items: true, eBarimtReceipt: true } },
+      },
+    });
 
     if (!encounter) {
       return res.status(404).json({ error: "Encounter not found." });
     }
+
     const patient = encounter.patientBook?.patient;
     if (!patient) {
-      return res
-        .status(409)
-        .json({ error: "Encounter has no linked patient book / patient." });
+      return res.status(409).json({ error: "Encounter has no linked patient book / patient." });
     }
 
     const branchId = patient.branchId;
-    const patientId = patient.id;
-    const existingInvoice = encounter.invoice;
-    const encounterServiceIds = new Set(
-  (encounter.encounterServices || []).map((es) => Number(es.serviceId))
-);
-    
+    const normalizedItems = items.map((row) => ({
+      itemType: row.itemType,
+      serviceId: row.itemType === "SERVICE" ? row.serviceId : null,
+      productId: row.itemType === "PRODUCT" ? row.productId : null,
+      name: row.name,
+      unitPrice: row.unitPrice,
+      quantity: row.quantity,
+      lineTotal: row.unitPrice * row.quantity,
+    }));
 
-    // Build normalized items payload
-    const normalizedItems = [];
-    for (const row of items) {
-      const itemType = row.itemType;
-      if (itemType !== "SERVICE" && itemType !== "PRODUCT") {
-        return res.status(400).json({
-          error: "Invalid itemType. Must be SERVICE or PRODUCT.",
-        });
-      }
+    const servicesSubtotal = normalizedItems
+      .filter((it) => it.itemType === "SERVICE")
+      .reduce((sum, it) => sum + Number(it.lineTotal || 0), 0);
 
-      const qty = Number(row.quantity || 0);
-      const price = Number(row.unitPrice || 0);
-      if (qty <= 0) {
-        return res
-          .status(400)
-          .json({ error: "Quantity must be greater than zero." });
-      }
-      if (price < 0) {
-        return res
-          .status(400)
-          .json({ error: "Unit price cannot be negative." });
-      }
+    const productsSubtotal = normalizedItems
+      .filter((it) => it.itemType === "PRODUCT")
+      .reduce((sum, it) => sum + Number(it.lineTotal || 0), 0);
 
-      const lineTotal = qty * price;
+    const discountRate = discountPercentToNumber(discountEnum) / 100;
+    const discountOnServices = servicesSubtotal * discountRate;
 
-      // Service vs product rules (structural, NOT financial settlement yet)
-      if (itemType === "SERVICE") {
-        if (!row.serviceId) {
-          return res.status(400).json({
-            error:
-              "SERVICE item must have serviceId. Use PRODUCT itemType for retail products.",
-          });
-        }
-      } else if (itemType === "PRODUCT") {
-        if (!row.productId) {
-          return res.status(400).json({
-            error:
-              "PRODUCT item must have productId. Use SERVICE itemType for clinical services.",
-          });
-        }
-      }
+    const totalBeforeDiscount = servicesSubtotal + productsSubtotal;
+    const finalAmount = (servicesSubtotal - discountOnServices) + productsSubtotal;
 
-      const normalizedServiceId = itemType === "SERVICE" ? Number(row.serviceId) : null;
-
-const source =
-  itemType === "SERVICE" && normalizedServiceId != null && encounterServiceIds.has(normalizedServiceId)
-    ? "ENCOUNTER"
-    : "MANUAL";
-
-normalizedItems.push({
-  id: row.id ?? null,
-  itemType,
-  serviceId: normalizedServiceId,
-  productId: itemType === "PRODUCT" ? row.productId : null,
-  name: String(row.name || "").trim(),
-  unitPrice: price,
-  quantity: qty,
-  lineTotal,
-  source, // ✅ NEW
-});
-    }
-
-    const totalBeforeDiscount = normalizedItems.reduce(
-      (sum, it) => sum + it.lineTotal,
-      0
-    );
-
-    const numericDiscount = discountPercentToNumber(discountEnum);
-    const discountFactor =
-      numericDiscount === 0 ? 1 : (100 - numericDiscount) / 100;
-    const finalAmount = Math.max(
-      Math.round(totalBeforeDiscount * discountFactor),
-      0
-    );
-
-    // IMPORTANT: if e-Barimt already issued, we must NOT change the financial truth.
-    if (existingInvoice?.eBarimtReceipt) {
-      return res.status(409).json({
-        error:
-          "Invoice already has an e-Barimt receipt. Structure cannot be modified.",
-      });
-    }
-
-    let invoice;
-    if (!existingInvoice) {
-      // Create new invoice with items
-      invoice = await prisma.invoice.create({
-        data: {
-          branchId,
-          encounterId,
-          patientId,
-          totalBeforeDiscount,
-          discountPercent: discountEnum,
-          finalAmount,
-          // legacy string status for now
-          statusLegacy: "UNPAID",
-          items: {
-  create: normalizedItems.map((it) => ({
-    itemType: it.itemType,
-    serviceId: it.serviceId,
-    productId: it.productId,
-    name: it.name,
-    unitPrice: it.unitPrice,
-    quantity: it.quantity,
-    lineTotal: it.lineTotal,
-    source: it.source, // ✅ NEW
-  })),
-},
-        },
-        include: {
-          items: true,
-          eBarimtReceipt: true,
-        },
-      });
-    } else {
-      // Update existing invoice & replace items fully (idempotent builder)
-      invoice = await prisma.invoice.update({
-        where: { id: existingInvoice.id },
-        data: {
-          // Branch/patient must remain consistent with encounter
-          branchId,
-          patientId,
-          totalBeforeDiscount,
-          discountPercent: discountEnum,
-          finalAmount,
-          // keep statusLegacy as-is; settlement route will manage transitions
-          items: {
-  deleteMany: { invoiceId: existingInvoice.id },
-  create: normalizedItems.map((it) => ({
-    itemType: it.itemType,
-    serviceId: it.serviceId,
-    productId: it.productId,
-    name: it.name,
-    unitPrice: it.unitPrice,
-    quantity: it.quantity,
-    lineTotal: it.lineTotal,
-    source: it.source, // ✅ NEW
-  })),
-},
-        },
-        include: {
-          items: true,
-          eBarimtReceipt: true,
-        },
-      });
-    }
-
-    const respDiscount = discountPercentToNumber(invoice.discountPercent);
-    return res.json({
-      id: invoice.id,
-      branchId: invoice.branchId,
-      encounterId: invoice.encounterId,
-      patientId: invoice.patientId,
-      status: invoice.statusLegacy || "UNPAID",
-      totalBeforeDiscount: invoice.totalBeforeDiscount,
-      discountPercent: respDiscount,
-      finalAmount: invoice.finalAmount,
-      hasEBarimt: !!invoice.eBarimtReceipt,
-      items: invoice.items.map((it) => ({
-        id: it.id,
+    const invoiceData = {
+      branchId,
+      encounterId,
+      patientId: patient.id,
+      totalBeforeDiscount,
+      discountPercent: discountEnum,
+      finalAmount,
+      items: normalizedItems.map((it) => ({
         itemType: it.itemType,
         serviceId: it.serviceId,
         productId: it.productId,
@@ -488,34 +254,27 @@ normalizedItems.push({
         unitPrice: it.unitPrice,
         quantity: it.quantity,
         lineTotal: it.lineTotal,
-        source: it.source,
       })),
-    });
-  } catch (err) {
-    console.error("POST /encounters/:id/invoice failed:", err);
-    if (err.message?.startsWith("Invalid discount percent")) {
-      return res.status(400).json({ error: err.message });
+    };
+
+    const existingInvoice = encounter.invoice;
+    if (existingInvoice?.eBarimtReceipt) {
+      return res.status(409).json({ error: "Invoice already has an e-Barimt." });
     }
-    return res
-      .status(500)
-      .json({ error: "Failed to save invoice for encounter." });
+
+    const invoice = existingInvoice
+      ? await prisma.invoice.update({
+          where: { id: existingInvoice.id },
+          data: invoiceData,
+          include: { items: true },
+        })
+      : await prisma.invoice.create({ data: invoiceData, include: { items: true } });
+
+    return res.json(invoice);
+  } catch (err) {
+    console.error("POST /encounters/:id/invoice failed:", err.message);
+    return res.status(500).json({ error: "Failed to save invoice." });
   }
 });
-
-/**
- * NOTE:
- * This router ONLY handles invoice structure.
- * – NO LedgerEntry is created here.
- * – NO Payment is recorded.
- * – NO e-Barimt is issued.
- *
- * Settlement (payments, ledger, e-Barimt trigger) must be implemented
- * in a separate router, e.g.:
- *   POST /api/invoices/:id/settlement
- * respecting:
- *   - every payment is a LedgerEntry
- *   - one e-Barimt per invoice, only when fully settled
- *   - wallet derived from LedgerEntry sums
- */
 
 export default router;
