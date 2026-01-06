@@ -1364,7 +1364,6 @@ if (quickPatientForm.gender) {
   phone: "",
   branchId: "",
   regNo: "",
-  gender: "",
 });
       setShowQuickPatientModal(false);
     } catch (e) {
@@ -2432,9 +2431,7 @@ if (quickPatientForm.ovog.trim()) {
 if (quickPatientForm.regNo.trim()) {
   payload.regNo = quickPatientForm.regNo.trim();
 }
-if (quickPatientForm.gender) {
-  payload.gender = quickPatientForm.gender;
-}
+
 
       const res = await fetch("/api/patients", {
         method: "POST",
@@ -2473,7 +2470,7 @@ if (quickPatientForm.gender) {
   phone: "",
   branchId: "",
   regNo: "",
-  gender: "",
+ 
 });
       setShowQuickPatientModal(false);
     } catch (e) {
@@ -3091,30 +3088,7 @@ if (quickPatientForm.gender) {
     />
   </label>
 
-  {/* Хүйс (optional) */}
-  <label
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: 4,
-    }}
-  >
-    Хүйс
-    <select
-      name="gender"
-      value={quickPatientForm.gender}
-      onChange={handleQuickPatientChange}
-      style={{
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        padding: "6px 8px",
-      }}
-    >
-      <option value="">Сонгохгүй</option>
-      <option value="эр">Эр</option>
-      <option value="эм">Эм</option>
-    </select>
-  </label>
+  
 
   {quickPatientError && (
     <div
