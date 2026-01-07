@@ -373,48 +373,6 @@ function formatDetailedTimeRange(start: Date, end: Date | null): string {
   return `${datePart} ${startTime} – ${endTime}`;
 }
 
-
-function floorToSlotStart(d: Date, slotMinutes = SLOT_MINUTES) {
-  const slotMs = slotMinutes * 60_000;
-  return new Date(Math.floor(d.getTime() / slotMs) * slotMs);
-}
-
-function addMinutes(d: Date, minutes: number) {
-  return new Date(d.getTime() + minutes * 60_000);
-}
-
-// doctorId|YYYY-MM-DD|HH:MM (local time)
-function getSlotKey(doctorId: number, slotStart: Date) {
-  const y = slotStart.getFullYear();
-  const m = String(slotStart.getMonth() + 1).padStart(2, "0");
-  const d = String(slotStart.getDate()).padStart(2, "0");
-  const hh = String(slotStart.getHours()).padStart(2, "0");
-  const mm = String(slotStart.getMinutes()).padStart(2, "0");
-  return `${doctorId}|${y}-${m}-${d}|${hh}:${mm}`;
-}
-
-/**
- * Enumerate slot start times for any overlap.
- * If appointment starts at 09:10, we still count 09:00 slot as filled.
- */
-function enumerateSlotStartsOverlappingRange(
-  start: Date,
-  end: Date,
-  slotMinutes = SLOT_MINUTES
-) {
-  const slots: Date[] = [];
-  if (end <= start) return slots;
-
-  let cur = floorToSlotStart(start, slotMinutes);
-  while (cur < end) {
-    slots.push(cur);
-    cur = addMinutes(cur, slotMinutes);
-  }
-  return slots;
-}
-
-
-
 function AppointmentDetailsModal({
   open,
   onClose,
@@ -3202,110 +3160,6 @@ const workingDoctorsForFilter = scheduledDoctors.length
   );
   const [filterDoctorId, setFilterDoctorId] = useState<string>("");
 
-
-const fillingStats = useMemo(() => {
-  // Capacity slots: unique schedule slots per doctor
-  const capacity = new Set<string>();
-
-  for (const doc of gridDoctors) {
-    const schedules = (doc.schedules || []) as any[];
-
-    // If schedules are present, use them (best).
-    // If schedules are missing, fallback to clinic visual hours (generateTimeSlotsForDay)
-    if (schedules.length > 0) {
-      for (const s of schedules) {
-        const startTime = String(s.startTime || "");
-        const endTime = String(s.endTime || "");
-        if (!startTime || !endTime) continue;
-
-        const [sh, sm] = startTime.split(":").map(Number);
-        const [eh, em] = endTime.split(":").map(Number);
-        if (
-          !Number.isFinite(sh) ||
-          !Number.isFinite(sm) ||
-          !Number.isFinite(eh) ||
-          !Number.isFinite(em)
-        )
-          continue;
-
-        const start = new Date(
-          selectedDay.getFullYear(),
-          selectedDay.getMonth(),
-          selectedDay.getDate(),
-          sh,
-          sm,
-          0,
-          0
-        );
-        const end = new Date(
-          selectedDay.getFullYear(),
-          selectedDay.getMonth(),
-          selectedDay.getDate(),
-          eh,
-          em,
-          0,
-          0
-        );
-
-        for (const slotStart of enumerateSlotStartsOverlappingRange(
-          start,
-          end,
-          SLOT_MINUTES
-        )) {
-          capacity.add(getSlotKey(doc.id, slotStart));
-        }
-      }
-    } else {
-      // fallback to your existing visual working window
-      for (const slot of generateTimeSlotsForDay(selectedDay)) {
-        capacity.add(getSlotKey(doc.id, slot.start));
-      }
-    }
-  }
-
-  // Filled slots: unique occupied slots per doctor
-  const filled = new Set<string>();
-
-  // appointments already filtered by branch/date above? If not, filter here:
-  const dayKey = filterDate;
-
-  for (const a of appointments) {
-    // ✅ exclude cancelled
-    if (a.status === "cancelled") continue;
-
-    // must have doctor to count against doctor capacity
-    if (a.doctorId == null) continue;
-
-    // ensure it’s the current day (and branch if selected)
-    if (getAppointmentDayKey(a) !== dayKey) continue;
-    if (filterBranchId && String(a.branchId) !== filterBranchId) continue;
-
-    const start = new Date(a.scheduledAt);
-    const end = a.endAt ? new Date(a.endAt) : addMinutes(start, SLOT_MINUTES);
-
-    if (Number.isNaN(start.getTime())) continue;
-    if (Number.isNaN(end.getTime()) || end <= start) continue;
-
-    // mark all overlapping 30-min slots as filled
-    for (const slotStart of enumerateSlotStartsOverlappingRange(
-      start,
-      end,
-      SLOT_MINUTES
-    )) {
-      const key = getSlotKey(a.doctorId, slotStart);
-      // only count if it exists in capacity (inside working schedule)
-      if (capacity.has(key)) filled.add(key);
-    }
-  }
-
-  const totalSlots = capacity.size;
-  const filledSlots = filled.size;
-  const percent = totalSlots === 0 ? 0 : Math.round((filledSlots / totalSlots) * 100);
-
-  return { totalSlots, filledSlots, percent };
-}, [appointments, gridDoctors, selectedDay, filterDate, filterBranchId]);
-
-  
   // top pills
   const [activeBranchTab, setActiveBranchTab] = useState<string>(
     branchIdFromQuery || ""
@@ -3690,7 +3544,7 @@ const totalCompletedPatientsForDay = useMemo(() => {
       </div>
     </div>
     <div style={{ fontSize: 26, fontWeight: 700, color: "#111827" }}>
-      {fillingStats.percent}%
+      {totalAppointmentsForDay}
     </div>
     <div style={{ fontSize: 11, color: "#6b7280" }}>
       {formatDateYmdDots(selectedDay)} өдрийн нийт цаг захиалга
