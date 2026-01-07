@@ -1,20 +1,9 @@
-import React, {
-  useEffect,
-  useMemo,
-  useState,
-  useMemo as useReactMemo,
-} from "react";
+import React, { useEffect, useMemo, useState, useMemo as useReactMemo } from "react";
 import { useRouter } from "next/router";
 
-type Branch = {
-  id: number;
-  name: string;
-};
+type Branch = { id: number; name: string };
 
-type AppPaymentRow = {
-  provider: string;
-  amount: string; // keep as string for input, convert later
-};
+type AppPaymentRow = { provider: string; amount: string };
 
 type Patient = {
   id: number;
@@ -25,25 +14,14 @@ type Patient = {
   branch?: Branch | null;
 };
 
-type PatientBook = {
-  id: number;
-  bookNumber: string;
-  patient: Patient;
-};
+type PatientBook = { id: number; bookNumber: string; patient: Patient };
 
-type Doctor = {
-  id: number;
-  name?: string | null;
-  ovog?: string | null;
-  email: string;
-};
+type Doctor = { id: number; name?: string | null; ovog?: string | null; email: string };
 
-type Service = {
-  id: number;
-  code?: string | null;
-  name: string;
-  price: number;
-};
+type Service = { id: number; code?: string | null; name: string; price: number };
+
+// ✅ NEW
+type Product = { id: number; name: string; price: number; sku?: string | null };
 
 type InvoiceItem = {
   id?: number;
@@ -58,12 +36,7 @@ type InvoiceItem = {
   source?: "ENCOUNTER" | "MANUAL";
 };
 
-type Payment = {
-  id: number;
-  amount: number;
-  method: string;
-  timestamp: string;
-};
+type Payment = { id: number; amount: number; method: string; timestamp: string };
 
 type InvoiceResponse = {
   id: number | null;
@@ -72,12 +45,11 @@ type InvoiceResponse = {
   patientId: number;
   status: string;
   totalBeforeDiscount: number;
-  discountPercent: number; // 0, 5, 10
+  discountPercent: number;
   finalAmount: number;
   hasEBarimt: boolean;
   isProvisional?: boolean;
   items: InvoiceItem[];
-  // settlement extras
   paidTotal?: number;
   unpaidAmount?: number;
   payments?: Payment[];
@@ -92,7 +64,6 @@ type Encounter = {
   notes?: string | null;
   patientBook: PatientBook;
   doctor: Doctor | null;
-  // NOTE: server returns prescription via /api/encounters/:id include
   prescription?: Prescription | null;
 };
 
@@ -106,18 +77,14 @@ type PrescriptionItem = {
   note?: string | null;
 };
 
-type Prescription = {
-  id: number;
-  encounterId: number;
-  items: PrescriptionItem[];
-};
+type Prescription = { id: number; encounterId: number; items: PrescriptionItem[] };
 
 type EncounterMedia = {
   id: number;
   encounterId: number;
   filePath: string;
   toothCode?: string | null;
-  type: string; // "XRAY" | "PHOTO" | ...
+  type: string;
 };
 
 type EncounterConsent = {
@@ -165,13 +132,10 @@ function formatMoney(v: number | null | undefined) {
 // ----------------- Payment section -----------------
 
 const PAYMENT_METHODS = [
-  // Direct patient payments
   { key: "CASH", label: "Бэлэн мөнгө", icon: "₮" },
   { key: "POS", label: "Карт (POS)", icon: "💳" },
   { key: "QPAY", label: "QPay", icon: "Ⓠ" },
   { key: "TRANSFER", label: "Дансны шилжүүлэг", icon: "🏦" },
-
-  // Third-party / special arrangements
   { key: "INSURANCE", label: "Даатгал", icon: "🛡" },
   { key: "VOUCHER", label: "Купон / Ваучер", icon: "🎟" },
   { key: "BARTER", label: "Бартер", icon: "⇄" },
@@ -195,32 +159,21 @@ function BillingPaymentSection({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // codes for various methods
   const [voucherCode, setVoucherCode] = useState("");
   const [barterCode, setBarterCode] = useState("");
   const [employeeCode, setEmployeeCode] = useState("");
-  const [employeeRemaining, setEmployeeRemaining] = useState<number | null>(
-    null
-  );
+  const [employeeRemaining, setEmployeeRemaining] = useState<number | null>(null);
 
-  const [appRows, setAppRows] = useState<AppPaymentRow[]>([
-    { provider: "", amount: "" },
-  ]);
+  const [appRows, setAppRows] = useState<AppPaymentRow[]>([{ provider: "", amount: "" }]);
 
-  // voucher type + max
-  const [voucherType, setVoucherType] = useState<"MARKETING" | "GIFT" | "">(
-    ""
-  );
-  const [voucherMaxAmount, setVoucherMaxAmount] = useState<number | null>(
-    null
-  );
+  const [voucherType, setVoucherType] = useState<"MARKETING" | "GIFT" | "">("");
+  const [voucherMaxAmount, setVoucherMaxAmount] = useState<number | null>(null);
 
   const hasRealInvoice = !!invoice.id;
   const unpaid =
     invoice.unpaidAmount ??
     Math.max((invoice.finalAmount ?? 0) - (invoice.paidTotal ?? 0), 0);
 
-  // wallet credit from patient's overall balance
   const walletAvailable =
     invoice.patientBalance != null && invoice.patientBalance < 0
       ? Math.abs(invoice.patientBalance)
@@ -1088,6 +1041,12 @@ export default function BillingPage() {
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState("");
 
+  const [productModalOpen, setProductModalOpen] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState("");
+  const [productQuery, setProductQuery] = useState("");
+  
   // NEW: XRAY + consent printable info
   const [xrays, setXrays] = useState<EncounterMedia[]>([]);
   const [xraysLoading, setXraysLoading] = useState(false);
@@ -1099,12 +1058,105 @@ const [consentError, setConsentError] = useState("");
 
   // Service selector state
   const [serviceModalOpen, setServiceModalOpen] = useState(false);
-  const [serviceModalRowIndex, setServiceModalRowIndex] =
-    useState<number | null>(null);
+  const [serviceModalRowIndex, setServiceModalRowIndex] = useState<number | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
   const [servicesError, setServicesError] = useState("");
   const [serviceQuery, setServiceQuery] = useState("");
+
+  // ✅ NEW: load products for product modal
+  const loadProducts = async () => {
+    if (!encounter) {
+      setProductsError("Үзлэгийн мэдээлэл ачаалагдаагүй байна.");
+      return;
+    }
+
+    const branchId = encounter.patientBook.patient.branch?.id;
+    if (!branchId) {
+      setProductsError("Салбар тодорхойгүй байна.");
+      return;
+    }
+
+    setProductsLoading(true);
+    setProductsError("");
+
+    try {
+      const res = await fetch(`/api/inventory/products?branchId=${branchId}`);
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error((data && data.error) || "Бүтээгдэхүүн ачаалж чадсангүй.");
+      }
+
+      const list: Product[] = Array.isArray(data)
+        ? data
+        : Array.isArray((data as any)?.products)
+        ? (data as any).products
+        : [];
+
+      setProducts(list);
+    } catch (e: any) {
+      console.error("loadProducts failed:", e);
+      setProducts([]);
+      setProductsError(e.message || "Бүтээгдэхүүн ачаалж чадсангүй.");
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  // ✅ Load products
+  const loadProducts = async () => {
+    if (!encounter) {
+      setProductsError("Үзлэгийн мэдээлэл ачаалагдаагүй байна.");
+      return;
+    }
+    const branchId = encounter.patientBook.patient.branch?.id;
+    if (!branchId) {
+      setProductsError("Салбар тодорхойгүй байна.");
+      return;
+    }
+
+    setProductsLoading(true);
+    setProductsError("");
+    try {
+      const res = await fetch(`/api/inventory/products?branchId=${branchId}`);
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error((data && data.error) || "Бүтээгдэхүүн ачаалж чадсангүй.");
+      }
+
+      const list: Product[] = Array.isArray(data)
+        ? data
+        : Array.isArray((data as any)?.products)
+        ? (data as any).products
+        : [];
+
+      setProducts(list);
+    } catch (e: any) {
+      console.error("loadProducts failed:", e);
+      setProducts([]);
+      setProductsError(e.message || "Бүтээгдэхүүн ачаалж чадсангүй.");
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  // ✅ Add product row
+  const handleAddRowFromProduct = (p: Product) => {
+    const newRow: InvoiceItem = {
+      itemType: "PRODUCT",
+      productId: p.id,
+      serviceId: null,
+      name: p.name,
+      unitPrice: Number(p.price || 0),
+      quantity: 1,
+      source: "MANUAL",
+    };
+    setItems((prev) => [...prev, newRow]);
+    setProductModalOpen(false);
+    setProductQuery("");
+  };
 
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
@@ -1113,36 +1165,17 @@ const [consentError, setConsentError] = useState("");
       setLoading(true);
       setLoadError("");
       try {
-        // Load encounter summary
         const encRes = await fetch(`/api/encounters/${encounterId}`);
-        let encData: any = null;
-        try {
-          encData = await encRes.json();
-        } catch {
-          encData = null;
-        }
-
+        const encData = await encRes.json().catch(() => null);
         if (!encRes.ok || !encData || !encData.id) {
           throw new Error((encData && encData.error) || "Алдаа гарлаа");
         }
         setEncounter(encData);
 
-        // Load billing/invoice
-        const invRes = await fetch(
-          `/api/billing/encounters/${encounterId}/invoice`
-        );
-        let invData: any = null;
-        try {
-          invData = await invRes.json();
-        } catch {
-          invData = null;
-        }
-
+        const invRes = await fetch(`/api/billing/encounters/${encounterId}/invoice`);
+        const invData = await invRes.json().catch(() => null);
         if (!invRes.ok || !invData) {
-          throw new Error(
-            (invData && invData.error) ||
-              "Төлбөрийн мэдээлэл ачаалж чадсангүй."
-          );
+          throw new Error((invData && invData.error) || "Төлбөрийн мэдээлэл ачаалж чадсангүй.");
         }
 
         const inv: InvoiceResponse = invData;
@@ -1163,7 +1196,7 @@ const [consentError, setConsentError] = useState("");
     void load();
   }, [encounterId]);
 
-  // NEW: load XRAY media list
+  // XRAY
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
 
@@ -1186,35 +1219,30 @@ const [consentError, setConsentError] = useState("");
     void loadXrays();
   }, [encounterId]);
 
-  // NEW: load consents (array)
-useEffect(() => {
-  if (!encounterId || Number.isNaN(encounterId)) return;
+  // Consents
+  useEffect(() => {
+    if (!encounterId || Number.isNaN(encounterId)) return;
 
-  const loadConsents = async () => {
-    setConsentLoading(true);
-    setConsentError("");
-    try {
-      const res = await fetch(`/api/encounters/${encounterId}/consents`);
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error(
-          (data && data.error) || "Зөвшөөрлийн маягтууд ачаалж чадсангүй."
-        );
+    const loadConsents = async () => {
+      setConsentLoading(true);
+      setConsentError("");
+      try {
+        const res = await fetch(`/api/encounters/${encounterId}/consents`);
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error((data && data.error) || "Зөвшөөрлийн маягтууд ачаалж чадсангүй.");
+        }
+        setConsents(Array.isArray(data) ? (data as EncounterConsent[]) : []);
+      } catch (e: any) {
+        setConsents([]);
+        setConsentError(e.message || "Зөвшөөрлийн маягтууд ачаалж чадсангүй.");
+      } finally {
+        setConsentLoading(false);
       }
+    };
 
-      setConsents(Array.isArray(data) ? (data as EncounterConsent[]) : []);
-    } catch (e: any) {
-      setConsents([]);
-      setConsentError(e.message || "Зөвшөөрлийн маягтууд ачаалж чадсангүй.");
-    } finally {
-      setConsentLoading(false);
-    }
-  };
-
-  void loadConsents();
-}, [encounterId]);
-        
+    void loadConsents();
+  }, [encounterId]);
 
   const handleItemChange = (
     index: number,
@@ -1224,16 +1252,11 @@ useEffect(() => {
     setItems((prev) =>
       prev.map((row, i) => {
         if (i !== index) return row;
-        if (field === "name") {
-          return { ...row, name: value };
-        }
+        if (field === "name") return { ...row, name: value };
+
         const num = Number(value.replace(/\s/g, "")) || 0;
-        if (field === "quantity") {
-          return { ...row, quantity: num > 0 ? num : 1 };
-        }
-        if (field === "unitPrice") {
-          return { ...row, unitPrice: num >= 0 ? num : 0 };
-        }
+        if (field === "quantity") return { ...row, quantity: num > 0 ? num : 1 };
+        if (field === "unitPrice") return { ...row, unitPrice: num >= 0 ? num : 0 };
         return row;
       })
     );
@@ -1245,10 +1268,7 @@ useEffect(() => {
         if (i !== index) return row;
         return {
           ...row,
-          teethNumbers: value
-            .split(",")
-            .map((n) => n.trim())
-            .filter(Boolean),
+          teethNumbers: value.split(",").map((n) => n.trim()).filter(Boolean),
         };
       })
     );
@@ -1275,8 +1295,7 @@ useEffect(() => {
     (sum, row) => sum + (row.unitPrice || 0) * (row.quantity || 0),
     0
   );
-  const discountFactor =
-    discountPercent === 0 ? 1 : (100 - discountPercent) / 100;
+  const discountFactor = discountPercent === 0 ? 1 : (100 - discountPercent) / 100;
   const finalAmount = Math.max(Math.round(totalBeforeDiscount * discountFactor), 0);
 
   const handleSaveBilling = async () => {
@@ -1289,7 +1308,7 @@ useEffect(() => {
       const payload = {
         discountPercent,
         items: items
-          .filter((r) => (r.serviceId || r.productId || r.name.trim()))
+          .filter((r) => r.serviceId || r.productId || r.name.trim())
           .map((r) => ({
             id: r.id,
             itemType: r.itemType,
@@ -1308,13 +1327,7 @@ useEffect(() => {
         body: JSON.stringify(payload),
       });
 
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-
+      const data = await res.json().catch(() => null);
       if (!res.ok || !data || !data.id) {
         throw new Error((data && data.error) || "Төлбөр хадгалахад алдаа гарлаа.");
       }
@@ -1339,17 +1352,10 @@ useEffect(() => {
     setServicesError("");
     try {
       const res = await fetch(`/api/services`);
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
+      const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        throw new Error(
-          (data && data.error) || "Үйлчилгээний жагсаалт ачаалахад алдаа гарлаа."
-        );
+        throw new Error((data && data.error) || "Үйлчилгээний жагсаалт ачаалахад алдаа гарлаа.");
       }
 
       const list: Service[] = Array.isArray(data)
@@ -1409,16 +1415,15 @@ useEffect(() => {
     });
   }, [services, serviceQuery]);
 
+  const filteredProducts = useReactMemo(() => {
+    const q = productQuery.trim().toLowerCase();
+    if (!q) return products;
+    return products.filter((p) => (p.name || "").toLowerCase().includes(q));
+  }, [products, productQuery]);
+
   if (!encounterId || Number.isNaN(encounterId)) {
     return (
-      <main
-        style={{
-          maxWidth: 900,
-          margin: "40px auto",
-          padding: 24,
-          fontFamily: "sans-serif",
-        }}
-      >
+      <main style={{ maxWidth: 900, margin: "40px auto", padding: 24, fontFamily: "sans-serif" }}>
         <h1>Нэхэмжлэлийн хуудас</h1>
         <div style={{ color: "red" }}>Encounter ID буруу байна.</div>
       </main>
@@ -1426,22 +1431,11 @@ useEffect(() => {
   }
 
   return (
-    <main
-      style={{
-        maxWidth: 1000,
-        margin: "40px auto",
-        padding: 24,
-        fontFamily: "sans-serif",
-      }}
-    >
-      <h1 style={{ fontSize: 20, marginBottom: 12 }}>
-        Нэхэмжлэлийн хуудас (Encounter ID: {encounterId})
-      </h1>
+    <main style={{ maxWidth: 1000, margin: "40px auto", padding: 24, fontFamily: "sans-serif" }}>
+      <h1 style={{ fontSize: 20, marginBottom: 12 }}>Нэхэмжлэлийн хуудас (Encounter ID: {encounterId})</h1>
 
-      {loading && <div>Ачаалж байна...</div>}
-      {!loading && loadError && (
-        <div style={{ color: "red", marginBottom: 12 }}>{loadError}</div>
-      )}
+     {loading && <div>Ачаалж байна...</div>}
+      {!loading && loadError && <div style={{ color: "red", marginBottom: 12 }}>{loadError}</div>}
 
       {encounter && invoice && (
         <>
@@ -1571,48 +1565,54 @@ useEffect(() => {
 </section>
 
           {/* Billing items */}
-          <section
-            style={{
-              marginTop: 0,
-              padding: 16,
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              background: "#ffffff",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 8,
-              }}
-            >
-              <div>
-                <h2 style={{ fontSize: 16, margin: 0 }}>
-                  Үйлчилгээний мөрүүд (Invoice lines)
-                </h2>
+          (Invoice lines)</h2>
                 <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Доорх жагсаалт нь энэ үзлэгт гүйцэтгэсэн үйлчилгээ,
-                  бүтээгдэхүүнийг илэрхийлнэ.
+                  Доорх жагсаалт нь энэ үзлэгт гүйцэтгэсэн үйлчилгээ, бүтээгдэхүүнийг илэрхийлнэ.
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={handleAddRowFromService}
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 6,
-                  border: "1px solid #2563eb",
-                  background: "#eff6ff",
-                  color: "#2563eb",
-                  cursor: "pointer",
-                  fontSize: 13,
-                }}
-              >
-                + Нэмэлт мөр
-              </button>
+
+              {/* ✅ Buttons */}
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={handleAddRowFromService}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #2563eb",
+                    background: "#eff6ff",
+                    color: "#2563eb",
+                    cursor: "pointer",
+                    fontSize: 13,
+                  }}
+                >
+                  + Эмчилгээ нэмэх
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProductModalOpen(true);
+                    void loadProducts();
+                  }}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #16a34a",
+                    background: "#f0fdf4",
+                    color: "#166534",
+                    cursor: "pointer",
+                    fontSize: 13,
+                  }}
+                >
+                  + Бүтээгдэхүүн нэмэх
+                </button>
+              </div>
             </div>
+
+
+  
+              
 
             {items.length === 0 && (
               <div style={{ fontSize: 13, color: "#6b7280" }}>
@@ -2119,6 +2119,101 @@ useEffect(() => {
 </div>
           </section>
         </>
+      )}
+{/* ✅ Product picker modal (rendered once, outside header) */}
+      {productModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 80,
+          }}
+          onClick={() => setProductModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 520,
+              maxWidth: "95vw",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              background: "#ffffff",
+              borderRadius: 8,
+              boxShadow: "0 14px 40px rgba(0,0,0,0.25)",
+              padding: 16,
+              fontSize: 13,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <h3 style={{ margin: 0, fontSize: 15 }}>Бүтээгдэхүүн сонгох</h3>
+              <button
+                type="button"
+                onClick={() => setProductModalOpen(false)}
+                style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 18, lineHeight: 1 }}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <input
+              type="text"
+              value={productQuery}
+              onChange={(e) => setProductQuery(e.target.value)}
+              placeholder="Нэрээр хайх..."
+              style={{
+                width: "100%",
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+                fontSize: 13,
+              }}
+            />
+
+            {productsLoading && (
+              <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>Бүтээгдэхүүн ачаалж байна...</div>
+            )}
+            {productsError && (
+              <div style={{ marginTop: 8, fontSize: 12, color: "#b91c1c" }}>{productsError}</div>
+            )}
+
+            {!productsLoading && !productsError && filteredProducts.length === 0 && (
+              <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>Хайлтад тохирох бүтээгдэхүүн олдсонгүй.</div>
+            )}
+
+            <div style={{ marginTop: 8, borderRadius: 6, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+              {filteredProducts.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => handleAddRowFromProduct(p)}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "8px 10px",
+                    border: "none",
+                    borderBottom: "1px solid #f3f4f6",
+                    background: "#ffffff",
+                    cursor: "pointer",
+                    fontSize: 13,
+                  }}
+                >
+                  <div style={{ fontWeight: 500 }}>
+                    {p.name}
+                    {p.sku ? <span style={{ marginLeft: 6, color: "#6b7280" }}>({p.sku})</span> : null}
+                  </div>
+                  <div style={{ color: "#6b7280" }}>{Number(p.price || 0).toLocaleString("mn-MN")}₮</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Service picker modal */}
