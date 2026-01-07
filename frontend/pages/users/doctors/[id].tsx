@@ -856,71 +856,53 @@ export default function DoctorProfilePage() {
   }
 
   const headerName = formatDoctorShortName(doctor);
-const MenuItem = ({ tab, label }: { tab: DoctorTabKey; label: string }) => {
-    const active = activeTab === tab;
-    return (
-      <div
-        onClick={() => setActiveTab(tab)}
-        style={{
-          padding: "10px 12px",
-          borderRadius: 8,
-          cursor: "pointer",
-          fontSize: 16,
-          fontWeight: active ? 800 : 600,
-          color: active ? "#1d4ed8" : "#374151",
-          background: active ? "#eff6ff" : "transparent",
-        }}
-      >
-        {label}
-      </div>
-    );
-  };
+
   return (
    <main
   style={{
-    maxWidth: 1200,
-    margin: "0 auto",
+    maxWidth: 1100,
+    margin: "40px auto",
     padding: 24,
     fontFamily: "sans-serif",
-    background: "#f3f4f6",
-    minHeight: "100vh",
   }}
 >
       <button
-        onClick={() => router.back()}
-        style={{
-          marginBottom: 12,
-          padding: "6px 10px",
-          borderRadius: 8,
-          border: "1px solid #e5e7eb",
-          background: "#fff",
-          cursor: "pointer",
-          fontSize: 13,
-        }}
-      >
-        ← Буцах
-      </button>
+  type="button"
+  onClick={() => router.push("/users/doctors")}
+  style={{
+    marginBottom: 16,
+    padding: "4px 8px",
+    borderRadius: 4,
+    border: "1px solid #d1d5db",
+    background: "#f9fafb",
+    cursor: "pointer",
+    fontSize: 13,
+  }}
+>
+  ← Буцах
+</button>
 
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "300px 1fr",
-          gap: 16,
-          alignItems: "start",
-        }}
-      >
+     <section
+  style={{
+    display: "grid",
+    gridTemplateColumns: "260px 1fr",
+    gap: 16,
+    alignItems: "stretch",
+    marginBottom: 24,
+  }}
+>
         {/* LEFT SIDEBAR */}
-        <aside
-          style={{
-            borderRadius: 16,
-            border: "1px solid #e5e7eb",
-            background: "#fff",
-            padding: 18,
-          }}
-        >
-          <div style={{ fontWeight: 800, fontSize: 20, marginBottom: 6 }}>
-            {headerName}
-          </div>
+        <div
+  style={{
+    border: "1px solid #e5e7eb",
+    borderRadius: 12,
+    padding: 16,
+    background: "white",
+  }}
+>
+          <div style={{ marginBottom: 4, fontSize: 18, fontWeight: 600 }}>
+  {headerName}
+</div>
 
           <div
             style={{
@@ -949,41 +931,142 @@ const MenuItem = ({ tab, label }: { tab: DoctorTabKey; label: string }) => {
             )}
           </div>
 
-          <div style={{ fontSize: 13, color: "#111827", lineHeight: 1.6 }}>
-            <div>
-              <span style={{ color: "#6b7280" }}>Утас:</span>{" "}
-              <strong>{doctor.phone || "-"}</strong>
-            </div>
-            <div>
-              <span style={{ color: "#6b7280" }}>И-мэйл:</span>{" "}
-              <strong>{doctor.email || "-"}</strong>
-            </div>
-            <div>
-              <span style={{ color: "#6b7280" }}>Үндсэн салбар:</span>{" "}
-              <strong>{mainBranchName || "-"}</strong>
-            </div>
-            <div>
-              <span style={{ color: "#6b7280" }}>Лиценз:</span>{" "}
-              <strong>{doctor.licenseNumber || "-"}</strong>
-            </div>
-            <div>
-              <span style={{ color: "#6b7280" }}>Дуусах:</span>{" "}
-              <strong>{formatIsoDateOnly(doctor.licenseExpiryDate) || "-"}</strong>
-            </div>
-          </div>
+          <div style={{ fontSize: 13, color: "#6b7280" }}>
+  <div>Утас: {doctor.phone || "-"}</div>
+  <div>И-мэйл: {doctor.email || "-"}</div>
+  <div>Үндсэн салбар: {mainBranchName || "-"}</div>
+  <div>Лиценз: {doctor.licenseNumber || "-"}</div>
+  <div>Дуусах: {formatIsoDateOnly(doctor.licenseExpiryDate) || "-"}</div>
+</div>
 
           
 
-          <div style={{ marginTop: 18, fontSize: 14, color: "#9ca3af", fontWeight: 800 }}>
-  ЦЭС
-</div>
+         {/* Side menu */}
+<div style={{ marginTop: 16 }}>
+  <div
+    style={{
+      fontSize: 12,
+      textTransform: "uppercase",
+      color: "#9ca3af",
+      marginBottom: 4,
+    }}
+  >
+    Цэс
+  </div>
 
-<div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-  <MenuItem tab="profile" label="Профайл" />
-  <MenuItem tab="schedule" label="Ажлын хуваарь" />
-  <MenuItem tab="appointments" label="Цагууд" />
-  <MenuItem tab="test1" label="Test Page 1" />
-  <MenuItem tab="test2" label="Test Page 2" />
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+      fontSize: 13,
+    }}
+  >
+    <button
+      type="button"
+      onClick={() => {
+        setActiveTab("profile");
+        setIsEditingProfile(false);
+        setError(null);
+      }}
+      style={{
+        textAlign: "left",
+        padding: "6px 10px",
+        borderRadius: 6,
+        border: "none",
+        background: activeTab === "profile" ? "#eff6ff" : "transparent",
+        color: activeTab === "profile" ? "#1d4ed8" : "#6b7280",
+        fontWeight: activeTab === "profile" ? 500 : 400,
+        cursor: "pointer",
+      }}
+    >
+      Профайл
+    </button>
+
+    <button
+      type="button"
+      onClick={() => {
+        setActiveTab("schedule");
+        setIsEditingProfile(false);
+        setError(null);
+      }}
+      style={{
+        textAlign: "left",
+        padding: "6px 10px",
+        borderRadius: 6,
+        border: "none",
+        background: activeTab === "schedule" ? "#eff6ff" : "transparent",
+        color: activeTab === "schedule" ? "#1d4ed8" : "#6b7280",
+        fontWeight: activeTab === "schedule" ? 500 : 400,
+        cursor: "pointer",
+      }}
+    >
+      Ажлын хуваарь
+    </button>
+
+    <button
+      type="button"
+      onClick={() => {
+        setActiveTab("appointments");
+        setIsEditingProfile(false);
+        setError(null);
+      }}
+      style={{
+        textAlign: "left",
+        padding: "6px 10px",
+        borderRadius: 6,
+        border: "none",
+        background: activeTab === "appointments" ? "#eff6ff" : "transparent",
+        color: activeTab === "appointments" ? "#1d4ed8" : "#6b7280",
+        fontWeight: activeTab === "appointments" ? 500 : 400,
+        cursor: "pointer",
+      }}
+    >
+      Цагууд
+    </button>
+
+    <button
+      type="button"
+      onClick={() => {
+        setActiveTab("test1");
+        setIsEditingProfile(false);
+        setError(null);
+      }}
+      style={{
+        textAlign: "left",
+        padding: "6px 10px",
+        borderRadius: 6,
+        border: "none",
+        background: activeTab === "test1" ? "#eff6ff" : "transparent",
+        color: activeTab === "test1" ? "#1d4ed8" : "#6b7280",
+        fontWeight: activeTab === "test1" ? 500 : 400,
+        cursor: "pointer",
+      }}
+    >
+      Test Page 1
+    </button>
+
+    <button
+      type="button"
+      onClick={() => {
+        setActiveTab("test2");
+        setIsEditingProfile(false);
+        setError(null);
+      }}
+      style={{
+        textAlign: "left",
+        padding: "6px 10px",
+        borderRadius: 6,
+        border: "none",
+        background: activeTab === "test2" ? "#eff6ff" : "transparent",
+        color: activeTab === "test2" ? "#1d4ed8" : "#6b7280",
+        fontWeight: activeTab === "test2" ? 500 : 400,
+        cursor: "pointer",
+      }}
+    >
+      Test Page 2
+    </button>
+  </div>
 </div>
 
           <button
@@ -1004,35 +1087,91 @@ const MenuItem = ({ tab, label }: { tab: DoctorTabKey; label: string }) => {
           >
             Ажилтныг устгах
           </button>
-        </aside>
+        </div>
 
         {/* RIGHT CONTENT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {/* Top stat cards (only on profile tab) */}
           {activeTab === "profile" && (
-  <section
+  <div
     style={{
       display: "grid",
-      gridTemplateColumns: "repeat(3, minmax(240px, 1fr))",
-      gap: 16,
+      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+      gap: 12,
     }}
   >
-    <StatCard
-      title="Өнөөдрийн цаг захиалга"
-      value={todayAppointmentsCount}
-      subtitle="Нийт бүртгэлтэй цаг"
-    />
-    <StatCard
-      title="Өнөөдрийн орлого"
-      value="Coming soon"
-      subtitle="(Logic later)"
-    />
-    <StatCard
-      title="Энэ сарын орлого"
-      value="Coming soon"
-      subtitle="(Logic later)"
-    />
-  </section>
+    <div
+      style={{
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        padding: 12,
+        background: "#f9fafb",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 12,
+          textTransform: "uppercase",
+          color: "#6b7280",
+          marginBottom: 4,
+        }}
+      >
+        Өнөөдрийн цаг захиалга
+      </div>
+      <div style={{ fontSize: 24, fontWeight: 600, marginBottom: 4 }}>
+        {todayAppointmentsCount}
+      </div>
+      <div style={{ fontSize: 12, color: "#6b7280" }}>Нийт бүртгэлтэй цаг</div>
+    </div>
+
+    <div
+      style={{
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        padding: 12,
+        background: "#f9fafb",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 12,
+          textTransform: "uppercase",
+          color: "#6b7280",
+          marginBottom: 4,
+        }}
+      >
+        Өнөөдрийн орлого
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
+        Coming soon
+      </div>
+      <div style={{ fontSize: 12, color: "#6b7280" }}>(Logic later)</div>
+    </div>
+
+    <div
+      style={{
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        padding: 12,
+        background: "#f9fafb",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 12,
+          textTransform: "uppercase",
+          color: "#6b7280",
+          marginBottom: 4,
+        }}
+      >
+        Энэ сарын орлого
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
+        Coming soon
+      </div>
+      <div style={{ fontSize: 12, color: "#6b7280" }}>(Logic later)</div>
+    </div>
+  </div>
 )}
 
           {/* PROFILE TAB */}
