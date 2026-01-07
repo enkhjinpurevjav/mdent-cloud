@@ -912,10 +912,10 @@ const MenuItem = ({ tab, label }: { tab: DoctorTabKey; label: string }) => {
         {/* LEFT SIDEBAR */}
         <aside
           style={{
-            borderRadius: 12,
+            borderRadius: 16,
             border: "1px solid #e5e7eb",
             background: "#fff",
-            padding: 14,
+            padding: 18,
           }}
         >
           <div style={{ fontWeight: 800, fontSize: 20, marginBottom: 6 }}>
@@ -972,9 +972,7 @@ const MenuItem = ({ tab, label }: { tab: DoctorTabKey; label: string }) => {
             </div>
           </div>
 
-          <div style={{ marginTop: 16, color: "#6b7280", fontSize: 12 }}>
-            ЦЭС
-          </div>
+          
 
           <div style={{ marginTop: 18, fontSize: 14, color: "#9ca3af", fontWeight: 800 }}>
   ЦЭС
