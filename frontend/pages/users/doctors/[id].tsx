@@ -1186,15 +1186,14 @@ export default function DoctorProfilePage() {
                       setError(null);
                       setIsEditingProfile(true);
                     }}
-                    style={{
-                      padding: "6px 12px",
-                      borderRadius: 8,
-                      border: "1px solid #d1d5db",
-                      background: "#fff",
-                      cursor: "pointer",
-                      fontSize: 13,
-                      fontWeight: 700,
-                    }}
+                   style={{
+  fontSize: 12,
+  padding: "4px 8px",
+  borderRadius: 6,
+  border: "1px solid #d1d5db",
+  background: "#f9fafb",
+  cursor: "pointer",
+}}
                   >
                     Засах
                   </button>
@@ -1715,13 +1714,11 @@ export default function DoctorProfilePage() {
                                     type="button"
                                     onClick={cancelEditRow}
                                     style={{
-                                      padding: "4px 10px",
-                                      borderRadius: 8,
-                                      border: "1px solid #d1d5db",
-                                      background: "#fff",
-                                      cursor: "pointer",
-                                      fontSize: 12,
-                                      fontWeight: 700,
+                                     border: "1px solid #d1d5db",
+background: "#f9fafb",
+padding: "6px 12px",
+borderRadius: 6,
+fontSize: 13
                                     }}
                                   >
                                     Цуцлах
