@@ -1255,12 +1255,31 @@ const [consentError, setConsentError] = useState("");
     setServiceModalRowIndex(items.length);
   };
 
-  const totalBeforeDiscount = items.reduce(
-    (sum, row) => sum + (row.unitPrice || 0) * (row.quantity || 0),
-    0
-  );
-  const discountFactor = discountPercent === 0 ? 1 : (100 - discountPercent) / 100;
-  const finalAmount = Math.max(Math.round(totalBeforeDiscount * discountFactor), 0);
+  // --- totals (discount applies ONLY to services) ---
+
+const servicesSubtotal = items
+  .filter((row) => row.itemType === "SERVICE")
+  .reduce((sum, row) => sum + (row.unitPrice || 0) * (row.quantity || 0), 0);
+
+const productsSubtotal = items
+  .filter((row) => row.itemType === "PRODUCT")
+  .reduce((sum, row) => sum + (row.unitPrice || 0) * (row.quantity || 0), 0);
+
+const totalBeforeDiscount = servicesSubtotal + productsSubtotal;
+
+const discountFactor =
+  discountPercent === 0 ? 1 : (100 - discountPercent) / 100;
+
+const discountedServices = Math.max(
+  Math.round(servicesSubtotal * discountFactor),
+  0
+);
+
+// ✅ discount amount (services only)
+const discountAmount = Math.max(Math.round(servicesSubtotal) - discountedServices, 0);
+
+// ✅ final amount = discounted services + full products
+const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 0);
 
   const handleSaveBilling = async () => {
     if (!encounterId || Number.isNaN(encounterId)) return;
@@ -1798,46 +1817,65 @@ const [consentError, setConsentError] = useState("");
             </div>
 
             <div
-              style={{
-                marginTop: 12,
-                display: "flex",
-                flexDirection: "column",
-                gap: 4,
-                alignItems: "flex-end",
-                fontSize: 13,
-              }}
-            >
-              <div>
-                Нийт (хөнгөлөлтгүй):{" "}
-                <strong>
-                  {totalBeforeDiscount.toLocaleString("mn-MN")}₮
-                </strong>
-              </div>
-              <div>
-                Хөнгөлөлт (0 / 5 / 10%):{" "}
-                <select
-                  value={discountPercent}
-                  onChange={(e) =>
-                    setDiscountPercent(Number(e.target.value))
-                  }
-                  style={{
-                    marginLeft: 8,
-                    padding: "2px 4px",
-                    fontSize: 13,
-                  }}
-                >
-                  <option value={0}>0%</option>
-                  <option value={5}>5%</option>
-                  <option value={10}>10%</option>
-                </select>
-              </div>
-              <div>
-                Төлөх дүн:{" "}
-                <strong style={{ fontSize: 16 }}>
-                  {finalAmount.toLocaleString("mn-MN")}₮
-                </strong>
-              </div>
-            </div>
+  style={{
+    marginTop: 12,
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    alignItems: "flex-end",
+    fontSize: 13,
+  }}
+>
+  {/* ✅ Subtotals */}
+  <div>
+    Үйлчилгээний дүн:{" "}
+    <strong>{servicesSubtotal.toLocaleString("mn-MN")}₮</strong>
+  </div>
+  <div>
+    Бүтээгдэхүүний дүн:{" "}
+    <strong>{productsSubtotal.toLocaleString("mn-MN")}₮</strong>
+  </div>
+
+  {/* ✅ Discount amount (services only) */}
+  <div>
+    Хөнгөлөлт (зөвхөн үйлчилгээ):{" "}
+    <strong style={{ color: discountAmount > 0 ? "#b91c1c" : undefined }}>
+      −{discountAmount.toLocaleString("mn-MN")}₮
+    </strong>
+  </div>
+
+  {/* Existing discount selector */}
+  <div>
+    Хөнгөлөлт (0 / 5 / 10%):{" "}
+    <select
+      value={discountPercent}
+      onChange={(e) => setDiscountPercent(Number(e.target.value))}
+      style={{
+        marginLeft: 8,
+        padding: "2px 4px",
+        fontSize: 13,
+      }}
+    >
+      <option value={0}>0%</option>
+      <option value={5}>5%</option>
+      <option value={10}>10%</option>
+    </select>
+  </div>
+
+  {/* Total before discount */}
+  <div>
+    Нийт (хөнгөлөлтгүй):{" "}
+    <strong>{totalBeforeDiscount.toLocaleString("mn-MN")}₮</strong>
+  </div>
+
+  {/* Final */}
+  <div>
+    Төлөх дүн:{" "}
+    <strong style={{ fontSize: 16 }}>
+      {finalAmount.toLocaleString("mn-MN")}₮
+    </strong>
+  </div>
+</div>
 
             {saveError && (
               <div style={{ color: "#b91c1c", marginTop: 8, fontSize: 13 }}>
