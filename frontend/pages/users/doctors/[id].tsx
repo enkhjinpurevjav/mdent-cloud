@@ -1176,273 +1176,349 @@ export default function DoctorProfilePage() {
 
           {/* PROFILE TAB */}
           {activeTab === "profile" && (
-            <Card
-              title="Үндсэн мэдээлэл"
-              right={
-                !isEditingProfile ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setError(null);
-                      setIsEditingProfile(true);
-                    }}
-                   style={{
-  fontSize: 12,
-  padding: "4px 8px",
-  borderRadius: 6,
-  border: "1px solid #d1d5db",
-  background: "#f9fafb",
-  cursor: "pointer",
-}}
-                  >
-                    Засах
-                  </button>
-                ) : null
-              }
+  <>
+    {/* Basic information section (editable) - patient page style */}
+    <div
+      style={{
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        padding: 16,
+        background: "white",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 0 }}>
+          Үндсэн мэдээлэл
+        </h2>
+
+        {!isEditingProfile ? (
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setIsEditingProfile(true);
+            }}
+            style={{
+              fontSize: 12,
+              padding: "4px 8px",
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              background: "#f9fafb",
+              cursor: "pointer",
+            }}
+          >
+            Засах
+          </button>
+        ) : null}
+      </div>
+
+      {error && (
+        <div style={{ color: "#b91c1c", fontSize: 12, marginBottom: 8 }}>
+          {error}
+        </div>
+      )}
+
+      {!isEditingProfile ? (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 12,
+            fontSize: 13,
+          }}
+        >
+          <div>
+            <div style={{ color: "#6b7280", marginBottom: 2 }}>Овог</div>
+            <div>{doctor.ovog || "-"}</div>
+          </div>
+
+          <div>
+            <div style={{ color: "#6b7280", marginBottom: 2 }}>Нэр</div>
+            <div>{doctor.name || "-"}</div>
+          </div>
+
+          <div>
+            <div style={{ color: "#6b7280", marginBottom: 2 }}>И-мэйл</div>
+            <div>{doctor.email || "-"}</div>
+          </div>
+
+          <div>
+            <div style={{ color: "#6b7280", marginBottom: 2 }}>Утас</div>
+            <div>{doctor.phone || "-"}</div>
+          </div>
+
+          <div>
+            <div style={{ color: "#6b7280", marginBottom: 2 }}>РД</div>
+            <div>{doctor.regNo || "-"}</div>
+          </div>
+
+          <div>
+            <div style={{ color: "#6b7280", marginBottom: 2 }}>Үндсэн салбар</div>
+            <div>{mainBranchName || "-"}</div>
+          </div>
+
+          <div>
+            <div style={{ color: "#6b7280", marginBottom: 2 }}>
+              Лицензийн дугаар
+            </div>
+            <div>{doctor.licenseNumber || "-"}</div>
+          </div>
+
+          <div>
+            <div style={{ color: "#6b7280", marginBottom: 2 }}>
+              Лиценз дуусах хугацаа
+            </div>
+            <div>{formatIsoDateOnly(doctor.licenseExpiryDate) || "-"}</div>
+          </div>
+
+          <div>
+            <div style={{ color: "#6b7280", marginBottom: 2 }}>
+              Ажиллах салбарууд
+            </div>
+            <div>
+              {doctorAssignedBranches?.length
+                ? doctorAssignedBranches.map((b) => b.name).join(", ")
+                : "-"}
+            </div>
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <div style={{ color: "#6b7280", marginBottom: 2 }}>
+              Гарын үсгийн зураг (URL)
+            </div>
+            <div>{doctor.signatureImagePath || "-"}</div>
+          </div>
+
+          <div style={{ gridColumn: "1 / -1" }}>
+            <div style={{ color: "#6b7280", marginBottom: 2 }}>
+              Тамганы зураг (URL)
+            </div>
+            <div>{doctor.stampImagePath || "-"}</div>
+          </div>
+        </div>
+      ) : (
+        <form
+          onSubmit={handleSave}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            maxWidth: 600,
+          }}
+        >
+          {(
+            [
+              { label: "Овог", name: "ovog", type: "text" },
+              { label: "Нэр", name: "name", type: "text" },
+              { label: "И-мэйл", name: "email", type: "email" },
+            ] as const
+          ).map((f) => (
+            <div key={f.name}>
+              <div style={{ color: "#6b7280", marginBottom: 2, fontSize: 13 }}>
+                {f.label}
+              </div>
+              <input
+                name={f.name}
+                type={f.type}
+                value={(form as any)[f.name]}
+                onChange={handleChange}
+                style={{
+                  width: "100%",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                }}
+              />
+            </div>
+          ))}
+
+          <div>
+            <div style={{ color: "#6b7280", marginBottom: 2, fontSize: 13 }}>
+              Үндсэн салбар
+            </div>
+            <select
+              name="branchId"
+              value={form.branchId}
+              onChange={handleChange}
+              style={{
+                width: "100%",
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "4px 6px",
+                background: "white",
+              }}
             >
-              {!isEditingProfile ? (
-                <>
-                  <InfoGrid
-                    items={[
-                      { label: "Нэр", value: doctor.name || "-" },
-                      { label: "Овог", value: doctor.ovog || "-" },
-                      { label: "И-мэйл", value: doctor.email || "-" },
+              <option value="">Сонгохгүй</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-                      { label: "Утас", value: doctor.phone || "-" },
-                      { label: "РД", value: doctor.regNo || "-" },
-                      { label: "Үндсэн салбар", value: mainBranchName || "-" },
+          {(
+            [
+              { label: "РД", name: "regNo", type: "text" },
+              { label: "Утас", name: "phone", type: "text" },
+              { label: "Лицензийн дугаар", name: "licenseNumber", type: "text" },
+              {
+                label: "Лиценз дуусах хугацаа",
+                name: "licenseExpiryDate",
+                type: "date",
+              },
+              {
+                label: "Гарын үсгийн зураг (URL)",
+                name: "signatureImagePath",
+                type: "text",
+              },
+              { label: "Тамганы зураг (URL)", name: "stampImagePath", type: "text" },
+            ] as const
+          ).map((f) => (
+            <div key={f.name}>
+              <div style={{ color: "#6b7280", marginBottom: 2, fontSize: 13 }}>
+                {f.label}
+              </div>
+              <input
+                name={f.name}
+                type={f.type}
+                value={(form as any)[f.name]}
+                onChange={handleChange}
+                style={{
+                  width: "100%",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                }}
+              />
+            </div>
+          ))}
 
-                      { label: "Лицензийн дугаар", value: doctor.licenseNumber || "-" },
-                      { label: "Лиценз дуусах хугацаа", value: formatIsoDateOnly(doctor.licenseExpiryDate) || "-" },
-                      { label: "Ажиллах салбарууд", value: doctorAssignedBranches?.length ? doctorAssignedBranches.map((b) => b.name).join(", ") : "-" },
+          <div
+            style={{
+              marginTop: 16,
+              display: "flex",
+              gap: 8,
+              justifyContent: "flex-end",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                resetFormFromDoctor();
+                setIsEditingProfile(false);
+              }}
+              disabled={saving}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                background: "#f9fafb",
+                fontSize: 13,
+                cursor: saving ? "default" : "pointer",
+              }}
+            >
+              Болих
+            </button>
 
-                      { label: "Гарын үсгийн зураг (URL)", value: doctor.signatureImagePath || "-" },
-                      { label: "Тамганы зураг (URL)", value: doctor.stampImagePath || "-" },
-                      { label: "—", value: "" },
-                    ]}
-                  />
-                </>
-              ) : (
-                <>
-                  <form
-                    onSubmit={handleSave}
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 12,
-                      maxWidth: 600,
-                    }}
-                  >
-                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      Овог
-                      <input
-                        name="ovog"
-                        value={form.ovog}
-                        onChange={handleChange}
-                        placeholder="Овог"
-                      />
-                    </label>
+            <button
+              type="submit"
+              disabled={saving}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 6,
+                border: "none",
+                background: saving ? "#9ca3af" : "#2563eb",
+                color: "white",
+                fontSize: 13,
+                cursor: saving ? "default" : "pointer",
+              }}
+            >
+              {saving ? "Хадгалж байна..." : "Хадгалах"}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
 
-                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      Нэр
-                      <input
-                        name="name"
-                        value={form.name}
-                        onChange={handleChange}
-                        placeholder="Нэр"
-                      />
-                    </label>
+    {/* Branch assignment - render in patient-card style */}
+    <div
+      style={{
+        marginTop: 16,
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        padding: 16,
+        background: "white",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 0 }}>
+          Салбарын тохиргоо
+        </h2>
 
-                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      И-мэйл
-                      <input
-                        name="email"
-                        type="email"
-                        value={form.email}
-                        onChange={handleChange}
-                        placeholder="И-мэйл"
-                      />
-                    </label>
+        <button
+          type="button"
+          onClick={handleSaveBranches}
+          disabled={savingBranches}
+          style={{
+            padding: "6px 12px",
+            borderRadius: 6,
+            border: "none",
+            background: savingBranches ? "#9ca3af" : "#059669",
+            color: "white",
+            fontSize: 13,
+            cursor: savingBranches ? "default" : "pointer",
+          }}
+        >
+          {savingBranches ? "Салбар хадгалж байна..." : "Салбар хадгалах"}
+        </button>
+      </div>
 
-                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      Үндсэн салбар
-                      <select
-                        name="branchId"
-                        value={form.branchId}
-                        onChange={handleChange}
-                      >
-                        <option value="">Сонгохгүй</option>
-                        {branches.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+      <div style={{ color: "#6b7280", fontSize: 13, marginBottom: 10 }}>
+        Энэ эмч аль салбаруудад ажиллахыг доороос сонгоно уу.
+      </div>
 
-                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      РД
-                      <input
-                        name="regNo"
-                        value={form.regNo}
-                        onChange={handleChange}
-                        placeholder="РД"
-                      />
-                    </label>
-
-                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      Утас
-                      <input
-                        name="phone"
-                        value={form.phone}
-                        onChange={handleChange}
-                        placeholder="Утас"
-                      />
-                    </label>
-
-                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      Лицензийн дугаар
-                      <input
-                        name="licenseNumber"
-                        value={form.licenseNumber}
-                        onChange={handleChange}
-                        placeholder="Лицензийн дугаар"
-                      />
-                    </label>
-
-                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      Лиценз дуусах хугацаа
-                      <input
-                        name="licenseExpiryDate"
-                        type="date"
-                        value={form.licenseExpiryDate}
-                        onChange={handleChange}
-                      />
-                    </label>
-
-                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      Гарын үсгийн зураг (URL)
-                      <input
-                        name="signatureImagePath"
-                        value={form.signatureImagePath}
-                        onChange={handleChange}
-                        placeholder="Жишээ: /uploads/signatures/doctor1.png"
-                      />
-                    </label>
-
-                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      Тамганы зураг (URL)
-                      <input
-                        name="stampImagePath"
-                        value={form.stampImagePath}
-                        onChange={handleChange}
-                        placeholder="Жишээ: /uploads/stamps/doctor1.png"
-                      />
-                    </label>
-
-                    <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                      <button
-                        type="submit"
-                        disabled={saving}
-                        style={{
-                          padding: "8px 16px",
-                          borderRadius: 8,
-                          border: "none",
-                          background: "#2563eb",
-                          color: "white",
-                          cursor: "pointer",
-                          fontWeight: 700,
-                        }}
-                      >
-                        {saving ? "Хадгалж байна..." : "Хадгалах"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setError(null);
-                          resetFormFromDoctor();
-                          setIsEditingProfile(false);
-                        }}
-                        disabled={saving}
-                        style={{
-                          padding: "8px 16px",
-                          borderRadius: 8,
-                          border: "1px solid #d1d5db",
-                          background: "#fff",
-                          cursor: "pointer",
-                          fontWeight: 700,
-                        }}
-                      >
-                        Болих
-                      </button>
-                    </div>
-
-                    {error && (
-                      <div style={{ color: "red", marginTop: 8 }}>{error}</div>
-                    )}
-                  </form>
-                </>
-              )}
-
-              {/* Branch assignment stays on profile tab (same logic, card styling only) */}
-              <div style={{ height: 16 }} />
-
-              <Card
-                title="Салбарын тохиргоо"
-                right={
-                  <button
-                    type="button"
-                    onClick={handleSaveBranches}
-                    disabled={savingBranches}
-                    style={{
-                      padding: "8px 14px",
-                      borderRadius: 8,
-                      border: "none",
-                      background: "#059669",
-                      color: "white",
-                      cursor: "pointer",
-                      fontWeight: 700,
-                      fontSize: 13,
-                    }}
-                  >
-                    {savingBranches ? "Салбар хадгалж байна..." : "Салбар хадгалах"}
-                  </button>
-                }
-              >
-                <div style={{ color: "#6b7280", fontSize: 13, marginBottom: 10 }}>
-                  Энэ эмч аль салбаруудад ажиллахыг доороос сонгоно уу.
-                </div>
-
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {branches.map((b) => (
-                    <label
-                      key={b.id}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        border: "1px solid #e5e7eb",
-                        borderRadius: 999,
-                        padding: "6px 10px",
-                        fontSize: 13,
-                        background: selectedBranchIds.includes(b.id)
-                          ? "#eff6ff"
-                          : "#ffffff",
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedBranchIds.includes(b.id)}
-                        onChange={() => toggleBranch(b.id)}
-                      />
-                      {b.name}
-                    </label>
-                  ))}
-                </div>
-              </Card>
-            </Card>
-          )}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {branches.map((b) => (
+          <label
+            key={b.id}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              border: "1px solid #ddd",
+              borderRadius: 4,
+              padding: "4px 8px",
+              fontSize: 13,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={selectedBranchIds.includes(b.id)}
+              onChange={() => toggleBranch(b.id)}
+            />
+            {b.name}
+          </label>
+        ))}
+      </div>
+    </div>
+  </>
+)}
 
           {/* SCHEDULE TAB */}
           {activeTab === "schedule" && (
