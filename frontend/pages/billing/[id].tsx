@@ -1104,43 +1104,7 @@ const [consentError, setConsentError] = useState("");
     }
   };
 
-  // ✅ Load products
-  const loadProducts = async () => {
-    if (!encounter) {
-      setProductsError("Үзлэгийн мэдээлэл ачаалагдаагүй байна.");
-      return;
-    }
-    const branchId = encounter.patientBook.patient.branch?.id;
-    if (!branchId) {
-      setProductsError("Салбар тодорхойгүй байна.");
-      return;
-    }
-
-    setProductsLoading(true);
-    setProductsError("");
-    try {
-      const res = await fetch(`/api/inventory/products?branchId=${branchId}`);
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        throw new Error((data && data.error) || "Бүтээгдэхүүн ачаалж чадсангүй.");
-      }
-
-      const list: Product[] = Array.isArray(data)
-        ? data
-        : Array.isArray((data as any)?.products)
-        ? (data as any).products
-        : [];
-
-      setProducts(list);
-    } catch (e: any) {
-      console.error("loadProducts failed:", e);
-      setProducts([]);
-      setProductsError(e.message || "Бүтээгдэхүүн ачаалж чадсангүй.");
-    } finally {
-      setProductsLoading(false);
-    }
-  };
+  
 
   // ✅ Add product row
   const handleAddRowFromProduct = (p: Product) => {
@@ -1565,51 +1529,72 @@ const [consentError, setConsentError] = useState("");
 </section>
 
           {/* Billing items */}
-          (Invoice lines)</h2>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Доорх жагсаалт нь энэ үзлэгт гүйцэтгэсэн үйлчилгээ, бүтээгдэхүүнийг илэрхийлнэ.
-                </div>
-              </div>
+<section
+  style={{
+    marginTop: 0,
+    padding: 16,
+    borderRadius: 8,
+    border: "1px solid #e5e7eb",
+    background: "#ffffff",
+  }}
+>
+  <div
+    style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 8,
+    }}
+  >
+    <div>
+      <h2 style={{ fontSize: 16, margin: 0 }}>
+        Үйлчилгээний мөрүүд (Invoice lines)
+      </h2>
+      <div style={{ fontSize: 12, color: "#6b7280" }}>
+        Доорх жагсаалт нь энэ үзлэгт гүйцэтгэсэн үйлчилгээ, бүтээгдэхүүнийг илэрхийлнэ.
+      </div>
+    </div>
 
-              {/* ✅ Buttons */}
-              <div style={{ display: "flex", gap: 10 }}>
-                <button
-                  type="button"
-                  onClick={handleAddRowFromService}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 6,
-                    border: "1px solid #2563eb",
-                    background: "#eff6ff",
-                    color: "#2563eb",
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                >
-                  + Эмчилгээ нэмэх
-                </button>
+    {/* ✅ Buttons */}
+    <div style={{ display: "flex", gap: 10 }}>
+      <button
+        type="button"
+        onClick={handleAddRowFromService}
+        style={{
+          padding: "6px 12px",
+          borderRadius: 6,
+          border: "1px solid #2563eb",
+          background: "#eff6ff",
+          color: "#2563eb",
+          cursor: "pointer",
+          fontSize: 13,
+        }}
+      >
+        + Эмчилгээ нэмэх
+      </button>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setProductModalOpen(true);
-                    void loadProducts();
-                  }}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 6,
-                    border: "1px solid #16a34a",
-                    background: "#f0fdf4",
-                    color: "#166534",
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                >
-                  + Бүтээгдэхүүн нэмэх
-                </button>
-              </div>
-            </div>
+      <button
+        type="button"
+        onClick={() => {
+          setProductModalOpen(true);
+          void loadProducts();
+        }}
+        style={{
+          padding: "6px 12px",
+          borderRadius: 6,
+          border: "1px solid #16a34a",
+          background: "#f0fdf4",
+          color: "#166534",
+          cursor: "pointer",
+          fontSize: 13,
+        }}
+      >
+        + Бүтээгдэхүүн нэмэх
+      </button>
+    </div>
+  </div>
 
+  {/* everything below stays as you already have it (items table + totals + save button) */}
 
   
               
