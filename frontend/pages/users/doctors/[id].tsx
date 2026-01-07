@@ -60,24 +60,28 @@ function Card({
   return (
     <section
       style={{
-        borderRadius: 12,
+        background: "white",
         border: "1px solid #e5e7eb",
-        background: "#fff",
-        padding: 16,
+        borderRadius: 16,
+        padding: 18,
       }}
     >
       {(title || right) && (
         <div
           style={{
             display: "flex",
-            alignItems: "flex-start",
             justifyContent: "space-between",
+            alignItems: "flex-start",
             gap: 12,
             marginBottom: 10,
           }}
         >
           <div>
-            {title && <h2 style={{ margin: 0, fontSize: 18 }}>{title}</h2>}
+            {title && (
+              <div style={{ fontSize: 22, fontWeight: 800, color: "#111827" }}>
+                {title}
+              </div>
+            )}
           </div>
           {right}
         </div>
@@ -96,19 +100,51 @@ function InfoGrid({
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(3, minmax(160px, 1fr))",
-        gap: 28,
-        fontSize: 14,
+        gridTemplateColumns: "repeat(3, minmax(200px, 1fr))",
+        gap: "26px 46px",
       }}
     >
       {items.map((it, idx) => (
         <div key={idx}>
-          <div style={{ color: "#6b7280", fontWeight: 600, marginBottom: 4 }}>
+          <div style={{ color: "#6b7280", fontSize: 18, fontWeight: 600 }}>
             {it.label}
           </div>
-          <div style={{ color: "#111827", fontWeight: 700 }}>{it.value}</div>
+          <div style={{ color: "#111827", fontSize: 20, fontWeight: 800 }}>
+            {it.value}
+          </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function StatCard({
+  title,
+  value,
+  subtitle,
+}: {
+  title: string;
+  value: React.ReactNode;
+  subtitle?: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        background: "white",
+        border: "1px solid #e5e7eb",
+        borderRadius: 16,
+        padding: 16,
+      }}
+    >
+      <div style={{ color: "#6b7280", fontSize: 16, fontWeight: 700 }}>
+        {title.toUpperCase()}
+      </div>
+      <div style={{ fontSize: 34, fontWeight: 900, color: "#111827" }}>
+        {value}
+      </div>
+      {subtitle ? (
+        <div style={{ color: "#6b7280", fontSize: 16 }}>{subtitle}</div>
+      ) : null}
     </div>
   );
 }
@@ -820,17 +856,36 @@ export default function DoctorProfilePage() {
   }
 
   const headerName = formatDoctorShortName(doctor);
-
+const MenuItem = ({ tab, label }: { tab: DoctorTabKey; label: string }) => {
+    const active = activeTab === tab;
+    return (
+      <div
+        onClick={() => setActiveTab(tab)}
+        style={{
+          padding: "10px 12px",
+          borderRadius: 8,
+          cursor: "pointer",
+          fontSize: 16,
+          fontWeight: active ? 800 : 600,
+          color: active ? "#1d4ed8" : "#374151",
+          background: active ? "#eff6ff" : "transparent",
+        }}
+      >
+        {label}
+      </div>
+    );
+  };
   return (
-    <main
-      style={{
-        maxWidth: 1200,
-        margin: "20px auto",
-        padding: 20,
-        fontFamily: "sans-serif",
-        background: "#f9fafb",
-      }}
-    >
+   <main
+  style={{
+    maxWidth: 1200,
+    margin: "0 auto",
+    padding: 24,
+    fontFamily: "sans-serif",
+    background: "#f3f4f6",
+    minHeight: "100vh",
+  }}
+>
       <button
         onClick={() => router.back()}
         style={{
@@ -921,43 +976,17 @@ export default function DoctorProfilePage() {
             ЦЭС
           </div>
 
-          <div
-            style={{
-              marginTop: 6,
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-            }}
-          >
-            {(
-              [
-                { key: "profile", label: "Профайл" },
-                { key: "schedule", label: "Ажлын хуваарь" },
-                { key: "appointments", label: "Цагууд" },
-                { key: "test1", label: "Test Page 1" },
-                { key: "test2", label: "Test Page 2" },
-              ] as { key: DoctorTabKey; label: string }[]
-            ).map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setActiveTab(t.key)}
-                style={{
-                  textAlign: "left",
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  border: "1px solid #e5e7eb",
-                  background: activeTab === t.key ? "#eff6ff" : "#fff",
-                  color: activeTab === t.key ? "#1d4ed8" : "#111827",
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontWeight: activeTab === t.key ? 700 : 500,
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <div style={{ marginTop: 18, fontSize: 14, color: "#9ca3af", fontWeight: 800 }}>
+  ЦЭС
+</div>
+
+<div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+  <MenuItem tab="profile" label="Профайл" />
+  <MenuItem tab="schedule" label="Ажлын хуваарь" />
+  <MenuItem tab="appointments" label="Цагууд" />
+  <MenuItem tab="test1" label="Test Page 1" />
+  <MenuItem tab="test2" label="Test Page 2" />
+</div>
 
           <button
             type="button"
@@ -983,71 +1012,30 @@ export default function DoctorProfilePage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {/* Top stat cards (only on profile tab) */}
           {activeTab === "profile" && (
-            <section
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                gap: 12,
-              }}
-            >
-              <div
-                style={{
-                  borderRadius: 12,
-                  border: "1px solid #e5e7eb",
-                  background: "#fff",
-                  padding: 12,
-                }}
-              >
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Өнөөдрийн цаг захиалга
-                </div>
-                <div style={{ fontSize: 28, fontWeight: 800, color: "#111827" }}>
-                  {todayAppointmentsCount}
-                </div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  (Logic later)
-                </div>
-              </div>
-
-              <div
-                style={{
-                  borderRadius: 12,
-                  border: "1px solid #e5e7eb",
-                  background: "#fff",
-                  padding: 12,
-                }}
-              >
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Өнөөдрийн орлого
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: "#111827" }}>
-                  Coming soon
-                </div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  (Logic later)
-                </div>
-              </div>
-
-              <div
-                style={{
-                  borderRadius: 12,
-                  border: "1px solid #e5e7eb",
-                  background: "#fff",
-                  padding: 12,
-                }}
-              >
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Энэ сарын орлого
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: "#111827" }}>
-                  Coming soon
-                </div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  (Logic later)
-                </div>
-              </div>
-            </section>
-          )}
+  <section
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(3, minmax(240px, 1fr))",
+      gap: 16,
+    }}
+  >
+    <StatCard
+      title="Өнөөдрийн цаг захиалга"
+      value={todayAppointmentsCount}
+      subtitle="Нийт бүртгэлтэй цаг"
+    />
+    <StatCard
+      title="Өнөөдрийн орлого"
+      value="Coming soon"
+      subtitle="(Logic later)"
+    />
+    <StatCard
+      title="Энэ сарын орлого"
+      value="Coming soon"
+      subtitle="(Logic later)"
+    />
+  </section>
+)}
 
           {/* PROFILE TAB */}
           {activeTab === "profile" && (
