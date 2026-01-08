@@ -30,6 +30,18 @@ type ReceptionScheduleDay = {
 type ShiftType = "AM" | "PM" | "WEEKEND_FULL";
 type ReceptionTabKey = "profile" | "schedule";
 
+function formatStaffShortName(staff: { name?: string | null; ovog?: string | null; email?: string | null }) {
+  const name = (staff.name || "").toString().trim();
+  const ovog = (staff.ovog || "").toString().trim();
+  const email = (staff.email || "").toString().trim();
+
+  if (ovog) {
+    const first = ovog.charAt(0).toUpperCase();
+    return `${first}.${name || email || "-"}`;
+  }
+  return name || email || "-";
+}
+
 export default function ReceptionProfilePage() {
   const router = useRouter();
   const { id } = router.query;
@@ -626,10 +638,7 @@ export default function ReceptionProfilePage() {
     }
   };
 
-  const headerName =
-    reception?.name && reception.name.trim().length > 0
-      ? reception.name
-      : reception?.email;
+  const headerName = reception ? formatStaffShortName(reception) : "";
 
   const mainBranchName = useMemo(() => {
     if (!reception?.branchId) return null;
