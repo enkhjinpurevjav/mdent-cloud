@@ -95,7 +95,12 @@ const navItems: NavItem[] = [
       { label: "Авлага", href: "/finance/debts", icon: "📄" },
       { label: "Илүү төлөлт", href: "/finance/overpayments", icon: "➕" },
       { label: "Бартер", href: "/finance/barter", icon: "🔄" },
-      { label: "Ажилчдын ваучер", href: "/finance/vouchers", icon: "🎟️" },
+      // Add in the appropriate nav group (Санхүү / Finance)
+{
+  label: "Ажилчдын ваучер",
+  href: "/admin/finance/employee-vouchers",
+  icon: "🎟️",
+},
       {
         label: "Ажилчдын тайлан",
         href: "/finance/staff-reports",
