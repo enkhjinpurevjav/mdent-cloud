@@ -1054,26 +1054,37 @@ function QuickAppointmentModal({
   doctors,
   scheduledDoctors,
   appointments,
-  selectedBranchId,  // NEW
+  selectedBranchId,
   onCreated,
-}: QuickAppointmentModalProps) {
+
+  // ✅ NEW (for edit mode)
+  editingAppointment,
+  onUpdated,
+}: QuickAppointmentModalProps & {
+  editingAppointment?: Appointment | null;
+  onUpdated?: (updated: Appointment) => void;
+}) {
+  const isEditMode = Boolean(editingAppointment);
+
   const [form, setForm] = useState({
-  patientQuery: "",
-  patientId: null as number | null,
-  doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
-  branchId: selectedBranchId || (branches.length ? String(branches[0].id) : ""),
-  date: defaultDate,
-  startTime: defaultTime,
-  endTime: addMinutesToTimeString(defaultTime, SLOT_MINUTES),
-  status: "booked",
-  notes: "",
-});
+    patientQuery: "",
+    patientId: null as number | null,
+
+    doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
+    branchId: selectedBranchId || (branches.length ? String(branches[0].id) : ""),
+
+    date: defaultDate,
+    startTime: defaultTime,
+    endTime: addMinutesToTimeString(defaultTime, SLOT_MINUTES),
+
+    status: "booked",
+    notes: "",
+  });
+
   const [error, setError] = useState("");
 
-const workingDoctors = scheduledDoctors.length
-  ? scheduledDoctors
-  : doctors;
-  
+  const workingDoctors = scheduledDoctors.length ? scheduledDoctors : doctors;
+
   const [patientResults, setPatientResults] = useState<PatientLite[]>([]);
   const [patientSearchLoading, setPatientSearchLoading] = useState(false);
   const [searchDebounceTimer, setSearchDebounceTimer] =
@@ -1087,101 +1098,158 @@ const workingDoctors = scheduledDoctors.length
     { label: string; value: string }[]
   >([]);
 
-  // quick new patient (same as inline form but local to this modal)
+  // quick new patient (create mode only)
   const [showQuickPatientModal, setShowQuickPatientModal] = useState(false);
   const [quickPatientForm, setQuickPatientForm] = useState<{
-  ovog: string;
-  name: string;
-  phone: string;
-  branchId: string;
-  regNo: string;
-
-}>({
-  ovog: "",
-  name: "",
-  phone: "",
-  branchId: "",
-  regNo: "",
-
-});
+    ovog: string;
+    name: string;
+    phone: string;
+    branchId: string;
+    regNo: string;
+  }>({
+    ovog: "",
+    name: "",
+    phone: "",
+    branchId: "",
+    regNo: "",
+  });
   const [quickPatientError, setQuickPatientError] = useState("");
   const [quickPatientSaving, setQuickPatientSaving] = useState(false);
-  
 
+  // ---- helpers ----
+  const parseYmd = (ymd: string) => {
+    const [y, m, d] = String(ymd || "").split("-").map(Number);
+    if (!y || !m || !d) return null;
+    return { y, m, d };
+  };
+
+  const parseIsoToLocalYmdHm = (iso: string) => {
+    const dt = new Date(iso);
+    if (Number.isNaN(dt.getTime())) return null;
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, "0");
+    const d = String(dt.getDate()).padStart(2, "0");
+    const hh = String(dt.getHours()).padStart(2, "0");
+    const mm = String(dt.getMinutes()).padStart(2, "0");
+    return { ymd: `${y}-${m}-${d}`, hm: `${hh}:${mm}` };
+  };
+
+  // ✅ initialize modal state on open
   useEffect(() => {
-  if (!open) return;
-  setForm((prev) => ({
-    ...prev,
-    doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
-    branchId: selectedBranchId || prev.branchId,
-    date: defaultDate,
-    startTime: defaultTime,
-    endTime: addMinutesToTimeString(defaultTime, SLOT_MINUTES),
-    patientId: null,
-    patientQuery: "",
-  }));
-  setError("");
-  setPatientResults([]);
-}, [open, defaultDoctorId, defaultDate, defaultTime, selectedBranchId]);
+    if (!open) return;
 
-  useEffect(() => {
-  if (!form.date) {
-    setPopupStartSlots([]);
-    setPopupEndSlots([]);
-    return;
-  }
+    // EDIT MODE: preload from appointment
+    if (editingAppointment) {
+      const startParsed = parseIsoToLocalYmdHm(editingAppointment.scheduledAt);
+      const endParsed = editingAppointment.endAt
+        ? parseIsoToLocalYmdHm(editingAppointment.endAt)
+        : null;
 
-  const [y, m, d] = form.date.split("-").map(Number);
-  if (!y || !m || !d) {
-    setPopupStartSlots([]);
-    setPopupEndSlots([]);
-    return;
-  }
+      const ymd = startParsed?.ymd || defaultDate;
+      const startTime = startParsed?.hm || defaultTime;
+      const endTime =
+        endParsed?.hm || addMinutesToTimeString(startTime, SLOT_MINUTES);
 
-  const day = new Date(y, (m || 1) - 1, d || 1);
+      setForm((prev) => ({
+        ...prev,
+        // lock patient in UI (but we still store it)
+        patientId: editingAppointment.patientId ?? null,
+        patientQuery: editingAppointment.patient
+          ? formatPatientSearchLabel(editingAppointment.patient as any)
+          : prev.patientQuery,
 
-  // Build raw 30-min slots
-  let slots = generateTimeSlotsForDay(day).map((s) => ({
-    label: s.label,
-    start: s.start,
-    end: s.end,
-    value: getSlotTimeString(s.start),
-  }));
+        doctorId:
+          editingAppointment.doctorId !== null && editingAppointment.doctorId !== undefined
+            ? String(editingAppointment.doctorId)
+            : "",
 
-  // Filter by doctor schedule if doctorId is selected
-  if (form.doctorId) {
-    const doctorIdNum = Number(form.doctorId);
-    const doc = scheduledDoctors.find((sd) => sd.id === doctorIdNum);
-    const schedules = doc?.schedules || [];
+        branchId: String(editingAppointment.branchId),
+        date: ymd,
+        startTime,
+        endTime,
 
-    if (schedules.length > 0) {
-      slots = slots.filter((slot) => {
-        const tStr = getSlotTimeString(slot.start);
-        return schedules.some((s: any) =>
-          isTimeWithinRange(tStr, s.startTime, s.endTime)
-        );
-      });
+        // status locked in edit mode (not used, but keep consistent)
+        status: editingAppointment.status || "booked",
+        notes: editingAppointment.notes || "",
+      }));
+
+      setError("");
+      setPatientResults([]);
+      return;
     }
-  }
 
-  const startOptions = slots.map(({ label, value }) => ({ label, value }));
-  const endOptions = Array.from(
-    new Set(slots.map((s) => getSlotTimeString(s.end)))
-  ).map((t) => ({ label: t, value: t }));
+    // CREATE MODE: reset to defaults
+    setForm((prev) => ({
+      ...prev,
+      doctorId: defaultDoctorId ? String(defaultDoctorId) : "",
+      branchId: selectedBranchId || prev.branchId,
+      date: defaultDate,
+      startTime: defaultTime,
+      endTime: addMinutesToTimeString(defaultTime, SLOT_MINUTES),
+      patientId: null,
+      patientQuery: "",
+      status: "booked",
+      notes: "",
+    }));
+    setError("");
+    setPatientResults([]);
+  }, [open, defaultDoctorId, defaultDate, defaultTime, selectedBranchId, editingAppointment]);
 
-  setPopupStartSlots(startOptions);
-  setPopupEndSlots(endOptions);
+  // slots calculation (same as your current, but in edit mode: filter by selected doctor schedule still ok)
+  useEffect(() => {
+    if (!form.date) {
+      setPopupStartSlots([]);
+      setPopupEndSlots([]);
+      return;
+    }
 
-  if (
-    form.startTime &&
-    !startOptions.some((s) => s.value === form.startTime)
-  ) {
-    setForm((prev) => ({ ...prev, startTime: "" }));
-  }
-  if (form.endTime && !endOptions.some((s) => s.value === form.endTime)) {
-    setForm((prev) => ({ ...prev, endTime: "" }));
-  }
-}, [form.date, form.doctorId, scheduledDoctors]);
+    const parsed = parseYmd(form.date);
+    if (!parsed) {
+      setPopupStartSlots([]);
+      setPopupEndSlots([]);
+      return;
+    }
+
+    const day = new Date(parsed.y, parsed.m - 1, parsed.d);
+
+    let slots = generateTimeSlotsForDay(day).map((s) => ({
+      label: s.label,
+      start: s.start,
+      end: s.end,
+      value: getSlotTimeString(s.start),
+    }));
+
+    // Filter by doctor schedule if doctorId is selected
+    if (form.doctorId) {
+      const doctorIdNum = Number(form.doctorId);
+      const doc = scheduledDoctors.find((sd) => sd.id === doctorIdNum);
+      const schedules = doc?.schedules || [];
+
+      if (schedules.length > 0) {
+        slots = slots.filter((slot) => {
+          const tStr = getSlotTimeString(slot.start);
+          return schedules.some((s: any) =>
+            isTimeWithinRange(tStr, s.startTime, s.endTime)
+          );
+        });
+      }
+    }
+
+    const startOptions = slots.map(({ label, value }) => ({ label, value }));
+    const endOptions = Array.from(
+      new Set(slots.map((s) => getSlotTimeString(s.end)))
+    ).map((t) => ({ label: t, value: t }));
+
+    setPopupStartSlots(startOptions);
+    setPopupEndSlots(endOptions);
+
+    if (form.startTime && !startOptions.some((s) => s.value === form.startTime)) {
+      setForm((prev) => ({ ...prev, startTime: "" }));
+    }
+    if (form.endTime && !endOptions.some((s) => s.value === form.endTime)) {
+      setForm((prev) => ({ ...prev, endTime: "" }));
+    }
+  }, [form.date, form.doctorId, scheduledDoctors]);
 
   useEffect(() => {
     if (!form.branchId && branches.length > 0) {
@@ -1191,43 +1259,6 @@ const workingDoctors = scheduledDoctors.length
       }));
     }
   }, [branches, form.branchId]);
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-
-    if (name === "patientQuery") {
-      setForm((prev) => ({ ...prev, patientQuery: value }));
-      const trimmed = value.trim();
-      if (!trimmed) {
-        setForm((prev) => ({ ...prev, patientId: null }));
-        setPatientResults([]);
-        return;
-      }
-      triggerPatientSearch(value);
-      return;
-    }
-
-    setForm((prev) => {
-      if (name === "startTime") {
-        const newStart = value;
-        let newEnd = prev.endTime;
-
-        if (!newEnd || newEnd <= newStart) {
-          newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
-        }
-
-        return { ...prev, startTime: newStart, endTime: newEnd };
-      }
-
-      if (name === "endTime") {
-        return { ...prev, endTime: value };
-      }
-
-      return { ...prev, [name]: value };
-    });
-  };
 
   const triggerPatientSearch = (rawQuery: string) => {
     const query = rawQuery.trim();
@@ -1264,16 +1295,10 @@ const workingDoctors = scheduledDoctors.length
           const phone = (p.phone ?? "").toString().toLowerCase();
           const name = (p.name ?? "").toString().toLowerCase();
           const ovog = (p.ovog ?? "").toString().toLowerCase();
-          const bookNumber = (p.patientBook?.bookNumber ?? "")
-            .toString()
-            .toLowerCase();
+          const bookNumber = (p.patientBook?.bookNumber ?? "").toString().toLowerCase();
 
           if (isNumeric) {
-            return (
-              regNo.includes(lower) ||
-              phone.includes(lower) ||
-              bookNumber.includes(lower)
-            );
+            return regNo.includes(lower) || phone.includes(lower) || bookNumber.includes(lower);
           }
 
           return (
@@ -1316,6 +1341,49 @@ const workingDoctors = scheduledDoctors.length
     setError("");
   };
 
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    const { name, value } = e.target;
+
+    if (name === "patientQuery") {
+      // ✅ locked in edit mode
+      if (isEditMode) return;
+
+      setForm((prev) => ({ ...prev, patientQuery: value }));
+      const trimmed = value.trim();
+      if (!trimmed) {
+        setForm((prev) => ({ ...prev, patientId: null }));
+        setPatientResults([]);
+        return;
+      }
+      triggerPatientSearch(value);
+      return;
+    }
+
+    setForm((prev) => {
+      if (name === "startTime") {
+        const newStart = value;
+        let newEnd = prev.endTime;
+        if (!newEnd || newEnd <= newStart) {
+          newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
+        }
+        return { ...prev, startTime: newStart, endTime: newEnd };
+      }
+
+      if (name === "endTime") {
+        return { ...prev, endTime: value };
+      }
+
+      // ✅ lock these fields in edit mode
+      if (isEditMode && (name === "date" || name === "branchId" || name === "status")) {
+        return prev;
+      }
+
+      return { ...prev, [name]: value };
+    });
+  };
+
   const handleQuickPatientChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -1324,6 +1392,9 @@ const workingDoctors = scheduledDoctors.length
   };
 
   const handleQuickPatientSave = async () => {
+    // ✅ disabled in edit mode (UI won't show the button, but also guard here)
+    if (isEditMode) return;
+
     setQuickPatientError("");
 
     if (!quickPatientForm.name.trim() || !quickPatientForm.phone.trim()) {
@@ -1334,18 +1405,14 @@ const workingDoctors = scheduledDoctors.length
     const branchIdFromModal = quickPatientForm.branchId
       ? Number(quickPatientForm.branchId)
       : null;
-    const branchIdFromForm = form.branchId
-      ? Number(form.branchId)
-      : null;
+    const branchIdFromForm = form.branchId ? Number(form.branchId) : null;
 
     const branchIdForPatient = !Number.isNaN(branchIdFromModal ?? NaN)
       ? branchIdFromModal
       : branchIdFromForm;
 
     if (!branchIdForPatient || Number.isNaN(branchIdForPatient)) {
-      setQuickPatientError(
-        "Шинэ үйлчлүүлэгч бүртгэхийн өмнө салбар сонгоно уу."
-      );
+      setQuickPatientError("Шинэ үйлчлүүлэгч бүртгэхийн өмнө салбар сонгоно уу.");
       return;
     }
 
@@ -1353,18 +1420,14 @@ const workingDoctors = scheduledDoctors.length
 
     try {
       const payload: any = {
-  name: quickPatientForm.name.trim(),
-  phone: quickPatientForm.phone.trim(),
-  branchId: branchIdForPatient,
-  bookNumber: "",
-};
+        name: quickPatientForm.name.trim(),
+        phone: quickPatientForm.phone.trim(),
+        branchId: branchIdForPatient,
+        bookNumber: "",
+      };
 
-if (quickPatientForm.ovog.trim()) {
-  payload.ovog = quickPatientForm.ovog.trim();
-}
-if (quickPatientForm.regNo.trim()) {
-  payload.regNo = quickPatientForm.regNo.trim();
-}
+      if (quickPatientForm.ovog.trim()) payload.ovog = quickPatientForm.ovog.trim();
+      if (quickPatientForm.regNo.trim()) payload.regNo = quickPatientForm.regNo.trim();
 
       const res = await fetch("/api/patients", {
         method: "POST",
@@ -1374,10 +1437,7 @@ if (quickPatientForm.regNo.trim()) {
       const data = await res.json().catch(() => null);
 
       if (!res.ok || !data || typeof data.id !== "number") {
-        setQuickPatientError(
-          (data && (data as any).error) ||
-            "Шинэ үйлчлүүлэгч бүртгэх үед алдаа гарлаа."
-        );
+        setQuickPatientError((data && (data as any).error) || "Шинэ үйлчлүүлэгч бүртгэх үед алдаа гарлаа.");
         setQuickPatientSaving(false);
         return;
       }
@@ -1391,20 +1451,13 @@ if (quickPatientForm.regNo.trim()) {
         patientBook: data.patientBook || null,
       };
 
-      // fill into this modal's form
       setForm((prev) => ({
         ...prev,
         patientId: p.id,
         patientQuery: formatPatientSearchLabel(p),
       }));
 
-      setQuickPatientForm({
-  ovog: "",
-  name: "",
-  phone: "",
-  branchId: "",
-  regNo: "",
-});
+      setQuickPatientForm({ ovog: "", name: "", phone: "", branchId: "", regNo: "" });
       setShowQuickPatientModal(false);
     } catch (e) {
       console.error(e);
@@ -1413,59 +1466,79 @@ if (quickPatientForm.regNo.trim()) {
       setQuickPatientSaving(false);
     }
   };
-  
+
+  const handleOpenPatientProfileNewTab = () => {
+    // Open patient profile in new tab using the same URL pattern you already use
+    // Requires patientBook.bookNumber or patientId route depending on your app.
+    // Here we try to use patientBook.bookNumber if present.
+    const p =
+      (editingAppointment && (editingAppointment.patient as any)) ||
+      null;
+
+    const bookNumber = p?.patientBook?.bookNumber;
+
+    if (bookNumber) {
+      const url = `/patients/profile/${encodeURIComponent(String(bookNumber))}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    // fallback: if you have a patient page by id, adjust as needed
+    if (form.patientId) {
+      const url = `/patients/${form.patientId}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    setError("Үйлчлүүлэгчийн картын дугаар олдсонгүй.");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    if (
-      !form.branchId ||
-      !form.date ||
-      !form.startTime ||
-      !form.endTime
-    ) {
-      setError("Салбар, огноо, эхлэх/дуусах цаг талбаруудыг бөглөнө үү.");
+    // --- validations ---
+    if (!form.date || !form.startTime || !form.endTime) {
+      setError("Огноо, эхлэх/дуусах цаг талбаруудыг бөглөнө үү.");
       return;
     }
 
-    if (!form.patientId) {
-      setError("Үйлчлүүлэгчийг жагсаалтаас сонгоно уу.");
-      return;
+    if (!isEditMode) {
+      if (!form.branchId) {
+        setError("Салбар сонгоно уу.");
+        return;
+      }
+      if (!form.patientId) {
+        setError("Үйлчлүүлэгчийг жагсаалтаас сонгоно уу.");
+        return;
+      }
+      if (!form.doctorId) {
+        setError("Цаг захиалахын өмнө эмчийг заавал сонгоно уу.");
+        return;
+      }
+    } else {
+      // edit mode: branch/date/patient fixed; doctor can be blank? you said allow doctor change => must exist.
+      if (!form.doctorId) {
+        setError("Эмч сонгоно уу.");
+        return;
+      }
     }
 
-    if (!form.doctorId) {
-      setError("Цаг захиалахын өмнө эмчийг заавал сонгоно уу.");
+    const parsed = parseYmd(form.date);
+    if (!parsed) {
+      setError("Огноо буруу байна.");
       return;
     }
-
-    const [year, month, day] = form.date.split("-").map(Number);
     const [startHour, startMinute] = form.startTime.split(":").map(Number);
     const [endHour, endMinute] = form.endTime.split(":").map(Number);
 
-    const start = new Date(
-      year,
-      (month || 1) - 1,
-      day || 1,
-      startHour || 0,
-      startMinute || 0,
-      0,
-      0
-    );
-    const end = new Date(
-      year,
-      (month || 1) - 1,
-      day || 1,
-      endHour || 0,
-      endMinute || 0,
-      0,
-      0
-    );
+    const start = new Date(parsed.y, parsed.m - 1, parsed.d, startHour || 0, startMinute || 0, 0, 0);
+    const end = new Date(parsed.y, parsed.m - 1, parsed.d, endHour || 0, endMinute || 0, 0, 0);
 
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       setError("Огноо/цаг буруу байна.");
       return;
     }
-
     if (end <= start) {
       setError("Дуусах цаг нь эхлэх цагаас хойш байх ёстой.");
       return;
@@ -1475,19 +1548,57 @@ if (quickPatientForm.regNo.trim()) {
     const endAtStr = end.toISOString();
 
     try {
-      const res = await fetch("/api/appointments", {
-        method: "POST",
+      if (!isEditMode) {
+        // CREATE
+        const res = await fetch("/api/appointments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            patientId: form.patientId,
+            doctorId: Number(form.doctorId),
+            branchId: Number(form.branchId),
+            scheduledAt: scheduledAtStr,
+            endAt: endAtStr,
+            status: form.status,
+            notes: form.notes || null,
+          }),
+        });
+
+        let data: Appointment | { error?: string };
+        try {
+          data = await res.json();
+        } catch {
+          data = { error: "Unknown error" };
+        }
+
+        if (!res.ok) {
+          setError((data as any).error || "Алдаа гарлаа");
+          return;
+        }
+
+        onCreated(data as Appointment);
+        onClose();
+        return;
+      }
+
+      // EDIT
+      if (!editingAppointment) {
+        setError("Засварлах цаг олдсонгүй.");
+        return;
+      }
+
+      const res = await fetch(`/api/appointments/${editingAppointment.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          patientId: form.patientId,
-          doctorId: Number(form.doctorId),
-          branchId: Number(form.branchId),
           scheduledAt: scheduledAtStr,
           endAt: endAtStr,
-          status: form.status,
+          doctorId: Number(form.doctorId),
           notes: form.notes || null,
+          // IMPORTANT: do not send patientId/branchId/status in edit mode
         }),
       });
+
       let data: Appointment | { error?: string };
       try {
         data = await res.json();
@@ -1500,7 +1611,7 @@ if (quickPatientForm.regNo.trim()) {
         return;
       }
 
-      onCreated(data as Appointment);
+      onUpdated?.(data as Appointment);
       onClose();
     } catch {
       setError("Сүлжээгээ шалгана уу");
@@ -1544,7 +1655,9 @@ if (quickPatientForm.regNo.trim()) {
             marginBottom: 8,
           }}
         >
-          <h3 style={{ margin: 0, fontSize: 15 }}>Шинэ цаг захиалах</h3>
+          <h3 style={{ margin: 0, fontSize: 15 }}>
+            {isEditMode ? "Цаг засварлах" : "Шинэ цаг захиалах"}
+          </h3>
           <button
             type="button"
             onClick={onClose}
@@ -1569,62 +1682,84 @@ if (quickPatientForm.regNo.trim()) {
             gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
           }}
         >
-          {/* Patient */}
-<div
-  style={{
-    gridColumn: "1 / -1",
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  }}
->
-  <label>Үйлчлүүлэгч</label>
-  <div style={{ display: "flex", gap: 6 }}>
-    <input
-      name="patientQuery"
-      placeholder="РД, овог, нэр эсвэл утас..."
-      value={form.patientQuery}
-      onChange={handleChange}
-      autoComplete="off"
-      style={{
-        flex: 1,
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        padding: "6px 8px",
-      }}
-    />
-    <button
-      type="button"
-      onClick={() => {
-        setShowQuickPatientModal(true);
-        setQuickPatientError("");
-        setQuickPatientForm((prev) => ({
-          ...prev,
-          branchId: prev.branchId || form.branchId,
-        }));
-      }}
-      style={{
-        padding: "0 10px",
-        borderRadius: 6,
-        border: "1px solid #16a34a",
-        background: "#dcfce7",
-        color: "#166534",
-        fontWeight: 600,
-        cursor: "pointer",
-      }}
-      title="Шинэ үйлчлэгч хурдан бүртгэх"
-    >
-      +
-    </button>
-  </div>
-  {patientSearchLoading && (
-    <span style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
-      Үйлчлүүлэгч хайж байна...
-    </span>
-  )}
-</div>
+          {/* Patient (locked in edit mode) */}
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <label>Үйлчлүүлэгч</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              <input
+                name="patientQuery"
+                placeholder="РД, овог, нэр эс��эл утас..."
+                value={form.patientQuery}
+                onChange={handleChange}
+                autoComplete="off"
+                disabled={isEditMode}
+                style={{
+                  flex: 1,
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "6px 8px",
+                  background: isEditMode ? "#f9fafb" : "white",
+                }}
+              />
 
-          {patientResults.length > 0 && (
+              {!isEditMode ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowQuickPatientModal(true);
+                    setQuickPatientError("");
+                    setQuickPatientForm((prev) => ({
+                      ...prev,
+                      branchId: prev.branchId || form.branchId,
+                    }));
+                  }}
+                  style={{
+                    padding: "0 10px",
+                    borderRadius: 6,
+                    border: "1px solid #16a34a",
+                    background: "#dcfce7",
+                    color: "#166534",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                  title="Шинэ үйлчлэгч хурдан бүртгэх"
+                >
+                  +
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleOpenPatientProfileNewTab}
+                  style={{
+                    padding: "0 10px",
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    background: "#f9fafb",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                  title="Дэлгэрэнгүй (шинэ таб)"
+                >
+                  Дэлгэрэнгүй
+                </button>
+              )}
+            </div>
+
+            {patientSearchLoading && !isEditMode && (
+              <span style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+                Үйлчлүүлэгч хайж байна...
+              </span>
+            )}
+          </div>
+
+          {!isEditMode && patientResults.length > 0 && (
             <div
               style={{
                 gridColumn: "1 / -1",
@@ -1658,7 +1793,7 @@ if (quickPatientForm.regNo.trim()) {
             </div>
           )}
 
-          {/* Date */}
+          {/* Date (locked in edit mode) */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label>Огноо</label>
             <input
@@ -1667,89 +1802,113 @@ if (quickPatientForm.regNo.trim()) {
               value={form.date}
               onChange={handleChange}
               required
+              disabled={isEditMode}
               style={{
                 borderRadius: 6,
                 border: "1px solid #d1d5db",
                 padding: "6px 8px",
+                background: isEditMode ? "#f9fafb" : "white",
               }}
             />
           </div>
 
-          {/* Branch */}
-          
-
-          {/* Start time */}
-<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-  <label>Эхлэх цаг</label>
-  <select
-    name="startTime"
-    value={form.startTime}
-    onChange={handleChange}
-    required
-    style={{
-      borderRadius: 6,
-      border: "1px solid #d1d5db",
-      padding: "6px 8px",
-    }}
-  >
-    <option value="">Эхлэх цаг сонгох</option>
-    {popupStartSlots.map((slot) => (
-      <option key={slot.value} value={slot.value}>
-        {slot.label}
-      </option>
-    ))}
-  </select>
-</div>
-
-{/* End time */}
-<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-  <label>Дуусах цаг</label>
-  <select
-    name="endTime"
-    value={form.endTime}
-    onChange={handleChange}
-    required
-    style={{
-      borderRadius: 6,
-      border: "1px solid #d1d5db",
-      padding: "6px 8px",
-    }}
-  >
-    <option value="">Дуусах цаг сонгох</option>
-    {popupEndSlots.map((slot) => (
-      <option key={slot.value} value={slot.value}>
-        {slot.label}
-      </option>
-    ))}
-  </select>
-</div>
-
-          {/* Status */}
+          {/* Doctor (editable in edit mode) */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label>Төлөв</label>
+            <label>Эмч</label>
             <select
-              name="status"
-              value={form.status}
+              name="doctorId"
+              value={form.doctorId}
               onChange={handleChange}
+              required
               style={{
                 borderRadius: 6,
                 border: "1px solid #d1d5db",
                 padding: "6px 8px",
               }}
             >
-              <option value="booked">Захиалсан</option>
-<option value="confirmed">Баталгаажсан</option>
-<option value="online">Онлайн</option>
-<option value="ongoing">Явагдаж байна</option>
-<option value="ready_to_pay">Төлбөр төлөх</option>
-<option value="completed">Дууссан</option>
-<option value="no_show">Ирээгүй</option>
-<option value="cancelled">Цуцалсан</option>
-<option value="other">Бусад</option>
+              <option value="">Сонгох</option>
+              {workingDoctors.map((d: any) => (
+                <option key={d.id} value={d.id}>
+                  {formatDoctorName(d)}
+                </option>
+              ))}
             </select>
           </div>
 
-          {/* Notes */}
+          {/* Start time (editable) */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Эхлэх цаг</label>
+            <select
+              name="startTime"
+              value={form.startTime}
+              onChange={handleChange}
+              required
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            >
+              <option value="">Эхлэх цаг сонгох</option>
+              {popupStartSlots.map((slot) => (
+                <option key={slot.value} value={slot.value}>
+                  {slot.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* End time (editable) */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Дуусах цаг</label>
+            <select
+              name="endTime"
+              value={form.endTime}
+              onChange={handleChange}
+              required
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            >
+              <option value="">Дуусах цаг сонгох</option>
+              {popupEndSlots.map((slot) => (
+                <option key={slot.value} value={slot.value}>
+                  {slot.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status (create only) */}
+          {!isEditMode && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label>Төлөв</label>
+              <select
+                name="status"
+                value={form.status}
+                onChange={handleChange}
+                style={{
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "6px 8px",
+                }}
+              >
+                <option value="booked">Захиалсан</option>
+                <option value="confirmed">Баталгаажсан</option>
+                <option value="online">Онлайн</option>
+                <option value="ongoing">Явагдаж байна</option>
+                <option value="ready_to_pay">Төлбөр төлөх</option>
+                <option value="completed">Дууссан</option>
+                <option value="no_show">Ирээгүй</option>
+                <option value="cancelled">Цуцалсан</option>
+                <option value="other">Бусад</option>
+              </select>
+            </div>
+          )}
+
+          {/* Notes (editable) */}
           <div
             style={{
               display: "flex",
@@ -1793,6 +1952,7 @@ if (quickPatientForm.regNo.trim()) {
                 {error}
               </div>
             )}
+
             <button
               type="button"
               onClick={onClose}
@@ -1806,6 +1966,7 @@ if (quickPatientForm.regNo.trim()) {
             >
               Болих
             </button>
+
             <button
               type="submit"
               style={{
@@ -1821,227 +1982,138 @@ if (quickPatientForm.regNo.trim()) {
             </button>
           </div>
 
-                        {/* Quick new patient modal */}
-      {showQuickPatientModal && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.3)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 50,
-          }}
-        >
-          <div
-            style={{
-              background: "white",
-              borderRadius: 8,
-              padding: 16,
-              width: 340,
-              boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
-              fontSize: 13,
-            }}
-          >
-            <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 15 }}>
-              Шинэ үйлчлүүлэгч хурдан бүртгэх
-            </h3>
-            <p
-              style={{
-                marginTop: 0,
-                marginBottom: 12,
-                color: "#6b7280",
-              }}
-            >
-              Нэр, утас болон салбар талбарууд заавал бөглөнө. Овог, РД, хүйс
-              талбаруудыг бөглөж өгвөл дараа нь &quot;Үйлчлүүлэгчийн бүртгэл&quot;
-              хэсэгт дахин оруулах шаардлагагүй.
-            </p>
-
+          {/* Quick new patient modal (create only) */}
+          {!isEditMode && showQuickPatientModal && (
             <div
               style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(0,0,0,0.3)",
                 display: "flex",
-                flexDirection: "column",
-                gap: 8,
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 60,
               }}
             >
-              {/* Овог (optional) */}
-              <label
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                }}
-              >
-                Овог
-                <input
-                  name="ovog"
-                  value={quickPatientForm.ovog}
-                  onChange={handleQuickPatientChange}
-                  placeholder="Ж: Бат"
-                  style={{
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "6px 8px",
-                  }}
-                />
-              </label>
-
-              {/* Нэр (required) */}
-              <label
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                }}
-              >
-                Нэр
-                <input
-                  name="name"
-                  value={quickPatientForm.name}
-                  onChange={handleQuickPatientChange}
-                  placeholder="Ж: Болд"
-                  style={{
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "6px 8px",
-                  }}
-                />
-              </label>
-
-              {/* Утас (required) */}
-              <label
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                }}
-              >
-                Утас
-                <input
-                  name="phone"
-                  value={quickPatientForm.phone}
-                  onChange={handleQuickPatientChange}
-                  placeholder="Ж: 99112233"
-                  style={{
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "6px 8px",
-                  }}
-                />
-              </label>
-
-              {/* Салбар */}
-              <label
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                }}
-              >
-                Салбар
-                <select
-                  name="branchId"
-                  value={quickPatientForm.branchId}
-                  onChange={handleQuickPatientChange}
-                  style={{
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "6px 8px",
-                  }}
-                >
-                  <option value="">Сонгох</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              {/* РД (optional) */}
-              <label
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                }}
-              >
-                РД
-                <input
-                  name="regNo"
-                  value={quickPatientForm.regNo}
-                  onChange={handleQuickPatientChange}
-                  placeholder="Ж: УБ99112233"
-                  style={{
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "6px 8px",
-                  }}
-                />
-              </label>
-
-              
-
-              {quickPatientError && (
-                <div
-                  style={{
-                    color: "#b91c1c",
-                    fontSize: 12,
-                  }}
-                >
-                  {quickPatientError}
-                </div>
-              )}
-
               <div
                 style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: 8,
-                  marginTop: 8,
+                  background: "white",
+                  borderRadius: 8,
+                  padding: 16,
+                  width: 340,
+                  boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+                  fontSize: 13,
                 }}
+                onClick={(e) => e.stopPropagation()}
               >
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!quickPatientSaving) {
-                      setShowQuickPatientModal(false);
-                      setQuickPatientError("");
-                    }
-                  }}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    background: "#f9fafb",
-                    cursor: quickPatientSaving ? "default" : "pointer",
-                  }}
-                >
-                  Болих
-                </button>
-                <button
-                  type="button"
-                  onClick={handleQuickPatientSave}
-                  disabled={quickPatientSaving}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 6,
-                    border: "none",
-                    background: "#16a34a",
-                    color: "white",
-                    cursor: quickPatientSaving ? "default" : "pointer",
-                  }}
-                >
-                  {quickPatientSaving ? "Хадгалж байна..." : "Хадгалах"}
-                </button>
+                <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 15 }}>
+                  Шинэ үйлчлүүлэгч хурдан бүртгэх
+                </h3>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    Овог
+                    <input
+                      name="ovog"
+                      value={quickPatientForm.ovog}
+                      onChange={handleQuickPatientChange}
+                      style={{ borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px" }}
+                    />
+                  </label>
+
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    Нэр
+                    <input
+                      name="name"
+                      value={quickPatientForm.name}
+                      onChange={handleQuickPatientChange}
+                      style={{ borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px" }}
+                    />
+                  </label>
+
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    Утас
+                    <input
+                      name="phone"
+                      value={quickPatientForm.phone}
+                      onChange={handleQuickPatientChange}
+                      style={{ borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px" }}
+                    />
+                  </label>
+
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    Салбар
+                    <select
+                      name="branchId"
+                      value={quickPatientForm.branchId}
+                      onChange={handleQuickPatientChange}
+                      style={{ borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px" }}
+                    >
+                      <option value="">Сонгох</option>
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    РД
+                    <input
+                      name="regNo"
+                      value={quickPatientForm.regNo}
+                      onChange={handleQuickPatientChange}
+                      style={{ borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px" }}
+                    />
+                  </label>
+
+                  {quickPatientError && (
+                    <div style={{ color: "#b91c1c", fontSize: 12 }}>
+                      {quickPatientError}
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!quickPatientSaving) {
+                          setShowQuickPatientModal(false);
+                          setQuickPatientError("");
+                        }
+                      }}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        background: "#f9fafb",
+                        cursor: quickPatientSaving ? "default" : "pointer",
+                      }}
+                    >
+                      Болих
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleQuickPatientSave}
+                      disabled={quickPatientSaving}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 6,
+                        border: "none",
+                        background: "#16a34a",
+                        color: "white",
+                        cursor: quickPatientSaving ? "default" : "pointer",
+                      }}
+                    >
+                      {quickPatientSaving ? "Хадгалж байна..." : "Хадгалах"}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-        
+          )}
         </form>
       </div>
     </div>
