@@ -1078,7 +1078,7 @@ const primaryButtonStyle: React.CSSProperties = {
         cursor: "pointer",
       }}
     >
-      Test Page 1
+      Борлуулалт
     </button>
 
     <button
@@ -1099,7 +1099,7 @@ const primaryButtonStyle: React.CSSProperties = {
         cursor: "pointer",
       }}
     >
-      Test Page 2
+      Үзлэгийн түүх
     </button>
   </div>
 </div>
