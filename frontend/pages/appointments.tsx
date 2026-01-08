@@ -3298,6 +3298,36 @@ const [editingAppointment, setEditingAppointment] = useState<Appointment | null>
 // NEW: per‑day revenue
 const [dailyRevenue, setDailyRevenue] = useState<number | null>(null);
 
+
+type DraftAppointmentChange = {
+  scheduledAt: string; // ISO
+  endAt: string | null; // ISO
+  doctorId: number | null;
+};
+
+type DragMode = "move" | "resize";
+
+type DragState = {
+  appointmentId: number;
+  mode: DragMode;
+  startClientX: number;
+  startClientY: number;
+
+  // original (at drag start)
+  origStart: Date;
+  origEnd: Date;
+  origDoctorId: number | null;
+
+  // computed during drag
+  currentDoctorId: number | null;
+};
+
+const [draftEdits, setDraftEdits] = useState<Record<number, DraftAppointmentChange>>({});
+const [activeDrag, setActiveDrag] = useState<DragState | null>(null);
+const [pendingSaveId, setPendingSaveId] = useState<number | null>(null);
+const [pendingSaveError, setPendingSaveError] = useState<string | null>(null);
+const [pendingSaving, setPendingSaving] = useState(false);
+
   // filters
 const workingDoctorsForFilter = scheduledDoctors.length
   ? scheduledDoctors
