@@ -2492,6 +2492,14 @@ function AppointmentForm({
         a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
           ? new Date(a.endAt)
           : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+      
+        const effectiveDoctorId = draft?.doctorId ?? a.doctorId;
+
+  // ✅ if user dragged it to another doctor column, don't render it here
+  if (effectiveDoctorId !== doc.id) return null;
+
+  // --- keep the rest of your existing code the same ---
+  if (Number.isNaN(start.getTime())) return null;      
 
       const dayStr = start.toISOString().slice(0, 10);
       if (dayStr !== form.date) return false;
@@ -3344,6 +3352,7 @@ const workingDoctorsForFilter = scheduledDoctors.length
   );
 
   const formSectionRef = useRef<HTMLElement | null>(null);
+  const gridRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setHasMounted(true);
@@ -3520,6 +3529,34 @@ useEffect(() => {
 
   return Object.values(byDoctor).sort(sortFn);
 }, [scheduledDoctors, appointments, doctors, filterDate]);
+
+  function snapMinutesToSlot(mins: number, slot = SLOT_MINUTES) {
+  return Math.round(mins / slot) * slot;
+}
+
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+
+// convert a clientY to minutes from firstSlot using columnHeightPx/totalMinutes
+function clientYToMinutesFromStart(clientY: number, columnTop: number) {
+  const yWithin = clientY - columnTop;
+  const ratio = yWithin / columnHeightPx;
+  const minutes = ratio * totalMinutes;
+  return minutes;
+}
+
+// Determine doctor column from mouse X.
+// You have 80px time column, then each doctor column = 180px
+function clientXToDoctorId(clientX: number, gridLeft: number) {
+  const TIME_COL_W = 80;
+  const DOC_COL_W = 180;
+
+  const xWithin = clientX - gridLeft - TIME_COL_W;
+  const idx = Math.floor(xWithin / DOC_COL_W);
+  if (idx < 0 || idx >= gridDoctors.length) return null;
+  return gridDoctors[idx].id;
+}
 
 const fillingStats = useMemo(() => {
   // Capacity slots: unique schedule slots per doctor
@@ -4097,15 +4134,17 @@ const totalCompletedPatientsForDay = useMemo(() => {
       Энэ өдөр ажиллах эмчийн хуваарь алга.
     </div>
   ) : (
-        <div
-      style={{
-        border: "1px solid #ddd",
-        borderRadius: 8,
-        fontSize: 12,
-        overflowX: "auto",   // allow horizontal scroll when many doctors
-        overflowY: "visible", // full vertical view, no scrolling/clipping
-      }}
-    >
+       <div
+  ref={gridRef}
+  style={{
+    border: "1px solid #ddd",
+    borderRadius: 8,
+    fontSize: 12,
+    overflowX: "auto",
+    overflowY: "visible",
+  }}
+>
+
             {/* Header row */}
                         <div
               style={{
@@ -4366,7 +4405,10 @@ const totalCompletedPatientsForDay = useMemo(() => {
 
                     {/* Appointment blocks */}
                     {doctorAppointments.map((a) => {
-                      const start = new Date(a.scheduledAt);
+                      
+                    const draft = draftEdits[a.id
+                      const draft = draftEdits[a.id];
+                    const start = new Date(a.scheduledAt);
                       if (Number.isNaN(start.getTime())) return null;
                       const end =
                         a.endAt &&
