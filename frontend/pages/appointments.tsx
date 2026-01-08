@@ -2492,14 +2492,6 @@ function AppointmentForm({
         a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
           ? new Date(a.endAt)
           : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
-      
-        const effectiveDoctorId = draft?.doctorId ?? a.doctorId;
-
-  // ✅ if user dragged it to another doctor column, don't render it here
-  if (effectiveDoctorId !== doc.id) return null;
-
-  // --- keep the rest of your existing code the same ---
-  if (Number.isNaN(start.getTime())) return null;      
 
       const dayStr = start.toISOString().slice(0, 10);
       if (dayStr !== form.date) return false;
@@ -3790,6 +3782,152 @@ const totalCompletedPatientsForDay = useMemo(() => {
   }
 };
 
+// ---- Drag/Resize handlers ----
+useEffect(() => {
+  if (!activeDrag) return;
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!activeDrag || !gridRef.current) return;
+
+    const gridRect = gridRef.current.getBoundingClientRect();
+    const gridLeft = gridRect.left;
+    const gridTop = gridRect.top;
+
+    const TIME_COL_W = 80;
+    const DOC_COL_W = 180;
+
+    if (activeDrag.mode === "move") {
+      // Calculate new position
+      const deltaY = e.clientY - activeDrag.startClientY;
+      const deltaMinutes = (deltaY / columnHeightPx) * totalMinutes;
+      const newStartMinutes = (activeDrag.origStart.getTime() - firstSlot.getTime()) / 60000 + deltaMinutes;
+      const snappedStart = snapMinutesToSlot(newStartMinutes);
+      const clampedStart = clamp(snappedStart, 0, totalMinutes - SLOT_MINUTES);
+
+      const duration = (activeDrag.origEnd.getTime() - activeDrag.origStart.getTime()) / 60000;
+      const clampedEnd = clamp(clampedStart + duration, SLOT_MINUTES, totalMinutes);
+
+      const newStart = new Date(firstSlot.getTime() + clampedStart * 60000);
+      const newEnd = new Date(firstSlot.getTime() + clampedEnd * 60000);
+
+      // Check which doctor column
+      const xWithin = e.clientX - gridLeft - TIME_COL_W;
+      const docIdx = Math.floor(xWithin / DOC_COL_W);
+      const newDoctorId = (docIdx >= 0 && docIdx < gridDoctors.length) 
+        ? gridDoctors[docIdx].id 
+        : activeDrag.origDoctorId;
+
+      setDraftEdits(prev => ({
+        ...prev,
+        [activeDrag.appointmentId]: {
+          scheduledAt: newStart.toISOString(),
+          endAt: newEnd.toISOString(),
+          doctorId: newDoctorId,
+        }
+      }));
+
+      setActiveDrag(prev => prev ? { ...prev, currentDoctorId: newDoctorId } : null);
+    } else if (activeDrag.mode === "resize") {
+      // Resize: adjust end time only
+      const deltaY = e.clientY - activeDrag.startClientY;
+      const deltaMinutes = (deltaY / columnHeightPx) * totalMinutes;
+      
+      const origDuration = (activeDrag.origEnd.getTime() - activeDrag.origStart.getTime()) / 60000;
+      const newDuration = origDuration + deltaMinutes;
+      const snappedDuration = snapMinutesToSlot(newDuration);
+      const clampedDuration = clamp(snappedDuration, SLOT_MINUTES, totalMinutes);
+
+      const startMinutes = (activeDrag.origStart.getTime() - firstSlot.getTime()) / 60000;
+      const endMinutes = clamp(startMinutes + clampedDuration, SLOT_MINUTES, totalMinutes);
+
+      const newEnd = new Date(firstSlot.getTime() + endMinutes * 60000);
+
+      setDraftEdits(prev => ({
+        ...prev,
+        [activeDrag.appointmentId]: {
+          scheduledAt: activeDrag.origStart.toISOString(),
+          endAt: newEnd.toISOString(),
+          doctorId: activeDrag.origDoctorId,
+        }
+      }));
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (!activeDrag) return;
+    
+    // Show save/cancel UI
+    setPendingSaveId(activeDrag.appointmentId);
+    setPendingSaveError(null);
+    setActiveDrag(null);
+  };
+
+  window.addEventListener("mousemove", handleMouseMove);
+  window.addEventListener("mouseup", handleMouseUp);
+
+  return () => {
+    window.removeEventListener("mousemove", handleMouseMove);
+    window.removeEventListener("mouseup", handleMouseUp);
+  };
+}, [activeDrag, columnHeightPx, totalMinutes, firstSlot, gridDoctors]);
+
+// ---- Save/Cancel handlers ----
+const handleSaveDraft = async (appointmentId: number) => {
+  const draft = draftEdits[appointmentId];
+  if (!draft) return;
+
+  setPendingSaving(true);
+  setPendingSaveError(null);
+
+  try {
+    const res = await fetch(`/api/appointments/${appointmentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        scheduledAt: draft.scheduledAt,
+        endAt: draft.endAt,
+        doctorId: draft.doctorId,
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      setPendingSaveError((data && data.error) || `Хадгалахад алдаа гарлаа (${res.status})`);
+      return;
+    }
+
+    // Update appointments list
+    setAppointments(prev => 
+      prev.map(a => a.id === appointmentId ? { ...a, ...data } : a)
+    );
+
+    // Clear draft and pending state
+    setDraftEdits(prev => {
+      const next = { ...prev };
+      delete next[appointmentId];
+      return next;
+    });
+    setPendingSaveId(null);
+    setPendingSaveError(null);
+  } catch (e) {
+    console.error("Save draft error:", e);
+    setPendingSaveError("Сүлжээгээ шалгана уу.");
+  } finally {
+    setPendingSaving(false);
+  }
+};
+
+const handleCancelDraft = (appointmentId: number) => {
+  setDraftEdits(prev => {
+    const next = { ...prev };
+    delete next[appointmentId];
+    return next;
+  });
+  setPendingSaveId(null);
+  setPendingSaveError(null);
+};
+
  return (
   <main
     style={{
@@ -4405,18 +4543,28 @@ const totalCompletedPatientsForDay = useMemo(() => {
 
                     {/* Appointment blocks */}
                     {doctorAppointments.map((a) => {
-                      
-                    const draft = draftEdits[a.id
                       const draft = draftEdits[a.id];
-                    const start = new Date(a.scheduledAt);
+                      
+                      // Use draft values if present, otherwise original
+                      const effectiveStart = draft 
+                        ? new Date(draft.scheduledAt) 
+                        : new Date(a.scheduledAt);
+                      const effectiveEnd = draft && draft.endAt
+                        ? new Date(draft.endAt)
+                        : (a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+                            ? new Date(a.endAt)
+                            : new Date(effectiveStart.getTime() + SLOT_MINUTES * 60 * 1000));
+                      
+                      const effectiveDoctorId = draft 
+                        ? draft.doctorId 
+                        : a.doctorId;
+                      
+                      // Skip if moved to different doctor
+                      if (effectiveDoctorId !== doc.id) return null;
+                      
+                      const start = effectiveStart;
                       if (Number.isNaN(start.getTime())) return null;
-                      const end =
-                        a.endAt &&
-                        !Number.isNaN(new Date(a.endAt).getTime())
-                          ? new Date(a.endAt)
-                          : new Date(
-                              start.getTime() + SLOT_MINUTES * 60 * 1000
-                            );
+                      const end = effectiveEnd;
 
                       const clampedStart = new Date(
                         Math.max(start.getTime(), firstSlot.getTime())
@@ -4450,20 +4598,53 @@ const totalCompletedPatientsForDay = useMemo(() => {
                           : 50
                         : 0;
 
+                      // Check if this appointment can be dragged/resized
+                      const canEdit = canReceptionEditAppointment(a.status);
+                      const isDragging = activeDrag?.appointmentId === a.id;
+                      const hasPendingSave = pendingSaveId === a.id;
+
+                      const handleMouseDown = (e: React.MouseEvent, mode: DragMode) => {
+                        if (!canEdit) return;
+                        e.stopPropagation();
+                        e.preventDefault();
+
+                        const origStart = new Date(a.scheduledAt);
+                        const origEnd = a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+                          ? new Date(a.endAt)
+                          : new Date(origStart.getTime() + SLOT_MINUTES * 60 * 1000);
+
+                        setActiveDrag({
+                          appointmentId: a.id,
+                          mode,
+                          startClientX: e.clientX,
+                          startClientY: e.clientY,
+                          origStart,
+                          origEnd,
+                          origDoctorId: a.doctorId,
+                          currentDoctorId: a.doctorId,
+                        });
+                      };
+
+                      const handleBlockClick = (e: React.MouseEvent) => {
+                        // Don't open details if we just finished dragging or have pending save
+                        if (isDragging || hasPendingSave || activeDrag) return;
+                        
+                        e.stopPropagation();
+                        setDetailsModalState({
+                          open: true,
+                          doctor: doc,
+                          slotLabel: "",
+                          slotTime: "",
+                          date: filterDate,
+                          appointments: [a],
+                        });
+                      };
+
                       return (
                         <div
                           key={a.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDetailsModalState({
-                              open: true,
-                              doctor: doc,
-                              slotLabel: "",
-                              slotTime: "",
-                              date: filterDate,
-                              appointments: [a],
-                            });
-                          }}
+                          onMouseDown={canEdit ? (e) => handleMouseDown(e, "move") : undefined}
+                          onClick={handleBlockClick}
                           style={{
                             position: "absolute",
                             left: `${leftPercent}%`,
@@ -4474,7 +4655,11 @@ const totalCompletedPatientsForDay = useMemo(() => {
                             boxSizing: "border-box",
                             backgroundColor: getStatusColor(a.status),
                             borderRadius: 4,
-                            border: "1px solid rgba(0,0,0,0.08)",
+                            border: isDragging 
+                              ? "2px solid #2563eb" 
+                              : hasPendingSave 
+                                ? "2px solid #f59e0b"
+                                : "1px solid rgba(0,0,0,0.08)",
                             fontSize: 11,
                             lineHeight: 1.2,
                             color:
@@ -4488,8 +4673,13 @@ const totalCompletedPatientsForDay = useMemo(() => {
                             textAlign: "center",
                             overflow: "hidden",
                             wordBreak: "break-word",
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
-                            cursor: "pointer",
+                            boxShadow: isDragging 
+                              ? "0 4px 12px rgba(37,99,235,0.5)" 
+                              : "0 1px 3px rgba(0,0,0,0.25)",
+                            cursor: canEdit ? "move" : "pointer",
+                            opacity: isDragging ? 0.8 : 1,
+                            zIndex: isDragging || hasPendingSave ? 10 : 1,
+                            userSelect: "none",
                           }}
                           title={`${formatPatientLabel(
                             a.patient,
@@ -4499,6 +4689,25 @@ const totalCompletedPatientsForDay = useMemo(() => {
                           {`${formatGridShortLabel(a)} (${formatStatus(
                             a.status
                           )})`}
+                          
+                          {/* Resize handle at bottom */}
+                          {canEdit && !isDragging && (
+                            <div
+                              onMouseDown={(e) => handleMouseDown(e, "resize")}
+                              style={{
+                                position: "absolute",
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                height: 6,
+                                cursor: "ns-resize",
+                                backgroundColor: "rgba(0,0,0,0.1)",
+                                borderBottomLeftRadius: 4,
+                                borderBottomRightRadius: 4,
+                              }}
+                              title="Drag to resize"
+                            />
+                          )}
                         </div>
                       );
                     })}
@@ -4619,6 +4828,80 @@ const totalCompletedPatientsForDay = useMemo(() => {
     // setDetailsModalState((prev) => ({ ...prev, open: false }));
   }}
 />
+
+{/* Floating Save/Cancel bar for pending draft */}
+{pendingSaveId !== null && (
+  <div
+    style={{
+      position: "fixed",
+      bottom: 24,
+      left: "50%",
+      transform: "translateX(-50%)",
+      zIndex: 100,
+      background: "#ffffff",
+      borderRadius: 8,
+      boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
+      padding: 16,
+      display: "flex",
+      flexDirection: "column",
+      gap: 12,
+      minWidth: 320,
+      border: "2px solid #f59e0b",
+    }}
+  >
+    <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>
+      Цаг захиалга өөрчлөгдлөө
+    </div>
+    <div style={{ fontSize: 12, color: "#6b7280" }}>
+      Та өөрчлөлтийг хадгалах уу эсвэл болих уу?
+    </div>
+    {pendingSaveError && (
+      <div style={{ fontSize: 12, color: "#b91c1c" }}>
+        {pendingSaveError}
+      </div>
+    )}
+    <div style={{ display: "flex", gap: 8 }}>
+      <button
+        type="button"
+        onClick={() => handleSaveDraft(pendingSaveId)}
+        disabled={pendingSaving}
+        style={{
+          flex: 1,
+          padding: "8px 16px",
+          borderRadius: 6,
+          border: "none",
+          background: "#16a34a",
+          color: "white",
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: pendingSaving ? "default" : "pointer",
+          opacity: pendingSaving ? 0.6 : 1,
+        }}
+      >
+        {pendingSaving ? "Хадгалж байна..." : "Хадгалах"}
+      </button>
+      <button
+        type="button"
+        onClick={() => handleCancelDraft(pendingSaveId)}
+        disabled={pendingSaving}
+        style={{
+          flex: 1,
+          padding: "8px 16px",
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          background: "#f9fafb",
+          color: "#111827",
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: pendingSaving ? "default" : "pointer",
+          opacity: pendingSaving ? 0.6 : 1,
+        }}
+      >
+        Болих
+      </button>
+    </div>
+  </div>
+)}
     </main>
   
   );
