@@ -269,14 +269,17 @@ router.patch("/employee-benefits/:id", async (req, res) => {
     return res.status(400).json({ error: "Invalid benefit id" });
   }
 
-  const { code, initialAmount, remainingAmount, fromDate, toDate, isActive } = req.body || {};
+  const { code, initialAmount, remainingAmount, fromDate, toDate, isActive } =
+    req.body || {};
 
   try {
     const data = {};
 
     if (code !== undefined) data.code = String(code).trim();
-    if (initialAmount !== undefined) data.initialAmount = Math.round(Number(initialAmount));
-    if (remainingAmount !== undefined) data.remainingAmount = Math.round(Number(remainingAmount));
+    if (initialAmount !== undefined)
+      data.initialAmount = Math.round(Number(initialAmount));
+    if (remainingAmount !== undefined)
+      data.remainingAmount = Math.round(Number(remainingAmount));
     if (fromDate !== undefined) data.fromDate = fromDate ? new Date(fromDate) : null;
     if (toDate !== undefined) data.toDate = toDate ? new Date(toDate) : null;
     if (isActive !== undefined) data.isActive = Boolean(isActive);
@@ -289,12 +292,6 @@ router.patch("/employee-benefits/:id", async (req, res) => {
     return res.json({ benefit: updated });
   } catch (e) {
     console.error("PATCH /api/admin/employee-benefits/:id failed:", e);
-
-    // Optional: handle unique code conflict nicely (if code is unique)
-    if (String(e?.message || "").includes("Unique constraint")) {
-      return res.status(409).json({ error: "Код давхцаж байна." });
-    }
-
     return res.status(500).json({ error: "Failed to update employee benefit." });
   }
 });
