@@ -394,7 +394,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-// PATCH /api/appointments/:id  (status + optional notes)
+// PATCH /api/appointments/:id  (status/notes + optional time/doctor edits)
 router.patch("/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
@@ -402,21 +402,50 @@ router.patch("/:id", async (req, res) => {
       return res.status(400).json({ error: "Invalid appointment id" });
     }
 
-    const { status, notes } = req.body || {};
-    if (typeof status !== "string" || !status.trim()) {
-      return res.status(400).json({ error: "status is required" });
+    const {
+      status,
+      notes,
+      scheduledAt,
+      endAt,
+      doctorId,
+
+      // explicitly forbid these in this endpoint for safety
+      patientId,
+      branchId,
+    } = req.body || {};
+
+    // ✅ hard block changes you don't want reception to do via "Засварлах"
+    if (patientId !== undefined) {
+      return res.status(400).json({
+        error:
+          "patientId cannot be updated here. Create a new appointment if patient must change.",
+      });
+    }
+    if (branchId !== undefined) {
+      return res.status(400).json({
+        error:
+          "branchId cannot be updated here. Create a new appointment if branch must change.",
+      });
     }
 
-    const normalizedStatus = normalizeStatusForDb(status);
-    if (!normalizedStatus) {
-      return res.status(400).json({ error: "invalid status" });
+    const data = {};
+
+    // ---------------- status (optional) ----------------
+    if (status !== undefined) {
+      if (typeof status !== "string" || !status.trim()) {
+        return res.status(400).json({ error: "status must be a non-empty string" });
+      }
+      const normalizedStatus = normalizeStatusForDb(status);
+      if (!normalizedStatus) {
+        return res.status(400).json({ error: "invalid status" });
+      }
+      data.status = normalizedStatus;
     }
 
-    // notes is optional; allow clearing with empty string -> null
-    let nextNotes;
+    // ---------------- notes (optional) ----------------
     if (notes !== undefined) {
-      if (notes === null) nextNotes = null;
-      else if (typeof notes === "string") nextNotes = notes.trim() || null;
+      if (notes === null) data.notes = null;
+      else if (typeof notes === "string") data.notes = notes.trim() || null;
       else {
         return res
           .status(400)
@@ -424,12 +453,73 @@ router.patch("/:id", async (req, res) => {
       }
     }
 
+    // ---------------- doctorId (optional) ----------------
+    if (doctorId !== undefined) {
+      if (doctorId === null || doctorId === "") {
+        data.doctorId = null;
+      } else {
+        const parsed = Number(doctorId);
+        if (Number.isNaN(parsed)) {
+          return res.status(400).json({ error: "doctorId must be a number or null" });
+        }
+        data.doctorId = parsed;
+      }
+    }
+
+    // ---------------- scheduledAt / endAt (optional) ----------------
+    // Allow updating time range. If one provided, validate with the other (existing or provided).
+    let nextScheduledAt;
+    let nextEndAt;
+
+    if (scheduledAt !== undefined) {
+      const d = new Date(scheduledAt);
+      if (Number.isNaN(d.getTime())) {
+        return res.status(400).json({ error: "scheduledAt is invalid date" });
+      }
+      nextScheduledAt = d;
+      data.scheduledAt = d;
+    }
+
+    if (endAt !== undefined) {
+      if (endAt === null || endAt === "") {
+        nextEndAt = null;
+        data.endAt = null;
+      } else {
+        const d = new Date(endAt);
+        if (Number.isNaN(d.getTime())) {
+          return res.status(400).json({ error: "endAt is invalid date" });
+        }
+        nextEndAt = d;
+        data.endAt = d;
+      }
+    }
+
+    // If either time value changed, validate end > start (when end exists)
+    if (scheduledAt !== undefined || endAt !== undefined) {
+      const current = await prisma.appointment.findUnique({
+        where: { id },
+        select: { scheduledAt: true, endAt: true },
+      });
+      if (!current) return res.status(404).json({ error: "appointment not found" });
+
+      const start = nextScheduledAt ?? current.scheduledAt;
+      const end = endAt !== undefined ? nextEndAt : current.endAt;
+
+      if (end && end <= start) {
+        return res
+          .status(400)
+          .json({ error: "endAt must be later than scheduledAt" });
+      }
+    }
+
+    // Nothing to update
+    if (Object.keys(data).length === 0) {
+      return res.status(400).json({ error: "No fields provided to update" });
+    }
+
     const appt = await prisma.appointment.update({
       where: { id },
-      data: {
-        status: normalizedStatus,
-        ...(notes !== undefined ? { notes: nextNotes } : {}),
-      },
+      data,
       include: {
         patient: { include: { patientBook: true } },
         doctor: true,
