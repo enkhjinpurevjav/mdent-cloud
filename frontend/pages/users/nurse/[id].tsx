@@ -36,6 +36,18 @@ function formatIsoDateOnly(iso?: string | null) {
   return String(iso).slice(0, 10);
 }
 
+function formatStaffShortName(staff: { name?: string | null; ovog?: string | null; email?: string | null }) {
+  const name = (staff.name || "").toString().trim();
+  const ovog = (staff.ovog || "").toString().trim();
+  const email = (staff.email || "").toString().trim();
+
+  if (ovog) {
+    const first = ovog.charAt(0).toUpperCase();
+    return `${first}.${name || email || "-"}`;
+  }
+  return name || email || "-";
+}
+
 export default function NurseProfilePage() {
   const router = useRouter();
   const { id } = router.query;
@@ -624,8 +636,7 @@ export default function NurseProfilePage() {
     }
   };
 
-  const headerName =
-    nurse?.name && nurse.name.trim().length > 0 ? nurse.name : nurse?.email;
+  const headerName = nurse ? formatStaffShortName(nurse) : "";
 
   const mainBranchName = useMemo(() => {
     if (!nurse?.branchId) return null;
