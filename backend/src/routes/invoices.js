@@ -195,6 +195,7 @@ router.post("/:id/settlement", async (req, res) => {
               encounterId: invoice.encounterId,
               amountUsed: payAmount,
               patientId: invoice.patientId,
+              patientBookNumber: bookNumber,
             },
           });
 
