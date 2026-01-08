@@ -208,35 +208,6 @@ function formatPatientLabel(
   return parts.join(" ");
 }
 
-function snapMinutesToSlot(mins: number, slot = SLOT_MINUTES) {
-  return Math.round(mins / slot) * slot;
-}
-
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
-}
-
-// convert a clientY to minutes from firstSlot using columnHeightPx/totalMinutes
-function clientYToMinutesFromStart(clientY: number, columnTop: number) {
-  const yWithin = clientY - columnTop;
-  const ratio = yWithin / columnHeightPx;
-  const minutes = ratio * totalMinutes;
-  return minutes;
-}
-
-// Determine doctor column from mouse X.
-// You have 80px time column, then each doctor column = 180px
-function clientXToDoctorId(clientX: number, gridLeft: number) {
-  const TIME_COL_W = 80;
-  const DOC_COL_W = 180;
-
-  const xWithin = clientX - gridLeft - TIME_COL_W;
-  const idx = Math.floor(xWithin / DOC_COL_W);
-  if (idx < 0 || idx >= gridDoctors.length) return null;
-  return gridDoctors[idx].id;
-}
-
-
 // frontend helper (already in your file)
 function formatGridShortLabel(a: Appointment): string {
   const p = a.patient as any;
@@ -3311,39 +3282,6 @@ export default function AppointmentsPage() {
     typeof router.query.branchId === "string" ? router.query.branchId : "";
 
   const todayStr = new Date().toISOString().slice(0, 10);
-
-
-  type DraftAppointmentChange = {
-  scheduledAt: string; // ISO
-  endAt: string | null; // ISO
-  doctorId: number | null;
-};
-
-type DragMode = "move" | "resize";
-
-type DragState = {
-  appointmentId: number;
-  mode: DragMode;
-  startClientX: number;
-  startClientY: number;
-
-  // original (at drag start)
-  origStart: Date;
-  origEnd: Date;
-  origDoctorId: number | null;
-
-  // computed during drag
-  currentDoctorId: number | null;
-};
-
-const [draftEdits, setDraftEdits] = useState<Record<number, DraftAppointmentChange>>({});
-const [activeDrag, setActiveDrag] = useState<DragState | null>(null);
-const [pendingSaveId, setPendingSaveId] = useState<number | null>(null);
-const [pendingSaveError, setPendingSaveError] = useState<string | null>(null);
-const [pendingSaving, setPendingSaving] = useState(false);
-
-
-  
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
