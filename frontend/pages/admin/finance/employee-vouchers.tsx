@@ -6,10 +6,20 @@ type EmployeeBenefitRow = {
   name?: string;
   email: string;
   role: string;
-  password: string; // hashed
+
+  // ✅ benefit record (Option A: one active benefit per employee)
+  benefitId: number;
+  code: string;
+  initialAmount: number;
+  remainingAmount: number;
+  fromDate?: string | null;
+  toDate?: string | null;
+  isActive: boolean;
+
+  // summary columns
   totalAmount: number;
   usedAmount: number;
-  remainingAmount: number;
+
   createdAt?: string;
   updatedAt?: string;
 };
@@ -37,6 +47,18 @@ function formatDateTime(iso?: string) {
   }
 }
 
+function formatDateInputValue(iso?: string | null) {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    // yyyy-mm-dd for <input type="date" />
+    return d.toISOString().slice(0, 10);
+  } catch {
+    return "";
+  }
+}
+
 function roleLabel(role: string) {
   const map: Record<string, string> = {
     doctor: "Эмч",
@@ -59,6 +81,16 @@ export default function EmployeeVouchersPage() {
   const [employeeId, setEmployeeId] = useState("");
   const [code, setCode] = useState("");
   const [initialAmount, setInitialAmount] = useState("");
+
+  // edit modal
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState<EmployeeBenefitRow | null>(null);
+  const [editCode, setEditCode] = useState("");
+  const [editInitialAmount, setEditInitialAmount] = useState("");
+  const [editRemainingAmount, setEditRemainingAmount] = useState("");
+  const [editFromDate, setEditFromDate] = useState("");
+  const [editToDate, setEditToDate] = useState("");
+  const [editIsActive, setEditIsActive] = useState(true);
 
   const load = async () => {
     setLoading(true);
@@ -92,6 +124,65 @@ export default function EmployeeVouchersPage() {
     }
   };
 
+  const openEdit = (row: EmployeeBenefitRow) => {
+    setEditing(row);
+    setEditCode(row.code || "");
+    setEditInitialAmount(String(row.initialAmount ?? ""));
+    setEditRemainingAmount(String(row.remainingAmount ?? ""));
+    setEditFromDate(formatDateInputValue(row.fromDate));
+    setEditToDate(formatDateInputValue(row.toDate));
+    setEditIsActive(!!row.isActive);
+    setEditOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editing) return;
+
+    const initNum = Number(editInitialAmount);
+    const remNum = Number(editRemainingAmount);
+
+    if (!editCode.trim()) {
+      alert("Код хоосон байж болохгүй.");
+      return;
+    }
+    if (!Number.isFinite(initNum) || initNum <= 0) {
+      alert("Нийт эрхийн дүн зөв оруулна уу.");
+      return;
+    }
+    if (!Number.isFinite(remNum) || remNum < 0) {
+      alert("Үлдэгдэл зөв оруулна уу.");
+      return;
+    }
+    if (remNum > initNum) {
+      alert("Үлдэгдэл нь нийт эрхээс их байж болохгүй.");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin/employee-benefits/${editing.benefitId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: editCode.trim(),
+          initialAmount: initNum,
+          remainingAmount: remNum,
+          fromDate: editFromDate ? editFromDate : null,
+          toDate: editToDate ? editToDate : null,
+          isActive: editIsActive,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Failed to update benefit");
+
+      setEditOpen(false);
+      setEditing(null);
+      await load();
+    } catch (e: any) {
+      alert(e?.message || "Failed to update benefit");
+    }
+  };
+
   const handleAdd = async () => {
     const idNum = Number(employeeId);
     const amtNum = Number(initialAmount);
@@ -101,11 +192,11 @@ export default function EmployeeVouchersPage() {
       return;
     }
     if (!code.trim()) {
-      alert("Code оруулна уу.");
+      alert("Код оруулна уу.");
       return;
     }
     if (!amtNum || Number.isNaN(amtNum) || amtNum <= 0) {
-      alert("Initial amount зөв оруулна уу.");
+      alert("Нийт эрхийн дүн зөв оруулна уу.");
       return;
     }
 
@@ -169,7 +260,7 @@ export default function EmployeeVouchersPage() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "220px 140px 140px 140px 140px 170px 170px 1fr 120px",
+              gridTemplateColumns: "220px 140px 140px 140px 140px 170px 170px 160px 170px",
               gap: 10,
               padding: "10px 12px",
               background: "#f9fafb",
@@ -185,7 +276,7 @@ export default function EmployeeVouchersPage() {
             <div style={{ textAlign: "right" }}>Үлдэгдэл</div>
             <div>Created</div>
             <div>Updated</div>
-            <div>Password (hashed)</div>
+            <div>Код</div>
             <div />
           </div>
 
@@ -194,7 +285,7 @@ export default function EmployeeVouchersPage() {
               key={r.userId}
               style={{
                 display: "grid",
-                gridTemplateColumns: "220px 140px 140px 140px 140px 170px 170px 1fr 120px",
+                gridTemplateColumns: "220px 140px 140px 140px 140px 170px 170px 160px 170px",
                 gap: 10,
                 padding: "10px 12px",
                 borderTop: "1px solid #f3f4f6",
@@ -209,11 +300,25 @@ export default function EmployeeVouchersPage() {
               <div style={{ textAlign: "right", fontWeight: 700 }}>{formatMoney(r.remainingAmount)} ₮</div>
               <div style={{ fontSize: 12, color: "#6b7280" }}>{formatDateTime(r.createdAt)}</div>
               <div style={{ fontSize: 12, color: "#6b7280" }}>{formatDateTime(r.updatedAt)}</div>
-              <div style={{ fontFamily: "monospace", fontSize: 11, color: "#6b7280", overflow: "hidden" }}>
-                {r.password}
-              </div>
+              <div style={{ fontFamily: "monospace", fontSize: 12, color: "#374151" }}>{r.code}</div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => openEdit(r)}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #2563eb",
+                    background: "#eff6ff",
+                    color: "#2563eb",
+                    cursor: "pointer",
+                    fontSize: 12,
+                  }}
+                >
+                  Засах
+                </button>
+
                 <button
                   type="button"
                   onClick={() => handleRemove(r.userId)}
@@ -336,6 +441,140 @@ export default function EmployeeVouchersPage() {
 
             <div style={{ marginTop: 10, fontSize: 12, color: "#6b7280" }}>
               Түр хугацаанд Employee ID-г гараар оруулж байна. Дараа нь хайлтын dropdown болгоно.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit modal */}
+      {editOpen && editing && (
+        <div
+          onClick={() => {
+            setEditOpen(false);
+            setEditing(null);
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 110,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 600,
+              maxWidth: "95vw",
+              background: "#ffffff",
+              borderRadius: 10,
+              padding: 16,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+              fontSize: 13,
+            }}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: 10 }}>Ваучер эрх засах: {formatEmployeeName(editing)}</h3>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 12, color: "#374151" }}>Код</div>
+                <input
+                  value={editCode}
+                  onChange={(e) => setEditCode(e.target.value)}
+                  style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                />
+              </label>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ fontSize: 12, color: "#374151" }}>Нийт эрхийн дүн</div>
+                  <input
+                    value={editInitialAmount}
+                    onChange={(e) => setEditInitialAmount(e.target.value)}
+                    type="number"
+                    min={0}
+                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                  />
+                </label>
+
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ fontSize: 12, color: "#374151" }}>Үлдэгдэл</div>
+                  <input
+                    value={editRemainingAmount}
+                    onChange={(e) => setEditRemainingAmount(e.target.value)}
+                    type="number"
+                    min={0}
+                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ fontSize: 12, color: "#374151" }}>From date</div>
+                  <input
+                    value={editFromDate}
+                    onChange={(e) => setEditFromDate(e.target.value)}
+                    type="date"
+                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                  />
+                </label>
+
+                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ fontSize: 12, color: "#374151" }}>To date</div>
+                  <input
+                    value={editToDate}
+                    onChange={(e) => setEditToDate(e.target.value)}
+                    type="date"
+                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                  />
+                </label>
+              </div>
+
+              <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                <input
+                  type="checkbox"
+                  checked={editIsActive}
+                  onChange={(e) => setEditIsActive(e.target.checked)}
+                />
+                <span>Идэвхтэй</span>
+              </label>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditOpen(false);
+                    setEditing(null);
+                  }}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #d1d5db",
+                    background: "#ffffff",
+                    cursor: "pointer",
+                  }}
+                >
+                  Болих
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #2563eb",
+                    background: "#2563eb",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  Хадгалах
+                </button>
+              </div>
             </div>
           </div>
         </div>
