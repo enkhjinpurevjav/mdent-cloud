@@ -994,3 +994,37 @@ model NurseSchedule {
   @@index([branchId, date])
   @@unique([nurseId, branchId, date])
 }
+
+// ==========================================================
+// PAYMENT SETTINGS (Phase 1: Configurable Payment Methods)
+// ==========================================================
+
+// Payment method configuration (global, not per-branch)
+model PaymentMethodConfig {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique  // CASH, POS, TRANSFER, INSURANCE, APPLICATION, VOUCHER, EMPLOYEE_BENEFIT, WALLET, BARTER, OTHER
+  label     String              // Display name (editable, e.g. "Бэлэн мөнгө")
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  providers PaymentProviderConfig[]
+
+  @@index([isActive, sortOrder])
+}
+
+// Payment provider configuration (banks for TRANSFER, insurance for INSURANCE, apps for APPLICATION)
+model PaymentProviderConfig {
+  id         Int      @id @default(autoincrement())
+  methodKey  String              // References PaymentMethodConfig.key
+  method     PaymentMethodConfig @relation(fields: [methodKey], references: [key], onDelete: Cascade)
+  name       String              // Provider name (e.g. "Bodi Daatgal", "Storepay", "Хаан банк")
+  isActive   Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  note       String?             // Optional free text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([methodKey, isActive, sortOrder])
+}
