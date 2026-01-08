@@ -156,7 +156,7 @@ function BillingPaymentSection({
 
   const [enabled, setEnabled] = useState<Record<string, boolean>>({});
   const [amounts, setAmounts] = useState<Record<string, string>>({});
-  const [transferProviderId, setTransferProviderId] = useState<number | null>(null);
+  const [transferNote, setTransferNote] = useState("");
   const [insuranceProviderId, setInsuranceProviderId] = useState<number | null>(null);
   const [otherNote, setOtherNote] = useState("");
   const [issueEBarimt, setIssueEBarimt] = useState(true);
@@ -207,7 +207,6 @@ function BillingPaymentSection({
   useEffect(() => {
     setEnabled({});
     setAmounts({});
-    setTransferProviderId(null);
     setInsuranceProviderId(null);
     setOtherNote("");
     setVoucherCode("");
@@ -219,6 +218,7 @@ function BillingPaymentSection({
     setVoucherType("");
     setVoucherMaxAmount(null);
     setAppRows([{ providerId: null, amount: "" }]);
+    setTransferNote("");
   }, [invoice.id]);
 
   const handleToggle = (methodKey: string, checked: boolean) => {
@@ -226,7 +226,7 @@ function BillingPaymentSection({
     if (!checked) {
       setAmounts((prev) => ({ ...prev, [methodKey]: "" }));
       if (methodKey === "INSURANCE") setInsuranceProviderId(null);
-      if (methodKey === "TRANSFER") setTransferProviderId(null);
+      if (methodKey === "TRANSFER") setTransferNote("");
       if (methodKey === "OTHER") setOtherNote("");
       if (methodKey === "BARTER") setBarterCode("");
       if (methodKey === "EMPLOYEE_BENEFIT") {
@@ -391,12 +391,10 @@ function BillingPaymentSection({
 
       // TRANSFER: require providerId (bank)
       if (m.key === "TRANSFER") {
-        if (!transferProviderId) {
-          setError("Банкаа сонгоно уу.");
-          return;
-        }
-        entry.meta = { ...(entry.meta || {}), providerId: transferProviderId };
-      }
+  if (transferNote.trim()) {
+    entry.meta = { ...(entry.meta || {}), note: transferNote.trim() };
+  }
+}
 
       // INSURANCE: require providerId
       if (m.key === "INSURANCE") {
@@ -505,7 +503,6 @@ function BillingPaymentSection({
       setSuccess("Төлбөр(үүд) амжилттай бүртгэгдлээ.");
       setEnabled({});
       setAmounts({});
-      setTransferProviderId(null);
       setInsuranceProviderId(null);
       setOtherNote("");
       setVoucherCode("");
@@ -604,30 +601,21 @@ function BillingPaymentSection({
                     }}
                   >
                     {/* TRANSFER: bank selector */}
-                    {m.key === "TRANSFER" && providers.length > 0 && (
-                      <select
-                        value={transferProviderId || ""}
-                        onChange={(e) =>
-                          setTransferProviderId(
-                            e.target.value ? Number(e.target.value) : null
-                          )
-                        }
-                        style={{
-                          minWidth: 200,
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "4px 6px",
-                          fontSize: 13,
-                        }}
-                      >
-                        <option value="">Банкаа сонгох...</option>
-                        {providers.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
-                    )}
+                    {m.key === "TRANSFER" && (
+  <input
+    type="text"
+    value={transferNote}
+    onChange={(e) => setTransferNote(e.target.value)}
+    placeholder="Тайлбар (заавал биш)"
+    style={{
+      width: 200,
+      borderRadius: 6,
+      border: "1px solid #d1d5db",
+      padding: "4px 6px",
+      fontSize: 12,
+    }}
+  />
+)}
 
                     {/* INSURANCE: insurance company selector */}
                     {m.key === "INSURANCE" && providers.length > 0 && (
