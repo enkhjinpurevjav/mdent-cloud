@@ -128,7 +128,7 @@ const navItems: NavItem[] = [
     children: [
       {
         label: "Төлбөрийн тохиргоо",
-        href: "/settings/payments",
+        href: "/admin/payment-settings",
         icon: "⚙️",
       },
     ],
