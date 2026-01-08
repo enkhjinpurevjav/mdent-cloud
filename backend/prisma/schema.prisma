@@ -166,15 +166,22 @@ model EmployeeBenefitUsage {
   amountUsed        Int
   patientId         Int
 
-  // NEW: snapshot for finance review
+  // NEW: snapshot for finance (Картын дугаар)
   patientBookNumber String?
 
   createdAt         DateTime @default(now())
 
   employeeBenefit   EmployeeBenefit @relation(fields: [employeeBenefitId], references: [id])
   invoice           Invoice          @relation(fields: [invoiceId], references: [id])
+
+  // These two require opposite fields on Encounter + Patient:
   encounter         Encounter        @relation(fields: [encounterId], references: [id])
   patient           Patient          @relation(fields: [patientId], references: [id])
+
+  @@index([employeeBenefitId])
+  @@index([invoiceId])
+  @@index([encounterId])
+  @@index([patientId])
 }
 
 
@@ -354,6 +361,7 @@ model Patient {
 
   // NEW: financial movements related to this patient
   ledgerEntries  LedgerEntry[]
+  employeeBenefitUsages EmployeeBenefitUsage[]
 }
 
 // ==========================================================
@@ -473,6 +481,7 @@ model Encounter {
   diagnoses          EncounterDiagnosis[]
   consents            EncounterConsent[]
   sterilizationPackageUses EncounterSterilizationPackageUse[] @relation("EncounterSterilizationUses")
+  employeeBenefitUsages EmployeeBenefitUsage[]
 }
 
 model EncounterConsent {
