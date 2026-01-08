@@ -391,7 +391,10 @@ type AppointmentDetailsModalProps = {
   date?: string; // YYYY-MM-DD
   appointments: Appointment[];
   onStatusUpdated?: (updated: Appointment) => void;
+  onEditAppointment?: (a: Appointment) => void;
 };
+
+function AppointmentDetailsModal({ ..., onEditAppointment }: AppointmentDetailsModalProps) { ... }
 
 function formatDetailedTimeRange(start: Date, end: Date | null): string {
   if (Number.isNaN(start.getTime())) return "-";
@@ -433,6 +436,10 @@ function AppointmentDetailsModal({
   const [editingNote, setEditingNote] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const canReceptionEditAppointment = (status: string) =>
+  ["booked", "confirmed", "online", "other"].includes(
+    String(status || "").toLowerCase()
+  );
   
   const needsExplanation =
     editingStatus === "no_show" ||
@@ -671,32 +678,31 @@ function AppointmentDetailsModal({
 
                                 <div style={{ alignSelf: "flex-start" }}>
                   <button
-                    type="button"
-                    onClick={() => {
-                      const p = a.patient as any;
-                      const bookNumber =
-                        p?.patientBook?.bookNumber != null
-                          ? String(p.patientBook.bookNumber).trim()
-                          : "";
+  type="button"
+  onClick={() => {
+    const p = a.patient as any;
+    const bookNumber =
+      p?.patientBook?.bookNumber != null
+        ? String(p.patientBook.bookNumber).trim()
+        : "";
 
-                      if (bookNumber) {
-                        router.push(
-                          `/patients/${encodeURIComponent(bookNumber), "_blank", "noopener,noreferrer"}`
-                        );
-                      }
-                    }}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: 6,
-                      border: "1px solid #2563eb",
-                      background: "#eff6ff",
-                      color: "#1d4ed8",
-                      fontSize: 12,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Дэлгэрэнгүй
-                  </button>
+    if (bookNumber) {
+      const url = `/patients/${encodeURIComponent(bookNumber)}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  }}
+  style={{
+    padding: "4px 10px",
+    borderRadius: 6,
+    border: "1px solid #2563eb",
+    background: "#eff6ff",
+    color: "#1d4ed8",
+    fontSize: 12,
+    cursor: "pointer",
+  }}
+>
+  Дэлгэрэнгүй
+</button>
                 </div>
               </>
             );
@@ -739,22 +745,46 @@ function AppointmentDetailsModal({
                   >
                   
                     {!isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => handleStartEdit(a)}
-                        style={{
-                          fontSize: 11,
-                          padding: "2px 8px",
-                          borderRadius: 999,
-                          border: "1px solid #2563eb",
-                          background: "#eff6ff",
-                          color: "#1d4ed8",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Төлөв засах
-                      </button>
-                    )}
+  <div style={{ display: "flex", gap: 6 }}>
+    <button
+      type="button"
+      onClick={() => handleStartEdit(a)}
+      style={{
+        fontSize: 11,
+        padding: "2px 8px",
+        borderRadius: 999,
+        border: "1px solid #2563eb",
+        background: "#eff6ff",
+        color: "#1d4ed8",
+        cursor: "pointer",
+      }}
+    >
+      Төлөв засах
+    </button>
+
+    {canReceptionEditAppointment(a.status) && (
+      <button
+        type="button"
+        onClick={() => {
+          // ✅ this must open QuickAppointmentModal in edit mode
+          // We'll wire this from parent via a prop callback:
+          onEditAppointment?.(a);
+        }}
+        style={{
+          fontSize: 11,
+          padding: "2px 8px",
+          borderRadius: 999,
+          border: "1px solid #7c3aed",
+          background: "#f3e8ff",
+          color: "#6d28d9",
+          cursor: "pointer",
+        }}
+      >
+        Засварлах
+      </button>
+    )}
+  </div>
+)}
                   </div>
 
                                     {!isEditing ? (
@@ -3261,6 +3291,8 @@ export default function AppointmentsPage() {
   const [error, setError] = useState("");
 const [nowPosition, setNowPosition] = useState<number | null>(null);
 const [hasMounted, setHasMounted] = useState(false);
+  const [quickOpen, setQuickOpen] = useState(false);
+const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
 
 // NEW: per‑day revenue
 const [dailyRevenue, setDailyRevenue] = useState<number | null>(null);
@@ -4461,6 +4493,9 @@ const totalCompletedPatientsForDay = useMemo(() => {
         slotTime={detailsModalState.slotTime}
         date={detailsModalState.date}
         appointments={detailsModalState.appointments}
+       onEditAppointment={(a) => {
+    setEditingAppointment(a);
+    setQuickOpen(true);
         onStatusUpdated={(updated) => {
           setAppointments((prev) =>
             prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
@@ -4488,7 +4523,14 @@ const totalCompletedPatientsForDay = useMemo(() => {
         appointments={appointments}
         selectedBranchId={filterBranchId}
         onCreated={(a) => setAppointments((prev) => [a, ...prev])}
-      />
+          open={quickOpen}
+  onClose={() => { setQuickOpen(false); setEditingAppointment(null); }}
+  editingAppointment={editingAppointment}
+  onUpdated={() => {
+    // reload appointments list (or update state)
+    loadAppointments();
+    }}
+/>
     </main>
   
   );
