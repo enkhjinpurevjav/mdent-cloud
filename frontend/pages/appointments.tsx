@@ -3320,6 +3320,9 @@ type DragState = {
 
   // computed during drag
   currentDoctorId: number | null;
+  
+  // track if drag threshold was exceeded
+  hasMovedBeyondThreshold: boolean;
 };
 
 const [draftEdits, setDraftEdits] = useState<Record<number, DraftAppointmentChange>>({});
@@ -3786,6 +3789,8 @@ const totalCompletedPatientsForDay = useMemo(() => {
 useEffect(() => {
   if (!activeDrag) return;
 
+  const DRAG_THRESHOLD_PX = 5; // 5 pixels before considering it a drag
+
   const handleMouseMove = (e: MouseEvent) => {
     if (!activeDrag || !gridRef.current) return;
 
@@ -3796,10 +3801,18 @@ useEffect(() => {
     const TIME_COL_W = 80;
     const DOC_COL_W = 180;
 
+    // Calculate distance moved from start
+    const deltaX = Math.abs(e.clientX - activeDrag.startClientX);
+    const deltaY = Math.abs(e.clientY - activeDrag.startClientY);
+    const distanceMoved = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    // Check if threshold exceeded
+    const exceededThreshold = distanceMoved >= DRAG_THRESHOLD_PX;
+
     if (activeDrag.mode === "move") {
       // Calculate new position
-      const deltaY = e.clientY - activeDrag.startClientY;
-      const deltaMinutes = (deltaY / columnHeightPx) * totalMinutes;
+      const deltaYSigned = e.clientY - activeDrag.startClientY;
+      const deltaMinutes = (deltaYSigned / columnHeightPx) * totalMinutes;
       const newStartMinutes = (activeDrag.origStart.getTime() - firstSlot.getTime()) / 60000 + deltaMinutes;
       const snappedStart = snapMinutesToSlot(newStartMinutes);
       const clampedStart = clamp(snappedStart, 0, totalMinutes - SLOT_MINUTES);
@@ -3817,20 +3830,34 @@ useEffect(() => {
         ? gridDoctors[docIdx].id 
         : activeDrag.origDoctorId;
 
-      setDraftEdits(prev => ({
-        ...prev,
-        [activeDrag.appointmentId]: {
-          scheduledAt: newStart.toISOString(),
-          endAt: newEnd.toISOString(),
-          doctorId: newDoctorId,
-        }
-      }));
+      // Only create draft if threshold exceeded
+      if (exceededThreshold) {
+        setDraftEdits(prev => ({
+          ...prev,
+          [activeDrag.appointmentId]: {
+            scheduledAt: newStart.toISOString(),
+            endAt: newEnd.toISOString(),
+            doctorId: newDoctorId,
+          }
+        }));
 
-      setActiveDrag(prev => prev ? { ...prev, currentDoctorId: newDoctorId } : null);
+        setActiveDrag(prev => prev ? { 
+          ...prev, 
+          currentDoctorId: newDoctorId,
+          hasMovedBeyondThreshold: true 
+        } : null);
+      } else {
+        // Update tracking but don't create draft yet
+        setActiveDrag(prev => prev ? { 
+          ...prev, 
+          currentDoctorId: newDoctorId,
+          hasMovedBeyondThreshold: false 
+        } : null);
+      }
     } else if (activeDrag.mode === "resize") {
       // Resize: adjust end time only
-      const deltaY = e.clientY - activeDrag.startClientY;
-      const deltaMinutes = (deltaY / columnHeightPx) * totalMinutes;
+      const deltaYSigned = e.clientY - activeDrag.startClientY;
+      const deltaMinutes = (deltaYSigned / columnHeightPx) * totalMinutes;
       
       const origDuration = (activeDrag.origEnd.getTime() - activeDrag.origStart.getTime()) / 60000;
       const newDuration = origDuration + deltaMinutes;
@@ -3842,23 +3869,34 @@ useEffect(() => {
 
       const newEnd = new Date(firstSlot.getTime() + endMinutes * 60000);
 
-      setDraftEdits(prev => ({
-        ...prev,
-        [activeDrag.appointmentId]: {
-          scheduledAt: activeDrag.origStart.toISOString(),
-          endAt: newEnd.toISOString(),
-          doctorId: activeDrag.origDoctorId,
-        }
-      }));
+      // Only create draft if threshold exceeded
+      if (exceededThreshold) {
+        setDraftEdits(prev => ({
+          ...prev,
+          [activeDrag.appointmentId]: {
+            scheduledAt: activeDrag.origStart.toISOString(),
+            endAt: newEnd.toISOString(),
+            doctorId: activeDrag.origDoctorId,
+          }
+        }));
+
+        setActiveDrag(prev => prev ? { ...prev, hasMovedBeyondThreshold: true } : null);
+      } else {
+        // Update tracking but don't create draft yet
+        setActiveDrag(prev => prev ? { ...prev, hasMovedBeyondThreshold: false } : null);
+      }
     }
   };
 
   const handleMouseUp = () => {
     if (!activeDrag) return;
     
-    // Show save/cancel UI
-    setPendingSaveId(activeDrag.appointmentId);
-    setPendingSaveError(null);
+    // Only show save/cancel UI if drag threshold was exceeded
+    if (activeDrag.hasMovedBeyondThreshold) {
+      setPendingSaveId(activeDrag.appointmentId);
+      setPendingSaveError(null);
+    }
+    
     setActiveDrag(null);
   };
 
@@ -4393,12 +4431,27 @@ const handleCancelDraft = (appointmentId: number) => {
 
               {/* Doctor columns */}
               {gridDoctors.map((doc) => {
-                const doctorAppointments = appointments.filter(
+                // Get appointments originally assigned to this doctor
+                const originalDoctorAppointments = appointments.filter(
                   (a) =>
                     a.doctorId === doc.id &&
                     getAppointmentDayKey(a) === filterDate &&
                     a.status !== "cancelled"
                 );
+                
+                // Also include appointments dragged TO this doctor
+                const draggedInAppointments = appointments.filter(
+                  (a) => {
+                    if (a.doctorId === doc.id) return false; // already included above
+                    if (getAppointmentDayKey(a) !== filterDate) return false;
+                    if (a.status === "cancelled") return false;
+                    
+                    const draft = draftEdits[a.id];
+                    return draft && draft.doctorId === doc.id;
+                  }
+                );
+                
+                const doctorAppointments = [...originalDoctorAppointments, ...draggedInAppointments];
 
                 const handleCellClick = (
                   clickedMinutes: number,
@@ -4622,6 +4675,7 @@ const handleCancelDraft = (appointmentId: number) => {
                           origEnd,
                           origDoctorId: a.doctorId,
                           currentDoctorId: a.doctorId,
+                          hasMovedBeyondThreshold: false,
                         });
                       };
 
