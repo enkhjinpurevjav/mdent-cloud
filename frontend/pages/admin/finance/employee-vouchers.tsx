@@ -96,7 +96,8 @@ export default function EmployeeVouchersPage() {
     try {
       const res = await fetch("/api/admin/employee-benefits");
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || "Failed to load employee benefits");
+      if (!res.ok)
+        throw new Error(data?.error || "Failed to load employee benefits");
       setRows((data?.employees || []) as EmployeeBenefitRow[]);
     } catch (e: any) {
       setError(e?.message || "Failed to load employee benefits");
@@ -111,9 +112,14 @@ export default function EmployeeVouchersPage() {
   }, []);
 
   const handleRemove = async (userId: number) => {
-    if (!confirm("Ажилтны ваучер эрхийг идэвхгүй болгож жагсаалтаас хасах уу?")) return;
+    if (
+      !confirm("Ажилтны ваучер эрхийг идэвхгүй болгож жагсаалтаас хасах уу?")
+    )
+      return;
     try {
-      const res = await fetch(`/api/admin/employee-benefits/${userId}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/employee-benefits/${userId}`, {
+        method: "DELETE",
+      });
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "Failed to remove");
       await load();
@@ -157,18 +163,21 @@ export default function EmployeeVouchersPage() {
     }
 
     try {
-      const res = await fetch(`/api/admin/employee-benefits/${editing.benefitId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code: editCode.trim(),
-          initialAmount: initNum,
-          remainingAmount: remNum,
-          fromDate: editFromDate ? editFromDate : null,
-          toDate: editToDate ? editToDate : null,
-          isActive: editIsActive,
-        }),
-      });
+      const res = await fetch(
+        `/api/admin/employee-benefits/${editing.benefitId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code: editCode.trim(),
+            initialAmount: initNum,
+            remainingAmount: remNum,
+            fromDate: editFromDate ? editFromDate : null,
+            toDate: editToDate ? editToDate : null,
+            isActive: editIsActive,
+          }),
+        }
+      );
 
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error(data?.error || "Failed to update benefit");
@@ -223,9 +232,27 @@ export default function EmployeeVouchersPage() {
 
   const sorted = useMemo(() => rows, [rows]);
 
+  // ✅ Fit columns (no horizontal scroll) and keep header + rows identical
+  const GRID_COLS =
+    "200px 110px 120px 120px 120px 130px 130px 120px 190px";
+
   return (
-    <main style={{ maxWidth: 1400, margin: "40px auto", padding: 24, fontFamily: "sans-serif" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+    <main
+      style={{
+        maxWidth: 1400,
+        margin: "40px auto",
+        padding: 24,
+        fontFamily: "sans-serif",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
         <div>
           <h1 style={{ margin: 0, fontSize: 22 }}>Ажилчдын ваучер</h1>
           <div style={{ marginTop: 4, fontSize: 12, color: "#6b7280" }}>
@@ -251,20 +278,31 @@ export default function EmployeeVouchersPage() {
       </div>
 
       {loading && <div style={{ marginTop: 14 }}>Ачаалж байна...</div>}
-      {!loading && error && <div style={{ marginTop: 14, color: "#b91c1c" }}>{error}</div>}
+      {!loading && error && (
+        <div style={{ marginTop: 14, color: "#b91c1c" }}>{error}</div>
+      )}
 
       {!loading && !error && (
-        <div style={{ marginTop: 14, border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+        <div
+          style={{
+            marginTop: 14,
+            border: "1px solid #e5e7eb",
+            borderRadius: 10,
+            overflow: "hidden",
+          }}
+        >
+          {/* Header */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "220px 140px 140px 140px 140px 170px 170px 160px 170px",
+              gridTemplateColumns: GRID_COLS,
               gap: 10,
               padding: "10px 12px",
               background: "#f9fafb",
               fontSize: 12,
               fontWeight: 700,
               color: "#374151",
+              alignItems: "center",
             }}
           >
             <div>Нэр</div>
@@ -278,12 +316,13 @@ export default function EmployeeVouchersPage() {
             <div />
           </div>
 
+          {/* Rows */}
           {sorted.map((r) => (
             <div
               key={r.userId}
               style={{
                 display: "grid",
-                gridTemplateColumns: "220px 120px 140px 140px 140px 160px 160px 130px 220px",
+                gridTemplateColumns: GRID_COLS, // ✅ must match header
                 gap: 10,
                 padding: "10px 12px",
                 borderTop: "1px solid #f3f4f6",
@@ -291,27 +330,51 @@ export default function EmployeeVouchersPage() {
                 alignItems: "center",
               }}
             >
-              <div style={{ fontWeight: 600 }}>{formatEmployeeName(r)}</div>
-              <div style={{ color: "#374151" }}>{roleLabel(r.role)}</div>
+              <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>
+                {formatEmployeeName(r)}
+              </div>
+
+              <div style={{ color: "#374151", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {roleLabel(r.role)}
+              </div>
+
               <div style={{ textAlign: "right" }}>{formatMoney(r.totalAmount)} ₮</div>
               <div style={{ textAlign: "right" }}>{formatMoney(r.usedAmount)} ₮</div>
-              <div style={{ textAlign: "right", fontWeight: 700 }}>{formatMoney(r.remainingAmount)} ₮</div>
-              <div style={{ fontSize: 12, color: "#6b7280" }}>{formatDateTime(r.createdAt)}</div>
-              <div style={{ fontSize: 12, color: "#6b7280" }}>{formatDateTime(r.updatedAt)}</div>
-              <div
-  style={{
-    fontFamily: "monospace",
-    fontSize: 12,
-    color: "#374151",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  }}
->
-  {r.code}
-</div>
+              <div style={{ textAlign: "right", fontWeight: 700 }}>
+                {formatMoney(r.remainingAmount)} ₮
+              </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "nowrap" }}>
+              <div style={{ fontSize: 12, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {formatDateTime(r.createdAt)}
+              </div>
+
+              <div style={{ fontSize: 12, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {formatDateTime(r.updatedAt)}
+              </div>
+
+              <div
+                style={{
+                  fontFamily: "monospace",
+                  fontSize: 12,
+                  color: "#374151",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+                title={r.code}
+              >
+                {r.code}
+              </div>
+
+              {/* ✅ Actions column (must be INSIDE the grid) */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: 8,
+                  whiteSpace: "nowrap",
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => openEdit(r)}
@@ -381,7 +444,9 @@ export default function EmployeeVouchersPage() {
               fontSize: 13,
             }}
           >
-            <h3 style={{ marginTop: 0, marginBottom: 10 }}>Ажилтанд ваучер эрх олгох</h3>
+            <h3 style={{ marginTop: 0, marginBottom: 10 }}>
+              Ажилтанд ваучер эрх олгох
+            </h3>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -390,17 +455,29 @@ export default function EmployeeVouchersPage() {
                   value={employeeId}
                   onChange={(e) => setEmployeeId(e.target.value)}
                   placeholder="Жишээ: 6"
-                  style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                  style={{
+                    width: "100%",
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "1px solid #d1d5db",
+                  }}
                 />
               </label>
 
               <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 12, color: "#374151" }}>Код (EmployeeBenefit.code)</div>
+                <div style={{ fontSize: 12, color: "#374151" }}>
+                  Код (EmployeeBenefit.code)
+                </div>
                 <input
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="Жишээ: EMPBAT001"
-                  style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                  style={{
+                    width: "100%",
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "1px solid #d1d5db",
+                  }}
                 />
               </label>
 
@@ -412,7 +489,12 @@ export default function EmployeeVouchersPage() {
                   type="number"
                   min={0}
                   placeholder="Жишээ: 300000"
-                  style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                  style={{
+                    width: "100%",
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "1px solid #d1d5db",
+                  }}
                 />
               </label>
 
@@ -484,7 +566,9 @@ export default function EmployeeVouchersPage() {
               fontSize: 13,
             }}
           >
-            <h3 style={{ marginTop: 0, marginBottom: 10 }}>Ваучер эрх засах: {formatEmployeeName(editing)}</h3>
+            <h3 style={{ marginTop: 0, marginBottom: 10 }}>
+              Ваучер эрх засах: {formatEmployeeName(editing)}
+            </h3>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -492,7 +576,12 @@ export default function EmployeeVouchersPage() {
                 <input
                   value={editCode}
                   onChange={(e) => setEditCode(e.target.value)}
-                  style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                  style={{
+                    width: "100%",
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "1px solid #d1d5db",
+                  }}
                 />
               </label>
 
@@ -504,7 +593,12 @@ export default function EmployeeVouchersPage() {
                     onChange={(e) => setEditInitialAmount(e.target.value)}
                     type="number"
                     min={0}
-                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                    style={{
+                      width: "100%",
+                      padding: 10,
+                      borderRadius: 8,
+                      border: "1px solid #d1d5db",
+                    }}
                   />
                 </label>
 
@@ -515,7 +609,12 @@ export default function EmployeeVouchersPage() {
                     onChange={(e) => setEditRemainingAmount(e.target.value)}
                     type="number"
                     min={0}
-                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                    style={{
+                      width: "100%",
+                      padding: 10,
+                      borderRadius: 8,
+                      border: "1px solid #d1d5db",
+                    }}
                   />
                 </label>
               </div>
@@ -527,7 +626,12 @@ export default function EmployeeVouchersPage() {
                     value={editFromDate}
                     onChange={(e) => setEditFromDate(e.target.value)}
                     type="date"
-                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                    style={{
+                      width: "100%",
+                      padding: 10,
+                      borderRadius: 8,
+                      border: "1px solid #d1d5db",
+                    }}
                   />
                 </label>
 
@@ -537,13 +641,22 @@ export default function EmployeeVouchersPage() {
                     value={editToDate}
                     onChange={(e) => setEditToDate(e.target.value)}
                     type="date"
-                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                    style={{
+                      width: "100%",
+                      padding: 10,
+                      borderRadius: 8,
+                      border: "1px solid #d1d5db",
+                    }}
                   />
                 </label>
               </div>
 
               <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
-                <input type="checkbox" checked={editIsActive} onChange={(e) => setEditIsActive(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={editIsActive}
+                  onChange={(e) => setEditIsActive(e.target.checked)}
+                />
                 <span>Идэвхтэй</span>
               </label>
 
