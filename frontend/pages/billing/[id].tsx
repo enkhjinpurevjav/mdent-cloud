@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 
 type Branch = { id: number; name: string };
 
-type AppPaymentRow = { provider: string; providerId?: number; amount: string };
+type AppPaymentRow = { providerId?: number | null; amount: string };
 
 type Patient = {
   id: number;
@@ -169,7 +169,7 @@ function BillingPaymentSection({
   const [employeeCode, setEmployeeCode] = useState("");
   const [employeeRemaining, setEmployeeRemaining] = useState<number | null>(null);
 
-  const [appRows, setAppRows] = useState<AppPaymentRow[]>([{ provider: "", amount: "" }]);
+  const [appRows, setAppRows] = useState<AppPaymentRow[]>([{ providerId: null, amount: "" }]);
 
   const [voucherType, setVoucherType] = useState<"MARKETING" | "GIFT" | "">("");
   const [voucherMaxAmount, setVoucherMaxAmount] = useState<number | null>(null);
@@ -218,7 +218,7 @@ function BillingPaymentSection({
     setSuccess("");
     setVoucherType("");
     setVoucherMaxAmount(null);
-    setAppRows([{ provider: "", amount: "" }]);
+    setAppRows([{ providerId: null, amount: "" }]);
   }, [invoice.id]);
 
   const handleToggle = (methodKey: string, checked: boolean) => {
@@ -239,7 +239,7 @@ function BillingPaymentSection({
         setVoucherMaxAmount(null);
       }
       if (methodKey === "APPLICATION") {
-        setAppRows([{ provider: "", amount: "" }]);
+        setAppRows([{ providerId: null, amount: "" }]);
       }
     }
   };
@@ -514,7 +514,7 @@ function BillingPaymentSection({
       setEmployeeRemaining(null);
       setVoucherType("");
       setVoucherMaxAmount(null);
-      setAppRows([{ provider: "", amount: "" }]);
+      setAppRows([{ providerId: null, amount: "" }]);
     } catch (err: any) {
       console.error("Failed to settle invoice:", err);
       setError(err.message || "Төлбөр бүртгэхэд алдаа гарлаа.");
@@ -681,7 +681,7 @@ function BillingPaymentSection({
           onChange={(e) =>
             setAppRows((prev) =>
               prev.map((r, i) =>
-                i === idx ? { ...r, providerId: e.target.value ? Number(e.target.value) : undefined } : r
+                i === idx ? { ...r, providerId: e.target.value ? Number(e.target.value) : null } : r
               )
             )
           }
@@ -749,7 +749,7 @@ function BillingPaymentSection({
     <button
       type="button"
       onClick={() =>
-        setAppRows((prev) => [...prev, { provider: "", amount: "" }])
+        setAppRows((prev) => [...prev, { providerId: null, amount: "" }])
       }
       style={{
         alignSelf: "flex-start",
