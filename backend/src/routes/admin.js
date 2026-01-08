@@ -1,28 +1,18 @@
 import express from "express";
-import { PrismaClient } from "@prisma/client";
+import prisma from "../db.js";
 
-const prisma = new PrismaClient();
 const router = express.Router();
 
 // ==========================================================
 // PAYMENT METHODS ADMIN
 // ==========================================================
 
-/**
- * GET /api/admin/payment-methods
- * List all payment methods (including inactive)
- */
-router.get("/payment-methods", async (req, res) => {
+router.get("/payment-methods", async (_req, res) => {
   try {
     const methods = await prisma.paymentMethodConfig.findMany({
       orderBy: { sortOrder: "asc" },
-      include: {
-        providers: {
-          orderBy: { sortOrder: "asc" },
-        },
-      },
+      include: { providers: { orderBy: { sortOrder: "asc" } } },
     });
-
     res.json({ methods });
   } catch (error) {
     console.error("Failed to load payment methods:", error);
@@ -30,10 +20,6 @@ router.get("/payment-methods", async (req, res) => {
   }
 });
 
-/**
- * PATCH /api/admin/payment-methods/:id
- * Update a payment method (label, isActive, sortOrder)
- */
 router.patch("/payment-methods/:id", async (req, res) => {
   const id = Number(req.params.id);
   const { label, isActive, sortOrder } = req.body;
@@ -48,11 +34,7 @@ router.patch("/payment-methods/:id", async (req, res) => {
     if (isActive !== undefined) data.isActive = Boolean(isActive);
     if (sortOrder !== undefined) data.sortOrder = Number(sortOrder);
 
-    const updated = await prisma.paymentMethodConfig.update({
-      where: { id },
-      data,
-    });
-
+    const updated = await prisma.paymentMethodConfig.update({ where: { id }, data });
     res.json(updated);
   } catch (error) {
     console.error("Failed to update payment method:", error);
@@ -64,10 +46,6 @@ router.patch("/payment-methods/:id", async (req, res) => {
 // PAYMENT PROVIDERS ADMIN
 // ==========================================================
 
-/**
- * GET /api/admin/payment-providers
- * List all payment providers (optionally filter by methodKey)
- */
 router.get("/payment-providers", async (req, res) => {
   try {
     const { methodKey } = req.query;
@@ -85,10 +63,6 @@ router.get("/payment-providers", async (req, res) => {
   }
 });
 
-/**
- * POST /api/admin/payment-providers
- * Create a new payment provider
- */
 router.post("/payment-providers", async (req, res) => {
   const { methodKey, name, isActive, sortOrder, note } = req.body;
 
@@ -114,10 +88,6 @@ router.post("/payment-providers", async (req, res) => {
   }
 });
 
-/**
- * PATCH /api/admin/payment-providers/:id
- * Update a payment provider
- */
 router.patch("/payment-providers/:id", async (req, res) => {
   const id = Number(req.params.id);
   const { name, isActive, sortOrder, note } = req.body;
@@ -133,11 +103,7 @@ router.patch("/payment-providers/:id", async (req, res) => {
     if (sortOrder !== undefined) data.sortOrder = Number(sortOrder);
     if (note !== undefined) data.note = note ? String(note) : null;
 
-    const updated = await prisma.paymentProviderConfig.update({
-      where: { id },
-      data,
-    });
-
+    const updated = await prisma.paymentProviderConfig.update({ where: { id }, data });
     res.json(updated);
   } catch (error) {
     console.error("Failed to update payment provider:", error);
@@ -145,10 +111,6 @@ router.patch("/payment-providers/:id", async (req, res) => {
   }
 });
 
-/**
- * DELETE /api/admin/payment-providers/:id
- * Delete a payment provider
- */
 router.delete("/payment-providers/:id", async (req, res) => {
   const id = Number(req.params.id);
 
@@ -157,10 +119,7 @@ router.delete("/payment-providers/:id", async (req, res) => {
   }
 
   try {
-    await prisma.paymentProviderConfig.delete({
-      where: { id },
-    });
-
+    await prisma.paymentProviderConfig.delete({ where: { id } });
     res.json({ success: true });
   } catch (error) {
     console.error("Failed to delete payment provider:", error);
@@ -168,27 +127,18 @@ router.delete("/payment-providers/:id", async (req, res) => {
   }
 });
 
+// ==========================================================
+// EMPLOYEE BENEFITS ADMIN (Finance)
+// ==========================================================
 
-import express from "express";
-import prisma from "../db.js";
-
-const router = express.Router();
-
-/**
- * GET /api/admin/employee-benefits
- * Lists only users who have at least one benefit (active or not - you choose).
- * We'll do: only benefits that areActive=true by default, but include totals anyway.
- */
-router.get("/employee-benefits", async (req, res) => {
+router.get("/employee-benefits", async (_req, res) => {
   try {
-    // Load benefits with employee attached
     const benefits = await prisma.employeeBenefit.findMany({
-      where: { isActive: true }, // change to {} if you want include inactive too
+      where: { isActive: true },
       include: { employee: true, usages: true },
       orderBy: { createdAt: "desc" },
     });
 
-    // Aggregate per employeeId
     const byEmployee = new Map();
 
     for (const b of benefits) {
@@ -218,14 +168,11 @@ router.get("/employee-benefits", async (req, res) => {
       row.usedAmount += used;
       row.remainingAmount += Number(b.remainingAmount || 0);
 
-      // track min createdAt and max updatedAt across benefits
       if (b.createdAt && row.createdAt && b.createdAt < row.createdAt) row.createdAt = b.createdAt;
       if (b.updatedAt && row.updatedAt && b.updatedAt > row.updatedAt) row.updatedAt = b.updatedAt;
     }
 
     const rows = Array.from(byEmployee.values());
-
-    // Sort by Mongolian Cyrillic-ish (best-effort) using localeCompare
     rows.sort((a, b) => {
       const an = `${a.ovog || ""} ${a.name || ""}`.trim();
       const bn = `${b.ovog || ""} ${b.name || ""}`.trim();
@@ -239,11 +186,6 @@ router.get("/employee-benefits", async (req, res) => {
   }
 });
 
-/**
- * POST /api/admin/employee-benefits
- * Creates a new benefit for a given employee.
- * Body: { employeeId, code, initialAmount, fromDate?, toDate? }
- */
 router.post("/employee-benefits", async (req, res) => {
   const { employeeId, code, initialAmount, fromDate, toDate } = req.body || {};
   if (!employeeId || !code || initialAmount == null) {
@@ -276,10 +218,6 @@ router.post("/employee-benefits", async (req, res) => {
   }
 });
 
-/**
- * DELETE /api/admin/employee-benefits/:employeeId
- * Remove employee from the list by deactivating all their benefits.
- */
 router.delete("/employee-benefits/:employeeId", async (req, res) => {
   const employeeId = Number(req.params.employeeId);
   if (!employeeId || Number.isNaN(employeeId)) {
@@ -298,7 +236,5 @@ router.delete("/employee-benefits/:employeeId", async (req, res) => {
     res.status(500).json({ error: "Failed to remove employee benefit." });
   }
 });
-
-export default router;
 
 export default router;
