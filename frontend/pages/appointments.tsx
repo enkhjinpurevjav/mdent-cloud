@@ -130,6 +130,10 @@ type TimeSlot = {
   label: string; // add label
 };
 
+function canReceptionEditAppointment(status: string) {
+  return ["booked", "confirmed", "online", "other"].includes(String(status || "").toLowerCase());
+}
+
 function generateTimeSlotsForDay(day: Date): TimeSlot[] {
   const slots: TimeSlot[] = [];
 
@@ -677,7 +681,7 @@ function AppointmentDetailsModal({
 
                       if (bookNumber) {
                         router.push(
-                          `/patients/${encodeURIComponent(bookNumber)}`
+                          `/patients/${encodeURIComponent(bookNumber), "_blank", "noopener,noreferrer"}`
                         );
                       }
                     }}
