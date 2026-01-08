@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 
 type Branch = {
@@ -28,6 +28,7 @@ type ReceptionScheduleDay = {
 };
 
 type ShiftType = "AM" | "PM" | "WEEKEND_FULL";
+type ReceptionTabKey = "profile" | "schedule";
 
 export default function ReceptionProfilePage() {
   const router = useRouter();
@@ -39,6 +40,9 @@ export default function ReceptionProfilePage() {
   const [saving, setSaving] = useState(false);
   const [savingBranches, setSavingBranches] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [activeTab, setActiveTab] = useState<ReceptionTabKey>("profile");
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -99,6 +103,18 @@ export default function ReceptionProfilePage() {
     endTime: "",
     note: "",
   });
+
+  const resetFormFromReception = () => {
+    if (!reception) return;
+    setForm({
+      name: reception.name || "",
+      ovog: reception.ovog || "",
+      email: reception.email || "",
+      branchId: reception.branchId ? String(reception.branchId) : "",
+      regNo: reception.regNo || "",
+      phone: reception.phone || "",
+    });
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -175,112 +191,115 @@ export default function ReceptionProfilePage() {
   };
 
   // Load branches + receptionist + schedule
-useEffect(() => {
-  if (!id) return;
+  useEffect(() => {
+    if (!id) return;
 
-  async function load() {
-    setLoading(true);
-    setError(null);
+    async function load() {
+      setLoading(true);
+      setError(null);
 
-    try {
-      // load branches
-      const bRes = await fetch("/api/branches");
-      const bData = await bRes.json();
-      if (bRes.ok && Array.isArray(bData)) {
-        setBranches(bData);
-      }
-
-      // load user (defensive JSON parsing)
-      const rRes = await fetch(`/api/users/${id}`);
-
-      let rData: any = null;
       try {
-        rData = await rRes.json();
-      } catch {
-        rData = null;
-      }
+        // load branches
+        const bRes = await fetch("/api/branches");
+        const bData = await bRes.json();
+        if (bRes.ok && Array.isArray(bData)) {
+          setBranches(bData);
+        }
 
-      if (!rRes.ok || !rData) {
-        setError(
-          (rData && rData.error) ||
-            "Ресепшний мэдээллийг ачааллаж чадсангүй"
-        );
+        // load user (defensive JSON parsing)
+        const rRes = await fetch(`/api/users/${id}`);
+
+        let rData: any = null;
+        try {
+          rData = await rRes.json();
+        } catch {
+          rData = null;
+        }
+
+        if (!rRes.ok || !rData) {
+          setError(
+            (rData && rData.error) ||
+              "Ресепшний мэдээллийг ачаалж чадсангүй"
+          );
+          setLoading(false);
+          return;
+        }
+
+        const rec: Reception = rData;
+        setReception(rec);
+
+        setForm({
+          name: rec.name || "",
+          ovog: rec.ovog || "",
+          email: rec.email || "",
+          branchId: rec.branchId ? String(rec.branchId) : "",
+          regNo: rec.regNo || "",
+          phone: rec.phone || "",
+        });
+
+        // initial multi-branch selection
+        const initialBranchIds =
+          rData.branches && Array.isArray(rData.branches)
+            ? (rData.branches as Branch[]).map((b) => b.id)
+            : rec.branchId
+              ? [rec.branchId]
+              : [];
+        setSelectedBranchIds(initialBranchIds);
+
+        setScheduleForm((prev) => ({
+          ...prev,
+          branchId: initialBranchIds[0]
+            ? String(initialBranchIds[0])
+            : prev.branchId,
+        }));
+
+        setIsEditingProfile(false);
+        setActiveTab("profile");
+
         setLoading(false);
-        return;
+      } catch (err) {
+        console.error(err);
+        setError("Сүлжээгээ шалгана уу");
+        setLoading(false);
       }
-
-      const rec: Reception = rData;
-      setReception(rec);
-
-      setForm({
-        name: rec.name || "",
-        ovog: rec.ovog || "",
-        email: rec.email || "",
-        branchId: rec.branchId ? String(rec.branchId) : "",
-        regNo: rec.regNo || "",
-        phone: rec.phone || "",
-      });
-
-      // initial multi-branch selection
-      const initialBranchIds =
-        rData.branches && Array.isArray(rData.branches)
-          ? (rData.branches as Branch[]).map((b) => b.id)
-          : rec.branchId
-          ? [rec.branchId]
-          : [];
-      setSelectedBranchIds(initialBranchIds);
-
-      setScheduleForm((prev) => ({
-        ...prev,
-        branchId: initialBranchIds[0]
-          ? String(initialBranchIds[0])
-          : prev.branchId,
-      }));
-
-      setLoading(false);
-    } catch (err) {
-      console.error(err);
-      setError("Сүлжээгээ шалгана уу");
-      setLoading(false);
     }
-  }
 
-  async function loadSchedule() {
-    setScheduleLoading(true);
-    setScheduleError(null);
+    async function loadSchedule() {
+      setScheduleLoading(true);
+      setScheduleError(null);
 
-    try {
-      const today = new Date();
-      const from = today.toISOString().slice(0, 10);
-      const toDate = new Date(today);
-      toDate.setDate(today.getDate() + 31);
-      const to = toDate.toISOString().slice(0, 10);
+      try {
+        const today = new Date();
+        const from = today.toISOString().slice(0, 10);
+        const toDate = new Date(today);
+        toDate.setDate(today.getDate() + 31);
+        const to = toDate.toISOString().slice(0, 10);
 
-      const res = await fetch(
-        `/api/users/${id}/reception-schedule?from=${from}&to=${to}`
-      );
-      const data = await res.json();
-
-      if (res.ok && Array.isArray(data)) {
-        setSchedule(data);
-      } else {
-        setScheduleError(
-          data && data.error
-            ? data.error
-            : "Ажлын хуваарийг ачааллаж чадсангүй"
+        const res = await fetch(
+          `/api/users/${id}/reception-schedule?from=${from}&to=${to}`
         );
-      }
-    } catch (err) {
-      console.error(err);
-      setScheduleError("Сүлжээгээ шалгана уу");
-    } finally {
-      setScheduleLoading(false);
-    }
-  }
+        const data = await res.json();
 
-  load();
-  loadSchedule();
-}, [id]);
+        if (res.ok && Array.isArray(data)) {
+          setSchedule(data);
+        } else {
+          setScheduleError(
+            data && data.error
+              ? data.error
+              : "Ажлын хуваарийг ачааллаж чадсангүй"
+          );
+        }
+      } catch (err) {
+        console.error(err);
+        setScheduleError("Сүлжээгээ шалгана уу");
+      } finally {
+        setScheduleLoading(false);
+      }
+    }
+
+    load();
+    loadSchedule();
+  }, [id]);
 
   const reloadSchedule = async () => {
     if (!id) return;
@@ -349,6 +368,7 @@ useEffect(() => {
       }
 
       setReception(data);
+      setIsEditingProfile(false);
     } catch (err) {
       console.error(err);
       setError("Сүлжээгээ шалгана уу");
@@ -358,34 +378,34 @@ useEffect(() => {
   };
 
   const handleSaveBranches = async () => {
-  if (!id) return;
-  setSavingBranches(true);
-  setError(null);
+    if (!id) return;
+    setSavingBranches(true);
+    setError(null);
 
-  try {
-    const res = await fetch(`/api/users/${id}/branches`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ branchIds: selectedBranchIds }),
-    });
+    try {
+      const res = await fetch(`/api/users/${id}/branches`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ branchIds: selectedBranchIds }),
+      });
 
-    const data = await res.json().catch(() => null);
+      const data = await res.json().catch(() => null);
 
-    if (!res.ok) {
-      setError(
-        (data && (data as any).error) ||
-          "Салбар хадгалах үед алдаа гарлаа"
-      );
+      if (!res.ok) {
+        setError(
+          (data && (data as any).error) ||
+            "Салбар хадгалах үед алдаа гарлаа"
+        );
+        setSavingBranches(false);
+        return;
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Сүлжээгээ шалгана уу");
+    } finally {
       setSavingBranches(false);
-      return;
     }
-  } catch (err) {
-    console.error(err);
-    setError("Сүлжээгээ шалгана уу");
-  } finally {
-    setSavingBranches(false);
-  }
-};
+  };
 
   const handleDeleteUser = async () => {
     if (!id) return;
@@ -555,6 +575,7 @@ useEffect(() => {
 
       setScheduleSaveSuccess("Амжилттай хадгаллаа.");
       await reloadSchedule();
+
       setEditingScheduleId(null);
       setInlineForm({
         date: "",
@@ -605,6 +626,26 @@ useEffect(() => {
     }
   };
 
+  const headerName =
+    reception?.name && reception.name.trim().length > 0
+      ? reception.name
+      : reception?.email;
+
+  const mainBranchName = useMemo(() => {
+    if (!reception?.branchId) return null;
+    return branches.find((b) => b.id === reception.branchId)?.name || null;
+  }, [reception?.branchId, branches]);
+
+  const receptionAssignedBranches: Branch[] =
+    selectedBranchIds.length > 0
+      ? branches.filter((b) => selectedBranchIds.includes(b.id))
+      : branches;
+
+  const isCreatingSchedule =
+    !!scheduleForm.date &&
+    !!scheduleForm.branchId &&
+    editingScheduleId === null;
+
   if (loading) {
     return (
       <div style={{ padding: 24 }}>
@@ -630,635 +671,881 @@ useEffect(() => {
     );
   }
 
-  const headerName =
-    reception.name && reception.name.trim().length > 0
-      ? reception.name
-      : reception.email;
-
-  const receptionAssignedBranches: Branch[] =
-    selectedBranchIds.length > 0
-      ? branches.filter((b) => selectedBranchIds.includes(b.id))
-      : branches;
-
-  const isCreatingSchedule =
-    !!scheduleForm.date &&
-    !!scheduleForm.branchId &&
-    editingScheduleId === null;
-
   return (
-    <div style={{ padding: 24 }}>
+    <main
+      style={{
+        maxWidth: 1100,
+        margin: "40px auto",
+        padding: 24,
+        fontFamily: "sans-serif",
+      }}
+    >
       <button
-        onClick={() => router.back()}
+        type="button"
+        onClick={() => router.push("/users/reception")}
         style={{
           marginBottom: 16,
           padding: "4px 8px",
           borderRadius: 4,
-          border: "1px solid #ddd",
+          border: "1px solid #d1d5db",
+          background: "#f9fafb",
           cursor: "pointer",
+          fontSize: 13,
         }}
       >
-        &larr; Буцах
+        ← Буцах
       </button>
 
-      <h1>Ресепшн: {headerName}</h1>
-
-      {/* Basic info form */}
-      <form
-        onSubmit={handleSave}
+      <section
         style={{
-          marginTop: 16,
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          maxWidth: 500,
+          display: "grid",
+          gridTemplateColumns: "260px 1fr",
+          gap: 16,
+          alignItems: "stretch",
+          marginBottom: 24,
         }}
       >
-        {/* Portrait placeholder (no upload yet, same look as doctor) */}
+        {/* LEFT SIDEBAR */}
         <div
           style={{
-            marginBottom: 12,
-            display: "flex",
-            justifyContent: "center",
+            border: "1px solid #e5e7eb",
+            borderRadius: 12,
+            padding: 16,
+            background: "white",
           }}
         >
+          <div style={{ marginBottom: 4, fontSize: 18, fontWeight: 600 }}>
+            {headerName}
+          </div>
+
+          {/* Portrait placeholder */}
           <div
             style={{
-              width: 160,
-              height: 200,
-              borderRadius: 8,
+              width: "100%",
+              height: 190,
+              borderRadius: 10,
               border: "2px dashed #9ca3af",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
               background: "#f9fafb",
               color: "#6b7280",
               fontSize: 12,
               overflow: "hidden",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 10,
             }}
           >
             <span>Зураг байрлах хэсэг</span>
           </div>
-        </div>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          Овог
-          <input
-            name="ovog"
-            value={form.ovog}
-            onChange={handleChange}
-            placeholder="Овог"
-          />
-        </label>
+          <div style={{ fontSize: 13, color: "#6b7280" }}>
+            <div>Утас: {reception.phone || "-"}</div>
+            <div>И-мэйл: {reception.email || "-"}</div>
+            <div>Үндсэн салбар: {mainBranchName || "-"}</div>
+          </div>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          Нэр
-          <input
-            name="name"
-            value={form.name}
-            onChange={handleChange}
-            placeholder="Нэр"
-          />
-        </label>
+          {/* Side menu (2 tabs) */}
+          <div style={{ marginTop: 16 }}>
+            <div
+              style={{
+                fontSize: 12,
+                textTransform: "uppercase",
+                color: "#9ca3af",
+                marginBottom: 4,
+              }}
+            >
+              Цэс
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+                fontSize: 13,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("profile");
+                  setIsEditingProfile(false);
+                  setError(null);
+                }}
+                style={{
+                  textAlign: "left",
+                  padding: "6px 10px",
+                  borderRadius: 6,
+                  border: "none",
+                  background:
+                    activeTab === "profile" ? "#eff6ff" : "transparent",
+                  color: activeTab === "profile" ? "#1d4ed8" : "#6b7280",
+                  fontWeight: activeTab === "profile" ? 500 : 400,
+                  cursor: "pointer",
+                }}
+              >
+                Профайл
+              </button>
 
-        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          И-мэйл
-          <input
-            name="email"
-            type="email"
-            value={form.email}
-            onChange={handleChange}
-            placeholder="И-мэйл"
-          />
-        </label>
-
-        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          Үндсэн салбар
-          <select
-            name="branchId"
-            value={form.branchId}
-            onChange={handleChange}
-          >
-            <option value="">Сонгохгүй</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          РД
-          <input
-            name="regNo"
-            value={form.regNo}
-            onChange={handleChange}
-            placeholder="РД"
-          />
-        </label>
-
-        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          Утас
-          <input
-            name="phone"
-            value={form.phone}
-            onChange={handleChange}
-            placeholder="Утас"
-          />
-        </label>
-
-        {/* No license number / expiry for reception */}
-
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            marginTop: 8,
-            flexWrap: "wrap",
-          }}
-        >
-          <button
-            type="submit"
-            disabled={saving}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 4,
-              border: "none",
-              background: "#2563eb",
-              color: "white",
-              cursor: "pointer",
-            }}
-          >
-            {saving ? "Хадгалж байна..." : "Хадгалах"}
-          </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab("schedule");
+                  setIsEditingProfile(false);
+                  setError(null);
+                }}
+                style={{
+                  textAlign: "left",
+                  padding: "6px 10px",
+                  borderRadius: 6,
+                  border: "none",
+                  background:
+                    activeTab === "schedule" ? "#eff6ff" : "transparent",
+                  color: activeTab === "schedule" ? "#1d4ed8" : "#6b7280",
+                  fontWeight: activeTab === "schedule" ? 500 : 400,
+                  cursor: "pointer",
+                }}
+              >
+                Ажлын хуваарь
+              </button>
+            </div>
+          </div>
 
           <button
             type="button"
             onClick={handleDeleteUser}
             style={{
-              padding: "8px 16px",
-              borderRadius: 4,
+              marginTop: 16,
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: 8,
               border: "1px solid #fecaca",
               background: "#fee2e2",
               color: "#b91c1c",
               cursor: "pointer",
+              fontSize: 13,
+              fontWeight: 700,
             }}
           >
             Ажилтныг устгах
           </button>
         </div>
 
-        {error && <div style={{ color: "red", marginTop: 8 }}>{error}</div>}
-      </form>
-
-      {/* Branch config */}
-      <section style={{ marginTop: 32, maxWidth: 500 }}>
-        <h2>Салбарын тохиргоо</h2>
-        <p style={{ color: "#555", marginBottom: 8 }}>
-          Энэ ресепшн аль салбаруудад ажиллахыг доороос сонгоно уу.
-        </p>
-
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
-            marginBottom: 8,
-          }}
-        >
-          {branches.map((b) => (
-            <label
-              key={b.id}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                border: "1px solid #ddd",
-                borderRadius: 4,
-                padding: "4px 8px",
-                fontSize: 13,
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={selectedBranchIds.includes(b.id)}
-                onChange={() => toggleBranch(b.id)}
-              />
-              {b.name}
-            </label>
-          ))}
-        </div>
-
-        <button
-          type="button"
-          onClick={handleSaveBranches}
-          disabled={savingBranches}
-          style={{
-            marginTop: 4,
-            padding: "8px 16px",
-            borderRadius: 4,
-            border: "none",
-            background: "#059669",
-            color: "white",
-            cursor: "pointer",
-          }}
-        >
-          {savingBranches ? "Салбар хадгалж байна..." : "Салбар хадгалах"}
-        </button>
-      </section>
-
-      {/* Schedule create form */}
-      <section style={{ marginTop: 32, maxWidth: 600 }}>
-        <h2>Ажлын хуваарь шинээр нэмэх</h2>
-        <p style={{ color: "#555", marginBottom: 8 }}>
-          Сонгосон өдөр, салбар, ээлжийн дагуу шинэ ажлын хуваарь үүсгэнэ.
-        </p>
-
-        <form
-          onSubmit={handleSaveSchedule}
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-            maxWidth: 600,
-          }}
-        >
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            Огноо
-            <input
-              type="date"
-              name="date"
-              value={scheduleForm.date}
-              onChange={handleScheduleFormChange}
-            />
-          </label>
-
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            Салбар
-            <select
-              name="branchId"
-              value={scheduleForm.branchId}
-              onChange={handleScheduleFormChange}
-            >
-              <option value="">Сонгох</option>
-              {receptionAssignedBranches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            Ээлж
-            <select
-              name="shiftType"
-              value={scheduleForm.shiftType}
-              onChange={handleScheduleFormChange}
-            >
-              <option value="AM">Өглөө ээлж</option>
-              <option value="PM">Орой ээлж</option>
-              <option value="WEEKEND_FULL">Амралтын өдөр</option>
-            </select>
-          </label>
-
-          <div
-            style={{
-              display: "flex",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
-          >
-            <label
-              style={{ display: "flex", flexDirection: "column", gap: 4 }}
-            >
-              Эхлэх цаг
-              <input
-                type="time"
-                name="startTime"
-                value={scheduleForm.startTime}
-                onChange={handleScheduleFormChange}
-              />
-            </label>
-            <label
-              style={{ display: "flex", flexDirection: "column", gap: 4 }}
-            >
-              Дуусах цаг
-              <input
-                type="time"
-                name="endTime"
-                value={scheduleForm.endTime}
-                onChange={handleScheduleFormChange}
-              />
-            </label>
-          </div>
-
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            Тэмдэглэл
-            <textarea
-              name="note"
-              rows={2}
-              value={scheduleForm.note}
-              onChange={handleScheduleFormChange}
-              placeholder="Жишээ нь: 30 минут хоцорч эхэлнэ"
-            />
-          </label>
-
-          <button
-            type="submit"
-            disabled={scheduleSaving || !isCreatingSchedule}
-            style={{
-              marginTop: 4,
-              padding: "8px 16px",
-              borderRadius: 4,
-              border: "none",
-              background: "#7c3aed",
-              color: "white",
-              cursor: "pointer",
-              alignSelf: "flex-start",
-            }}
-          >
-            {scheduleSaving ? "Хуваарь хадгалж байна..." : "Хуваарь хадгалах"}
-          </button>
-
-          {scheduleSaveError && (
-            <div style={{ color: "red", marginTop: 4 }}>
-              {scheduleSaveError}
-            </div>
-          )}
-          {scheduleSaveSuccess && (
-            <div style={{ color: "green", marginTop: 4 }}>
-              {scheduleSaveSuccess}
-            </div>
-          )}
-        </form>
-      </section>
-
-      {/* Upcoming schedule table */}
-      <section style={{ marginTop: 32, maxWidth: 800 }}>
-        <h2>Дараагийн 1 сарын ажлын хуваарь</h2>
-        <p style={{ color: "#555", marginBottom: 8 }}>
-          Нийт төлөвлөгдсөн хуваарь
-        </p>
-
-        {scheduleLoading && <div>Ажлын хуваарь ачааллаж байна...</div>}
-
-        {!scheduleLoading && scheduleError && (
-          <div style={{ color: "red" }}>{scheduleError}</div>
-        )}
-
-        {!scheduleLoading && !scheduleError && schedule.length === 0 && (
-          <div style={{ color: "#888" }}>
-            Төлөвлөсөн ажлын хуваарь алга.
-          </div>
-        )}
-
-        {!scheduleLoading && !scheduleError && schedule.length > 0 && (
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              marginTop: 8,
-              fontSize: 14,
-            }}
-          >
-            <thead>
-              <tr>
-                <th
+        {/* RIGHT CONTENT */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* PROFILE TAB */}
+          {activeTab === "profile" && (
+            <>
+              {/* Basic information (view/edit) */}
+              <div
+                style={{
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  padding: 16,
+                  background: "white",
+                }}
+              >
+                <div
                   style={{
-                    textAlign: "left",
-                    borderBottom: "1px solid #ddd",
-                    padding: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 12,
                   }}
                 >
-                  Огноо
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px solid #ddd",
-                    padding: 8,
-                  }}
-                >
-                  Салбар
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px solid #ddd",
-                    padding: 8,
-                  }}
-                >
-                  Цаг
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px solid #ddd",
-                    padding: 8,
-                  }}
-                >
-                  Тэмдэглэл
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    borderBottom: "1px solid #ddd",
-                    padding: 8,
-                  }}
-                >
-                  Үйлдэл
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {schedule.map((s) => {
-                const isRowEditing = editingScheduleId === s.id;
+                  <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 0 }}>
+                    Үндсэн мэдээлэл
+                  </h2>
 
-                return (
-                  <tr key={s.id}>
-                    <td
+                  {!isEditingProfile ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError(null);
+                        setIsEditingProfile(true);
+                      }}
                       style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
+                        fontSize: 12,
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        border: "1px solid #d1d5db",
+                        background: "#f9fafb",
+                        cursor: "pointer",
                       }}
                     >
-                      {isRowEditing ? (
-                        <input
-                          type="date"
-                          name="date"
-                          value={inlineForm.date}
-                          onChange={handleInlineChange}
-                          style={{ fontSize: 12, padding: 4 }}
-                        />
-                      ) : (
-                        new Date(s.date).toLocaleDateString("mn-MN", {
-                          year: "numeric",
-                          month: "2-digit",
-                          day: "2-digit",
-                          weekday: "short",
-                        })
-                      )}
-                    </td>
+                      Засах
+                    </button>
+                  ) : null}
+                </div>
 
-                    <td
-                      style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
-                      }}
-                    >
-                      {isRowEditing ? (
-                        <select
-                          name="branchId"
-                          value={inlineForm.branchId}
-                          onChange={handleInlineChange}
-                          style={{ fontSize: 12, padding: 4 }}
-                        >
-                          <option value="">Сонгох</option>
-                          {receptionAssignedBranches.map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.name}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        s.branch?.name || "-"
-                      )}
-                    </td>
+                {error && (
+                  <div
+                    style={{
+                      color: "#b91c1c",
+                      fontSize: 12,
+                      marginBottom: 8,
+                    }}
+                  >
+                    {error}
+                  </div>
+                )}
 
-                    <td
-                      style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
-                      }}
-                    >
-                      {isRowEditing ? (
-                        <div style={{ display: "flex", gap: 4 }}>
-                          <input
-                            type="time"
-                            name="startTime"
-                            value={inlineForm.startTime}
-                            onChange={handleInlineChange}
-                            style={{ fontSize: 12, padding: 4 }}
-                          />
-                          <span>-</span>
-                          <input
-                            type="time"
-                            name="endTime"
-                            value={inlineForm.endTime}
-                            onChange={handleInlineChange}
-                            style={{ fontSize: 12, padding: 4 }}
-                          />
-                        </div>
-                      ) : (
-                        <>
-                          {s.startTime} - {s.endTime}
-                        </>
-                      )}
-                    </td>
+                {!isEditingProfile ? (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fit, minmax(220px, 1fr))",
+                      gap: 12,
+                      fontSize: 13,
+                    }}
+                  >
+                    <div>
+                      <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                        Овог
+                      </div>
+                      <div>{reception.ovog || "-"}</div>
+                    </div>
 
-                    <td
-                      style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
-                      }}
-                    >
-                      {isRowEditing ? (
-                        <textarea
-                          name="note"
-                          rows={1}
-                          value={inlineForm.note}
-                          onChange={handleInlineChange}
+                    <div>
+                      <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                        Нэр
+                      </div>
+                      <div>{reception.name || "-"}</div>
+                    </div>
+
+                    <div>
+                      <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                        И-мэйл
+                      </div>
+                      <div>{reception.email || "-"}</div>
+                    </div>
+
+                    <div>
+                      <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                        Утас
+                      </div>
+                      <div>{reception.phone || "-"}</div>
+                    </div>
+
+                    <div>
+                      <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                        РД
+                      </div>
+                      <div>{reception.regNo || "-"}</div>
+                    </div>
+
+                    <div>
+                      <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                        Үндсэн салбар
+                      </div>
+                      <div>{mainBranchName || reception.branchId || "-"}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <form
+                    onSubmit={handleSave}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 12,
+                      maxWidth: 600,
+                    }}
+                  >
+                    {(
+                      [
+                        { label: "Овог", name: "ovog", type: "text" },
+                        { label: "Нэр", name: "name", type: "text" },
+                        { label: "И-мэйл", name: "email", type: "email" },
+                        { label: "РД", name: "regNo", type: "text" },
+                        { label: "Утас", name: "phone", type: "text" },
+                      ] as const
+                    ).map((f) => (
+                      <div key={f.name}>
+                        <div
                           style={{
-                            fontSize: 12,
-                            padding: 4,
+                            color: "#6b7280",
+                            marginBottom: 2,
+                            fontSize: 13,
+                          }}
+                        >
+                          {f.label}
+                        </div>
+                        <input
+                          name={f.name}
+                          type={f.type}
+                          value={(form as any)[f.name]}
+                          onChange={handleChange}
+                          style={{
                             width: "100%",
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 6px",
                           }}
                         />
-                      ) : (
-                        s.note || "-"
-                      )}
-                    </td>
+                      </div>
+                    ))}
 
-                    <td
+                    <div>
+                      <div
+                        style={{
+                          color: "#6b7280",
+                          marginBottom: 2,
+                          fontSize: 13,
+                        }}
+                      >
+                        Үндсэн салбар
+                      </div>
+                      <select
+                        name="branchId"
+                        value={form.branchId}
+                        onChange={handleChange}
+                        style={{
+                          width: "100%",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
+                          background: "white",
+                        }}
+                      >
+                        <option value="">Сонгохгүй</option>
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div
                       style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        padding: 8,
+                        marginTop: 16,
+                        display: "flex",
+                        gap: 8,
+                        justifyContent: "flex-end",
                       }}
                     >
-                      {isRowEditing ? (
-                        <div style={{ display: "flex", gap: 4 }}>
-                          <button
-                            type="button"
-                            onClick={handleInlineSaveSchedule}
-                            disabled={scheduleSaving}
-                            style={{
-                              padding: "4px 8px",
-                              borderRadius: 4,
-                              border: "1px solid #4ade80",
-                              background: "#dcfce7",
-                              cursor: "pointer",
-                              fontSize: 12,
-                            }}
-                          >
-                            {scheduleSaving ? "Хадгалж..." : "Хадгалах"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={cancelEditRow}
-                            style={{
-                              padding: "4px 8px",
-                              borderRadius: 4,
-                              border: "1px solid #ddd",
-                              background: "#f9fafb",
-                              cursor: "pointer",
-                              fontSize: 12,
-                            }}
-                          >
-                            Цуцлах
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: "flex", gap: 4 }}>
-                          <button
-                            type="button"
-                            onClick={() => startEditRow(s)}
-                            style={{
-                              padding: "4px 8px",
-                              borderRadius: 4,
-                              border: "1px solid #ddd",
-                              background: "#f9fafb",
-                              cursor: "pointer",
-                              fontSize: 12,
-                            }}
-                          >
-                            Засах
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteSchedule(s.id)}
-                            style={{
-                              padding: "4px 8px",
-                              borderRadius: 4,
-                              border: "1px solid #fecaca",
-                              background: "#fee2e2",
-                              color: "#b91c1c",
-                              cursor: "pointer",
-                              fontSize: 12,
-                            }}
-                          >
-                            Устгах
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError(null);
+                          resetFormFromReception();
+                          setIsEditingProfile(false);
+                        }}
+                        disabled={saving}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          background: "#f9fafb",
+                          fontSize: 13,
+                          cursor: saving ? "default" : "pointer",
+                        }}
+                      >
+                        Болих
+                      </button>
+
+                      <button
+                        type="submit"
+                        disabled={saving}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: 6,
+                          border: "none",
+                          background: saving ? "#9ca3af" : "#2563eb",
+                          color: "white",
+                          fontSize: 13,
+                          cursor: saving ? "default" : "pointer",
+                        }}
+                      >
+                        {saving ? "Хадгалж байна..." : "Хадгалах"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+
+              {/* Branch assignment */}
+              <div
+                style={{
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  padding: 16,
+                  background: "white",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 12,
+                  }}
+                >
+                  <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 0 }}>
+                    Салбарын тохиргоо
+                  </h2>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveBranches}
+                    disabled={savingBranches}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 6,
+                      border: "none",
+                      background: savingBranches ? "#9ca3af" : "#059669",
+                      color: "white",
+                      fontSize: 13,
+                      cursor: savingBranches ? "default" : "pointer",
+                    }}
+                  >
+                    {savingBranches
+                      ? "Салбар хадгалж байна..."
+                      : "Салбар хадгалах"}
+                  </button>
+                </div>
+
+                <div style={{ color: "#6b7280", fontSize: 13, marginBottom: 10 }}>
+                  Энэ ресепшн аль салбаруудад ажиллахыг доороос сонгоно уу.
+                </div>
+
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {branches.map((b) => (
+                    <label
+                      key={b.id}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        border: "1px solid #ddd",
+                        borderRadius: 4,
+                        padding: "4px 8px",
+                        fontSize: 13,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedBranchIds.includes(b.id)}
+                        onChange={() => toggleBranch(b.id)}
+                      />
+                      {b.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* SCHEDULE TAB */}
+          {activeTab === "schedule" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Schedule create form */}
+              <div
+                style={{
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  padding: 16,
+                  background: "white",
+                }}
+              >
+                <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 8 }}>
+                  Ажлын хуваарь шинээр нэмэх
+                </h2>
+                <div style={{ color: "#6b7280", fontSize: 13, marginBottom: 10 }}>
+                  Сонгосон өдөр, салбар, ээлжийн дагуу шинэ ажлын хуваарь үүсгэнэ.
+                </div>
+
+                <form
+                  onSubmit={handleSaveSchedule}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                    maxWidth: 600,
+                  }}
+                >
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    Огноо
+                    <input
+                      type="date"
+                      name="date"
+                      value={scheduleForm.date}
+                      onChange={handleScheduleFormChange}
+                    />
+                  </label>
+
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    Салбар
+                    <select
+                      name="branchId"
+                      value={scheduleForm.branchId}
+                      onChange={handleScheduleFormChange}
+                    >
+                      <option value="">Сонгох</option>
+                      {receptionAssignedBranches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    Ээлж
+                    <select
+                      name="shiftType"
+                      value={scheduleForm.shiftType}
+                      onChange={handleScheduleFormChange}
+                    >
+                      <option value="AM">Өглөө ээлж</option>
+                      <option value="PM">Орой ээлж</option>
+                      <option value="WEEKEND_FULL">Амралтын өдөр</option>
+                    </select>
+                  </label>
+
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      Эхлэх цаг
+                      <input
+                        type="time"
+                        name="startTime"
+                        value={scheduleForm.startTime}
+                        onChange={handleScheduleFormChange}
+                      />
+                    </label>
+
+                    <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      Дуусах цаг
+                      <input
+                        type="time"
+                        name="endTime"
+                        value={scheduleForm.endTime}
+                        onChange={handleScheduleFormChange}
+                      />
+                    </label>
+                  </div>
+
+                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    Тэмдэглэл
+                    <textarea
+                      name="note"
+                      rows={2}
+                      value={scheduleForm.note}
+                      onChange={handleScheduleFormChange}
+                      placeholder="Жишээ нь: 30 минут хоцорч эхэлнэ"
+                    />
+                  </label>
+
+                  <button
+                    type="submit"
+                    disabled={scheduleSaving || !isCreatingSchedule}
+                    style={{
+                      marginTop: 4,
+                      padding: "8px 16px",
+                      borderRadius: 6,
+                      border: "none",
+                      background: "#7c3aed",
+                      color: "white",
+                      cursor: "pointer",
+                      alignSelf: "flex-start",
+                      fontWeight: 700,
+                      fontSize: 13,
+                    }}
+                  >
+                    {scheduleSaving ? "Хуваарь хадгалж байна..." : "Хуваарь хадгалах"}
+                  </button>
+
+                  {scheduleSaveError && (
+                    <div style={{ color: "red", marginTop: 4 }}>
+                      {scheduleSaveError}
+                    </div>
+                  )}
+                  {scheduleSaveSuccess && (
+                    <div style={{ color: "green", marginTop: 4 }}>
+                      {scheduleSaveSuccess}
+                    </div>
+                  )}
+                </form>
+              </div>
+
+              {/* Upcoming schedule table */}
+              <div
+                style={{
+                  borderRadius: 12,
+                  border: "1px solid #e5e7eb",
+                  padding: 16,
+                  background: "white",
+                }}
+              >
+                <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 8 }}>
+                  Дараагийн 1 сарын ажлын хуваарь
+                </h2>
+                <div style={{ color: "#6b7280", fontSize: 13, marginBottom: 10 }}>
+                  Нийт төлөвлөгдсөн хуваарь
+                </div>
+
+                {scheduleLoading && <div>Ажлын хуваарь ачааллаж байна...</div>}
+
+                {!scheduleLoading && scheduleError && (
+                  <div style={{ color: "red" }}>{scheduleError}</div>
+                )}
+
+                {!scheduleLoading && !scheduleError && schedule.length === 0 && (
+                  <div style={{ color: "#888" }}>
+                    Төлөвлөсөн ажлын хуваарь алга.
+                  </div>
+                )}
+
+                {!scheduleLoading && !scheduleError && schedule.length > 0 && (
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      marginTop: 8,
+                      fontSize: 14,
+                    }}
+                  >
+                    <thead>
+                      <tr style={{ background: "#f9fafb" }}>
+                        <th
+                          style={{
+                            textAlign: "left",
+                            borderBottom: "1px solid #ddd",
+                            padding: 8,
+                          }}
+                        >
+                          Огноо
+                        </th>
+                        <th
+                          style={{
+                            textAlign: "left",
+                            borderBottom: "1px solid #ddd",
+                            padding: 8,
+                          }}
+                        >
+                          Салбар
+                        </th>
+                        <th
+                          style={{
+                            textAlign: "left",
+                            borderBottom: "1px solid #ddd",
+                            padding: 8,
+                          }}
+                        >
+                          Цаг
+                        </th>
+                        <th
+                          style={{
+                            textAlign: "left",
+                            borderBottom: "1px solid #ddd",
+                            padding: 8,
+                          }}
+                        >
+                          Тэмдэглэл
+                        </th>
+                        <th
+                          style={{
+                            textAlign: "left",
+                            borderBottom: "1px solid #ddd",
+                            padding: 8,
+                          }}
+                        >
+                          Үйлдэл
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {schedule.map((s) => {
+                        const isRowEditing = editingScheduleId === s.id;
+
+                        return (
+                          <tr key={s.id}>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f0f0f0",
+                                padding: 8,
+                              }}
+                            >
+                              {isRowEditing ? (
+                                <input
+                                  type="date"
+                                  name="date"
+                                  value={inlineForm.date}
+                                  onChange={handleInlineChange}
+                                  style={{ fontSize: 12, padding: 4 }}
+                                />
+                              ) : (
+                                new Date(s.date).toLocaleDateString("mn-MN", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                  weekday: "short",
+                                })
+                              )}
+                            </td>
+
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f0f0f0",
+                                padding: 8,
+                              }}
+                            >
+                              {isRowEditing ? (
+                                <select
+                                  name="branchId"
+                                  value={inlineForm.branchId}
+                                  onChange={handleInlineChange}
+                                  style={{ fontSize: 12, padding: 4 }}
+                                >
+                                  <option value="">Сонгох</option>
+                                  {receptionAssignedBranches.map((b) => (
+                                    <option key={b.id} value={b.id}>
+                                      {b.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                s.branch?.name || "-"
+                              )}
+                            </td>
+
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f0f0f0",
+                                padding: 8,
+                              }}
+                            >
+                              {isRowEditing ? (
+                                <div style={{ display: "flex", gap: 4 }}>
+                                  <input
+                                    type="time"
+                                    name="startTime"
+                                    value={inlineForm.startTime}
+                                    onChange={handleInlineChange}
+                                    style={{ fontSize: 12, padding: 4 }}
+                                  />
+                                  <span>-</span>
+                                  <input
+                                    type="time"
+                                    name="endTime"
+                                    value={inlineForm.endTime}
+                                    onChange={handleInlineChange}
+                                    style={{ fontSize: 12, padding: 4 }}
+                                  />
+                                </div>
+                              ) : (
+                                <>
+                                  {s.startTime} - {s.endTime}
+                                </>
+                              )}
+                            </td>
+
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f0f0f0",
+                                padding: 8,
+                              }}
+                            >
+                              {isRowEditing ? (
+                                <textarea
+                                  name="note"
+                                  rows={1}
+                                  value={inlineForm.note}
+                                  onChange={handleInlineChange}
+                                  style={{
+                                    fontSize: 12,
+                                    padding: 4,
+                                    width: "100%",
+                                  }}
+                                />
+                              ) : (
+                                s.note || "-"
+                              )}
+                            </td>
+
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f0f0f0",
+                                padding: 8,
+                              }}
+                            >
+                              {isRowEditing ? (
+                                <div style={{ display: "flex", gap: 4 }}>
+                                  <button
+                                    type="button"
+                                    onClick={handleInlineSaveSchedule}
+                                    disabled={scheduleSaving}
+                                    style={{
+                                      padding: "4px 8px",
+                                      borderRadius: 4,
+                                      border: "1px solid #4ade80",
+                                      background: "#dcfce7",
+                                      cursor: "pointer",
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    {scheduleSaving ? "Хадгалж..." : "Хадгалах"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={cancelEditRow}
+                                    style={{
+                                      padding: "4px 8px",
+                                      borderRadius: 4,
+                                      border: "1px solid #ddd",
+                                      background: "#f9fafb",
+                                      cursor: "pointer",
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    Цуцлах
+                                  </button>
+                                </div>
+                              ) : (
+                                <div style={{ display: "flex", gap: 4 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => startEditRow(s)}
+                                    style={{
+                                      padding: "4px 8px",
+                                      borderRadius: 4,
+                                      border: "1px solid #ddd",
+                                      background: "#f9fafb",
+                                      cursor: "pointer",
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    Засах
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSchedule(s.id)}
+                                    style={{
+                                      padding: "4px 8px",
+                                      borderRadius: 4,
+                                      border: "1px solid #fecaca",
+                                      background: "#fee2e2",
+                                      color: "#b91c1c",
+                                      cursor: "pointer",
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    Устгах
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </section>
-    </div>
+    </main>
   );
 }
