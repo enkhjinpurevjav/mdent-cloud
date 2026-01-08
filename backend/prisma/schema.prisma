@@ -159,16 +159,22 @@ model EmployeeBenefit {
 }
 
 model EmployeeBenefitUsage {
-  id                Int       @id @default(autoincrement())
+  id                Int      @id @default(autoincrement())
   employeeBenefitId Int
   invoiceId         Int
   encounterId       Int
   amountUsed        Int
   patientId         Int
-  createdAt         DateTime  @default(now())
+
+  // NEW: snapshot for finance review
+  patientBookNumber String?
+
+  createdAt         DateTime @default(now())
 
   employeeBenefit   EmployeeBenefit @relation(fields: [employeeBenefitId], references: [id])
-  invoice           Invoice         @relation(fields: [invoiceId], references: [id])
+  invoice           Invoice          @relation(fields: [invoiceId], references: [id])
+  encounter         Encounter        @relation(fields: [encounterId], references: [id])
+  patient           Patient          @relation(fields: [patientId], references: [id])
 }
 
 
