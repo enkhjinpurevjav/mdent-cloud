@@ -1633,16 +1633,19 @@ const primaryButtonStyle: React.CSSProperties = {
                     </label>
                   </div>
 
-                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    Тэмдэглэл
+
+                  
+                  <div>
+  <div style={labelStyle}>Тэмдэглэл</div>
                     <textarea
+                      style={inputStyle}
                       name="note"
                       rows={2}
                       value={scheduleForm.note}
                       onChange={handleScheduleFormChange}
                       placeholder="Жишээ нь: 30 минут хоцорч эхэлнэ"
                     />
-                  </label>
+                 </div>
 
                   <button
                     type="submit"
