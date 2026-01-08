@@ -428,6 +428,7 @@ function AppointmentDetailsModal({
   date,
   appointments,
   onStatusUpdated,
+  onEditAppointment, // ✅ add this
 }: AppointmentDetailsModalProps) {
   const router = useRouter();
 
@@ -1070,8 +1071,12 @@ type QuickAppointmentModalProps = {
   doctors: Doctor[];
   scheduledDoctors: ScheduledDoctor[];
   appointments: Appointment[];
-  selectedBranchId: string;        // NEW
+  selectedBranchId: string;
   onCreated: (a: Appointment) => void;
+
+  // ✅ NEW for edit mode
+  editingAppointment?: Appointment | null;
+  onUpdated?: (a: Appointment) => void;
 };
 
 function QuickAppointmentModal({
@@ -1090,7 +1095,7 @@ function QuickAppointmentModal({
   // ✅ NEW (for edit mode)
   editingAppointment,
   onUpdated,
-}: QuickAppointmentModalProps & {
+}: QuickAppointmentModalProps ) {
   editingAppointment?: Appointment | null;
   onUpdated?: (updated: Appointment) => void;
 }) {
@@ -4484,52 +4489,67 @@ const totalCompletedPatientsForDay = useMemo(() => {
       {/* Keep your existing bottom sections exactly as they were. */}
 
      <AppointmentDetailsModal
-        open={detailsModalState.open}
-        onClose={() =>
-          setDetailsModalState((prev) => ({ ...prev, open: false }))
-        }
-        doctor={detailsModalState.doctor}
-        slotLabel={detailsModalState.slotLabel}
-        slotTime={detailsModalState.slotTime}
-        date={detailsModalState.date}
-        appointments={detailsModalState.appointments}
-       onEditAppointment={(a) => {
+  open={detailsModalState.open}
+  onClose={() =>
+    setDetailsModalState((prev) => ({ ...prev, open: false }))
+  }
+  doctor={detailsModalState.doctor}
+  slotLabel={detailsModalState.slotLabel}
+  slotTime={detailsModalState.slotTime}
+  date={detailsModalState.date}
+  appointments={detailsModalState.appointments}
+  onStatusUpdated={(updated) => {
+    // update main list
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
+    );
+    // update the modal list so it reflects changes immediately
+    setDetailsModalState((prev) => ({
+      ...prev,
+      appointments: prev.appointments.map((a) =>
+        a.id === updated.id ? { ...a, ...updated } : a
+      ),
+    }));
+  }}
+  onEditAppointment={(a) => {
     setEditingAppointment(a);
     setQuickOpen(true);
-        onStatusUpdated={(updated) => {
-          setAppointments((prev) =>
-            prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
-          );
-          setDetailsModalState((prev) => ({
-            ...prev,
-            appointments: prev.appointments.map((a) =>
-              a.id === updated.id ? { ...a, ...updated } : a
-            ),
-          }));
-        }}
-      />
+  }}
+/>
 
       <QuickAppointmentModal
-        open={quickModalState.open}
-        onClose={() =>
-          setQuickModalState((prev) => ({ ...prev, open: false }))
-        }
-        defaultDoctorId={quickModalState.doctorId}
-        defaultDate={quickModalState.date}
-        defaultTime={quickModalState.time}
-        branches={branches}
-        doctors={doctors}
-        scheduledDoctors={scheduledDoctors}
-        appointments={appointments}
-        selectedBranchId={filterBranchId}
-        onCreated={(a) => setAppointments((prev) => [a, ...prev])}
-          open={quickOpen}
-  onClose={() => { setQuickOpen(false); setEditingAppointment(null); }}
+  open={quickModalState.open || quickOpen}
+  onClose={() => {
+    setQuickModalState((prev) => ({ ...prev, open: false }));
+    setQuickOpen(false);
+    setEditingAppointment(null);
+  }}
+  defaultDoctorId={quickModalState.doctorId}
+  defaultDate={quickModalState.date}
+  defaultTime={quickModalState.time}
+  branches={branches}
+  doctors={doctors}
+  scheduledDoctors={scheduledDoctors}
+  appointments={appointments}
+  selectedBranchId={filterBranchId}
+  onCreated={(a) => {
+    setAppointments((prev) => [a, ...prev]);
+    // close create mode
+    setQuickModalState((prev) => ({ ...prev, open: false }));
+  }}
   editingAppointment={editingAppointment}
-  onUpdated={() => {
-    // reload appointments list (or update state)
-    loadAppointments();
-    }}
+  onUpdated={(updated) => {
+    // update list in place
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
+    );
+    // close edit mode
+    setQuickOpen(false);
+    setEditingAppointment(null);
+
+    // optional: also close details modal (up to you)
+    // setDetailsModalState((prev) => ({ ...prev, open: false }));
+  }}
 />
     </main>
   
