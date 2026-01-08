@@ -283,7 +283,7 @@ export default function EmployeeVouchersPage() {
               key={r.userId}
               style={{
                 display: "grid",
-                gridTemplateColumns: "220px 140px 140px 140px 140px 170px 170px 160px 170px",
+                gridTemplateColumns: "220px 140px 140px 140px 140px 170px 170px 160px 240px",
                 gap: 10,
                 padding: "10px 12px",
                 borderTop: "1px solid #f3f4f6",
@@ -300,7 +300,7 @@ export default function EmployeeVouchersPage() {
               <div style={{ fontSize: 12, color: "#6b7280" }}>{formatDateTime(r.updatedAt)}</div>
               <div style={{ fontFamily: "monospace", fontSize: 12, color: "#374151" }}>{r.code}</div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "nowrap" }}>
                 <button
                   type="button"
                   onClick={() => openEdit(r)}
