@@ -283,7 +283,7 @@ export default function EmployeeVouchersPage() {
               key={r.userId}
               style={{
                 display: "grid",
-                gridTemplateColumns: "220px 140px 140px 140px 140px 170px 170px 160px 240px",
+                gridTemplateColumns: "220px 120px 140px 140px 140px 160px 160px 130px 220px",
                 gap: 10,
                 padding: "10px 12px",
                 borderTop: "1px solid #f3f4f6",
@@ -298,7 +298,18 @@ export default function EmployeeVouchersPage() {
               <div style={{ textAlign: "right", fontWeight: 700 }}>{formatMoney(r.remainingAmount)} ₮</div>
               <div style={{ fontSize: 12, color: "#6b7280" }}>{formatDateTime(r.createdAt)}</div>
               <div style={{ fontSize: 12, color: "#6b7280" }}>{formatDateTime(r.updatedAt)}</div>
-              <div style={{ fontFamily: "monospace", fontSize: 12, color: "#374151" }}>{r.code}</div>
+              <div
+  style={{
+    fontFamily: "monospace",
+    fontSize: 12,
+    color: "#374151",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  }}
+>
+  {r.code}
+</div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "nowrap" }}>
                 <button
