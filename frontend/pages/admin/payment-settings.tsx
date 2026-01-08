@@ -71,7 +71,7 @@ export default function PaymentSettingsPage() {
       setProviders(providersData.providers || []);
 
       // Set default tab to first method with providers (TRANSFER, INSURANCE, APPLICATION)
-      const providerMethods = ["TRANSFER", "INSURANCE", "APPLICATION"];
+      const providerMethods = ["INSURANCE", "APPLICATION"];
       const firstWithProviders = (methodsData.methods || []).find((m: PaymentMethod) =>
         providerMethods.includes(m.key)
       );
@@ -254,8 +254,8 @@ export default function PaymentSettingsPage() {
   }, [providers]);
 
   const methodsWithProviders = methods.filter((m) =>
-    ["TRANSFER", "INSURANCE", "APPLICATION"].includes(m.key)
-  );
+  ["INSURANCE", "APPLICATION"].includes(m.key)
+);
 
   if (loading) {
     return (
