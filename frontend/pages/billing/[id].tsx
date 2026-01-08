@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 
 type Branch = { id: number; name: string };
 
-type AppPaymentRow = { provider: string; amount: string };
+type AppPaymentRow = { providerId?: number | null; amount: string };
 
 type Patient = {
   id: number;
@@ -131,18 +131,18 @@ function formatMoney(v: number | null | undefined) {
 
 // ----------------- Payment section -----------------
 
-const PAYMENT_METHODS = [
-  { key: "CASH", label: "Бэлэн мөнгө", icon: "₮" },
-  { key: "POS", label: "Карт (POS)", icon: "💳" },
-  { key: "QPAY", label: "QPay", icon: "Ⓠ" },
-  { key: "TRANSFER", label: "Дансны шилжүүлэг", icon: "🏦" },
-  { key: "INSURANCE", label: "Даатгал", icon: "🛡" },
-  { key: "VOUCHER", label: "Купон / Ваучер", icon: "🎟" },
-  { key: "BARTER", label: "Бартер", icon: "⇄" },
-  { key: "APPLICATION", label: "Аппликэйшнээр төлбөр", icon: "📱" },
-  { key: "EMPLOYEE_BENEFIT", label: "Ажилтны хөнгөлөлт", icon: "👨‍⚕️" },
-  { key: "WALLET", label: "Хэтэвч (урьдчилгаа / илүү төлөлтөөс)", icon: "👛" },
-];
+// Dynamic payment settings types
+type PaymentProvider = {
+  id: number;
+  name: string;
+  note?: string | null;
+};
+
+type PaymentMethodConfig = {
+  key: string;
+  label: string;
+  providers?: PaymentProvider[];
+};
 
 function BillingPaymentSection({
   invoice,
@@ -151,9 +151,14 @@ function BillingPaymentSection({
   invoice: InvoiceResponse;
   onUpdated: (inv: InvoiceResponse) => void;
 }) {
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodConfig[]>([]);
+  const [loadingMethods, setLoadingMethods] = useState(true);
+
   const [enabled, setEnabled] = useState<Record<string, boolean>>({});
   const [amounts, setAmounts] = useState<Record<string, string>>({});
-  const [insuranceProvider, setInsuranceProvider] = useState<string>("");
+  const [transferProviderId, setTransferProviderId] = useState<number | null>(null);
+  const [insuranceProviderId, setInsuranceProviderId] = useState<number | null>(null);
+  const [otherNote, setOtherNote] = useState("");
   const [issueEBarimt, setIssueEBarimt] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -164,10 +169,30 @@ function BillingPaymentSection({
   const [employeeCode, setEmployeeCode] = useState("");
   const [employeeRemaining, setEmployeeRemaining] = useState<number | null>(null);
 
-  const [appRows, setAppRows] = useState<AppPaymentRow[]>([{ provider: "", amount: "" }]);
+  const [appRows, setAppRows] = useState<AppPaymentRow[]>([{ providerId: null, amount: "" }]);
 
   const [voucherType, setVoucherType] = useState<"MARKETING" | "GIFT" | "">("");
   const [voucherMaxAmount, setVoucherMaxAmount] = useState<number | null>(null);
+
+  // Load payment settings from backend
+  useEffect(() => {
+    const loadPaymentSettings = async () => {
+      setLoadingMethods(true);
+      try {
+        const res = await fetch("/api/payment-settings");
+        const data = await res.json();
+        if (res.ok && data.methods) {
+          setPaymentMethods(data.methods);
+        }
+      } catch (err) {
+        console.error("Failed to load payment settings:", err);
+      } finally {
+        setLoadingMethods(false);
+      }
+    };
+
+    void loadPaymentSettings();
+  }, []);
 
   const hasRealInvoice = !!invoice.id;
   const unpaid =
@@ -179,26 +204,12 @@ function BillingPaymentSection({
       ? Math.abs(invoice.patientBalance)
       : 0;
 
-  const INSURANCE_PROVIDERS = [
-    { value: "BODI_DAATGAL", label: "Bodi Daatgal" },
-    { value: "NATIONAL_LIFE", label: "National Life" },
-    { value: "MANDAL_DAATGAL", label: "Mandal Daatgal" },
-  ];
-
-  const APP_PROVIDERS = [
-    { value: "STOREPAY", label: "Storepay" },
-    { value: "POCKETPAY", label: "PocketPay" },
-    { value: "CAREPAY", label: "CarePay" },
-    { value: "ARDPAY", label: "ArdPay" },
-    { value: "TOKI", label: "Toki" },
-    { value: "PAYON", label: "payOn" },
-    { value: "SONO", label: "Sono" },
-  ];
-
   useEffect(() => {
     setEnabled({});
     setAmounts({});
-    setInsuranceProvider("");
+    setTransferProviderId(null);
+    setInsuranceProviderId(null);
+    setOtherNote("");
     setVoucherCode("");
     setBarterCode("");
     setEmployeeCode("");
@@ -207,14 +218,16 @@ function BillingPaymentSection({
     setSuccess("");
     setVoucherType("");
     setVoucherMaxAmount(null);
-    setAppRows([{ provider: "", amount: "" }]);
+    setAppRows([{ providerId: null, amount: "" }]);
   }, [invoice.id]);
 
   const handleToggle = (methodKey: string, checked: boolean) => {
     setEnabled((prev) => ({ ...prev, [methodKey]: checked }));
     if (!checked) {
       setAmounts((prev) => ({ ...prev, [methodKey]: "" }));
-      if (methodKey === "INSURANCE") setInsuranceProvider("");
+      if (methodKey === "INSURANCE") setInsuranceProviderId(null);
+      if (methodKey === "TRANSFER") setTransferProviderId(null);
+      if (methodKey === "OTHER") setOtherNote("");
       if (methodKey === "BARTER") setBarterCode("");
       if (methodKey === "EMPLOYEE_BENEFIT") {
         setEmployeeCode("");
@@ -226,7 +239,7 @@ function BillingPaymentSection({
         setVoucherMaxAmount(null);
       }
       if (methodKey === "APPLICATION") {
-        setAppRows([{ provider: "", amount: "" }]);
+        setAppRows([{ providerId: null, amount: "" }]);
       }
     }
   };
@@ -235,7 +248,7 @@ function BillingPaymentSection({
     setAmounts((prev) => ({ ...prev, [methodKey]: value }));
   };
 
-  const totalEntered = PAYMENT_METHODS.reduce((sum, m) => {
+  const totalEntered = paymentMethods.reduce((sum, m) => {
     if (!enabled[m.key]) return sum;
 
     if (m.key === "APPLICATION") {
@@ -344,11 +357,11 @@ function BillingPaymentSection({
 
     const entries: { method: string; amount: number; meta?: any }[] = [];
 
-    for (const m of PAYMENT_METHODS) {
+    for (const m of paymentMethods) {
       if (!enabled[m.key]) continue;
 
       if (m.key === "APPLICATION") {
-        const validRows = appRows.filter((r) => r.provider && Number(r.amount) > 0);
+        const validRows = appRows.filter((r) => r.providerId && Number(r.amount) > 0);
 
         if (validRows.length === 0) {
           setError("Аппликэйшнээр төлбөр сонгосон бол дор хаяж нэг мөр бөглөнө үү.");
@@ -360,7 +373,7 @@ function BillingPaymentSection({
           entries.push({
             method: "APPLICATION",
             amount: amt,
-            meta: { provider: row.provider },
+            meta: { providerId: row.providerId },
           });
         }
 
@@ -375,6 +388,31 @@ function BillingPaymentSection({
         method: m.key,
         amount: amt,
       };
+
+      // TRANSFER: require providerId (bank)
+      if (m.key === "TRANSFER") {
+        if (!transferProviderId) {
+          setError("Банкаа сонгоно уу.");
+          return;
+        }
+        entry.meta = { ...(entry.meta || {}), providerId: transferProviderId };
+      }
+
+      // INSURANCE: require providerId
+      if (m.key === "INSURANCE") {
+        if (!insuranceProviderId) {
+          setError("Даатгалын компанийг сонгоно уу.");
+          return;
+        }
+        entry.meta = { ...(entry.meta || {}), providerId: insuranceProviderId };
+      }
+
+      // OTHER: optional note
+      if (m.key === "OTHER") {
+        if (otherNote.trim()) {
+          entry.meta = { ...(entry.meta || {}), note: otherNote.trim() };
+        }
+      }
 
       if (m.key === "VOUCHER") {
         if (!voucherType) {
@@ -467,14 +505,16 @@ function BillingPaymentSection({
       setSuccess("Төлбөр(үүд) амжилттай бүртгэгдлээ.");
       setEnabled({});
       setAmounts({});
-      setInsuranceProvider("");
+      setTransferProviderId(null);
+      setInsuranceProviderId(null);
+      setOtherNote("");
       setVoucherCode("");
       setBarterCode("");
       setEmployeeCode("");
       setEmployeeRemaining(null);
       setVoucherType("");
       setVoucherMaxAmount(null);
-      setAppRows([{ provider: "", amount: "" }]);
+      setAppRows([{ providerId: null, amount: "" }]);
     } catch (err: any) {
       console.error("Failed to settle invoice:", err);
       setError(err.message || "Төлбөр бүртгэхэд алдаа гарлаа.");
@@ -507,47 +547,50 @@ function BillingPaymentSection({
         onSubmit={handleSubmit}
         style={{ display: "flex", flexDirection: "column", gap: 8 }}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {PAYMENT_METHODS.map((m) => {
-            const checked = !!enabled[m.key];
-            const value = amounts[m.key] ?? "";
-            return (
-              <div
-                key={m.key}
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 4,
-                  fontSize: 13,
-                }}
-              >
+        {loadingMethods ? (
+          <div style={{ fontSize: 13, color: "#6b7280" }}>
+            Төлбөрийн аргууд ачаалж байна...
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {paymentMethods.map((m) => {
+              const checked = !!enabled[m.key];
+              const value = amounts[m.key] ?? "";
+              const providers = m.providers || [];
+              return (
                 <div
+                  key={m.key}
                   style={{
                     display: "flex",
-                    alignItems: "center",
-                    gap: 8,
+                    flexDirection: "column",
+                    gap: 4,
+                    fontSize: 13,
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    id={`pay-${m.key}`}
-                    checked={checked}
-                    onChange={(e) => handleToggle(m.key, e.target.checked)}
-                  />
-                  <label
-                    htmlFor={`pay-${m.key}`}
+                  <div
                     style={{
-                      minWidth: 180,
-                      cursor: "pointer",
                       display: "flex",
                       alignItems: "center",
-                      gap: 4,
+                      gap: 8,
                     }}
                   >
-                    <span style={{ width: 18, textAlign: "center" }}>
-                      {m.icon}
-                    </span>
-                    <span>{m.label}</span>
+                    <input
+                      type="checkbox"
+                      id={`pay-${m.key}`}
+                      checked={checked}
+                      onChange={(e) => handleToggle(m.key, e.target.checked)}
+                    />
+                    <label
+                      htmlFor={`pay-${m.key}`}
+                      style={{
+                        minWidth: 180,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <span>{m.label}</span>
                   </label>
                 </div>
 
@@ -560,11 +603,40 @@ function BillingPaymentSection({
                       marginLeft: 26,
                     }}
                   >
-                    {m.key === "INSURANCE" && (
+                    {/* TRANSFER: bank selector */}
+                    {m.key === "TRANSFER" && providers.length > 0 && (
                       <select
-                        value={insuranceProvider}
+                        value={transferProviderId || ""}
                         onChange={(e) =>
-                          setInsuranceProvider(e.target.value)
+                          setTransferProviderId(
+                            e.target.value ? Number(e.target.value) : null
+                          )
+                        }
+                        style={{
+                          minWidth: 200,
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "4px 6px",
+                          fontSize: 13,
+                        }}
+                      >
+                        <option value="">Банкаа сонгох...</option>
+                        {providers.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {/* INSURANCE: insurance company selector */}
+                    {m.key === "INSURANCE" && providers.length > 0 && (
+                      <select
+                        value={insuranceProviderId || ""}
+                        onChange={(e) =>
+                          setInsuranceProviderId(
+                            e.target.value ? Number(e.target.value) : null
+                          )
                         }
                         style={{
                           minWidth: 200,
@@ -577,15 +649,16 @@ function BillingPaymentSection({
                         <option value="">
                           Даатгалын компанийг сонгох...
                         </option>
-                        {INSURANCE_PROVIDERS.map((p) => (
-                          <option key={p.value} value={p.value}>
-                            {p.label}
+                        {providers.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
                           </option>
                         ))}
                       </select>
                     )}
 
-                    {m.key === "APPLICATION" && (
+                    {/* APPLICATION: multiple rows */}
+                    {m.key === "APPLICATION" && providers.length > 0 && (
   <div
     style={{
       display: "flex",
@@ -604,11 +677,11 @@ function BillingPaymentSection({
         }}
       >
         <select
-          value={row.provider}
+          value={row.providerId || ""}
           onChange={(e) =>
             setAppRows((prev) =>
               prev.map((r, i) =>
-                i === idx ? { ...r, provider: e.target.value } : r
+                i === idx ? { ...r, providerId: e.target.value ? Number(e.target.value) : null } : r
               )
             )
           }
@@ -621,9 +694,9 @@ function BillingPaymentSection({
           }}
         >
           <option value="">Аппликэйшнийг сонгох...</option>
-          {APP_PROVIDERS.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
+          {providers.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
             </option>
           ))}
         </select>
@@ -676,7 +749,7 @@ function BillingPaymentSection({
     <button
       type="button"
       onClick={() =>
-        setAppRows((prev) => [...prev, { provider: "", amount: "" }])
+        setAppRows((prev) => [...prev, { providerId: null, amount: "" }])
       }
       style={{
         alignSelf: "flex-start",
@@ -847,6 +920,31 @@ function BillingPaymentSection({
                       </div>
                     )}
 
+                    {/* OTHER: optional note field */}
+                    {m.key === "OTHER" && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <input
+                          type="text"
+                          value={otherNote}
+                          onChange={(e) => setOtherNote(e.target.value)}
+                          placeholder="Тайлбар (заавал биш)"
+                          style={{
+                            width: 200,
+                            borderRadius: 6,
+                            border: "1px solid #d1d5db",
+                            padding: "4px 6px",
+                            fontSize: 12,
+                          }}
+                        />
+                      </div>
+                    )}
+
                     {m.key === "WALLET" && (
                       <div
                         style={{
@@ -891,30 +989,13 @@ function BillingPaymentSection({
                         <span style={{ fontSize: 12 }}>₮</span>
                       </div>
                     )}
-
-                    {m.key === "QPAY" && (
-                      <button
-                        type="button"
-                        style={{
-                          padding: "6px 10px",
-                          borderRadius: 6,
-                          border: "none",
-                          background: "#2563eb",
-                          color: "#ffffff",
-                          fontSize: 12,
-                          cursor: "pointer",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        Нэхэмжлэх үүсгэх
-                      </button>
-                    )}
                   </div>
                 )}
               </div>
             );
           })}
         </div>
+        )}
 
         <div
           style={{
