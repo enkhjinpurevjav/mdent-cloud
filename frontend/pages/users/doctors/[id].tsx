@@ -165,6 +165,41 @@ export default function DoctorProfilePage() {
   // ✅ NEW: patient-like edit toggle for the profile info card
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
+  // Put these inside DoctorProfilePage(), near other consts (before return)
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  borderRadius: 6,
+  border: "1px solid #d1d5db",
+  padding: "4px 6px",
+  fontSize: 13,
+  background: "white",
+};
+
+const labelStyle: React.CSSProperties = {
+  color: "#6b7280",
+  marginBottom: 2,
+  fontSize: 13,
+};
+
+const smallButtonStyle: React.CSSProperties = {
+  padding: "6px 12px",
+  borderRadius: 6,
+  border: "1px solid #d1d5db",
+  background: "#f9fafb",
+  fontSize: 13,
+  cursor: "pointer",
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  padding: "6px 12px",
+  borderRadius: 6,
+  border: "none",
+  background: "#2563eb",
+  color: "white",
+  fontSize: 13,
+  cursor: "pointer",
+};
+  
   const [form, setForm] = useState({
     name: "",
     ovog: "",
@@ -1537,15 +1572,16 @@ export default function DoctorProfilePage() {
                     maxWidth: 600,
                   }}
                 >
-                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    Огноо
-                    <input
+                 <div>
+                    <div style={labelStyle}>Огноо</div>
+                  <input
+                    style={inputStyle}
                       type="date"
                       name="date"
                       value={scheduleForm.date}
                       onChange={handleScheduleFormChange}
                     />
-                  </label>
+                </div>
 
                   <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                     Салбар
