@@ -3876,12 +3876,27 @@ useEffect(() => {
   const handleMouseUp = () => {
     if (!activeDrag) return;
     
-    // Only show save/cancel if threshold was exceeded
-    if (activeDrag.thresholdExceeded) {
-      setPendingSaveId(activeDrag.appointmentId);
-      setPendingSaveError(null);
+    // If threshold wasn't exceeded, treat as a click and open details modal
+    if (!activeDrag.thresholdExceeded) {
+      const appointment = appointments.find(a => a.id === activeDrag.appointmentId);
+      if (appointment && appointment.doctorId) {
+        const doctor = gridDoctors.find(d => d.id === appointment.doctorId);
+        setDetailsModalState({
+          open: true,
+          doctor: doctor || null,
+          slotLabel: "",
+          slotTime: "",
+          date: filterDate,
+          appointments: [appointment],
+        });
+      }
+      setActiveDrag(null);
+      return;
     }
     
+    // Threshold exceeded, show save/cancel UI
+    setPendingSaveId(activeDrag.appointmentId);
+    setPendingSaveError(null);
     setActiveDrag(null);
   };
 
@@ -4653,22 +4668,26 @@ const handleCancelDraft = (appointmentId: number) => {
                         // Don't open details if we just finished dragging or have pending save
                         if (isDragging || hasPendingSave || activeDrag) return;
                         
-                        e.stopPropagation();
-                        setDetailsModalState({
-                          open: true,
-                          doctor: doc,
-                          slotLabel: "",
-                          slotTime: "",
-                          date: filterDate,
-                          appointments: [a],
-                        });
+                        // For non-editable appointments, handle click normally
+                        if (!canEdit) {
+                          e.stopPropagation();
+                          setDetailsModalState({
+                            open: true,
+                            doctor: doc,
+                            slotLabel: "",
+                            slotTime: "",
+                            date: filterDate,
+                            appointments: [a],
+                          });
+                        }
+                        // For editable appointments, click is handled via mousedown/mouseup
                       };
 
                       return (
                         <div
                           key={a.id}
                           onMouseDown={canEdit ? (e) => handleMouseDown(e, "move") : undefined}
-                          onClick={handleBlockClick}
+                          onClick={canEdit ? undefined : handleBlockClick}
                           style={{
                             position: "absolute",
                             left: `${leftPercent}%`,
