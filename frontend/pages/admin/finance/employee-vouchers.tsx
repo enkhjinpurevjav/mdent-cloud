@@ -7,7 +7,7 @@ type EmployeeBenefitRow = {
   email: string;
   role: string;
 
-  // ✅ benefit record (Option A: one active benefit per employee)
+  // Option A: one active benefit per employee
   benefitId: number;
   code: string;
   initialAmount: number;
@@ -16,7 +16,7 @@ type EmployeeBenefitRow = {
   toDate?: string | null;
   isActive: boolean;
 
-  // summary columns
+  // summary
   totalAmount: number;
   usedAmount: number;
 
@@ -28,8 +28,7 @@ function formatEmployeeName(r: EmployeeBenefitRow) {
   const ovog = (r.ovog || "").trim();
   const name = (r.name || "").trim();
   if (!ovog) return name || r.email || String(r.userId);
-  const initial = ovog.charAt(0);
-  return `${initial}. ${name || r.email || String(r.userId)}`;
+  return `${ovog.charAt(0)}. ${name || r.email || String(r.userId)}`;
 }
 
 function formatMoney(v: number) {
@@ -52,7 +51,6 @@ function formatDateInputValue(iso?: string | null) {
   try {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "";
-    // yyyy-mm-dd for <input type="date" />
     return d.toISOString().slice(0, 10);
   } catch {
     return "";
@@ -534,11 +532,7 @@ export default function EmployeeVouchersPage() {
               </div>
 
               <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
-                <input
-                  type="checkbox"
-                  checked={editIsActive}
-                  onChange={(e) => setEditIsActive(e.target.checked)}
-                />
+                <input type="checkbox" checked={editIsActive} onChange={(e) => setEditIsActive(e.target.checked)} />
                 <span>Идэвхтэй</span>
               </label>
 
