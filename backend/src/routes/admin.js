@@ -237,4 +237,111 @@ router.delete("/employee-benefits/:employeeId", async (req, res) => {
   }
 });
 
+// ...keep your existing imports and router
+
+/**
+ * GET /api/admin/employee-benefits
+ * Option A: 1 active benefit per employee.
+ * Returns employee row + ACTIVE benefit fields (benefitId, code, initialAmount, remainingAmount...)
+ */
+router.get("/employee-benefits", async (req, res) => {
+  try {
+    const benefits = await prisma.employeeBenefit.findMany({
+      where: { isActive: true },
+      include: { employee: true, usages: true },
+      orderBy: [{ employeeId: "asc" }, { updatedAt: "desc" }],
+    });
+
+    const byEmployee = new Map();
+
+    for (const b of benefits) {
+      const emp = b.employee;
+      if (!emp) continue;
+
+      // Option A: first active benefit per employeeId only
+      if (byEmployee.has(emp.id)) continue;
+
+      const used = (b.usages || []).reduce((s, u) => s + Number(u.amountUsed || 0), 0);
+
+      byEmployee.set(emp.id, {
+        userId: emp.id,
+        ovog: emp.ovog || "",
+        name: emp.name || "",
+        email: emp.email,
+        role: emp.role,
+
+        // ✅ show/manage code ("real pass")
+        benefitId: b.id,
+        code: b.code,
+        initialAmount: Number(b.initialAmount || 0),
+        remainingAmount: Number(b.remainingAmount || 0),
+        fromDate: b.fromDate,
+        toDate: b.toDate,
+        isActive: b.isActive,
+
+        // summary
+        totalAmount: Number(b.initialAmount || 0),
+        usedAmount: used,
+        remainingAmountSummary: Number(b.remainingAmount || 0),
+
+        createdAt: b.createdAt,
+        updatedAt: b.updatedAt,
+      });
+    }
+
+    const rows = Array.from(byEmployee.values());
+
+    rows.sort((a, b) => {
+      const an = `${a.ovog || ""} ${a.name || ""}`.trim();
+      const bn = `${b.ovog || ""} ${b.name || ""}`.trim();
+      return an.localeCompare(bn, "mn");
+    });
+
+    return res.json({ employees: rows });
+  } catch (e) {
+    console.error("GET /api/admin/employee-benefits failed:", e);
+    return res.status(500).json({ error: "Failed to load employee benefits." });
+  }
+});
+
+/**
+ * PATCH /api/admin/employee-benefits/:id
+ * Edit EmployeeBenefit record (code, amounts, dates, active)
+ */
+router.patch("/employee-benefits/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id || Number.isNaN(id)) {
+    return res.status(400).json({ error: "Invalid benefit id" });
+  }
+
+  const { code, initialAmount, remainingAmount, fromDate, toDate, isActive } = req.body || {};
+
+  try {
+    const data = {};
+
+    if (code !== undefined) data.code = String(code).trim();
+    if (initialAmount !== undefined) data.initialAmount = Math.round(Number(initialAmount));
+    if (remainingAmount !== undefined) data.remainingAmount = Math.round(Number(remainingAmount));
+    if (fromDate !== undefined) data.fromDate = fromDate ? new Date(fromDate) : null;
+    if (toDate !== undefined) data.toDate = toDate ? new Date(toDate) : null;
+    if (isActive !== undefined) data.isActive = Boolean(isActive);
+
+    const updated = await prisma.employeeBenefit.update({
+      where: { id },
+      data,
+    });
+
+    return res.json({ benefit: updated });
+  } catch (e) {
+    console.error("PATCH /api/admin/employee-benefits/:id failed:", e);
+
+    // Optional: handle unique code conflict nicely (if code is unique)
+    if (String(e?.message || "").includes("Unique constraint")) {
+      return res.status(409).json({ error: "Код давхцаж байна." });
+    }
+
+    return res.status(500).json({ error: "Failed to update employee benefit." });
+  }
+});
+
 export default router;
