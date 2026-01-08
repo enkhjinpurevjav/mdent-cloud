@@ -3320,6 +3320,9 @@ type DragState = {
 
   // computed during drag
   currentDoctorId: number | null;
+  
+  // threshold tracking
+  thresholdExceeded: boolean;
 };
 
 const [draftEdits, setDraftEdits] = useState<Record<number, DraftAppointmentChange>>({});
@@ -3786,6 +3789,8 @@ const totalCompletedPatientsForDay = useMemo(() => {
 useEffect(() => {
   if (!activeDrag) return;
 
+  const DRAG_THRESHOLD = 6; // pixels
+
   const handleMouseMove = (e: MouseEvent) => {
     if (!activeDrag || !gridRef.current) return;
 
@@ -3795,6 +3800,21 @@ useEffect(() => {
 
     const TIME_COL_W = 80;
     const DOC_COL_W = 180;
+
+    // Check if threshold exceeded
+    const deltaX = e.clientX - activeDrag.startClientX;
+    const deltaY = e.clientY - activeDrag.startClientY;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    if (!activeDrag.thresholdExceeded && distance < DRAG_THRESHOLD) {
+      // Not yet exceeded threshold, don't create draft
+      return;
+    }
+
+    // Threshold exceeded, update state if needed
+    if (!activeDrag.thresholdExceeded) {
+      setActiveDrag(prev => prev ? { ...prev, thresholdExceeded: true } : null);
+    }
 
     if (activeDrag.mode === "move") {
       // Calculate new position
@@ -3856,7 +3876,25 @@ useEffect(() => {
   const handleMouseUp = () => {
     if (!activeDrag) return;
     
-    // Show save/cancel UI
+    // If threshold wasn't exceeded, treat as a click and open details modal
+    if (!activeDrag.thresholdExceeded) {
+      const appointment = appointments.find(a => a.id === activeDrag.appointmentId);
+      if (appointment && appointment.doctorId) {
+        const doctor = gridDoctors.find(d => d.id === appointment.doctorId);
+        setDetailsModalState({
+          open: true,
+          doctor: doctor || null,
+          slotLabel: "",
+          slotTime: "",
+          date: filterDate,
+          appointments: [appointment],
+        });
+      }
+      setActiveDrag(null);
+      return;
+    }
+    
+    // Threshold exceeded, show save/cancel UI
     setPendingSaveId(activeDrag.appointmentId);
     setPendingSaveError(null);
     setActiveDrag(null);
@@ -4622,6 +4660,7 @@ const handleCancelDraft = (appointmentId: number) => {
                           origEnd,
                           origDoctorId: a.doctorId,
                           currentDoctorId: a.doctorId,
+                          thresholdExceeded: false,
                         });
                       };
 
@@ -4629,22 +4668,26 @@ const handleCancelDraft = (appointmentId: number) => {
                         // Don't open details if we just finished dragging or have pending save
                         if (isDragging || hasPendingSave || activeDrag) return;
                         
-                        e.stopPropagation();
-                        setDetailsModalState({
-                          open: true,
-                          doctor: doc,
-                          slotLabel: "",
-                          slotTime: "",
-                          date: filterDate,
-                          appointments: [a],
-                        });
+                        // For non-editable appointments, handle click normally
+                        if (!canEdit) {
+                          e.stopPropagation();
+                          setDetailsModalState({
+                            open: true,
+                            doctor: doc,
+                            slotLabel: "",
+                            slotTime: "",
+                            date: filterDate,
+                            appointments: [a],
+                          });
+                        }
+                        // For editable appointments, click is handled via mousedown/mouseup
                       };
 
                       return (
                         <div
                           key={a.id}
                           onMouseDown={canEdit ? (e) => handleMouseDown(e, "move") : undefined}
-                          onClick={handleBlockClick}
+                          onClick={canEdit ? undefined : handleBlockClick}
                           style={{
                             position: "absolute",
                             left: `${leftPercent}%`,
@@ -4718,6 +4761,73 @@ const handleCancelDraft = (appointmentId: number) => {
           </div>
         )}
       </section>
+
+{/* Drag preview overlay */}
+{activeDrag && activeDrag.thresholdExceeded && draftEdits[activeDrag.appointmentId] && (() => {
+  const draft = draftEdits[activeDrag.appointmentId];
+  const appointment = appointments.find(a => a.id === activeDrag.appointmentId);
+  if (!appointment) return null;
+
+  const previewStart = new Date(draft.scheduledAt);
+  const previewEnd = draft.endAt ? new Date(draft.endAt) : new Date(previewStart.getTime() + SLOT_MINUTES * 60 * 1000);
+  
+  if (Number.isNaN(previewStart.getTime()) || Number.isNaN(previewEnd.getTime())) return null;
+
+  const clampedStart = new Date(Math.max(previewStart.getTime(), firstSlot.getTime()));
+  const clampedEnd = new Date(Math.min(previewEnd.getTime(), lastSlot.getTime()));
+  
+  const startMin = (clampedStart.getTime() - firstSlot.getTime()) / 60000;
+  const endMin = (clampedEnd.getTime() - firstSlot.getTime()) / 60000;
+  
+  if (endMin <= 0 || startMin >= totalMinutes) return null;
+
+  const top = (startMin / totalMinutes) * columnHeightPx;
+  const height = ((endMin - startMin) / totalMinutes) * columnHeightPx;
+
+  // Find target doctor name
+  const targetDoctor = gridDoctors.find(d => d.id === draft.doctorId);
+  const targetDoctorName = formatDoctorName(targetDoctor);
+
+  // Calculate column position
+  const TIME_COL_W = 80;
+  const DOC_COL_W = 180;
+  const doctorIdx = gridDoctors.findIndex(d => d.id === draft.doctorId);
+  
+  if (doctorIdx < 0 || !gridRef.current) return null;
+
+  const gridRect = gridRef.current.getBoundingClientRect();
+  const left = gridRect.left + TIME_COL_W + doctorIdx * DOC_COL_W;
+  const absoluteTop = gridRect.top + top;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        left: left,
+        top: absoluteTop,
+        width: DOC_COL_W,
+        height: Math.max(height, 18),
+        background: "rgba(37, 99, 235, 0.3)",
+        border: "2px dashed #2563eb",
+        borderRadius: 6,
+        zIndex: 1000,
+        pointerEvents: "none",
+        padding: 4,
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 11,
+        color: "#1e40af",
+        fontWeight: 600,
+      }}
+    >
+      <div>{targetDoctorName}</div>
+      <div>{getSlotTimeString(previewStart)} - {getSlotTimeString(previewEnd)}</div>
+    </div>
+  );
+})()}
 
      {/* Create form card */}
       <section
