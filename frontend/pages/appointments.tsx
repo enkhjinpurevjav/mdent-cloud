@@ -767,10 +767,11 @@ function AppointmentDetailsModal({
       <button
         type="button"
         onClick={() => {
-          // ✅ this must open QuickAppointmentModal in edit mode
-          // We'll wire this from parent via a prop callback:
-          onEditAppointment?.(a);
-        }}
+  // close the details modal so edit modal won't be behind
+  onClose();
+  // open edit modal
+  onEditAppointment?.(a);
+}}
         style={{
           fontSize: 11,
           padding: "2px 8px",
@@ -1659,7 +1660,7 @@ function QuickAppointmentModal({
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 55,
+        zIndex: 70,
       }}
       onClick={onClose}
     >
