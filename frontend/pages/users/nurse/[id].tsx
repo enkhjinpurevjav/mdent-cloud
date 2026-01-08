@@ -828,6 +828,66 @@ export default function NurseProfilePage() {
 
         {/* RIGHT CONTENT */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+{/* Top summary cards (only on profile tab) */}
+{activeTab === "profile" && (
+  <div
+    style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+      gap: 12,
+    }}
+  >
+    <div
+      style={{
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        padding: 12,
+        background: "#f9fafb",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 12,
+          textTransform: "uppercase",
+          color: "#6b7280",
+          marginBottom: 4,
+        }}
+      >
+        ӨНӨӨДРИЙН ОРЛОГО
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
+        Coming soon
+      </div>
+      <div style={{ fontSize: 12, color: "#6b7280" }}>(Logic later)</div>
+    </div>
+
+    <div
+      style={{
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        padding: 12,
+        background: "#f9fafb",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 12,
+          textTransform: "uppercase",
+          color: "#6b7280",
+          marginBottom: 4,
+        }}
+      >
+        ЭНЭ САРЫН ОРЛОГО
+      </div>
+      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
+        Coming soon
+      </div>
+      <div style={{ fontSize: 12, color: "#6b7280" }}>(Logic later)</div>
+    </div>
+  </div>
+)}
+          
           {/* PROFILE TAB */}
           {activeTab === "profile" && (
             <>
