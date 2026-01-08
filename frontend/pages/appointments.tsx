@@ -394,7 +394,7 @@ type AppointmentDetailsModalProps = {
   onEditAppointment?: (a: Appointment) => void;
 };
 
-function AppointmentDetailsModal({ ..., onEditAppointment }: AppointmentDetailsModalProps) { ... }
+
 
 function formatDetailedTimeRange(start: Date, end: Date | null): string {
   if (Number.isNaN(start.getTime())) return "-";
@@ -1091,14 +1091,9 @@ function QuickAppointmentModal({
   appointments,
   selectedBranchId,
   onCreated,
-
-  // ✅ NEW (for edit mode)
   editingAppointment,
   onUpdated,
-}: QuickAppointmentModalProps ) {
-  editingAppointment?: Appointment | null;
-  onUpdated?: (updated: Appointment) => void;
-}) {
+}: QuickAppointmentModalProps) {
   const isEditMode = Boolean(editingAppointment);
 
   const [form, setForm] = useState({
