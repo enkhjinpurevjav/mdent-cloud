@@ -25,13 +25,13 @@ enum UserRole {
 }
 
 enum ServiceCategory {
-  ORTHODONTIC_TREATMENT   // гажиг заслын эмчилгээ
-  IMAGING                 // зураг авах
-  DEFECT_CORRECTION       // согог засал
-  ADULT_TREATMENT         // том хүний эмчилгээ
-  WHITENING               // цайруулалт
-  CHILD_TREATMENT         // хүүхдийн эмчилгээ
-  SURGERY                 // мэс засал
+  ORTHODONTIC_TREATMENT // гажиг заслын эмчилгээ
+  IMAGING // зураг авах
+  DEFECT_CORRECTION // согог засал
+  ADULT_TREATMENT // том хүний эмчилгээ
+  WHITENING // цайруулалт
+  CHILD_TREATMENT // хүүхдийн эмчилгээ
+  SURGERY // мэс засал
 }
 
 enum VisitCardType {
@@ -40,8 +40,8 @@ enum VisitCardType {
 }
 
 enum ProductStockMovementType {
-  ADJUSTMENT  // manual change from inventory page (+/-)
-  SALE        // created when paid ledger entry is created
+  ADJUSTMENT // manual change from inventory page (+/-)
+  SALE // created when paid ledger entry is created
 }
 
 enum BookingStatus {
@@ -54,9 +54,9 @@ enum BookingStatus {
 
 // NEW: discount levels explicitly constrained
 enum DiscountPercent {
-  ZERO   // 0%
-  FIVE   // 5%
-  TEN    // 10%
+  ZERO // 0%
+  FIVE // 5%
+  TEN // 10%
 }
 
 // NEW: invoice status enum
@@ -99,67 +99,64 @@ enum EmployeeVoucherStatus {
   EXPIRED
 }
 
-
-
-
 // ==========================================================
 // BRANCHES (Multi-Branch Support)
 // ==========================================================
 model Branch {
-  id        Int              @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   name      String
   address   String?
-  createdAt DateTime         @default(now())
+  createdAt DateTime @default(now())
 
-  users            User[]
-  patients         Patient[]
-  doctorSchedules  DoctorSchedule[]
-  serviceBranches  ServiceBranch[]
-  doctorBranches   DoctorBranch[]
-  appointments     Appointment[]
-  bookings         Booking[]
+  users              User[]
+  patients           Patient[]
+  doctorSchedules    DoctorSchedule[]
+  serviceBranches    ServiceBranch[]
+  doctorBranches     DoctorBranch[]
+  appointments       Appointment[]
+  bookings           Booking[]
   receptionSchedules ReceptionSchedule[]
   receptionBranches  ReceptionBranch[]
   nurseSchedules     NurseSchedule[]
   nurseBranches      NurseBranch[]
 
   // NEW: products (retail) belong to a branch
-  products          Product[]
+  products Product[]
 
   // ✅ ADD THESE TWO LINES (back-relations)
   productCategories     ProductCategory[]
   productStockMovements ProductStockMovement[]
 
   // NEW: invoices created in this branch
-  invoices          Invoice[]
+  invoices Invoice[]
 
   // NEW: ledger entries in this branch
-  ledgerEntries     LedgerEntry[]
+  ledgerEntries LedgerEntry[]
 
   // NEW: employee voucher benefit pools in this branch
-  employeeVouchers  EmployeeVoucher[]
+  employeeVouchers        EmployeeVoucher[]
   sterilizationIndicators SterilizationIndicator[] @relation("BranchSterilizationIndicators")
 }
 
 model EmployeeBenefit {
   id              Int       @id @default(autoincrement())
   employeeId      Int
-  code            String    @unique      // код, reception оруулна
-  branchId        Int?                    // хүсвэл салбараар хязгаарлаж болно
-  initialAmount   Int                     // нийт олгосон дүн (₮)
-  remainingAmount Int                     // үлдэгдэл дүн (₮)
-  fromDate        DateTime?               // хүчинтэй эхлэх огноо
-  toDate          DateTime?               // хүчинтэй дуусах огноо
+  code            String    @unique // код, reception оруулна
+  branchId        Int? // хүсвэл салбараар хязгаарлаж болно
+  initialAmount   Int // нийт олгосон дүн (₮)
+  remainingAmount Int // үлдэгдэл дүн (₮)
+  fromDate        DateTime? // хүчинтэй эхлэх огноо
+  toDate          DateTime? // хүчинтэй дуусах огноо
   isActive        Boolean   @default(true)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  employee        User      @relation(fields: [employeeId], references: [id])
-  usages          EmployeeBenefitUsage[]
+  employee User                   @relation(fields: [employeeId], references: [id])
+  usages   EmployeeBenefitUsage[]
 }
 
 model EmployeeBenefitUsage {
-  id                Int      @id @default(autoincrement())
+  id                Int @id @default(autoincrement())
   employeeBenefitId Int
   invoiceId         Int
   encounterId       Int
@@ -169,14 +166,14 @@ model EmployeeBenefitUsage {
   // NEW: snapshot for finance (Картын дугаар)
   patientBookNumber String?
 
-  createdAt         DateTime @default(now())
+  createdAt DateTime @default(now())
 
-  employeeBenefit   EmployeeBenefit @relation(fields: [employeeBenefitId], references: [id])
-  invoice           Invoice          @relation(fields: [invoiceId], references: [id])
+  employeeBenefit EmployeeBenefit @relation(fields: [employeeBenefitId], references: [id])
+  invoice         Invoice         @relation(fields: [invoiceId], references: [id])
 
   // These two require opposite fields on Encounter + Patient:
-  encounter         Encounter        @relation(fields: [encounterId], references: [id])
-  patient           Patient          @relation(fields: [patientId], references: [id])
+  encounter Encounter @relation(fields: [encounterId], references: [id])
+  patient   Patient   @relation(fields: [patientId], references: [id])
 
   @@index([employeeBenefitId])
   @@index([invoiceId])
@@ -184,14 +181,13 @@ model EmployeeBenefitUsage {
   @@index([patientId])
 }
 
-
 model SterilizationCategory {
   id        Int      @id @default(autoincrement())
   name      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  items     SterilizationItem[]
+  items SterilizationItem[]
 }
 
 model SterilizationItem {
@@ -202,11 +198,11 @@ model SterilizationItem {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  category   SterilizationCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category       SterilizationCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  indicatorItems SterilizationIndicatorItem[] @relation("SterilizationItemIndicatorItems")
 
   @@unique([categoryId, name])
   @@index([categoryId])
-indicatorItems SterilizationIndicatorItem[] @relation("SterilizationItemIndicatorItems")
 }
 
 enum SterilizationIndicatorStatus {
@@ -217,29 +213,29 @@ enum SterilizationIndicatorStatus {
 }
 
 model SterilizationIndicator {
-  id               Int      @id @default(autoincrement())
-  branchId         Int
+  id       Int @id @default(autoincrement())
+  branchId Int
 
-  packageName      String
-  code             String
+  packageName String
+  code        String
 
   indicatorDate    DateTime
   specialistUserId Int
 
-  packageQuantity  Int      @default(1)
+  packageQuantity Int @default(1)
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  branch           Branch   @relation("BranchSterilizationIndicators", fields: [branchId], references: [id])
-  specialist       User     @relation("UserSterilizationIndicators", fields: [specialistUserId], references: [id])
+  branch     Branch @relation("BranchSterilizationIndicators", fields: [branchId], references: [id])
+  specialist User   @relation("UserSterilizationIndicators", fields: [specialistUserId], references: [id])
 
-  items            SterilizationIndicatorItem[]
-  uses             EncounterSterilizationPackageUse[]
+  items                   SterilizationIndicatorItem[]
+  uses                    EncounterSterilizationPackageUse[]
+  encounterDiagnosisLinks EncounterDiagnosisSterilizationIndicator[]
 
   @@index([branchId, indicatorDate])
   @@index([code])
-  encounterDiagnosisLinks EncounterDiagnosisSterilizationIndicator[]
 }
 
 model SterilizationIndicatorItem {
@@ -247,8 +243,8 @@ model SterilizationIndicatorItem {
   indicatorId Int
   itemId      Int
 
-  indicator   SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
-  item        SterilizationItem      @relation("SterilizationItemIndicatorItems", fields: [itemId], references: [id])
+  indicator SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  item      SterilizationItem      @relation("SterilizationItemIndicatorItems", fields: [itemId], references: [id])
 
   @@unique([indicatorId, itemId])
   @@index([indicatorId])
@@ -256,64 +252,63 @@ model SterilizationIndicatorItem {
 }
 
 model EncounterSterilizationPackageUse {
-  id             Int      @id @default(autoincrement())
-  encounterId    Int
-  indicatorId    Int
-  usedQuantity   Int      @default(1)
+  id           Int @id @default(autoincrement())
+  encounterId  Int
+  indicatorId  Int
+  usedQuantity Int @default(1)
 
   openedByUserId Int?
   createdAt      DateTime @default(now())
 
-  encounter      Encounter              @relation("EncounterSterilizationUses", fields: [encounterId], references: [id], onDelete: Cascade)
-  indicator      SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
-  openedBy       User?                  @relation("UserOpenedSterilizationPackages", fields: [openedByUserId], references: [id])
+  encounter Encounter              @relation("EncounterSterilizationUses", fields: [encounterId], references: [id], onDelete: Cascade)
+  indicator SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  openedBy  User?                  @relation("UserOpenedSterilizationPackages", fields: [openedByUserId], references: [id])
 
   @@index([encounterId])
   @@index([indicatorId])
 }
 
-
 // ==========================================================
 // USERS (Doctors, Nurses, Admin, etc.)
 // ==========================================================
 model User {
-  id                 Int              @id @default(autoincrement())
-  email              String           @unique
-  password           String
-  ovog               String?
-  name               String?
-  role               UserRole         @default(receptionist)
+  id       Int      @id @default(autoincrement())
+  email    String   @unique
+  password String
+  ovog     String?
+  name     String?
+  role     UserRole @default(receptionist)
 
-  branchId           Int?
-  branch             Branch?          @relation(fields: [branchId], references: [id])
+  branchId Int?
+  branch   Branch? @relation(fields: [branchId], references: [id])
 
-  createdAt          DateTime         @default(now())
+  createdAt DateTime @default(now())
 
-  encounters         Encounter[]      @relation("DoctorEncounters")
-  nurseEncounters    Encounter[]      @relation("NurseEncounters")
+  encounters      Encounter[] @relation("DoctorEncounters")
+  nurseEncounters Encounter[] @relation("NurseEncounters")
 
   phone              String?
-  regNo              String?          @unique
-  licenseNumber      String?          @unique
+  regNo              String?   @unique
+  licenseNumber      String?   @unique
   licenseExpiryDate  DateTime?
   signatureImagePath String?
   stampImagePath     String?
   idPhotoPath        String?
 
-  doctorSchedules    DoctorSchedule[]
-  doctorBranches     DoctorBranch[]
+  doctorSchedules DoctorSchedule[]
+  doctorBranches  DoctorBranch[]
 
   receptionSchedules ReceptionSchedule[]
   receptionBranches  ReceptionBranch[]
 
-  nurseSchedules     NurseSchedule[]
-  nurseBranches      NurseBranch[]
+  nurseSchedules NurseSchedule[]
+  nurseBranches  NurseBranch[]
 
-  appointments       Appointment[]
-  bookings           Booking[]
+  appointments     Appointment[]
+  bookings         Booking[]
   employeeBenefits EmployeeBenefit[]
 
-  calendarOrder      Int?
+  calendarOrder Int?
 
   // NEW: ledger relations
   createdLedgerEntries  LedgerEntry[] @relation("LedgerCreatedBy")
@@ -324,17 +319,20 @@ model User {
   createdEmployeeVouchers EmployeeVoucher[] @relation("EmployeeVoucherCreatedBy")
 
   // NEW: authorization codes created by this user
-  authorizationCodes AuthorizationCode[]
-sterilizationIndicators SterilizationIndicator[] @relation("UserSterilizationIndicators")
-openedSterilizationPackages EncounterSterilizationPackageUse[] @relation("UserOpenedSterilizationPackages")
+  authorizationCodes          AuthorizationCode[]
+  sterilizationIndicators     SterilizationIndicator[]           @relation("UserSterilizationIndicators")
+  openedSterilizationPackages EncounterSterilizationPackageUse[] @relation("UserOpenedSterilizationPackages")
+
+  // Doctor commission configuration
+  commissionConfig DoctorCommissionConfig?
 }
 
 // ==========================================================
 // PATIENTS & DIGITAL HISTORY BOOK
 // ==========================================================
 model Patient {
-  id             Int          @id @default(autoincrement())
-  regNo          String?       @unique
+  id             Int       @id @default(autoincrement())
+  regNo          String?   @unique
   ovog           String?
   name           String
   gender         String?
@@ -342,25 +340,25 @@ model Patient {
   phone          String?
   address        String?
   bloodType      String?
-  citizenship    String?      @default("Mongolian")
+  citizenship    String?   @default("Mongolian")
   emergencyPhone String?
   notes          String?
 
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  branchId       Int
-  branch         Branch       @relation(fields: [branchId], references: [id])
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id])
 
-  patientBook    PatientBook?
-  appointments   Appointment[]
-  bookings       Booking[]
+  patientBook  PatientBook?
+  appointments Appointment[]
+  bookings     Booking[]
 
   // NEW: invoices that reference this patient (from Invoice.patient)
-  invoices       Invoice[]
+  invoices Invoice[]
 
   // NEW: financial movements related to this patient
-  ledgerEntries  LedgerEntry[]
+  ledgerEntries         LedgerEntry[]
   employeeBenefitUsages EmployeeBenefitUsage[]
 }
 
@@ -368,31 +366,31 @@ model Patient {
 // DIGITAL HISTORY BOOK & ORTHO CARD
 // ==========================================================
 model PatientBook {
-  id         Int         @id @default(autoincrement())
-  bookNumber String      @unique
+  id         Int    @id @default(autoincrement())
+  bookNumber String @unique
 
-  patientId  Int         @unique
-  patient    Patient     @relation(fields: [patientId], references: [id])
+  patientId Int     @unique
+  patient   Patient @relation(fields: [patientId], references: [id])
 
   encounters Encounter[]
 
-  visitCard  VisitCard?
-  orthoCard  OrthoCard?
+  visitCard VisitCard?
+  orthoCard OrthoCard?
 }
 
 model VisitCard {
-  id             Int           @id @default(autoincrement())
-  patientBookId  Int           @unique
-  patientBook    PatientBook   @relation(fields: [patientBookId], references: [id])
+  id            Int         @id @default(autoincrement())
+  patientBookId Int         @unique
+  patientBook   PatientBook @relation(fields: [patientBookId], references: [id])
 
-  type           VisitCardType
-  answers        Json
+  type    VisitCardType
+  answers Json
 
   patientSignaturePath String?
-  signedAt      DateTime?
+  signedAt             DateTime?
 
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model OrthoCard {
@@ -400,32 +398,32 @@ model OrthoCard {
   patientBookId Int         @unique
   patientBook   PatientBook @relation(fields: [patientBookId], references: [id])
 
-  data          Json
+  data Json
 
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ==========================================================
 // APPOINTMENTS & BOOKINGS
 // ==========================================================
 model Appointment {
-  id          Int       @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  patientId   Int
-  doctorId    Int?
-  branchId    Int
+  patientId Int
+  doctorId  Int?
+  branchId  Int
 
   scheduledAt DateTime
   endAt       DateTime?
-  status      String      @default("booked")
+  status      String    @default("booked")
   notes       String?
 
-  patient   Patient   @relation(fields: [patientId], references: [id])
-  doctor    User?     @relation(fields: [doctorId], references: [id])
-  branch    Branch    @relation(fields: [branchId], references: [id])
+  patient Patient @relation(fields: [patientId], references: [id])
+  doctor  User?   @relation(fields: [doctorId], references: [id])
+  branch  Branch  @relation(fields: [branchId], references: [id])
 
-  encounters  Encounter[]
+  encounters Encounter[]
 
   @@index([branchId, scheduledAt])
 }
@@ -453,19 +451,19 @@ model Booking {
 // ENCOUNTERS, DIAGNOSES, CHARTING
 // ==========================================================
 model Encounter {
-  id                 Int           @id @default(autoincrement())
-  patientBookId      Int
-  doctorId           Int
-  visitDate          DateTime
-  notes              String?
-  appointmentId      Int?
+  id            Int      @id @default(autoincrement())
+  patientBookId Int
+  doctorId      Int
+  visitDate     DateTime
+  notes         String?
+  appointmentId Int?
 
-  patientBook        PatientBook   @relation(fields: [patientBookId], references: [id])
-  doctor             User          @relation("DoctorEncounters", fields: [doctorId], references: [id])
-  appointment        Appointment?  @relation(fields: [appointmentId], references: [id])
+  patientBook PatientBook  @relation(fields: [patientBookId], references: [id])
+  doctor      User         @relation("DoctorEncounters", fields: [doctorId], references: [id])
+  appointment Appointment? @relation(fields: [appointmentId], references: [id])
 
-  nurseId            Int?
-  nurse              User?         @relation("NurseEncounters", fields: [nurseId], references: [id])
+  nurseId Int?
+  nurse   User? @relation("NurseEncounters", fields: [nurseId], references: [id])
 
   // Shared consent signatures for all consent forms
   patientSignaturePath String?
@@ -473,89 +471,89 @@ model Encounter {
   doctorSignaturePath  String?
   doctorSignedAt       DateTime?
 
-  chartTeeth         ChartTooth[]
-  invoice            Invoice?
-  prescription       Prescription?
-  media              Media[]
-  encounterServices  EncounterService[]
-  diagnoses          EncounterDiagnosis[]
-  consents            EncounterConsent[]
+  chartTeeth               ChartTooth[]
+  invoice                  Invoice?
+  prescription             Prescription?
+  media                    Media[]
+  encounterServices        EncounterService[]
+  diagnoses                EncounterDiagnosis[]
+  consents                 EncounterConsent[]
   sterilizationPackageUses EncounterSterilizationPackageUse[] @relation("EncounterSterilizationUses")
-  employeeBenefitUsages EmployeeBenefitUsage[]
+  employeeBenefitUsages    EmployeeBenefitUsage[]
 }
 
 model EncounterConsent {
-  id                  Int       @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  encounterId         Int
-  type                String
-  answers             Json
+  encounterId Int
+  type        String
+  answers     Json
 
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  encounter           Encounter @relation(fields: [encounterId], references: [id])
+  encounter Encounter @relation(fields: [encounterId], references: [id])
 
-  @@unique([encounterId, type])   // ✅ one per type per encounter
+  @@unique([encounterId, type]) // ✅ one per type per encounter
   @@index([encounterId])
 }
 
 model ChartTooth {
-  id          Int        @id @default(autoincrement())
-  toothCode   String
-  toothGroup  String?
-  status      String?
-  notes       String?
+  id         Int     @id @default(autoincrement())
+  toothCode  String
+  toothGroup String?
+  status     String?
+  notes      String?
 
   encounterId Int
-  encounter   Encounter  @relation(fields: [encounterId], references: [id])
+  encounter   Encounter @relation(fields: [encounterId], references: [id])
 
-  chartNotes  ChartNote[]
+  chartNotes ChartNote[]
 }
 
 model ChartNote {
-  id           Int        @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   chartToothId Int
   description  String
-  createdAt    DateTime   @default(now())
+  createdAt    DateTime @default(now())
 
-  chartTooth   ChartTooth @relation(fields: [chartToothId], references: [id])
+  chartTooth ChartTooth @relation(fields: [chartToothId], references: [id])
 }
 
 model Diagnosis {
-  id          Int                  @id @default(autoincrement())
-  code        String               @unique
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
   name        String
   description String?
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  problems    DiagnosisProblem[]
-  encounters  EncounterDiagnosis[]
+  problems   DiagnosisProblem[]
+  encounters EncounterDiagnosis[]
 }
 
 model DiagnosisProblem {
-  id           Int        @id @default(autoincrement())
-  diagnosisId  Int
-  label        String
-  order        Int        @default(0)
-  active       Boolean    @default(true)
+  id          Int     @id @default(autoincrement())
+  diagnosisId Int
+  label       String
+  order       Int     @default(0)
+  active      Boolean @default(true)
 
-  diagnosis    Diagnosis  @relation(fields: [diagnosisId], references: [id])
+  diagnosis Diagnosis @relation(fields: [diagnosisId], references: [id])
 }
 
 model EncounterDiagnosis {
-  id                  Int        @id @default(autoincrement())
-  encounterId         Int
-  diagnosisId         Int
-  toothCode           String?
-  selectedProblemIds  Json?
-  note                String?
+  id                 Int     @id @default(autoincrement())
+  encounterId        Int
+  diagnosisId        Int
+  toothCode          String?
+  selectedProblemIds Json?
+  note               String?
 
-  encounter           Encounter  @relation(fields: [encounterId], references: [id])
-  diagnosis           Diagnosis  @relation(fields: [diagnosisId], references: [id])
+  encounter Encounter @relation(fields: [encounterId], references: [id])
+  diagnosis Diagnosis @relation(fields: [diagnosisId], references: [id])
 
-  createdAt           DateTime   @default(now())
+  createdAt               DateTime                                   @default(now())
   sterilizationIndicators EncounterDiagnosisSterilizationIndicator[]
 }
 
@@ -565,8 +563,8 @@ model EncounterDiagnosisSterilizationIndicator {
   indicatorId          Int
   createdAt            DateTime @default(now())
 
-  encounterDiagnosis   EncounterDiagnosis    @relation(fields: [encounterDiagnosisId], references: [id], onDelete: Cascade)
-  indicator            SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
+  encounterDiagnosis EncounterDiagnosis     @relation(fields: [encounterDiagnosisId], references: [id], onDelete: Cascade)
+  indicator          SterilizationIndicator @relation(fields: [indicatorId], references: [id], onDelete: Cascade)
 
   @@index([encounterDiagnosisId])
   @@index([indicatorId])
@@ -576,13 +574,13 @@ model EncounterDiagnosisSterilizationIndicator {
 // SERVICES, PROCEDURES, PRODUCTS
 // ==========================================================
 model Service {
-  id                Int              @id @default(autoincrement())
-  code              String?          @unique
-  category          ServiceCategory
-  name              String
-  price             Float
-  isActive          Boolean          @default(true)
-  description       String?
+  id          Int             @id @default(autoincrement())
+  code        String?         @unique
+  category    ServiceCategory
+  name        String
+  price       Float
+  isActive    Boolean         @default(true)
+  description String?
 
   encounterServices EncounterService[]
   serviceBranches   ServiceBranch[]
@@ -593,29 +591,29 @@ model ServiceBranch {
   serviceId Int
   branchId  Int
 
-  service   Service @relation(fields: [serviceId], references: [id])
-  branch    Branch  @relation(fields: [branchId], references: [id])
+  service Service @relation(fields: [serviceId], references: [id])
+  branch  Branch  @relation(fields: [branchId], references: [id])
 
   @@id([serviceId, branchId])
 }
 
 model EncounterService {
-  id           Int       @id @default(autoincrement())
-  encounterId  Int
-  serviceId    Int
+  id          Int @id @default(autoincrement())
+  encounterId Int
+  serviceId   Int
 
-  encounter    Encounter @relation(fields: [encounterId], references: [id])
-  service      Service   @relation(fields: [serviceId], references: [id])
+  encounter Encounter @relation(fields: [encounterId], references: [id])
+  service   Service   @relation(fields: [serviceId], references: [id])
 
-  quantity     Int       @default(1)
-  price        Float
+  quantity Int   @default(1)
+  price    Float
 }
 
 // Optional legacy Procedure catalog – wired to InvoiceItem
 model Procedure {
-  code         String       @id
-  name         String
-  price        Float
+  code  String @id
+  name  String
+  price Float
 
   // If you use this, also link InvoiceItem.procedure
   invoiceItems InvoiceItem[]
@@ -623,46 +621,46 @@ model Procedure {
 
 // NEW: Product catalog (retail)
 model Product {
-  id           Int          @id @default(autoincrement())
-  branchId     Int
-  categoryId   Int
+  id         Int @id @default(autoincrement())
+  branchId   Int
+  categoryId Int
 
-  code         String?      @unique
-  name         String
-  price        Float
-  isActive     Boolean      @default(true)
-  description  String?
+  code        String? @unique
+  name        String
+  price       Float
+  isActive    Boolean @default(true)
+  description String?
 
-  branch       Branch       @relation(fields: [branchId], references: [id])
-  category     ProductCategory @relation(fields: [categoryId], references: [id])
+  branch   Branch          @relation(fields: [branchId], references: [id])
+  category ProductCategory @relation(fields: [categoryId], references: [id])
 
-  invoiceItems InvoiceItem[]
+  invoiceItems   InvoiceItem[]
   stockMovements ProductStockMovement[]
 
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([branchId, isActive])
   @@index([categoryId])
 }
 
 model ProductStockMovement {
-  id          Int      @id @default(autoincrement())
-  branchId    Int
-  productId   Int
+  id        Int @id @default(autoincrement())
+  branchId  Int
+  productId Int
 
-  type        ProductStockMovementType
-  quantityDelta Int    // positive or negative
+  type          ProductStockMovementType
+  quantityDelta Int // positive or negative
 
   // optional references for SALE
-  invoiceId   Int?
+  invoiceId     Int?
   ledgerEntryId Int?
 
-  note        String?
-  createdAt   DateTime @default(now())
+  note      String?
+  createdAt DateTime @default(now())
 
-  branch      Branch   @relation(fields: [branchId], references: [id])
-  product     Product  @relation(fields: [productId], references: [id])
+  branch  Branch  @relation(fields: [branchId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
 
   @@index([branchId])
   @@index([productId])
@@ -670,7 +668,6 @@ model ProductStockMovement {
   @@index([invoiceId])
   @@index([ledgerEntryId])
 }
-
 
 model ProductCategory {
   id        Int      @id @default(autoincrement())
@@ -680,31 +677,30 @@ model ProductCategory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  branch    Branch   @relation(fields: [branchId], references: [id])
-  products  Product[]
+  branch   Branch    @relation(fields: [branchId], references: [id])
+  products Product[]
 
   @@unique([branchId, name])
   @@index([branchId])
 }
 
-
 // ==========================================================
 // PRESCRIPTIONS
 // ==========================================================
 model Prescription {
-  id          Int                 @id @default(autoincrement())
-  encounter   Encounter           @relation(fields: [encounterId], references: [id])
-  encounterId Int                 @unique
+  id          Int       @id @default(autoincrement())
+  encounter   Encounter @relation(fields: [encounterId], references: [id])
+  encounterId Int       @unique
 
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  doctorNameSnapshot   String?
-  patientNameSnapshot  String?
-  diagnosisSummary     String?
-  clinicNameSnapshot   String?
+  doctorNameSnapshot  String?
+  patientNameSnapshot String?
+  diagnosisSummary    String?
+  clinicNameSnapshot  String?
 
-  items      PrescriptionItem[]
+  items PrescriptionItem[]
 }
 
 model PrescriptionItem {
@@ -712,13 +708,13 @@ model PrescriptionItem {
   prescription   Prescription @relation(fields: [prescriptionId], references: [id])
   prescriptionId Int
 
-  order          Int
+  order Int
 
-  drugName       String
-  durationDays   Int
+  drugName        String
+  durationDays    Int
   quantityPerTake Int
   frequencyPerDay Int
-  note           String?
+  note            String?
 
   @@index([prescriptionId])
 }
@@ -727,69 +723,69 @@ model PrescriptionItem {
 // INVOICES, INVOICE ITEMS, E-BARIMT, LEGACY PAYMENT
 // ==========================================================
 model Invoice {
-  id                 Int             @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  branchId           Int?
-  branch             Branch?         @relation(fields: [branchId], references: [id])
+  branchId Int?
+  branch   Branch? @relation(fields: [branchId], references: [id])
 
-  encounterId        Int             @unique
-  encounter          Encounter       @relation(fields: [encounterId], references: [id])
+  encounterId Int       @unique
+  encounter   Encounter @relation(fields: [encounterId], references: [id])
 
-  patientId          Int?
-  patient            Patient?        @relation(fields: [patientId], references: [id])
+  patientId Int?
+  patient   Patient? @relation(fields: [patientId], references: [id])
 
-  items              InvoiceItem[]
+  items InvoiceItem[]
 
-  totalAmount        Float?          // legacy
+  totalAmount Float? // legacy
 
-  totalBeforeDiscount Float?
-  discountPercent     DiscountPercent @default(ZERO)
-  collectionDiscountAmount Float @default(0)
-  finalAmount         Float?
+  totalBeforeDiscount      Float?
+  discountPercent          DiscountPercent @default(ZERO)
+  collectionDiscountAmount Float           @default(0)
+  finalAmount              Float?
 
   // Keep old status column exactly as in DB
-  statusLegacy       String?         @map("status")
+  statusLegacy String? @map("status")
 
-  eBarimtReceipt      EBarimtReceipt?
+  eBarimtReceipt EBarimtReceipt?
 
-  ledgerEntries       LedgerEntry[]
-  payments            Payment[]
+  ledgerEntries LedgerEntry[]
+  payments      Payment[]
 
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @default(now()) @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   // Back‑relation to EmployeeBenefitUsage
   employeeBenefitUsages EmployeeBenefitUsage[]
 }
 
 model InvoiceItem {
-  id          Int             @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  invoiceId   Int
-  invoice     Invoice         @relation(fields: [invoiceId], references: [id])
+  invoiceId Int
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
 
-  itemType    InvoiceItemType
+  itemType InvoiceItemType
 
-  serviceId   Int?
-  service     Service?        @relation(fields: [serviceId], references: [id])
+  serviceId Int?
+  service   Service? @relation(fields: [serviceId], references: [id])
 
-  productId   Int?
-  product     Product?        @relation(fields: [productId], references: [id])
+  productId Int?
+  product   Product? @relation(fields: [productId], references: [id])
 
   // Optional: link to legacy Procedure if still used
   procedureCode String?
-  procedure     Procedure?    @relation(fields: [procedureCode], references: [code])
+  procedure     Procedure? @relation(fields: [procedureCode], references: [code])
 
-  name        String
-  unitPrice   Float
-  quantity    Int             @default(1)
-  lineTotal   Float
+  name      String
+  unitPrice Float
+  quantity  Int    @default(1)
+  lineTotal Float
 
-  createdAt   DateTime        @default(now())
+  createdAt DateTime @default(now())
+
+  source InvoiceItemSource @default(MANUAL)
 
   @@index([invoiceId])
-
-source InvoiceItemSource @default(MANUAL)
 }
 
 // Legacy Payment model (do NOT use for new flows)
@@ -802,16 +798,16 @@ model Payment {
   meta      Json?
   timestamp DateTime
 
-  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
 
   @@index([invoiceId])
   @@index([qpayTxnId])
 }
 
 model EBarimtReceipt {
-  id            Int      @id @default(autoincrement())
-  invoiceId     Int      @unique
-  invoice       Invoice  @relation(fields: [invoiceId], references: [id])
+  id        Int     @id @default(autoincrement())
+  invoiceId Int     @unique
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
 
   receiptNumber String   @unique
   timestamp     DateTime @default(now())
@@ -821,25 +817,25 @@ model EBarimtReceipt {
 // LEDGER (FINANCIAL TRUTH)
 // ==========================================================
 model LedgerEntry {
-  id           Int             @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  branchId     Int
-  branch       Branch          @relation(fields: [branchId], references: [id])
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id])
 
-  patientId    Int
-  patient      Patient         @relation(fields: [patientId], references: [id])
+  patientId Int
+  patient   Patient @relation(fields: [patientId], references: [id])
 
-  invoiceId    Int?
-  invoice      Invoice?        @relation(fields: [invoiceId], references: [id])
+  invoiceId Int?
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
 
-  type         LedgerEntryType
-  amount       Float
+  type   LedgerEntryType
+  amount Float
 
-  createdById  Int
-  createdBy    User            @relation("LedgerCreatedBy", fields: [createdById], references: [id])
+  createdById Int
+  createdBy   User @relation("LedgerCreatedBy", fields: [createdById], references: [id])
 
   approvedById Int?
-  approvedBy   User?           @relation("LedgerApprovedBy", fields: [approvedById], references: [id])
+  approvedBy   User? @relation("LedgerApprovedBy", fields: [approvedById], references: [id])
 
   approvalCodeId Int?
   approvalCode   AuthorizationCode? @relation(fields: [approvalCodeId], references: [id])
@@ -848,8 +844,8 @@ model LedgerEntry {
   employeeVoucherId Int?
   employeeVoucher   EmployeeVoucher? @relation(fields: [employeeVoucherId], references: [id])
 
-  meta         Json?
-  createdAt    DateTime        @default(now())
+  meta      Json?
+  createdAt DateTime @default(now())
 
   @@index([branchId])
   @@index([patientId])
@@ -861,21 +857,21 @@ model LedgerEntry {
 // AUTHORIZATION CODES (ADMIN CONTROLLED EXCEPTIONS)
 // ==========================================================
 model AuthorizationCode {
-  id           Int       @id @default(autoincrement())
-  code         String    @unique
-  purpose      String
-  isEnabled    Boolean   @default(true)
-  expiresAt    DateTime?
-  maxUses      Int?
-  usedCount    Int       @default(0)
+  id        Int       @id @default(autoincrement())
+  code      String    @unique
+  purpose   String
+  isEnabled Boolean   @default(true)
+  expiresAt DateTime?
+  maxUses   Int?
+  usedCount Int       @default(0)
 
-  createdById  Int
-  createdBy    User      @relation(fields: [createdById], references: [id])
+  createdById Int
+  createdBy   User @relation(fields: [createdById], references: [id])
 
   ledgerEntries LedgerEntry[]
 
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([purpose])
 }
@@ -884,30 +880,30 @@ model AuthorizationCode {
 // EMPLOYEE VOUCHERS (INTERNAL BENEFIT POOLS)
 // ==========================================================
 model EmployeeVoucher {
-  id             Int                     @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
-  branchId       Int
-  branch         Branch                  @relation(fields: [branchId], references: [id])
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id])
 
-  employeeId     Int
-  employee       User                    @relation("EmployeeVoucherEmployee", fields: [employeeId], references: [id])
+  employeeId Int
+  employee   User @relation("EmployeeVoucherEmployee", fields: [employeeId], references: [id])
 
-  code           String                  @unique
-  status         EmployeeVoucherStatus   @default(ACTIVE)
-  balanceCap     Float
-  usedAmount     Float                   @default(0)
+  code       String                @unique
+  status     EmployeeVoucherStatus @default(ACTIVE)
+  balanceCap Float
+  usedAmount Float                 @default(0)
 
-  eligibility      Json
+  eligibility       Json
   allowedPatientIds Json
 
   // Ledger entries using this voucher (EMPLOYEE_VOUCHER type)
-  ledgerEntries    LedgerEntry[]
+  ledgerEntries LedgerEntry[]
 
-  createdAt      DateTime                @default(now())
-  updatedAt      DateTime                @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  createdById    Int
-  createdBy      User                    @relation("EmployeeVoucherCreatedBy", fields: [createdById], references: [id])
+  createdById Int
+  createdBy   User @relation("EmployeeVoucherCreatedBy", fields: [createdById], references: [id])
 
   @@index([branchId])
   @@index([employeeId])
@@ -917,13 +913,13 @@ model EmployeeVoucher {
 // MEDIA
 // ==========================================================
 model Media {
-  id          Int      @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   encounterId Int
   filePath    String
   toothCode   String?
   type        String
 
-  encounter   Encounter @relation(fields: [encounterId], references: [id])
+  encounter Encounter @relation(fields: [encounterId], references: [id])
 }
 
 // ==========================================================
@@ -938,12 +934,12 @@ model DoctorSchedule {
   endTime   String
   note      String?
 
-  doctor  User   @relation(fields: [doctorId], references: [id])
-  branch  Branch @relation(fields: [branchId], references: [id])
+  doctor User   @relation(fields: [doctorId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
 
+  @@unique([doctorId, branchId, date])
   @@index([doctorId, date])
   @@index([branchId, date])
-  @@unique([doctorId, branchId, date])
 }
 
 model ReceptionSchedule {
@@ -955,38 +951,38 @@ model ReceptionSchedule {
   endTime     String
   note        String?
 
-  reception   User   @relation(fields: [receptionId], references: [id])
-  branch      Branch @relation(fields: [branchId], references: [id])
+  reception User   @relation(fields: [receptionId], references: [id])
+  branch    Branch @relation(fields: [branchId], references: [id])
 
+  @@unique([receptionId, branchId, date])
   @@index([receptionId, date])
   @@index([branchId, date])
-  @@unique([receptionId, branchId, date])
 }
 
 model DoctorBranch {
-  id        Int    @id @default(autoincrement())
-  doctorId  Int
-  branchId  Int
+  id       Int @id @default(autoincrement())
+  doctorId Int
+  branchId Int
 
-  doctor    User   @relation(fields: [doctorId], references: [id])
-  branch    Branch @relation(fields: [branchId], references: [id])
+  doctor User   @relation(fields: [doctorId], references: [id])
+  branch Branch @relation(fields: [branchId], references: [id])
 
   @@unique([doctorId, branchId])
 }
 
 model ReceptionBranch {
-  id           Int    @id @default(autoincrement())
-  receptionId  Int
-  branchId     Int
+  id          Int @id @default(autoincrement())
+  receptionId Int
+  branchId    Int
 
-  reception    User   @relation(fields: [receptionId], references: [id])
-  branch       Branch @relation(fields: [branchId], references: [id])
+  reception User   @relation(fields: [receptionId], references: [id])
+  branch    Branch @relation(fields: [branchId], references: [id])
 
   @@unique([receptionId, branchId])
 }
 
 model NurseBranch {
-  id       Int    @id @default(autoincrement())
+  id       Int @id @default(autoincrement())
   nurseId  Int
   branchId Int
 
@@ -997,10 +993,10 @@ model NurseBranch {
 }
 
 model NurseSchedule {
-  id       Int      @id @default(autoincrement())
-  nurseId  Int
-  branchId Int
-  date     DateTime
+  id        Int      @id @default(autoincrement())
+  nurseId   Int
+  branchId  Int
+  date      DateTime
   startTime String
   endTime   String
   note      String?
@@ -1008,9 +1004,9 @@ model NurseSchedule {
   nurse  User   @relation(fields: [nurseId], references: [id])
   branch Branch @relation(fields: [branchId], references: [id])
 
+  @@unique([nurseId, branchId, date])
   @@index([nurseId, date])
   @@index([branchId, date])
-  @@unique([nurseId, branchId, date])
 }
 
 // ==========================================================
@@ -1020,8 +1016,8 @@ model NurseSchedule {
 // Payment method configuration (global, not per-branch)
 model PaymentMethodConfig {
   id        Int      @id @default(autoincrement())
-  key       String   @unique  // CASH, POS, TRANSFER, INSURANCE, APPLICATION, VOUCHER, EMPLOYEE_BENEFIT, WALLET, BARTER, OTHER
-  label     String              // Display name (editable, e.g. "Бэлэн мөнгө")
+  key       String   @unique // CASH, POS, TRANSFER, INSURANCE, APPLICATION, VOUCHER, EMPLOYEE_BENEFIT, WALLET, BARTER, OTHER
+  label     String // Display name (editable, e.g. "Бэлэн мөнгө")
   isActive  Boolean  @default(true)
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
@@ -1034,15 +1030,15 @@ model PaymentMethodConfig {
 
 // Payment provider configuration (banks for TRANSFER, insurance for INSURANCE, apps for APPLICATION)
 model PaymentProviderConfig {
-  id         Int      @id @default(autoincrement())
-  methodKey  String              // References PaymentMethodConfig.key
-  method     PaymentMethodConfig @relation(fields: [methodKey], references: [key], onDelete: Cascade)
-  name       String              // Provider name (e.g. "Bodi Daatgal", "Storepay", "Хаан банк")
-  isActive   Boolean  @default(true)
-  sortOrder  Int      @default(0)
-  note       String?             // Optional free text
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        Int                 @id @default(autoincrement())
+  methodKey String // References PaymentMethodConfig.key
+  method    PaymentMethodConfig @relation(fields: [methodKey], references: [key], onDelete: Cascade)
+  name      String // Provider name (e.g. "Bodi Daatgal", "Storepay", "Хаан банк")
+  isActive  Boolean             @default(true)
+  sortOrder Int                 @default(0)
+  note      String? // Optional free text
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
 
   @@index([methodKey, isActive, sortOrder])
 }
@@ -1053,13 +1049,13 @@ model PaymentProviderConfig {
 
 model QPayIntent {
   id              Int      @id @default(autoincrement())
-  environment     String   // "sandbox" | "live"
-  objectType      String   // "INVOICE" | "BOOKING"
-  objectId        Int      // invoiceId or bookingId
+  environment     String // "sandbox" | "live"
+  objectType      String // "INVOICE" | "BOOKING"
+  objectId        Int // invoiceId or bookingId
   qpayInvoiceId   String   @unique
   senderInvoiceNo String   @unique
   amount          Float
-  status          String   @default("NEW")  // NEW | PAID | FAILED | CANCELLED
+  status          String   @default("NEW") // NEW | PAID | FAILED | CANCELLED
   paidAmount      Float?
   qpayPaymentId   String?
   raw             Json?
@@ -1075,9 +1071,27 @@ model QPayIntent {
 model Settings {
   id        Int      @id @default(autoincrement())
   key       String   @unique
-  value     String   // stored as string, parse as needed (JSON, number, etc.)
+  value     String // stored as string, parse as needed (JSON, number, etc.)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([key])
+}
+
+// ==========================================================
+// DOCTOR COMMISSION CONFIGURATION
+// ==========================================================
+model DoctorCommissionConfig {
+  id       Int  @id @default(autoincrement())
+  doctorId Int  @unique
+  doctor   User @relation(fields: [doctorId], references: [id])
+
+  orthoPct   Float @default(0) // orthodontic treatment commission %
+  defectPct  Float @default(0) // defect correction commission %
+  surgeryPct Float @default(0) // surgery commission %
+  generalPct Float @default(0) // general treatment commission %
+
+  updatedAt DateTime @updatedAt
+
+  @@index([doctorId])
 }
