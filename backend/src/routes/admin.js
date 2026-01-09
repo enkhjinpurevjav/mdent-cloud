@@ -127,79 +127,18 @@ router.delete("/payment-providers/:id", async (req, res) => {
   }
 });
 
-// ...keep existing payment-method/provider routes above
-
 // ==========================================================
 // EMPLOYEE BENEFITS ADMIN (Finance) - Option A
+// NOTE: The original file had duplicate GET /employee-benefits routes.
+// We keep ONE implementation to avoid double handlers.
 // ==========================================================
-
-router.get("/employee-benefits", async (_req, res) => {
-  try {
-    // Active benefits only; option A assumes one active benefit per employee.
-    // Order ensures we pick the latest updated active record if duplicates exist.
-    const benefits = await prisma.employeeBenefit.findMany({
-      where: { isActive: true },
-      include: { employee: true, usages: true },
-      orderBy: [{ employeeId: "asc" }, { updatedAt: "desc" }],
-    });
-
-    const byEmployee = new Map();
-
-    for (const b of benefits) {
-      const emp = b.employee;
-      if (!emp) continue;
-
-      // pick only first active benefit per employee
-      if (byEmployee.has(emp.id)) continue;
-
-      const usedAmount = (b.usages || []).reduce(
-        (sum, u) => sum + Number(u.amountUsed || 0),
-        0
-      );
-
-      byEmployee.set(emp.id, {
-        userId: emp.id,
-        ovog: emp.ovog || "",
-        name: emp.name || "",
-        email: emp.email,
-        role: emp.role,
-
-        benefitId: b.id,
-        code: b.code,
-        initialAmount: Number(b.initialAmount || 0),
-        remainingAmount: Number(b.remainingAmount || 0),
-        fromDate: b.fromDate,
-        toDate: b.toDate,
-        isActive: b.isActive,
-
-        totalAmount: Number(b.initialAmount || 0),
-        usedAmount,
-        createdAt: b.createdAt,
-        updatedAt: b.updatedAt,
-      });
-    }
-
-    const rows = Array.from(byEmployee.values());
-
-    rows.sort((a, b) => {
-      const an = `${a.ovog || ""} ${a.name || ""}`.trim();
-      const bn = `${b.ovog || ""} ${b.name || ""}`.trim();
-      return an.localeCompare(bn, "mn");
-    });
-
-    return res.json({ employees: rows });
-  } catch (e) {
-    console.error("GET /api/admin/employee-benefits failed:", e);
-    return res.status(500).json({ error: "Failed to load employee benefits." });
-  }
-});
 
 /**
  * GET /api/admin/employee-benefits
  * Option A: 1 active benefit per employee.
  * Returns employee row + ACTIVE benefit fields (benefitId, code, initialAmount, remainingAmount...)
  */
-router.get("/employee-benefits", async (req, res) => {
+router.get("/employee-benefits", async (_req, res) => {
   try {
     const benefits = await prisma.employeeBenefit.findMany({
       where: { isActive: true },
@@ -225,7 +164,7 @@ router.get("/employee-benefits", async (req, res) => {
         email: emp.email,
         role: emp.role,
 
-        // ✅ show/manage code ("real pass")
+        // show/manage code ("real pass")
         benefitId: b.id,
         code: b.code,
         initialAmount: Number(b.initialAmount || 0),
@@ -276,8 +215,7 @@ router.patch("/employee-benefits/:id", async (req, res) => {
     const data = {};
 
     if (code !== undefined) data.code = String(code).trim();
-    if (initialAmount !== undefined)
-      data.initialAmount = Math.round(Number(initialAmount));
+    if (initialAmount !== undefined) data.initialAmount = Math.round(Number(initialAmount));
     if (remainingAmount !== undefined)
       data.remainingAmount = Math.round(Number(remainingAmount));
     if (fromDate !== undefined) data.fromDate = fromDate ? new Date(fromDate) : null;
@@ -306,36 +244,38 @@ router.patch("/employee-benefits/:id", async (req, res) => {
  */
 router.get("/staff-income-settings", async (_req, res) => {
   try {
-    // Fetch the whitening deduct amount from Settings
     const whiteningDeductSetting = await prisma.settings.findUnique({
       where: { key: "finance.homeBleachingDeductAmountMnt" },
     });
-    
-    const whiteningDeductAmountMnt = whiteningDeductSetting 
-      ? Number(whiteningDeductSetting.value) || 0 
+
+    const whiteningDeductAmountMnt = whiteningDeductSetting
+      ? Number(whiteningDeductSetting.value) || 0
       : 0;
 
-    // Fetch all doctors with their commission configs
     const doctors = await prisma.user.findMany({
       where: { role: "doctor" },
       include: { commissionConfig: true },
       orderBy: [{ ovog: "asc" }, { name: "asc" }],
     });
 
-   const doctorsWithConfig = doctors.map((doctor) => ({
-  doctorId: doctor.id,
-  ovog: doctor.ovog || "",
-  name: doctor.name || "",
-  email: doctor.email,
+    const doctorsWithConfig = doctors.map((doctor) => ({
+      doctorId: doctor.id,
+      ovog: doctor.ovog || "",
+      name: doctor.name || "",
+      email: doctor.email,
 
-  orthoPct: doctor.commissionConfig?.orthoPct || 0,
-  defectPct: doctor.commissionConfig?.defectPct || 0,
-  surgeryPct: doctor.commissionConfig?.surgeryPct || 0,
-  generalPct: doctor.commissionConfig?.generalPct || 0,
+      orthoPct: doctor.commissionConfig?.orthoPct || 0,
+      defectPct: doctor.commissionConfig?.defectPct || 0,
+      surgeryPct: doctor.commissionConfig?.surgeryPct || 0,
+      generalPct: doctor.commissionConfig?.generalPct || 0,
 
-  configCreatedAt: doctor.commissionConfig?.createdAt ?? null,
-  configUpdatedAt: doctor.commissionConfig?.updatedAt ?? null,
-}));
+      // new: monthly goal amount (requires Prisma schema + migration)
+      monthlyGoalAmountMnt: doctor.commissionConfig?.monthlyGoalAmountMnt || 0,
+
+      // for UI date columns
+      configCreatedAt: doctor.commissionConfig?.createdAt ?? null,
+      configUpdatedAt: doctor.commissionConfig?.updatedAt ?? null,
+    }));
 
     return res.json({
       whiteningDeductAmountMnt,
@@ -349,15 +289,18 @@ router.get("/staff-income-settings", async (_req, res) => {
 
 /**
  * PUT /api/admin/staff-income-settings
- * Updates whitening deduct amount and doctor commission configs
- * Body: { whiteningDeductAmountMnt: number, doctors: [{ doctorId, orthoPct, defectPct, surgeryPct, generalPct }] }
+ * Partial update supported.
+ *
+ * Body can include:
+ *  - { whiteningDeductAmountMnt: number }
+ *  - { doctors: [{ doctorId, orthoPct, defectPct, surgeryPct, generalPct, monthlyGoalAmountMnt }] }
+ *  - or both
  */
-// PUT /api/admin/staff-income-settings
 router.put("/staff-income-settings", async (req, res) => {
   const { whiteningDeductAmountMnt, doctors } = req.body || {};
 
-  // must provide at least one thing to update
-  const hasWhitening = whiteningDeductAmountMnt !== undefined && whiteningDeductAmountMnt !== null;
+  const hasWhitening =
+    whiteningDeductAmountMnt !== undefined && whiteningDeductAmountMnt !== null;
   const hasDoctors = Array.isArray(doctors);
 
   if (!hasWhitening && !hasDoctors) {
@@ -390,6 +333,13 @@ router.put("/staff-income-settings", async (req, res) => {
           return res.status(400).json({ error: `Invalid ${k} for doctor ${doc.doctorId}` });
         }
       }
+
+      const goal = Number(doc.monthlyGoalAmountMnt ?? 0);
+      if (Number.isNaN(goal) || goal < 0) {
+        return res.status(400).json({
+          error: `monthlyGoalAmountMnt must be non-negative for doctor ${doc.doctorId}`,
+        });
+      }
     }
   }
 
@@ -409,6 +359,7 @@ router.put("/staff-income-settings", async (req, res) => {
       if (hasDoctors) {
         for (const doc of doctors) {
           const doctorId = Number(doc.doctorId);
+
           await tx.doctorCommissionConfig.upsert({
             where: { doctorId },
             update: {
@@ -416,6 +367,7 @@ router.put("/staff-income-settings", async (req, res) => {
               defectPct: Number(doc.defectPct),
               surgeryPct: Number(doc.surgeryPct),
               generalPct: Number(doc.generalPct),
+              monthlyGoalAmountMnt: Number(doc.monthlyGoalAmountMnt ?? 0),
             },
             create: {
               doctorId,
@@ -423,6 +375,7 @@ router.put("/staff-income-settings", async (req, res) => {
               defectPct: Number(doc.defectPct),
               surgeryPct: Number(doc.surgeryPct),
               generalPct: Number(doc.generalPct),
+              monthlyGoalAmountMnt: Number(doc.monthlyGoalAmountMnt ?? 0),
             },
           });
         }
