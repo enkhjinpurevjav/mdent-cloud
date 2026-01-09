@@ -117,6 +117,7 @@ router.get("/encounters/:id/invoice", async (req, res) => {
         status: existingInvoice.statusLegacy || "UNPAID",
         totalBeforeDiscount: existingInvoice.totalBeforeDiscount,
         discountPercent: discountNum,
+        collectionDiscountAmount: existingInvoice.collectionDiscountAmount || 0,
         finalAmount: existingInvoice.finalAmount,
         hasEBarimt: !!existingInvoice.eBarimtReceipt,
         items: existingInvoice.items.map((it) => ({
@@ -169,6 +170,7 @@ router.get("/encounters/:id/invoice", async (req, res) => {
       status: "UNPAID",
       totalBeforeDiscount,
       discountPercent: 0,
+      collectionDiscountAmount: 0,
       finalAmount: totalBeforeDiscount,
       hasEBarimt: false,
       items: provisionalItems,
@@ -194,10 +196,11 @@ router.post("/encounters/:id/invoice", async (req, res) => {
     return res.status(400).json({ error: "Invalid encounter id." });
   }
 
-  const { discountPercent, items } = req.body || {};
+  const { discountPercent, items, collectionDiscountAmount } = req.body || {};
 
   try {
     const discountEnum = toDiscountEnum(Number(discountPercent || 0));
+    const collectionDiscount = Number(collectionDiscountAmount || 0);
 
     if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: "Invoice must have at least one item." });
@@ -346,6 +349,7 @@ router.post("/encounters/:id/invoice", async (req, res) => {
           patientId,
           totalBeforeDiscount,
           discountPercent: discountEnum,
+          collectionDiscountAmount: collectionDiscount,
           finalAmount,
           statusLegacy: "UNPAID",
           items: {
@@ -371,6 +375,7 @@ router.post("/encounters/:id/invoice", async (req, res) => {
           patientId,
           totalBeforeDiscount,
           discountPercent: discountEnum,
+          collectionDiscountAmount: collectionDiscount,
           finalAmount,
           items: {
             deleteMany: { invoiceId: existingInvoice.id },
@@ -399,6 +404,7 @@ router.post("/encounters/:id/invoice", async (req, res) => {
       status: invoice.statusLegacy || "UNPAID",
       totalBeforeDiscount: invoice.totalBeforeDiscount,
       discountPercent: respDiscount,
+      collectionDiscountAmount: invoice.collectionDiscountAmount || 0,
       finalAmount: invoice.finalAmount,
       hasEBarimt: !!invoice.eBarimtReceipt,
       items: invoice.items.map((it) => ({
