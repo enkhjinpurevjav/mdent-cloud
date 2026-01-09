@@ -205,6 +205,7 @@ router.post("/:id/settlement", async (req, res) => {
               invoiceId,
               amount: payAmount,
               method: methodStr,
+              meta: meta || null,
               timestamp: new Date(),
             },
           });
@@ -280,6 +281,7 @@ router.post("/:id/settlement", async (req, res) => {
           status: updatedInvoice.statusLegacy,
           totalBeforeDiscount: updatedInvoice.totalBeforeDiscount,
           discountPercent: updatedInvoice.discountPercent,
+          collectionDiscountAmount: updatedInvoice.collectionDiscountAmount || 0,
           finalAmount: updatedInvoice.finalAmount,
           totalAmountLegacy: updatedInvoice.totalAmount,
           paidTotal,
@@ -356,6 +358,7 @@ router.post("/:id/settlement", async (req, res) => {
             status: currentInvoice.statusLegacy,
             totalBeforeDiscount: currentInvoice.totalBeforeDiscount,
             discountPercent: currentInvoice.discountPercent,
+            collectionDiscountAmount: currentInvoice.collectionDiscountAmount || 0,
             finalAmount: currentInvoice.finalAmount,
             totalAmountLegacy: currentInvoice.totalAmount,
             paidTotal,
@@ -389,10 +392,11 @@ router.post("/:id/settlement", async (req, res) => {
         invoiceId,
         amount: payAmount,
         method: methodStr,
+        meta: meta || null,
         timestamp: new Date(),
       };
 
-      // Add qpayTxnId if QPAY method
+      // Add qpayTxnId if QPAY method (for backward compatibility)
       if (methodStr === "QPAY") {
         const qpayPaymentId =
           meta && typeof meta.qpayPaymentId === "string"
@@ -471,6 +475,7 @@ router.post("/:id/settlement", async (req, res) => {
       status: updatedInvoice.statusLegacy,
       totalBeforeDiscount: updatedInvoice.totalBeforeDiscount,
       discountPercent: updatedInvoice.discountPercent,
+      collectionDiscountAmount: updatedInvoice.collectionDiscountAmount || 0,
       finalAmount: updatedInvoice.finalAmount,
       totalAmountLegacy: updatedInvoice.totalAmount,
       paidTotal,

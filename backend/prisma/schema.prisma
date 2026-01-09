@@ -744,6 +744,7 @@ model Invoice {
 
   totalBeforeDiscount Float?
   discountPercent     DiscountPercent @default(ZERO)
+  collectionDiscountAmount Float @default(0)
   finalAmount         Float?
 
   // Keep old status column exactly as in DB
@@ -798,6 +799,7 @@ model Payment {
   amount    Float
   method    String
   qpayTxnId String?
+  meta      Json?
   timestamp DateTime
 
   invoice   Invoice  @relation(fields: [invoiceId], references: [id])
@@ -1065,4 +1067,17 @@ model QPayIntent {
   updatedAt       DateTime @updatedAt
 
   @@index([objectType, objectId])
+}
+
+// ==========================================================
+// SETTINGS (Global Finance Configuration)
+// ==========================================================
+model Settings {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String   // stored as string, parse as needed (JSON, number, etc.)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
 }
