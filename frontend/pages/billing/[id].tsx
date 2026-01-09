@@ -174,6 +174,17 @@ function BillingPaymentSection({
   const [voucherType, setVoucherType] = useState<"MARKETING" | "GIFT" | "">("");
   const [voucherMaxAmount, setVoucherMaxAmount] = useState<number | null>(null);
 
+  // QPay state
+  const [qpayModalOpen, setQpayModalOpen] = useState(false);
+  const [qpayInvoiceId, setQpayInvoiceId] = useState<string | null>(null);
+  const [qpayQrImage, setQpayQrImage] = useState<string | null>(null);
+  const [qpayQrText, setQpayQrText] = useState<string | null>(null);
+  const [qpayUrls, setQpayUrls] = useState<string[]>([]);
+  const [qpayGenerating, setQpayGenerating] = useState(false);
+  const [qpayPolling, setQpayPolling] = useState(false);
+  const [qpayError, setQpayError] = useState("");
+  const [qpayPaidAmount, setQpayPaidAmount] = useState<number | null>(null);
+
   // Load payment settings from backend
   useEffect(() => {
     const loadPaymentSettings = async () => {
@@ -344,6 +355,156 @@ function BillingPaymentSection({
       setError(e.message || "Купон шалгахад алдаа гарлаа.");
     }
   };
+
+  // Generate QPay QR
+  const handleGenerateQPayQR = async () => {
+    const qpayAmount = amounts["QPAY"] ? Number(amounts["QPAY"]) : 0;
+
+    if (!qpayAmount || qpayAmount <= 0) {
+      setError("QPay дүн оруулна уу.");
+      return;
+    }
+
+    if (qpayAmount > unpaid) {
+      setError("QPay дүн нь үлдэгдлээс их байна.");
+      return;
+    }
+
+    setQpayGenerating(true);
+    setQpayError("");
+
+    try {
+      const res = await fetch("/api/qpay/invoice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invoiceId: invoice.id,
+          amount: qpayAmount,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data) {
+        throw new Error((data && data.error) || "QPay QR үүсгэхэд алдаа гарлаа.");
+      }
+
+      setQpayInvoiceId(data.qpayInvoiceId);
+      setQpayQrImage(data.qrImage);
+      setQpayQrText(data.qrText);
+      setQpayUrls(data.urls || []);
+      setQpayModalOpen(true);
+      setQpayPolling(true);
+    } catch (e: any) {
+      console.error("Generate QPay QR failed:", e);
+      setQpayError(e.message || "QPay QR үүсгэхэд алдаа гарлаа.");
+    } finally {
+      setQpayGenerating(false);
+    }
+  };
+
+  // Close QPay modal and stop polling
+  const handleCloseQPayModal = () => {
+    setQpayModalOpen(false);
+    setQpayPolling(false);
+    setQpayInvoiceId(null);
+    setQpayQrImage(null);
+    setQpayQrText(null);
+    setQpayUrls([]);
+    setQpayPaidAmount(null);
+    setQpayError("");
+  };
+
+  // QPay polling configuration
+  const QPAY_POLL_INTERVAL_MS = 3000;
+
+  // Poll QPay status with recursive setTimeout to prevent overlapping requests
+  useEffect(() => {
+    if (!qpayPolling || !qpayInvoiceId) return;
+
+    let timeoutId: NodeJS.Timeout | null = null;
+    let isCancelled = false;
+
+    const pollPaymentStatus = async () => {
+      if (isCancelled) return;
+
+      try {
+        const res = await fetch("/api/qpay/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ qpayInvoiceId }),
+        });
+
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok || !data) {
+          console.error("QPay check failed:", data);
+          // Schedule next poll
+          if (!isCancelled) {
+            timeoutId = setTimeout(pollPaymentStatus, QPAY_POLL_INTERVAL_MS);
+          }
+          return;
+        }
+
+        if (data.paid) {
+          setQpayPaidAmount(data.paidAmount);
+          setQpayPolling(false);
+
+          // Auto-settle
+          const settlementRes = await fetch(`/api/invoices/${invoice.id}/settlement`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              amount: data.paidAmount,
+              method: "QPAY",
+              issueEBarimt,
+              meta: {
+                qpayInvoiceId,
+                qpayPaymentId: data.paymentId,
+              },
+            }),
+          });
+
+          const settlementData = await settlementRes.json().catch(() => null);
+
+          if (!settlementRes.ok || !settlementData) {
+            setQpayError(
+              (settlementData && settlementData.error) ||
+                "Төлбөр бүртгэхэд алдаа гарлаа. Дахин оролдоно уу."
+            );
+            return;
+          }
+
+          // Success - update invoice and close modal
+          onUpdated({ ...invoice, ...settlementData });
+          handleCloseQPayModal();
+          setSuccess("QPay төлбөр амжилттай бүртгэгдлээ.");
+        } else {
+          // Not paid yet, schedule next poll
+          if (!isCancelled) {
+            timeoutId = setTimeout(pollPaymentStatus, QPAY_POLL_INTERVAL_MS);
+          }
+        }
+      } catch (e: any) {
+        console.error("QPay polling error:", e);
+        // Schedule next poll even on error
+        if (!isCancelled) {
+          timeoutId = setTimeout(pollPaymentStatus, QPAY_POLL_INTERVAL_MS);
+        }
+      }
+    };
+
+    // Start polling
+    pollPaymentStatus();
+
+    // Cleanup on unmount or when polling stops
+    return () => {
+      isCancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [qpayPolling, qpayInvoiceId, invoice, issueEBarimt, onUpdated]);
 
   const handleSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault();
@@ -948,6 +1109,34 @@ function BillingPaymentSection({
                       </div>
                     )}
 
+                    {/* QPAY: Generate QR button */}
+                    {m.key === "QPAY" && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={handleGenerateQPayQR}
+                          disabled={qpayGenerating}
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: 4,
+                            border: "1px solid #2563eb",
+                            background: "#eff6ff",
+                            color: "#2563eb",
+                            fontSize: 11,
+                            cursor: qpayGenerating ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          {qpayGenerating ? "Үүсгэж байна..." : "QR үүсгэх"}
+                        </button>
+                      </div>
+                    )}
+
                                         {m.key !== "APPLICATION" && (
                       <div
                         style={{
@@ -1082,6 +1271,244 @@ function BillingPaymentSection({
               </li>
             ))}
           </ul>
+        </div>
+      )}
+      
+      {/* QPay QR Modal */}
+      {qpayModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 90,
+          }}
+          onClick={handleCloseQPayModal}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 480,
+              maxWidth: "95vw",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              background: "#ffffff",
+              borderRadius: 8,
+              boxShadow: "0 14px 40px rgba(0,0,0,0.3)",
+              padding: 20,
+              fontSize: 14,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>
+                QPay Төлбөр
+              </h3>
+              <button
+                type="button"
+                onClick={handleCloseQPayModal}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  fontSize: 24,
+                  lineHeight: 1,
+                  color: "#6b7280",
+                }}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            {qpayError && (
+              <div
+                style={{
+                  marginBottom: 12,
+                  padding: 10,
+                  borderRadius: 6,
+                  background: "#fef2f2",
+                  color: "#b91c1c",
+                  fontSize: 13,
+                }}
+              >
+                {qpayError}
+              </div>
+            )}
+
+            {qpayPaidAmount ? (
+              <div
+                style={{
+                  marginBottom: 12,
+                  padding: 12,
+                  borderRadius: 6,
+                  background: "#f0fdf4",
+                  color: "#15803d",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  textAlign: "center",
+                }}
+              >
+                ✓ Төлбөр амжилттай төлөгдлөө: {formatMoney(qpayPaidAmount)} ₮
+              </div>
+            ) : (
+              <>
+                <div
+                  style={{
+                    marginBottom: 12,
+                    padding: 10,
+                    borderRadius: 6,
+                    background: "#eff6ff",
+                    color: "#1e40af",
+                    fontSize: 13,
+                    textAlign: "center",
+                  }}
+                >
+                  {qpayPolling
+                    ? "Төлбөр хүлээж байна... (3 секунд тутамд шалгана)"
+                    : "QR код уншуулах эсвэл холбоос дарна уу"}
+                </div>
+
+                {qpayQrImage && (
+                  <div
+                    style={{
+                      marginBottom: 16,
+                      display: "flex",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <img
+                      src={qpayQrImage}
+                      alt="QPay QR Code"
+                      style={{
+                        maxWidth: 240,
+                        height: "auto",
+                        border: "2px solid #e5e7eb",
+                        borderRadius: 8,
+                      }}
+                    />
+                  </div>
+                )}
+
+                {qpayQrText && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#6b7280",
+                        marginBottom: 4,
+                      }}
+                    >
+                      QR текст:
+                    </div>
+                    <div
+                      style={{
+                        padding: 8,
+                        borderRadius: 6,
+                        background: "#f9fafb",
+                        border: "1px solid #e5e7eb",
+                        fontSize: 11,
+                        wordBreak: "break-all",
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      {qpayQrText}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(qpayQrText);
+                        setSuccess("QR текст хуулагдлаа");
+                      }}
+                      style={{
+                        marginTop: 6,
+                        padding: "4px 8px",
+                        borderRadius: 4,
+                        border: "1px solid #2563eb",
+                        background: "#eff6ff",
+                        color: "#2563eb",
+                        fontSize: 11,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Хуулах
+                    </button>
+                  </div>
+                )}
+
+                {qpayUrls && qpayUrls.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#6b7280",
+                        marginBottom: 6,
+                      }}
+                    >
+                      Апп-аар төлөх:
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {qpayUrls.map((url, idx) => (
+                        <a
+                          key={idx}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: 6,
+                            border: "1px solid #2563eb",
+                            background: "#eff6ff",
+                            color: "#2563eb",
+                            textDecoration: "none",
+                            fontSize: 12,
+                            textAlign: "center",
+                          }}
+                        >
+                          Холбоос #{idx + 1} нээх
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div
+              style={{
+                marginTop: 16,
+                paddingTop: 12,
+                borderTop: "1px solid #e5e7eb",
+                display: "flex",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleCloseQPayModal}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  background: "#ffffff",
+                  color: "#374151",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                Хаах
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </section>
