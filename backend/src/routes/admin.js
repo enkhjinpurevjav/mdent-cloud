@@ -322,16 +322,20 @@ router.get("/staff-income-settings", async (_req, res) => {
       orderBy: [{ ovog: "asc" }, { name: "asc" }],
     });
 
-    const doctorsWithConfig = doctors.map((doctor) => ({
-      doctorId: doctor.id,
-      ovog: doctor.ovog || "",
-      name: doctor.name || "",
-      email: doctor.email,
-      orthoPct: doctor.commissionConfig?.orthoPct || 0,
-      defectPct: doctor.commissionConfig?.defectPct || 0,
-      surgeryPct: doctor.commissionConfig?.surgeryPct || 0,
-      generalPct: doctor.commissionConfig?.generalPct || 0,
-    }));
+   const doctorsWithConfig = doctors.map((doctor) => ({
+  doctorId: doctor.id,
+  ovog: doctor.ovog || "",
+  name: doctor.name || "",
+  email: doctor.email,
+
+  orthoPct: doctor.commissionConfig?.orthoPct || 0,
+  defectPct: doctor.commissionConfig?.defectPct || 0,
+  surgeryPct: doctor.commissionConfig?.surgeryPct || 0,
+  generalPct: doctor.commissionConfig?.generalPct || 0,
+
+  configCreatedAt: doctor.commissionConfig?.createdAt ?? null,
+  configUpdatedAt: doctor.commissionConfig?.updatedAt ?? null,
+}));
 
     return res.json({
       whiteningDeductAmountMnt,
