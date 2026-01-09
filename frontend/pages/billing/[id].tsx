@@ -1243,6 +1243,244 @@ function BillingPaymentSection({
           </ul>
         </div>
       )}
+      
+      {/* QPay QR Modal */}
+      {qpayModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 90,
+          }}
+          onClick={handleCloseQPayModal}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 480,
+              maxWidth: "95vw",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              background: "#ffffff",
+              borderRadius: 8,
+              boxShadow: "0 14px 40px rgba(0,0,0,0.3)",
+              padding: 20,
+              fontSize: 14,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>
+                QPay Төлбөр
+              </h3>
+              <button
+                type="button"
+                onClick={handleCloseQPayModal}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  cursor: "pointer",
+                  fontSize: 24,
+                  lineHeight: 1,
+                  color: "#6b7280",
+                }}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            {qpayError && (
+              <div
+                style={{
+                  marginBottom: 12,
+                  padding: 10,
+                  borderRadius: 6,
+                  background: "#fef2f2",
+                  color: "#b91c1c",
+                  fontSize: 13,
+                }}
+              >
+                {qpayError}
+              </div>
+            )}
+
+            {qpayPaidAmount ? (
+              <div
+                style={{
+                  marginBottom: 12,
+                  padding: 12,
+                  borderRadius: 6,
+                  background: "#f0fdf4",
+                  color: "#15803d",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  textAlign: "center",
+                }}
+              >
+                ✓ Төлбөр амжилттай төлөгдлөө: {formatMoney(qpayPaidAmount)} ₮
+              </div>
+            ) : (
+              <>
+                <div
+                  style={{
+                    marginBottom: 12,
+                    padding: 10,
+                    borderRadius: 6,
+                    background: "#eff6ff",
+                    color: "#1e40af",
+                    fontSize: 13,
+                    textAlign: "center",
+                  }}
+                >
+                  {qpayPolling
+                    ? "Төлбөр хүлээж байна... (3 секунд тутамд шалгана)"
+                    : "QR код уншуулах эсвэл холбоос дарна уу"}
+                </div>
+
+                {qpayQrImage && (
+                  <div
+                    style={{
+                      marginBottom: 16,
+                      display: "flex",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <img
+                      src={qpayQrImage}
+                      alt="QPay QR Code"
+                      style={{
+                        maxWidth: 240,
+                        height: "auto",
+                        border: "2px solid #e5e7eb",
+                        borderRadius: 8,
+                      }}
+                    />
+                  </div>
+                )}
+
+                {qpayQrText && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#6b7280",
+                        marginBottom: 4,
+                      }}
+                    >
+                      QR текст:
+                    </div>
+                    <div
+                      style={{
+                        padding: 8,
+                        borderRadius: 6,
+                        background: "#f9fafb",
+                        border: "1px solid #e5e7eb",
+                        fontSize: 11,
+                        wordBreak: "break-all",
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      {qpayQrText}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(qpayQrText);
+                        setSuccess("QR текст хуулагдлаа");
+                      }}
+                      style={{
+                        marginTop: 6,
+                        padding: "4px 8px",
+                        borderRadius: 4,
+                        border: "1px solid #2563eb",
+                        background: "#eff6ff",
+                        color: "#2563eb",
+                        fontSize: 11,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Хуулах
+                    </button>
+                  </div>
+                )}
+
+                {qpayUrls && qpayUrls.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: "#6b7280",
+                        marginBottom: 6,
+                      }}
+                    >
+                      Апп-аар төлөх:
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {qpayUrls.map((url, idx) => (
+                        <a
+                          key={idx}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: 6,
+                            border: "1px solid #2563eb",
+                            background: "#eff6ff",
+                            color: "#2563eb",
+                            textDecoration: "none",
+                            fontSize: 12,
+                            textAlign: "center",
+                          }}
+                        >
+                          Холбоос #{idx + 1} нээх
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div
+              style={{
+                marginTop: 16,
+                paddingTop: 12,
+                borderTop: "1px solid #e5e7eb",
+                display: "flex",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleCloseQPayModal}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  background: "#ffffff",
+                  color: "#374151",
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                Хаах
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -2594,244 +2832,6 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
                   </div>
                 </button>
               ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* QPay QR Modal */}
-      {qpayModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 90,
-          }}
-          onClick={handleCloseQPayModal}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: 480,
-              maxWidth: "95vw",
-              maxHeight: "80vh",
-              overflowY: "auto",
-              background: "#ffffff",
-              borderRadius: 8,
-              boxShadow: "0 14px 40px rgba(0,0,0,0.3)",
-              padding: 20,
-              fontSize: 14,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 16,
-              }}
-            >
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>
-                QPay Төлбөр
-              </h3>
-              <button
-                type="button"
-                onClick={handleCloseQPayModal}
-                style={{
-                  border: "none",
-                  background: "transparent",
-                  cursor: "pointer",
-                  fontSize: 24,
-                  lineHeight: 1,
-                  color: "#6b7280",
-                }}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-
-            {qpayError && (
-              <div
-                style={{
-                  marginBottom: 12,
-                  padding: 10,
-                  borderRadius: 6,
-                  background: "#fef2f2",
-                  color: "#b91c1c",
-                  fontSize: 13,
-                }}
-              >
-                {qpayError}
-              </div>
-            )}
-
-            {qpayPaidAmount ? (
-              <div
-                style={{
-                  marginBottom: 12,
-                  padding: 12,
-                  borderRadius: 6,
-                  background: "#f0fdf4",
-                  color: "#15803d",
-                  fontSize: 14,
-                  fontWeight: 500,
-                  textAlign: "center",
-                }}
-              >
-                ✓ Төлбөр амжилттай төлөгдлөө: {formatMoney(qpayPaidAmount)} ₮
-              </div>
-            ) : (
-              <>
-                <div
-                  style={{
-                    marginBottom: 12,
-                    padding: 10,
-                    borderRadius: 6,
-                    background: "#eff6ff",
-                    color: "#1e40af",
-                    fontSize: 13,
-                    textAlign: "center",
-                  }}
-                >
-                  {qpayPolling
-                    ? "Төлбөр хүлээж байна... (3 секунд тутамд шалгана)"
-                    : "QR код уншуулах эсвэл холбоос дарна уу"}
-                </div>
-
-                {qpayQrImage && (
-                  <div
-                    style={{
-                      marginBottom: 16,
-                      display: "flex",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <img
-                      src={qpayQrImage}
-                      alt="QPay QR Code"
-                      style={{
-                        maxWidth: 240,
-                        height: "auto",
-                        border: "2px solid #e5e7eb",
-                        borderRadius: 8,
-                      }}
-                    />
-                  </div>
-                )}
-
-                {qpayQrText && (
-                  <div style={{ marginBottom: 16 }}>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#6b7280",
-                        marginBottom: 4,
-                      }}
-                    >
-                      QR текст:
-                    </div>
-                    <div
-                      style={{
-                        padding: 8,
-                        borderRadius: 6,
-                        background: "#f9fafb",
-                        border: "1px solid #e5e7eb",
-                        fontSize: 11,
-                        wordBreak: "break-all",
-                        fontFamily: "monospace",
-                      }}
-                    >
-                      {qpayQrText}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText(qpayQrText);
-                        setSuccess("QR текст хуулагдлаа");
-                      }}
-                      style={{
-                        marginTop: 6,
-                        padding: "4px 8px",
-                        borderRadius: 4,
-                        border: "1px solid #2563eb",
-                        background: "#eff6ff",
-                        color: "#2563eb",
-                        fontSize: 11,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Хуулах
-                    </button>
-                  </div>
-                )}
-
-                {qpayUrls && qpayUrls.length > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#6b7280",
-                        marginBottom: 6,
-                      }}
-                    >
-                      Апп-аар төлөх:
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      {qpayUrls.map((url, idx) => (
-                        <a
-                          key={idx}
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{
-                            padding: "8px 12px",
-                            borderRadius: 6,
-                            border: "1px solid #2563eb",
-                            background: "#eff6ff",
-                            color: "#2563eb",
-                            textDecoration: "none",
-                            fontSize: 12,
-                            textAlign: "center",
-                          }}
-                        >
-                          Холбоос #{idx + 1} нээх
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            <div
-              style={{
-                marginTop: 16,
-                paddingTop: 12,
-                borderTop: "1px solid #e5e7eb",
-                display: "flex",
-                justifyContent: "flex-end",
-              }}
-            >
-              <button
-                type="button"
-                onClick={handleCloseQPayModal}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  background: "#ffffff",
-                  color: "#374151",
-                  fontSize: 13,
-                  cursor: "pointer",
-                }}
-              >
-                Хаах
-              </button>
             </div>
           </div>
         </div>
