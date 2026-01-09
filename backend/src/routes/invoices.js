@@ -314,15 +314,95 @@ router.post("/:id/settlement", async (req, res) => {
     // DEFAULT: other methods (CASH, QPAY, POS, TRANSFER, etc.)
     // ─────────────────────────────────────────────────────────────
 
+    // QPAY idempotency check
+    if (methodStr === "QPAY") {
+      const qpayPaymentId =
+        meta && typeof meta.qpayPaymentId === "string"
+          ? meta.qpayPaymentId.trim()
+          : null;
+
+      if (qpayPaymentId) {
+        // Check if payment already exists with this qpayTxnId
+        const existingPayment = await prisma.payment.findFirst({
+          where: {
+            invoiceId,
+            qpayTxnId: qpayPaymentId,
+          },
+        });
+
+        if (existingPayment) {
+          // Already settled with this QPay payment ID - return current invoice state
+          const currentInvoice = await prisma.invoice.findUnique({
+            where: { id: invoiceId },
+            include: {
+              items: true,
+              payments: true,
+              eBarimtReceipt: true,
+            },
+          });
+
+          if (!currentInvoice) {
+            return res.status(404).json({ error: "Invoice not found" });
+          }
+
+          const payments = currentInvoice.payments || [];
+          const paidTotal = computePaidTotal(payments);
+
+          return res.json({
+            id: currentInvoice.id,
+            branchId: currentInvoice.branchId,
+            encounterId: currentInvoice.encounterId,
+            patientId: currentInvoice.patientId,
+            status: currentInvoice.statusLegacy,
+            totalBeforeDiscount: currentInvoice.totalBeforeDiscount,
+            discountPercent: currentInvoice.discountPercent,
+            finalAmount: currentInvoice.finalAmount,
+            totalAmountLegacy: currentInvoice.totalAmount,
+            paidTotal,
+            unpaidAmount: Math.max(baseAmount - paidTotal, 0),
+            hasEBarimt: !!currentInvoice.eBarimtReceipt,
+            items: currentInvoice.items.map((it) => ({
+              id: it.id,
+              itemType: it.itemType,
+              serviceId: it.serviceId,
+              productId: it.productId,
+              name: it.name,
+              unitPrice: it.unitPrice,
+              quantity: it.quantity,
+              lineTotal: it.lineTotal,
+            })),
+            payments: payments.map((p) => ({
+              id: p.id,
+              amount: p.amount,
+              method: p.method,
+              timestamp: p.timestamp,
+              qpayTxnId: p.qpayTxnId,
+            })),
+          });
+        }
+      }
+    }
+
     const updated = await prisma.$transaction(async (trx) => {
       // 1) Create new payment row
+      const paymentData = {
+        invoiceId,
+        amount: payAmount,
+        method: methodStr,
+        timestamp: new Date(),
+      };
+
+      // Add qpayTxnId if QPAY method
+      if (methodStr === "QPAY") {
+        const qpayPaymentId =
+          meta && typeof meta.qpayPaymentId === "string"
+            ? meta.qpayPaymentId.trim()
+            : null;
+        paymentData.qpayTxnId = qpayPaymentId;
+      }
+
       await trx.payment.create({
-        data: {
-          invoiceId,
-          amount: payAmount,
-          method: methodStr,
-          timestamp: new Date(),
-        },
+        data: paymentData,
       });
 
       // 2) Re-read all payments to compute new totals
@@ -411,6 +491,7 @@ router.post("/:id/settlement", async (req, res) => {
         amount: p.amount,
         method: p.method,
         timestamp: p.timestamp,
+        qpayTxnId: p.qpayTxnId,
       })),
     });
   } catch (err) {
