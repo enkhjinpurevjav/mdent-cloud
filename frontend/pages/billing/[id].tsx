@@ -424,7 +424,7 @@ function BillingPaymentSection({
   useEffect(() => {
     if (!qpayPolling || !qpayInvoiceId) return;
 
-    let timeoutId: NodeJS.Timeout | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let isCancelled = false;
 
     const pollPaymentStatus = async () => {
@@ -2237,17 +2237,93 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
         background: "#f9fafb",
       }}
     >
-      {/* 1 - Name cell + select button */}
-      <div>
+    {/* 1 - Name cell */}
+<div style={{ position: "relative" }}>
+  {(() => {
+    const q = (svcQueryByRow[index] ?? "").trim().toLowerCase();
+    const visibleOptions = q
+      ? svcOptions.filter((s) => {
+          const name = (s.name || "").toLowerCase();
+          const code = (s.code || "").toLowerCase();
+          return name.includes(q) || code.includes(q);
+        })
+      : svcOptions;
+
+    return (
+      <>
         <input
           type="text"
           value={row.name}
           disabled={locked}
-          onChange={(e) => handleItemChange(index, "name", e.target.value)}
+          onFocus={() => {
+            if (row.itemType !== "SERVICE" || locked) return;
+            setSvcOpenRow(index);
+            setSvcQueryByRow((prev) => ({
+              ...prev,
+              [index]: row.name || prev[index] || "",
+            }));
+          }}
+          onChange={(e) => {
+            const v = e.target.value;
+            handleItemChange(index, "name", v);
+
+            if (row.itemType !== "SERVICE" || locked) return;
+            setSvcQueryByRow((prev) => ({ ...prev, [index]: v }));
+            setSvcOpenRow(index);
+          }}
+          onBlur={() => {
+            setTimeout(
+              () => setSvcOpenRow((cur) => (cur === index ? null : cur)),
+              150
+            );
+          }}
+          onKeyDown={(e) => {
+            if (svcOpenRow !== index) return;
+
+            if (e.key === "Escape") {
+              setSvcOpenRow(null);
+              return;
+            }
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setSvcActiveIndex((i) =>
+                Math.min(i + 1, visibleOptions.length - 1)
+              );
+              return;
+            }
+            if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setSvcActiveIndex((i) => Math.max(i - 1, 0));
+              return;
+            }
+            if (e.key === "Enter") {
+              e.preventDefault();
+              const picked = visibleOptions[svcActiveIndex];
+              if (!picked) return;
+
+              setItems((prev) =>
+                prev.map((r, i) =>
+                  i === index
+                    ? {
+                        ...r,
+                        itemType: "SERVICE",
+                        serviceId: picked.id,
+                        productId: null,
+                        name: picked.name,
+                        unitPrice: picked.price,
+                        source: r.source ?? "MANUAL",
+                      }
+                    : r
+                )
+              );
+
+              setSvcOpenRow(null);
+              setSvcOptions([]);
+              setSvcQueryByRow((prev) => ({ ...prev, [index]: "" }));
+            }
+          }}
           placeholder={
-            row.itemType === "SERVICE"
-              ? "Үйлчилгээний нэр"
-              : "Бүтээгдэхүүний нэр"
+            row.itemType === "SERVICE" ? "Үйлчилгээний нэр" : "Бүтээгдэхүүний нэр"
           }
           style={{
             width: "100%",
@@ -2260,167 +2336,81 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
             cursor: locked ? "not-allowed" : "text",
           }}
         />
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            fontSize: 11,
-            color: "#6b7280",
-          }}
-        >
-          <span>
-            {row.itemType === "SERVICE"
-              ? `Service ID: ${row.serviceId || "- (сонгоогүй)"}`
-              : `Product ID: ${row.productId || "- (сонгоогүй)"}`}
-          </span>
-          {row.itemType === "SERVICE" && !locked && (
-  <div style={{ position: "relative" }}>
-    <input
-      type="text"
-      value={svcQueryByRow[index] ?? ""}
-      placeholder="Код/нэрээр хайх..."
-      onFocus={() => {
-        setSvcOpenRow(index);
-        setSvcQueryByRow((prev) => ({
-          ...prev,
-          [index]: (prev[index] ?? "").trim() || row.name || "",
-        }));
-      }}
-      onChange={(e) => {
-        const v = e.target.value;
-        setSvcQueryByRow((prev) => ({ ...prev, [index]: v }));
-        setSvcOpenRow(index);
-      }}
-      onBlur={() => {
-        // allow click on dropdown item
-        setTimeout(() => setSvcOpenRow((cur) => (cur === index ? null : cur)), 150);
-      }}
-      onKeyDown={(e) => {
-        if (svcOpenRow !== index) return;
 
-        if (e.key === "Escape") {
-          setSvcOpenRow(null);
-          return;
-        }
-        if (e.key === "ArrowDown") {
-          e.preventDefault();
-          setSvcActiveIndex((i) => Math.min(i + 1, svcOptions.length - 1));
-          return;
-        }
-        if (e.key === "ArrowUp") {
-          e.preventDefault();
-          setSvcActiveIndex((i) => Math.max(i - 1, 0));
-          return;
-        }
-        if (e.key === "Enter") {
-          e.preventDefault();
-          const picked = svcOptions[svcActiveIndex];
-          if (!picked) return;
-
-          // Fill THIS row (not create/merge)
-          setItems((prev) =>
-            prev.map((r, i) =>
-              i === index
-                ? {
-                    ...r,
-                    itemType: "SERVICE",
-                    serviceId: picked.id,
-                    productId: null,
-                    name: picked.name,
-                    unitPrice: picked.price,
-                    source: r.source ?? "MANUAL",
-                  }
-                : r
-            )
-          );
-
-          setSvcOpenRow(null);
-          setSvcOptions([]);
-          setSvcQueryByRow((prev) => ({ ...prev, [index]: "" }));
-        }
-      }}
-      style={{
-        marginLeft: 8,
-        width: 180,
-        padding: "2px 8px",
-        borderRadius: 999,
-        border: "1px solid #d1d5db",
-        fontSize: 12,
-        background: "#ffffff",
-      }}
-    />
-
-    {svcOpenRow === index && (svcLoading || svcOptions.length > 0) && (
-      <div
-        style={{
-          position: "absolute",
-          right: 0,
-          top: "100%",
-          marginTop: 6,
-          width: 360,
-          maxHeight: 260,
-          overflowY: "auto",
-          background: "#ffffff",
-          border: "1px solid #e5e7eb",
-          borderRadius: 8,
-          zIndex: 100,
-          boxShadow: "0 10px 25px rgba(0,0,0,0.08)",
-        }}
-      >
-        {svcLoading && (
-          <div style={{ padding: 10, fontSize: 12, color: "#6b7280" }}>
-            Хайж байна...
-          </div>
-        )}
-
-        {!svcLoading &&
-          svcOptions.map((svc, idx) => (
+        {row.itemType === "SERVICE" &&
+          svcOpenRow === index &&
+          (svcLoading || visibleOptions.length > 0) && (
             <div
-              key={svc.id}
-              onMouseDown={(ev) => {
-                ev.preventDefault(); // prevent blur
-                setItems((prev) =>
-                  prev.map((r, i) =>
-                    i === index
-                      ? {
-                          ...r,
-                          itemType: "SERVICE",
-                          serviceId: svc.id,
-                          productId: null,
-                          name: svc.name,
-                          unitPrice: svc.price,
-                          source: r.source ?? "MANUAL",
-                        }
-                      : r
-                  )
-                );
-                setSvcOpenRow(null);
-                setSvcOptions([]);
-                setSvcQueryByRow((prev) => ({ ...prev, [index]: "" }));
-              }}
               style={{
-                padding: "10px 12px",
-                cursor: "pointer",
-                background: idx === svcActiveIndex ? "#eff6ff" : "#ffffff",
-                borderBottom: "1px solid #f3f4f6",
+                position: "absolute",
+                left: 0,
+                top: "100%",
+                marginTop: 6,
+                width: 360,
+                maxHeight: 260,
+                overflowY: "auto",
+                background: "#ffffff",
+                border: "1px solid #e5e7eb",
+                borderRadius: 8,
+                zIndex: 100,
+                boxShadow: "0 10px 25px rgba(0,0,0,0.08)",
               }}
             >
-              <div style={{ fontWeight: 600, fontSize: 13 }}>
-                {svc.code ? `${svc.code} — ` : ""}
-                {svc.name}
-              </div>
-              <div style={{ fontSize: 12, color: "#6b7280" }}>
-                {formatMoney(svc.price)} ₮
-              </div>
+              {svcLoading && (
+                <div style={{ padding: 10, fontSize: 12, color: "#6b7280" }}>
+                  Хайж байна...
+                </div>
+              )}
+
+              {!svcLoading &&
+                visibleOptions.map((svc, idx) => (
+                  <div
+                    key={svc.id}
+                    onMouseDown={(ev) => {
+                      ev.preventDefault();
+                      setItems((prev) =>
+                        prev.map((r, i) =>
+                          i === index
+                            ? {
+                                ...r,
+                                itemType: "SERVICE",
+                                serviceId: svc.id,
+                                productId: null,
+                                name: svc.name,
+                                unitPrice: svc.price,
+                                source: r.source ?? "MANUAL",
+                              }
+                            : r
+                        )
+                      );
+                      setSvcOpenRow(null);
+                      setSvcOptions([]);
+                      setSvcQueryByRow((prev) => ({ ...prev, [index]: "" }));
+                    }}
+                    style={{
+                      padding: "10px 12px",
+                      cursor: "pointer",
+                      background: idx === svcActiveIndex ? "#eff6ff" : "#ffffff",
+                      borderBottom: "1px solid #f3f4f6",
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>
+                      {svc.code ? `${svc.code} — ` : ""}
+                      {svc.name}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>
+                      {formatMoney(svc.price)} ₮
+                    </div>
+                  </div>
+                ))}
             </div>
-          ))}
-      </div>
-    )}
-  </div>
-)}
-        </div>
-      </div>
+          )}
+      </>
+    );
+  })()}
+</div>
+
+        
       {/* 2 - Quantity */}
       <input
   type="number"
