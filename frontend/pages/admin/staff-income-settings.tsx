@@ -305,6 +305,12 @@ export default function StaffIncomeSettingsPage() {
 
   const anyRowEditing = editDoctorId !== null;
 
+  // Fix for overlap + buttons position:
+  // - make Goal column a bit wider
+  // - make % columns fixed width but NOT too small
+  // - keep actions on far right (last column is 200px)
+  const headerAndRowColumns = "200px 180px 90px 90px 90px 90px 110px 200px";
+
   return (
     <main
       style={{
@@ -507,12 +513,13 @@ export default function StaffIncomeSettingsPage() {
         <div style={{ fontWeight: 800, marginBottom: 10 }}>Эмчийн урамшууллын хувь</div>
 
         <div style={{ overflowX: "auto" }}>
-          <div style={{ minWidth: 920 }}>
+          {/* minWidth must be >= total columns width, otherwise overlap */}
+          <div style={{ minWidth: 1150 }}>
             {/* Header */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "200px 100px 86px 86px 86px 86px 110px 140px",
+                gridTemplateColumns: headerAndRowColumns,
                 gap: 10,
                 padding: "10px 12px",
                 borderRadius: 10,
@@ -521,6 +528,7 @@ export default function StaffIncomeSettingsPage() {
                 fontSize: 12,
                 color: "#6b7280",
                 fontWeight: 800,
+                alignItems: "center",
               }}
             >
               <div>Эмч</div>
@@ -539,25 +547,28 @@ export default function StaffIncomeSettingsPage() {
                 const editing = editDoctorId === d.doctorId;
                 const draft = doctorDraftById[d.doctorId];
 
-                const baseInputStyle: React.CSSProperties = {
-                  width: "100%",
+                // IMPORTANT: prevent overlap by not using "width: 100%" + maxWidth in a narrow grid column.
+                // We set explicit width for each input type.
+                const baseInput: React.CSSProperties = {
                   borderRadius: 10,
                   border: "1px solid #d1d5db",
-                  padding: "8px 10px",
                   fontSize: 13,
                   textAlign: "right",
                   background: editing ? "#ffffff" : "#f9fafb",
+                  height: 34,
+                  padding: "0 10px",
                 };
 
                 const goalInputStyle: React.CSSProperties = {
-                  ...baseInputStyle,
+                  ...baseInput,
+                  width: "100%", // goal column is wide enough
                 };
 
                 const pctInputStyle: React.CSSProperties = {
-                  ...baseInputStyle,
-                  maxWidth: 88,
+                  ...baseInput,
+                  width: 72, // small and consistent
                   justifySelf: "end",
-                  padding: "7px 8px",
+                  padding: "0 8px",
                 };
 
                 const goalValue = editing
@@ -569,7 +580,7 @@ export default function StaffIncomeSettingsPage() {
                     key={d.doctorId}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "200px 100px 86px 86px 86px 86px 110px 140px",
+                      gridTemplateColumns: headerAndRowColumns,
                       gap: 10,
                       padding: "12px 12px",
                       borderRadius: 12,
@@ -612,7 +623,9 @@ export default function StaffIncomeSettingsPage() {
                       min={0}
                       disabled={!editing}
                       value={editing ? draft?.defectPct ?? "" : String(d.defectPct ?? 0)}
-                      onChange={(e) => handleDoctorDraftChange(d.doctorId, "defectPct", e.target.value)}
+                      onChange={(e) =>
+                        handleDoctorDraftChange(d.doctorId, "defectPct", e.target.value)
+                      }
                       style={pctInputStyle}
                     />
 
@@ -622,7 +635,9 @@ export default function StaffIncomeSettingsPage() {
                       min={0}
                       disabled={!editing}
                       value={editing ? draft?.surgeryPct ?? "" : String(d.surgeryPct ?? 0)}
-                      onChange={(e) => handleDoctorDraftChange(d.doctorId, "surgeryPct", e.target.value)}
+                      onChange={(e) =>
+                        handleDoctorDraftChange(d.doctorId, "surgeryPct", e.target.value)
+                      }
                       style={pctInputStyle}
                     />
 
@@ -632,7 +647,9 @@ export default function StaffIncomeSettingsPage() {
                       min={0}
                       disabled={!editing}
                       value={editing ? draft?.generalPct ?? "" : String(d.generalPct ?? 0)}
-                      onChange={(e) => handleDoctorDraftChange(d.doctorId, "generalPct", e.target.value)}
+                      onChange={(e) =>
+                        handleDoctorDraftChange(d.doctorId, "generalPct", e.target.value)
+                      }
                       style={pctInputStyle}
                     />
 
@@ -640,7 +657,8 @@ export default function StaffIncomeSettingsPage() {
                       {formatDateOnly(d.configUpdatedAt)}
                     </div>
 
-                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                    {/* Actions: keep always on far right */}
+                    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
                       {!editing ? (
                         <button
                           type="button"
@@ -657,6 +675,7 @@ export default function StaffIncomeSettingsPage() {
                                 : "pointer",
                             fontSize: 13,
                             fontWeight: 800,
+                            minWidth: 88,
                           }}
                         >
                           Засах
@@ -676,9 +695,10 @@ export default function StaffIncomeSettingsPage() {
                               cursor: savingDoctorId === d.doctorId ? "not-allowed" : "pointer",
                               fontSize: 13,
                               fontWeight: 900,
+                              minWidth: 96,
                             }}
                           >
-                            {savingDoctorId === d.doctorId ? "Хадгалж байна..." : "Хадгалах"}
+                            {savingDoctorId === d.doctorId ? "..." : "Хадгалах"}
                           </button>
 
                           <button
@@ -693,6 +713,7 @@ export default function StaffIncomeSettingsPage() {
                               cursor: savingDoctorId === d.doctorId ? "not-allowed" : "pointer",
                               fontSize: 13,
                               fontWeight: 800,
+                              minWidth: 80,
                             }}
                           >
                             Болих
