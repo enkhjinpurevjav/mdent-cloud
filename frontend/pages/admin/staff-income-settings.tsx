@@ -13,7 +13,6 @@ type DoctorRow = {
 
   monthlyGoalAmountMnt?: number;
 
-  configCreatedAt?: string | null;
   configUpdatedAt?: string | null;
 };
 
@@ -276,7 +275,6 @@ export default function StaffIncomeSettingsPage() {
       const data = await res.json().catch(() => null);
       if (!res.ok) throw new Error((data && data.error) || "Failed to save doctor config");
 
-      // optimistic update
       setDoctors((prev) =>
         prev.map((d) =>
           d.doctorId === doctorId
@@ -292,7 +290,6 @@ export default function StaffIncomeSettingsPage() {
         )
       );
 
-      // refresh for timestamps
       await loadData();
 
       setEditDoctorId(null);
@@ -306,8 +303,7 @@ export default function StaffIncomeSettingsPage() {
     }
   };
 
-  const editingId = editDoctorId;
-  const anyRowEditing = editingId !== null;
+  const anyRowEditing = editDoctorId !== null;
 
   return (
     <main
@@ -370,7 +366,14 @@ export default function StaffIncomeSettingsPage() {
           boxShadow: "0 1px 0 rgba(17,24,39,0.03)",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
           <div style={{ minWidth: 380, flex: 1 }}>
             <div style={{ fontWeight: 800, marginBottom: 6 }}>Нийтлэг тохиргоо</div>
 
@@ -503,15 +506,13 @@ export default function StaffIncomeSettingsPage() {
       >
         <div style={{ fontWeight: 800, marginBottom: 10 }}>Эмчийн урамшууллын хувь</div>
 
-        {/* Horizontal scroll wrapper (prevents broken columns on smaller screens) */}
         <div style={{ overflowX: "auto" }}>
-          <div style={{ minWidth: 980 }}>
+          <div style={{ minWidth: 920 }}>
             {/* Header */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns:
-                  "200px 150px 120px 120px 120px 150px 110px 140px",
+                gridTemplateColumns: "200px 150px 86px 86px 86px 86px 110px 140px",
                 gap: 10,
                 padding: "10px 12px",
                 borderRadius: 10,
@@ -538,7 +539,7 @@ export default function StaffIncomeSettingsPage() {
                 const editing = editDoctorId === d.doctorId;
                 const draft = doctorDraftById[d.doctorId];
 
-                const inputStyle: React.CSSProperties = {
+                const baseInputStyle: React.CSSProperties = {
                   width: "100%",
                   borderRadius: 10,
                   border: "1px solid #d1d5db",
@@ -546,6 +547,17 @@ export default function StaffIncomeSettingsPage() {
                   fontSize: 13,
                   textAlign: "right",
                   background: editing ? "#ffffff" : "#f9fafb",
+                };
+
+                const goalInputStyle: React.CSSProperties = {
+                  ...baseInputStyle,
+                };
+
+                const pctInputStyle: React.CSSProperties = {
+                  ...baseInputStyle,
+                  maxWidth: 88,
+                  justifySelf: "end",
+                  padding: "7px 8px",
                 };
 
                 const goalValue = editing
@@ -557,8 +569,7 @@ export default function StaffIncomeSettingsPage() {
                     key={d.doctorId}
                     style={{
                       display: "grid",
-                      gridTemplateColumns:
-                        "200px 150px 120px 120px 120px 150px 110px 140px",
+                      gridTemplateColumns: "200px 150px 86px 86px 86px 86px 110px 140px",
                       gap: 10,
                       padding: "12px 12px",
                       borderRadius: 12,
@@ -580,60 +591,51 @@ export default function StaffIncomeSettingsPage() {
                       onChange={(e) =>
                         handleDoctorDraftChange(d.doctorId, "monthlyGoalAmountMnt", e.target.value)
                       }
-                      style={inputStyle}
+                      style={goalInputStyle}
                       placeholder="0"
-                      title={
-                        editing ? "" : `${formatMnt(d.monthlyGoalAmountMnt)} ₮ (Сарын зорилт)`
-                      }
+                      title={editing ? "" : `${formatMnt(d.monthlyGoalAmountMnt)} ₮ (Сарын зорилт)`}
                     />
 
                     <input
                       type="number"
-                      step="0.1"
+                      step="0.01"
                       min={0}
                       disabled={!editing}
                       value={editing ? draft?.orthoPct ?? "" : String(d.orthoPct ?? 0)}
                       onChange={(e) => handleDoctorDraftChange(d.doctorId, "orthoPct", e.target.value)}
-                      style={inputStyle}
+                      style={pctInputStyle}
                     />
 
                     <input
                       type="number"
-                      step="0.1"
+                      step="0.01"
                       min={0}
                       disabled={!editing}
                       value={editing ? draft?.defectPct ?? "" : String(d.defectPct ?? 0)}
-                      onChange={(e) =>
-                        handleDoctorDraftChange(d.doctorId, "defectPct", e.target.value)
-                      }
-                      style={inputStyle}
+                      onChange={(e) => handleDoctorDraftChange(d.doctorId, "defectPct", e.target.value)}
+                      style={pctInputStyle}
                     />
 
                     <input
                       type="number"
-                      step="0.1"
+                      step="0.01"
                       min={0}
                       disabled={!editing}
                       value={editing ? draft?.surgeryPct ?? "" : String(d.surgeryPct ?? 0)}
-                      onChange={(e) =>
-                        handleDoctorDraftChange(d.doctorId, "surgeryPct", e.target.value)
-                      }
-                      style={inputStyle}
+                      onChange={(e) => handleDoctorDraftChange(d.doctorId, "surgeryPct", e.target.value)}
+                      style={pctInputStyle}
                     />
 
                     <input
                       type="number"
-                      step="0.1"
+                      step="0.01"
                       min={0}
                       disabled={!editing}
                       value={editing ? draft?.generalPct ?? "" : String(d.generalPct ?? 0)}
-                      onChange={(e) =>
-                        handleDoctorDraftChange(d.doctorId, "generalPct", e.target.value)
-                      }
-                      style={inputStyle}
+                      onChange={(e) => handleDoctorDraftChange(d.doctorId, "generalPct", e.target.value)}
+                      style={pctInputStyle}
                     />
 
-                    
                     <div style={{ fontSize: 12, color: "#374151", textAlign: "center" }}>
                       {formatDateOnly(d.configUpdatedAt)}
                     </div>
