@@ -2220,9 +2220,9 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
               }}
             >
               {items.map((row, index) => {
-              const locked = row.source === "ENCOUNTER";
-  const lineTotal =
-    (row.unitPrice || 0) * (row.quantity || 0);
+  const locked = row.source === "ENCOUNTER";
+  const lineTotal = (row.unitPrice || 0) * (row.quantity || 0);
+
   return (
     <div
       key={index}
@@ -2237,262 +2237,273 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
         background: "#f9fafb",
       }}
     >
-    {/* 1 - Name cell */}
-<div style={{ position: "relative" }}>
-  {(() => {
-    const q = (svcQueryByRow[index] ?? "").trim().toLowerCase();
-    const visibleOptions = q
-      ? svcOptions.filter((s) => {
-          const name = (s.name || "").toLowerCase();
-          const code = (s.code || "").toLowerCase();
-          return name.includes(q) || code.includes(q);
-        })
-      : svcOptions;
+      {/* 1 - Name cell */}
+      <div style={{ position: "relative" }}>
+        {(() => {
+          const q = (svcQueryByRow[index] ?? "").trim().toLowerCase();
+          const visibleOptions = q
+            ? svcOptions.filter((s) => {
+                const name = (s.name || "").toLowerCase();
+                const code = (s.code || "").toLowerCase();
+                return name.includes(q) || code.includes(q);
+              })
+            : svcOptions;
 
-    return (
-      <>
-        <input
-          type="text"
-          value={row.name}
-          disabled={locked}
-          onFocus={() => {
-            if (row.itemType !== "SERVICE" || locked) return;
-            setSvcOpenRow(index);
-            setSvcQueryByRow((prev) => ({
-              ...prev,
-              [index]: row.name || prev[index] || "",
-            }));
-          }}
-          onChange={(e) => {
-            const v = e.target.value;
-            handleItemChange(index, "name", v);
+          return (
+            <>
+              <input
+                type="text"
+                value={row.name}
+                disabled={locked}
+                onFocus={() => {
+                  if (row.itemType !== "SERVICE" || locked) return;
+                  setSvcOpenRow(index);
+                  setSvcQueryByRow((prev) => ({
+                    ...prev,
+                    [index]: row.name || prev[index] || "",
+                  }));
+                }}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  handleItemChange(index, "name", v);
 
-            if (row.itemType !== "SERVICE" || locked) return;
-            setSvcQueryByRow((prev) => ({ ...prev, [index]: v }));
-            setSvcOpenRow(index);
-          }}
-          onBlur={() => {
-            setTimeout(
-              () => setSvcOpenRow((cur) => (cur === index ? null : cur)),
-              150
-            );
-          }}
-          onKeyDown={(e) => {
-            if (svcOpenRow !== index) return;
+                  if (row.itemType !== "SERVICE" || locked) return;
+                  setSvcQueryByRow((prev) => ({ ...prev, [index]: v }));
+                  setSvcOpenRow(index);
+                }}
+                onBlur={() => {
+                  setTimeout(
+                    () => setSvcOpenRow((cur) => (cur === index ? null : cur)),
+                    150
+                  );
+                }}
+                onKeyDown={(e) => {
+                  if (svcOpenRow !== index) return;
 
-            if (e.key === "Escape") {
-              setSvcOpenRow(null);
-              return;
-            }
-            if (e.key === "ArrowDown") {
-              e.preventDefault();
-              setSvcActiveIndex((i) =>
-                Math.min(i + 1, visibleOptions.length - 1)
-              );
-              return;
-            }
-            if (e.key === "ArrowUp") {
-              e.preventDefault();
-              setSvcActiveIndex((i) => Math.max(i - 1, 0));
-              return;
-            }
-            if (e.key === "Enter") {
-              e.preventDefault();
-              const picked = visibleOptions[svcActiveIndex];
-              if (!picked) return;
+                  if (e.key === "Escape") {
+                    setSvcOpenRow(null);
+                    return;
+                  }
+                  if (e.key === "ArrowDown") {
+                    e.preventDefault();
+                    setSvcActiveIndex((i) =>
+                      Math.min(i + 1, visibleOptions.length - 1)
+                    );
+                    return;
+                  }
+                  if (e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setSvcActiveIndex((i) => Math.max(i - 1, 0));
+                    return;
+                  }
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const picked = visibleOptions[svcActiveIndex];
+                    if (!picked) return;
 
-              setItems((prev) =>
-                prev.map((r, i) =>
-                  i === index
-                    ? {
-                        ...r,
-                        itemType: "SERVICE",
-                        serviceId: picked.id,
-                        productId: null,
-                        name: picked.name,
-                        unitPrice: picked.price,
-                        source: r.source ?? "MANUAL",
-                      }
-                    : r
-                )
-              );
+                    setItems((prev) =>
+                      prev.map((r, i) =>
+                        i === index
+                          ? {
+                              ...r,
+                              itemType: "SERVICE",
+                              serviceId: picked.id,
+                              productId: null,
+                              name: picked.name,
+                              unitPrice: picked.price,
+                              source: r.source ?? "MANUAL",
+                            }
+                          : r
+                      )
+                    );
 
-              setSvcOpenRow(null);
-              setSvcOptions([]);
-              setSvcQueryByRow((prev) => ({ ...prev, [index]: "" }));
-            }
-          }}
-          placeholder={
-            row.itemType === "SERVICE" ? "Үйлчилгээний нэр" : "Бүтээгдэхүүний нэр"
-          }
-          style={{
-            width: "100%",
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "4px 6px",
-            fontSize: 13,
-            marginBottom: 4,
-            background: locked ? "#f3f4f6" : "#ffffff",
-            cursor: locked ? "not-allowed" : "text",
-          }}
-        />
+                    setSvcOpenRow(null);
+                    setSvcOptions([]);
+                    setSvcQueryByRow((prev) => ({ ...prev, [index]: "" }));
+                  }
+                }}
+                placeholder={
+                  row.itemType === "SERVICE"
+                    ? "Үйлчилгээний нэр"
+                    : "Бүтээгдэхүүний нэр"
+                }
+                style={{
+                  width: "100%",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "4px 6px",
+                  fontSize: 13,
+                  marginBottom: 4,
+                  background: locked ? "#f3f4f6" : "#ffffff",
+                  cursor: locked ? "not-allowed" : "text",
+                }}
+              />
 
-        {row.itemType === "SERVICE" &&
-          svcOpenRow === index &&
-          (svcLoading || visibleOptions.length > 0) && (
-            <div
-              style={{
-                position: "absolute",
-                left: 0,
-                top: "100%",
-                marginTop: 6,
-                width: 360,
-                maxHeight: 260,
-                overflowY: "auto",
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: 8,
-                zIndex: 100,
-                boxShadow: "0 10px 25px rgba(0,0,0,0.08)",
-              }}
-            >
-              {svcLoading && (
-                <div style={{ padding: 10, fontSize: 12, color: "#6b7280" }}>
-                  Хайж байна...
-                </div>
-              )}
-
-              {!svcLoading &&
-                visibleOptions.map((svc, idx) => (
+              {row.itemType === "SERVICE" &&
+                svcOpenRow === index &&
+                (svcLoading || visibleOptions.length > 0) && (
                   <div
-                    key={svc.id}
-                    onMouseDown={(ev) => {
-                      ev.preventDefault();
-                      setItems((prev) =>
-                        prev.map((r, i) =>
-                          i === index
-                            ? {
-                                ...r,
-                                itemType: "SERVICE",
-                                serviceId: svc.id,
-                                productId: null,
-                                name: svc.name,
-                                unitPrice: svc.price,
-                                source: r.source ?? "MANUAL",
-                              }
-                            : r
-                        )
-                      );
-                      setSvcOpenRow(null);
-                      setSvcOptions([]);
-                      setSvcQueryByRow((prev) => ({ ...prev, [index]: "" }));
-                    }}
                     style={{
-                      padding: "10px 12px",
-                      cursor: "pointer",
-                      background: idx === svcActiveIndex ? "#eff6ff" : "#ffffff",
-                      borderBottom: "1px solid #f3f4f6",
+                      position: "absolute",
+                      left: 0,
+                      top: "100%",
+                      marginTop: 6,
+                      width: 360,
+                      maxHeight: 260,
+                      overflowY: "auto",
+                      background: "#ffffff",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 8,
+                      zIndex: 100,
+                      boxShadow: "0 10px 25px rgba(0,0,0,0.08)",
                     }}
                   >
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>
-                      {svc.code ? `${svc.code} — ` : ""}
-                      {svc.name}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#6b7280" }}>
-                      {formatMoney(svc.price)} ₮
-                    </div>
-                  </div>
-                ))}
-            </div>
-          )}
-      </>
-    );
-  })()}
-</div>
+                    {svcLoading && (
+                      <div
+                        style={{
+                          padding: 10,
+                          fontSize: 12,
+                          color: "#6b7280",
+                        }}
+                      >
+                        Хайж байна...
+                      </div>
+                    )}
 
-        
+                    {!svcLoading &&
+                      visibleOptions.map((svc, idx) => (
+                        <div
+                          key={svc.id}
+                          onMouseDown={(ev) => {
+                            ev.preventDefault();
+
+                            setItems((prev) =>
+                              prev.map((r, i) =>
+                                i === index
+                                  ? {
+                                      ...r,
+                                      itemType: "SERVICE",
+                                      serviceId: svc.id,
+                                      productId: null,
+                                      name: svc.name,
+                                      unitPrice: svc.price,
+                                      source: r.source ?? "MANUAL",
+                                    }
+                                  : r
+                              )
+                            );
+
+                            setSvcOpenRow(null);
+                            setSvcOptions([]);
+                            setSvcQueryByRow((prev) => ({
+                              ...prev,
+                              [index]: "",
+                            }));
+                          }}
+                          style={{
+                            padding: "10px 12px",
+                            cursor: "pointer",
+                            background:
+                              idx === svcActiveIndex ? "#eff6ff" : "#ffffff",
+                            borderBottom: "1px solid #f3f4f6",
+                          }}
+                        >
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>
+                            {svc.code ? `${svc.code} — ` : ""}
+                            {svc.name}
+                          </div>
+                          <div style={{ fontSize: 12, color: "#6b7280" }}>
+                            {formatMoney(svc.price)} ₮
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+            </>
+          );
+        })()}
+      </div>
+
       {/* 2 - Quantity */}
       <input
-  type="number"
-  min={1}
-  value={row.quantity}
-  disabled={locked}
-  onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-  style={{
-    width: "100%",
-    borderRadius: 6,
-    border: "1px solid #d1d5db",
-    padding: "4px 6px",
-    fontSize: 13,
-    textAlign: "center",
-    background: locked ? "#f3f4f6" : "#ffffff",
-    cursor: locked ? "not-allowed" : "text",
-  }}
-/>
+        type="number"
+        min={1}
+        value={row.quantity}
+        disabled={locked}
+        onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+        style={{
+          width: "100%",
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "4px 6px",
+          fontSize: 13,
+          textAlign: "center",
+          background: locked ? "#f3f4f6" : "#ffffff",
+          cursor: locked ? "not-allowed" : "text",
+        }}
+      />
+
       {/* 3 - Unit Price */}
       <input
-  type="number"
-  min={0}
-  value={row.unitPrice}
-  disabled={locked}
-  onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
-  style={{
-    width: "100%",
-    borderRadius: 6,
-    border: "1px solid #d1d5db",
-    padding: "4px 6px",
-    fontSize: 13,
-    textAlign: "right",
-    background: locked ? "#f3f4f6" : "#ffffff",
-    cursor: locked ? "not-allowed" : "text",
-  }}
-/>
+        type="number"
+        min={0}
+        value={row.unitPrice}
+        disabled={locked}
+        onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
+        style={{
+          width: "100%",
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "4px 6px",
+          fontSize: 13,
+          textAlign: "right",
+          background: locked ? "#f3f4f6" : "#ffffff",
+          cursor: locked ? "not-allowed" : "text",
+        }}
+      />
+
       {/* 4 - Teeth Numbers */}
       <input
-  type="text"
-  placeholder="11, 12, 16"
-  value={(row.teethNumbers || []).join(", ")}
-  disabled={locked}
-  onChange={(e) => handleTeethNumbersChange(index, e.target.value)}
-  style={{
-    width: "70px",
-    borderRadius: 6,
-    border: "1px solid #d1d5db",
-    padding: "4px 6px",
-    fontSize: 13,
-    textAlign: "left",
-    background: locked ? "#f3f4f6" : "#ffffff",
-    cursor: locked ? "not-allowed" : "text",
-  }}
-/>
-      {/* 5 - Line Total */}
-      <div
+        type="text"
+        placeholder="11, 12, 16"
+        value={(row.teethNumbers || []).join(", ")}
+        disabled={locked}
+        onChange={(e) => handleTeethNumbersChange(index, e.target.value)}
         style={{
+          width: "70px",
+          borderRadius: 6,
+          border: "1px solid #d1d5db",
+          padding: "4px 6px",
           fontSize: 13,
-          fontWeight: 600,
-          textAlign: "right"
+          textAlign: "left",
+          background: locked ? "#f3f4f6" : "#ffffff",
+          cursor: locked ? "not-allowed" : "text",
         }}
-      >
+      />
+
+      {/* 5 - Line Total */}
+      <div style={{ fontSize: 13, fontWeight: 600, textAlign: "right" }}>
         {lineTotal.toLocaleString("mn-MN")}₮
       </div>
+
       {/* 6 - Remove Button */}
       {!locked && (
-  <button
-    type="button"
-    onClick={() => handleRemoveRow(index)}
-    style={{
-      padding: "4px 8px",
-      borderRadius: 6,
-      border: "1px solid #dc2626",
-      background: "#fef2f2",
-      color: "#b91c1c",
-      cursor: "pointer",
-      fontSize: 12,
-    }}
-  >
-    Устгах
-  </button>
-)}
+        <button
+          type="button"
+          onClick={() => handleRemoveRow(index)}
+          style={{
+            padding: "4px 8px",
+            borderRadius: 6,
+            border: "1px solid #dc2626",
+            background: "#fef2f2",
+            color: "#b91c1c",
+            cursor: "pointer",
+            fontSize: 12,
+          }}
+        >
+          Устгах
+        </button>
+      )}
     </div>
   );
 })}
