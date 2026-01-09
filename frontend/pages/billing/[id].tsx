@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useMemo as useReactMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useMemo as useReactMemo } from "react";
 import { useRouter } from "next/router";
 
 type Branch = { id: number; name: string };
@@ -185,12 +185,7 @@ function BillingPaymentSection({
   const [qpayError, setQpayError] = useState("");
   const [qpayPaidAmount, setQpayPaidAmount] = useState<number | null>(null);
 
-  // --- NEW: inline service autocomplete (per-row) ---
-const [svcOpenRow, setSvcOpenRow] = useState<number | null>(null);
-const [svcQueryByRow, setSvcQueryByRow] = useState<Record<number, string>>({});
-const [svcLoading, setSvcLoading] = useState(false);
-const [svcOptions, setSvcOptions] = useState<Service[]>([]);
-const [svcActiveIndex, setSvcActiveIndex] = useState(0);
+
 
   // Load payment settings from backend
   useEffect(() => {
@@ -1550,39 +1545,48 @@ export default function BillingPage() {
   const [productsError, setProductsError] = useState("");
   const [productQuery, setProductQuery] = useState("");
 
-  const searchServices = async (q: string) => {
-  const query = q.trim();
-  if (query.length < 2) {
-    setSvcOptions([]);
-    return;
-  }
-
-  const branchId = encounter?.patientBook?.patient?.branch?.id;
-
-  setSvcLoading(true);
-  try {
-    const params = new URLSearchParams();
-    params.set("q", query);
-    params.set("onlyActive", "true");
-    params.set("limit", "20");
-    if (branchId) params.set("branchId", String(branchId));
-
-    const res = await fetch(`/api/services?${params.toString()}`);
-    const data = await res.json().catch(() => null);
-
-    if (!res.ok || !Array.isArray(data)) {
-      throw new Error((data && data.error) || "Service search failed");
+ // --- NEW: inline service autocomplete (per-row) ---
+const [svcOpenRow, setSvcOpenRow] = useState<number | null>(null);
+const [svcQueryByRow, setSvcQueryByRow] = useState<Record<number, string>>({});
+const [svcLoading, setSvcLoading] = useState(false);
+const [svcOptions, setSvcOptions] = useState<Service[]>([]);
+const [svcActiveIndex, setSvcActiveIndex] = useState(0);
+const searchServices = useCallback(
+  async (q: string) => {
+    const query = q.trim();
+    if (query.length < 2) {
+      setSvcOptions([]);
+      return;
     }
 
-    setSvcOptions(data);
-    setSvcActiveIndex(0);
-  } catch (e) {
-    console.error(e);
-    setSvcOptions([]);
-  } finally {
-    setSvcLoading(false);
-  }
-};
+    const branchId = encounter?.patientBook?.patient?.branch?.id;
+
+    setSvcLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("q", query);
+      params.set("onlyActive", "true");
+      params.set("limit", "20");
+      if (branchId) params.set("branchId", String(branchId));
+
+      const res = await fetch(`/api/services?${params.toString()}`);
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !Array.isArray(data)) {
+        throw new Error((data && data.error) || "Service search failed");
+      }
+
+      setSvcOptions(data);
+      setSvcActiveIndex(0);
+    } catch (e) {
+      console.error(e);
+      setSvcOptions([]);
+    } finally {
+      setSvcLoading(false);
+    }
+  },
+  [encounter?.patientBook?.patient?.branch?.id]
+);
   
   // NEW: XRAY + consent printable info
   const [xrays, setXrays] = useState<EncounterMedia[]>([]);
@@ -1697,6 +1701,18 @@ const [consentError, setConsentError] = useState("");
     void load();
   }, [encounterId]);
 
+  useEffect(() => {
+  if (svcOpenRow == null) return;
+
+  const q = svcQueryByRow[svcOpenRow] ?? "";
+  const t = setTimeout(() => {
+    void searchServices(q);
+  }, 200);
+
+  return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [svcOpenRow, svcQueryByRow, searchServices]);
+
   // XRAY
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
@@ -1720,17 +1736,7 @@ const [consentError, setConsentError] = useState("");
     void loadXrays();
   }, [encounterId]);
 
-useEffect(() => {
-  if (svcOpenRow == null) return;
 
-  const q = svcQueryByRow[svcOpenRow] ?? "";
-  const t = setTimeout(() => {
-    void searchServices(q);
-  }, 200);
-
-  return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [svcOpenRow, svcQueryByRow, encounter?.patientBook?.patient?.branch?.id]);
   
   // Consents
   useEffect(() => {
@@ -1791,16 +1797,7 @@ useEffect(() => {
     setItems((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleAddRowFromService = () => {
-    const newRow: InvoiceItem = {
-      itemType: "SERVICE",
-      serviceId: null,
-      productId: null,
-      name: "",
-      unitPrice: 0,
-      quantity: 1,
-    };
-    const handleAddRowFromService = () => {
+ const handleAddRowFromService = () => {
   const newIndex = items.length;
 
   const newRow: InvoiceItem = {
@@ -1816,9 +1813,10 @@ useEffect(() => {
 
   setItems((prev) => [...prev, newRow]);
 
-  // open autocomplete for the new row
   setSvcOpenRow(newIndex);
   setSvcQueryByRow((prev) => ({ ...prev, [newIndex]: "" }));
+  setSvcOptions([]);
+  setSvcActiveIndex(0);
 };
 
 
