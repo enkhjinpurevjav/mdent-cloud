@@ -4,34 +4,26 @@ import prisma from "../db.js";
 const router = express.Router();
 
 /**
- * GET /api/settings/:key
- * Read a setting by key
+ * GET /api/settings
+ * List all settings (optional - for admin page)
  */
-router.get("/:key", async (req, res) => {
+router.get("/", async (req, res) => {
   try {
-    const { key } = req.params;
-    
-    if (!key || typeof key !== "string") {
-      return res.status(400).json({ error: "key is required" });
-    }
-
-    const setting = await prisma.settings.findUnique({
-      where: { key },
+    const settings = await prisma.settings.findMany({
+      orderBy: { key: "asc" },
     });
-
-    if (!setting) {
-      return res.status(404).json({ error: "Setting not found" });
-    }
 
     return res.json({
-      key: setting.key,
-      value: setting.value,
-      createdAt: setting.createdAt,
-      updatedAt: setting.updatedAt,
+      settings: settings.map((s) => ({
+        key: s.key,
+        value: s.value,
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+      })),
     });
   } catch (err) {
-    console.error("GET /api/settings/:key error:", err);
-    return res.status(500).json({ error: "Failed to retrieve setting" });
+    console.error("GET /api/settings error:", err);
+    return res.status(500).json({ error: "Failed to retrieve settings" });
   }
 });
 
@@ -74,26 +66,34 @@ router.post("/", async (req, res) => {
 });
 
 /**
- * GET /api/settings
- * List all settings (optional - for admin page)
+ * GET /api/settings/:key
+ * Read a setting by key
  */
-router.get("/", async (req, res) => {
+router.get("/:key", async (req, res) => {
   try {
-    const settings = await prisma.settings.findMany({
-      orderBy: { key: "asc" },
+    const { key } = req.params;
+    
+    if (!key || typeof key !== "string") {
+      return res.status(400).json({ error: "key is required" });
+    }
+
+    const setting = await prisma.settings.findUnique({
+      where: { key },
     });
 
+    if (!setting) {
+      return res.status(404).json({ error: "Setting not found" });
+    }
+
     return res.json({
-      settings: settings.map((s) => ({
-        key: s.key,
-        value: s.value,
-        createdAt: s.createdAt,
-        updatedAt: s.updatedAt,
-      })),
+      key: setting.key,
+      value: setting.value,
+      createdAt: setting.createdAt,
+      updatedAt: setting.updatedAt,
     });
   } catch (err) {
-    console.error("GET /api/settings error:", err);
-    return res.status(500).json({ error: "Failed to retrieve settings" });
+    console.error("GET /api/settings/:key error:", err);
+    return res.status(500).json({ error: "Failed to retrieve setting" });
   }
 });
 
