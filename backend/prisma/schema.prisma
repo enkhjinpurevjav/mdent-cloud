@@ -1043,3 +1043,25 @@ model PaymentProviderConfig {
 
   @@index([methodKey, isActive, sortOrder])
 }
+
+// ==========================================================
+// QPAY INTEGRATION (SANDBOX + LIVE)
+// ==========================================================
+
+model QPayIntent {
+  id              Int      @id @default(autoincrement())
+  environment     String   // "sandbox" | "live"
+  objectType      String   // "INVOICE" | "BOOKING"
+  objectId        Int      // invoiceId or bookingId
+  qpayInvoiceId   String   @unique
+  senderInvoiceNo String   @unique
+  amount          Float
+  status          String   @default("NEW")  // NEW | PAID | FAILED | CANCELLED
+  paidAmount      Float?
+  qpayPaymentId   String?
+  raw             Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([objectType, objectId])
+}
