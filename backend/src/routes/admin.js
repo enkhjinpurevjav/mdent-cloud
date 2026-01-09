@@ -296,4 +296,145 @@ router.patch("/employee-benefits/:id", async (req, res) => {
   }
 });
 
+// ==========================================================
+// STAFF INCOME SETTINGS (Finance Configuration)
+// ==========================================================
+
+/**
+ * GET /api/admin/staff-income-settings
+ * Returns whitening deduct amount and doctors with their commission configs
+ */
+router.get("/staff-income-settings", async (_req, res) => {
+  try {
+    // Fetch the whitening deduct amount from Settings
+    const whiteningDeductSetting = await prisma.settings.findUnique({
+      where: { key: "finance.homeBleachingDeductAmountMnt" },
+    });
+    
+    const whiteningDeductAmountMnt = whiteningDeductSetting 
+      ? Number(whiteningDeductSetting.value) || 0 
+      : 0;
+
+    // Fetch all doctors with their commission configs
+    const doctors = await prisma.user.findMany({
+      where: { role: "doctor" },
+      include: { commissionConfig: true },
+      orderBy: [{ ovog: "asc" }, { name: "asc" }],
+    });
+
+    const doctorsWithConfig = doctors.map((doctor) => ({
+      doctorId: doctor.id,
+      ovog: doctor.ovog || "",
+      name: doctor.name || "",
+      email: doctor.email,
+      orthoPct: doctor.commissionConfig?.orthoPct || 0,
+      defectPct: doctor.commissionConfig?.defectPct || 0,
+      surgeryPct: doctor.commissionConfig?.surgeryPct || 0,
+      generalPct: doctor.commissionConfig?.generalPct || 0,
+    }));
+
+    return res.json({
+      whiteningDeductAmountMnt,
+      doctors: doctorsWithConfig,
+    });
+  } catch (error) {
+    console.error("GET /api/admin/staff-income-settings failed:", error);
+    return res.status(500).json({ error: "Failed to load staff income settings." });
+  }
+});
+
+/**
+ * PUT /api/admin/staff-income-settings
+ * Updates whitening deduct amount and doctor commission configs
+ * Body: { whiteningDeductAmountMnt: number, doctors: [{ doctorId, orthoPct, defectPct, surgeryPct, generalPct }] }
+ */
+router.put("/staff-income-settings", async (req, res) => {
+  const { whiteningDeductAmountMnt, doctors } = req.body || {};
+
+  // Validate inputs
+  if (whiteningDeductAmountMnt === undefined || whiteningDeductAmountMnt === null) {
+    return res.status(400).json({ error: "whiteningDeductAmountMnt is required" });
+  }
+
+  if (!Array.isArray(doctors)) {
+    return res.status(400).json({ error: "doctors must be an array" });
+  }
+
+  // Validate numeric value
+  const deductAmount = Number(whiteningDeductAmountMnt);
+  if (isNaN(deductAmount) || deductAmount < 0) {
+    return res.status(400).json({ error: "whiteningDeductAmountMnt must be a non-negative number" });
+  }
+
+  // Validate each doctor config
+  for (const doc of doctors) {
+    if (!doc.doctorId || isNaN(Number(doc.doctorId))) {
+      return res.status(400).json({ error: "Each doctor must have a valid doctorId" });
+    }
+
+    const orthoPct = Number(doc.orthoPct);
+    const defectPct = Number(doc.defectPct);
+    const surgeryPct = Number(doc.surgeryPct);
+    const generalPct = Number(doc.generalPct);
+
+    if (isNaN(orthoPct) || isNaN(defectPct) || isNaN(surgeryPct) || isNaN(generalPct)) {
+      return res.status(400).json({ 
+        error: `Invalid percentage values for doctor ${doc.doctorId}` 
+      });
+    }
+
+    if (orthoPct < 0 || defectPct < 0 || surgeryPct < 0 || generalPct < 0) {
+      return res.status(400).json({ 
+        error: `Percentage values must be non-negative for doctor ${doc.doctorId}` 
+      });
+    }
+  }
+
+  try {
+    // Use transaction to ensure atomicity
+    await prisma.$transaction(async (tx) => {
+      // Upsert Settings key
+      await tx.settings.upsert({
+        where: { key: "finance.homeBleachingDeductAmountMnt" },
+        update: { value: String(deductAmount) },
+        create: { 
+          key: "finance.homeBleachingDeductAmountMnt", 
+          value: String(deductAmount) 
+        },
+      });
+
+      // Upsert each doctor commission config
+      for (const doc of doctors) {
+        const doctorId = Number(doc.doctorId);
+        const orthoPct = Number(doc.orthoPct);
+        const defectPct = Number(doc.defectPct);
+        const surgeryPct = Number(doc.surgeryPct);
+        const generalPct = Number(doc.generalPct);
+
+        await tx.doctorCommissionConfig.upsert({
+          where: { doctorId },
+          update: {
+            orthoPct,
+            defectPct,
+            surgeryPct,
+            generalPct,
+          },
+          create: {
+            doctorId,
+            orthoPct,
+            defectPct,
+            surgeryPct,
+            generalPct,
+          },
+        });
+      }
+    });
+
+    return res.json({ success: true, message: "Staff income settings saved successfully" });
+  } catch (error) {
+    console.error("PUT /api/admin/staff-income-settings failed:", error);
+    return res.status(500).json({ error: "Failed to save staff income settings." });
+  }
+});
+
 export default router;
