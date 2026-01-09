@@ -188,6 +188,7 @@ router.post("/:id/settlement", async (req, res) => {
           });
 
           // 2) Record usage
+          const bookNumber = invoice.encounter?.patientBook?.bookNumber || null;
           await trx.employeeBenefitUsage.create({
             data: {
               employeeBenefitId: benefit.id,
