@@ -1091,6 +1091,8 @@ model DoctorCommissionConfig {
   surgeryPct Float @default(0) // surgery commission %
   generalPct Float @default(0) // general treatment commission %
 
+  monthlyGoalAmountMnt Float @default(0)
+
   updatedAt DateTime @updatedAt
 
   @@index([doctorId])
