@@ -185,6 +185,13 @@ function BillingPaymentSection({
   const [qpayError, setQpayError] = useState("");
   const [qpayPaidAmount, setQpayPaidAmount] = useState<number | null>(null);
 
+  // --- NEW: inline service autocomplete (per-row) ---
+const [svcOpenRow, setSvcOpenRow] = useState<number | null>(null);
+const [svcQueryByRow, setSvcQueryByRow] = useState<Record<number, string>>({});
+const [svcLoading, setSvcLoading] = useState(false);
+const [svcOptions, setSvcOptions] = useState<Service[]>([]);
+const [svcActiveIndex, setSvcActiveIndex] = useState(0);
+
   // Load payment settings from backend
   useEffect(() => {
     const loadPaymentSettings = async () => {
@@ -1542,6 +1549,40 @@ export default function BillingPage() {
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState("");
   const [productQuery, setProductQuery] = useState("");
+
+  const searchServices = async (q: string) => {
+  const query = q.trim();
+  if (query.length < 2) {
+    setSvcOptions([]);
+    return;
+  }
+
+  const branchId = encounter?.patientBook?.patient?.branch?.id;
+
+  setSvcLoading(true);
+  try {
+    const params = new URLSearchParams();
+    params.set("q", query);
+    params.set("onlyActive", "true");
+    params.set("limit", "20");
+    if (branchId) params.set("branchId", String(branchId));
+
+    const res = await fetch(`/api/services?${params.toString()}`);
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || !Array.isArray(data)) {
+      throw new Error((data && data.error) || "Service search failed");
+    }
+
+    setSvcOptions(data);
+    setSvcActiveIndex(0);
+  } catch (e) {
+    console.error(e);
+    setSvcOptions([]);
+  } finally {
+    setSvcLoading(false);
+  }
+};
   
   // NEW: XRAY + consent printable info
   const [xrays, setXrays] = useState<EncounterMedia[]>([]);
@@ -1679,6 +1720,18 @@ const [consentError, setConsentError] = useState("");
     void loadXrays();
   }, [encounterId]);
 
+useEffect(() => {
+  if (svcOpenRow == null) return;
+
+  const q = svcQueryByRow[svcOpenRow] ?? "";
+  const t = setTimeout(() => {
+    void searchServices(q);
+  }, 200);
+
+  return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [svcOpenRow, svcQueryByRow, encounter?.patientBook?.patient?.branch?.id]);
+  
   // Consents
   useEffect(() => {
     if (!encounterId || Number.isNaN(encounterId)) return;
@@ -1747,9 +1800,27 @@ const [consentError, setConsentError] = useState("");
       unitPrice: 0,
       quantity: 1,
     };
-    setItems((prev) => [...prev, newRow]);
-    setServiceModalRowIndex(items.length);
+    const handleAddRowFromService = () => {
+  const newIndex = items.length;
+
+  const newRow: InvoiceItem = {
+    itemType: "SERVICE",
+    serviceId: null,
+    productId: null,
+    name: "",
+    unitPrice: 0,
+    quantity: 1,
+    source: "MANUAL",
+    teethNumbers: [],
   };
+
+  setItems((prev) => [...prev, newRow]);
+
+  // open autocomplete for the new row
+  setSvcOpenRow(newIndex);
+  setSvcQueryByRow((prev) => ({ ...prev, [newIndex]: "" }));
+};
+
 
   // --- totals (discount applies ONLY to services) ---
 
@@ -2206,22 +2277,149 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
               : `Product ID: ${row.productId || "- (сонгоогүй)"}`}
           </span>
           {row.itemType === "SERVICE" && !locked && (
-  <button
-    type="button"
-    onClick={() => openServiceModalForRow(index)}
-    style={{
-      marginLeft: 8,
-      padding: "2px 6px",
-      borderRadius: 999,
-      border: "1px solid #2563eb",
-      background: "#eff6ff",
-      color: "#2563eb",
-      cursor: "pointer",
-      fontSize: 11,
-    }}
-  >
-    Үйлчилгээ сонгох
-  </button>
+  <div style={{ position: "relative" }}>
+    <input
+      type="text"
+      value={svcQueryByRow[index] ?? ""}
+      placeholder="Код/нэрээр хайх..."
+      onFocus={() => {
+        setSvcOpenRow(index);
+        setSvcQueryByRow((prev) => ({
+          ...prev,
+          [index]: (prev[index] ?? "").trim() || row.name || "",
+        }));
+      }}
+      onChange={(e) => {
+        const v = e.target.value;
+        setSvcQueryByRow((prev) => ({ ...prev, [index]: v }));
+        setSvcOpenRow(index);
+      }}
+      onBlur={() => {
+        // allow click on dropdown item
+        setTimeout(() => setSvcOpenRow((cur) => (cur === index ? null : cur)), 150);
+      }}
+      onKeyDown={(e) => {
+        if (svcOpenRow !== index) return;
+
+        if (e.key === "Escape") {
+          setSvcOpenRow(null);
+          return;
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setSvcActiveIndex((i) => Math.min(i + 1, svcOptions.length - 1));
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setSvcActiveIndex((i) => Math.max(i - 1, 0));
+          return;
+        }
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const picked = svcOptions[svcActiveIndex];
+          if (!picked) return;
+
+          // Fill THIS row (not create/merge)
+          setItems((prev) =>
+            prev.map((r, i) =>
+              i === index
+                ? {
+                    ...r,
+                    itemType: "SERVICE",
+                    serviceId: picked.id,
+                    productId: null,
+                    name: picked.name,
+                    unitPrice: picked.price,
+                    source: r.source ?? "MANUAL",
+                  }
+                : r
+            )
+          );
+
+          setSvcOpenRow(null);
+          setSvcOptions([]);
+          setSvcQueryByRow((prev) => ({ ...prev, [index]: "" }));
+        }
+      }}
+      style={{
+        marginLeft: 8,
+        width: 180,
+        padding: "2px 8px",
+        borderRadius: 999,
+        border: "1px solid #d1d5db",
+        fontSize: 12,
+        background: "#ffffff",
+      }}
+    />
+
+    {svcOpenRow === index && (svcLoading || svcOptions.length > 0) && (
+      <div
+        style={{
+          position: "absolute",
+          right: 0,
+          top: "100%",
+          marginTop: 6,
+          width: 360,
+          maxHeight: 260,
+          overflowY: "auto",
+          background: "#ffffff",
+          border: "1px solid #e5e7eb",
+          borderRadius: 8,
+          zIndex: 100,
+          boxShadow: "0 10px 25px rgba(0,0,0,0.08)",
+        }}
+      >
+        {svcLoading && (
+          <div style={{ padding: 10, fontSize: 12, color: "#6b7280" }}>
+            Хайж байна...
+          </div>
+        )}
+
+        {!svcLoading &&
+          svcOptions.map((svc, idx) => (
+            <div
+              key={svc.id}
+              onMouseDown={(ev) => {
+                ev.preventDefault(); // prevent blur
+                setItems((prev) =>
+                  prev.map((r, i) =>
+                    i === index
+                      ? {
+                          ...r,
+                          itemType: "SERVICE",
+                          serviceId: svc.id,
+                          productId: null,
+                          name: svc.name,
+                          unitPrice: svc.price,
+                          source: r.source ?? "MANUAL",
+                        }
+                      : r
+                  )
+                );
+                setSvcOpenRow(null);
+                setSvcOptions([]);
+                setSvcQueryByRow((prev) => ({ ...prev, [index]: "" }));
+              }}
+              style={{
+                padding: "10px 12px",
+                cursor: "pointer",
+                background: idx === svcActiveIndex ? "#eff6ff" : "#ffffff",
+                borderBottom: "1px solid #f3f4f6",
+              }}
+            >
+              <div style={{ fontWeight: 600, fontSize: 13 }}>
+                {svc.code ? `${svc.code} — ` : ""}
+                {svc.name}
+              </div>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>
+                {formatMoney(svc.price)} ₮
+              </div>
+            </div>
+          ))}
+      </div>
+    )}
+  </div>
 )}
         </div>
       </div>
