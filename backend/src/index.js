@@ -34,6 +34,7 @@ import receptionRoutes from "./routes/reception.js";
 import regnoRouter from "./routes/regno.js";
 import paymentSettingsRouter from "./routes/payment-settings.js";
 import adminRouter from "./routes/admin.js";
+import qpayRouter from "./routes/qpay.js";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const app = express();
@@ -102,6 +103,9 @@ app.use("/api/staff/summary", staffSummaryRoutes);
 // NEW: payment settings
 app.use("/api/payment-settings", paymentSettingsRouter);
 app.use("/api/admin", adminRouter);
+
+// QPay integration
+app.use("/api/qpay", qpayRouter);
 
 // Optional central error handler
 app.use((err, _req, res, _next) => {
