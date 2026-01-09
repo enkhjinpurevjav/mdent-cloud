@@ -512,7 +512,7 @@ export default function StaffIncomeSettingsPage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "200px 150px 86px 86px 86px 86px 110px 140px",
+                gridTemplateColumns: "200px 100px 86px 86px 86px 86px 110px 140px",
                 gap: 10,
                 padding: "10px 12px",
                 borderRadius: 10,
@@ -569,7 +569,7 @@ export default function StaffIncomeSettingsPage() {
                     key={d.doctorId}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "200px 150px 86px 86px 86px 86px 110px 140px",
+                      gridTemplateColumns: "200px 100px 86px 86px 86px 86px 110px 140px",
                       gap: 10,
                       padding: "12px 12px",
                       borderRadius: 12,
