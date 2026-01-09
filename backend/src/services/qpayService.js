@@ -12,6 +12,9 @@ let tokenCache = {
   expiresAt: null,
 };
 
+// Token expiry configuration (in milliseconds)
+const DEFAULT_TOKEN_EXPIRY_MS = 50 * 60 * 1000; // 50 minutes
+
 /**
  * Get QPay base URL based on environment
  */
@@ -74,7 +77,7 @@ export async function getAccessToken() {
   }
 
   // Cache token with expiry (default 50 minutes if not provided)
-  const expiresIn = data.expires_in ? Number(data.expires_in) * 1000 : 50 * 60 * 1000;
+  const expiresIn = data.expires_in ? Number(data.expires_in) * 1000 : DEFAULT_TOKEN_EXPIRY_MS;
   tokenCache = {
     token: data.access_token,
     expiresAt: now + expiresIn,

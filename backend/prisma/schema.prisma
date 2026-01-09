@@ -802,7 +802,8 @@ model Payment {
 
   invoice   Invoice  @relation(fields: [invoiceId], references: [id])
 
-  @@index([invoiceId]) // optional but recommended
+  @@index([invoiceId])
+  @@index([qpayTxnId])
 }
 
 model EBarimtReceipt {

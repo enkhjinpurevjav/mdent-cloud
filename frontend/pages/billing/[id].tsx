@@ -415,11 +415,19 @@ function BillingPaymentSection({
     setQpayError("");
   };
 
-  // Poll QPay status
+  // QPay polling configuration
+  const QPAY_POLL_INTERVAL_MS = 3000;
+
+  // Poll QPay status with recursive setTimeout to prevent overlapping requests
   useEffect(() => {
     if (!qpayPolling || !qpayInvoiceId) return;
 
-    const pollInterval = setInterval(async () => {
+    let timeoutId: NodeJS.Timeout | null = null;
+    let isCancelled = false;
+
+    const pollPaymentStatus = async () => {
+      if (isCancelled) return;
+
       try {
         const res = await fetch("/api/qpay/check", {
           method: "POST",
@@ -431,6 +439,10 @@ function BillingPaymentSection({
 
         if (!res.ok || !data) {
           console.error("QPay check failed:", data);
+          // Schedule next poll
+          if (!isCancelled) {
+            timeoutId = setTimeout(pollPaymentStatus, QPAY_POLL_INTERVAL_MS);
+          }
           return;
         }
 
@@ -467,13 +479,31 @@ function BillingPaymentSection({
           onUpdated({ ...invoice, ...settlementData });
           handleCloseQPayModal();
           setSuccess("QPay төлбөр амжилттай бүртгэгдлээ.");
+        } else {
+          // Not paid yet, schedule next poll
+          if (!isCancelled) {
+            timeoutId = setTimeout(pollPaymentStatus, QPAY_POLL_INTERVAL_MS);
+          }
         }
       } catch (e: any) {
         console.error("QPay polling error:", e);
+        // Schedule next poll even on error
+        if (!isCancelled) {
+          timeoutId = setTimeout(pollPaymentStatus, QPAY_POLL_INTERVAL_MS);
+        }
       }
-    }, 3000);
+    };
 
-    return () => clearInterval(pollInterval);
+    // Start polling
+    pollPaymentStatus();
+
+    // Cleanup on unmount or when polling stops
+    return () => {
+      isCancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [qpayPolling, qpayInvoiceId, invoice, issueEBarimt, onUpdated]);
 
   const handleSubmit: React.FormEventHandler = async (e) => {
