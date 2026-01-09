@@ -348,89 +348,84 @@ router.get("/staff-income-settings", async (_req, res) => {
  * Updates whitening deduct amount and doctor commission configs
  * Body: { whiteningDeductAmountMnt: number, doctors: [{ doctorId, orthoPct, defectPct, surgeryPct, generalPct }] }
  */
+// PUT /api/admin/staff-income-settings
 router.put("/staff-income-settings", async (req, res) => {
   const { whiteningDeductAmountMnt, doctors } = req.body || {};
 
-  // Validate inputs
-  if (whiteningDeductAmountMnt === undefined || whiteningDeductAmountMnt === null) {
-    return res.status(400).json({ error: "whiteningDeductAmountMnt is required" });
+  // must provide at least one thing to update
+  const hasWhitening = whiteningDeductAmountMnt !== undefined && whiteningDeductAmountMnt !== null;
+  const hasDoctors = Array.isArray(doctors);
+
+  if (!hasWhitening && !hasDoctors) {
+    return res.status(400).json({
+      error: "Provide whiteningDeductAmountMnt and/or doctors[] to update.",
+    });
   }
 
-  if (!Array.isArray(doctors)) {
-    return res.status(400).json({ error: "doctors must be an array" });
-  }
-
-  // Validate numeric value
-  const deductAmount = Number(whiteningDeductAmountMnt);
-  if (isNaN(deductAmount) || deductAmount < 0) {
-    return res.status(400).json({ error: "whiteningDeductAmountMnt must be a non-negative number" });
-  }
-
-  // Validate each doctor config
-  for (const doc of doctors) {
-    if (!doc.doctorId || isNaN(Number(doc.doctorId))) {
-      return res.status(400).json({ error: "Each doctor must have a valid doctorId" });
+  // validate whitening only if provided
+  let deductAmount = null;
+  if (hasWhitening) {
+    deductAmount = Number(whiteningDeductAmountMnt);
+    if (Number.isNaN(deductAmount) || deductAmount < 0) {
+      return res
+        .status(400)
+        .json({ error: "whiteningDeductAmountMnt must be a non-negative number" });
     }
+  }
 
-    const orthoPct = Number(doc.orthoPct);
-    const defectPct = Number(doc.defectPct);
-    const surgeryPct = Number(doc.surgeryPct);
-    const generalPct = Number(doc.generalPct);
+  // validate doctors only if provided
+  if (hasDoctors) {
+    for (const doc of doctors) {
+      if (!doc?.doctorId || Number.isNaN(Number(doc.doctorId))) {
+        return res.status(400).json({ error: "Each doctor must have a valid doctorId" });
+      }
 
-    if (isNaN(orthoPct) || isNaN(defectPct) || isNaN(surgeryPct) || isNaN(generalPct)) {
-      return res.status(400).json({ 
-        error: `Invalid percentage values for doctor ${doc.doctorId}` 
-      });
-    }
-
-    if (orthoPct < 0 || defectPct < 0 || surgeryPct < 0 || generalPct < 0) {
-      return res.status(400).json({ 
-        error: `Percentage values must be non-negative for doctor ${doc.doctorId}` 
-      });
+      for (const k of ["orthoPct", "defectPct", "surgeryPct", "generalPct"]) {
+        const v = Number(doc[k]);
+        if (Number.isNaN(v) || v < 0) {
+          return res.status(400).json({ error: `Invalid ${k} for doctor ${doc.doctorId}` });
+        }
+      }
     }
   }
 
   try {
-    // Use transaction to ensure atomicity
     await prisma.$transaction(async (tx) => {
-      // Upsert Settings key
-      await tx.settings.upsert({
-        where: { key: "finance.homeBleachingDeductAmountMnt" },
-        update: { value: String(deductAmount) },
-        create: { 
-          key: "finance.homeBleachingDeductAmountMnt", 
-          value: String(deductAmount) 
-        },
-      });
-
-      // Upsert each doctor commission config
-      for (const doc of doctors) {
-        const doctorId = Number(doc.doctorId);
-        const orthoPct = Number(doc.orthoPct);
-        const defectPct = Number(doc.defectPct);
-        const surgeryPct = Number(doc.surgeryPct);
-        const generalPct = Number(doc.generalPct);
-
-        await tx.doctorCommissionConfig.upsert({
-          where: { doctorId },
-          update: {
-            orthoPct,
-            defectPct,
-            surgeryPct,
-            generalPct,
-          },
+      if (hasWhitening) {
+        await tx.settings.upsert({
+          where: { key: "finance.homeBleachingDeductAmountMnt" },
+          update: { value: String(deductAmount) },
           create: {
-            doctorId,
-            orthoPct,
-            defectPct,
-            surgeryPct,
-            generalPct,
+            key: "finance.homeBleachingDeductAmountMnt",
+            value: String(deductAmount),
           },
         });
       }
+
+      if (hasDoctors) {
+        for (const doc of doctors) {
+          const doctorId = Number(doc.doctorId);
+          await tx.doctorCommissionConfig.upsert({
+            where: { doctorId },
+            update: {
+              orthoPct: Number(doc.orthoPct),
+              defectPct: Number(doc.defectPct),
+              surgeryPct: Number(doc.surgeryPct),
+              generalPct: Number(doc.generalPct),
+            },
+            create: {
+              doctorId,
+              orthoPct: Number(doc.orthoPct),
+              defectPct: Number(doc.defectPct),
+              surgeryPct: Number(doc.surgeryPct),
+              generalPct: Number(doc.generalPct),
+            },
+          });
+        }
+      }
     });
 
-    return res.json({ success: true, message: "Staff income settings saved successfully" });
+    return res.json({ success: true });
   } catch (error) {
     console.error("PUT /api/admin/staff-income-settings failed:", error);
     return res.status(500).json({ error: "Failed to save staff income settings." });
