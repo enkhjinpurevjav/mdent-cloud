@@ -511,7 +511,7 @@ export default function StaffIncomeSettingsPage() {
               style={{
                 display: "grid",
                 gridTemplateColumns:
-                  "200px 150px 120px 120px 120px 150px 110px 110px 140px",
+                  "200px 150px 120px 120px 120px 150px 110px 140px",
                 gap: 10,
                 padding: "10px 12px",
                 borderRadius: 10,
@@ -528,7 +528,6 @@ export default function StaffIncomeSettingsPage() {
               <div style={{ textAlign: "right" }}>Согог (%)</div>
               <div style={{ textAlign: "right" }}>Мэс (%)</div>
               <div style={{ textAlign: "right" }}>Бусад (%)</div>
-              <div style={{ textAlign: "center" }}>Үүсгэсэн</div>
               <div style={{ textAlign: "center" }}>Шинэчилсэн</div>
               <div style={{ textAlign: "right" }} />
             </div>
@@ -559,7 +558,7 @@ export default function StaffIncomeSettingsPage() {
                     style={{
                       display: "grid",
                       gridTemplateColumns:
-                        "200px 150px 120px 120px 120px 150px 110px 110px 140px",
+                        "200px 150px 120px 120px 120px 150px 110px 140px",
                       gap: 10,
                       padding: "12px 12px",
                       borderRadius: 12,
@@ -634,9 +633,7 @@ export default function StaffIncomeSettingsPage() {
                       style={inputStyle}
                     />
 
-                    <div style={{ fontSize: 12, color: "#374151", textAlign: "center" }}>
-                      {formatDateOnly(d.configCreatedAt)}
-                    </div>
+                    
                     <div style={{ fontSize: 12, color: "#374151", textAlign: "center" }}>
                       {formatDateOnly(d.configUpdatedAt)}
                     </div>
