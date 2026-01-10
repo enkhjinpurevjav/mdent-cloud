@@ -724,11 +724,11 @@ model PrescriptionItem {
 // ==========================================================
 model Invoice {
   id Int @id @default(autoincrement())
+  
+  branchId Int
+  branch   Branch @relation(fields: [branchId], references: [id])
 
-  branchId Int?
-  branch   Branch? @relation(fields: [branchId], references: [id])
-
-  encounterId Int       @unique
+  encounterId Int @unique
   encounter   Encounter @relation(fields: [encounterId], references: [id])
 
   patientId Int?
@@ -736,26 +736,21 @@ model Invoice {
 
   items InvoiceItem[]
 
-  totalAmount Float? // legacy
+  totalAmount Float @default(0) // Updated to ensure no null values
+  totalBeforeDiscount Float
+  discountPercent DiscountPercent @default(ZERO)
+  collectionDiscountAmount Float @default(0)
+  finalAmount Float @default(0) // Added default value
 
-  totalBeforeDiscount      Float?
-  discountPercent          DiscountPercent @default(ZERO)
-  collectionDiscountAmount Float           @default(0)
-  finalAmount              Float?
-
-  // Keep old status column exactly as in DB
-  statusLegacy String? @map("status")
+  statusLegacy String @map("status") // Ensure legacy mapping is retained
 
   eBarimtReceipt EBarimtReceipt?
 
   ledgerEntries LedgerEntry[]
-  payments      Payment[]
+  payments Payment[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
-
-  // Back‑relation to EmployeeBenefitUsage
-  employeeBenefitUsages EmployeeBenefitUsage[]
+  updatedAt DateTime @updatedAt
 }
 
 model InvoiceItem {
