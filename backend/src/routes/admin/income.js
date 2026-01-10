@@ -33,7 +33,7 @@ router.get("/doctors-income", async (req, res) => {
     SUM(ii."unitPrice" * ii."quantity" * d."generalPct" / 100) AS commission,
     d."monthlyGoalAmountMnt" AS monthlyGoal,
     CASE
-      WHEN d."monthlyGoalAmountMnt" > 0 THEN ROUND(SUM(i."totalAmount") / d."monthlyGoalAmountMnt" * 100, 2)
+      WHEN d."monthlyGoalAmountMnt" > 0 THEN ROUND(SUM(i."totalAmount")::NUMERIC / d."monthlyGoalAmountMnt" * 100, 2)
       ELSE 0
     END AS progressPercent
   FROM 
