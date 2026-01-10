@@ -29,30 +29,29 @@ router.get("/doctors-income", async (req, res) => {
         d.id AS doctorId,
         d.name AS doctorName,
         b.name AS branchName,
-        SUM(i.totalAmount) AS revenue,
-        SUM(ii.price * ii.quantity * d.generalPct / 100) AS commission,
-        d.monthlyGoalAmountMnt AS monthlyGoal,
+        SUM(i."totalAmount") AS revenue,
+        SUM(ii."price" * ii."quantity" * d."generalPct" / 100) AS commission,
+        d."monthlyGoalAmountMnt" AS monthlyGoal,
         CASE
-          WHEN d.monthlyGoalAmountMnt > 0 THEN ROUND(SUM(i.totalAmount) / d.monthlyGoalAmountMnt * 100, 2)
+          WHEN d."monthlyGoalAmountMnt" > 0 THEN ROUND(SUM(i."totalAmount") / d."monthlyGoalAmountMnt" * 100, 2)
           ELSE 0
         END AS progressPercent
       FROM 
-        Invoice i
+        public."Invoice" i
       INNER JOIN 
-        InvoiceItem ii ON ii.invoiceId = i.id
+        public."InvoiceItem" ii ON ii."invoiceId" = i."id"
       INNER JOIN 
-        Encounter e ON e.id = i.encounterId
+        public."Encounter" e ON e."id" = i."encounterId"
       INNER JOIN 
-        User d ON d.id = e.doctorId
+        public."User" d ON d."id" = e."doctorId"
       INNER JOIN 
-        Branch b ON b.id = d.branchId
+        public."Branch" b ON b."id" = d."branchId"
       WHERE 
-        i.status = 'paid'
-        AND i.createdAt BETWEEN ${startDate} AND ${endDate}
-        AND (${branchId ? `b.id = ${branchId}` : 'TRUE'})
+        i."status" = 'paid'
+        AND i."createdAt" BETWEEN ${startDate} AND ${endDate}
+        AND (${branchId ? `b."id" = ${branchId}` : 'TRUE'})
       GROUP BY 
-        d.id, d.name, b.name, d.monthlyGoalAmountMnt;
-
+        d."id", d."name", b."name", d."monthlyGoalAmountMnt";
     `;
 
     if (!doctors || doctors.length === 0) {
@@ -92,27 +91,26 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
   try {
     const breakdown = await prisma.$queryRaw`
       SELECT 
-        p.name AS procedureName,
-        SUM(ii.price * ii.quantity) AS revenue,
-        d.generalPct AS commissionPercent,
-        SUM(ii.price * ii.quantity * d.generalPct / 100) AS doctorShare
+        p."name" AS procedureName,
+        SUM(ii."price" * ii."quantity") AS revenue,
+        d."generalPct" AS commissionPercent,
+        SUM(ii."price" * ii."quantity" * d."generalPct" / 100) AS doctorShare
       FROM 
-        Invoice i
+        public."Invoice" i
       INNER JOIN 
-        InvoiceItem ii ON ii.invoiceId = i.id
+        public."InvoiceItem" ii ON ii."invoiceId" = i."id"
       INNER JOIN 
-        Procedure p ON p.id = ii.procedureId
+        public."Procedure" p ON p."id" = ii."procedureId"
       INNER JOIN 
-        Encounter e ON e.id = i.encounterId
+        public."Encounter" e ON e."id" = i."encounterId"
       INNER JOIN 
-        User d ON d.id = e.doctorId
+        public."User" d ON d."id" = e."doctorId"
       WHERE 
-        i.status = 'paid'
-        AND i.createdAt BETWEEN ${startDate} AND ${endDate}
-        AND d.id = ${doctorId}
+        i."status" = 'paid'
+        AND i."createdAt" BETWEEN ${startDate} AND ${endDate}
+        AND d."id" = ${doctorId}
       GROUP BY 
-        p.name, d.generalPct;
-
+        p."name", d."generalPct";
     `;
 
     const totals = breakdown.reduce(
