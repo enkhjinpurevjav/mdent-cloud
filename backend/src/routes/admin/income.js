@@ -25,34 +25,34 @@ router.get("/doctors-income", async (req, res) => {
 
   try {
     const doctors = await prisma.$queryRaw`
-      SELECT 
-        d."id" AS doctorId,
-        d."name" AS doctorName,
-        b."name" AS branchName,
-        SUM(i."totalAmount") AS revenue,
-        SUM(ii."unitPrice" * ii."quantity" * d."generalPct" / 100) AS commission,
-        d."monthlyGoalAmountMnt" AS monthlyGoal,
-        CASE
-          WHEN d."monthlyGoalAmountMnt" > 0 THEN ROUND(SUM(i."totalAmount") / d."monthlyGoalAmountMnt" * 100, 2)
-          ELSE 0
-        END AS progressPercent
-      FROM 
-        public."Invoice" i
-      INNER JOIN 
-        public."InvoiceItem" ii ON ii."invoiceId" = i."id"
-      INNER JOIN 
-        public."Encounter" e ON e."id" = i."encounterId"
-      INNER JOIN 
-        public."User" d ON d."id" = e."doctorId"
-      INNER JOIN 
-        public."Branch" b ON b."id" = d."branchId"
-      WHERE 
-        i."status" = 'PAID'
-        AND i."createdAt" BETWEEN ${startDate} AND ${endDate}
-        AND (${branchId ? `b."id" = ${branchId}` : 'TRUE'})
-      GROUP BY 
-        d."id", d."name", b."name", d."monthlyGoalAmountMnt";
-    `;
+  SELECT 
+    d."id" AS doctorId,
+    d."name" AS doctorName,
+    b."name" AS branchName,
+    SUM(i."totalAmount") AS revenue,
+    SUM(ii."unitPrice" * ii."quantity" * d."generalPct" / 100) AS commission,
+    d."monthlyGoalAmountMnt" AS monthlyGoal,
+    CASE
+      WHEN d."monthlyGoalAmountMnt" > 0 THEN ROUND(SUM(i."totalAmount") / d."monthlyGoalAmountMnt" * 100, 2)
+      ELSE 0
+    END AS progressPercent
+  FROM 
+    public."Invoice" i
+  INNER JOIN 
+    public."InvoiceItem" ii ON ii."invoiceId" = i."id"
+  INNER JOIN 
+    public."Encounter" e ON e."id" = i."encounterId"
+  INNER JOIN 
+    public."User" d ON d."id" = e."doctorId"
+  INNER JOIN 
+    public."Branch" b ON b."id" = d."branchId"
+  WHERE 
+    i."status" = 'PAID'
+    AND i."createdAt" BETWEEN ${startDate} AND ${endDate}
+    AND (${branchId ? `b."id" = ${branchId}` : 'TRUE'})
+  GROUP BY 
+    d."id", d."name", b."name", d."monthlyGoalAmountMnt";
+`;
 
     if (!doctors || doctors.length === 0) {
       console.log("No data found for filters:", { startDate, endDate, branchId });
