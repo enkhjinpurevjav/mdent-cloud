@@ -4,6 +4,7 @@ import helmet from "helmet";
 import pino from "pino";
 import path from "path"; // NEW
 import prisma from "./db.js";
+import incomeRoutes from "./routes/admin/income.js"; // NEW
 
 import branchesRouter from "./routes/branches.js";
 import patientsRouter from "./routes/patients.js";
@@ -91,6 +92,8 @@ app.use("/api/inventory", inventoryRouter);
 
 // mount employee benefit routes under /api/billing
 app.use("/api/billing", employeeBenefitsRouter);
+// Wire admin income routes
+app.use("/api/admin", incomeRoutes);
 
 // NEW
 app.use("/api/doctors", doctorsRouter);
