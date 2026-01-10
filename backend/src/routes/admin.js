@@ -1,6 +1,10 @@
 import express from "express";
 import prisma from "../db.js";
 
+
+
+import incomeRoutes from "./admin/income.js";
+router.use("/income", incomeRoutes);
 const router = express.Router();
 
 // ==========================================================
