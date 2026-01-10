@@ -272,17 +272,17 @@ model EncounterSterilizationPackageUse {
 // USERS (Doctors, Nurses, Admin, etc.)
 // ==========================================================
 model User {
-  id       Int      @id @default(autoincrement())
-  email    String   @unique
-  password String
-  ovog     String?
-  name     String?
-  role     UserRole @default(receptionist)
-
-  branchId Int?
-  branch   Branch? @relation(fields: [branchId], references: [id])
-
-  createdAt DateTime @default(now())
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  password    String
+  ovog        String?
+  name        String?
+  role        UserRole @default(receptionist)
+  
+  branchId    Int?
+  branch      Branch? @relation(fields: [branchId], references: [id])
+  
+  createdAt   DateTime @default(now())
 
   encounters      Encounter[] @relation("DoctorEncounters")
   nurseEncounters Encounter[] @relation("NurseEncounters")
@@ -310,15 +310,18 @@ model User {
 
   calendarOrder Int?
 
-  // NEW: ledger relations
+  // New: Doctor commission percentages
+  generalPct Float @default(0) // General treatment commission percentage
+
+  // Ledger relations
   createdLedgerEntries  LedgerEntry[] @relation("LedgerCreatedBy")
   approvedLedgerEntries LedgerEntry[] @relation("LedgerApprovedBy")
 
-  // NEW: employee voucher relations
+  // Employee voucher relations
   employeeVouchers        EmployeeVoucher[] @relation("EmployeeVoucherEmployee")
   createdEmployeeVouchers EmployeeVoucher[] @relation("EmployeeVoucherCreatedBy")
 
-  // NEW: authorization codes created by this user
+  // Authorization codes created by this user
   authorizationCodes          AuthorizationCode[]
   sterilizationIndicators     SterilizationIndicator[]           @relation("UserSterilizationIndicators")
   openedSterilizationPackages EncounterSterilizationPackageUse[] @relation("UserOpenedSterilizationPackages")
