@@ -9,7 +9,7 @@ const router = express.Router();
  * Filters:
  * - startDate (required)
  * - endDate (required)
- * - branchId (optional, null for "Бүх салбар")
+ * - branchId (optional, null for "All branches")
  */
 router.get("/doctors-income", async (req, res) => {
   const { startDate, endDate, branchId } = req.query;
@@ -26,11 +26,11 @@ router.get("/doctors-income", async (req, res) => {
   try {
     const doctors = await prisma.$queryRaw`
       SELECT 
-        d.id AS doctorId,
-        d.name AS doctorName,
-        b.name AS branchName,
+        d."id" AS doctorId,
+        d."name" AS doctorName,
+        b."name" AS branchName,
         SUM(i."totalAmount") AS revenue,
-        SUM(ii."price" * ii."quantity" * d."generalPct" / 100) AS commission,
+        SUM(ii."unitPrice" * ii."quantity" * d."generalPct" / 100) AS commission,
         d."monthlyGoalAmountMnt" AS monthlyGoal,
         CASE
           WHEN d."monthlyGoalAmountMnt" > 0 THEN ROUND(SUM(i."totalAmount") / d."monthlyGoalAmountMnt" * 100, 2)
@@ -47,7 +47,7 @@ router.get("/doctors-income", async (req, res) => {
       INNER JOIN 
         public."Branch" b ON b."id" = d."branchId"
       WHERE 
-        i."status" = 'paid'
+        i."status" = 'PAID'
         AND i."createdAt" BETWEEN ${startDate} AND ${endDate}
         AND (${branchId ? `b."id" = ${branchId}` : 'TRUE'})
       GROUP BY 
@@ -81,9 +81,7 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
   // Validation: Ensure required parameters are present
   if (!doctorId || !startDate || !endDate) {
-    return res
-      .status(400)
-      .json({ error: "doctorId, startDate, and endDate are required parameters." });
+    return res.status(400).json({ error: "doctorId, startDate, and endDate are required parameters." });
   }
 
   console.log("Fetching detailed breakdown for:", { doctorId, startDate, endDate });
@@ -92,9 +90,9 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
     const breakdown = await prisma.$queryRaw`
       SELECT 
         p."name" AS procedureName,
-        SUM(ii."price" * ii."quantity") AS revenue,
+        SUM(ii."unitPrice" * ii."quantity") AS revenue,
         d."generalPct" AS commissionPercent,
-        SUM(ii."price" * ii."quantity" * d."generalPct" / 100) AS doctorShare
+        SUM(ii."unitPrice" * ii."quantity" * d."generalPct" / 100) AS doctorShare
       FROM 
         public."Invoice" i
       INNER JOIN 
@@ -106,7 +104,7 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
       INNER JOIN 
         public."User" d ON d."id" = e."doctorId"
       WHERE 
-        i."status" = 'paid'
+        i."status" = 'PAID'
         AND i."createdAt" BETWEEN ${startDate} AND ${endDate}
         AND d."id" = ${doctorId}
       GROUP BY 
