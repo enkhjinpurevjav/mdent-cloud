@@ -100,16 +100,19 @@ const navItems: NavItem[] = [
         href: "/admin/finance/employee-vouchers",
         icon: "🎟️",
       },
+       {
+        // Only the General Income Page
+        label: "Эмчийн орлогын тайлан",
+        href: "/admin/doctor/income",
+        icon: "📊",
+      },
+      
       {
         label: "Ажилчдын хувийн тохиргоо",
         href: "/admin/staff-income-settings",
         icon: "⚙️",
       },
-      {
-        label: "Ажилчдын тайлан",
-        href: "/finance/staff-reports",
-        icon: "👥",
-      },
+    
       {
         label: "Эмнэлгийн тайлан",
         href: "/finance/clinic-reports",
