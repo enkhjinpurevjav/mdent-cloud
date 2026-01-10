@@ -1,11 +1,9 @@
 import express from "express";
-import prisma from "../../db"; // Prisma client
+import prisma from "../../db.js"; // Prisma client for database access
 
 const router = express.Router();
 
-// ───────────────────────────────────────────────────────
-// General Income API
-// ───────────────────────────────────────────────────────
+// General income report
 router.get("/doctors-income", async (req, res) => {
   const { startDate, endDate, branchId } = req.query;
 
@@ -61,9 +59,7 @@ router.get("/doctors-income", async (req, res) => {
   }
 });
 
-// ───────────────────────────────────────────────────────
-// Detailed Doctor Income API
-// ───────────────────────────────────────────────────────
+// Detailed income breakdown per doctor
 router.get("/doctors-income/:doctorId/details", async (req, res) => {
   const { doctorId } = req.params;
   const { startDate, endDate } = req.query;
