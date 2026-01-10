@@ -283,10 +283,10 @@ model User {
   branch      Branch? @relation(fields: [branchId], references: [id])
   
   createdAt   DateTime @default(now())
-
+  
   encounters      Encounter[] @relation("DoctorEncounters")
   nurseEncounters Encounter[] @relation("NurseEncounters")
-
+  
   phone              String?
   regNo              String?   @unique
   licenseNumber      String?   @unique
@@ -299,34 +299,30 @@ model User {
   doctorBranches  DoctorBranch[]
 
   receptionSchedules ReceptionSchedule[]
-  receptionBranches  ReceptionBranch[]
+  receptionBranches ReceptionBranch[]
 
   nurseSchedules NurseSchedule[]
-  nurseBranches  NurseBranch[]
+  nurseBranches NurseBranch[]
 
   appointments     Appointment[]
   bookings         Booking[]
   employeeBenefits EmployeeBenefit[]
 
-  calendarOrder Int?
+  calendarOrder    Int?
 
-  // New: Doctor commission percentages
-  generalPct Float @default(0) // General treatment commission percentage
-
-  // Ledger relations
   createdLedgerEntries  LedgerEntry[] @relation("LedgerCreatedBy")
   approvedLedgerEntries LedgerEntry[] @relation("LedgerApprovedBy")
 
-  // Employee voucher relations
   employeeVouchers        EmployeeVoucher[] @relation("EmployeeVoucherEmployee")
   createdEmployeeVouchers EmployeeVoucher[] @relation("EmployeeVoucherCreatedBy")
 
-  // Authorization codes created by this user
   authorizationCodes          AuthorizationCode[]
   sterilizationIndicators     SterilizationIndicator[]           @relation("UserSterilizationIndicators")
   openedSterilizationPackages EncounterSterilizationPackageUse[] @relation("UserOpenedSterilizationPackages")
 
   // Doctor commission configuration
+  generalPct  Float @default(0) // General treatment commission %
+  monthlyGoalAmountMnt Float @default(0) // Monthly revenue goal in Mongolian Tugriks (MNT)
   commissionConfig DoctorCommissionConfig?
 }
 
