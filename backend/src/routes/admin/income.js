@@ -6,55 +6,27 @@ const router = express.Router();
 // General income report
 router.get("/doctors-income", async (req, res) => {
   const { startDate, endDate, branchId } = req.query;
-
-  if (!startDate || !endDate) {
-    return res.status(400).json({ error: "startDate and endDate are required." });
-  }
+  console.log("Received filters:", { startDate, endDate, branchId });
 
   try {
-    const doctors = await prisma.doctor.findMany({
-      where: {
-        ...(branchId ? { branchId: Number(branchId) } : {}),
-      },
-      include: {
-        branch: true,
-        invoices: {
-          where: {
-            createdAt: { gte: new Date(startDate), lte: new Date(endDate) },
-            status: "paid",
-          },
-        },
-      },
-    });
-
-    const results = doctors.map((doctor) => {
-      const revenue = doctor.invoices.reduce((sum, inv) => sum + Number(inv.totalAmount), 0);
-      const commission = doctor.invoices.reduce(
-        (sum, inv) =>
-          sum +
-          inv.invoiceItems.reduce(
-            (subSum, item) => subSum + item.price * item.quantity * Number(doctor.generalPct) / 100,
-            0,
-          ),
-        0,
-      );
-
-      return {
-        doctorId: doctor.id,
-        doctorName: doctor.name,
-        branchName: doctor.branch?.name || null,
-        startDate,
-        endDate,
-        revenue,
-        commission,
-        monthlyGoal: doctor.monthlyGoalAmountMnt || 0,
-        progressPercent: Math.round((revenue / (doctor.monthlyGoalAmountMnt || 1)) * 100),
-      };
-    });
-
-    res.json(results);
+    const doctors = await prisma.$queryRaw`
+      SELECT d.id AS doctorId, d.name AS doctorName, b.name AS branchName, 
+            SUM(i.totalAmount) AS revenue, 
+            SUM(ii.price * ii.quantity * d.generalPct / 100) AS commission, 
+            d.monthlyGoalAmountMnt AS monthlyGoal
+      FROM Invoice i
+      INNER JOIN InvoiceItem ii ON ii.invoiceId = i.id
+      INNER JOIN Encounter e ON e.id = i.encounterId
+      INNER JOIN User d ON d.id = e.doctorId
+      INNER JOIN Branch b ON b.id = d.branchId
+      WHERE i.status = 'paid' 
+        AND i.createdAt BETWEEN ${startDate} AND ${endDate}
+        AND (b.id = ${branchId} OR ${branchId} IS NULL)
+      GROUP BY d.id, d.name, b.name, d.monthlyGoalAmountMnt;
+    `;
+    res.json(doctors);
   } catch (error) {
-    console.error("Failed to fetch doctor incomes:", error);
+    console.error("Query error:", error);
     res.status(500).json({ error: "Failed to fetch incomes" });
   }
 });
