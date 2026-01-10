@@ -26,14 +26,14 @@ router.get("/doctors-income", async (req, res) => {
   try {
     const doctors = await prisma.$queryRaw`
   SELECT 
-    d."id" AS doctorId,
-    d."name" AS doctorName,
-    b."name" AS branchName,
+    d.id AS doctorId,
+    d.name AS doctorName,
+    b.name AS branchName,
     SUM(i."totalAmount") AS revenue,
     SUM(ii."unitPrice" * ii."quantity" * d."generalPct" / 100) AS commission,
     d."monthlyGoalAmountMnt" AS monthlyGoal,
     CASE
-      WHEN d."monthlyGoalAmountMnt" > 0 THEN ROUND(SUM(i."totalAmount")::NUMERIC / d."monthlyGoalAmountMnt" * 100, 2)
+      WHEN d."monthlyGoalAmountMnt" > 0 THEN ROUND((SUM(i."totalAmount") / d."monthlyGoalAmountMnt")::NUMERIC * 100, 2)
       ELSE 0
     END AS progressPercent
   FROM 
