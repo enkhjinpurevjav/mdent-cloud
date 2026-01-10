@@ -49,7 +49,9 @@ router.get("/doctors-income", async (req, res) => {
   WHERE 
     i."status" = 'PAID'
     AND i."createdAt" BETWEEN ${startDate}::TIMESTAMP AND ${endDate}::TIMESTAMP
-    AND (${branchId ? `b."id" = ${branchId}` : '1=1'})
+    AND (
+      ${branchId ? `b."id" = ${branchId}` : 'true'}
+    )
   GROUP BY 
     d."id", d."name", b."name", d."monthlyGoalAmountMnt";
 `;
