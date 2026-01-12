@@ -3,25 +3,43 @@ import prisma from "../../db.js";
 
 const router = express.Router();
 
-/**
- * GET /api/admin/staff-income-settings
- * Must match frontend shape exactly.
- */
+const WHITENING_KEY = "whiteningDeductAmountMnt";
+
+async function loadWhiteningDeductAmountMnt() {
+  try {
+    const s = await prisma.setting.findUnique({
+      where: { key: WHITENING_KEY },
+      select: { valueNumber: true },
+    });
+    return Number(s?.valueNumber ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
+// Do NOT fail doctor save if global settings storage is missing
+async function trySaveWhiteningDeductAmountMnt(value) {
+  try {
+    await prisma.setting.upsert({
+      where: { key: WHITENING_KEY },
+      update: { valueNumber: value },
+      create: { key: WHITENING_KEY, valueNumber: value },
+    });
+  } catch (e) {
+    console.warn(
+      "Skipping whiteningDeductAmountMnt save because prisma.setting is not available or failed:",
+      e?.message || e
+    );
+  }
+}
+
 router.get("/staff-income-settings", async (_req, res) => {
   try {
-    // TODO: wire real storage later (Settings table, etc.)
-    const whiteningDeductAmountMnt = 0;
+    const whiteningDeductAmountMnt = await loadWhiteningDeductAmountMnt();
 
-    // IMPORTANT: ensure this role matches your DB values.
-    // If your DB role values are uppercase, change to "DOCTOR".
     const doctors = await prisma.user.findMany({
-      where: { role: "doctor" },
-      select: {
-        id: true,
-        ovog: true,
-        name: true,
-        email: true,
-      },
+      where: { role: "doctor" }, // adjust if needed
+      select: { id: true, ovog: true, name: true, email: true },
       orderBy: { name: "asc" },
     });
 
@@ -57,13 +75,62 @@ router.get("/staff-income-settings", async (_req, res) => {
       };
     });
 
-    return res.json({
-      whiteningDeductAmountMnt,
-      doctors: rows,
-    });
+    return res.json({ whiteningDeductAmountMnt, doctors: rows });
   } catch (e) {
     console.error("Failed to load staff income settings", e);
-    return res.status(500).json({ error: "Failed to load staff income settings" });
+    return res.status(500).json({ error: e?.message || "Failed to load staff income settings" });
+  }
+});
+
+router.put("/staff-income-settings", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const whitening = Number(body.whiteningDeductAmountMnt ?? 0);
+    const doctors = Array.isArray(body.doctors) ? body.doctors : [];
+
+    if (!Number.isFinite(whitening) || whitening < 0) {
+      return res.status(400).json({ error: "whiteningDeductAmountMnt must be >= 0" });
+    }
+
+    // Save global (best-effort)
+    await trySaveWhiteningDeductAmountMnt(whitening);
+
+    if (doctors.length === 0) {
+      return res.json({ ok: true });
+    }
+
+    // Save doctor configs
+    for (const d of doctors) {
+      const doctorId = Number(d.doctorId);
+      if (!doctorId || !Number.isFinite(doctorId)) {
+        return res.status(400).json({ error: "doctorId is required" });
+      }
+
+      const orthoPct = Number(d.orthoPct ?? 0);
+      const defectPct = Number(d.defectPct ?? 0);
+      const surgeryPct = Number(d.surgeryPct ?? 0);
+      const generalPct = Number(d.generalPct ?? 0);
+      const monthlyGoalAmountMnt = Number(d.monthlyGoalAmountMnt ?? 0);
+
+      const pcts = [orthoPct, defectPct, surgeryPct, generalPct];
+      if (pcts.some((x) => !Number.isFinite(x) || x < 0)) {
+        return res.status(400).json({ error: "Percent values must be >= 0 numbers" });
+      }
+      if (!Number.isFinite(monthlyGoalAmountMnt) || monthlyGoalAmountMnt < 0) {
+        return res.status(400).json({ error: "monthlyGoalAmountMnt must be >= 0" });
+      }
+
+      await prisma.doctorCommissionConfig.upsert({
+        where: { doctorId },
+        update: { orthoPct, defectPct, surgeryPct, generalPct, monthlyGoalAmountMnt },
+        create: { doctorId, orthoPct, defectPct, surgeryPct, generalPct, monthlyGoalAmountMnt },
+      });
+    }
+
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("Failed to save staff income settings", e);
+    return res.status(500).json({ error: e?.message || "Failed to save staff income settings" });
   }
 });
 
