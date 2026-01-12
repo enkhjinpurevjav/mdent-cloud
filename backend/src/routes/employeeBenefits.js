@@ -8,25 +8,34 @@ const router = express.Router();
  * GET /api/admin/employee-benefits
  * Returns employee benefit records for admin UI.
  */
+// Add this route near the top
 router.get("/employee-benefits", async (_req, res) => {
   try {
     const benefits = await prisma.employeeBenefit.findMany({
-      orderBy: { createdAt: "desc" },
+      orderBy: { id: "asc" },
       include: {
-        employee: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            role: true,
-            branchId: true,
-          },
-        },
+        employee: { select: { id: true, name: true, role: true } },
       },
     });
 
-    return res.json(benefits);
+    // shape it to what UI likely expects
+    const result = benefits.map((b) => ({
+      id: b.id,
+      employeeId: b.employeeId,
+      employeeName: b.employee?.name ?? null,
+      employeeRole: b.employee?.role ?? null,
+      code: b.code,
+      initialAmount: b.initialAmount,
+      remainingAmount: b.remainingAmount,
+      usedAmount: (b.initialAmount ?? 0) - (b.remainingAmount ?? 0),
+      isActive: b.isActive,
+      fromDate: b.fromDate,
+      toDate: b.toDate,
+      createdAt: b.createdAt,
+      updatedAt: b.updatedAt,
+    }));
+
+    return res.json(result);
   } catch (e) {
     console.error("Failed to load employee benefits", e);
     return res.status(500).json({ error: "Failed to load employee benefits" });
