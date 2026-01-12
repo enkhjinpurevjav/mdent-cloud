@@ -8,24 +8,27 @@ const router = express.Router();
  * ADMIN: Employee vouchers page
  * =========================
  * Frontend (employee-vouchers.tsx) expects:
- * - GET    /api/admin/employee-benefits        -> { employees: EmployeeBenefitRow[] }
- * - POST   /api/admin/employee-benefits        -> create benefit
- * - PATCH  /api/admin/employee-benefits/:id    -> update benefit
+ * - GET    /api/admin/employee-benefits         -> { employees: EmployeeBenefitRow[] }
+ * - POST   /api/admin/employee-benefits         -> create benefit
+ * - PATCH  /api/admin/employee-benefits/:id     -> update benefit
  * - DELETE /api/admin/employee-benefits/:userId -> deactivate benefits for employee
+ *
+ * IMPORTANT BUSINESS RULE:
+ * - Do NOT allow multiple ACTIVE EmployeeBenefit per employee.
+ *   (One employee can have at most one active benefit at a time.)
  */
 
 /**
  * GET /api/admin/employee-benefits
  * Returns rows for "Ажилчдын ваучер" admin page.
  *
- * Note:
- * - UI uses key={userId} so it expects (roughly) one row per employee.
- * - If multiple benefits exist per employee, we return the latest (by updatedAt/createdAt/id).
+ * Because UI uses key={userId}, we return at most one row per employee.
+ * We prefer the latest active benefit; if none active, we may return the latest inactive (optional).
  */
 router.get("/employee-benefits", async (_req, res) => {
   try {
     const benefits = await prisma.employeeBenefit.findMany({
-      orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+      orderBy: [{ isActive: "desc" }, { updatedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
       include: {
         employee: {
           select: {
@@ -33,13 +36,12 @@ router.get("/employee-benefits", async (_req, res) => {
             name: true,
             email: true,
             role: true,
-            // Do NOT select 'ovog' here unless you are 100% sure the column exists in Prisma schema.
           },
         },
       },
     });
 
-    // Keep only the latest benefit per employeeId (because frontend key = userId)
+    // Deduplicate by employeeId (first record wins because of ordering above)
     const latestByEmployee = new Map();
     for (const b of benefits) {
       if (!latestByEmployee.has(b.employeeId)) {
@@ -54,7 +56,7 @@ router.get("/employee-benefits", async (_req, res) => {
 
       return {
         userId: b.employeeId,
-        ovog: "", // frontend supports this field but it may not exist in DB; keep empty for compatibility
+        ovog: "", // keep for frontend compatibility
         name: b.employee?.name ?? "",
         email: b.employee?.email ?? "",
         role: b.employee?.role ?? "",
@@ -85,6 +87,9 @@ router.get("/employee-benefits", async (_req, res) => {
 /**
  * POST /api/admin/employee-benefits
  * Body: { employeeId: number, code: string, initialAmount: number }
+ *
+ * Enforces: only one ACTIVE benefit per employee.
+ * - If an active benefit already exists -> 409
  */
 router.post("/employee-benefits", async (req, res) => {
   try {
@@ -111,11 +116,23 @@ router.post("/employee-benefits", async (req, res) => {
       return res.status(404).json({ error: "Employee not found" });
     }
 
-    const existing = await prisma.employeeBenefit.findFirst({
+    // Enforce: only one ACTIVE benefit per employee
+    const activeForEmployee = await prisma.employeeBenefit.findFirst({
+      where: { employeeId, isActive: true },
+      select: { id: true, code: true },
+    });
+    if (activeForEmployee) {
+      return res.status(409).json({
+        error: `Энэ ажилтанд идэвхтэй ваучер эрх аль хэдийн байна. (benefitId=${activeForEmployee.id}, code=${activeForEmployee.code})`,
+      });
+    }
+
+    // Also keep codes globally unique (optional but recommended)
+    const existingCode = await prisma.employeeBenefit.findFirst({
       where: { code },
       select: { id: true },
     });
-    if (existing) {
+    if (existingCode) {
       return res.status(409).json({ error: "Энэ код аль хэдийн бүртгэгдсэн байна." });
     }
 
@@ -140,12 +157,23 @@ router.post("/employee-benefits", async (req, res) => {
 /**
  * PATCH /api/admin/employee-benefits/:benefitId
  * Body: { code, initialAmount, remainingAmount, fromDate, toDate, isActive }
+ *
+ * Enforces: only one ACTIVE benefit per employee.
+ * - If you set isActive=true, we block if another active benefit exists for same employee.
  */
 router.patch("/employee-benefits/:benefitId", async (req, res) => {
   try {
     const benefitId = Number(req.params.benefitId);
     if (!benefitId || !Number.isFinite(benefitId)) {
       return res.status(400).json({ error: "Invalid benefitId" });
+    }
+
+    const existingBenefit = await prisma.employeeBenefit.findUnique({
+      where: { id: benefitId },
+      select: { id: true, employeeId: true },
+    });
+    if (!existingBenefit) {
+      return res.status(404).json({ error: "Benefit not found" });
     }
 
     const body = req.body || {};
@@ -167,12 +195,30 @@ router.patch("/employee-benefits/:benefitId", async (req, res) => {
       return res.status(400).json({ error: "remainingAmount cannot exceed initialAmount" });
     }
 
+    // Prevent duplicate code across benefits
     const dup = await prisma.employeeBenefit.findFirst({
       where: { code, NOT: { id: benefitId } },
       select: { id: true },
     });
     if (dup) {
       return res.status(409).json({ error: "Энэ код өөр ажилтанд бүртгэгдсэн байна." });
+    }
+
+    // Enforce: only one ACTIVE benefit per employee
+    if (isActive) {
+      const otherActive = await prisma.employeeBenefit.findFirst({
+        where: {
+          employeeId: existingBenefit.employeeId,
+          isActive: true,
+          NOT: { id: benefitId },
+        },
+        select: { id: true, code: true },
+      });
+      if (otherActive) {
+        return res.status(409).json({
+          error: `Энэ ажилтанд өөр идэвхтэй ваучер эрх байна. (benefitId=${otherActive.id}, code=${otherActive.code})`,
+        });
+      }
     }
 
     const updated = await prisma.employeeBenefit.update({
@@ -234,10 +280,7 @@ router.post("/employee-benefit/verify", async (req, res) => {
   }
 
   try {
-    // IMPORTANT FIX:
-    // In your original snippet you had two separate "OR" keys.
-    // In JS objects, the second OR overwrites the first one.
-    // Correct is: AND: [ { OR: fromDate... }, { OR: toDate... } ]
+    // Fix: do not use duplicate OR keys; use AND of ORs.
     const benefit = await prisma.employeeBenefit.findFirst({
       where: {
         code: code.trim(),
