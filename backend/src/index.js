@@ -26,6 +26,8 @@ import sterilizationRouter from "./routes/sterilization.js";
 import employeeBenefitsRouter from "./routes/employeeBenefits.js";
 import reportsPatientBalancesRouter from "./routes/reports-patient-balances.js";
 import inventoryRouter from "./routes/inventory.js";
+import staffIncomeSettingsRouter from "./routes/admin/staffIncomeSettings.js";
+
 
 // NEW: diagnoses
 import diagnosesRouter from "./routes/diagnoses.js";
@@ -89,9 +91,10 @@ app.use("/api/reports", reportsPatientBalancesRouter);
 app.use("/api", sterilizationRouter);
 app.use("/api/regno", regnoRouter);
 app.use("/api/inventory", inventoryRouter);
+app.use("/api/admin", staffIncomeSettingsRouter);
 
-// mount employee benefit routes under /api/billing
-app.use("/api/billing", employeeBenefitsRouter);
+// add this (NEW) so GET /api/admin/employee-benefits works
+app.use("/api/admin", employeeBenefitsRouter);
 // Wire admin income routes
 app.use("/api/admin", incomeRoutes);
 
