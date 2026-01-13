@@ -17,10 +17,13 @@ router.get("/doctors-income", async (req, res) => {
         d."name" AS "doctorName",
         b."name" AS "branchName",
 
-        -- Revenue (paid invoices)
+        -- add dates so frontend can render "Эхлэх/Дуусах"
+        ${startDate}::date AS "startDate",
+        ${endDate}::date AS "endDate",
+
         SUM(i."finalAmount") AS "revenue",
 
-        -- Use DoctorCommissionConfig, NOT User table fields
+        -- Use DoctorCommissionConfig (not User fields)
         SUM(ii."unitPrice" * ii."quantity" * COALESCE(cfg."generalPct", 0) / 100) AS "commission",
         COALESCE(cfg."monthlyGoalAmountMnt", 0) AS "monthlyGoal",
 
@@ -35,8 +38,6 @@ router.get("/doctors-income", async (req, res) => {
       INNER JOIN public."Encounter" e ON e."id" = i."encounterId"
       INNER JOIN public."User" d ON d."id" = e."doctorId"
       INNER JOIN public."Branch" b ON b."id" = d."branchId"
-
-      -- KEY FIX: join config table
       LEFT JOIN public."DoctorCommissionConfig" cfg ON cfg."doctorId" = d."id"
 
       WHERE 
@@ -49,14 +50,16 @@ router.get("/doctors-income", async (req, res) => {
         d."id",
         d."name",
         b."name",
-        cfg."monthlyGoalAmountMnt"
+        cfg."monthlyGoalAmountMnt",
+        ${startDate}::date,
+        ${endDate}::date
     `;
 
     if (!doctors || doctors.length === 0) {
       return res.status(404).json({ error: "No income data found." });
     }
 
-    res.json(doctors);
+    return res.json(doctors);
   } catch (error) {
     console.error("Error in fetching doctor incomes:", error);
     return res.status(500).json({ error: "Failed to fetch doctor incomes." });
@@ -79,23 +82,18 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
         ii."name" AS "itemName",
         ii."itemType" AS "itemType",
         SUM(ii."unitPrice" * ii."quantity") AS "revenue",
-
-        -- Use config pct, fallback 0
         COALESCE(cfg."generalPct", 0) AS "commissionPercent",
         SUM(ii."unitPrice" * ii."quantity" * COALESCE(cfg."generalPct", 0) / 100) AS "doctorShare"
-
       FROM public."Invoice" i
       INNER JOIN public."InvoiceItem" ii ON ii."invoiceId" = i."id"
       INNER JOIN public."Encounter" e ON e."id" = i."encounterId"
       INNER JOIN public."User" d ON d."id" = e."doctorId"
       LEFT JOIN public."DoctorCommissionConfig" cfg ON cfg."doctorId" = d."id"
-
       WHERE 
         LOWER(i."status") = 'paid'
         AND i."createdAt" >= ${startDate}::date
         AND i."createdAt" < (${endDate}::date + interval '1 day')
         AND d."id" = ${Number(doctorId)}::int
-
       GROUP BY ii."name", ii."itemType", cfg."generalPct"
       ORDER BY "revenue" DESC
     `;
@@ -109,7 +107,7 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
       { totalRevenue: 0, totalDoctorShare: 0 }
     );
 
-    res.json({
+    return res.json({
       doctorId,
       startDate,
       endDate,
