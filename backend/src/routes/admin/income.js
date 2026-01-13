@@ -17,13 +17,12 @@ router.get("/doctors-income", async (req, res) => {
         d."name" AS "doctorName",
         b."name" AS "branchName",
 
-        -- add dates so frontend can render "Эхлэх/Дуусах"
-        ${startDate}::date AS "startDate",
-        ${endDate}::date AS "endDate",
+        -- ✅ date-only strings (no time)
+        TO_CHAR(${startDate}::date, 'YYYY-MM-DD') AS "startDate",
+        TO_CHAR(${endDate}::date, 'YYYY-MM-DD') AS "endDate",
 
         SUM(i."finalAmount") AS "revenue",
 
-        -- Use DoctorCommissionConfig (not User fields)
         SUM(ii."unitPrice" * ii."quantity" * COALESCE(cfg."generalPct", 0) / 100) AS "commission",
         COALESCE(cfg."monthlyGoalAmountMnt", 0) AS "monthlyGoal",
 
@@ -109,8 +108,8 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
     return res.json({
       doctorId,
-      startDate,
-      endDate,
+      startDate: String(startDate),
+      endDate: String(endDate),
       breakdown,
       totals,
     });
