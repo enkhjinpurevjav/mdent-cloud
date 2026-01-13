@@ -19,40 +19,20 @@ import type {
   AssignedTo,
   Branch,
 } from "../../types/encounter-admin";
-import { formatDateTime, formatShortDate } from "../../utils/date-formatters";
+import { formatDateTime, formatShortDate, ymdLocal, addDays, getTimeHHMM, isTimeWithinRangeStr } from "../../utils/date-formatters";
 import { formatPatientName, formatDoctorDisplayName, formatStaffName } from "../../utils/name-formatters";
 import { extractWarningLinesFromVisitCard } from "../../utils/visit-card-helpers";
 import { displayOrDash } from "../../utils/display-helpers";
 import { ADULT_TEETH, CHILD_TEETH, ALL_TEETH_LABEL, stringifyToothList } from "../../utils/tooth-helpers";
 import SignaturePad from "../../components/SignaturePad";
-
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function ymdLocal(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
-function addDays(d: Date, days: number) {
-  const x = new Date(d);
-  x.setDate(x.getDate() + days);
-  return x;
-}
-
-function getTimeHHMM(d: Date) {
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
-
-function isTimeWithinRangeStr(time: string, start: string, end: string) {
-  return time >= start && time < end;
-}
+import PatientHeader from "../../components/encounter/PatientHeader";
+import ToothChartSelector from "../../components/encounter/ToothChartSelector";
+import DiagnosesEditor from "../../components/encounter/DiagnosesEditor";
+import MediaGallery from "../../components/encounter/MediaGallery";
+import PrescriptionEditor from "../../components/encounter/PrescriptionEditor";
 
 function formatDateYYYYMMDD(date: Date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return ymdLocal(date);
 }
 
 type DiagnosisServiceRow = EditableDiagnosis;
@@ -350,6 +330,23 @@ const [weekError, setWeekError] = useState("");
   const encounterId = useMemo(
     () => (typeof id === "string" ? Number(id) : NaN),
     [id]
+  );
+
+  // Helper to update a single field in both rows and editableDxRows
+  const updateDxRowField = useCallback(
+    <K extends keyof EditableDiagnosis>(
+      index: number,
+      field: K,
+      value: EditableDiagnosis[K]
+    ) => {
+      setRows((prev) =>
+        prev.map((row, i) => (i === index ? { ...row, [field]: value } : row))
+      );
+      setEditableDxRows((prev) =>
+        prev.map((row, i) => (i === index ? { ...row, [field]: value } : row))
+      );
+    },
+    []
   );
 
   useEffect(() => {
@@ -1425,252 +1422,50 @@ const removeDiagnosisRow = (index: number) => {
 
       {!loading && !error && encounter && (
         <>
-          <section
-            style={{
-              display: "grid",
-              gridTemplateColumns: "2fr 1fr",
-              gap: 16,
-              marginBottom: 16,
-            }}
-          >
-            <div
-              style={{
-                borderRadius: 12,
-                border: "1px solid #e5e7eb",
-                padding: 16,
-                background: "#ffffff",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 18,
-                  fontWeight: 600,
-                  marginBottom: 4,
-                }}
-              >
-                {formatPatientName(encounter.patientBook.patient)}
-              </div>
-              <div style={{ fontSize: 13, color: "#6b7280" }}>
-                Картын дугаар: {encounter.patientBook.bookNumber}
-              </div>
-              {encounter.patientBook.patient.regNo && (
-                <div style={{ fontSize: 13, color: "#6b7280" }}>
-                  РД: {encounter.patientBook.patient.regNo}
-                </div>
-              )}
-              <div style={{ fontSize: 13, color: "#6b7280" }}>
-                Утас: {displayOrDash(encounter.patientBook.patient.phone)}
-              </div>
-              <div
-                style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}
-              >
-                Бүртгэсэн салбар:{" "}
-                {encounter.patientBook.patient.branch?.name ||
-                  encounter.patientBook.patient.branchId}
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 8,
-                  marginTop: 4,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/patients/${encodeURIComponent(
-                        encounter.patientBook.bookNumber
-                      )}`
-                    )
-                  }
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    background: "#f9fafb",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  Үйлчлүүлэгчийн дэлгэрэнгүй
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/patients/${encodeURIComponent(
-                        encounter.patientBook.bookNumber
-                      )}?tab=visit-card`
-                    )
-                  }
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    background: "#f0f9ff",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  Үйлчлүүлэгчийн карт
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/ortho/${encodeURIComponent(
-                        encounter.patientBook.bookNumber
-                      )}`
-                    )
-                  }
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    background: "#fef3c7",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  Гажиг заслын карт
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    router.push(
-                      `/patients/${encodeURIComponent(
-                        encounter.patientBook.bookNumber
-                      )}?tab=encounters`
-                    )
-                  }
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    background: "#f3e8ff",
-                    fontSize: 12,
-                    cursor: "pointer",
-                  }}
-                >
-                  Өмнөх үзлэгүүд
-                </button>
-              </div>
-            </div>
-
-            <div
-              style={{
-                borderRadius: 12,
-                border: "1px solid #e5e7eb",
-                padding: 16,
-                background: "#ffffff",
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              <div>
-                <div
-                  style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}
-                >
-                  Огноо
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 500 }}>
-                  {formatShortDate(encounter.visitDate)}
-                </div>
-              </div>
-
-              <div>
-                <div
-                  style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}
-                >
-                  Эмч
-                </div>
-                <div style={{ fontSize: 14 }}>
-                  {formatDoctorDisplayName(encounter.doctor)}
-                </div>
-              </div>
-
-              <div>
-                <div
-                  style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}
-                >
-                  Сувилагч
-                </div>
-                <select
-                  value={encounter.nurseId || ""}
-                  onChange={(e) => void handleChangeNurse(e.target.value)}
-                  disabled={changingNurse}
-                  style={{
-                    width: "100%",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    padding: "4px 6px",
-                    fontSize: 13,
-                  }}
-                >
-                  <option value="">Сонгоогүй</option>
-                  {nursesForEncounter.map((n) => (
-                    <option key={n.nurseId} value={n.nurseId}>
-                      {formatStaffName({
-                        name: n.name || undefined,
-                        ovog: n.ovog || undefined,
-                        email: n.email,
-                      })}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {warningLines.length > 0 && (
-                <div
-                  style={{
-                    marginTop: 4,
-                    padding: 8,
-                    borderRadius: 8,
-                    border: "1px solid #f97316",
-                    background: "#fff7ed",
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 700,
-                      color: "#b91c1c",
-                      marginBottom: 4,
-                    }}
-                  >
-                    Анхаарах!
-                  </div>
-                  <ul
-                    style={{
-                      margin: 0,
-                      paddingLeft: 16,
-                      fontSize: 12,
-                      color: "#7f1d1d",
-                    }}
-                  >
-                    {warningLines.map((w, idx) => (
-                      <li key={`${w.label}-${idx}`} style={{ marginBottom: 2 }}>
-                        {w.label} ({w.value})
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </section>
+          <PatientHeader
+            encounter={encounter}
+            warningLines={warningLines}
+            nursesForEncounter={nursesForEncounter}
+            changingNurse={changingNurse}
+            onChangeNurse={handleChangeNurse}
+            onNavigateToPatient={() =>
+              router.push(
+                `/patients/${encodeURIComponent(
+                  encounter.patientBook.bookNumber
+                )}`
+              )
+            }
+            onNavigateToVisitCard={() =>
+              router.push(
+                `/patients/${encodeURIComponent(
+                  encounter.patientBook.bookNumber
+                )}?tab=visit-card`
+              )
+            }
+            onNavigateToOrtho={() =>
+              router.push(
+                `/ortho/${encodeURIComponent(
+                  encounter.patientBook.bookNumber
+                )}`
+              )
+            }
+            onNavigateToPreviousEncounters={() =>
+              router.push(
+                `/patients/${encodeURIComponent(
+                  encounter.patientBook.bookNumber
+                )}?tab=encounters`
+              )
+            }
+          />
 
           <section
             style={{
               marginBottom: 16,
             }}
           >
+            {/* TODO: Consider replacing with <ConsentFormsBlock /> component once the UX pattern
+                is aligned. Current implementation uses checkbox + radio pattern, while
+                ConsentFormsBlock uses button selection pattern. */}
             <div
               style={{
                 marginTop: 4,
@@ -2782,7 +2577,7 @@ const removeDiagnosisRow = (index: number) => {
                               style={{
                                 width: "100%",
                                 borderRadius: 6,
-                                border: "1px солид #d1d5db",
+                                border: "1px solid #d1d5db",
                                 padding: "4px 6px",
                                 marginBottom: 6,
                                 fontSize: 12,
@@ -3769,7 +3564,7 @@ const removeDiagnosisRow = (index: number) => {
                                 style={{
                                   minWidth: 80,
                                   borderRadius: 4,
-                                  border: "1px солид #d1d5db",
+                                  border: "1px solid #d1d5db",
                                   padding: "0 4px",
                                   fontSize: 12,
                                 }}
@@ -3993,7 +3788,7 @@ const removeDiagnosisRow = (index: number) => {
                                 style={{
                                   minWidth: 140,
                                   borderRadius: 4,
-                                  border: "1px солид #d1d5db",
+                                  border: "1px solid #d1d5db",
                                   padding: "0 6px",
                                   fontSize: 12,
                                 }}
@@ -4109,7 +3904,7 @@ const removeDiagnosisRow = (index: number) => {
                                 style={{
                                   minWidth: 140,
                                   borderRadius: 4,
-                                  border: "1px солид #d1d5db",
+                                  border: "1px solid #d1d5db",
                                   padding: "0 6px",
                                   fontSize: 12,
                                 }}
@@ -4177,7 +3972,7 @@ const removeDiagnosisRow = (index: number) => {
                               style={{
                                 width: "100%",
                                 borderRadius: 6,
-                                border: "1pxсолид #d1d5db",
+                                border: "1px solid #d1d5db",
                                 padding: "4px 6px",
                                 fontSize: 12,
                               }}
@@ -4235,7 +4030,7 @@ const removeDiagnosisRow = (index: number) => {
                               style={{
                                 minWidth: 140,
                                 borderRadius: 4,
-                                border: "1pxсолид #d1d5db",
+                                border: "1px solid #d1d5db",
                                 padding: "0 6px",
                                 fontSize: 12,
                               }}
@@ -4260,7 +4055,7 @@ const removeDiagnosisRow = (index: number) => {
                               style={{
                                 minWidth: 140,
                                 borderRadius: 4,
-                                border: "1pxсолид #d1d5db",
+                                border: "1px solid #d1d5db",
                                 padding: "0 6px",
                                 fontSize: 12,
                                 marginTop: 2,
@@ -5076,155 +4871,17 @@ const removeDiagnosisRow = (index: number) => {
             </div>
           </section>
 
-          <section
-            style={{
-              marginTop: 0,
-              padding: 16,
-              borderRadius: 8,
-              border: "1px solid #e5e7eb",
-              background: "#ffffff",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 8,
-              }}
-            >
-              <h2 style={{ fontSize: 16, margin: 0 }}>Шүдний диаграм</h2>
-
-              <div
-                style={{
-                  display: "inline-flex",
-                  borderRadius: 999,
-                  border: "1px solid #d1d5db",
-                  overflow: "hidden",
-                  fontSize: 13,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => toggleToothMode("ADULT")}
-                  style={{
-                    padding: "4px 10px",
-                    border: "none",
-                    background:
-                      toothMode === "ADULT" ? "#2563eb" : "white",
-                    color:
-                      toothMode === "ADULT" ? "white" : "#111827",
-                    cursor: "pointer",
-                  }}
-                >
-                  Байнгын шүд
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleToothMode("CHILD")}
-                  style={{
-                    padding: "4px 10px",
-                    border: "none",
-                    background:
-                      toothMode === "CHILD" ? "#2563eb" : "white",
-                    color:
-                      toothMode === "CHILD" ? "white" : "#111827",
-                    cursor: "pointer",
-                  }}
-                >
-                  Сүүн шүд
-                </button>
-              </div>
-            </div>
-
-            {chartError && (
-              <div style={{ color: "red", marginBottom: 8 }}>
-                {chartError}
-              </div>
-            )}
-
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 6,
-                marginBottom: 8,
-              }}
-            >
-              {(toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH).map(
-                (code) => {
-                  const selected = isToothSelected(code);
-                  return (
-                    <button
-                      key={code}
-                      type="button"
-                      onClick={() => toggleToothSelection(code)}
-                      style={{
-                        minWidth: 34,
-                        padding: "4px 6px",
-                        borderRadius: 999,
-                        border: selected
-                          ? "1px solid #16a34a"
-                          : "1px solid #d1d5db",
-                        background: selected ? "#dcfce7" : "white",
-                        color: selected ? "#166534" : "#111827",
-                        fontSize: 12,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {code}
-                    </button>
-                  );
-                }
-              )}
-
-              <input
-                key="RANGE"
-                type="text"
-                placeholder="ж: 21-24, 25-26, 11,21,22"
-                value={customToothRange}
-                onChange={(e) => setCustomToothRange(e.target.value)}
-                style={{
-                  minWidth: 140,
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  border: "1px solid #d1d5db",
-                  fontSize: 12,
-                }}
-              />
-
-              <button
-                key="ALL"
-                type="button"
-                onClick={() => toggleToothSelection("ALL")}
-                style={{
-                  minWidth: 60,
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  border: areAllModeTeethSelected()
-                    ? "1px solid #16a34a"
-                    : "1px solid #d1d5db",
-                  background: areAllModeTeethSelected()
-                    ? "#dcfce7"
-                    : "white",
-                  color: areAllModeTeethSelected()
-                    ? "#166534"
-                    : "#111827",
-                  fontSize: 12,
-                  cursor: "pointer",
-                  marginLeft: 8,
-                }}
-              >
-                Бүх шүд
-              </button>
-            </div>
-
-            <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>
-              Шүдийг дарж сонгох үед тухайн шүднүүдэд зориулсан нэг оношийн мөр
-              доорх хэсэгт үүснэ. Нэг онош нь олон шүдэнд (эсвэл Бүх шүд)
-              хамаарч болно.
-            </div>
-          </section>
+          <ToothChartSelector
+            toothMode={toothMode}
+            selectedTeeth={selectedTeeth}
+            customToothRange={customToothRange}
+            chartError={chartError}
+            onToggleToothMode={toggleToothMode}
+            onToggleToothSelection={toggleToothSelection}
+            onCustomToothRangeChange={setCustomToothRange}
+            isToothSelected={isToothSelected}
+            areAllModeTeethSelected={areAllModeTeethSelected}
+          />
 
           <section
             style={{
@@ -5235,1319 +4892,83 @@ const removeDiagnosisRow = (index: number) => {
               background: "#ffffff",
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 8,
+            <DiagnosesEditor
+              rows={rows}
+              diagnoses={diagnoses}
+              services={services}
+              activeIndicators={activeIndicators}
+              problemsByDiagnosis={problemsByDiagnosis}
+              dxError={dxError}
+              servicesLoadError={servicesLoadError}
+              saveError={saveError}
+              saving={saving}
+              finishing={finishing}
+              prescriptionSaving={prescriptionSaving}
+              openDxIndex={openDxIndex}
+              openServiceIndex={openServiceIndex}
+              openIndicatorIndex={openIndicatorIndex}
+              activeDxRowIndex={activeDxRowIndex}
+              totalDiagnosisServicesPrice={totalDiagnosisServicesPrice}
+              onDiagnosisChange={handleDiagnosisChange}
+              onToggleProblem={toggleProblem}
+              onNoteChange={handleNoteChange}
+              onToothCodeChange={handleDxToothCodeChange}
+              onRemoveRow={removeDiagnosisRow}
+              onUnlockRow={unlockRow}
+              onLockRow={lockRow}
+              onSetOpenDxIndex={setOpenDxIndex}
+              onSetOpenServiceIndex={setOpenServiceIndex}
+              onSetOpenIndicatorIndex={setOpenIndicatorIndex}
+              onSetActiveDxRowIndex={setActiveDxRowIndex}
+              onUpdateRowField={updateDxRowField}
+              onSave={async () => {
+                await handleSaveDiagnoses();
+                await handleSaveServices();
+                await savePrescription();
               }}
-            >
-              <div>
-                <h2 style={{ fontSize: 16, margin: 0 }}>Онош тавих</h2>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
-                  Нэг мөр = нэг онош, олон шүдэнд хамаарч болно. Шүдний код,
-                  онош болон үйлчилгээний дагуу урьдчилсан дүн доор харагдана.
-                </div>
-              </div>
-            </div>
+              onFinish={handleFinishEncounter}
+              onResetToothSelection={resetToothSelectionSession}
+            />
 
-            {dxError && (
-              <div style={{ color: "red", marginBottom: 8 }}>{dxError}</div>
-            )}
-            {servicesLoadError && (
-              <div style={{ color: "red", marginBottom: 8 }}>
-                {servicesLoadError}
-              </div>
-            )}
+            <MediaGallery
+              media={media}
+              mediaLoading={mediaLoading}
+              mediaError={mediaError}
+              uploadingMedia={uploadingMedia}
+              onUpload={handleMediaUpload}
+              onReload={reloadMedia}
+            />
 
-            {rows.length === 0 && (
-              <div style={{ color: "#6b7280", fontSize: 13 }}>
-                Одоогоор оношийн мөр алга байна. Дээрх шүдний диаграмаас шүд
-                сонгоход автоматаар оношийн мөр үүснэ.
-              </div>
-            )}
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {rows.map((row, index) => {
-                const problems =
-                  problemsByDiagnosis[row.diagnosisId ?? 0] || [];
-                const isLocked = row.locked ?? false;
-
-                const selectedService = row.serviceId
-  ? allServices.find((s) => s.id === row.serviceId)
-  : null;
-
-const isImaging = selectedService?.category === "IMAGING";
-           
-                return (
-                  <div
-                    key={index}
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: 8,
-                      padding: 12,
-                      background: isLocked ? "#fef3c7" : "#f9fafb",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 4,
-                        marginBottom: 8,
-                      }}
-                    >
-                      {isLocked && (
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            marginBottom: 8,
-                            padding: "6px 10px",
-                            background: "#fef08a",
-                            borderRadius: 6,
-                            fontSize: 12,
-                            fontWeight: 500,
-                            color: "#854d0e",
-                          }}
-                        >
-                          <span>🔒 Түгжсэн</span>
-                          <button
-                            type="button"
-                            onClick={() => unlockRow(index)}
-                            style={{
-                              marginLeft: "auto",
-                              padding: "4px 12px",
-                              borderRadius: 4,
-                              border: "1px solid #ca8a04",
-                              background: "#ffffff",
-                              color: "#ca8a04",
-                              cursor: "pointer",
-                              fontSize: 11,
-                              fontWeight: 500,
-                            }}
-                          >
-                            Түгжээ тайлах
-                          </button>
-                        </div>
-                      )}
-                      {!isLocked && row.id && (
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "flex-end",
-                            marginBottom: 4,
-                          }}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => lockRow(index)}
-                            style={{
-                              padding: "4px 12px",
-                              borderRadius: 4,
-                              border: "1px solid #9ca3af",
-                              background: "#ffffff",
-                              color: "#6b7280",
-                              cursor: "pointer",
-                              fontSize: 11,
-                              fontWeight: 500,
-                            }}
-                          >
-                            🔒 Түгжих
-                          </button>
-                        </div>
-                      )}
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 8,
-                          alignItems: "center",
-                        }}
-                      >
-                        <div style={{ position: "relative", flex: 1 }}>
-                          <input
-                            placeholder="Онош бичиж хайх (ж: K04.1, пульпит...)"
-                            value={row.searchText ?? ""}
-                            onChange={(e) => {
-                              if (isLocked) return;
-                              const text = e.target.value;
-                              setOpenDxIndex(index);
-                              setRows((prev) =>
-                                prev.map((r, i) =>
-                                  i === index
-                                    ? {
-                                        ...r,
-                                        searchText: text,
-                                        ...(text.trim()
-                                          ? {}
-                                          : {
-                                              diagnosisId: null,
-                                              diagnosis: undefined,
-                                              selectedProblemIds: [],
-                                            }),
-                                      }
-                                    : r
-                                )
-                              );
-                            }}
-                            onFocus={() => {
-                              if (!isLocked) setOpenDxIndex(index);
-                            }}
-                            onBlur={() => {
-    // small timeout so onMouseDown selection still works
-    setTimeout(() => setOpenDxIndex(null), 150);
-  }}
-                            disabled={isLocked}
-                            style={{
-                              width: "100%",
-                              borderRadius: 6,
-                              border: "1px solid #d1d5db",
-                              padding: "6px 8px",
-                              fontSize: 13,
-                              background: isLocked ? "#f3f4f6" : "#ffffff",
-                              cursor: isLocked ? "not-allowed" : "text",
-                              opacity: isLocked ? 0.6 : 1,
-                            }}
-                          />
-
-                          {openDxIndex === index &&
-                            allDiagnoses.length > 0 && (
-                              <div
-                                style={{
-                                  position: "absolute",
-                                  top: "100%",
-                                  left: 0,
-                                  right: 0,
-                                  maxHeight: 220,
-                                  overflowY: "auto",
-                                  marginTop: 4,
-                                  background: "white",
-                                  borderRadius: 6,
-                                  boxShadow:
-                                    "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
-                                  zIndex: 20,
-                                  fontSize: 13,
-                                }}
-                              >
-                                {allDiagnoses
-                                  .filter((d) => {
-                                    const q = (
-                                      row.searchText || ""
-                                    ).toLowerCase();
-                                    if (!q.trim()) return true;
-                                    const hay = `${d.code} ${d.name}`.toLowerCase();
-                                    return hay.includes(q);
-                                  })
-                                  .slice(0, 50)
-                                  .map((d) => (
-                                    <div
-                                      key={d.id}
-                                      onMouseDown={async (e) => {
-                                        e.preventDefault();
-                                        await handleDiagnosisChange(
-                                          index,
-                                          d.id
-                                        );
-                                        setOpenDxIndex(null);
-                                      }}
-                                      style={{
-                                        padding: "6px 8px",
-                                        cursor: "pointer",
-                                        borderBottom:
-                                          "1px solid #f3f4f6",
-                                        background:
-                                          row.diagnosisId === d.id
-                                            ? "#eff6ff"
-                                            : "white",
-                                      }}
-                                    >
-                                      <div style={{ fontWeight: 500 }}>
-                                        {d.code} – {d.name}
-                                      </div>
-                                      {d.description && (
-                                        <div
-                                          style={{
-                                            fontSize: 11,
-                                            color: "#6b7280",
-                                            marginTop: 2,
-                                          }}
-                                        >
-                                          {d.description}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                              </div>
-                            )}
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => removeDiagnosisRow(index)}
-                          disabled={isLocked}
-                          style={{
-                            padding: "4px 10px",
-                            borderRadius: 6,
-                            border: "1px solid #dc2626",
-                            background: isLocked ? "#f3f4f6" : "#fef2f2",
-                            color: isLocked ? "#9ca3af" : "#b91c1c",
-                            cursor: isLocked ? "not-allowed" : "pointer",
-                            fontSize: 12,
-                            height: 32,
-                            alignSelf: "flex-start",
-                            opacity: isLocked ? 0.5 : 1,
-                          }}
-                        >
-                          Устгах
-                        </button>
-                      </div>
-                    </div>
-
-                    <div
-                      style={{
-                        marginBottom: 8,
-                        display: "flex",
-                        gap: 8,
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <input
-                        placeholder="Шүдний код (ж: 11, 21, 22)"
-                        value={row.toothCode || ""}
-                        onChange={(e) =>
-                          handleDxToothCodeChange(index, e.target.value)
-                        }
-                        onFocus={() => {
-  if (!row.locked) setActiveDxRowIndex(index);
-}}
-                        disabled={isLocked}
-                        style={{
-                          maxWidth: 260,
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          padding: "6px 8px",
-                          fontSize: 12,
-                          background: isLocked ? "#f3f4f6" : "#ffffff",
-                          cursor: isLocked ? "not-allowed" : "text",
-                          opacity: isLocked ? 0.6 : 1,
-                        }}
-                      />
-                      <span style={{ fontSize: 11, color: "#6b7280" }}>
-                        Шүдний диаграмаас автоматаар бөглөгдөнө, засах
-                        боломжтой.
-                      </span>
-                    </div>
-
-                    <div
-                      style={{
-                        marginBottom: 8,
-                        display: "flex",
-                        gap: 8,
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                        position: "relative",
-                      }}
-                    >
-                      <div
-                        style={{
-                          position: "relative",
-                          minWidth: 260,
-                          flex: "0 0 auto",
-                        }}
-                      >
-                        <input
-                          placeholder="Үйлчилгээний нэр эсвэл кодоор хайх..."
-                          value={row.serviceSearchText ?? ""}
-                          onChange={(e) => {
-                            if (isLocked) return;
-                            const text = e.target.value;
-                            setOpenServiceIndex(index);
-                            setRows((prev) =>
-                              prev.map((r, i) =>
-                                i === index
-                                  ? {
-                                      ...r,
-                                      serviceSearchText: text,
-                                      ...(text.trim()
-                                        ? {}
-                                        : { serviceId: undefined }),
-                                    }
-                                  : r
-                              )
-                            );
-                          }}
-                          onFocus={() => {
-                            if (!isLocked) setOpenServiceIndex(index);
-                          }}
-                          disabled={isLocked}
-                          style={{
-                            width: "100%",
-                            borderRadius: 6,
-                            border: "1px solid #d1d5db",
-                            padding: "6px 8px",
-                            fontSize: 13,
-                            background: isLocked ? "#f3f4f6" : "#ffffff",
-                            cursor: isLocked ? "not-allowed" : "text",
-                            opacity: isLocked ? 0.6 : 1,
-                          }}
-                        />
-
-                        {allServices.length > 0 &&
-                          openServiceIndex === index &&
-                          (row.serviceSearchText || "").length > 0 && (
-                            <div
-                              style={{
-                                position: "absolute",
-                                top: "100%",
-                                left: 0,
-                                right: 0,
-                                maxHeight: 220,
-                                overflowY: "auto",
-                                marginTop: 4,
-                                background: "white",
-                                borderRadius: 6,
-                                boxShadow:
-                                  "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
-                                zIndex: 15,
-                                fontSize: 13,
-                              }}
-                            >
-                              {allServices
-                                .filter((svc) => {
-                                  const q = (
-                                    row.serviceSearchText || ""
-                                  ).toLowerCase();
-                                  if (!q.trim()) return true;
-                                  const hay = `${svc.code || ""} ${svc.name}`.toLowerCase();
-                                  return hay.includes(q);
-                                })
-                                .slice(0, 50)
-                                .map((svc) => (
-                                  <div
-                                    key={svc.id}
-                                    onMouseDown={(e) => {
-  e.preventDefault();
-
-  const nextAssignedTo: AssignedTo | undefined =
-    svc.category === "IMAGING" ? (row.assignedTo ?? "DOCTOR") : undefined;
-
-  setRows((prev) =>
-    prev.map((r, i) =>
-      i === index
-        ? {
-            ...r,
-            serviceId: svc.id,
-            serviceSearchText: svc.name,
-            assignedTo: nextAssignedTo,
-          }
-        : r
-    )
-  );
-
-  setOpenServiceIndex(null);
-}}
-                                    style={{
-                                      padding: "6px 8px",
-                                      cursor: "pointer",
-                                      borderBottom:
-                                        "1px solid #f3f4f6",
-                                      background:
-                                        row.serviceId === svc.id
-                                          ? "#eff6ff"
-                                          : "white",
-                                    }}
-                                  >
-                                    <div style={{ fontWeight: 500 }}>
-                                      {svc.code ? `${svc.code} — ` : ""}
-                                      {svc.name}
-                                    </div>
-                                    <div
-                                      style={{
-                                        fontSize: 11,
-                                        color: "#6b7280",
-                                        marginTop: 2,
-                                      }}
-                                    >
-                                      Үнэ:{" "}
-                                      {svc.price.toLocaleString(
-                                        "mn-MN"
-                                      )}
-                                      ₮
-                                    </div>
-                                  </div>
-                                 
-                                ))}
-                            </div>
-
-                          )}
-                      </div>                   
-                    </div>
-
-{isImaging && (
-  <div style={{ marginTop: 6, display: "flex", gap: 16, alignItems: "center" }}>
-    <span style={{ fontSize: 12, color: "#6b7280" }}>Зураг авах оноох:</span>
-
-    <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12 }}>
-      <input
-        type="radio"
-        name={`assignedTo-${index}`}
-        disabled={isLocked}
-        checked={(row.assignedTo ?? "DOCTOR") === "DOCTOR"}
-        onChange={() => {
-          if (isLocked) return;
-          setRows((prev) => prev.map((r, i) => (i === index ? { ...r, assignedTo: "DOCTOR" } : r)));
-        }}
-      />
-      Эмч
-    </label>
-
-    <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12 }}>
-      <input
-        type="radio"
-        name={`assignedTo-${index}`}
-        disabled={isLocked}
-        checked={row.assignedTo === "NURSE"}
-        onChange={() => {
-          if (isLocked) return;
-          setRows((prev) => prev.map((r, i) => (i === index ? { ...r, assignedTo: "NURSE" } : r)));
-        }}
-      />
-      Сувилагч
-    </label>
-  </div>
-)} 
-
-                    {row.diagnosisId ? (
-                      <>
-                        {problems.length === 0 ? (
-                          <div
-                            style={{
-                              color: "#6b7280",
-                              fontSize: 12,
-                              marginBottom: 8,
-                            }}
-                          >
-                            Энэ оношид тохирсон зовиур бүртгээгүй байна
-                            (оношийн тохиргооноос нэмнэ).
-                          </div>
-                        ) : (
-                          <div
-                            style={{
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: 8,
-                              marginBottom: 8,
-                            }}
-                          >
-                            {problems.map((p) => {
-                              const checked =
-                                row.selectedProblemIds?.includes(p.id);
-                              return (
-                                <label
-                                  key={p.id}
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 4,
-                                    padding: "4px 8px",
-                                    borderRadius: 999,
-                                    border: checked
-                                      ? "1px solid #16a34a"
-                                      : "1px solid #d1d5db",
-                                    background: checked
-                                      ? "#dcfce7"
-                                      : "#ffffff",
-                                    fontSize: 12,
-                                    cursor: isLocked ? "not-allowed" : "pointer",
-                                    opacity: isLocked ? 0.6 : 1,
-                                  }}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={() =>
-                                      toggleProblem(index, p.id)
-                                    }
-                                    disabled={isLocked}
-                                    style={{
-                                      cursor: isLocked ? "not-allowed" : "pointer",
-                                    }}
-                                  />
-                                  {p.label}
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </>
-                    ) : null}
-
-
-{/* Sterilization indicators (between Service and Note) */}
-<div style={{ marginBottom: 8, position: "relative" }}>
-  <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-    Ариутгалын багц (идэвхитэй индикатор)
-  </div>
-
-  {/* selected list */}
-  {(row.indicatorIds || []).length > 0 && (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
-      {(row.indicatorIds || []).map((iid, k) => {
-        const ind = activeIndicators.find((x) => x.id === iid);
-        const label = ind ? `${ind.packageName} ${ind.code}` : `#${iid}`;
-        return (
-          <div
-            key={`${iid}-${k}`}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "4px 8px",
-              borderRadius: 999,
-              border: "1px solid #d1d5db",
-              background: "#ffffff",
-              fontSize: 12,
-              opacity: isLocked ? 0.6 : 1,
-            }}
-          >
-            <span>{label}</span>
-            {!isLocked && (
-              <button
-                type="button"
-                onClick={() => {
-  setRows((prev) =>
-    prev.map((r, i) =>
-      i === index
-        ? { ...r, indicatorIds: (r.indicatorIds || []).filter((_, idx) => idx !== k) }
-        : r
-    )
-  );
-  setEditableDxRows((prev) =>
-    prev.map((r, i) =>
-      i === index
-        ? { ...r, indicatorIds: (r.indicatorIds || []).filter((_, idx) => idx !== k) }
-        : r
-    )
-  );
-}}
-                style={{
-                  border: "none",
-                  background: "transparent",
-                  cursor: "pointer",
-                  color: "#dc2626",
-                  fontWeight: 700,
-                  lineHeight: 1,
-                }}
-              >
-                ×
-              </button>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  )}
-
-  {/* input + plus */}
-  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-    <div style={{ position: "relative", minWidth: 260, flex: "0 0 auto" }}>
-      <input
-        placeholder="Багцын нэр эсвэл кодоор хайх..."
-        value={row.indicatorSearchText ?? ""}
-        onChange={(e) => {
-          if (isLocked) return;
-          const text = e.target.value;
-          setOpenIndicatorIndex(index);
-          setRows((prev) => prev.map((r, i) => (i === index ? { ...r, indicatorSearchText: text } : r)));
-          setEditableDxRows((prev) => prev.map((r, i) => (i === index ? { ...r, indicatorSearchText: text } : r)));
-        }}
-        onFocus={() => {
-          if (!isLocked) setOpenIndicatorIndex(index);
-        }}
-        onBlur={() => {
-    // small timeout so onMouseDown selection still works
-    setTimeout(() => setOpenIndicatorIndex(null), 150);
-  }}
-        disabled={isLocked}
-        style={{
-          width: "100%",
-          borderRadius: 6,
-          border: "1px solid #d1d5db",
-          padding: "6px 8px",
-          fontSize: 13,
-          background: isLocked ? "#f3f4f6" : "#ffffff",
-          cursor: isLocked ? "not-allowed" : "text",
-          opacity: isLocked ? 0.6 : 1,
-        }}
-      />
-
-      {openIndicatorIndex === index && (
-  <div
-    style={{
-      position: "absolute",
-      top: "100%",
-      left: 0,
-      right: 0,
-      maxHeight: 220,
-      overflowY: "auto",
-      marginTop: 4,
-      background: "white",
-      borderRadius: 6,
-      boxShadow:
-        "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
-      zIndex: 20,
-      fontSize: 13,
-    }}
-  >
-    {activeIndicators
-      .filter((it) => {
-        const q = (row.indicatorSearchText || "").toLowerCase().trim();
-        if (!q) return true; // ✅ show all when empty
-        const hay = `${it.packageName} ${it.code}`.toLowerCase();
-        return hay.includes(q);
-      })
-      .slice(0, 200) // optional: show more since you can scroll
-      .map((it) => (
-        <div
-          key={it.id}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            const next = [...(row.indicatorIds || []), it.id]; // duplicates allowed
-            setRows((prev) =>
-              prev.map((r, i) =>
-                i === index
-                  ? { ...r, indicatorIds: next, indicatorSearchText: "" }
-                  : r
-              )
-            );
-            setEditableDxRows((prev) =>
-              prev.map((r, i) =>
-                i === index
-                  ? { ...r, indicatorIds: next, indicatorSearchText: "" }
-                  : r
-              )
-            );
-            setOpenIndicatorIndex(null);
-          }}
-          style={{
-            padding: "6px 8px",
-            cursor: "pointer",
-            borderBottom: "1px solid #f3f4f6",
-            background: "white",
-          }}
-        >
-          <div style={{ fontWeight: 500 }}>
-            {it.packageName} — {it.code}
-          </div>
-          <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
-            Үлдэгдэл: {it.current} (нийт {it.produced}, ашигласан {it.used})
-          </div>
-        </div>
-      ))}
-  </div>
-)}
-    </div>
-
-    {/* + button just focuses/open list (selection adds to list) */}
-    <button
-      type="button"
-      disabled={isLocked}
-      onClick={() => {
-        if (isLocked) return;
-        setOpenIndicatorIndex(index);
-      }}
-      style={{
-        padding: "6px 10px",
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        background: "#ffffff",
-        cursor: isLocked ? "not-allowed" : "pointer",
-        opacity: isLocked ? 0.6 : 1,
-        fontWeight: 700,
-      }}
-    >
-      +
-    </button>
-  </div>
-
-  <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
-    * Зөвхөн тухайн өвчтөний салбарын идэвхитэй индикаторууд харагдана.
-  </div>
-</div>
-                    
-                    <textarea
-                      placeholder="Энэ оношид холбогдох тэмдэглэл (сонголттой)"
-                      value={row.note}
-                      onChange={(e) =>
-                        handleNoteChange(index, e.target.value)
-                      }
-                      rows={2}
-                      disabled={isLocked}
-                      style={{
-                        width: "100%",
-                        borderRadius: 6,
-                        border: "1px solid #d1d5db",
-                        padding: "6px 8px",
-                        fontSize: 13,
-                        resize: "vertical",
-                        background: isLocked ? "#f3f4f6" : "#ffffff",
-                        cursor: isLocked ? "not-allowed" : "text",
-                        opacity: isLocked ? 0.6 : 1,
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-
-            {saveError && (
-              <div style={{ color: "red", marginTop: 8 }}>{saveError}</div>
-            )}
-
-            <div
-              style={{
-                marginTop: 12,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
+            <PrescriptionEditor
+              prescriptionItems={prescriptionItems}
+              prescriptionSaving={prescriptionSaving}
+              prescriptionError={prescriptionError}
+              onUpdateItem={(idx, updates) =>
+                setPrescriptionItems((prev) =>
+                  prev.map((p, i) => (i === idx ? { ...p, ...updates } : p))
+                )
+              }
+              onRemoveItem={(idx) =>
+                setPrescriptionItems((prev) =>
+                  prev.filter((_, i) => i !== idx)
+                )
+              }
+              onAddItem={() => {
+                if (prescriptionItems.length >= 3) return;
+                setPrescriptionItems((prev) => [
+                  ...prev,
+                  {
+                    localId: prev.length + 1,
+                    drugName: "",
+                    durationDays: null,
+                    quantityPerTake: null,
+                    frequencyPerDay: null,
+                    note: "",
+                  },
+                ]);
               }}
-            >
-              <div style={{ fontSize: 13, color: "#111827" }}>
-                Нийт үйлчилгээний урьдчилсан дүн:{" "}
-                <strong>
-                  {totalDiagnosisServicesPrice.toLocaleString("mn-MN")}₮
-                </strong>{" "}
-                <span style={{ fontSize: 11, color: "#6b7280" }}>
-                  (Эмчийн сонгосон онош, үйлчилгээний дагуу. Төлбөрийн касс
-                  дээр эцэслэнэ.)
-                </span>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await handleSaveDiagnoses();
-                    await handleSaveServices();
-                    await savePrescription();
-                    // Reset tooth selection session after successful save
-                    resetToothSelectionSession();
-                  }}
-                  disabled={saving || finishing || prescriptionSaving}
-                  style={{
-                    padding: "8px 16px",
-                    borderRadius: 6,
-                    border: "none",
-                    background: "#16a34a",
-                    color: "#ffffff",
-                    cursor: "pointer",
-                    fontSize: 14,
-                  }}
-                >
-                  {saving || prescriptionSaving
-                    ? "Хадгалж байна..."
-                    : "Зөвхөн онош хадгалах"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleFinishEncounter}
-                  disabled={saving || finishing || prescriptionSaving}
-                  style={{
-                    padding: "8px 16px",
-                    borderRadius: 6,
-                    border: "none",
-                    background: "#2563eb",
-                    color: "#ffffff",
-                    cursor: "pointer",
-                    fontSize: 14,
-                  }}
-                >
-                  {finishing
-                    ? "Дуусгаж байна..."
-                    : "Үзлэг дуусгах / Төлбөрт шилжүүлэх"}
-                </button>
-              </div>
-            </div>
-
-            <div
-              style={{
-                marginTop: 16,
-                paddingTop: 12,
-                borderTop: "1px dashed #e5e7eb",
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: 14,
-                  margin: 0,
-                  marginBottom: 6,
-                }}
-              >
-                Рентген / зураг
-              </h3>
-              <p
-                style={{
-                  marginTop: 0,
-                  marginBottom: 6,
-                  fontSize: 12,
-                  color: "#6b7280",
-                }}
-              >
-                Энэ үзлэгт холбоотой рентген болон бусад зургууд.
-              </p>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                  marginBottom: 8,
-                }}
-              >
-                <label
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    padding: "6px 12px",
-                    borderRadius: 6,
-                    border: "1px солид #2563eb",
-                    background: "#eff6ff",
-                    color: "#2563eb",
-                    fontSize: 12,
-                    cursor: uploadingMedia ? "default" : "pointer",
-                  }}
-                >
-                  {uploadingMedia ? "Хуулж байна..." : "+ Зураг нэмэх"}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    style={{ display: "none" }}
-                    disabled={uploadingMedia}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        void handleMediaUpload(file);
-                        e.target.value = "";
-                      }
-                    }}
-                  />
-                </label>
-
-                <button
-                  type="button"
-                  onClick={() => void reloadMedia()}
-                  disabled={mediaLoading}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 6,
-                    border: "1px солид #6b7280",
-                    background: "#f3f4f6",
-                    color: "#374151",
-                    fontSize: 12,
-                    cursor: mediaLoading ? "default" : "pointer",
-                  }}
-                >
-                  {mediaLoading ? "Шинэчилж байна..." : "Зураг шинэчлэх"}
-                </button>
-              </div>
-
-              {mediaLoading && (
-                <div style={{ fontSize: 13 }}>Зураг ачаалж байна...</div>
-              )}
-
-              {mediaError && (
-                <div style={{ color: "red", fontSize: 13, marginBottom: 8 }}>
-                  {mediaError}
-                </div>
-              )}
-
-              {!mediaLoading && media.length === 0 && !mediaError && (
-                <div style={{ fontSize: 13, color: "#6b7280" }}>
-                  Одоогоор энэ үзлэгт зураг хадгалаагүй байна.
-                </div>
-              )}
-
-              {media.length > 0 && (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "repeat(auto-fill, minmax(120px, 1fr))",
-                    gap: 12,
-                    marginTop: 8,
-                  }}
-                >
-                  {media.map((m) => {
-                    const href = m.filePath.startsWith("http")
-                      ? m.filePath
-                      : m.filePath.startsWith("/")
-                      ? m.filePath
-                      : `/${m.filePath}`;
-                    return (
-                      <a
-                        key={m.id}
-                        href={href}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          textDecoration: "none",
-                          color: "#111827",
-                          borderRadius: 8,
-                          border: "1px солид #e5e7eb",
-                          overflow: "hidden",
-                          background: "#f9fafb",
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: "100%",
-                            aspectRatio: "4 / 3",
-                            overflow: "hidden",
-                            background: "#111827",
-                          }}
-                        >
-                          <img
-                            src={href}
-                            alt={m.toothCode || "Рентген зураг"}
-                            style={{
-                              width: "100%",
-                              height: "100%",
-                              objectFit: "cover",
-                              display: "block",
-                            }}
-                          />
-                        </div>
-                        <div
-                          style={{
-                            padding: 6,
-                            fontSize: 11,
-                            borderTop: "1px солид #e5e7eb",
-                            background: "#ffffff",
-                          }}
-                        >
-                          <div>
-                            {m.type === "XRAY" ? "Рентген" : "Зураг"}{" "}
-                            {m.toothCode ? `(${m.toothCode})` : ""}
-                          </div>
-                          {m.createdAt && (
-                            <div style={{ color: "#6b7280", marginTop: 2 }}>
-                              {formatDateTime(m.createdAt)}
-                            </div>
-                          )}
-                        </div>
-                      </a>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div
-              style={{
-                marginTop: 16,
-                paddingTop: 12,
-                borderTop: "1px dashed #e5e7eb",
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: 14,
-                  margin: 0,
-                  marginBottom: 6,
-                }}
-              >
-                Эмийн жор (ихдээ 3 эм)
-              </h3>
-              <p
-                style={{
-                  marginTop: 0,
-                  marginBottom: 6,
-                  fontSize: 12,
-                  color: "#6b7280",
-                }}
-              >
-                Өвчтөнд өгөх эмийн нэр, тун, хэрэглэх давтамж болон хоногийг
-                бөглөнө үү. Жор бичихгүй бол энэ хэсгийг хоосон орхиж болно.
-              </p>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "40px 2fr 80px 80px 80px 1.5fr 60px",
-                  gap: 6,
-                  alignItems: "center",
-                  fontSize: 12,
-                  marginBottom: 4,
-                  padding: "4px 0",
-                  color: "#6b7280",
-                }}
-              >
-                <div>№</div>
-                <div>Эмийн нэр / тун / хэлбэр</div>
-                <div style={{ textAlign: "center" }}>Нэг удаад</div>
-                <div style={{ textAlign: "center" }}>Өдөрт</div>
-                <div style={{ textAlign: "center" }}>Хэд хоног</div>
-                <div>Тэмдэглэл</div>
-                <div />
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 6,
-                }}
-              >
-                {prescriptionItems.map((it, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "40px 2fr 80px 80px 80px 1.5fr 60px",
-                      gap: 6,
-                      alignItems: "center",
-                    }}
-                  >
-                    <div>{idx + 1}</div>
-                    <input
-                      value={it.drugName}
-                      onChange={(e) =>
-                        setPrescriptionItems((prev) =>
-                          prev.map((p, i) =>
-                            i === idx
-                              ? { ...p, drugName: e.target.value }
-                              : p
-                          )
-                        )
-                      }
-                      placeholder="Ж: Амоксициллин 500мг таб."
-                      style={{
-                        width: "100%",
-                        borderRadius: 6,
-                        border: "1px солид #d1d5db",
-                        padding: "4px 6px",
-                        fontSize: 12,
-                      }}
-                    />
-                    <input
-                      type="number"
-                      min={1}
-                      value={it.quantityPerTake ?? ""}
-                      onChange={(e) =>
-                        setPrescriptionItems((prev) =>
-                          prev.map((p, i) =>
-                            i === idx
-                              ? {
-                                  ...p,
-                                  quantityPerTake:
-                                    Number(e.target.value) || 1,
-                                }
-                              : p
-                          )
-                        )
-                      }
-                      placeholder="1"
-                      style={{
-                        width: "100%",
-                        borderRadius: 6,
-                        border: "1px солид #d1d5db",
-                        padding: "4px 6px",
-                        fontSize: 12,
-                        textAlign: "center",
-                      }}
-                    />
-                    <input
-                      type="number"
-                      min={1}
-                      value={it.frequencyPerDay ?? ""}
-                      onChange={(e) =>
-                        setPrescriptionItems((prev) =>
-                          prev.map((p, i) =>
-                            i === idx
-                              ? {
-                                  ...p,
-                                  frequencyPerDay:
-                                    Number(e.target.value) || 1,
-                                }
-                              : p
-                          )
-                        )
-                      }
-                      placeholder="3"
-                      style={{
-                        width: "100%",
-                        borderRadius: 6,
-                        border: "1pxсолид #d1d5db",
-                        padding: "4px 6px",
-                        fontSize: 12,
-                        textAlign: "center",
-                      }}
-                    />
-                    <input
-                      type="number"
-                      min={1}
-                      value={it.durationDays ?? ""}
-                      onChange={(e) =>
-                        setPrescriptionItems((prev) =>
-                          prev.map((p, i) =>
-                            i === idx
-                              ? {
-                                  ...p,
-                                  durationDays:
-                                    Number(e.target.value) || 1,
-                                }
-                              : p
-                          )
-                        )
-                      }
-                      placeholder="7"
-                      style={{
-                        width: "100%",
-                        borderRadius: 6,
-                        border: "1pxсолид #d1d5db",
-                        padding: "4px 6px",
-                        fontSize: 12,
-                        textAlign: "center",
-                      }}
-                    />
-                    <input
-                      value={it.note}
-                      onChange={(e) =>
-                        setPrescriptionItems((prev) =>
-                          prev.map((p, i) =>
-                            i === idx
-                              ? { ...p, note: e.target.value }
-                              : p
-                          )
-                        )
-                      }
-                      placeholder="Ж: Хоолны дараа"
-                      style={{
-                        width: "100%",
-                        borderRadius: 6,
-                        border: "1pxсолид #d1d5db",
-                        padding: "4px 6px",
-                        fontSize: 12,
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPrescriptionItems((prev) =>
-                          prev.filter((_, i) => i !== idx)
-                        )
-                      }
-                      style={{
-                        padding: "4px 6px",
-                        borderRadius: 6,
-                        border: "1pxсолид #dc2626",
-                        background: "#fef2f2",
-                        color: "#b91c1c",
-                        cursor: "pointer",
-                        fontSize: 11,
-                      }}
-                    >
-                      Устгах
-                    </button>
-                  </div>
-                ))}
-
-                {prescriptionItems.length === 0 && (
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "#6b7280",
-                      marginTop: 4,
-                    }}
-                  >
-                    Жор бичээгүй байна. Хэрвээ эмийн жор шаардлагатай бол
-                    доорх &quot;Эм нэмэх&quot; товчоор эм нэмнэ үү.
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (prescriptionItems.length >= 3) return;
-                    setPrescriptionItems((prev) => [
-                      ...prev,
-                      {
-                        localId: prev.length + 1,
-                        drugName: "",
-                        durationDays: null,
-                        quantityPerTake: null,
-                        frequencyPerDay: null,
-                        note: "",
-                      },
-                    ]);
-                  }}
-                  disabled={prescriptionItems.length >= 3}
-                  style={{
-                    marginTop: 4,
-                    padding: "4px 10px",
-                    borderRadius: 6,
-                    border: "1pxсолид #2563eb",
-                    background: "#eff6ff",
-                    color: "#2563eb",
-                    cursor:
-                      prescriptionItems.length >= 3
-                        ? "default"
-                        : "pointer",
-                    fontSize: 12,
-                    alignSelf: "flex-start",
-                  }}
-                >
-                  + Эм нэмэх
-                </button>
-
-                <button
-                  type="button"
-                  onClick={savePrescription}
-                  disabled={prescriptionSaving}
-                  style={{
-                    marginTop: 4,
-                    marginLeft: 8,
-                    padding: "4px 10px",
-                    borderRadius: 6,
-                    border: "1pxсолид #16a34a",
-                    background: "#ecfdf3",
-                    color: "#166534",
-                    cursor: prescriptionSaving ? "default" : "pointer",
-                    fontSize: 12,
-                  }}
-                >
-                  {prescriptionSaving
-                    ? "Жор хадгалж байна..."
-                    : "Жор хадгалах"}
-                </button>
-
-                {prescriptionError && (
-                  <div
-                    style={{
-                      color: "#b91c1c",
-                      fontSize: 12,
-                      marginTop: 4,
-                    }}
-                  >
-                    {prescriptionError}
-                  </div>
-                )}
-              </div>
-            </div>
+              onSave={savePrescription}
+            />
           </section>
         </>
       )}
