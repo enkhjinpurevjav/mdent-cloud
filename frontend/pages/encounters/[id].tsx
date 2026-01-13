@@ -708,11 +708,10 @@ export default function EncounterAdminPage() {
 
     const isNewUnsaved = !r?.id;          // not saved to DB yet
     const isUnlocked = !r?.locked;        // editable/new
-    const empty = isDxRowEffectivelyEmpty(r);
-
-    if (isNewUnsaved && isUnlocked && empty) {
-      removeDiagnosisRow(idx);
-    }
+    const toothEmpty = !(r?.toothCode || "").trim();
+if (isNewUnsaved && isUnlocked && toothEmpty) {
+  removeDiagnosisRow(idx);
+}
   }
 
   setActiveDxRowIndex(null);
@@ -957,16 +956,13 @@ if (patientBranchId) {
           })) || [];
         setEditableServices(svcRows);
 
-        const mergedRows: DiagnosisServiceRow[] = dxRows.map((dxRow, i) => {
-  const svc = svcRows[i];
-  return {
-    ...dxRow,
-    serviceId: svc?.serviceId,
-    serviceSearchText: svc?.service?.name || "",
-    assignedTo: svc?.meta?.assignedTo === "NURSE" ? "NURSE" : "DOCTOR",
-  };
-});
-        setRows(mergedRows);
+        const mergedRows: DiagnosisServiceRow[] = dxRows.map((dxRow) => ({
+  ...dxRow,
+  serviceId: undefined,
+  serviceSearchText: "",
+  assignedTo: "DOCTOR",
+}));
+setRows(mergedRows);
 
         const rxItems: EditablePrescriptionItem[] =
           enc.prescription?.items?.map((it) => ({
@@ -1615,13 +1611,23 @@ const removeDiagnosisRow = (index: number) => {
   setSaving(true);
   setSaveError("");
 
-  // snapshot UI state BEFORE saving (so we don’t lose indicatorIds/serviceId by re-render)
-  const rowsSnapshot = rows.map((r) => ({
-    serviceId: r.serviceId,
-    serviceSearchText: r.serviceSearchText || "",
-    indicatorIds: Array.isArray(r.indicatorIds) ? [...r.indicatorIds] : [],
-    assignedTo: r.assignedTo ?? "DOCTOR",
-  }));
+  // ✅ Snapshot by stable key (id if exists, else localId)
+  const snapByKey = new Map<string, {
+    serviceId?: number;
+    serviceSearchText: string;
+    indicatorIds: number[];
+    assignedTo: AssignedTo;
+  }>();
+
+  rows.forEach((r) => {
+    const key = r.id ? `id:${r.id}` : `local:${r.localId}`;
+    snapByKey.set(key, {
+      serviceId: r.serviceId,
+      serviceSearchText: r.serviceSearchText || "",
+      indicatorIds: Array.isArray(r.indicatorIds) ? [...r.indicatorIds] : [],
+      assignedTo: r.assignedTo ?? "DOCTOR",
+    });
+  });
 
   try {
     const payload = {
@@ -1640,87 +1646,54 @@ const removeDiagnosisRow = (index: number) => {
     });
 
     const json = await res.json().catch(() => null);
-    if (!res.ok) {
-      throw new Error((json && json.error) || "Онош хадгалахад алдаа гарлаа");
-    }
+    if (!res.ok) throw new Error((json && json.error) || "Онош хадгалахад алдаа гарлаа");
 
-    // Update encounter diagnoses
-    if (encounter) {
-      setEncounter({
-        ...encounter,
-        encounterDiagnoses: json,
-      });
-    }
+    const saved = Array.isArray(json) ? json : [];
 
-    // Rebuild rows from server result and preserve UI selections from snapshot
-    const savedDxRows: EditableDiagnosis[] =
-      (Array.isArray(json) ? json : []).map((row: any, idx: number) => ({
-        ...row,
-        diagnosisId: row.diagnosisId ?? null,
-        diagnosis: row.diagnosis ?? null,
+    const savedDxRows: EditableDiagnosis[] = saved.map((srvRow: any, idx: number) => {
+      const key = srvRow?.id ? `id:${srvRow.id}` : `local:${idx + 1}`;
+      const snap = snapByKey.get(key);
+
+      return {
+        ...srvRow,
+        diagnosisId: srvRow.diagnosisId ?? null,
+        diagnosis: srvRow.diagnosis ?? null,
         localId: idx + 1,
-        selectedProblemIds: Array.isArray(row.selectedProblemIds)
-          ? row.selectedProblemIds
-          : [],
-        note: row.note || "",
-        toothCode: row.toothCode || "",
+        selectedProblemIds: Array.isArray(srvRow.selectedProblemIds) ? srvRow.selectedProblemIds : [],
+        note: srvRow.note || "",
+        toothCode: srvRow.toothCode || "",
 
-        // preserve service selection
-        serviceId: rowsSnapshot[idx]?.serviceId,
-        serviceSearchText: rowsSnapshot[idx]?.serviceSearchText || "",
-
-        // preserve indicators selection (important!)
-        indicatorIds: rowsSnapshot[idx]?.indicatorIds || [],
+        serviceId: snap?.serviceId,
+        serviceSearchText: snap?.serviceSearchText || "",
+        indicatorIds: snap?.indicatorIds || [],
         indicatorSearchText: "",
+        assignedTo: snap?.assignedTo ?? "DOCTOR",
 
-        assignedTo: rowsSnapshot[idx]?.assignedTo ?? "DOCTOR", // ✅ add
-
-        searchText: row.diagnosis ? `${row.diagnosis.code} – ${row.diagnosis.name}` : "",
+        searchText: srvRow.diagnosis ? `${srvRow.diagnosis.code} – ${srvRow.diagnosis.name}` : "",
         locked: true,
-      }));
+      };
+    });
 
     setEditableDxRows(savedDxRows);
+    setRows(savedDxRows);
 
-   const mergedRows: DiagnosisServiceRow[] = savedDxRows.map((dxRow, i) => ({
-  ...dxRow,
-  serviceId: rowsSnapshot[i]?.serviceId,
-  serviceSearchText: rowsSnapshot[i]?.serviceSearchText || "",
-  indicatorIds: rowsSnapshot[i]?.indicatorIds || [],
-  assignedTo: rowsSnapshot[i]?.assignedTo ?? "DOCTOR",
-}));
+    // ✅ save indicators by matching the same key (NOT index)
+    await Promise.all(
+      saved.map(async (srvRow: any) => {
+        const dxId = Number(srvRow?.id);
+        if (!dxId) return;
 
-    setRows(mergedRows);
+        const key = `id:${dxId}`;
+        const snap = snapByKey.get(key);
+        const indicatorIds = snap?.indicatorIds || [];
 
-    // Option 1: Save sterilization indicators per saved diagnosis row
-    try {
-      const savedFromServer = Array.isArray(json) ? json : [];
-
-      await Promise.all(
-        savedFromServer.map(async (savedRow: any, i: number) => {
-          const dxId = Number(savedRow?.id);
-          if (!dxId) return;
-
-          const indicatorIds = rowsSnapshot[i]?.indicatorIds || [];
-
-          const r = await fetch(
-            `/api/encounters/${id}/diagnoses/${dxId}/sterilization-indicators`,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ indicatorIds }),
-            }
-          );
-
-          if (!r.ok) {
-            const j = await r.json().catch(() => null);
-            console.error("Failed saving indicators", dxId, j?.error || r.status);
-          }
-        })
-      );
-    } catch (e) {
-      console.error("Failed to save sterilization indicators", e);
-      // not blocking the main save
-    }
+        await fetch(`/api/encounters/${id}/diagnoses/${dxId}/sterilization-indicators`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ indicatorIds }),
+        });
+      })
+    );
   } catch (err: any) {
     console.error("handleSaveDiagnoses failed", err);
     setSaveError(err?.message || "Онош хадгалахад алдаа гарлаа.");
