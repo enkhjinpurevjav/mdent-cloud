@@ -976,6 +976,7 @@ if (patientBranchId) {
             quantityPerTake: it.quantityPerTake,
             frequencyPerDay: it.frequencyPerDay,
             note: it.note || "",
+            assignedTo: rowsSnapshot[i]?.assignedTo ?? "DOCTOR",
           })) || [];
 
         while (rxItems.length < 3) {
@@ -1619,6 +1620,7 @@ const removeDiagnosisRow = (index: number) => {
     serviceId: r.serviceId,
     serviceSearchText: r.serviceSearchText || "",
     indicatorIds: Array.isArray(r.indicatorIds) ? [...r.indicatorIds] : [],
+    assignedTo: r.assignedTo ?? "DOCTOR",
   }));
 
   try {
@@ -1682,6 +1684,7 @@ const removeDiagnosisRow = (index: number) => {
       serviceId: rowsSnapshot[i]?.serviceId,
       serviceSearchText: rowsSnapshot[i]?.serviceSearchText || "",
       indicatorIds: rowsSnapshot[i]?.indicatorIds || [],
+      assignedTo: rowsSnapshot[idx]?.assignedTo ?? "DOCTOR",
     }));
 
     setRows(mergedRows);
@@ -1739,11 +1742,19 @@ const removeDiagnosisRow = (index: number) => {
         }));
 
       const payload = {
-        items: itemsForSave.map((svc) => ({
-          serviceId: svc.serviceId,
-          quantity: svc.quantity || 1,
-        })),
+  items: rows
+    .filter((r) => r.serviceId)
+    .map((r) => {
+      const svc = allServices.find((s) => s.id === r.serviceId);
+      const isImaging = svc?.category === "IMAGING";
+
+      return {
+        serviceId: r.serviceId!,
+        quantity: 1,
+        assignedTo: isImaging ? (r.assignedTo ?? "DOCTOR") : "DOCTOR",
       };
+    }),
+};
 
       const res = await fetch(`/api/encounters/${id}/services`, {
         method: "PUT",
@@ -5809,6 +5820,13 @@ const removeDiagnosisRow = (index: number) => {
                 const problems =
                   problemsByDiagnosis[row.diagnosisId ?? 0] || [];
                 const isLocked = row.locked ?? false;
+
+                const selectedService = row.serviceId
+  ? allServices.find((s) => s.id === row.serviceId)
+  : null;
+
+const isImaging = selectedService?.category === "IMAGING";
+           
                 return (
                   <div
                     key={index}
@@ -6207,11 +6225,47 @@ const removeDiagnosisRow = (index: number) => {
                                       ₮
                                     </div>
                                   </div>
+                                 
                                 ))}
                             </div>
+
                           )}
-                      </div>
+                      </div>                   
                     </div>
+
+{isImaging && (
+  <div style={{ marginTop: 6, display: "flex", gap: 16, alignItems: "center" }}>
+    <span style={{ fontSize: 12, color: "#6b7280" }}>Зураг авах оноох:</span>
+
+    <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12 }}>
+      <input
+        type="radio"
+        name={`assignedTo-${index}`}
+        disabled={isLocked}
+        checked={(row.assignedTo ?? "DOCTOR") === "DOCTOR"}
+        onChange={() => {
+          if (isLocked) return;
+          setRows((prev) => prev.map((r, i) => (i === index ? { ...r, assignedTo: "DOCTOR" } : r)));
+        }}
+      />
+      Эмч
+    </label>
+
+    <label style={{ display: "inline-flex", gap: 6, alignItems: "center", fontSize: 12 }}>
+      <input
+        type="radio"
+        name={`assignedTo-${index}`}
+        disabled={isLocked}
+        checked={row.assignedTo === "NURSE"}
+        onChange={() => {
+          if (isLocked) return;
+          setRows((prev) => prev.map((r, i) => (i === index ? { ...r, assignedTo: "NURSE" } : r)));
+        }}
+      />
+      Сувилагч
+    </label>
+  </div>
+)} 
 
                     {row.diagnosisId ? (
                       <>
