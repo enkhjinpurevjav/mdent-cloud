@@ -2577,7 +2577,7 @@ const removeDiagnosisRow = (index: number) => {
                               style={{
                                 width: "100%",
                                 borderRadius: 6,
-                                border: "1px солид #d1d5db",
+                                border: "1px solid #d1d5db",
                                 padding: "4px 6px",
                                 marginBottom: 6,
                                 fontSize: 12,
@@ -3564,7 +3564,7 @@ const removeDiagnosisRow = (index: number) => {
                                 style={{
                                   minWidth: 80,
                                   borderRadius: 4,
-                                  border: "1px солид #d1d5db",
+                                  border: "1px solid #d1d5db",
                                   padding: "0 4px",
                                   fontSize: 12,
                                 }}
@@ -3788,7 +3788,7 @@ const removeDiagnosisRow = (index: number) => {
                                 style={{
                                   minWidth: 140,
                                   borderRadius: 4,
-                                  border: "1px солид #d1d5db",
+                                  border: "1px solid #d1d5db",
                                   padding: "0 6px",
                                   fontSize: 12,
                                 }}
@@ -3904,7 +3904,7 @@ const removeDiagnosisRow = (index: number) => {
                                 style={{
                                   minWidth: 140,
                                   borderRadius: 4,
-                                  border: "1px солид #d1d5db",
+                                  border: "1px solid #d1d5db",
                                   padding: "0 6px",
                                   fontSize: 12,
                                 }}
@@ -3972,7 +3972,7 @@ const removeDiagnosisRow = (index: number) => {
                               style={{
                                 width: "100%",
                                 borderRadius: 6,
-                                border: "1pxсолид #d1d5db",
+                                border: "1px solid #d1d5db",
                                 padding: "4px 6px",
                                 fontSize: 12,
                               }}
@@ -4030,7 +4030,7 @@ const removeDiagnosisRow = (index: number) => {
                               style={{
                                 minWidth: 140,
                                 borderRadius: 4,
-                                border: "1pxсолид #d1d5db",
+                                border: "1px solid #d1d5db",
                                 padding: "0 6px",
                                 fontSize: 12,
                               }}
@@ -4055,7 +4055,7 @@ const removeDiagnosisRow = (index: number) => {
                               style={{
                                 minWidth: 140,
                                 borderRadius: 4,
-                                border: "1pxсолид #d1d5db",
+                                border: "1px solid #d1d5db",
                                 padding: "0 6px",
                                 fontSize: 12,
                                 marginTop: 2,
