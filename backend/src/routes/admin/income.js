@@ -3,6 +3,27 @@ import prisma from "../../db.js";
 
 const router = express.Router();
 
+const INCLUDED_METHODS = new Set([
+  "CASH",
+  "POS",
+  "TRANSFER",
+  "QPAY",
+  "WALLET",
+  "VOUCHER",
+  "OTHER", // when active -> treated as CASH
+]);
+
+const EXCLUDED_METHODS = new Set(["EMPLOYEE_BENEFIT"]);
+
+const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION"]);
+
+// Home bleaching: serviceId=110 (Service.code=151)
+const HOME_BLEACHING_SERVICE_ID = 110;
+
+function inRange(ts, start, end) {
+  return ts >= start && ts < end;
+}
+
 router.get("/doctors-income", async (req, res) => {
   const { startDate, endDate, branchId } = req.query;
 
@@ -10,112 +31,187 @@ router.get("/doctors-income", async (req, res) => {
     return res.status(400).json({ error: "startDate and endDate are required parameters." });
   }
 
+  const start = new Date(`${startDate}T00:00:00.000Z`);
+  const endExclusive = new Date(`${endDate}T00:00:00.000Z`);
+  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+
   try {
-    const doctors = await prisma.$queryRaw`
-      SELECT 
-        d."id" AS "doctorId",
-        d."name" AS "doctorName",
-        b."name" AS "branchName",
+    // Settings: home bleaching deduction amount
+    const homeBleachingDeductSetting = await prisma.settings.findUnique({
+      where: { key: "finance.homeBleachingDeductAmountMnt" },
+    });
+    const homeBleachingDeductAmountMnt = Number(homeBleachingDeductSetting?.value || 0) || 0;
 
-        -- ✅ date-only strings (no time)
-        TO_CHAR(${startDate}::date, 'YYYY-MM-DD') AS "startDate",
-        TO_CHAR(${endDate}::date, 'YYYY-MM-DD') AS "endDate",
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        ...(branchId ? { branchId: Number(branchId) } : {}),
+        OR: [
+          { createdAt: { gte: start, lt: endExclusive } },
+          { payments: { some: { timestamp: { gte: start, lt: endExclusive } } } },
+        ],
+      },
+      include: {
+        encounter: {
+          include: {
+            doctor: {
+              include: {
+                branch: true,
+                commissionConfig: true,
+              },
+            },
+          },
+        },
+        items: {
+          include: { service: true },
+        },
+        payments: true,
+      },
+    });
 
-        SUM(i."finalAmount") AS "revenue",
+    const byDoctor = new Map();
 
-        SUM(ii."unitPrice" * ii."quantity" * COALESCE(cfg."generalPct", 0) / 100) AS "commission",
-        COALESCE(cfg."monthlyGoalAmountMnt", 0) AS "monthlyGoal",
+    for (const inv of invoices) {
+      const doctor = inv.encounter?.doctor;
+      if (!doctor) continue;
 
-        CASE
-          WHEN COALESCE(cfg."monthlyGoalAmountMnt", 0) > 0
-            THEN ROUND((SUM(i."finalAmount") / COALESCE(cfg."monthlyGoalAmountMnt", 0))::numeric * 100, 2)
-          ELSE 0
-        END AS "progressPercent"
+      const cfg = doctor.commissionConfig;
+      const doctorId = doctor.id;
 
-      FROM public."Invoice" i
-      INNER JOIN public."InvoiceItem" ii ON ii."invoiceId" = i."id"
-      INNER JOIN public."Encounter" e ON e."id" = i."encounterId"
-      INNER JOIN public."User" d ON d."id" = e."doctorId"
-      INNER JOIN public."Branch" b ON b."id" = d."branchId"
-      LEFT JOIN public."DoctorCommissionConfig" cfg ON cfg."doctorId" = d."id"
+      if (!byDoctor.has(doctorId)) {
+        byDoctor.set(doctorId, {
+          doctorId,
+          doctorName: doctor.name,
+          branchName: doctor.branch?.name,
+          startDate: String(startDate),
+          endDate: String(endDate),
 
-      WHERE 
-        LOWER(i."status") = 'paid'
-        AND i."createdAt" >= ${startDate}::date
-        AND i."createdAt" < (${endDate}::date + interval '1 day')
-        AND (COALESCE(${branchId}::text, '') = '' OR b."id" = ${branchId}::int)
+          doctorSalesMnt: 0,
+          doctorIncomeMnt: 0,
+          monthlyGoalAmountMnt: Number(cfg?.monthlyGoalAmountMnt || 0),
+        });
+      }
 
-      GROUP BY
-        d."id",
-        d."name",
-        b."name",
-        cfg."monthlyGoalAmountMnt",
-        ${startDate}::date,
-        ${endDate}::date
-    `;
+      const acc = byDoctor.get(doctorId);
 
-    if (!doctors || doctors.length === 0) {
-      return res.status(404).json({ error: "No income data found." });
+      const payments = inv.payments || [];
+      const hasOverride = payments.some((p) => OVERRIDE_METHODS.has(String(p.method).toUpperCase()));
+
+      // ---------- service net after discount via multiplier ----------
+      const totalBefore = Number(inv.totalBeforeDiscount || 0);
+      const finalAmount = Number(inv.finalAmount || 0);
+      const netMultiplier = totalBefore > 0 ? finalAmount / totalBefore : 0;
+
+      const serviceItems = (inv.items || []).filter((it) => it.itemType === "SERVICE");
+      const serviceGross = serviceItems.reduce(
+        (sum, it) => sum + Number(it.lineTotal || it.unitPrice * it.quantity || 0),
+        0
+      );
+      const serviceNetAfterDiscount = serviceGross * netMultiplier;
+
+      // ---------- SALES ----------
+      if (hasOverride) {
+        // insurance/application override: invoice-based, only when invoice PAID
+        const status = String(inv.statusLegacy || "").toLowerCase();
+        if (status === "paid") {
+          acc.doctorSalesMnt += serviceNetAfterDiscount * 0.9;
+        }
+      } else {
+        // payment-split based by Payment.timestamp in range
+        let included = 0;
+        let barterSum = 0;
+
+        for (const p of payments) {
+          const method = String(p.method || "").toUpperCase();
+          const ts = new Date(p.timestamp);
+          if (!inRange(ts, start, endExclusive)) continue;
+
+          const amt = Number(p.amount || 0);
+
+          if (EXCLUDED_METHODS.has(method)) continue;
+
+          if (method === "BARTER") {
+            barterSum += amt;
+            continue;
+          }
+
+          if (INCLUDED_METHODS.has(method)) {
+            included += amt;
+          }
+        }
+
+        const barterIncluded = Math.max(0, barterSum - 800000);
+        acc.doctorSalesMnt += included + barterIncluded;
+
+        // barter also contributes to income via generalPct
+        const generalPct = Number(cfg?.generalPct || 0);
+        acc.doctorIncomeMnt += barterIncluded * (generalPct / 100);
+      }
+
+      // ---------- INCOME (Phase A: invoice-based, PAID invoices by invoice.createdAt range) ----------
+      // We still apply override feeMultiplier to income base if INSURANCE/APPLICATION exists.
+      const status = String(inv.statusLegacy || "").toLowerCase();
+      if (status === "paid" && inv.createdAt >= start && inv.createdAt < endExclusive) {
+        const orthoPct = Number(cfg?.orthoPct || 0);
+        const defectPct = Number(cfg?.defectPct || 0);
+        const surgeryPct = Number(cfg?.surgeryPct || 0);
+        const generalPct = Number(cfg?.generalPct || 0);
+
+        const feeMultiplier = hasOverride ? 0.9 : 1;
+
+        for (const it of serviceItems) {
+          const lineGross = Number(it.lineTotal || it.unitPrice * it.quantity || 0);
+          const lineNet = lineGross * netMultiplier * feeMultiplier;
+
+          const service = it.service;
+
+          // 1) X-ray rule: all IMAGING category is x-ray -> 5%
+          if (service?.category === "IMAGING") {
+            acc.doctorIncomeMnt += lineNet * 0.05;
+            continue;
+          }
+
+          // 2) Home bleaching rule: serviceId=110 (code 151)
+          if (it.serviceId === HOME_BLEACHING_SERVICE_ID) {
+            const base = Math.max(0, lineNet - homeBleachingDeductAmountMnt);
+            acc.doctorIncomeMnt += base * (generalPct / 100);
+            continue;
+          }
+
+          // 3) Default category pct mapping
+          let pct = generalPct;
+          if (service?.category === "ORTHODONTIC_TREATMENT") pct = orthoPct;
+          else if (service?.category === "DEFECT_CORRECTION") pct = defectPct;
+          else if (service?.category === "SURGERY") pct = surgeryPct;
+
+          acc.doctorIncomeMnt += lineNet * (pct / 100);
+        }
+      }
     }
 
+    const doctors = Array.from(byDoctor.values()).map((d) => {
+      const goal = Number(d.monthlyGoalAmountMnt || 0);
+      const sales = Number(d.doctorSalesMnt || 0);
+
+      return {
+        doctorId: d.doctorId,
+        doctorName: d.doctorName,
+        branchName: d.branchName,
+        startDate: d.startDate,
+        endDate: d.endDate,
+
+        // Keeping legacy response keys so frontend works without changes:
+        revenue: Math.round(sales),
+        commission: Math.round(d.doctorIncomeMnt),
+        monthlyGoal: Math.round(goal),
+        progressPercent: goal > 0 ? Math.round((sales / goal) * 10000) / 100 : 0,
+      };
+    });
+
+    if (!doctors.length) return res.status(404).json({ error: "No income data found." });
     return res.json(doctors);
   } catch (error) {
     console.error("Error in fetching doctor incomes:", error);
     return res.status(500).json({ error: "Failed to fetch doctor incomes." });
-  }
-});
-
-router.get("/doctors-income/:doctorId/details", async (req, res) => {
-  const { doctorId } = req.params;
-  const { startDate, endDate } = req.query;
-
-  if (!doctorId || !startDate || !endDate) {
-    return res.status(400).json({
-      error: "doctorId, startDate, and endDate are required parameters.",
-    });
-  }
-
-  try {
-    const breakdown = await prisma.$queryRaw`
-      SELECT 
-        ii."name" AS "itemName",
-        ii."itemType" AS "itemType",
-        SUM(ii."unitPrice" * ii."quantity") AS "revenue",
-        COALESCE(cfg."generalPct", 0) AS "commissionPercent",
-        SUM(ii."unitPrice" * ii."quantity" * COALESCE(cfg."generalPct", 0) / 100) AS "doctorShare"
-      FROM public."Invoice" i
-      INNER JOIN public."InvoiceItem" ii ON ii."invoiceId" = i."id"
-      INNER JOIN public."Encounter" e ON e."id" = i."encounterId"
-      INNER JOIN public."User" d ON d."id" = e."doctorId"
-      LEFT JOIN public."DoctorCommissionConfig" cfg ON cfg."doctorId" = d."id"
-      WHERE 
-        LOWER(i."status") = 'paid'
-        AND i."createdAt" >= ${startDate}::date
-        AND i."createdAt" < (${endDate}::date + interval '1 day')
-        AND d."id" = ${Number(doctorId)}::int
-      GROUP BY ii."name", ii."itemType", cfg."generalPct"
-      ORDER BY "revenue" DESC
-    `;
-
-    const totals = (breakdown || []).reduce(
-      (acc, cur) => {
-        acc.totalRevenue += Number(cur.revenue || 0);
-        acc.totalDoctorShare += Number(cur.doctorShare || 0);
-        return acc;
-      },
-      { totalRevenue: 0, totalDoctorShare: 0 }
-    );
-
-    return res.json({
-      doctorId,
-      startDate: String(startDate),
-      endDate: String(endDate),
-      breakdown,
-      totals,
-    });
-  } catch (error) {
-    console.error("Error in fetching detailed income breakdown:", error);
-    return res.status(500).json({ error: "Failed to fetch detailed income breakdown." });
   }
 });
 
