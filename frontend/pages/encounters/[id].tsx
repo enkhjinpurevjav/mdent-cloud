@@ -976,7 +976,7 @@ if (patientBranchId) {
             quantityPerTake: it.quantityPerTake,
             frequencyPerDay: it.frequencyPerDay,
             note: it.note || "",
-            assignedTo: rowsSnapshot[i]?.assignedTo ?? "DOCTOR",
+           
           })) || [];
 
         while (rxItems.length < 3) {
@@ -1673,19 +1673,21 @@ const removeDiagnosisRow = (index: number) => {
         indicatorIds: rowsSnapshot[idx]?.indicatorIds || [],
         indicatorSearchText: "",
 
+        assignedTo: rowsSnapshot[idx]?.assignedTo ?? "DOCTOR", // ✅ add
+
         searchText: row.diagnosis ? `${row.diagnosis.code} – ${row.diagnosis.name}` : "",
         locked: true,
       }));
 
     setEditableDxRows(savedDxRows);
 
-    const mergedRows: DiagnosisServiceRow[] = savedDxRows.map((dxRow, i) => ({
-      ...dxRow,
-      serviceId: rowsSnapshot[i]?.serviceId,
-      serviceSearchText: rowsSnapshot[i]?.serviceSearchText || "",
-      indicatorIds: rowsSnapshot[i]?.indicatorIds || [],
-      assignedTo: rowsSnapshot[idx]?.assignedTo ?? "DOCTOR",
-    }));
+   const mergedRows: DiagnosisServiceRow[] = savedDxRows.map((dxRow, i) => ({
+  ...dxRow,
+  serviceId: rowsSnapshot[i]?.serviceId,
+  serviceSearchText: rowsSnapshot[i]?.serviceSearchText || "",
+  indicatorIds: rowsSnapshot[i]?.indicatorIds || [],
+  assignedTo: rowsSnapshot[i]?.assignedTo ?? "DOCTOR",
+}));
 
     setRows(mergedRows);
 
