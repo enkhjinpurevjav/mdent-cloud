@@ -3,42 +3,50 @@ import prisma from "../../db.js";
 
 const router = express.Router();
 
-const WHITENING_KEY = "whiteningDeductAmountMnt";
+// This should match what you already have in DB (image7)
+const WHITENING_KEY = "finance.homeBleachingDeductAmountMnt";
 
 async function loadWhiteningDeductAmountMnt() {
-  try {
-    const s = await prisma.setting.findUnique({
-      where: { key: WHITENING_KEY },
-      select: { valueNumber: true },
+  const row = await prisma.settings.findFirst({
+    where: { key: WHITENING_KEY },
+    select: { value: true },
+  });
+
+  const n = Number(row?.value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+async function saveWhiteningDeductAmountMnt(valueNumber) {
+  // value is TEXT in DB, so store as string
+  const value = String(valueNumber);
+
+  const existing = await prisma.settings.findFirst({
+    where: { key: WHITENING_KEY },
+    select: { id: true },
+  });
+
+  if (existing) {
+    await prisma.settings.update({
+      where: { id: existing.id },
+      data: { value },
     });
-    return Number(s?.valueNumber ?? 0);
-  } catch {
-    return 0;
+  } else {
+    await prisma.settings.create({
+      data: { key: WHITENING_KEY, value },
+    });
   }
 }
 
-// Do NOT fail doctor save if global settings storage is missing
-async function trySaveWhiteningDeductAmountMnt(value) {
-  try {
-    await prisma.setting.upsert({
-      where: { key: WHITENING_KEY },
-      update: { valueNumber: value },
-      create: { key: WHITENING_KEY, valueNumber: value },
-    });
-  } catch (e) {
-    console.warn(
-      "Skipping whiteningDeductAmountMnt save because prisma.setting is not available or failed:",
-      e?.message || e
-    );
-  }
-}
-
+/**
+ * GET /api/admin/staff-income-settings
+ */
 router.get("/staff-income-settings", async (_req, res) => {
   try {
     const whiteningDeductAmountMnt = await loadWhiteningDeductAmountMnt();
 
+    // If your role values are uppercase (DOCTOR), change here.
     const doctors = await prisma.user.findMany({
-      where: { role: "doctor" }, // adjust if needed
+      where: { role: "doctor" },
       select: { id: true, ovog: true, name: true, email: true },
       orderBy: { name: "asc" },
     });
@@ -75,13 +83,19 @@ router.get("/staff-income-settings", async (_req, res) => {
       };
     });
 
-    return res.json({ whiteningDeductAmountMnt, doctors: rows });
+    return res.json({
+      whiteningDeductAmountMnt,
+      doctors: rows,
+    });
   } catch (e) {
     console.error("Failed to load staff income settings", e);
     return res.status(500).json({ error: e?.message || "Failed to load staff income settings" });
   }
 });
 
+/**
+ * PUT /api/admin/staff-income-settings
+ */
 router.put("/staff-income-settings", async (req, res) => {
   try {
     const body = req.body || {};
@@ -92,19 +106,13 @@ router.put("/staff-income-settings", async (req, res) => {
       return res.status(400).json({ error: "whiteningDeductAmountMnt must be >= 0" });
     }
 
-    // Save global (best-effort)
-    await trySaveWhiteningDeductAmountMnt(whitening);
+    // Persist whitening to Settings table
+    await saveWhiteningDeductAmountMnt(whitening);
 
-    if (doctors.length === 0) {
-      return res.json({ ok: true });
-    }
-
-    // Save doctor configs
+    // Persist doctors configs
     for (const d of doctors) {
       const doctorId = Number(d.doctorId);
-      if (!doctorId || !Number.isFinite(doctorId)) {
-        return res.status(400).json({ error: "doctorId is required" });
-      }
+      if (!doctorId || !Number.isFinite(doctorId)) continue;
 
       const orthoPct = Number(d.orthoPct ?? 0);
       const defectPct = Number(d.defectPct ?? 0);
