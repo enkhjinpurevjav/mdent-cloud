@@ -30,10 +30,7 @@ import ToothChartSelector from "../../components/encounter/ToothChartSelector";
 import DiagnosesEditor from "../../components/encounter/DiagnosesEditor";
 import MediaGallery from "../../components/encounter/MediaGallery";
 import PrescriptionEditor from "../../components/encounter/PrescriptionEditor";
-
-function formatDateYYYYMMDD(date: Date) {
-  return ymdLocal(date);
-}
+import FollowUpScheduler from "../../components/encounter/FollowUpScheduler";
 
 type DiagnosisServiceRow = EditableDiagnosis;
 
@@ -322,7 +319,6 @@ const [weekError, setWeekError] = useState("");
 
   const [saveError, setSaveError] = useState("");
 
-  type DiagnosisServiceRow = EditableDiagnosis;
   const [rows, setRows] = useState<DiagnosisServiceRow[]>([]);
   const [servicesLoadError, setServicesLoadError] = useState("");
   const [dxError, setDxError] = useState("");
@@ -633,10 +629,10 @@ setRows(mergedRows);
   useEffect(() => {
     if (showFollowUpScheduler && !followUpDateFrom) {
       const today = new Date();
-      const todayStr = formatDateYYYYMMDD(today);
+      const todayStr = ymdLocal(today);
       const plusSeven = new Date(today);
       plusSeven.setDate(plusSeven.getDate() + 7);
-      const plusSevenStr = formatDateYYYYMMDD(plusSeven);
+      const plusSevenStr = ymdLocal(plusSeven);
 
       setFollowUpDateFrom(todayStr);
       setFollowUpDateTo(plusSevenStr);
@@ -1182,29 +1178,20 @@ const removeDiagnosisRow = (index: number) => {
     setSaving(true);
     setSaveError("");
     try {
-      const itemsForSave: EncounterService[] = rows
-        .filter((r) => r.serviceId)
-        .map((r) => ({
-          encounterId: Number(id),
-          serviceId: r.serviceId!,
-          quantity: 1,
-          price: 0,
-        }));
-
       const payload = {
-  items: rows
-    .filter((r) => r.serviceId)
-    .map((r) => {
-      const svc = allServices.find((s) => s.id === r.serviceId);
-      const isImaging = svc?.category === "IMAGING";
+        items: rows
+          .filter((r) => r.serviceId)
+          .map((r) => {
+            const svc = services.find((s) => s.id === r.serviceId);
+            const isImaging = svc?.category === "IMAGING";
 
-      return {
-        serviceId: r.serviceId!,
-        quantity: 1,
-        assignedTo: isImaging ? (r.assignedTo ?? "DOCTOR") : "DOCTOR",
+            return {
+              serviceId: r.serviceId!,
+              quantity: 1,
+              assignedTo: isImaging ? (r.assignedTo ?? "DOCTOR") : "DOCTOR",
+            };
+          }),
       };
-    }),
-};
 
       const res = await fetch(`/api/encounters/${id}/services`, {
         method: "PUT",
@@ -1376,12 +1363,9 @@ const removeDiagnosisRow = (index: number) => {
     visitCard
   );
 
-  const allDiagnoses = diagnoses;
-  const allServices = services;
-
   const totalDiagnosisServicesPrice = rows.reduce((sum, r) => {
     if (!r.serviceId) return sum;
-    const svc = allServices.find((x) => x.id === r.serviceId);
+    const svc = services.find((x) => x.id === r.serviceId);
     const price = svc?.price ?? 0;
     return sum + price;
   }, 0);
@@ -4570,304 +4554,29 @@ const removeDiagnosisRow = (index: number) => {
               )}
 
             {/* Follow-up Appointment Scheduler */}
-            <div
-              style={{
-                marginTop: 16,
-                padding: 12,
-                borderRadius: 8,
-                border: "1px solid #e5e7eb",
-                background: "#f9fafb",
+            <FollowUpScheduler
+              showFollowUpScheduler={showFollowUpScheduler}
+              followUpDateFrom={followUpDateFrom}
+              followUpDateTo={followUpDateTo}
+              followUpSlotMinutes={followUpSlotMinutes}
+              followUpAvailability={followUpAvailability}
+              followUpLoading={followUpLoading}
+              followUpError={followUpError}
+              followUpSuccess={followUpSuccess}
+              followUpBooking={followUpBooking}
+              onToggleScheduler={(checked) => {
+                setShowFollowUpScheduler(checked);
+                if (!checked) {
+                  setFollowUpError("");
+                  setFollowUpSuccess("");
+                  setFollowUpAvailability(null);
+                }
               }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 6,
-                }}
-              >
-                <label
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    fontSize: 13,
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={showFollowUpScheduler}
-                    disabled={followUpLoading}
-                    onChange={(e) => {
-                      setShowFollowUpScheduler(e.target.checked);
-                      if (!e.target.checked) {
-                        setFollowUpError("");
-                        setFollowUpSuccess("");
-                        setFollowUpAvailability(null);
-                      }
-                    }}
-                  />
-                  <span>Давтан үзлэгийн цаг авах</span>
-                </label>
-
-                {followUpLoading && (
-                  <span style={{ fontSize: 12, color: "#6b7280" }}>
-                    (ачаалж байна...)
-                  </span>
-                )}
-
-                {followUpError && (
-                  <span style={{ fontSize: 12, color: "#b91c1c" }}>
-                    {followUpError}
-                  </span>
-                )}
-
-                {followUpSuccess && (
-                  <span style={{ fontSize: 12, color: "#16a34a" }}>
-                    {followUpSuccess}
-                  </span>
-                )}
-              </div>
-
-              {showFollowUpScheduler && (
-                <>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 12,
-                      marginBottom: 12,
-                      fontSize: 13,
-                      alignItems: "center",
-                    }}
-                  >
-                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                      <label style={{ fontWeight: 500 }}>Эхлэх:</label>
-                      <input
-                        type="date"
-                        value={followUpDateFrom}
-                        onChange={(e) => setFollowUpDateFrom(e.target.value)}
-                        style={{
-                          padding: "4px 6px",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          fontSize: 12,
-                        }}
-                      />
-                    </div>
-
-                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                      <label style={{ fontWeight: 500 }}>Дуусах:</label>
-                      <input
-                        type="date"
-                        value={followUpDateTo}
-                        onChange={(e) => setFollowUpDateTo(e.target.value)}
-                        style={{
-                          padding: "4px 6px",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          fontSize: 12,
-                        }}
-                      />
-                    </div>
-
-                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                      <label style={{ fontWeight: 500 }}>Нэг цагийн үргэлжлэх хугацаа:</label>
-                      <select
-                        value={followUpSlotMinutes}
-                        onChange={(e) => setFollowUpSlotMinutes(Number(e.target.value))}
-                        style={{
-                          padding: "4px 6px",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                          fontSize: 12,
-                        }}
-                      >
-                        <option value={15}>15 минут</option>
-                        <option value={30}>30 минут</option>
-                        <option value={45}>45 минут</option>
-                        <option value={60}>60 минут</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {followUpAvailability && followUpAvailability.days.length > 0 && (
-                    <div
-                      style={{
-                        overflowX: "auto",
-                        overflowY: "auto",
-                        maxHeight: "400px",
-                        border: "1px solid #d1d5db",
-                        borderRadius: 6,
-                        background: "#ffffff",
-                      }}
-                    >
-                      <table
-                        style={{
-                          width: "100%",
-                          borderCollapse: "collapse",
-                          fontSize: 12,
-                        }}
-                      >
-                        <thead>
-                          <tr>
-                            <th
-                              style={{
-                                position: "sticky",
-                                left: 0,
-                                top: 0,
-                                background: "#f3f4f6",
-                                padding: "8px",
-                                border: "1px solid #d1d5db",
-                                fontWeight: 600,
-                                textAlign: "left",
-                                zIndex: 3,
-                                minWidth: "140px",
-                              }}
-                            >
-                              Огноо
-                            </th>
-                            {followUpAvailability.timeLabels.map((time) => (
-                              <th
-                                key={time}
-                                style={{
-                                  position: "sticky",
-                                  top: 0,
-                                  background: "#f3f4f6",
-                                  padding: "8px",
-                                  border: "1px solid #d1d5db",
-                                  fontWeight: 600,
-                                  textAlign: "center",
-                                  zIndex: 2,
-                                  minWidth: "70px",
-                                }}
-                              >
-                                {time}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {followUpAvailability.days.map((day) => {
-                            // Create a map for quick lookup
-                            const slotsByTime = new Map();
-                            day.slots.forEach((slot) => {
-                              const slotTime = new Date(slot.start)
-                                .toTimeString()
-                                .substring(0, 5);
-                              slotsByTime.set(slotTime, slot);
-                            });
-
-                            return (
-                              <tr key={day.date}>
-                                <td
-                                  style={{
-                                    position: "sticky",
-                                    left: 0,
-                                    background: "#ffffff",
-                                    padding: "8px",
-                                    border: "1px solid #d1d5db",
-                                    fontWeight: 500,
-                                    zIndex: 1,
-                                  }}
-                                >
-                                  {day.date} {day.dayLabel}
-                                </td>
-                                {followUpAvailability.timeLabels.map((time) => {
-                                  const slot = slotsByTime.get(time);
-
-                                  if (!slot) {
-                                    return (
-                                      <td
-                                        key={time}
-                                        style={{
-                                          padding: "8px",
-                                          border: "1px solid #d1d5db",
-                                          background: "#f9fafb",
-                                          textAlign: "center",
-                                        }}
-                                      >
-                                        -
-                                      </td>
-                                    );
-                                  }
-
-                                  const isAvailable = slot.status === "available";
-                                  const isBooked = slot.status === "booked";
-
-                                  return (
-                                    <td
-                                      key={time}
-                                      style={{
-                                        padding: "4px",
-                                        border: "1px solid #d1d5db",
-                                        textAlign: "center",
-                                      }}
-                                    >
-                                      <button
-                                        type="button"
-                                        disabled={!isAvailable || followUpBooking}
-                                        onClick={() =>
-                                          isAvailable &&
-                                          createFollowUpAppointment(slot.start)
-                                        }
-                                        style={{
-                                          width: "100%",
-                                          padding: "6px 4px",
-                                          borderRadius: 4,
-                                          border: isAvailable
-                                            ? "1px solid #16a34a"
-                                            : "1px solid #d1d5db",
-                                          background: isAvailable
-                                            ? "#ecfdf3"
-                                            : isBooked
-                                            ? "#fee2e2"
-                                            : "#f3f4f6",
-                                          color: isAvailable
-                                            ? "#166534"
-                                            : isBooked
-                                            ? "#991b1b"
-                                            : "#6b7280",
-                                          cursor: isAvailable && !followUpBooking
-                                            ? "pointer"
-                                            : "not-allowed",
-                                          fontSize: 11,
-                                          fontWeight: 500,
-                                        }}
-                                      >
-                                        {isAvailable
-                                          ? "Сонгох"
-                                          : isBooked
-                                          ? "Захиалсан"
-                                          : "Хаалттай"}
-                                      </button>
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  {followUpAvailability && followUpAvailability.days.length === 0 && (
-                    <div
-                      style={{
-                        padding: 12,
-                        textAlign: "center",
-                        color: "#6b7280",
-                        fontSize: 13,
-                      }}
-                    >
-                      Сонгосон хугацаанд боломжтой цаг байхгүй байна
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+              onDateFromChange={setFollowUpDateFrom}
+              onDateToChange={setFollowUpDateTo}
+              onSlotMinutesChange={setFollowUpSlotMinutes}
+              onBookAppointment={createFollowUpAppointment}
+            />
             </div>
           </section>
 
