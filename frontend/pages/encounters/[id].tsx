@@ -1463,6 +1463,9 @@ const removeDiagnosisRow = (index: number) => {
               marginBottom: 16,
             }}
           >
+            {/* TODO: Consider replacing with <ConsentFormsBlock /> component once the UX pattern
+                is aligned. Current implementation uses checkbox + radio pattern, while
+                ConsentFormsBlock uses button selection pattern. */}
             <div
               style={{
                 marginTop: 4,
