@@ -51,16 +51,16 @@ router.get("/:id", async (req, res) => {
         doctor: true,
         nurse: true,
         diagnoses: {
-          include: {
-            diagnosis: true,
-            sterilizationIndicators: {
-              include: {
-                indicator: {
-                  select: {
-                    id: true,
-                    packageName: true,
-                    code: true,
-                    branchId: true,
+  include: {
+    diagnosis: true,
+    sterilizationIndicators: {
+      include: {
+        indicator: {
+          select: {
+            id: true,
+            packageName: true,
+            code: true,
+            branchId: true,
           },
         },
       },
@@ -503,40 +503,7 @@ router.get("/:id/nurses", async (req, res) => {
   }
 });
 
-/**
- * PUT /api/encounters/:id/diagnoses
- */
-router.put("/:id/diagnoses", async (req, res) => {
-  const encounterId = Number(req.params.id);
-  if (!encounterId || Number.isNaN(encounterId)) {
-    return res.status(400).json({ error: "Invalid encounter id" });
-  }
 
-  const { items } = req.body || {};
-  if (!Array.isArray(items)) {
-    return res.status(400).json({ error: "items must be an array" });
-  }
-
-  try {
-    await prisma.$transaction(async (trx) => {
-      await trx.encounterDiagnosis.deleteMany({
-        where: { encounterId },
-      });
-   
-    });
-
-    const updated = await prisma.encounterDiagnosis.findMany({
-      where: { encounterId },
-      include: { diagnosis: true },
-      orderBy: { id: "asc" },
-    });
-
-    return res.json(updated);
-  } catch (err) {
-    console.error("PUT /api/encounters/:id/diagnoses failed", err);
-    return res.status(500).json({ error: "Failed to save diagnoses" });
-  }
-});
 
 /**
  * PUT /api/encounters/:id/services
