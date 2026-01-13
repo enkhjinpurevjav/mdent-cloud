@@ -544,13 +544,15 @@ model DiagnosisProblem {
 model EncounterDiagnosis {
   id                 Int     @id @default(autoincrement())
   encounterId        Int
-  diagnosisId        Int
+  diagnosisId        Int?          // ✅ allow empty diagnosis row
   toothCode          String?
   selectedProblemIds Json?
   note               String?
 
   encounter Encounter @relation(fields: [encounterId], references: [id])
-  diagnosis Diagnosis @relation(fields: [diagnosisId], references: [id])
+
+  // ✅ must be optional too
+  diagnosis Diagnosis? @relation(fields: [diagnosisId], references: [id])
 
   createdAt               DateTime                                   @default(now())
   sterilizationIndicators EncounterDiagnosisSterilizationIndicator[]
