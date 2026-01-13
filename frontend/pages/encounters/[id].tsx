@@ -26,6 +26,10 @@ type Patient = {
   branch?: Branch | null;
 };
 
+type AssignedTo = "DOCTOR" | "NURSE";
+
+
+
 
 type PatientBook = {
   id: number;
@@ -104,6 +108,7 @@ type EncounterService = {
   service?: Service;
   quantity: number;
   price: number;
+  meta?: { assignedTo?: AssignedTo } | null;
 };
 
 type PrescriptionItem = {
@@ -159,6 +164,7 @@ type EditableDiagnosis = EncounterDiagnosisRow & {
   // NEW: sterilization indicators selection per diagnosis row
   indicatorIds?: number[];            // duplicates allowed
   indicatorSearchText?: string;
+  assignedTo?: AssignedTo;
 };
 
 type ActiveIndicator = {
@@ -952,13 +958,14 @@ if (patientBranchId) {
         setEditableServices(svcRows);
 
         const mergedRows: DiagnosisServiceRow[] = dxRows.map((dxRow, i) => {
-          const svc = svcRows[i];
-          return {
-            ...dxRow,
-            serviceId: svc?.serviceId,
-            serviceSearchText: svc?.service?.name || "",
-          };
-        });
+  const svc = svcRows[i];
+  return {
+    ...dxRow,
+    serviceId: svc?.serviceId,
+    serviceSearchText: svc?.service?.name || "",
+    assignedTo: svc?.meta?.assignedTo === "NURSE" ? "NURSE" : "DOCTOR",
+  };
+});
         setRows(mergedRows);
 
         const rxItems: EditablePrescriptionItem[] =
@@ -6151,21 +6158,26 @@ const removeDiagnosisRow = (index: number) => {
                                   <div
                                     key={svc.id}
                                     onMouseDown={(e) => {
-                                      e.preventDefault();
-                                      setRows((prev) =>
-                                        prev.map((r, i) =>
-                                          i === index
-                                            ? {
-                                                ...r,
-                                                serviceId: svc.id,
-                                                serviceSearchText:
-                                                  svc.name,
-                                              }
-                                            : r
-                                        )
-                                      );
-                                      setOpenServiceIndex(null);
-                                    }}
+  e.preventDefault();
+
+  const nextAssignedTo: AssignedTo | undefined =
+    svc.category === "IMAGING" ? (row.assignedTo ?? "DOCTOR") : undefined;
+
+  setRows((prev) =>
+    prev.map((r, i) =>
+      i === index
+        ? {
+            ...r,
+            serviceId: svc.id,
+            serviceSearchText: svc.name,
+            assignedTo: nextAssignedTo,
+          }
+        : r
+    )
+  );
+
+  setOpenServiceIndex(null);
+}}
                                     style={{
                                       padding: "6px 8px",
                                       cursor: "pointer",
