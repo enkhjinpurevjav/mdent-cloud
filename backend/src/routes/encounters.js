@@ -578,30 +578,34 @@ router.put("/:id/services", async (req, res) => {
   }
 
   try {
-    await prisma.$transaction(async (trx) => {
-      await trx.encounterService.deleteMany({
-        where: { encounterId },
-      });
+   await prisma.$transaction(async (trx) => {
+  await trx.encounterService.deleteMany({
+    where: { encounterId },
+  });
 
-      for (const item of items) {
-        if (!item.serviceId) continue;
+  for (const item of items) {
+    if (!item.serviceId) continue;
 
-        const svc = await trx.service.findUnique({
-          where: { id: item.serviceId },
-          select: { price: true },
-        });
-        if (!svc) continue;
-
-        await trx.encounterService.create({
-          data: {
-            encounterId,
-            serviceId: item.serviceId,
-            quantity: item.quantity ?? 1,
-            price: svc.price,
-          },
-        });
-      }
+    const svc = await trx.service.findUnique({
+      where: { id: item.serviceId },
+      select: { price: true, category: true }, // category optional; useful later
     });
+    if (!svc) continue;
+
+    await trx.encounterService.create({
+      data: {
+        encounterId,
+        serviceId: item.serviceId,
+        quantity: item.quantity ?? 1,
+        price: svc.price,
+
+        // NEW: store assignment for IMAGING (xray) services.
+        // For non-IMAGING services this will still default to DOCTOR; harmless.
+        meta: { assignedTo: item.assignedTo ?? "DOCTOR" },
+      },
+    });
+  }
+});
 
     const updated = await prisma.encounterService.findMany({
       where: { encounterId },
