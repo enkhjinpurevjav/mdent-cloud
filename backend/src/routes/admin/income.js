@@ -3,6 +3,7 @@ import prisma from "../../db.js";
 
 const router = express.Router();
 
+// Payment method rules
 const INCLUDED_METHODS = new Set([
   "CASH",
   "POS",
@@ -22,6 +23,15 @@ const HOME_BLEACHING_SERVICE_ID = 110;
 
 function inRange(ts, start, end) {
   return ts >= start && ts < end;
+}
+
+function bucketKeyForService(service) {
+  if (!service) return "GENERAL";
+  if (service.category === "IMAGING") return "IMAGING";
+  if (service.category === "ORTHODONTIC_TREATMENT") return "ORTHODONTIC_TREATMENT";
+  if (service.category === "DEFECT_CORRECTION") return "DEFECT_CORRECTION";
+  if (service.category === "SURGERY") return "SURGERY";
+  return "GENERAL";
 }
 
 router.get("/doctors-income", async (req, res) => {
@@ -82,6 +92,8 @@ router.get("/doctors-income", async (req, res) => {
           doctorId,
           doctorName: doctor.name,
           branchName: doctor.branch?.name,
+
+          // ✅ date-only strings (no time)
           startDate: String(startDate),
           endDate: String(endDate),
 
@@ -171,6 +183,7 @@ router.get("/doctors-income", async (req, res) => {
           }
 
           // 2) Home bleaching rule: serviceId=110 (code 151)
+          // NOTE: this subtracts per line item.
           if (it.serviceId === HOME_BLEACHING_SERVICE_ID) {
             const base = Math.max(0, lineNet - homeBleachingDeductAmountMnt);
             acc.doctorIncomeMnt += base * (generalPct / 100);
@@ -215,8 +228,6 @@ router.get("/doctors-income", async (req, res) => {
   }
 });
 
-// ...keep existing imports/router and /doctors-income handler above
-
 router.get("/doctors-income/:doctorId/details", async (req, res) => {
   const { doctorId } = req.params;
   const { startDate, endDate } = req.query;
@@ -233,21 +244,6 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
   const DOCTOR_ID = Number(doctorId);
 
-  const INCLUDED_METHODS = new Set([
-    "CASH",
-    "POS",
-    "TRANSFER",
-    "QPAY",
-    "WALLET",
-    "VOUCHER",
-    "OTHER",
-  ]);
-
-  const EXCLUDED_METHODS = new Set(["EMPLOYEE_BENEFIT"]);
-  const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION"]);
-
-  const HOME_BLEACHING_SERVICE_ID = 110; // code 151
-
   const LABELS = {
     IMAGING: "Зураг авах",
     ORTHODONTIC_TREATMENT: "Гажиг заслын эмчилгээ",
@@ -256,10 +252,6 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
     GENERAL: "Ерөнхий",
     BARTER_EXCESS: "Бартер (800,000₮-с дээш)",
   };
-
-  function inRange(ts) {
-    return ts >= start && ts < endExclusive;
-  }
 
   function initBuckets(cfg) {
     return {
@@ -302,15 +294,6 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
     };
   }
 
-  function bucketKeyForService(service) {
-    if (!service) return "GENERAL";
-    if (service.category === "IMAGING") return "IMAGING";
-    if (service.category === "ORTHODONTIC_TREATMENT") return "ORTHODONTIC_TREATMENT";
-    if (service.category === "DEFECT_CORRECTION") return "DEFECT_CORRECTION";
-    if (service.category === "SURGERY") return "SURGERY";
-    return "GENERAL";
-  }
-
   try {
     // Settings: home bleaching deduction amount
     const homeBleachingDeductSetting = await prisma.settings.findUnique({
@@ -318,7 +301,6 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
     });
     const homeBleachingDeductAmountMnt = Number(homeBleachingDeductSetting?.value || 0) || 0;
 
-    // Fetch invoices relevant either by invoice date OR by payment timestamp.
     const invoices = await prisma.invoice.findMany({
       where: {
         encounter: { doctorId: DOCTOR_ID },
@@ -355,7 +337,6 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
       const status = String(inv.statusLegacy || "").toLowerCase();
       const isPaid = status === "paid";
 
-      // multiplier that applies discounts + collectionDiscountAmount proportionally
       const totalBefore = Number(inv.totalBeforeDiscount || 0);
       const finalAmount = Number(inv.finalAmount || 0);
       const netMultiplier = totalBefore > 0 ? finalAmount / totalBefore : 0;
@@ -363,7 +344,6 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
       const serviceItems = (inv.items || []).filter((it) => it.itemType === "SERVICE");
       if (!serviceItems.length) continue;
 
-      // Compute invoice category nets (used for proportional allocation of sales)
       const invoiceCategoryNet = {
         IMAGING: 0,
         ORTHODONTIC_TREATMENT: 0,
@@ -375,8 +355,8 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
       for (const it of serviceItems) {
         const lineGross = Number(it.lineTotal || it.unitPrice * it.quantity || 0);
         const lineNet = lineGross * netMultiplier;
-        const bKey = bucketKeyForService(it.service);
-        invoiceCategoryNet[bKey] += lineNet;
+        const k = bucketKeyForService(it.service);
+        invoiceCategoryNet[k] += lineNet;
       }
 
       const invoiceServiceNet =
@@ -386,12 +366,10 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
         invoiceCategoryNet.SURGERY +
         invoiceCategoryNet.GENERAL;
 
-      // ---------------- SALES allocation ----------------
+      // ---------- SALES (category-first) ----------
       if (hasOverride) {
-        // invoice-based sales: only for PAID invoices by invoice date window
         if (isPaid && inv.createdAt >= start && inv.createdAt < endExclusive) {
           const invoiceSalesBase = invoiceServiceNet * 0.9;
-
           if (invoiceServiceNet > 0) {
             for (const k of Object.keys(invoiceCategoryNet)) {
               const share = invoiceCategoryNet[k] / invoiceServiceNet;
@@ -402,14 +380,13 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
           }
         }
       } else {
-        // payment-based sales by payment.timestamp window
         let includedPayments = 0;
         let barterSum = 0;
 
         for (const p of payments) {
           const method = String(p.method || "").toUpperCase();
           const ts = new Date(p.timestamp);
-          if (!inRange(ts)) continue;
+          if (!inRange(ts, start, endExclusive)) continue;
 
           const amt = Number(p.amount || 0);
           if (EXCLUDED_METHODS.has(method)) continue;
@@ -425,23 +402,21 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
         const barterExcess = Math.max(0, barterSum - 800000);
 
-        // Allocate only includedPayments proportionally (barter excess is separate row)
-        const allocatable = includedPayments;
-
-        if (invoiceServiceNet > 0 && allocatable !== 0) {
+        // allocate only includedPayments proportionally
+        if (invoiceServiceNet > 0 && includedPayments !== 0) {
           for (const k of Object.keys(invoiceCategoryNet)) {
             const share = invoiceCategoryNet[k] / invoiceServiceNet;
-            const amt = allocatable * share;
+            const amt = includedPayments * share;
             buckets[k].salesMnt += amt;
             totalSalesMnt += amt;
           }
         }
 
+        // barter excess separate row
         if (barterExcess > 0) {
           buckets.BARTER_EXCESS.salesMnt += barterExcess;
           totalSalesMnt += barterExcess;
 
-          // Barter excess contributes to income via generalPct (your locked rule)
           const generalPct = Number(cfg?.generalPct || 0);
           const barterIncome = barterExcess * (generalPct / 100);
           buckets.BARTER_EXCESS.incomeMnt += barterIncome;
@@ -449,7 +424,7 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
         }
       }
 
-      // ---------------- INCOME (invoice-based, PAID invoices, invoice date window) ----------------
+      // ---------- INCOME (invoice-based, category-first) ----------
       if (isPaid && inv.createdAt >= start && inv.createdAt < endExclusive) {
         const orthoPct = Number(cfg?.orthoPct || 0);
         const defectPct = Number(cfg?.defectPct || 0);
@@ -461,9 +436,10 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
         for (const it of serviceItems) {
           const lineGross = Number(it.lineTotal || it.unitPrice * it.quantity || 0);
           const lineNet = lineGross * netMultiplier * feeMultiplier;
+
           const service = it.service;
 
-          // IMAGING -> xray -> 5%
+          // IMAGING -> 5%
           if (service?.category === "IMAGING") {
             const income = lineNet * 0.05;
             buckets.IMAGING.incomeMnt += income;
@@ -480,17 +456,15 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
             continue;
           }
 
-          // Category pct mapping
-          let pct = generalPct;
-          const bKey = bucketKeyForService(service);
+          const k = bucketKeyForService(service);
 
-          if (bKey === "ORTHODONTIC_TREATMENT") pct = orthoPct;
-          else if (bKey === "DEFECT_CORRECTION") pct = defectPct;
-          else if (bKey === "SURGERY") pct = surgeryPct;
-          else pct = generalPct;
+          let pct = generalPct;
+          if (k === "ORTHODONTIC_TREATMENT") pct = orthoPct;
+          else if (k === "DEFECT_CORRECTION") pct = defectPct;
+          else if (k === "SURGERY") pct = surgeryPct;
 
           const income = lineNet * (pct / 100);
-          buckets[bKey].incomeMnt += income;
+          buckets[k].incomeMnt += income;
           totalIncomeMnt += income;
         }
       }
@@ -525,7 +499,5 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch detailed income breakdown." });
   }
 });
-
-// ...keep export default router at end
 
 export default router;
