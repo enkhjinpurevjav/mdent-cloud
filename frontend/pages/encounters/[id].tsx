@@ -975,16 +975,16 @@ setRows(mergedRows);
            
           })) || [];
 
-        while (rxItems.length < 3) {
-          rxItems.push({
-            localId: rxItems.length + 1,
-            drugName: "",
-            durationDays: null,
-            quantityPerTake: null,
-            frequencyPerDay: null,
-            note: "",
-          });
-        }
+        if (rxItems.length === 0) {
+  rxItems.push({
+    localId: 1,
+    drugName: "",
+    durationDays: null,
+    quantityPerTake: null,
+    frequencyPerDay: null,
+    note: "",
+  });
+}
 
         setPrescriptionItems(rxItems);
       } catch (err) {
@@ -1837,16 +1837,16 @@ const removeDiagnosisRow = (index: number) => {
           note: it.note || "",
         })) || [];
 
-      while (newItems.length < 3) {
-        newItems.push({
-          localId: newItems.length + 1,
-          drugName: "",
-          durationDays: null,
-          quantityPerTake: null,
-          frequencyPerDay: null,
-          note: "",
-        });
-      }
+      if (newItems.length === 0) {
+  newItems.push({
+    localId: 1,
+    drugName: "",
+    durationDays: null,
+    quantityPerTake: null,
+    frequencyPerDay: null,
+    note: "",
+  });
+}
 
       setPrescriptionItems(newItems);
     } catch (err: any) {
