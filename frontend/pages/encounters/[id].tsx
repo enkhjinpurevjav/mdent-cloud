@@ -434,13 +434,25 @@ if (patientBranchId) {
           })) || [];
         setEditableServices(svcRows);
 
-        const mergedRows: DiagnosisServiceRow[] = dxRows.map((dxRow) => ({
-  ...dxRow,
-  serviceId: undefined,
-  serviceSearchText: "",
-  assignedTo: "DOCTOR",
-}));
-setRows(mergedRows);
+        // Restore services to their diagnosis rows based on meta.diagnosisId
+        // Use a function that will be called after services are loaded
+        const mergedRows: DiagnosisServiceRow[] = dxRows.map((dxRow) => {
+          // Find a service that belongs to this diagnosis row
+          const linkedService = svcRows.find((svc) => {
+            const diagnosisId = (svc.meta as any)?.diagnosisId;
+            return diagnosisId && diagnosisId === dxRow.id;
+          });
+
+          const assignedTo = linkedService ? (linkedService.meta as any)?.assignedTo || "DOCTOR" : "DOCTOR";
+
+          return {
+            ...dxRow,
+            serviceId: linkedService?.serviceId,
+            serviceSearchText: "", // Will be filled when services are loaded
+            assignedTo,
+          };
+        });
+        setRows(mergedRows);
 
         const rxItems: EditablePrescriptionItem[] =
           enc.prescription?.items?.map((it) => ({
@@ -576,6 +588,22 @@ setRows(mergedRows);
     void loadChartTeeth();
     void loadVisitCardForEncounter();
   }, [id]);
+
+  // Update serviceSearchText when services are loaded
+  useEffect(() => {
+    if (services.length === 0) return;
+
+    setRows((prevRows) =>
+      prevRows.map((row) => {
+        if (!row.serviceId) return row;
+        const svc = services.find((s) => s.id === row.serviceId);
+        return {
+          ...row,
+          serviceSearchText: svc ? `${svc.code} – ${svc.name}` : "",
+        };
+      })
+    );
+  }, [services]);
 
   const reloadEncounter = async () => {
     if (!id || typeof id !== "string") return;
@@ -1189,6 +1217,7 @@ const removeDiagnosisRow = (index: number) => {
               serviceId: r.serviceId!,
               quantity: 1,
               assignedTo: isImaging ? (r.assignedTo ?? "DOCTOR") : "DOCTOR",
+              diagnosisId: r.id || null, // Store diagnosis row ID for later restoration
             };
           }),
       };
