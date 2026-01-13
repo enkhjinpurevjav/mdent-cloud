@@ -7,12 +7,8 @@ router.get("/doctors-income", async (req, res) => {
   const { startDate, endDate, branchId } = req.query;
 
   if (!startDate || !endDate) {
-    return res
-      .status(400)
-      .json({ error: "startDate and endDate are required parameters." });
+    return res.status(400).json({ error: "startDate and endDate are required parameters." });
   }
-
-  console.log("Received filters:", { startDate, endDate, branchId });
 
   try {
     const doctors = await prisma.$queryRaw`
@@ -21,15 +17,16 @@ router.get("/doctors-income", async (req, res) => {
         d."name" AS "doctorName",
         b."name" AS "branchName",
 
-        -- NOTE: your DB shows totalAmount=0 but finalAmount has the real values
+        -- Revenue (paid invoices)
         SUM(i."finalAmount") AS "revenue",
 
-        SUM(ii."unitPrice" * ii."quantity" * d."generalPct" / 100) AS "commission",
-        d."monthlyGoalAmountMnt" AS "monthlyGoal",
+        -- Use DoctorCommissionConfig, NOT User table fields
+        SUM(ii."unitPrice" * ii."quantity" * COALESCE(cfg."generalPct", 0) / 100) AS "commission",
+        COALESCE(cfg."monthlyGoalAmountMnt", 0) AS "monthlyGoal",
 
         CASE
-          WHEN d."monthlyGoalAmountMnt" > 0
-            THEN ROUND((SUM(i."finalAmount") / d."monthlyGoalAmountMnt")::numeric * 100, 2)
+          WHEN COALESCE(cfg."monthlyGoalAmountMnt", 0) > 0
+            THEN ROUND((SUM(i."finalAmount") / COALESCE(cfg."monthlyGoalAmountMnt", 0))::numeric * 100, 2)
           ELSE 0
         END AS "progressPercent"
 
@@ -38,21 +35,24 @@ router.get("/doctors-income", async (req, res) => {
       INNER JOIN public."Encounter" e ON e."id" = i."encounterId"
       INNER JOIN public."User" d ON d."id" = e."doctorId"
       INNER JOIN public."Branch" b ON b."id" = d."branchId"
-      WHERE 
-        -- DB has 'paid' (lowercase). Make it robust:
-        LOWER(i."status") = 'paid'
 
-        -- inclusive start, exclusive end+1day (covers whole endDate)
+      -- KEY FIX: join config table
+      LEFT JOIN public."DoctorCommissionConfig" cfg ON cfg."doctorId" = d."id"
+
+      WHERE 
+        LOWER(i."status") = 'paid'
         AND i."createdAt" >= ${startDate}::date
         AND i."createdAt" < (${endDate}::date + interval '1 day')
-
         AND (COALESCE(${branchId}::text, '') = '' OR b."id" = ${branchId}::int)
 
-      GROUP BY d."id", d."name", b."name", d."monthlyGoalAmountMnt"
+      GROUP BY
+        d."id",
+        d."name",
+        b."name",
+        cfg."monthlyGoalAmountMnt"
     `;
 
     if (!doctors || doctors.length === 0) {
-      console.log("No data found for filters:", { startDate, endDate, branchId });
       return res.status(404).json({ error: "No income data found." });
     }
 
@@ -74,25 +74,29 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
   }
 
   try {
-    // NOTE: your InvoiceItem model in billing.js uses itemType/serviceId/productId/name.
-    // So grouping by ii.name is safer than joining Procedure by procedureId (which may not exist now).
     const breakdown = await prisma.$queryRaw`
       SELECT 
         ii."name" AS "itemName",
         ii."itemType" AS "itemType",
         SUM(ii."unitPrice" * ii."quantity") AS "revenue",
-        d."generalPct" AS "commissionPercent",
-        SUM(ii."unitPrice" * ii."quantity" * d."generalPct" / 100) AS "doctorShare"
+
+        -- Use config pct, fallback 0
+        COALESCE(cfg."generalPct", 0) AS "commissionPercent",
+        SUM(ii."unitPrice" * ii."quantity" * COALESCE(cfg."generalPct", 0) / 100) AS "doctorShare"
+
       FROM public."Invoice" i
       INNER JOIN public."InvoiceItem" ii ON ii."invoiceId" = i."id"
       INNER JOIN public."Encounter" e ON e."id" = i."encounterId"
       INNER JOIN public."User" d ON d."id" = e."doctorId"
+      LEFT JOIN public."DoctorCommissionConfig" cfg ON cfg."doctorId" = d."id"
+
       WHERE 
         LOWER(i."status") = 'paid'
         AND i."createdAt" >= ${startDate}::date
         AND i."createdAt" < (${endDate}::date + interval '1 day')
         AND d."id" = ${Number(doctorId)}::int
-      GROUP BY ii."name", ii."itemType", d."generalPct"
+
+      GROUP BY ii."name", ii."itemType", cfg."generalPct"
       ORDER BY "revenue" DESC
     `;
 
