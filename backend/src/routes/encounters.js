@@ -522,32 +522,7 @@ router.put("/:id/diagnoses", async (req, res) => {
       await trx.encounterDiagnosis.deleteMany({
         where: { encounterId },
       });
-
-      for (const item of items) {
-        if (!item.diagnosisId) continue;
-
-        const selectedProblemIds = Array.isArray(item.selectedProblemIds)
-          ? item.selectedProblemIds
-              .map((id) => Number(id))
-              .filter((n) => !Number.isNaN(n))
-          : [];
-
-        const toothCode =
-          typeof item.toothCode === "string" && item.toothCode.trim()
-            ? item.toothCode.trim()
-            : null;
-
-        await trx.encounterDiagnosis.create({
-          data: {
-            encounterId,
-            diagnosisId: item.diagnosisId,
-            selectedProblemIds:
-              selectedProblemIds.length > 0 ? selectedProblemIds : [],
-            note: item.note ?? null,
-            toothCode,
-          },
-        });
-      }
+   
     });
 
     const updated = await prisma.encounterDiagnosis.findMany({
@@ -979,74 +954,74 @@ router.post("/:id/media", upload.single("file"), async (req, res) => {
   }
 });
 
-// PUT /api/encounters/:id/diagnoses/:dxId/sterilization-indicators
-// Body: { indicatorIds: number[] }  // duplicates allowed
-router.put("/:id/diagnoses/:dxId/sterilization-indicators", async (req, res) => {
+/**
+ * PUT /api/encounters/:id/diagnoses
+ * Option A: allow saving rows even when diagnosisId is null (draft rows).
+ */
+router.put("/:id/diagnoses", async (req, res) => {
+  const encounterId = Number(req.params.id);
+  if (!encounterId || Number.isNaN(encounterId)) {
+    return res.status(400).json({ error: "Invalid encounter id" });
+  }
+
+  const { items } = req.body || {};
+  if (!Array.isArray(items)) {
+    return res.status(400).json({ error: "items must be an array" });
+  }
+
   try {
-    const encounterId = Number(req.params.id);
-    const dxId = Number(req.params.dxId);
-    const indicatorIdsRaw = Array.isArray(req.body?.indicatorIds)
-      ? req.body.indicatorIds
-      : [];
-
-    if (!encounterId || Number.isNaN(encounterId)) {
-      return res.status(400).json({ error: "Invalid encounter id" });
-    }
-    if (!dxId || Number.isNaN(dxId)) {
-      return res.status(400).json({ error: "Invalid diagnosis id" });
-    }
-
-    const indicatorIds = indicatorIdsRaw
-      .map((x) => Number(x))
-      .filter((n) => Number.isFinite(n) && n > 0);
-
-    // Ensure diagnosis belongs to encounter
-    const dx = await prisma.encounterDiagnosis.findFirst({
-      where: { id: dxId, encounterId },
-      select: { id: true },
-    });
-    if (!dx) {
-      return res.status(404).json({ error: "Encounter diagnosis not found" });
-    }
-
     await prisma.$transaction(async (trx) => {
-      await trx.encounterDiagnosisSterilizationIndicator.deleteMany({
-        where: { encounterDiagnosisId: dxId },
+      await trx.encounterDiagnosis.deleteMany({
+        where: { encounterId },
       });
 
-      // duplicates allowed -> createMany but without skipDuplicates
-      if (indicatorIds.length > 0) {
-        await trx.encounterDiagnosisSterilizationIndicator.createMany({
-          data: indicatorIds.map((indicatorId) => ({
-            encounterDiagnosisId: dxId,
-            indicatorId,
-          })),
+      for (const item of items) {
+        // ✅ diagnosisId can be null now
+        let diagnosisIdValue = null;
+        if (item.diagnosisId !== null && item.diagnosisId !== undefined && item.diagnosisId !== "") {
+          const n = Number(item.diagnosisId);
+          diagnosisIdValue = Number.isFinite(n) && n > 0 ? n : null;
+        }
+
+        const toothCode =
+          typeof item.toothCode === "string" && item.toothCode.trim()
+            ? item.toothCode.trim()
+            : null;
+
+        // Optional: if you want to NOT create totally-empty rows, you can skip here:
+        // if (!toothCode && !diagnosisIdValue && !(item.note || "").trim()) continue;
+
+        const selectedProblemIdsRaw = Array.isArray(item.selectedProblemIds)
+          ? item.selectedProblemIds
+              .map((id) => Number(id))
+              .filter((n) => Number.isFinite(n) && n > 0)
+          : [];
+
+        // ✅ If diagnosis is null, problems must be empty
+        const selectedProblemIds = diagnosisIdValue ? selectedProblemIdsRaw : [];
+
+        await trx.encounterDiagnosis.create({
+          data: {
+            encounterId,
+            diagnosisId: diagnosisIdValue, // ✅ can be null (Option A)
+            selectedProblemIds,
+            note: item.note ?? null,
+            toothCode,
+          },
         });
       }
     });
 
-    // return updated diagnosis row with included indicators
-    const updated = await prisma.encounterDiagnosis.findUnique({
-      where: { id: dxId },
-      include: {
-        diagnosis: true,
-        sterilizationIndicators: {
-          include: {
-            indicator: true,
-          },
-        },
-      },
+    const updated = await prisma.encounterDiagnosis.findMany({
+      where: { encounterId },
+      include: { diagnosis: true }, // diagnosis will be null when diagnosisId is null
+      orderBy: { id: "asc" },
     });
 
     return res.json(updated);
   } catch (err) {
-    console.error(
-      "PUT /api/encounters/:id/diagnoses/:dxId/sterilization-indicators error:",
-      err
-    );
-    return res
-      .status(500)
-      .json({ error: "Failed to save sterilization indicators" });
+    console.error("PUT /api/encounters/:id/diagnoses failed", err);
+    return res.status(500).json({ error: "Failed to save diagnoses" });
   }
 });
 
