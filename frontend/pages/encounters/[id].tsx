@@ -1208,20 +1208,20 @@ const removeDiagnosisRow = (index: number) => {
     setSaveError("");
     try {
       const payload = {
-        items: rows
-          .filter((r) => r.serviceId)
-          .map((r) => {
-            const svc = services.find((s) => s.id === r.serviceId);
-            const isImaging = svc?.category === "IMAGING";
+  items: rows
+    .filter((r) => r.serviceId)
+    .map((r) => {
+      const svc = services.find((s) => s.id === r.serviceId);
+      const isImaging = svc?.category === "IMAGING";
 
-            return {
-              serviceId: r.serviceId!,
-              quantity: 1,
-              assignedTo: isImaging ? (r.assignedTo ?? "DOCTOR") : "DOCTOR",
-              diagnosisId: r.id || null, // Store diagnosis row ID for later restoration
-            };
-          }),
+      return {
+        serviceId: r.serviceId!,
+        quantity: 1,
+        assignedTo: isImaging ? (r.assignedTo ?? "DOCTOR") : "DOCTOR",
+        diagnosisId: r.id ?? null, // IMPORTANT: must be EncounterDiagnosis row id
       };
+    }),
+};
 
       const res = await fetch(`/api/encounters/${id}/services`, {
         method: "PUT",
