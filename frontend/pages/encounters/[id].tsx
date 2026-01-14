@@ -1130,14 +1130,15 @@ const removeDiagnosisRow = (index: number) => {
   });
 
   try {
-    const payload = {
-      items: editableDxRows.map((row) => ({
-        diagnosisId: row.diagnosisId,
-        selectedProblemIds: row.selectedProblemIds,
-        note: row.note || null,
-        toothCode: row.toothCode || null,
-      })),
-    };
+   const payload = {
+  items: editableDxRows.map((row) => ({
+    id: row.id ?? null,              // ✅ add this
+    diagnosisId: row.diagnosisId,
+    selectedProblemIds: row.selectedProblemIds,
+    note: row.note || null,
+    toothCode: row.toothCode || null,
+  })),
+};
 
     const res = await fetch(`/api/encounters/${id}/diagnoses`, {
       method: "PUT",
