@@ -1112,22 +1112,31 @@ const removeDiagnosisRow = (index: number) => {
   setSaveError("");
 
   // ✅ Snapshot by stable key (id if exists, else localId)
-  const snapByKey = new Map<string, {
-    serviceId?: number;
-    serviceSearchText: string;
-    indicatorIds: number[];
-    assignedTo: AssignedTo;
-  }>();
+const snapById = new Map<number, {
+  serviceId?: number;
+  serviceSearchText: string;
+  indicatorIds: number[];
+  assignedTo: AssignedTo;
+}>();
 
-  rows.forEach((r) => {
-    const key = r.id ? `id:${r.id}` : `local:${r.localId}`;
-    snapByKey.set(key, {
-      serviceId: r.serviceId,
-      serviceSearchText: r.serviceSearchText || "",
-      indicatorIds: Array.isArray(r.indicatorIds) ? [...r.indicatorIds] : [],
-      assignedTo: r.assignedTo ?? "DOCTOR",
-    });
-  });
+const snapByIndex = new Map<number, {
+  serviceId?: number;
+  serviceSearchText: string;
+  indicatorIds: number[];
+  assignedTo: AssignedTo;
+}>();
+
+rows.forEach((r, idx) => {
+  const snap = {
+    serviceId: r.serviceId,
+    serviceSearchText: r.serviceSearchText || "",
+    indicatorIds: Array.isArray(r.indicatorIds) ? [...r.indicatorIds] : [],
+    assignedTo: r.assignedTo ?? "DOCTOR",
+  };
+
+  if (r.id) snapById.set(r.id, snap);
+  else snapByIndex.set(idx, snap); // fallback for new rows
+});
 
   try {
    const payload = {
@@ -1152,8 +1161,10 @@ const removeDiagnosisRow = (index: number) => {
     const saved = Array.isArray(json) ? json : [];
 
     const savedDxRows: EditableDiagnosis[] = saved.map((srvRow: any, idx: number) => {
-      const key = srvRow?.id ? `id:${srvRow.id}` : `local:${idx + 1}`;
-      const snap = snapByKey.get(key);
+      const rowId = Number(srvRow?.id);
+const snap =
+  (Number.isFinite(rowId) && rowId > 0 ? snapById.get(rowId) : undefined) ??
+  snapByIndex.get(idx);
 
       return {
         ...srvRow,
@@ -1184,8 +1195,10 @@ const removeDiagnosisRow = (index: number) => {
         const dxId = Number(srvRow?.id);
         if (!dxId) return;
 
-        const key = `id:${dxId}`;
-        const snap = snapByKey.get(key);
+       
+const snap = snapById.get(dxId);
+
+     
         const indicatorIds = snap?.indicatorIds || [];
 
         await fetch(`/api/encounters/${id}/diagnoses/${dxId}/sterilization-indicators`, {
