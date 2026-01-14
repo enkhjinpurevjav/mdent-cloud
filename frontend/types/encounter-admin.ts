@@ -103,7 +103,12 @@ export type EncounterService = {
   service?: Service;
   quantity: number;
   price: number;
-  meta?: { assignedTo?: AssignedTo } | null;
+
+  // ✅ add diagnosisId so service<->diagnosis row mapping survives refresh
+  meta?: {
+    assignedTo?: AssignedTo;
+    diagnosisId?: number | null;
+  } | null;
 };
 
 export type PrescriptionItem = {
