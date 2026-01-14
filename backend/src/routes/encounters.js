@@ -520,48 +520,46 @@ router.put("/:id/services", async (req, res) => {
   }
 
   try {
-   await prisma.$transaction(async (trx) => {
-  await trx.encounterService.deleteMany({
-    where: { encounterId },
+  await prisma.$transaction(async (trx) => {
+    await trx.encounterService.deleteMany({
+      where: { encounterId },
+    });
+
+    for (const item of items) {
+      if (!item.serviceId) continue;
+
+      const svc = await trx.service.findUnique({
+        where: { id: item.serviceId },
+        select: { price: true, category: true },
+      });
+      if (!svc) continue;
+
+      await trx.encounterService.create({
+        data: {
+          encounterId,
+          serviceId: item.serviceId,
+          quantity: item.quantity ?? 1,
+          price: svc.price,
+          meta: {
+            assignedTo: item.assignedTo ?? "DOCTOR",
+            diagnosisId: item.diagnosisId ?? null,
+          },
+        },
+      });
+    }
   });
 
-  for (const item of items) {
-    if (!item.serviceId) continue;
+  const updated = await prisma.encounterService.findMany({
+    where: { encounterId },
+    include: { service: true },
+    orderBy: { id: "asc" },
+  });
 
-    const svc = await trx.service.findUnique({
-      where: { id: item.serviceId },
-      select: { price: true, category: true }, // category optional; useful later
-    });
-    if (!svc) continue;
-
-    await trx.encounterService.create({
-      data: {
-        encounterId,
-        serviceId: item.serviceId,
-        quantity: item.quantity ?? 1,
-        price: svc.price,
-
-        // NEW: store assignment for IMAGING (xray) services.
-        // For non-IMAGING services this will still default to DOCTOR; harmless.
-        meta: {
-  assignedTo: item.assignedTo ?? "DOCTOR",
-  diagnosisId: item.diagnosisId ?? null,
-},
-    });
-  }
-});
-
-    const updated = await prisma.encounterService.findMany({
-      where: { encounterId },
-      include: { service: true },
-      orderBy: { id: "asc" },
-    });
-
-    return res.json(updated);
-  } catch (err) {
-    console.error("PUT /api/encounters/:id/services error:", err);
-    return res.status(500).json({ error: "Failed to save services" });
-  }
+  return res.json(updated);
+} catch (err) {
+  console.error("PUT /api/encounters/:id/services error:", err);
+  return res.status(500).json({ error: "Failed to save services" });
+}
 });
 
 /**
