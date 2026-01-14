@@ -1242,6 +1242,23 @@ const removeDiagnosisRow = (index: number) => {
         });
       }
       setEditableServices(json);
+setRows((prev) =>
+  prev.map((dxRow) => {
+    const linked = (Array.isArray(json) ? json : []).find(
+      (es: any) => (es.meta as any)?.diagnosisId === dxRow.id
+    );
+    if (!linked) return dxRow;
+
+    const svc = services.find((s) => s.id === linked.serviceId);
+    return {
+      ...dxRow,
+      serviceId: linked.serviceId,
+      serviceSearchText: svc ? `${svc.code} – ${svc.name}` : dxRow.serviceSearchText,
+      assignedTo: (linked.meta as any)?.assignedTo ?? dxRow.assignedTo ?? "DOCTOR",
+    };
+  })
+);
+     
     } catch (err: any) {
       console.error("handleSaveServices failed", err);
       setSaveError(
