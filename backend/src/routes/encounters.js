@@ -938,46 +938,56 @@ router.put("/:id/diagnoses", async (req, res) => {
 
   try {
     await prisma.$transaction(async (trx) => {
-      await trx.encounterDiagnosis.deleteMany({
-        where: { encounterId },
+  const keepIds = items.map((x) => Number(x.id)).filter((n) => Number.isFinite(n) && n > 0);
+
+  // delete removed rows (keep the ones we are updating)
+  await trx.encounterDiagnosis.deleteMany({
+    where: {
+      encounterId,
+      ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {}),
+    },
+  });
+
+  for (const item of items) {
+    // normalize diagnosisId
+    let diagnosisIdValue = null;
+    if (item.diagnosisId !== null && item.diagnosisId !== undefined && item.diagnosisId !== "") {
+      const n = Number(item.diagnosisId);
+      diagnosisIdValue = Number.isFinite(n) && n > 0 ? n : null;
+    }
+
+    const toothCode =
+      typeof item.toothCode === "string" && item.toothCode.trim()
+        ? item.toothCode.trim()
+        : null;
+
+    const selectedProblemIdsRaw = Array.isArray(item.selectedProblemIds)
+      ? item.selectedProblemIds.map((id) => Number(id)).filter((n) => Number.isFinite(n) && n > 0)
+      : [];
+
+    const selectedProblemIds = diagnosisIdValue ? selectedProblemIdsRaw : [];
+
+    const data = {
+      encounterId,
+      diagnosisId: diagnosisIdValue,
+      selectedProblemIds,
+      note: item.note ?? null,
+      toothCode,
+    };
+
+    const rowId = Number(item.id);
+    if (Number.isFinite(rowId) && rowId > 0) {
+      // update existing (stable id)
+      await trx.encounterDiagnosis.update({
+        where: { id: rowId },
+        data,
       });
-
-      for (const item of items) {
-        // ✅ diagnosisId can be null now
-        let diagnosisIdValue = null;
-        if (item.diagnosisId !== null && item.diagnosisId !== undefined && item.diagnosisId !== "") {
-          const n = Number(item.diagnosisId);
-          diagnosisIdValue = Number.isFinite(n) && n > 0 ? n : null;
-        }
-
-        const toothCode =
-          typeof item.toothCode === "string" && item.toothCode.trim()
-            ? item.toothCode.trim()
-            : null;
-
-        // Optional: if you want to NOT create totally-empty rows, you can skip here:
-        // if (!toothCode && !diagnosisIdValue && !(item.note || "").trim()) continue;
-
-        const selectedProblemIdsRaw = Array.isArray(item.selectedProblemIds)
-          ? item.selectedProblemIds
-              .map((id) => Number(id))
-              .filter((n) => Number.isFinite(n) && n > 0)
-          : [];
-
-        // ✅ If diagnosis is null, problems must be empty
-        const selectedProblemIds = diagnosisIdValue ? selectedProblemIdsRaw : [];
-
-        await trx.encounterDiagnosis.create({
-          data: {
-            encounterId,
-            diagnosisId: diagnosisIdValue, // ✅ can be null (Option A)
-            selectedProblemIds,
-            note: item.note ?? null,
-            toothCode,
-          },
-        });
-      }
-    });
+    } else {
+      // create new
+      await trx.encounterDiagnosis.create({ data });
+    }
+  }
+});
 
     const updated = await prisma.encounterDiagnosis.findMany({
       where: { encounterId },
