@@ -437,23 +437,22 @@ if (patientBranchId) {
 
         // Restore services to their diagnosis rows based on meta.diagnosisId
         // Use a function that will be called after services are loaded
-        const mergedRows: DiagnosisServiceRow[] = dxRows.map((dxRow) => {
-          // Find a service that belongs to this diagnosis row
-          const linkedService = svcRows.find((svc) => {
-            const diagnosisId = (svc.meta as any)?.diagnosisId;
-            return diagnosisId && diagnosisId === dxRow.id;
-          });
+       const mergedRows: DiagnosisServiceRow[] = dxRows.map((dxRow) => {
+  const linkedService = svcRows.find((svc) => {
+    const diagnosisId = Number(svc.meta?.diagnosisId);
+    return Number.isFinite(diagnosisId) && diagnosisId === Number(dxRow.id);
+  });
 
-          const assignedTo = linkedService ? (linkedService.meta as any)?.assignedTo || "DOCTOR" : "DOCTOR";
+  const assignedTo = linkedService?.meta?.assignedTo || "DOCTOR";
 
-          return {
-            ...dxRow,
-            serviceId: linkedService?.serviceId,
-            serviceSearchText: "", // Will be filled when services are loaded
-            assignedTo,
-          };
-        });
-        setRows(mergedRows);
+  return {
+    ...dxRow,
+    serviceId: linkedService?.serviceId,
+    serviceSearchText: "",
+    assignedTo,
+  };
+});
+setRows(mergedRows);
 
         const rxItems: EditablePrescriptionItem[] =
           enc.prescription?.items?.map((it) => ({
