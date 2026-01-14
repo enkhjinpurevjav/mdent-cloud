@@ -587,20 +587,18 @@ setRows(mergedRows);
   }, [id]);
 
   // Update serviceSearchText when services are loaded
-  useEffect(() => {
-    if (services.length === 0) return;
+useEffect(() => {
+  if (services.length === 0) return;
 
-    setRows((prevRows) =>
-      prevRows.map((row) => {
-        if (!row.serviceId) return row;
-        const svc = services.find((s) => s.id === row.serviceId);
-        return {
-          ...row,
-          serviceSearchText: svc ? `${svc.code} – ${svc.name}` : "",
-        };
-      })
-    );
-  }, [services]);
+  setRows((prevRows) =>
+    prevRows.map((row) => {
+      if (!row.serviceId) return row;
+      if ((row.serviceSearchText || "").trim()) return row; // ✅ don't overwrite
+      const svc = services.find((s) => s.id === row.serviceId);
+      return { ...row, serviceSearchText: svc ? svc.name : "" };
+    })
+  );
+}, [services]);
 
   const reloadEncounter = async () => {
     if (!id || typeof id !== "string") return;
