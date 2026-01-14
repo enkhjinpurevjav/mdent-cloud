@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
+import { formatGridShortLabel } from "../../utils/scheduling";
 
 type FollowUpAvailability = {
   days: Array<{
@@ -8,10 +9,25 @@ type FollowUpAvailability = {
       start: string;
       end: string;
       status: "available" | "booked" | "off";
-      appointmentId?: number;
+      appointmentIds?: number[];
+      appointmentId?: number; // backward compat (unused)
     }>;
   }>;
   timeLabels: string[];
+};
+
+type AppointmentLiteForDetails = {
+  id: number;
+  status: string;
+  scheduledAt: string;
+  endAt: string | null;
+  patientName: string | null;
+  patientOvog?: string | null;
+  patient?: {
+    name: string;
+    ovog?: string | null;
+    patientBook?: { bookNumber?: string | null } | null;
+  } | null;
 };
 
 type FollowUpSchedulerProps = {
@@ -19,17 +35,34 @@ type FollowUpSchedulerProps = {
   followUpDateFrom: string;
   followUpDateTo: string;
   followUpSlotMinutes: number;
+
   followUpAvailability: FollowUpAvailability | null;
   followUpLoading: boolean;
   followUpError: string;
   followUpSuccess: string;
   followUpBooking: boolean;
+
+  // NEW: to show details list for booked slots (already loaded by page)
+  followUpAppointments?: AppointmentLiteForDetails[];
+
+  // NEW: Option 3A indicator (no schedules across range)
+  followUpNoSchedule?: boolean;
+
   onToggleScheduler: (checked: boolean) => void;
   onDateFromChange: (date: string) => void;
   onDateToChange: (date: string) => void;
   onSlotMinutesChange: (minutes: number) => void;
   onBookAppointment: (slotStart: string) => void;
+
+  // NEW: Quick create when no schedule
+  onQuickCreate?: (params: { date: string; time: string; durationMinutes: number }) => void;
 };
+
+function getHmFromIso(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toTimeString().substring(0, 5);
+}
 
 export default function FollowUpScheduler({
   showFollowUpScheduler,
@@ -41,12 +74,37 @@ export default function FollowUpScheduler({
   followUpError,
   followUpSuccess,
   followUpBooking,
+  followUpAppointments = [],
+  followUpNoSchedule = false,
   onToggleScheduler,
   onDateFromChange,
   onDateToChange,
   onSlotMinutesChange,
   onBookAppointment,
+  onQuickCreate,
 }: FollowUpSchedulerProps) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsDate, setDetailsDate] = useState<string>("");
+  const [detailsTime, setDetailsTime] = useState<string>("");
+  const [detailsAppointmentIds, setDetailsAppointmentIds] = useState<number[]>([]);
+
+  // Quick create UI (Option 3A)
+  const [quickDate, setQuickDate] = useState<string>(followUpDateFrom);
+  const [quickTime, setQuickTime] = useState<string>("09:00");
+  const [quickDuration, setQuickDuration] = useState<number>(30);
+
+  const apptById = useMemo(() => {
+    const m = new Map<number, AppointmentLiteForDetails>();
+    for (const a of followUpAppointments) m.set(a.id, a);
+    return m;
+  }, [followUpAppointments]);
+
+  const detailsAppointments = useMemo(() => {
+    return detailsAppointmentIds
+      .map((id) => apptById.get(id))
+      .filter(Boolean) as AppointmentLiteForDetails[];
+  }, [detailsAppointmentIds, apptById]);
+
   return (
     <div
       style={{
@@ -144,7 +202,9 @@ export default function FollowUpScheduler({
             </div>
 
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-              <label style={{ fontWeight: 500 }}>Нэг цагийн үргэлжлэх хугацаа:</label>
+              <label style={{ fontWeight: 500 }}>
+                Нэг цагийн үргэлжлэх хугацаа:
+              </label>
               <select
                 value={followUpSlotMinutes}
                 onChange={(e) => onSlotMinutesChange(Number(e.target.value))}
@@ -162,6 +222,100 @@ export default function FollowUpScheduler({
               </select>
             </div>
           </div>
+
+          {/* Option 3A: no schedule message + quick create */}
+          {followUpNoSchedule && (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 8,
+                border: "1px solid #fde68a",
+                background: "#fffbeb",
+                color: "#92400e",
+                fontSize: 13,
+                marginBottom: 12,
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                Эмчийн цагийн хуваарь тохируулаагүй байна
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                Давтан үзлэгийн цагийг зөвхөн гараар (шууд цаг оруулах) үүсгэнэ.
+              </div>
+
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <label style={{ fontWeight: 600 }}>Огноо:</label>
+                  <input
+                    type="date"
+                    value={quickDate}
+                    onChange={(e) => setQuickDate(e.target.value)}
+                    style={{
+                      padding: "4px 6px",
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      fontSize: 12,
+                      background: "white",
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <label style={{ fontWeight: 600 }}>Эхлэх цаг:</label>
+                  <input
+                    type="time"
+                    value={quickTime}
+                    onChange={(e) => setQuickTime(e.target.value)}
+                    style={{
+                      padding: "4px 6px",
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      fontSize: 12,
+                      background: "white",
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <label style={{ fontWeight: 600 }}>Үргэлжлэх:</label>
+                  <select
+                    value={quickDuration}
+                    onChange={(e) => setQuickDuration(Number(e.target.value))}
+                    style={{
+                      padding: "4px 6px",
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      fontSize: 12,
+                      background: "white",
+                    }}
+                  >
+                    <option value={15}>15 минут</option>
+                    <option value={30}>30 минут</option>
+                    <option value={45}>45 минут</option>
+                    <option value={60}>60 минут</option>
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={followUpBooking || !onQuickCreate}
+                  onClick={() => onQuickCreate?.({ date: quickDate, time: quickTime, durationMinutes: quickDuration })}
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #2563eb",
+                    background: "#eff6ff",
+                    color: "#1d4ed8",
+                    cursor: followUpBooking ? "not-allowed" : "pointer",
+                    fontWeight: 700,
+                    fontSize: 12,
+                  }}
+                >
+                  {followUpBooking ? "Захиалж байна..." : "Гараар цаг үүсгэх"}
+                </button>
+              </div>
+            </div>
+          )}
 
           {followUpAvailability && followUpAvailability.days.length > 0 && (
             <div
@@ -221,12 +375,9 @@ export default function FollowUpScheduler({
                 </thead>
                 <tbody>
                   {followUpAvailability.days.map((day) => {
-                    // Create a map for quick lookup
-                    const slotsByTime = new Map();
+                    const slotsByTime = new Map<string, any>();
                     day.slots.forEach((slot) => {
-                      const slotTime = new Date(slot.start)
-                        .toTimeString()
-                        .substring(0, 5);
+                      const slotTime = getHmFromIso(slot.start);
                       slotsByTime.set(slotTime, slot);
                     });
 
@@ -245,6 +396,7 @@ export default function FollowUpScheduler({
                         >
                           {day.date} {day.dayLabel}
                         </td>
+
                         {followUpAvailability.timeLabels.map((time) => {
                           const slot = slotsByTime.get(time);
 
@@ -278,10 +430,19 @@ export default function FollowUpScheduler({
                             >
                               <button
                                 type="button"
-                                disabled={!isAvailable || followUpBooking}
-                                onClick={() =>
-                                  isAvailable && onBookAppointment(slot.start)
-                                }
+                                disabled={(!isAvailable && !isBooked) || followUpBooking}
+                                onClick={() => {
+                                  if (isAvailable) {
+                                    onBookAppointment(slot.start);
+                                    return;
+                                  }
+                                  if (isBooked) {
+                                    setDetailsOpen(true);
+                                    setDetailsDate(day.date);
+                                    setDetailsTime(time);
+                                    setDetailsAppointmentIds(slot.appointmentIds || []);
+                                  }
+                                }}
                                 style={{
                                   width: "100%",
                                   padding: "6px 4px",
@@ -299,9 +460,10 @@ export default function FollowUpScheduler({
                                     : isBooked
                                     ? "#991b1b"
                                     : "#6b7280",
-                                  cursor: isAvailable && !followUpBooking
-                                    ? "pointer"
-                                    : "not-allowed",
+                                  cursor:
+                                    (isAvailable || isBooked) && !followUpBooking
+                                      ? "pointer"
+                                      : "not-allowed",
                                   fontSize: 11,
                                   fontWeight: 500,
                                 }}
@@ -309,7 +471,7 @@ export default function FollowUpScheduler({
                                 {isAvailable
                                   ? "Сонгох"
                                   : isBooked
-                                  ? "Захиалсан"
+                                  ? "Дүүрсэн"
                                   : "Хаалттай"}
                               </button>
                             </td>
@@ -333,6 +495,102 @@ export default function FollowUpScheduler({
               }}
             >
               Сонгосон хугацаанд боломжтой цаг байхгүй байна
+            </div>
+          )}
+
+          {/* Booked slot details modal */}
+          {detailsOpen && (
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(0,0,0,0.35)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 80,
+              }}
+              onClick={() => setDetailsOpen(false)}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  width: 420,
+                  maxWidth: "90vw",
+                  background: "#ffffff",
+                  borderRadius: 8,
+                  boxShadow: "0 14px 40px rgba(0,0,0,0.25)",
+                  padding: 16,
+                  fontSize: 13,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h3 style={{ margin: 0, fontSize: 15 }}>Дүүрсэн цаг</h3>
+                  <button
+                    type="button"
+                    onClick={() => setDetailsOpen(false)}
+                    style={{
+                      border: "none",
+                      background: "transparent",
+                      cursor: "pointer",
+                      fontSize: 18,
+                      lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div style={{ marginTop: 6, color: "#6b7280", fontSize: 12 }}>
+                  {detailsDate} {detailsTime}
+                </div>
+
+                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                  {detailsAppointments.length === 0 ? (
+                    <div style={{ color: "#6b7280" }}>Энэ цагийн дэлгэрэнгүй олдсонгүй.</div>
+                  ) : (
+                    detailsAppointments.map((a) => (
+                      <div
+                        key={a.id}
+                        style={{
+                          padding: 10,
+                          borderRadius: 8,
+                          border: "1px solid #e5e7eb",
+                          background: "#f9fafb",
+                        }}
+                      >
+                        <div style={{ fontWeight: 700 }}>
+                          {formatGridShortLabel({
+                            patient: a.patient as any,
+                            patientName: a.patientName,
+                            patientOvog: a.patientOvog,
+                          }) || `#${a.id}`}
+                        </div>
+                        <div style={{ color: "#6b7280", fontSize: 12, marginTop: 2 }}>
+                          Төлөв: {a.status}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={() => setDetailsOpen(false)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      background: "#f9fafb",
+                      cursor: "pointer",
+                      fontSize: 13,
+                    }}
+                  >
+                    Хаах
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </>
