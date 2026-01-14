@@ -970,11 +970,11 @@ const removeDiagnosisRow = (index: number) => {
       }
 
       const schedRes = await fetch(`/api/doctors/scheduled?${schedParams}`);
-      const schedJson = await schedRes.json().catch(() => null);
-
       if (!schedRes.ok) {
+        const schedJson = await schedRes.json().catch(() => ({}));
         throw new Error(schedJson?.error || "Failed to load doctor schedules");
       }
+      const schedJson = await schedRes.json();
 
       // schedJson is array of doctors with schedules
       const doctors = Array.isArray(schedJson) ? schedJson : [];
@@ -993,11 +993,11 @@ const removeDiagnosisRow = (index: number) => {
       }
 
       const apptRes = await fetch(`/api/appointments?${apptParams}`);
-      const apptJson = await apptRes.json().catch(() => null);
-
       if (!apptRes.ok) {
+        const apptJson = await apptRes.json().catch(() => ({}));
         throw new Error(apptJson?.error || "Failed to load appointments");
       }
+      const apptJson = await apptRes.json();
 
       const appointments = Array.isArray(apptJson) ? apptJson : [];
 
