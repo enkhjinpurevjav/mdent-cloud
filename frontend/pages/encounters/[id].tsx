@@ -24,6 +24,7 @@ import { formatPatientName, formatDoctorDisplayName, formatStaffName } from "../
 import { extractWarningLinesFromVisitCard } from "../../utils/visit-card-helpers";
 import { displayOrDash } from "../../utils/display-helpers";
 import { ADULT_TEETH, CHILD_TEETH, ALL_TEETH_LABEL, stringifyToothList } from "../../utils/tooth-helpers";
+import { buildFollowUpAvailability } from "../../utils/scheduling";
 import SignaturePad from "../../components/SignaturePad";
 import PatientHeader from "../../components/encounter/PatientHeader";
 import ToothChartSelector from "../../components/encounter/ToothChartSelector";
@@ -280,16 +281,15 @@ if (isNewUnsaved && isUnlocked && toothEmpty) {
         start: string;
         end: string;
         status: "available" | "booked" | "off";
-        appointmentId?: number;
+        appointmentIds?: number[];
       }>;
     }>;
     timeLabels: string[];
   } | null>(null);
 
-const [weekSchedules, setWeekSchedules] = useState<any[]>([]);
-const [weekAppointments, setWeekAppointments] = useState<any[]>([]);
-const [weekLoading, setWeekLoading] = useState(false);
-const [weekError, setWeekError] = useState("");
+  // NEW: store appointments and no-schedule flag
+  const [followUpAppointments, setFollowUpAppointments] = useState<any[]>([]);
+  const [followUpNoSchedule, setFollowUpNoSchedule] = useState(false);
  
   const [followUpLoading, setFollowUpLoading] = useState(false);
   const [followUpError, setFollowUpError] = useState("");
@@ -669,28 +669,26 @@ useEffect(() => {
     void reloadMedia();
   }, [id, mediaTypeFilter]);
 
-  // Initialize follow-up date range when checkbox is toggled on
+  // Initialize follow-up date range when checkbox is toggled on (14 days)
   useEffect(() => {
     if (showFollowUpScheduler && !followUpDateFrom) {
       const today = new Date();
       const todayStr = ymdLocal(today);
-      const plusSeven = new Date(today);
-      plusSeven.setDate(plusSeven.getDate() + 7);
-      const plusSevenStr = ymdLocal(plusSeven);
+      const plusFourteen = new Date(today);
+      plusFourteen.setDate(plusFourteen.getDate() + 14);
+      const plusFourteenStr = ymdLocal(plusFourteen);
 
       setFollowUpDateFrom(todayStr);
-      setFollowUpDateTo(plusSevenStr);
+      setFollowUpDateTo(plusFourteenStr);
     }
   }, [showFollowUpScheduler]);
 
   // Load availability when dates/filters change
- useEffect(() => {
-  // Disabled old availability endpoint:
-  // it caused timezone shift + backend memory issues.
-  // if (showFollowUpScheduler && followUpDateFrom && followUpDateTo) {
-  //   void loadFollowUpAvailability();
-  // }
-}, [showFollowUpScheduler, followUpDateFrom, followUpDateTo, followUpSlotMinutes]);
+  useEffect(() => {
+    if (showFollowUpScheduler && followUpDateFrom && followUpDateTo && encounter) {
+      void loadFollowUpAvailability();
+    }
+  }, [showFollowUpScheduler, followUpDateFrom, followUpDateTo, followUpSlotMinutes, encounter]);
 
   const ensureProblemsLoaded = async (diagnosisId: number) => {
     if (problemsByDiagnosis[diagnosisId]) return;
@@ -955,28 +953,95 @@ const removeDiagnosisRow = (index: number) => {
 
     setFollowUpLoading(true);
     setFollowUpError("");
+    setFollowUpNoSchedule(false);
+
     try {
-      const params = new URLSearchParams({
-        doctorId: String(encounter.doctorId),
-        from: followUpDateFrom,
-        to: followUpDateTo,
-        slotMinutes: String(followUpSlotMinutes),
-        ...(encounter.patientBook.patient.branchId && {
-          branchId: String(encounter.patientBook.patient.branchId),
-        }),
+      const doctorId = encounter.doctorId;
+      const branchId = encounter.patientBook.patient.branchId;
+
+      // 1) Load doctor schedules
+      const schedParams = new URLSearchParams({
+        doctorId: String(doctorId),
+        dateFrom: followUpDateFrom,
+        dateTo: followUpDateTo,
       });
-
-      const res = await fetch(`/api/appointments/availability?${params}`);
-      const json = await res.json();
-
-      if (!res.ok) {
-        throw new Error(json.error || "Failed to load availability");
+      if (branchId) {
+        schedParams.append("branchId", String(branchId));
       }
 
-      setFollowUpAvailability(json);
+      const schedRes = await fetch(`/api/doctors/scheduled?${schedParams}`);
+      const schedJson = await schedRes.json().catch(() => null);
+
+      if (!schedRes.ok) {
+        throw new Error(schedJson?.error || "Failed to load doctor schedules");
+      }
+
+      // schedJson is array of doctors with schedules
+      const doctors = Array.isArray(schedJson) ? schedJson : [];
+      const doctor = doctors.find((d: any) => d.id === doctorId);
+      const schedules = doctor?.schedules || [];
+
+      // 2) Load appointments
+      const apptParams = new URLSearchParams({
+        doctorId: String(doctorId),
+        dateFrom: followUpDateFrom,
+        dateTo: followUpDateTo,
+        status: "ALL",
+      });
+      if (branchId) {
+        apptParams.append("branchId", String(branchId));
+      }
+
+      const apptRes = await fetch(`/api/appointments?${apptParams}`);
+      const apptJson = await apptRes.json().catch(() => null);
+
+      if (!apptRes.ok) {
+        throw new Error(apptJson?.error || "Failed to load appointments");
+      }
+
+      const appointments = Array.isArray(apptJson) ? apptJson : [];
+
+      // Store appointments for details modal
+      setFollowUpAppointments(appointments);
+
+      // Check if no schedules exist across the range
+      if (schedules.length === 0) {
+        setFollowUpNoSchedule(true);
+        setFollowUpAvailability(null);
+      } else {
+        setFollowUpNoSchedule(false);
+
+        // 3) Build availability grid
+        const availability = buildFollowUpAvailability({
+          dateFrom: followUpDateFrom,
+          dateTo: followUpDateTo,
+          schedules: schedules.map((s: any) => ({
+            id: s.id,
+            doctorId: s.doctorId,
+            branchId: s.branchId,
+            date: s.date,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            note: s.note,
+          })),
+          appointments: appointments.map((a: any) => ({
+            id: a.id,
+            scheduledAt: a.scheduledAt,
+            endAt: a.endAt,
+            status: a.status,
+          })),
+          slotMinutes: followUpSlotMinutes,
+          capacityPerSlot: 2,
+        });
+
+        setFollowUpAvailability(availability);
+      }
     } catch (err: any) {
       console.error("loadFollowUpAvailability failed", err);
       setFollowUpError(err?.message || "Цагийн хуваарь татахад алдаа гарлаа");
+      setFollowUpAvailability(null);
+      setFollowUpAppointments([]);
+      setFollowUpNoSchedule(false);
     } finally {
       setFollowUpLoading(false);
     }
@@ -1004,7 +1069,7 @@ const removeDiagnosisRow = (index: number) => {
           scheduledAt: startDate.toISOString(),
           endAt: endDate.toISOString(),
           status: "booked",
-          notes: "Давтан үзлэг",
+          notes: `Давтан үзлэг — Encounter #${encounter.id}`,
         }),
       });
 
@@ -1028,6 +1093,61 @@ const removeDiagnosisRow = (index: number) => {
     } catch (err: any) {
       console.error("createFollowUpAppointment failed", err);
       setFollowUpError(err?.message || "Цаг авахад алдаа гарлаа");
+    } finally {
+      setFollowUpBooking(false);
+    }
+  };
+
+  // Quick create handler for manual date/time entry (Option 3A)
+  const handleQuickCreateAppointment = async (params: {
+    date: string;
+    time: string;
+    durationMinutes: number;
+  }) => {
+    if (!encounter) return;
+
+    setFollowUpBooking(true);
+    setFollowUpError("");
+    setFollowUpSuccess("");
+
+    try {
+      // Build ISO datetime from local date + time
+      const [hh, mm] = params.time.split(":").map(Number);
+      const [y, m, d] = params.date.split("-").map(Number);
+      const startDate = new Date(y, m - 1, d, hh, mm, 0, 0);
+      const endDate = new Date(startDate.getTime() + params.durationMinutes * 60000);
+
+      const res = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientId: encounter.patientBook.patient.id,
+          doctorId: encounter.doctorId,
+          branchId: encounter.patientBook.patient.branchId,
+          scheduledAt: startDate.toISOString(),
+          endAt: endDate.toISOString(),
+          status: "booked",
+          notes: `Давтан үзлэг — Encounter #${encounter.id}`,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to create appointment");
+      }
+
+      setFollowUpSuccess(
+        `Цаг амжилттай үүсгэлээ: ${params.date} ${params.time}`
+      );
+
+      // Auto-hide success message after 5 seconds
+      setTimeout(() => {
+        setFollowUpSuccess("");
+      }, 5000);
+    } catch (err: any) {
+      console.error("handleQuickCreateAppointment failed", err);
+      setFollowUpError(err?.message || "Цаг үүсгэхэд алдаа гарлаа");
     } finally {
       setFollowUpBooking(false);
     }
@@ -1554,18 +1674,23 @@ setRows((prev) =>
               followUpError={followUpError}
               followUpSuccess={followUpSuccess}
               followUpBooking={followUpBooking}
+              followUpAppointments={followUpAppointments}
+              followUpNoSchedule={followUpNoSchedule}
               onToggleScheduler={(checked) => {
                 setShowFollowUpScheduler(checked);
                 if (!checked) {
                   setFollowUpError("");
                   setFollowUpSuccess("");
                   setFollowUpAvailability(null);
+                  setFollowUpAppointments([]);
+                  setFollowUpNoSchedule(false);
                 }
               }}
               onDateFromChange={setFollowUpDateFrom}
               onDateToChange={setFollowUpDateTo}
               onSlotMinutesChange={setFollowUpSlotMinutes}
               onBookAppointment={createFollowUpAppointment}
+              onQuickCreate={handleQuickCreateAppointment}
             />
           </section>
 
