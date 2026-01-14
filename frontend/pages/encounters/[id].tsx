@@ -384,104 +384,125 @@ const [weekError, setWeekError] = useState("");
       }
     };
 
-    const loadEncounter = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const res = await fetch(`/api/encounters/${id}`);
-        const json = await res.json().catch(() => null);
-        if (!res.ok) {
-          throw new Error((json && json.error) || "failed to load");
-        }
+    // NOTE: This is the FULL `loadEncounter` function for frontend/pages/encounters/[id].tsx
+// based on the code you pasted, with the "merged" behavior:
+// - serviceId + serviceSearchText are restored from encounterServices using meta.diagnosisId
+// - serviceSearchText uses svc.name (as you requested)
+// - BOTH rows and editableDxRows are set to the same merged array (prevents drift + "sometimes disappears")
 
-        const enc: Encounter = json;
-        setEncounter(enc);
+const loadEncounter = async () => {
+  setLoading(true);
+  setError("");
 
-        const dxRows: EditableDiagnosis[] =
-          enc.encounterDiagnoses?.map((row, idx) => ({
-            ...row,
-            diagnosisId: row.diagnosisId ?? null,
-            diagnosis: (row as any).diagnosis ?? null,
-            localId: idx + 1,
-            selectedProblemIds: Array.isArray(row.selectedProblemIds)
-              ? row.selectedProblemIds
-              : [],
-            note: row.note || "",
-            toothCode: row.toothCode || "",
-            serviceId: undefined,
-            searchText: (row as any).diagnosis
-              ? `${(row as any).diagnosis.code} – ${
-                  (row as any).diagnosis.name
-                }`
-              : "",
-            serviceSearchText: "",
-            locked: true,
-            indicatorIds: Array.isArray((row as any).sterilizationIndicators)
-  ? (row as any).sterilizationIndicators.map((x: any) => x.indicatorId).filter(Boolean)
-  : [],
-indicatorSearchText: "",
-          })) || [];
-        setEditableDxRows(dxRows);
+  try {
+    const res = await fetch(`/api/encounters/${id}`);
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error((json && json.error) || "failed to load");
+    }
 
-        const patientBranchId = enc?.patientBook?.patient?.branchId;
-if (patientBranchId) {
-  await loadActiveIndicators(patientBranchId);
-}
+    const enc: Encounter = json;
+    setEncounter(enc);
 
-        const svcRows: EncounterService[] =
-          enc.encounterServices?.map((row) => ({
-            ...row,
-            quantity: row.quantity || 1,
-          })) || [];
-        setEditableServices(svcRows);
+    // 1) Build base diagnosis rows from encounterDiagnoses
+    const dxRows: EditableDiagnosis[] =
+      enc.encounterDiagnoses?.map((row, idx) => ({
+        ...row,
+        diagnosisId: row.diagnosisId ?? null,
+        diagnosis: (row as any).diagnosis ?? null,
+        localId: idx + 1,
+        selectedProblemIds: Array.isArray(row.selectedProblemIds)
+          ? row.selectedProblemIds
+          : [],
+        note: row.note || "",
+        toothCode: row.toothCode || "",
 
-        // Restore services to their diagnosis rows based on meta.diagnosisId
-        // Use a function that will be called after services are loaded
-      const mergedRows: DiagnosisServiceRow[] = dxRows.map((dxRow) => {
-  const linkedService = svcRows.find((svc) => svc.meta?.diagnosisId === dxRow.id);
+        // service fields filled in merge step
+        serviceId: undefined,
+        serviceSearchText: "",
 
-  const assignedTo = linkedService?.meta?.assignedTo || "DOCTOR";
+        searchText: (row as any).diagnosis
+          ? `${(row as any).diagnosis.code} – ${(row as any).diagnosis.name}`
+          : "",
 
-  return {
-    ...dxRow,
-    serviceId: linkedService?.serviceId,
-    serviceSearchText: linkedService?.service?.name ?? "", // ✅ show svc.name after refresh
-    assignedTo,
-  };
-});
-setRows(mergedRows);
+        locked: true,
 
-        const rxItems: EditablePrescriptionItem[] =
-          enc.prescription?.items?.map((it) => ({
-            localId: it.order,
-            drugName: it.drugName,
-            durationDays: it.durationDays,
-            quantityPerTake: it.quantityPerTake,
-            frequencyPerDay: it.frequencyPerDay,
-            note: it.note || "",
-           
-          })) || [];
+        // indicators
+        indicatorIds: Array.isArray((row as any).sterilizationIndicators)
+          ? (row as any).sterilizationIndicators
+              .map((x: any) => x.indicatorId)
+              .filter(Boolean)
+          : [],
+        indicatorSearchText: "",
+      })) || [];
 
-        if (rxItems.length === 0) {
-  rxItems.push({
-    localId: 1,
-    drugName: "",
-    durationDays: null,
-    quantityPerTake: null,
-    frequencyPerDay: null,
-    note: "",
-  });
-}
+    // 2) Load active indicators for patient's branch (needed for display)
+    const patientBranchId = enc?.patientBook?.patient?.branchId;
+    if (patientBranchId) {
+      await loadActiveIndicators(patientBranchId);
+    }
 
-        setPrescriptionItems(rxItems);
-      } catch (err) {
-        console.error(err);
-        setError("Үзлэгийн дэлгэрэнгүйг ачааллах үед алдаа гарлаа");
-        setEncounter(null);
-      } finally {
-        setLoading(false);
-      }
-    };
+    // 3) Build saved encounter services list (for linking to diagnoses)
+    const svcRows: EncounterService[] =
+      enc.encounterServices?.map((row) => ({
+        ...row,
+        quantity: row.quantity || 1,
+      })) || [];
+    setEditableServices(svcRows);
+
+    // 4) Merge services back into diagnosis rows via meta.diagnosisId
+    const mergedRows: DiagnosisServiceRow[] = dxRows.map((dxRow) => {
+      const linkedService = svcRows.find(
+        (svc) => (svc.meta as any)?.diagnosisId === dxRow.id
+      );
+
+      const assignedTo: AssignedTo =
+        ((linkedService?.meta as any)?.assignedTo as AssignedTo) || "DOCTOR";
+
+      return {
+        ...dxRow,
+        serviceId: linkedService?.serviceId,
+        // ✅ requested: show only service name after refresh
+        serviceSearchText: linkedService?.service?.name ?? "",
+        assignedTo,
+      };
+    });
+
+    // ✅ IMPORTANT: keep both arrays in sync to avoid "sometimes disappears"
+    setRows(mergedRows);
+    setEditableDxRows(mergedRows);
+
+    // 5) Prescription items
+    const rxItems: EditablePrescriptionItem[] =
+      enc.prescription?.items?.map((it) => ({
+        localId: it.order,
+        drugName: it.drugName,
+        durationDays: it.durationDays,
+        quantityPerTake: it.quantityPerTake,
+        frequencyPerDay: it.frequencyPerDay,
+        note: it.note || "",
+      })) || [];
+
+    if (rxItems.length === 0) {
+      rxItems.push({
+        localId: 1,
+        drugName: "",
+        durationDays: null,
+        quantityPerTake: null,
+        frequencyPerDay: null,
+        note: "",
+      });
+    }
+
+    setPrescriptionItems(rxItems);
+  } catch (err) {
+    console.error(err);
+    setError("Үзлэгийн дэлгэ��энгүйг ачааллах үед алдаа гарлаа");
+    setEncounter(null);
+  } finally {
+    setLoading(false);
+  }
+};
 
     const loadDx = async () => {
       try {
