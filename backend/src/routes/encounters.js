@@ -543,8 +543,10 @@ router.put("/:id/services", async (req, res) => {
 
         // NEW: store assignment for IMAGING (xray) services.
         // For non-IMAGING services this will still default to DOCTOR; harmless.
-        meta: { assignedTo: item.assignedTo ?? "DOCTOR" },
-      },
+        meta: {
+  assignedTo: item.assignedTo ?? "DOCTOR",
+  diagnosisId: item.diagnosisId ?? null,
+},
     });
   }
 });
