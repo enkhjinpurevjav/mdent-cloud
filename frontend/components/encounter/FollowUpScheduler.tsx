@@ -176,7 +176,11 @@ export default function FollowUpScheduler({
                 >
                   <div>{day.dayLabel}</div>
                   <div style={{ fontSize: 10, fontWeight: 400, color: "#6b7280" }}>
-                    {day.date}
+                    {new Date(day.date).toLocaleDateString("mn-MN", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                    })}
                   </div>
                 </th>
               ))}
@@ -197,77 +201,81 @@ export default function FollowUpScheduler({
                 >
                   {timeLabel}
                 </td>
-                {days.map((day, dayIndex) => {
-                  const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel); 
+                {days.map((day) => {
+                  const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
+                  
+                  // Unavailable slot
                   if (!slot) {
-  return (
-    <td
-      key={`${day.date}-${timeLabel}`}
-      style={{
-        textAlign: "center",
-        backgroundColor: "#f9fafb",
-        borderBottom: "1px solid #e5e7eb",
-      }}
-    >
-      –
-    </td>
-  );
-}
+                    return (
+                      <td
+                        key={`${day.date}-${timeLabel}`}
+                        style={{
+                          textAlign: "center",
+                          backgroundColor: "#f9fafb",
+                          borderBottom: "1px solid #e5e7eb",
+                        }}
+                      >
+                        –
+                      </td>
+                    );
+                  }
+                  
+                  // Off Slot
+                  if (slot.status === "off") {
+                    return (
+                      <td
+                        key={`${day.date}-${timeLabel}`}
+                        style={{
+                          textAlign: "center",
+                          background: "#f3f4f6",
+                          color: "#9ca3af",
+                          borderBottom: "1px solid #e5e7eb",
+                        }}
+                      >
+                        Хаалттай
+                      </td>
+                    );
+                  }
 
-if (slot.status === "off") {
-  return (
-    <td
-      key={`${day.date}-${timeLabel}`}
-      style={{
-        textAlign: "center",
-        backgroundColor: "#f3f4f6",
-        color: "#9ca3af",
-        borderBottom: "1px solid #e5e7eb",
-      }}
-    >
-      Хаалттай
-    </td>
-  );
-}
-
+                  // Booked Slot
                   if (slot.status === "booked") {
-  return (
-    <td
-      key={`${day.date}-${timeLabel}`}
-      style={{
-        textAlign: "center",
-        backgroundColor: "#fee2e2",
-        fontWeight: "bold",
-        cursor: "pointer",
-        borderBottom: "1px solid #e5e7eb",
-      }}
-      onClick={() =>
-        handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel)
-      }
-    >
-      Дүүрсэн
-    </td>
-  );
-}
+                    return (
+                      <td
+                        key={`${day.date}-${timeLabel}`}
+                        style={{
+                          textAlign: "center",
+                          backgroundColor: "#fee2e2",
+                          fontWeight: "bold",
+                          cursor: "pointer",
+                          borderBottom: "1px solid #e5e7eb",
+                        }}
+                        onClick={() =>
+                          handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel)
+                        }
+                      >
+                        Дүүрсэн
+                      </td>
+                    );
+                  }
 
-                  // available slot
+                  // Available Slot
                   return (
                     <td
-  key={`${day.date}-${timeLabel}`}
-  style={{
-    textAlign: "center",
-    backgroundColor: "#d1fad3",
-    borderBottom: "1px solid #e5e7eb",
-    cursor: followUpBooking ? "not-allowed" : "pointer",
-  }}
-  onClick={() => {
-    if (!followUpBooking) {
-      handleSlotSelection(slot.start);
-    }
-  }}
->
-  Сул
-</td>
+                      key={`${day.date}-${timeLabel}`}
+                      style={{
+                        textAlign: "center",
+                        backgroundColor: "#d1fad3",
+                        cursor: followUpBooking ? "not-allowed" : "pointer",
+                        borderBottom: "1px solid #e5e7eb",
+                      }}
+                      onClick={() => {
+                        if (!followUpBooking) {
+                          handleSlotSelection(slot.start);
+                        }
+                      }}
+                    >
+                      Сул
+                    </td>
                   );
                 })}
               </tr>
