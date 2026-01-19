@@ -379,10 +379,10 @@ if (slot.status === "off") {
                   fontSize: 12,
                 }}
               >
-                <option value={15}>15 минут</option>
                 <option value={30}>30 минут</option>
-                <option value={45}>45 минут</option>
                 <option value={60}>60 минут</option>
+                <option value={90}>90 минут</option>
+                <option value={120}>120 минут</option>
               </select>
             </div>
           </div>
@@ -437,10 +437,10 @@ if (slot.status === "off") {
                     borderRadius: 6,
                   }}
                 >
-                  <option value={15}>15 минут</option>
                   <option value={30}>30 минут</option>
-                  <option value={45}>45 минут</option>
                   <option value={60}>60 минут</option>
+                  <option value={90}>90 минут</option>
+                  <option value={120}>120 минут</option>
                 </select>
                 <button
                   type="button"
@@ -539,7 +539,7 @@ if (slot.status === "off") {
       </h3>
       <p style={{ fontSize: 14 }}>Цаг: {selectedSlot ? getHmFromIso(selectedSlot) : ""}</p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "16px 0" }}>
-        {[15, 30, 45, 60].map((duration) => (
+        {[30, 60, 90, 120].map((duration) => (
           <button
             key={duration}
             onClick={() => handleDurationSelect(duration)}
