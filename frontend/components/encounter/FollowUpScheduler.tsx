@@ -198,89 +198,76 @@ export default function FollowUpScheduler({
                   {timeLabel}
                 </td>
                 {days.map((day, dayIndex) => {
-                  const slot = day.slots[rowIndex];
+                  const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel); 
                   if (!slot) {
-                    return (
-                      <td
-                        key={`${day.date}-${timeLabel}`}
-                        style={{
-                          padding: 8,
-                          borderBottom: "1px solid #e5e7eb",
-                          borderRight: "1px solid #e5e7eb",
-                          textAlign: "center",
-                          background: "#f3f4f6",
-                        }}
-                      >
-                        -
-                      </td>
-                    );
-                  }
+  return (
+    <td
+      key={`${day.date}-${timeLabel}`}
+      style={{
+        textAlign: "center",
+        backgroundColor: "#f9fafb",
+        borderBottom: "1px solid #e5e7eb",
+      }}
+    >
+      –
+    </td>
+  );
+}
 
-                  if (slot.status === "off") {
-                    return (
-                      <td
-                        key={`${day.date}-${timeLabel}`}
-                        style={{
-                          padding: 8,
-                          borderBottom: "1px solid #e5e7eb",
-                          borderRight: "1px solid #e5e7eb",
-                          textAlign: "center",
-                          background: "#f3f4f6",
-                          color: "#9ca3af",
-                        }}
-                      >
-                        -
-                      </td>
-                    );
-                  }
+if (slot.status === "off") {
+  return (
+    <td
+      key={`${day.date}-${timeLabel}`}
+      style={{
+        textAlign: "center",
+        backgroundColor: "#f3f4f6",
+        color: "#9ca3af",
+        borderBottom: "1px solid #e5e7eb",
+      }}
+    >
+      Хаалттай
+    </td>
+  );
+}
 
                   if (slot.status === "booked") {
-                    return (
-                      <td
-                        key={`${day.date}-${timeLabel}`}
-                        style={{
-                          padding: 8,
-                          borderBottom: "1px solid #e5e7eb",
-                          borderRight: "1px solid #e5e7eb",
-                          textAlign: "center",
-                          background: "#fef3c7",
-                          cursor: "pointer",
-                          fontWeight: 500,
-                        }}
-                        onClick={() =>
-                          handleBookedSlotClick(
-                            slot.appointmentIds || [],
-                            day.date,
-                            getHmFromIso(slot.start)
-                          )
-                        }
-                      >
-                        Дүүрсэн
-                      </td>
-                    );
-                  }
+  return (
+    <td
+      key={`${day.date}-${timeLabel}`}
+      style={{
+        textAlign: "center",
+        backgroundColor: "#fee2e2",
+        fontWeight: "bold",
+        cursor: "pointer",
+        borderBottom: "1px solid #e5e7eb",
+      }}
+      onClick={() =>
+        handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel)
+      }
+    >
+      Дүүрсэн
+    </td>
+  );
+}
 
                   // available slot
                   return (
                     <td
-                      key={`${day.date}-${timeLabel}`}
-                      style={{
-                        padding: 8,
-                        borderBottom: "1px solid #e5e7eb",
-                        borderRight: "1px solid #e5e7eb",
-                        textAlign: "center",
-                        background: "#dcfce7",
-                        cursor: followUpBooking ? "not-allowed" : "pointer",
-                        fontWeight: 500,
-                      }}
-                      onClick={() => {
-                        if (!followUpBooking) {
-                          handleSlotSelection(slot.start);
-                        }
-                      }}
-                    >
-                      Сул
-                    </td>
+  key={`${day.date}-${timeLabel}`}
+  style={{
+    textAlign: "center",
+    backgroundColor: "#d1fad3",
+    borderBottom: "1px solid #e5e7eb",
+    cursor: followUpBooking ? "not-allowed" : "pointer",
+  }}
+  onClick={() => {
+    if (!followUpBooking) {
+      handleSlotSelection(slot.start);
+    }
+  }}
+>
+  Сул
+</td>
                   );
                 })}
               </tr>
@@ -482,170 +469,116 @@ export default function FollowUpScheduler({
       )}
       {/* Render Details Modal */}
       {detailsOpen && (
-        <div
-          onClick={() => setDetailsOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              minWidth: "400px",
-              maxWidth: "600px",
-              padding: "24px",
-              background: "white",
-              borderRadius: "12px",
-              boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
-            }}
-          >
-            <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 18, fontWeight: 600 }}>
-              Батлагдсан цаг - {detailsDate} {detailsTime}
-            </h3>
-            <div style={{ marginBottom: 16 }}>
-              {detailsAppointments.length === 0 ? (
-                <p style={{ color: "#6b7280", fontSize: 14 }}>
-                  Мэдээлэл олдсонгүй
-                </p>
-              ) : (
-                detailsAppointments.map((appt) => (
-                  <div
-                    key={appt.id}
-                    style={{
-                      padding: 12,
-                      marginBottom: 8,
-                      border: "1px solid #e5e7eb",
-                      borderRadius: 8,
-                      background: "#f9fafb",
-                    }}
-                  >
-                    <p style={{ margin: 0, fontWeight: 500 }}>
-                      {formatGridShortLabel(appt)}
-                    </p>
-                    <p style={{ margin: "4px 0 0 0", fontSize: 12, color: "#6b7280" }}>
-                      Статус: {appt.status}
-                    </p>
-                  </div>
-                ))
-              )}
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+    }}
+    onClick={() => setDetailsOpen(false)}
+  >
+    <div
+      style={{
+        minWidth: "400px",
+        padding: 20,
+        background: "white",
+        borderRadius: 8,
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <h3>Батлагдсан цаг - {detailsDate} {detailsTime}</h3>
+      <div>
+        {detailsAppointments.length === 0 ? (
+          <div>(Мэдээлэл олдсонгүй)</div>
+        ) : (
+          detailsAppointments.map((a) => (
+            <div key={a.id}>
+              <h4>{a.patientName}</h4>
+              <p>Үеийн цаг: {new Date(a.scheduledAt).toLocaleTimeString()}</p>
             </div>
-            <button
-              onClick={() => setDetailsOpen(false)}
-              style={{
-                padding: "8px 16px",
-                borderRadius: 6,
-                background: "#2563eb",
-                border: "1px solid #2563eb",
-                color: "white",
-                cursor: "pointer",
-                fontWeight: 500,
-              }}
-            >
-              Хаах
-            </button>
-          </div>
-        </div>
-      )}
+          ))
+        )}
+      </div>
+      <button onClick={() => setDetailsOpen(false)}>Хаах</button>
+    </div>
+  </div>
+)}
 
       {/* Duration Selection Modal */}
       {slotModalOpen && (
-        <div
-          onClick={() => {
-            setSlotModalOpen(false);
-            setSelectedSlot("");
-          }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1000,
+    }}
+    onClick={() => {
+      setSlotModalOpen(false);
+      setSelectedSlot("");
+    }}
+  >
+    <div
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        minWidth: "400px",
+        padding: "24px",
+        background: "white",
+        borderRadius: "12px",
+        boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+      }}
+    >
+      <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 18, fontWeight: 600 }}>
+        Цагийн үргэлжлэх хугацаа сонгох
+      </h3>
+      <p style={{ fontSize: 14 }}>Цаг: {selectedSlot ? getHmFromIso(selectedSlot) : ""}</p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, margin: "16px 0" }}>
+        {[15, 30, 45, 60].map((duration) => (
+          <button
+            key={duration}
+            onClick={() => handleDurationSelect(duration)}
+            disabled={followUpBooking}
             style={{
-              minWidth: "400px",
-              padding: "24px",
-              background: "white",
-              borderRadius: "12px",
-              boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+              padding: "12px",
+              borderRadius: 6,
+              background: "#ecfdf3",
+              border: "1px solid #16a34a",
+              color: "#166534",
+              cursor: followUpBooking ? "not-allowed" : "pointer",
+              fontSize: 14,
+              fontWeight: 500,
             }}
           >
-            <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 18, fontWeight: 600 }}>
-              Цагийн үргэлжлэх хугацаа сонгох
-            </h3>
-            <p style={{ marginBottom: 16, fontSize: 14, color: "#6b7280" }}>
-              Цаг: {selectedSlot ? getHmFromIso(selectedSlot) : ""}
-            </p>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 12,
-                marginBottom: 16,
-              }}
-            >
-              {[15, 30, 45, 60].map((duration) => (
-                <button
-                  key={duration}
-                  onClick={() => handleDurationSelect(duration)}
-                  disabled={followUpBooking}
-                  style={{
-                    padding: "16px",
-                    borderRadius: 8,
-                    background: "#f0f9ff",
-                    border: "2px solid #0284c7",
-                    color: "#0c4a6e",
-                    cursor: followUpBooking ? "not-allowed" : "pointer",
-                    fontWeight: 600,
-                    fontSize: 16,
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!followUpBooking) {
-                      e.currentTarget.style.background = "#0284c7";
-                      e.currentTarget.style.color = "white";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "#f0f9ff";
-                    e.currentTarget.style.color = "#0c4a6e";
-                  }}
-                >
-                  {duration} минут
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => {
-                setSlotModalOpen(false);
-                setSelectedSlot("");
-              }}
-              style={{
-                width: "100%",
-                padding: "8px 16px",
-                borderRadius: 6,
-                background: "#e5e7eb",
-                border: "1px solid #d1d5db",
-                color: "#374151",
-                cursor: "pointer",
-                fontWeight: 500,
-              }}
-            >
-              Болих
-            </button>
-          </div>
-        </div>
-      )}
+            {duration} минут
+          </button>
+        ))}
+      </div>
+      <button
+        style={{
+          padding: "8px 16px",
+          borderRadius: 6,
+          background: "#e5e7eb",
+          color: "#374151",
+          border: "1px solid #d1d5db",
+          cursor: "pointer",
+          fontWeight: 500,
+        }}
+        onClick={() => {
+          setSlotModalOpen(false);
+          setSelectedSlot("");
+        }}
+      >
+        Болих
+      </button>
+    </div>
+  </div>
+)}
     </div>
   );
 }
