@@ -1047,56 +1047,49 @@ const removeDiagnosisRow = (index: number) => {
     }
   };
 
-  const createFollowUpAppointment = async (slotStart: string) => {
-    if (!encounter) return;
+  const createFollowUpAppointment = async (slotStartIso: string, durationMinutes: number = 30) => {
+  if (!encounter) return;
 
-    setFollowUpBooking(true);
-    setFollowUpError("");
-    setFollowUpSuccess("");
+  setFollowUpBooking(true);
+  setFollowUpError("");
+  setFollowUpSuccess("");
 
-    try {
-      // Calculate endAt (slot start + duration)
-      const startDate = new Date(slotStart);
-      const endDate = new Date(startDate.getTime() + followUpSlotMinutes * 60000);
+  try {
+    const startDate = new Date(slotStartIso);
+    const endDate = new Date(startDate.getTime() + durationMinutes * 60_000);
 
-      const res = await fetch("/api/appointments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          patientId: encounter.patientBook.patient.id,
-          doctorId: encounter.doctorId,
-          branchId: encounter.patientBook.patient.branchId,
-          scheduledAt: startDate.toISOString(),
-          endAt: endDate.toISOString(),
-          status: "booked",
-          notes: `Давтан үзлэг — Encounter #${encounter.id}`,
-        }),
-      });
+    // Send the appointment booking request
+    const res = await fetch("/api/appointments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        patientId: encounter.patientBook.patient.id,
+        doctorId: encounter.doctorId,
+        branchId: encounter.patientBook.patient.branchId,
+        scheduledAt: startDate.toISOString(),
+        endAt: endDate.toISOString(),
+        status: "booked",
+        notes: `Давтан үзлэг — Encounter #${encounter.id}`,
+      }),
+    });
 
-      const json = await res.json();
+    const json = await res.json();
 
-      if (!res.ok) {
-        throw new Error(json.error || "Failed to create appointment");
-      }
+    if (!res.ok) throw new Error(json.error || "Цаг авахад алдаа гарлаа");
 
-      setFollowUpSuccess(
-        `Цаг амжилттай авлаа: ${formatDateTime(slotStart)}`
-      );
+    setFollowUpSuccess(
+      `Цаг амжилттай авлаа: ${formatDateTime(slotStartIso)}`
+    );
 
-      // Reload availability to show updated slots
-      await loadFollowUpAvailability();
-
-      // Auto-hide success message after 5 seconds
-      setTimeout(() => {
-        setFollowUpSuccess("");
-      }, 5000);
-    } catch (err: any) {
-      console.error("createFollowUpAppointment failed", err);
-      setFollowUpError(err?.message || "Цаг авахад алдаа гарлаа");
-    } finally {
-      setFollowUpBooking(false);
-    }
-  };
+    // Refresh the grid state by calling the grid loader
+    await loadFollowUpAvailability();
+  } catch (err) {
+    console.error("createFollowUpAppointment failed", err);
+    setFollowUpError("Цаг авахад алдаа гарлаа.");
+  } finally {
+    setFollowUpBooking(false);
+  }
+};
 
   // Quick create handler for manual date/time entry (Option 3A)
   const handleQuickCreateAppointment = async (params: {
