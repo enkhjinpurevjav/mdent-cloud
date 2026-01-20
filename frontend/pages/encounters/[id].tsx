@@ -982,17 +982,22 @@ const removeDiagnosisRow = (index: number) => {
       const schedules = doctor?.schedules || [];
 
       // 2) Load appointments
-      const apptParams = new URLSearchParams({
-        doctorId: String(doctorId),
-        dateFrom: followUpDateFrom,
-        dateTo: followUpDateTo,
-        status: "ALL",
-      });
-      if (branchId) {
-        apptParams.append("branchId", String(branchId));
-      }
+      // 2) Load appointments (IMPORTANT: do NOT filter by branch here)
+// Reason: front desk bookings might be created under a different branchId,
+// but they still must block the doctor's time for follow-up scheduling.
+const apptParams = new URLSearchParams({
+  doctorId: String(doctorId),
+  dateFrom: followUpDateFrom,
+  dateTo: followUpDateTo,
+  status: "ALL",
+});
 
-      const apptRes = await fetch(`/api/appointments?${apptParams}`);
+// ❌ remove this branch filter:
+// if (branchId) {
+//   apptParams.append("branchId", String(branchId));
+// }
+
+const apptRes = await fetch(`/api/appointments?${apptParams}`);
       if (!apptRes.ok) {
         const apptJson = await apptRes.json().catch(() => ({}));
         throw new Error(apptJson?.error || "Failed to load appointments");
