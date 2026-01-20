@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { formatGridShortLabel } from "../../utils/scheduling";
 
 type FollowUpAvailability = {
@@ -149,16 +149,7 @@ const handleDurationSelect = (durationMinutes: number) => {
   }
 };
 
-  // Update the local state with the modified availability
-  setLocalFollowUpAvailability({ ...localFollowUpAvailability, days: updatedDays });
 
-  // Trigger the backend function for booking
-  onBookAppointment(selectedSlot, durationMinutes);
-
-  // Close the modal and reset slot selection
-  setSlotModalOpen(false);
-  setSelectedSlot("");
-};
 
   const renderGrid = () => {
   if (!localFollowUpAvailability) return null;
@@ -457,7 +448,7 @@ const renderSlotCell = (slot: any, date: string, timeLabel: string) => {
             </div>
           )}
 
-          {followUpAvailability && followUpAvailability.days.length > 0 && renderGrid()}
+          {localFollowUpAvailability && localFollowUpAvailability.days.length > 0 && renderGrid()}
         </>
       )}
       {/* Render Details Modal */}
