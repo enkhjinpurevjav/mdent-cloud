@@ -117,6 +117,8 @@ export function buildFollowUpAvailability(opts: {
         return { start: slotStartStr, end: slotEndStr, status: "off" as const };
       }
 
+    
+
       // Count overlaps
       const ids: number[] = [];
       for (const a of parsedAppointments) {
@@ -125,7 +127,10 @@ export function buildFollowUpAvailability(opts: {
         }
       }
 
-      if (ids.length >= capacityPerSlot) {
+      // ✅ NEW RULE:
+      // Any overlap means the slot is booked.
+      // Keep up to capacityPerSlot ids so UI can split when 2.
+      if (ids.length > 0) {
         return {
           start: slotStartStr,
           end: slotEndStr,
