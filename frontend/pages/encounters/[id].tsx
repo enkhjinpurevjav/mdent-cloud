@@ -36,36 +36,6 @@ import ConsentFormsBlock from "../../components/encounter/ConsentFormsBlock";
 
 type DiagnosisServiceRow = EditableDiagnosis;
 
-const handleFinishEncounter = async () => {
-  if (!id || typeof id !== "string") return;
-
-  setFinishing(true);
-  try {
-    await handleSaveDiagnoses();
-    await handleSaveServices();
-    await savePrescription();
-
-    const res = await fetch(`/api/encounters/${id}/finish`, { method: "PUT" });
-    const json = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      throw new Error(
-        (json && json.error) ||
-          "Үзлэг дууссаны төлөв шинэчлэх үед алдаа гарлаа."
-      );
-    }
-
-    // optional reset (if you have this function)
-    // resetToothSelectionSession();
-
-    await router.push(`/billing/${id}`);
-  } catch (err) {
-    console.error("handleFinishEncounter failed", err);
-  } finally {
-    setFinishing(false);
-  }
-};
-
 
 
 const isDxRowEffectivelyEmpty = (r: DiagnosisServiceRow | undefined | null) => {
@@ -129,6 +99,34 @@ export default function EncounterAdminPage() {
   const [selectedTeeth, setSelectedTeeth] = useState<string[]>([]);
   const [activeDxRowIndex, setActiveDxRowIndex] = useState<number | null>(null);
   const [customToothRange, setCustomToothRange] = useState("");
+
+const handleFinishEncounter = async () => {
+    if (!id || typeof id !== "string") return;
+
+    setFinishing(true);
+    try {
+      await handleSaveDiagnoses();
+      await handleSaveServices();
+      await savePrescription();
+
+      const res = await fetch(`/api/encounters/${id}/finish`, { method: "PUT" });
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(
+          (json && json.error) ||
+            "Үзлэг дууссаны төлөв шинэчлэх үед алдаа гарлаа."
+        );
+      }
+
+      await router.push(`/billing/${id}`);
+    } catch (err) {
+      console.error("handleFinishEncounter failed", err);
+    } finally {
+      setFinishing(false);
+    }
+  };
+ 
 
   const loadActiveIndicators = async (branchId: number) => {
   try {
@@ -1707,7 +1705,7 @@ setRows((prev) =>
                 await savePrescription();
               }}
               onFinish={handleFinishEncounter}
-              onResetToothSelection={resetToothSelectionSession}
+       
             />
 
             <MediaGallery
