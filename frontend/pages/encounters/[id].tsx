@@ -132,7 +132,7 @@ export default function EncounterAdminPage() {
     const allCodes = toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH;
     return allCodes.length > 0 && allCodes.every((c) => selectedTeeth.includes(c));
   };
-
+ const [rows, setRows] = useState<DiagnosisServiceRow[]>([]);
  const updateActiveRowToothList = (
   nextTeeth: string[],
   opts?: { isAllTeeth?: boolean }
@@ -252,7 +252,7 @@ export default function EncounterAdminPage() {
 
   const [saveError, setSaveError] = useState("");
 
-  const [rows, setRows] = useState<DiagnosisServiceRow[]>([]);
+ 
   const [servicesLoadError, setServicesLoadError] = useState("");
   const [dxError, setDxError] = useState("");
   
