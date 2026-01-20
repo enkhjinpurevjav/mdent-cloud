@@ -258,12 +258,14 @@ const { days, timeLabels } = localAvailability;
           );
         }
 
-        if (slot.status === "booked") {
+                if (slot.status === "booked") {
+          const count = (slot.appointmentIds || []).length;
+
           return (
             <td
               key={`${day.date}-${timeLabel}`}
               style={{
-                padding: 8,
+                padding: 6,
                 background: "#fee2e2",
                 textAlign: "center",
                 cursor: "pointer",
@@ -274,7 +276,36 @@ const { days, timeLabels } = localAvailability;
                 handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel)
               }
             >
-              Захиалгатай
+              {count <= 1 ? (
+                // ✅ 1 appointment: show normal status text
+                "Захиалгатай"
+              ) : (
+                // ✅ 2 appointments: split into 2 mini blocks, status text only
+                <div style={{ display: "grid", gridTemplateRows: "1fr 1fr", gap: 4 }}>
+                  <div
+                    style={{
+                      padding: "4px 6px",
+                      borderRadius: 6,
+                      background: "#fecaca",
+                      border: "1px solid #fca5a5",
+                      fontSize: 11,
+                    }}
+                  >
+                    Захиалгатай
+                  </div>
+                  <div
+                    style={{
+                      padding: "4px 6px",
+                      borderRadius: 6,
+                      background: "#fecaca",
+                      border: "1px solid #fca5a5",
+                      fontSize: 11,
+                    }}
+                  >
+                    Захиалгатай
+                  </div>
+                </div>
+              )}
             </td>
           );
         }
