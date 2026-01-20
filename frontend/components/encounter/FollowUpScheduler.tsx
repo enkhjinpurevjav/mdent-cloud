@@ -546,29 +546,21 @@ const { days, timeLabels } = localAvailability;
       onClick={(e) => e.stopPropagation()}
     >
       <h3>Захиалсан цаг - {detailsDate} {detailsTime}</h3>
+
       <div>
         {detailsAppointments.length === 0 ? (
           <div>(Мэдээлэл олдсонгүй)</div>
         ) : (
           detailsAppointments.map((a) => (
-            <div key={a.id}>
-              <h4>{a.patientName}</h4>
-              {detailsAppointments.map((a) => (
-  <div key={a.id}>
-    {/* BEFORE */}
-    {/* <h4>{a.patientName}</h4>
-    <p>Үйлчлүүлэгч: {new Date(a.scheduledAt).toLocaleTimeString()}</p> */}
-
-    {/* AFTER: show patient name like "П.Энхжин" */}
-    <div style={{ fontWeight: 700 }}>
-      {formatGridShortLabel(a) || "-"}
-    </div>
-  </div>
-))}
+            <div key={a.id} style={{ marginBottom: 10 }}>
+              <p style={{ margin: 0 }}>
+                Үйлчлүүлэгч: <strong>{formatGridShortLabel(a) || "-"}</strong>
+              </p>
             </div>
           ))
         )}
       </div>
+
       <button onClick={() => setDetailsOpen(false)}>Хаах</button>
     </div>
   </div>
