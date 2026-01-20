@@ -545,7 +545,7 @@ const { days, timeLabels } = localAvailability;
       }}
       onClick={(e) => e.stopPropagation()}
     >
-      <h3>Батлагдсан цаг - {detailsDate} {detailsTime}</h3>
+      <h3>Захиалсан цаг - {detailsDate} {detailsTime}</h3>
       <div>
         {detailsAppointments.length === 0 ? (
           <div>(Мэдээлэл олдсонгүй)</div>
