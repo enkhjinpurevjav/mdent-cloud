@@ -36,6 +36,38 @@ import ConsentFormsBlock from "../../components/encounter/ConsentFormsBlock";
 
 type DiagnosisServiceRow = EditableDiagnosis;
 
+const handleFinishEncounter = async () => {
+  if (!id || typeof id !== "string") return;
+
+  setFinishing(true);
+  try {
+    await handleSaveDiagnoses();
+    await handleSaveServices();
+    await savePrescription();
+
+    const res = await fetch(`/api/encounters/${id}/finish`, { method: "PUT" });
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      throw new Error(
+        (json && json.error) ||
+          "Үзлэг дууссаны төлөв шинэчлэх үед алдаа гарлаа."
+      );
+    }
+
+    // optional reset (if you have this function)
+    // resetToothSelectionSession();
+
+    await router.push(`/billing/${id}`);
+  } catch (err) {
+    console.error("handleFinishEncounter failed", err);
+  } finally {
+    setFinishing(false);
+  }
+};
+
+
+
 const isDxRowEffectivelyEmpty = (r: DiagnosisServiceRow | undefined | null) => {
   if (!r) return true;
 
@@ -137,7 +169,6 @@ export default function EncounterAdminPage() {
     rows[activeDxRowIndex] &&
     !rows[activeDxRowIndex].locked;
 
-  // If no writable active row, create a new one (unless empty selection)
   if (!hasWritableActiveRow) {
     if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
 
@@ -154,31 +185,35 @@ export default function EncounterAdminPage() {
     setRows((prev) =>
       prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
     );
-
     return;
   }
 
   const idx = activeDxRowIndex as number;
-
   const toothStr = opts?.isAllTeeth
     ? ALL_TEETH_LABEL
     : stringifyToothList(nextTeeth);
 
+  // update both
   setEditableDxRows((prev) =>
     prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
   );
-  setRows((prev) =>
-    prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
-  );
 
-  // ✅ Auto-delete the row if teeth becomes empty (and it's not ALL teeth)
-  if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
-    const rowNow = rows[idx];
-    if (isDxRowEffectivelyEmpty(rowNow)) {
-      removeDiagnosisRow(idx);
-      setActiveDxRowIndex(null);
+  setRows((prev) => {
+    const next = prev.map((row, i) =>
+      i === idx ? { ...row, toothCode: toothStr } : row
+    );
+
+    if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
+      if (isDxRowEffectivelyEmpty(next[idx])) {
+        // remove from BOTH states
+        setEditableDxRows((prevEd) => prevEd.filter((_, i) => i !== idx));
+        setActiveDxRowIndex(null);
+        return next.filter((_, i) => i !== idx);
+      }
     }
-  }
+
+    return next;
+  });
 };
 
   const [consents, setConsents] = useState<EncounterConsent[]>([]);
