@@ -117,12 +117,33 @@ export default function FollowUpScheduler({
   };
 
   const handleDurationSelect = (durationMinutes: number) => {
-    if (selectedSlot) {
-      onBookAppointment(selectedSlot, durationMinutes);
-      setSlotModalOpen(false);
-      setSelectedSlot("");
-    }
-  };
+  // Check if there's a selected slot
+  if (selectedSlot && followUpAvailability) {
+    const { days } = followUpAvailability;
+
+    // Update the day's slots
+    const updatedDays = days.map((day) => ({
+      ...day,
+      slots: day.slots.map((slot) => {
+        if (slot.start === selectedSlot) {
+          // Update the slot to be booked
+          return { ...slot, status: "booked" };
+        }
+        return slot;
+      }),
+    }));
+
+    // Update the followUpAvailability state locally
+    followUpAvailability.days = updatedDays;
+
+    // Fire the API call to persist the booking
+    onBookAppointment(selectedSlot, durationMinutes);
+
+    // Reset the modal state after booking
+    setSlotModalOpen(false);
+    setSelectedSlot("");
+  }
+};
 
   const renderGrid = () => {
     if (!followUpAvailability) return null;
