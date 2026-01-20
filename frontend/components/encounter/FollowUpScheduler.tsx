@@ -253,7 +253,7 @@ export default function FollowUpScheduler({
                 handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel)
               }
             >
-              Дүүрсэн
+              Захиалгатай
             </td>
           );
         }
@@ -270,7 +270,7 @@ export default function FollowUpScheduler({
             }}
             onClick={() => handleSlotSelection(slot.start)}
           >
-            Сул
+            Чөлөөтэй
           </td>
         );
       })}
