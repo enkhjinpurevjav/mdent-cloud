@@ -83,6 +83,7 @@ export default function FollowUpScheduler({
   const [detailsDate, setDetailsDate] = useState<string>("");
   const [detailsTime, setDetailsTime] = useState<string>("");
   const [detailsAppointmentIds, setDetailsAppointmentIds] = useState<number[]>([]);
+  
 
   // Quick create UI (Option 3A)
   const [quickDate, setQuickDate] = useState<string>(followUpDateFrom);
@@ -116,171 +117,159 @@ export default function FollowUpScheduler({
     setDetailsOpen(true);
   };
 
-  const handleDurationSelect = (durationMinutes: number) => {
-    if (selectedSlot) {
-      onBookAppointment(selectedSlot, durationMinutes);
-      setSlotModalOpen(false);
-      setSelectedSlot("");
-    }
-  };
+  // Step 1: Use a local state
+const [localFollowUpAvailability, setLocalFollowUpAvailability] = useState<FollowUpAvailability | null>(followUpAvailability);
+
+useEffect(() => {
+  // Step 2: Keep local state in sync with props
+  setLocalFollowUpAvailability(followUpAvailability);
+}, [followUpAvailability]);
+
+const handleDurationSelect = (durationMinutes: number) => {
+  if (selectedSlot && localFollowUpAvailability) {
+    // Update slot in local state
+    const updatedDays = localFollowUpAvailability.days.map((day) => ({
+      ...day,
+      slots: day.slots.map((slot) =>
+        slot.start === selectedSlot ? { ...slot, status: "booked" } : slot
+      ),
+    }));
+
+    const updatedAvailability = { ...localFollowUpAvailability, days: updatedDays };
+
+    // Update local state
+    setLocalFollowUpAvailability(updatedAvailability);
+
+    // Trigger backend API to save changes
+    onBookAppointment(selectedSlot, durationMinutes);
+
+    // Close modal and clear selection
+    setSlotModalOpen(false);
+    setSelectedSlot("");
+  }
+};
+
+  // Update the local state with the modified availability
+  setLocalFollowUpAvailability({ ...localFollowUpAvailability, days: updatedDays });
+
+  // Trigger the backend function for booking
+  onBookAppointment(selectedSlot, durationMinutes);
+
+  // Close the modal and reset slot selection
+  setSlotModalOpen(false);
+  setSelectedSlot("");
+};
 
   const renderGrid = () => {
-    if (!followUpAvailability) return null;
+  if (!localFollowUpAvailability) return null;
 
-    const { days, timeLabels } = followUpAvailability;
+  const { days, timeLabels } = localFollowUpAvailability; // Use local state
 
-    return (
-      <div
-        style={{
-          overflowX: "auto",
-          marginTop: 12,
-          border: "1px solid #e5e7eb",
-          borderRadius: 8,
-        }}
-      >
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            fontSize: 12,
-            background: "white",
-          }}
-        >
-          <thead>
-  <tr>
-    <th
+  return (
+    <div
       style={{
-        textAlign: "center",
-        background: "#f9fafb",
-        padding: 8,
-        borderBottom: "2px solid #d1d5db",
-        borderRight: "1px solid #e5e7eb",
-        fontWeight: "bold",
+        overflowX: "auto",
+        marginTop: 12,
+        border: "1px solid #e5e7eb",
+        borderRadius: 8,
       }}
     >
-      Огноо
-    </th>
-    {/* Add Time Column Headers */}
-    {timeLabels.map((timeLabel) => (
-      <th
-        key={timeLabel}
+      <table
         style={{
-          textAlign: "center",
-          background: "#f9fafb",
-          borderBottom: "1px solid #d1d5db",
-          borderRight: "1px solid #e5e7eb",
-          padding: 8,
-          fontWeight: "bold",
+          width: "100%",
+          borderCollapse: "collapse",
+          fontSize: 12,
+          background: "white",
         }}
       >
-        {timeLabel}
-      </th>
-    ))}
-  </tr>
-</thead>
-          <tbody>
-  {days.map((day) => (
-    <tr key={day.date}>
-      {/* Date as the first column */}
-      <td
-        style={{
-          padding: 8,
-          textAlign: "center",
-          background: "#f9fafb",
-          fontWeight: 500,
-          borderBottom: "1px solid #e5e7eb",
-        }}
-      >
-        <div>{day.dayLabel}</div>
-        <div style={{ fontSize: 10, color: "#6b7280" }}>
-          {new Date(day.date).toLocaleDateString("mn-MN", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-          })}
-        </div>
-      </td>
-      {/* Time slots as columns */}
-      {timeLabels.map((timeLabel) => {
-        const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
+        <thead>
+          <tr>
+            <th style={{ padding: 8, textAlign: "center", background: "#f9fafb", fontWeight: 600 }}>
+              Огноо
+            </th>
+            {timeLabels.map((timeLabel) => (
+              <th
+                key={timeLabel}
+                style={{
+                  padding: 8,
+                  textAlign: "center",
+                  background: "#f9fafb",
+                  fontWeight: 600,
+                  borderBottom: "1px solid #e5e7eb",
+                }}
+              >
+                {timeLabel}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {days.map((day) => (
+            <tr key={day.date}>
+              <td style={{ padding: 8, textAlign: "center", background: "#f9fafb", fontWeight: 500 }}>
+                <div>{day.dayLabel}</div>
+                <div>{new Date(day.date).toLocaleDateString("mn-MN", { year: "numeric", month: "2-digit", day: "2-digit" })}</div>
+              </td>
+              {timeLabels.map((timeLabel) => {
+                const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
 
-        if (!slot) {
-          return (
-            <td
-              key={`${day.date}-${timeLabel}`}
-              style={{
-                padding: 8,
-                background: "#f9fafb",
-                textAlign: "center",
-                borderBottom: "1px solid #e5e7eb",
-              }}
-            >
-              –
-            </td>
-          );
-        }
+                if (!slot) {
+                  return (
+                    <td key={timeLabel} style={{ padding: 8, textAlign: "center", background: "#f9fafb" }}>-</td>
+                  );
+                }
 
-        if (slot.status === "off") {
-          return (
-            <td
-              key={`${day.date}-${timeLabel}`}
-              style={{
-                padding: 8,
-                background: "#f3f4f6",
-                color: "#9ca3af",
-                textAlign: "center",
-                borderBottom: "1px solid #e5e7eb",
-              }}
-            >
-              -
-            </td>
-          );
-        }
+                return renderSlotCell(slot, day.date, timeLabel); // Helper method below
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
-        if (slot.status === "booked") {
-          return (
-            <td
-              key={`${day.date}-${timeLabel}`}
-              style={{
-                padding: 8,
-                background: "#fee2e2",
-                textAlign: "center",
-                cursor: "pointer",
-                fontWeight: 600,
-                borderBottom: "1px solid #e5e7eb",
-              }}
-              onClick={() =>
-                handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel)
-              }
-            >
-              Захиалгатай
-            </td>
-          );
-        }
-
-        return (
-          <td
-            key={`${day.date}-${timeLabel}`}
-            style={{
-              padding: 8,
-              background: "#ccffcc",
-              textAlign: "center",
-              cursor: followUpBooking ? "not-allowed" : "pointer",
-              borderBottom: "1px solid #e5e7eb",
-            }}
-            onClick={() => handleSlotSelection(slot.start)}
-          >
-            Чөлөөтэй
-          </td>
-        );
-      })}
-    </tr>
-  ))}
-</tbody>
-        </table>
-      </div>
-    );
-  };
+const renderSlotCell = (slot: any, date: string, timeLabel: string) => {
+  switch (slot.status) {
+    case "off":
+      return (
+        <td style={{ padding: 8, textAlign: "center", background: "#f3f4f6", color: "#9ca3af" }}>
+          Хаалттай
+        </td>
+      );
+    case "booked":
+      return (
+        <td
+          style={{
+            padding: 8,
+            background: "#fee2e2",
+            textAlign: "center",
+            cursor: "pointer",
+            borderBottom: "1px solid #e5e7eb",
+          }}
+          onClick={() => handleBookedSlotClick(slot.appointmentIds || [], date, timeLabel)}
+        >
+          Захиалгатай
+        </td>
+      );
+    case "available":
+    default:
+      return (
+        <td
+          style={{
+            padding: 8,
+            background: "#ccffcc",
+            textAlign: "center",
+            cursor: followUpBooking ? "not-allowed" : "pointer",
+            borderBottom: "1px solid #e5e7eb",
+          }}
+          onClick={() => handleSlotSelection(slot.start)}
+        >
+          Чөлөөтэй
+        </td>
+      );
+  }
+};
 
   return (
     <div
