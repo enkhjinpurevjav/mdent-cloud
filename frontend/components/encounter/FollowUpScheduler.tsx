@@ -147,140 +147,136 @@ export default function FollowUpScheduler({
           }}
         >
           <thead>
-            <tr>
-              <th
-                style={{
-                  padding: 8,
-                  borderBottom: "2px solid #d1d5db",
-                  borderRight: "1px solid #e5e7eb",
-                  background: "#f9fafb",
-                  fontWeight: 600,
-                  textAlign: "center",
-                  minWidth: 60,
-                }}
-              >
-                Цаг
-              </th>
-              {days.map((day) => (
-                <th
-                  key={day.date}
-                  style={{
-                    padding: 8,
-                    borderBottom: "2px solid #d1d5db",
-                    borderRight: "1px solid #e5e7eb",
-                    background: "#f9fafb",
-                    fontWeight: 600,
-                    textAlign: "center",
-                    minWidth: 80,
-                  }}
-                >
-                  <div>{day.dayLabel}</div>
-                  <div style={{ fontSize: 10, fontWeight: 400, color: "#6b7280" }}>
-                    {new Date(day.date).toLocaleDateString("mn-MN", {
-                      year: "numeric",
-                      month: "2-digit",
-                      day: "2-digit",
-                    })}
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
+  <tr>
+    <th
+      style={{
+        textAlign: "center",
+        background: "#f9fafb",
+        padding: 8,
+        borderBottom: "2px solid #d1d5db",
+        borderRight: "1px solid #e5e7eb",
+        fontWeight: "bold",
+      }}
+    >
+      Огноо
+    </th>
+    {/* Add Time Column Headers */}
+    {timeLabels.map((timeLabel) => (
+      <th
+        key={timeLabel}
+        style={{
+          textAlign: "center",
+          background: "#f9fafb",
+          borderBottom: "1px solid #d1d5db",
+          borderRight: "1px solid #e5e7eb",
+          padding: 8,
+          fontWeight: "bold",
+        }}
+      >
+        {timeLabel}
+      </th>
+    ))}
+  </tr>
+</thead>
           <tbody>
-            {timeLabels.map((timeLabel, rowIndex) => (
-              <tr key={timeLabel}>
-                <td
-                  style={{
-                    padding: 8,
-                    borderBottom: "1px solid #e5e7eb",
-                    borderRight: "1px solid #e5e7eb",
-                    background: "#f9fafb",
-                    fontWeight: 500,
-                    textAlign: "center",
-                  }}
-                >
-                  {timeLabel}
-                </td>
-                {days.map((day) => {
-                  const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
-                  
-                  // Unavailable slot
-                  if (!slot) {
-                    return (
-                      <td
-                        key={`${day.date}-${timeLabel}`}
-                        style={{
-                          textAlign: "center",
-                          backgroundColor: "#f9fafb",
-                          borderBottom: "1px solid #e5e7eb",
-                        }}
-                      >
-                        –
-                      </td>
-                    );
-                  }
-                  
-                  // Off Slot
-                  if (slot.status === "off") {
-                    return (
-                      <td
-                        key={`${day.date}-${timeLabel}`}
-                        style={{
-                          textAlign: "center",
-                          background: "#f3f4f6",
-                          color: "#9ca3af",
-                          borderBottom: "1px solid #e5e7eb",
-                        }}
-                      >
-                        Хаалттай
-                      </td>
-                    );
-                  }
+  {days.map((day) => (
+    <tr key={day.date}>
+      {/* Date as the first column */}
+      <td
+        style={{
+          padding: 8,
+          textAlign: "center",
+          background: "#f9fafb",
+          fontWeight: 500,
+          borderBottom: "1px solid #e5e7eb",
+        }}
+      >
+        <div>{day.dayLabel}</div>
+        <div style={{ fontSize: 10, color: "#6b7280" }}>
+          {new Date(day.date).toLocaleDateString("mn-MN", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          })}
+        </div>
+      </td>
+      {/* Time slots as columns */}
+      {timeLabels.map((timeLabel) => {
+        const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
 
-                  // Booked Slot
-                  if (slot.status === "booked") {
-                    return (
-                      <td
-                        key={`${day.date}-${timeLabel}`}
-                        style={{
-                          textAlign: "center",
-                          backgroundColor: "#fee2e2",
-                          fontWeight: "bold",
-                          cursor: "pointer",
-                          borderBottom: "1px solid #e5e7eb",
-                        }}
-                        onClick={() =>
-                          handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel)
-                        }
-                      >
-                        Дүүрсэн
-                      </td>
-                    );
-                  }
+        if (!slot) {
+          return (
+            <td
+              key={`${day.date}-${timeLabel}`}
+              style={{
+                padding: 8,
+                background: "#f9fafb",
+                textAlign: "center",
+                borderBottom: "1px solid #e5e7eb",
+              }}
+            >
+              –
+            </td>
+          );
+        }
 
-                  // Available Slot
-                  return (
-                    <td
-                      key={`${day.date}-${timeLabel}`}
-                      style={{
-                        textAlign: "center",
-                        backgroundColor: "#d1fad3",
-                        cursor: followUpBooking ? "not-allowed" : "pointer",
-                        borderBottom: "1px solid #e5e7eb",
-                      }}
-                      onClick={() => {
-                        if (!followUpBooking) {
-                          handleSlotSelection(slot.start);
-                        }
-                      }}
-                    >
-                      Сул
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
+        if (slot.status === "off") {
+          return (
+            <td
+              key={`${day.date}-${timeLabel}`}
+              style={{
+                padding: 8,
+                background: "#f3f4f6",
+                color: "#9ca3af",
+                textAlign: "center",
+                borderBottom: "1px solid #e5e7eb",
+              }}
+            >
+              Хаалттай
+            </td>
+          );
+        }
+
+        if (slot.status === "booked") {
+          return (
+            <td
+              key={`${day.date}-${timeLabel}`}
+              style={{
+                padding: 8,
+                background: "#fee2e2",
+                textAlign: "center",
+                cursor: "pointer",
+                fontWeight: 600,
+                borderBottom: "1px solid #e5e7eb",
+              }}
+              onClick={() =>
+                handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel)
+              }
+            >
+              Дүүрсэн
+            </td>
+          );
+        }
+
+        return (
+          <td
+            key={`${day.date}-${timeLabel}`}
+            style={{
+              padding: 8,
+              background: "#ccffcc",
+              textAlign: "center",
+              cursor: followUpBooking ? "not-allowed" : "pointer",
+              borderBottom: "1px solid #e5e7eb",
+            }}
+            onClick={() => handleSlotSelection(slot.start)}
+          >
+            Сул
+          </td>
+        );
+      })}
+    </tr>
+  ))}
+</tbody>
         </table>
       </div>
     );
