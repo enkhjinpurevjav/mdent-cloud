@@ -128,7 +128,7 @@ export default function EncounterAdminPage() {
     return allCodes.length > 0 && allCodes.every((c) => selectedTeeth.includes(c));
   };
 
-  const updateActiveRowToothList = (
+ const updateActiveRowToothList = (
   nextTeeth: string[],
   opts?: { isAllTeeth?: boolean }
 ) => {
@@ -160,7 +160,6 @@ export default function EncounterAdminPage() {
 
   const idx = activeDxRowIndex as number;
 
-  // Update the writable active row
   const toothStr = opts?.isAllTeeth
     ? ALL_TEETH_LABEL
     : stringifyToothList(nextTeeth);
@@ -174,76 +173,13 @@ export default function EncounterAdminPage() {
 
   // ✅ Auto-delete the row if teeth becomes empty (and it's not ALL teeth)
   if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
-    // SAFETY: only delete if the row has no other data
     const rowNow = rows[idx];
     if (isDxRowEffectivelyEmpty(rowNow)) {
       removeDiagnosisRow(idx);
       setActiveDxRowIndex(null);
     }
-  };
-
-  const handleFinishEncounter = async () => {
-    if (!id || typeof id !== "string") return;
-    setFinishing(true);
-    try {
-      await handleSaveDiagnoses();
-      await handleSaveServices();
-      await savePrescription();
-
-      const res = await fetch(`/api/encounters/${id}/finish`, {
-        method: "PUT",
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(
-          (json && json.error) ||
-            "Үзлэг дууссаны төлөв шинэчлэх үед алдаа гарлаа."
-        );
-      }
-
-      // Reset tooth selection session after successful finish
-      resetToothSelectionSession();
-
-      // ✅ Redirect to billing page for this encounter
-      await router.push(`/billing/${id}`);
-    } catch (err) {
-      console.error("handleFinishEncounter failed", err);
-    } finally {
-      setFinishing(false);
-    }
-  };
- 
-  const resetToothSelectionSession = useCallback(() => {
-    setSelectedTeeth([]);
-    setActiveDxRowIndex(null);
-    setCustomToothRange("");
-    setOpenDxIndex(null);
-    setOpenServiceIndex(null);
-  }, []);
-
-  const toggleToothSelection = (code: string) => {
-    if (code === "ALL") {
-      const allCodes = toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH;
-
-      setSelectedTeeth((prev) => {
-        const allSelected = allCodes.every((c) => prev.includes(c));
-        const next = allSelected ? [] : allCodes;
-
-        updateActiveRowToothList(next, { isAllTeeth: !allSelected });
-        return next;
-      });
-
-      return;
-    }
-
-    setSelectedTeeth((prev) => {
-      const exists = prev.includes(code);
-      const next = exists ? prev.filter((c) => c !== code) : [...prev, code];
-
-      updateActiveRowToothList(next);
-      return next;
-    });
-  };
+  }
+};
 
   const [consents, setConsents] = useState<EncounterConsent[]>([]);
   const [consentTypeDraft, setConsentTypeDraft] =
