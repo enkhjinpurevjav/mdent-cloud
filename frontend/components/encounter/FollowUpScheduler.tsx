@@ -52,6 +52,8 @@ type FollowUpSchedulerProps = {
   onBookAppointment: (slotStart: string, durationMinutes?: number) => void;
 
   onQuickCreate?: (params: { date: string; time: string; durationMinutes: number }) => void;
+  onBookAppointment: (slotStart: string, durationMinutes?: number) => void;
+  refreshGrid?: () => void;
 };
 
 function getHmFromIso(iso: string): string {
