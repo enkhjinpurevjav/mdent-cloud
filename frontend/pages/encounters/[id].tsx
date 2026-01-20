@@ -129,69 +129,57 @@ export default function EncounterAdminPage() {
   };
 
   const updateActiveRowToothList = (
-    nextTeeth: string[],
-    opts?: { isAllTeeth?: boolean }
-  ) => {
-    // Check if we have an active row and if it's writable
-    const hasWritableActiveRow = 
-      activeDxRowIndex !== null && 
-      rows[activeDxRowIndex] && 
-      !rows[activeDxRowIndex].locked;
+  nextTeeth: string[],
+  opts?: { isAllTeeth?: boolean }
+) => {
+  const hasWritableActiveRow =
+    activeDxRowIndex !== null &&
+    rows[activeDxRowIndex] &&
+    !rows[activeDxRowIndex].locked;
 
-    // If no writable active row, create a new one (unless empty selection)
-    if (!hasWritableActiveRow) {
-      if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
+  // If no writable active row, create a new one (unless empty selection)
+  if (!hasWritableActiveRow) {
+    if (nextTeeth.length === 0 && !opts?.isAllTeeth) return;
 
-      const idx = createDiagnosisRow(nextTeeth);
-      setActiveDxRowIndex(idx);
+    const idx = createDiagnosisRow(nextTeeth);
+    setActiveDxRowIndex(idx);
 
-      const toothStr = opts?.isAllTeeth
-        ? ALL_TEETH_LABEL
-        : stringifyToothList(nextTeeth);
-
-      setEditableDxRows((prev) =>
-        prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
-      );
-      setRows((prev) =>
-        prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
-      );
-
-      return;
-    }
-
-    // Update the writable active row
     const toothStr = opts?.isAllTeeth
       ? ALL_TEETH_LABEL
       : stringifyToothList(nextTeeth);
 
     setEditableDxRows((prev) =>
-      prev.map((row, i) =>
-        i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
-      )
+      prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
     );
     setRows((prev) =>
-      prev.map((row, i) =>
-        i === activeDxRowIndex ? { ...row, toothCode: toothStr } : row
-      )
+      prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
     );
 
-   if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
-  // if the active row is a new/unsaved row and still empty -> remove it
-  const idx = activeDxRowIndex;
-
-  if (idx !== null) {
-    const r = rows[idx];
-
-    const isNewUnsaved = !r?.id;          // not saved to DB yet
-    const isUnlocked = !r?.locked;        // editable/new
-    const toothEmpty = !(r?.toothCode || "").trim();
-if (isNewUnsaved && isUnlocked && toothEmpty) {
-  removeDiagnosisRow(idx);
-}
+    return;
   }
 
-  setActiveDxRowIndex(null);
-}
+  const idx = activeDxRowIndex as number;
+
+  // Update the writable active row
+  const toothStr = opts?.isAllTeeth
+    ? ALL_TEETH_LABEL
+    : stringifyToothList(nextTeeth);
+
+  setEditableDxRows((prev) =>
+    prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
+  );
+  setRows((prev) =>
+    prev.map((row, i) => (i === idx ? { ...row, toothCode: toothStr } : row))
+  );
+
+  // ✅ Auto-delete the row if teeth becomes empty (and it's not ALL teeth)
+  if (nextTeeth.length === 0 && !opts?.isAllTeeth) {
+    // SAFETY: only delete if the row has no other data
+    const rowNow = rows[idx];
+    if (isDxRowEffectivelyEmpty(rowNow)) {
+      removeDiagnosisRow(idx);
+      setActiveDxRowIndex(null);
+    }
   };
 
   const handleFinishEncounter = async () => {
