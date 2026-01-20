@@ -322,7 +322,7 @@ const { days, timeLabels } = localAvailability;
             }}
             onClick={() => handleSlotSelection(slot.start)}
           >
-            Чөлөөтэй
+            Сул
           </td>
         );
       })}
