@@ -28,6 +28,9 @@ type AppointmentLiteForDetails = {
     ovog?: string | null;
     patientBook?: { bookNumber?: string | null } | null;
   } | null;
+
+  // ✅ add this
+  branch?: { id: number; name: string } | null;
 };
 
 type FollowUpSchedulerProps = {
@@ -549,16 +552,19 @@ const { days, timeLabels } = localAvailability;
 
       <div>
         {detailsAppointments.length === 0 ? (
-          <div>(Мэдээлэл олдсонгүй)</div>
-        ) : (
-          detailsAppointments.map((a) => (
-            <div key={a.id} style={{ marginBottom: 10 }}>
-              <p style={{ margin: 0 }}>
-                Үйлчлүүлэгч: <strong>{formatGridShortLabel(a) || "-"}</strong>
-              </p>
-            </div>
-          ))
-        )}
+  <div>(Мэдээлэл олдсонгүй)</div>
+) : (
+  detailsAppointments.map((a) => (
+    <div key={a.id} style={{ marginBottom: 10 }}>
+      <p style={{ margin: 0 }}>
+        Үйлчлүүлэгч: <strong>{formatGridShortLabel(a) || "-"}</strong>
+      </p>
+      <p style={{ margin: 0, color: "#6b7280" }}>
+        Салбар: <strong>{a.branch?.name || "-"}</strong>
+      </p>
+    </div>
+  ))
+)}
       </div>
 
       <button onClick={() => setDetailsOpen(false)}>Хаах</button>
