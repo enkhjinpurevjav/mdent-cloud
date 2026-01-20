@@ -117,50 +117,48 @@ export default function FollowUpScheduler({
   };
 
   const handleDurationSelect = (durationMinutes: number) => {
-  if (selectedSlot) {
-    // Update the slot locally to reflect booking
-    const updatedDays = followUpAvailability?.days.map((day) => ({
-      ...day,
-      slots: day.slots.map((slot) => 
-        slot.start === selectedSlot
-          ? { ...slot, status: "booked" } // Mark the slot as booked
-          : slot
-      ),
-    }));
+  if (!selectedSlot || !followUpAvailability) return; // Ensure availability exists
 
-    // Update local state for immediate UI update
-    if (followUpAvailability) {
-      followUpAvailability.days = updatedDays;
-    }
+  // Update the slot locally to reflect booking
+  const updatedDays = followUpAvailability.days.map((day) => ({
+    ...day,
+    slots: day.slots.map((slot) =>
+      slot.start === selectedSlot
+        ? { ...slot, status: "booked" } // Mark the slot as booked
+        : slot
+    ),
+  }));
 
-    // Trigger the booking API
-    onBookAppointment(selectedSlot, durationMinutes);
+  // Update local state for immediate UI update
+  followUpAvailability.days = updatedDays;
 
-    // Reset modal and selected slot state
-    setSlotModalOpen(false);
-    setSelectedSlot("");
+  // Trigger backend booking
+  onBookAppointment(selectedSlot, durationMinutes);
 
-    // Optional: Refresh grid data from the server
-    setTimeout(() => {
-      if (typeof refreshGrid === "function") {
-        refreshGrid();
-      }
-    }, 500); // Let the backend process the booking
-  }
+  // Reset modal and state
+  setSlotModalOpen(false);
+  setSelectedSlot("");
 };
 
   const renderGrid = () => {
-    if (!followUpAvailability) return null;
+  if (!followUpAvailability || !followUpAvailability.days.length) return null; // Add guard clause for null
+  const { days, timeLabels } = followUpAvailability;
 
-    const { days, timeLabels } = followUpAvailability;
-
-    return (
-      <div
+  return (
+    <div
+      style={{
+        overflowX: "auto",
+        marginTop: 12,
+        border: "1px solid #e5e7eb",
+        borderRadius: 8,
+      }}
+    >
+      <table
         style={{
-          overflowX: "auto",
-          marginTop: 12,
-          border: "1px solid #e5e7eb",
-          borderRadius: 8,
+          width: "100%",
+          borderCollapse: "collapse",
+          fontSize: 12,
+          background: "white",
         }}
       >
         <table
