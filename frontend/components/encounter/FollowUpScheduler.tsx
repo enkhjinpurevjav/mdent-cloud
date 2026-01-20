@@ -553,7 +553,18 @@ const { days, timeLabels } = localAvailability;
           detailsAppointments.map((a) => (
             <div key={a.id}>
               <h4>{a.patientName}</h4>
-              <p>Үеийн цаг: {new Date(a.scheduledAt).toLocaleTimeString()}</p>
+              {detailsAppointments.map((a) => (
+  <div key={a.id}>
+    {/* BEFORE */}
+    {/* <h4>{a.patientName}</h4>
+    <p>Үйлчлүүлэгч: {new Date(a.scheduledAt).toLocaleTimeString()}</p> */}
+
+    {/* AFTER: show patient name like "П.Энхжин" */}
+    <div style={{ fontWeight: 700 }}>
+      {formatGridShortLabel(a) || "-"}
+    </div>
+  </div>
+))}
             </div>
           ))
         )}
