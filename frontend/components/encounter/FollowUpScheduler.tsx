@@ -232,7 +232,7 @@ export default function FollowUpScheduler({
                 borderBottom: "1px solid #e5e7eb",
               }}
             >
-              Хаалттай
+              -
             </td>
           );
         }
