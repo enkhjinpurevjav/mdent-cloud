@@ -638,34 +638,33 @@ useEffect(() => {
     }
   };
 
-  const createDiagnosisRow = (initialTeeth: string[]): number => {
-  const idx = rows.length; // deterministic index (append)
+  function createDiagnosisRow(initialTeeth: string[]): number {
+  const idx = rows.length;
   const nextLocalId =
     rows.length === 0 ? 1 : Math.max(...rows.map((r) => r.localId)) + 1;
 
   const newRow: EditableDiagnosis = {
-  localId: nextLocalId,
-  diagnosisId: null,
-  diagnosis: null,
-  selectedProblemIds: [],
-  note: "",
-  toothCode: stringifyToothList(initialTeeth),
-  serviceId: undefined,
-  searchText: "",
-  serviceSearchText: "",
-  locked: false,
-
-  indicatorIds: [],
-  indicatorSearchText: "",
-};
+    localId: nextLocalId,
+    diagnosisId: null,
+    diagnosis: null,
+    selectedProblemIds: [],
+    note: "",
+    toothCode: stringifyToothList(initialTeeth),
+    serviceId: undefined,
+    searchText: "",
+    serviceSearchText: "",
+    locked: false,
+    indicatorIds: [],
+    indicatorSearchText: "",
+  };
 
   setEditableDxRows((prev) => [...prev, newRow]);
   setRows((prev) => [...prev, newRow]);
 
   return idx;
-};
+}
 
-const removeDiagnosisRow = (index: number) => {
+function removeDiagnosisRow = (index: number) => {
   const row = rows[index];
   if (row?.locked) {
     alert("Түгжигдсэн мөрийг устгах боломжгүй. Эхлээд түгжээг тайлна уу.");
