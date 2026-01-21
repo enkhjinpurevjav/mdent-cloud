@@ -55,7 +55,99 @@ export default function EncounterAdminPage() {
   const router = useRouter();
   const { id } = router.query;
 
-  const [encounter, setEncounter] = useState<Encounter | null>(null);
+ // Put these INSIDE EncounterAdminPage()
+
+function normalizeUnique(list: string[]) {
+  return Array.from(new Set(list.filter(Boolean)));
+}
+
+function parseCustomToothRange(input: string): string[] {
+  // Supports: "21-24, 25-26, 11,21,22"
+  // Very simple parser; expects FDI numeric codes.
+  const raw = (input || "")
+    .split(/[,\s]+/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+  const out: string[] = [];
+
+  for (const token of raw) {
+    if (token.includes("-")) {
+      const [a, b] = token.split("-").map((x) => x.trim());
+      const start = Number(a);
+      const end = Number(b);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+
+      // only expand if same quadrant (e.g. 21-24)
+      const startQ = Math.floor(start / 10);
+      const endQ = Math.floor(end / 10);
+      if (startQ !== endQ) continue;
+
+      const from = Math.min(start, end);
+      const to = Math.max(start, end);
+
+      for (let n = from; n <= to; n++) {
+        out.push(String(n));
+      }
+    } else {
+      // single tooth
+      if (/^\d{2}$/.test(token)) out.push(token);
+    }
+  }
+
+  return normalizeUnique(out);
+}
+
+function resetToothSelectionSession() {
+  setSelectedTeeth([]);
+  setActiveDxRowIndex(null);
+  setCustomToothRange("");
+}
+
+function toggleToothSelection(code: string) {
+  // 1) Handle "ALL"
+  if (code === "ALL") {
+    const allCodes = toothMode === "ADULT" ? ADULT_TEETH : CHILD_TEETH;
+
+    const allSelected =
+      allCodes.length > 0 && allCodes.every((c) => selectedTeeth.includes(c));
+
+    const nextTeeth = allSelected ? [] : [...allCodes];
+
+    setSelectedTeeth(nextTeeth);
+
+    // Update diagnosis row toothCode
+    updateActiveRowToothList(nextTeeth, { isAllTeeth: !allSelected });
+
+    return;
+  }
+
+  // 2) Normal tooth toggle
+  const isSelected = selectedTeeth.includes(code);
+
+  const nextTeeth = isSelected
+    ? selectedTeeth.filter((t) => t !== code)
+    : [...selectedTeeth, code];
+
+  const normalized = normalizeUnique(nextTeeth);
+
+  setSelectedTeeth(normalized);
+
+  // If "ALL" label was previously used, we now treat it as normal list
+  updateActiveRowToothList(normalized, { isAllTeeth: false });
+}
+
+// OPTIONAL: if you want custom range to auto-apply when user types,
+// call this from an effect or from the input onBlur/onEnter.
+function applyCustomToothRange() {
+  const parsed = parseCustomToothRange(customToothRange);
+
+  setSelectedTeeth(parsed);
+  updateActiveRowToothList(parsed, { isAllTeeth: false });
+} 
+ 
+ 
+ const [encounter, setEncounter] = useState<Encounter | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -664,7 +756,7 @@ useEffect(() => {
   return idx;
 }
 
-function removeDiagnosisRow = (index: number) => {
+function removeDiagnosisRow(index: number) {
   const row = rows[index];
   if (row?.locked) {
     alert("Түгжигдсэн мөрийг устгах боломжгүй. Эхлээд түгжээг тайлна уу.");
@@ -694,7 +786,7 @@ function removeDiagnosisRow = (index: number) => {
     if (prev > index) return prev - 1;
     return prev;
   });
-};
+}
 
   const unlockRow = (index: number) => {
     if (confirm("Энэ мөрийн түгжээг тайлж, засварлахыг зөвшөөрч байна уу?")) {
