@@ -1,11 +1,86 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/router";
 import AppointmentFiltersBar from "../../components/AppointmentFiltersBar";
-import {
-  AppointmentFilters,
-  AppointmentRow,
-} from "../../types/appointments";
+import type { AppointmentFilters, AppointmentRow } from "../../types/appointments";
+
+function formatHm(iso: string | null | undefined) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+function statusLabel(statusRaw: any): string {
+  const s = String(statusRaw || "").toLowerCase();
+  switch (s) {
+    case "booked":
+      return "Захиалсан";
+    case "confirmed":
+      return "Баталгаажсан";
+    case "online":
+      return "Онлайн";
+    case "ongoing":
+      return "Явж байна";
+    case "ready_to_pay":
+      return "Төлбөр төлөх";
+    case "completed":
+      return "Дууссан";
+    case "no_show":
+      return "Ирээгүй";
+    case "cancelled":
+      return "Цуцалсан";
+    case "other":
+      return "Бусад";
+    default:
+      return s || "-";
+  }
+}
+
+function statusBadgeStyle(statusRaw: any): React.CSSProperties {
+  const s = String(statusRaw || "").toLowerCase();
+
+  const base: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "3px 10px",
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 600,
+    border: "1px solid transparent",
+    whiteSpace: "nowrap",
+  };
+
+  switch (s) {
+    case "booked":
+      return { ...base, background: "#eff6ff", borderColor: "#93c5fd", color: "#1d4ed8" };
+    case "confirmed":
+      return { ...base, background: "#ecfeff", borderColor: "#67e8f9", color: "#0e7490" };
+    case "online":
+      return { ...base, background: "#fdf4ff", borderColor: "#e9d5ff", color: "#7e22ce" };
+    case "ongoing":
+      return { ...base, background: "#fffbeb", borderColor: "#fcd34d", color: "#92400e" };
+    case "ready_to_pay":
+      return { ...base, background: "#f5f3ff", borderColor: "#c4b5fd", color: "#5b21b6" };
+    case "completed":
+      return { ...base, background: "#ecfdf3", borderColor: "#86efac", color: "#166534" };
+    case "no_show":
+      return { ...base, background: "#fff7ed", borderColor: "#fdba74", color: "#9a3412" };
+    case "cancelled":
+      return { ...base, background: "#fef2f2", borderColor: "#fca5a5", color: "#b91c1c" };
+    default:
+      return { ...base, background: "#f3f4f6", borderColor: "#d1d5db", color: "#374151" };
+  }
+}
+
+function formatPatientShort(row: any): string {
+  const name = row?.patientName || "";
+  const ovog = row?.patientOvog || "";
+  const first = typeof ovog === "string" && ovog.trim() ? `${ovog.trim()[0]}. ` : "";
+  return `${first}${name}`.trim() || "-";
+}
 
 export default function BookedVisitsPage() {
+  const router = useRouter();
   const today = new Date().toISOString().slice(0, 10);
 
   const [filters, setFilters] = useState<AppointmentFilters>({
@@ -19,12 +94,16 @@ export default function BookedVisitsPage() {
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedRow, setSelectedRow] = useState<AppointmentRow | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState<string>("");
+
   // Load branches once for the dropdown
   useEffect(() => {
     fetch("/api/branches")
       .then((r) => r.json())
       .then((data) => {
-        // backend returns branch.id as number; coerce to string for the filter
         const mapped = (data || []).map((b: any) => ({
           id: String(b.id),
           name: b.name as string,
@@ -34,8 +113,7 @@ export default function BookedVisitsPage() {
       .catch(() => setBranches([]));
   }, []);
 
-  // Load appointments when filters change
-  useEffect(() => {
+  const loadRows = async () => {
     const params = new URLSearchParams();
     params.set("dateFrom", filters.dateFrom);
     params.set("dateTo", filters.dateTo);
@@ -45,13 +123,58 @@ export default function BookedVisitsPage() {
     if (filters.search) params.set("search", filters.search);
 
     setLoading(true);
-    fetch(`/api/appointments?${params.toString()}`)
-      .then((r) => r.json())
-      // backend already returns AppointmentRow-like objects
-      .then((data) => setRows(Array.isArray(data) ? data : []))
-      .catch(() => setRows([]))
-      .finally(() => setLoading(false));
+    try {
+      const res = await fetch(`/api/appointments?${params.toString()}`);
+      const data = await res.json().catch(() => []);
+      setRows(Array.isArray(data) ? data : []);
+    } catch {
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load appointments when filters change
+  useEffect(() => {
+    void loadRows();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
+
+  const handleOpenDetails = (row: AppointmentRow) => {
+    setSelectedRow(row);
+    setDetailsOpen(true);
+    setActionError("");
+  };
+
+  const patchStatus = async (row: AppointmentRow, nextStatus: string) => {
+    if (!row?.id) return;
+    setActionLoading(true);
+    setActionError("");
+
+    try {
+      const res = await fetch(`/api/appointments/${row.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || "Төлөв өөрчлөхөд алдаа гарлаа");
+
+      // refresh list to keep it consistent with filters
+      await loadRows();
+
+      // also update selectedRow locally for immediate modal update
+      setSelectedRow((prev) => (prev ? { ...prev, status: nextStatus } : prev));
+    } catch (e: any) {
+      setActionError(e?.message || "Төлөв өөрчлөхөд алдаа гарлаа");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // For now: do not implement “Үзлэг эхлүүлэх” (you said skip for now)
+  // When you are ready, we can add:
+  // - if status === "ongoing": POST /api/appointments/:id/start-encounter then router.push(`/encounters/${encounterId}`)
 
   return (
     <>
@@ -80,35 +203,171 @@ export default function BookedVisitsPage() {
             width: "100%",
             borderCollapse: "collapse",
             background: "white",
+            borderRadius: 10,
+            overflow: "hidden",
           }}
         >
           <thead>
-            <tr>
-              <th style={{ textAlign: "left", padding: 8 }}>Цаг</th>
-              <th style={{ textAlign: "left", padding: 8 }}>Өвчтөн</th>
-              <th style={{ textAlign: "left", padding: 8 }}>РД</th>
-              <th style={{ textAlign: "left", padding: 8 }}>Салбар</th>
-              <th style={{ textAlign: "left", padding: 8 }}>Эмч</th>
-              <th style={{ textAlign: "left", padding: 8 }}>Төлөв</th>
+            <tr style={{ background: "#f9fafb" }}>
+              <th style={{ textAlign: "left", padding: 10 }}>Цаг</th>
+              <th style={{ textAlign: "left", padding: 10 }}>Өвчтөн</th>
+              <th style={{ textAlign: "left", padding: 10 }}>РД</th>
+              <th style={{ textAlign: "left", padding: 10 }}>Салбар</th>
+              <th style={{ textAlign: "left", padding: 10 }}>Эмч</th>
+              <th style={{ textAlign: "left", padding: 10 }}>Төлөв</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>
-                <td style={{ padding: 8 }}>
-                  {row.startTime
-                    ? new Date(row.startTime).toLocaleTimeString()
-                    : ""}
+            {rows.map((row: any) => (
+              <tr
+                key={row.id}
+                onClick={() => handleOpenDetails(row)}
+                style={{
+                  cursor: "pointer",
+                  borderTop: "1px solid #e5e7eb",
+                }}
+              >
+                <td style={{ padding: 10 }}>{formatHm(row.startTime)}</td>
+                <td style={{ padding: 10 }}>{formatPatientShort(row)}</td>
+                <td style={{ padding: 10 }}>{row.regNo || "-"}</td>
+                <td style={{ padding: 10 }}>{row.branchName || "-"}</td>
+                <td style={{ padding: 10 }}>{row.doctorName || "-"}</td>
+                <td style={{ padding: 10 }}>
+                  <span style={statusBadgeStyle(row.status)}>
+                    {statusLabel(row.status)}
+                  </span>
                 </td>
-                <td style={{ padding: 8 }}>{row.patientName}</td>
-                <td style={{ padding: 8 }}>{row.regNo}</td>
-                <td style={{ padding: 8 }}>{row.branchName}</td>
-                <td style={{ padding: 8 }}>{row.doctorName}</td>
-                <td style={{ padding: 8 }}>{row.status}</td>
               </tr>
             ))}
           </tbody>
         </table>
+      )}
+
+      {/* Details modal */}
+      {detailsOpen && selectedRow && (
+        <div
+          onClick={() => {
+            setDetailsOpen(false);
+            setSelectedRow(null);
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(680px, 100%)",
+              background: "white",
+              borderRadius: 12,
+              padding: 16,
+              boxShadow: "0 20px 40px rgba(0,0,0,0.25)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16 }}>
+                  {formatPatientShort(selectedRow)}
+                </h3>
+                <div style={{ marginTop: 6, fontSize: 13, color: "#6b7280" }}>
+                  Цаг: <strong>{formatHm(selectedRow.startTime)}</strong>
+                  {selectedRow.endTime ? ` – ${formatHm(selectedRow.endTime)}` : ""}
+                </div>
+              </div>
+
+              <div>
+                <span style={statusBadgeStyle(selectedRow.status)}>
+                  {statusLabel(selectedRow.status)}
+                </span>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div style={{ fontSize: 13 }}>
+                <div style={{ color: "#6b7280", fontSize: 12 }}>РД</div>
+                <div>{(selectedRow as any).regNo || "-"}</div>
+              </div>
+
+              <div style={{ fontSize: 13 }}>
+                <div style={{ color: "#6b7280", fontSize: 12 }}>Утас</div>
+                <div>{(selectedRow as any).patientPhone || "-"}</div>
+              </div>
+
+              <div style={{ fontSize: 13 }}>
+                <div style={{ color: "#6b7280", fontSize: 12 }}>Салбар</div>
+                <div>{(selectedRow as any).branchName || "-"}</div>
+              </div>
+
+              <div style={{ fontSize: 13 }}>
+                <div style={{ color: "#6b7280", fontSize: 12 }}>Эмч</div>
+                <div>{(selectedRow as any).doctorName || "-"}</div>
+              </div>
+            </div>
+
+            {actionError && (
+              <div style={{ marginTop: 10, color: "#b91c1c", fontSize: 13 }}>
+                {actionError}
+              </div>
+            )}
+
+            <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {[
+                { s: "booked", label: "Захиалсан" },
+                { s: "confirmed", label: "Баталгаажсан" },
+                { s: "online", label: "Онлайн" },
+                { s: "ongoing", label: "Явж байна" },
+                { s: "ready_to_pay", label: "Төлбөр төлөх" },
+                { s: "completed", label: "Дууссан" },
+                { s: "no_show", label: "Ирээгүй" },
+                { s: "cancelled", label: "Цуцалсан" },
+                { s: "other", label: "Бусад" },
+              ].map((x) => (
+                <button
+                  key={x.s}
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() => patchStatus(selectedRow, x.s)}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 10,
+                    border: "1px solid #d1d5db",
+                    background: "white",
+                    cursor: actionLoading ? "not-allowed" : "pointer",
+                    fontSize: 13,
+                  }}
+                >
+                  {x.label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setDetailsOpen(false);
+                  setSelectedRow(null);
+                }}
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  border: "1px solid #d1d5db",
+                  background: "#f3f4f6",
+                  cursor: "pointer",
+                }}
+              >
+                Хаах
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
