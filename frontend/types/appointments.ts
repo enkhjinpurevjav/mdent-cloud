@@ -1,5 +1,5 @@
 export type AppointmentStatus =
-  // frontend legacy uppercase
+  // Frontend (filters often use uppercase)
   | "BOOKED"
   | "CONFIRMED"
   | "ONLINE"
@@ -9,7 +9,7 @@ export type AppointmentStatus =
   | "CANCELLED"
   | "NO_SHOW"
   | "OTHER"
-  // backend db lowercase (actual values stored)
+  // Backend DB values (returned by API)
   | "booked"
   | "confirmed"
   | "online"
@@ -23,43 +23,22 @@ export type AppointmentStatus =
 export type AppointmentRow = {
   id: number;
 
-  // ===== Legacy flat fields (used by visits pages) =====
+  // legacy fields used by visits pages
   patientName?: string | null;
   regNo?: string | null;
   branchName?: string | null;
   doctorName?: string | null;
   status: AppointmentStatus;
-  startTime?: string | null; // ISO (legacy alias)
-  endTime?: string | null;   // ISO (legacy alias)
+  startTime?: string | null; // ISO
+  endTime?: string | null;   // ISO
 
-  // ===== New fields returned by /api/appointments (preferred) =====
-  scheduledAt?: string | null;
-  endAt?: string | null;
-
+  // new extra fields used by your new UI
   patientOvog?: string | null;
   patientPhone?: string | null;
-  patientRegNo?: string | null;
 
-  branchId?: number | null;
-  doctorId?: number | null;
-  patientId?: number | null;
-
-  notes?: string | null;
-
-  // Optional nested objects (backend returns these)
-  patient?: {
-    id: number;
-    name: string;
-    ovog?: string | null;
-    regNo?: string | null;
-    phone?: string | null;
-    patientBook?: any;
-  } | null;
-
-  branch?: {
-    id: number;
-    name: string;
-  } | null;
+  // optional new canonical fields (if you later switch)
+  scheduledAt?: string | null;
+  endAt?: string | null;
 };
 
 export type AppointmentFilters = {
