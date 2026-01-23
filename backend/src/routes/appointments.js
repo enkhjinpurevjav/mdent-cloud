@@ -232,7 +232,9 @@ router.get("/", async (req, res) => {
 });
 
     // ----------------- Shape for new frontend Appointment type -----------------
-    const rows = appointments.map((a) => {
+    // inside router.get("/", ...) in the rows mapping:
+
+const rows = appointments.map((a) => {
   const patient = a.patient;
   const doctor = a.doctor;
   const branch = a.branch;
@@ -242,43 +244,54 @@ router.get("/", async (req, res) => {
       ? [doctor.ovog, doctor.name].filter(Boolean).join(" ")
       : null;
 
+  const startIso = a.scheduledAt ? a.scheduledAt.toISOString() : null;
+  const endIso = a.endAt ? a.endAt.toISOString() : null;
+
+  const patientRegNo = patient ? patient.regNo || null : null;
+  const branchName = branch ? branch.name : null;
+
   return {
     id: a.id,
     branchId: a.branchId,
     doctorId: a.doctorId,
     patientId: a.patientId,
 
-    // flat fields for quick labels
     patientName: patient ? patient.name : null,
-    patientOvog: patient ? patient.ovog || null : null,     // ← ADD
-    patientRegNo: patient ? patient.regNo || null : null,
+    patientOvog: patient ? patient.ovog || null : null,
+    patientRegNo,
     patientPhone: patient ? patient.phone || null : null,
 
     doctorName,
     doctorOvog: doctor ? doctor.ovog || null : null,
 
-    scheduledAt: a.scheduledAt.toISOString(),
-    endAt: a.endAt ? a.endAt.toISOString() : null,
+    scheduledAt: startIso,
+    endAt: endIso,
     status: a.status,
     notes: a.notes || null,
 
-    // nested objects used by the details modal & labels
     patient: patient
       ? {
           id: patient.id,
           name: patient.name,
-          ovog: patient.ovog || null,                       // ← ADD
+          ovog: patient.ovog || null,
           regNo: patient.regNo || null,
           phone: patient.phone || null,
           patientBook: patient.patientBook || null,
         }
       : null,
+
     branch: branch
       ? {
           id: branch.id,
           name: branch.name,
         }
       : null,
+
+    // ✅ LEGACY aliases (so visits pages keep working)
+    startTime: startIso,
+    endTime: endIso,
+    regNo: patientRegNo,
+    branchName,
   };
 });
 
