@@ -1,6 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import AppointmentFiltersBar from "../../components/AppointmentFiltersBar";
-import type { AppointmentFilters, AppointmentRow } from "../../types/appointments";
+import type {
+  AppointmentFilters,
+  AppointmentRow,
+  AppointmentStatus,
+} from "../../types/appointments";
 
 function formatHm(iso: string | null | undefined) {
   if (!iso) return "";
@@ -9,8 +13,11 @@ function formatHm(iso: string | null | undefined) {
   return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
-function statusLabel(statusRaw: any): string {
-  const s = String(statusRaw || "").toLowerCase();
+function statusLabel(statusRaw: AppointmentStatus | string | null | undefined): string {
+  const s = String(statusRaw || "")
+    .trim()
+    .toLowerCase();
+
   switch (s) {
     case "booked":
       return "Захиалсан";
@@ -35,8 +42,10 @@ function statusLabel(statusRaw: any): string {
   }
 }
 
-function statusBadgeStyle(statusRaw: any): React.CSSProperties {
-  const s = String(statusRaw || "").toLowerCase();
+function statusBadgeStyle(statusRaw: AppointmentStatus | string | null | undefined): React.CSSProperties {
+  const s = String(statusRaw || "")
+    .trim()
+    .toLowerCase();
 
   const base: React.CSSProperties = {
     display: "inline-flex",
@@ -51,35 +60,94 @@ function statusBadgeStyle(statusRaw: any): React.CSSProperties {
 
   switch (s) {
     case "booked":
-      return { ...base, background: "#eff6ff", borderColor: "#93c5fd", color: "#1d4ed8" };
+      return {
+        ...base,
+        background: "#eff6ff",
+        borderColor: "#93c5fd",
+        color: "#1d4ed8",
+      };
     case "confirmed":
-      return { ...base, background: "#ecfeff", borderColor: "#67e8f9", color: "#0e7490" };
+      return {
+        ...base,
+        background: "#ecfeff",
+        borderColor: "#67e8f9",
+        color: "#0e7490",
+      };
     case "online":
-      return { ...base, background: "#fdf4ff", borderColor: "#e9d5ff", color: "#7e22ce" };
+      return {
+        ...base,
+        background: "#fdf4ff",
+        borderColor: "#e9d5ff",
+        color: "#7e22ce",
+      };
     case "ongoing":
-      return { ...base, background: "#fffbeb", borderColor: "#fcd34d", color: "#92400e" };
+      return {
+        ...base,
+        background: "#fffbeb",
+        borderColor: "#fcd34d",
+        color: "#92400e",
+      };
     case "ready_to_pay":
-      return { ...base, background: "#f5f3ff", borderColor: "#c4b5fd", color: "#5b21b6" };
+      return {
+        ...base,
+        background: "#f5f3ff",
+        borderColor: "#c4b5fd",
+        color: "#5b21b6",
+      };
     case "completed":
-      return { ...base, background: "#ecfdf3", borderColor: "#86efac", color: "#166534" };
+      return {
+        ...base,
+        background: "#ecfdf3",
+        borderColor: "#86efac",
+        color: "#166534",
+      };
     case "no_show":
-      return { ...base, background: "#fff7ed", borderColor: "#fdba74", color: "#9a3412" };
+      return {
+        ...base,
+        background: "#fff7ed",
+        borderColor: "#fdba74",
+        color: "#9a3412",
+      };
     case "cancelled":
-      return { ...base, background: "#fef2f2", borderColor: "#fca5a5", color: "#b91c1c" };
+      return {
+        ...base,
+        background: "#fef2f2",
+        borderColor: "#fca5a5",
+        color: "#b91c1c",
+      };
     default:
-      return { ...base, background: "#f3f4f6", borderColor: "#d1d5db", color: "#374151" };
+      return {
+        ...base,
+        background: "#f3f4f6",
+        borderColor: "#d1d5db",
+        color: "#374151",
+      };
   }
 }
 
-function formatPatientShort(row: any): string {
-  const name = row?.patientName || "";
-  const ovog = row?.patientOvog || "";
-  const first = typeof ovog === "string" && ovog.trim() ? `${ovog.trim()[0]}. ` : "";
-  return `${first}${name}`.trim() || "-";
+function formatPatientShort(row: AppointmentRow): string {
+  const name = (row.patientName || "").trim();
+  const ovog = ((row as any).patientOvog || "").trim(); // optional field in type
+
+  const firstLetter = typeof ovog === "string" && ovog ? ovog[0] : "";
+  const prefix = firstLetter ? `${firstLetter}. ` : "";
+
+  return (prefix + name).trim() || "-";
 }
 
-export default function BookedVisitsPage() {
+const STATUS_ACTIONS: Array<{ s: AppointmentStatus; label: string }> = [
+  { s: "booked", label: "Захиалсан" },
+  { s: "confirmed", label: "Баталгаажсан" },
+  { s: "online", label: "Онлайн" },
+  { s: "ongoing", label: "Явж байна" },
+  { s: "ready_to_pay", label: "Төлбөр төлөх" },
+  { s: "completed", label: "Дууссан" },
+  { s: "no_show", label: "Ирээгүй" },
+  { s: "cancelled", label: "Цуцалсан" },
+  { s: "other", label: "Бусад" },
+];
 
+export default function BookedVisitsPage() {
   const today = new Date().toISOString().slice(0, 10);
 
   const [filters, setFilters] = useState<AppointmentFilters>({
@@ -112,7 +180,7 @@ export default function BookedVisitsPage() {
       .catch(() => setBranches([]));
   }, []);
 
-  const loadRows = async () => {
+  const buildQuery = useMemo(() => {
     const params = new URLSearchParams();
     params.set("dateFrom", filters.dateFrom);
     params.set("dateTo", filters.dateTo);
@@ -120,12 +188,15 @@ export default function BookedVisitsPage() {
     if (filters.includeCancelled) params.set("includeCancelled", "true");
     if (filters.branchId) params.set("branchId", filters.branchId);
     if (filters.search) params.set("search", filters.search);
+    return params.toString();
+  }, [filters]);
 
+  const loadRows = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/appointments?${params.toString()}`);
+      const res = await fetch(`/api/appointments?${buildQuery}`);
       const data = await res.json().catch(() => []);
-      setRows(Array.isArray(data) ? data : []);
+      setRows(Array.isArray(data) ? (data as AppointmentRow[]) : []);
     } catch {
       setRows([]);
     } finally {
@@ -137,7 +208,7 @@ export default function BookedVisitsPage() {
   useEffect(() => {
     void loadRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+  }, [buildQuery]);
 
   const handleOpenDetails = (row: AppointmentRow) => {
     setSelectedRow(row);
@@ -156,13 +227,16 @@ export default function BookedVisitsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: nextStatus }),
       });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Төлөв өөрчлөхөд алдаа гарлаа");
 
-      // refresh list to keep it consistent with filters
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(json?.error || "Төлөв өөрчлөхөд алдаа гарлаа");
+      }
+
+      // Refresh list for consistency with filters + server state
       await loadRows();
 
-      // also update selectedRow locally for immediate modal update
+      // Update modal immediately too
       setSelectedRow((prev) => (prev ? { ...prev, status: nextStatus } : prev));
     } catch (e: any) {
       setActionError(e?.message || "Төлөв өөрчлөхөд алдаа гарлаа");
@@ -171,9 +245,19 @@ export default function BookedVisitsPage() {
     }
   };
 
-  // For now: do not implement “Үзлэг эхлүүлэх” (you said skip for now)
-  // When you are ready, we can add:
-  // - if status === "ongoing": POST /api/appointments/:id/start-encounter then router.push(`/encounters/${encounterId}`)
+  const closeModal = () => {
+    setDetailsOpen(false);
+    setSelectedRow(null);
+    setActionError("");
+  };
+
+  // NOTE: backend currently returns `scheduledAt/endAt` plus may add legacy aliases later.
+  // This page prefers legacy aliases if present, otherwise falls back to scheduledAt/endAt.
+  const getStartIso = (row: AppointmentRow) =>
+    row.startTime ?? (row as any).scheduledAt ?? null;
+
+  const getEndIso = (row: AppointmentRow) =>
+    row.endTime ?? (row as any).endAt ?? null;
 
   return (
     <>
@@ -186,8 +270,8 @@ export default function BookedVisitsPage() {
         onChange={setFilters}
         showStatusFilter={true}
         statuses={[
-          { value: "BOOKED", label: "Цаг захиалсан" },
-          { value: "CANCELLED", label: "Цуцлагдсан" },
+          { value: "BOOKED", label: "Захиалсан" },
+          { value: "CANCELLED", label: "Цуцалсан" },
         ]}
         branches={branches}
       />
@@ -217,7 +301,7 @@ export default function BookedVisitsPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row: any) => (
+            {rows.map((row) => (
               <tr
                 key={row.id}
                 onClick={() => handleOpenDetails(row)}
@@ -226,15 +310,13 @@ export default function BookedVisitsPage() {
                   borderTop: "1px solid #e5e7eb",
                 }}
               >
-                <td style={{ padding: 10 }}>{formatHm(row.startTime)}</td>
+                <td style={{ padding: 10 }}>{formatHm(getStartIso(row) || undefined)}</td>
                 <td style={{ padding: 10 }}>{formatPatientShort(row)}</td>
-                <td style={{ padding: 10 }}>{row.regNo || "-"}</td>
-                <td style={{ padding: 10 }}>{row.branchName || "-"}</td>
+                <td style={{ padding: 10 }}>{row.regNo || (row as any).patientRegNo || "-"}</td>
+                <td style={{ padding: 10 }}>{row.branchName || (row as any).branch?.name || "-"}</td>
                 <td style={{ padding: 10 }}>{row.doctorName || "-"}</td>
                 <td style={{ padding: 10 }}>
-                  <span style={statusBadgeStyle(row.status)}>
-                    {statusLabel(row.status)}
-                  </span>
+                  <span style={statusBadgeStyle(row.status)}>{statusLabel(row.status)}</span>
                 </td>
               </tr>
             ))}
@@ -245,10 +327,7 @@ export default function BookedVisitsPage() {
       {/* Details modal */}
       {detailsOpen && selectedRow && (
         <div
-          onClick={() => {
-            setDetailsOpen(false);
-            setSelectedRow(null);
-          }}
+          onClick={closeModal}
           style={{
             position: "fixed",
             inset: 0,
@@ -275,9 +354,10 @@ export default function BookedVisitsPage() {
                 <h3 style={{ margin: 0, fontSize: 16 }}>
                   {formatPatientShort(selectedRow)}
                 </h3>
+
                 <div style={{ marginTop: 6, fontSize: 13, color: "#6b7280" }}>
-                  Цаг: <strong>{formatHm(selectedRow.startTime)}</strong>
-                  {selectedRow.endTime ? ` – ${formatHm(selectedRow.endTime)}` : ""}
+                  Цаг: <strong>{formatHm(getStartIso(selectedRow) || undefined)}</strong>
+                  {getEndIso(selectedRow) ? ` – ${formatHm(getEndIso(selectedRow) || undefined)}` : ""}
                 </div>
               </div>
 
@@ -288,10 +368,17 @@ export default function BookedVisitsPage() {
               </div>
             </div>
 
-            <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div
+              style={{
+                marginTop: 12,
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 10,
+              }}
+            >
               <div style={{ fontSize: 13 }}>
                 <div style={{ color: "#6b7280", fontSize: 12 }}>РД</div>
-                <div>{(selectedRow as any).regNo || "-"}</div>
+                <div>{selectedRow.regNo || (selectedRow as any).patientRegNo || "-"}</div>
               </div>
 
               <div style={{ fontSize: 13 }}>
@@ -301,12 +388,12 @@ export default function BookedVisitsPage() {
 
               <div style={{ fontSize: 13 }}>
                 <div style={{ color: "#6b7280", fontSize: 12 }}>Салбар</div>
-                <div>{(selectedRow as any).branchName || "-"}</div>
+                <div>{selectedRow.branchName || (selectedRow as any).branch?.name || "-"}</div>
               </div>
 
               <div style={{ fontSize: 13 }}>
                 <div style={{ color: "#6b7280", fontSize: 12 }}>Эмч</div>
-                <div>{(selectedRow as any).doctorName || "-"}</div>
+                <div>{selectedRow.doctorName || "-"}</div>
               </div>
             </div>
 
@@ -317,17 +404,7 @@ export default function BookedVisitsPage() {
             )}
 
             <div style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {[
-                { s: "booked", label: "Захиалсан" },
-                { s: "confirmed", label: "Баталгаажсан" },
-                { s: "online", label: "Онлайн" },
-                { s: "ongoing", label: "Явж байна" },
-                { s: "ready_to_pay", label: "Төлбөр төлөх" },
-                { s: "completed", label: "Дууссан" },
-                { s: "no_show", label: "Ирээгүй" },
-                { s: "cancelled", label: "Цуцалсан" },
-                { s: "other", label: "Бусад" },
-              ].map((x) => (
+              {STATUS_ACTIONS.map((x) => (
                 <button
                   key={x.s}
                   type="button"
@@ -350,10 +427,7 @@ export default function BookedVisitsPage() {
             <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button
                 type="button"
-                onClick={() => {
-                  setDetailsOpen(false);
-                  setSelectedRow(null);
-                }}
+                onClick={closeModal}
                 style={{
                   padding: "8px 12px",
                   borderRadius: 10,
@@ -362,7 +436,7 @@ export default function BookedVisitsPage() {
                   cursor: "pointer",
                 }}
               >
-                Хаах
+                Ха��х
               </button>
             </div>
           </div>
