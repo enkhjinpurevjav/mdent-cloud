@@ -667,7 +667,72 @@ router.get("/:id/encounter", async (req, res) => {
   }
 });
 
+// ...inside router.get("/", ...) where rows are shaped:
 
+const rows = appointments.map((a) => {
+  const patient = a.patient;
+  const doctor = a.doctor;
+  const branch = a.branch;
+
+  const doctorName =
+    doctor && (doctor.name || doctor.ovog)
+      ? [doctor.ovog, doctor.name].filter(Boolean).join(" ")
+      : null;
+
+  const startIso = a.scheduledAt ? a.scheduledAt.toISOString() : null;
+  const endIso = a.endAt ? a.endAt.toISOString() : null;
+
+  const patientName = patient ? patient.name : null;
+  const patientOvog = patient ? patient.ovog || null : null;
+  const patientRegNo = patient ? patient.regNo || null : null;
+  const patientPhone = patient ? patient.phone || null : null;
+
+  const branchName = branch ? branch.name : null;
+
+  return {
+    id: a.id,
+    branchId: a.branchId,
+    doctorId: a.doctorId,
+    patientId: a.patientId,
+
+    // ===== NEW fields (keep) =====
+    patientName,
+    patientOvog,
+    patientRegNo,
+    patientPhone,
+    doctorName,
+    doctorOvog: doctor ? doctor.ovog || null : null,
+    scheduledAt: startIso,
+    endAt: endIso,
+    status: a.status,
+    notes: a.notes || null,
+
+    patient: patient
+      ? {
+          id: patient.id,
+          name: patient.name,
+          ovog: patient.ovog || null,
+          regNo: patient.regNo || null,
+          phone: patient.phone || null,
+          patientBook: patient.patientBook || null,
+        }
+      : null,
+
+    branch: branch
+      ? {
+          id: branch.id,
+          name: branch.name,
+        }
+      : null,
+
+    // ===== LEGACY ALIASES (add) =====
+    // These keep older frontend pages working without refactor
+    startTime: startIso,
+    endTime: endIso,
+    regNo: patientRegNo,
+    branchName,
+  };
+});
 
 
 export default router;
