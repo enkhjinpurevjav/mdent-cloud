@@ -79,7 +79,7 @@ function formatPatientShort(row: any): string {
 }
 
 export default function BookedVisitsPage() {
-  const router = useRouter();
+
   const today = new Date().toISOString().slice(0, 10);
 
   const [filters, setFilters] = useState<AppointmentFilters>({
@@ -145,7 +145,7 @@ export default function BookedVisitsPage() {
     setActionError("");
   };
 
-  const patchStatus = async (row: AppointmentRow, nextStatus: string) => {
+  const patchStatus = async (row: AppointmentRow, nextStatus: AppointmentStatus) => {
     if (!row?.id) return;
     setActionLoading(true);
     setActionError("");
