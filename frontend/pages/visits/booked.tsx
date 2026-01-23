@@ -13,11 +13,32 @@ function formatHm(iso: string | null | undefined) {
   return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
+function formatYmdDot(iso: string | null | undefined) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}.${m}.${day}`;
+}
+
+function formatYmdHmRange(startIso: string | null | undefined, endIso: string | null | undefined) {
+  const date = formatYmdDot(startIso);
+  const start = formatHm(startIso);
+  const end = formatHm(endIso);
+
+  if (!date && !start && !end) return "-";
+  if (date && start && end) return `${date} ${start}–${end}`;
+  if (date && start) return `${date} ${start}`;
+  if (date) return date;
+  return start || "-";
+}
+
 function statusLabel(statusRaw: AppointmentStatus | string | null | undefined): string {
   const s = String(statusRaw || "")
     .trim()
     .toLowerCase();
-
   switch (s) {
     case "booked":
       return "Захиалсан";
@@ -60,78 +81,31 @@ function statusBadgeStyle(statusRaw: AppointmentStatus | string | null | undefin
 
   switch (s) {
     case "booked":
-      return {
-        ...base,
-        background: "#eff6ff",
-        borderColor: "#93c5fd",
-        color: "#1d4ed8",
-      };
+      return { ...base, background: "#eff6ff", borderColor: "#93c5fd", color: "#1d4ed8" };
     case "confirmed":
-      return {
-        ...base,
-        background: "#ecfeff",
-        borderColor: "#67e8f9",
-        color: "#0e7490",
-      };
+      return { ...base, background: "#ecfeff", borderColor: "#67e8f9", color: "#0e7490" };
     case "online":
-      return {
-        ...base,
-        background: "#fdf4ff",
-        borderColor: "#e9d5ff",
-        color: "#7e22ce",
-      };
+      return { ...base, background: "#fdf4ff", borderColor: "#e9d5ff", color: "#7e22ce" };
     case "ongoing":
-      return {
-        ...base,
-        background: "#fffbeb",
-        borderColor: "#fcd34d",
-        color: "#92400e",
-      };
+      return { ...base, background: "#fffbeb", borderColor: "#fcd34d", color: "#92400e" };
     case "ready_to_pay":
-      return {
-        ...base,
-        background: "#f5f3ff",
-        borderColor: "#c4b5fd",
-        color: "#5b21b6",
-      };
+      return { ...base, background: "#f5f3ff", borderColor: "#c4b5fd", color: "#5b21b6" };
     case "completed":
-      return {
-        ...base,
-        background: "#ecfdf3",
-        borderColor: "#86efac",
-        color: "#166534",
-      };
+      return { ...base, background: "#ecfdf3", borderColor: "#86efac", color: "#166534" };
     case "no_show":
-      return {
-        ...base,
-        background: "#fff7ed",
-        borderColor: "#fdba74",
-        color: "#9a3412",
-      };
+      return { ...base, background: "#fff7ed", borderColor: "#fdba74", color: "#9a3412" };
     case "cancelled":
-      return {
-        ...base,
-        background: "#fef2f2",
-        borderColor: "#fca5a5",
-        color: "#b91c1c",
-      };
+      return { ...base, background: "#fef2f2", borderColor: "#fca5a5", color: "#b91c1c" };
     default:
-      return {
-        ...base,
-        background: "#f3f4f6",
-        borderColor: "#d1d5db",
-        color: "#374151",
-      };
+      return { ...base, background: "#f3f4f6", borderColor: "#d1d5db", color: "#374151" };
   }
 }
 
 function formatPatientShort(row: AppointmentRow): string {
   const name = (row.patientName || "").trim();
-  const ovog = ((row as any).patientOvog || "").trim(); // optional field in type
-
+  const ovog = ((row as any).patientOvog || "").trim();
   const firstLetter = typeof ovog === "string" && ovog ? ovog[0] : "";
   const prefix = firstLetter ? `${firstLetter}. ` : "";
-
   return (prefix + name).trim() || "-";
 }
 
@@ -166,7 +140,12 @@ export default function BookedVisitsPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string>("");
 
-  // Load branches once for the dropdown
+  const getStartIso = (row: AppointmentRow) =>
+    row.startTime ?? (row as any).scheduledAt ?? null;
+
+  const getEndIso = (row: AppointmentRow) =>
+    row.endTime ?? (row as any).endAt ?? null;
+
   useEffect(() => {
     fetch("/api/branches")
       .then((r) => r.json())
@@ -204,7 +183,6 @@ export default function BookedVisitsPage() {
     }
   };
 
-  // Load appointments when filters change
   useEffect(() => {
     void loadRows();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -229,14 +207,9 @@ export default function BookedVisitsPage() {
       });
 
       const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(json?.error || "Төлөв өөрчлөхөд алдаа гарлаа");
-      }
+      if (!res.ok) throw new Error(json?.error || "Төлөв өөрчлөхөд алдаа гарлаа");
 
-      // Refresh list for consistency with filters + server state
       await loadRows();
-
-      // Update modal immediately too
       setSelectedRow((prev) => (prev ? { ...prev, status: nextStatus } : prev));
     } catch (e: any) {
       setActionError(e?.message || "Төлөв өөрчлөхөд алдаа гарлаа");
@@ -250,14 +223,6 @@ export default function BookedVisitsPage() {
     setSelectedRow(null);
     setActionError("");
   };
-
-  // NOTE: backend currently returns `scheduledAt/endAt` plus may add legacy aliases later.
-  // This page prefers legacy aliases if present, otherwise falls back to scheduledAt/endAt.
-  const getStartIso = (row: AppointmentRow) =>
-    row.startTime ?? (row as any).scheduledAt ?? null;
-
-  const getEndIso = (row: AppointmentRow) =>
-    row.endTime ?? (row as any).endAt ?? null;
 
   return (
     <>
@@ -292,6 +257,7 @@ export default function BookedVisitsPage() {
         >
           <thead>
             <tr style={{ background: "#f9fafb" }}>
+              <th style={{ textAlign: "left", padding: 10 }}>Огноо</th>
               <th style={{ textAlign: "left", padding: 10 }}>Цаг</th>
               <th style={{ textAlign: "left", padding: 10 }}>Өвчтөн</th>
               <th style={{ textAlign: "left", padding: 10 }}>РД</th>
@@ -301,25 +267,26 @@ export default function BookedVisitsPage() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr
-                key={row.id}
-                onClick={() => handleOpenDetails(row)}
-                style={{
-                  cursor: "pointer",
-                  borderTop: "1px solid #e5e7eb",
-                }}
-              >
-                <td style={{ padding: 10 }}>{formatHm(getStartIso(row) || undefined)}</td>
-                <td style={{ padding: 10 }}>{formatPatientShort(row)}</td>
-                <td style={{ padding: 10 }}>{row.regNo || (row as any).patientRegNo || "-"}</td>
-                <td style={{ padding: 10 }}>{row.branchName || (row as any).branch?.name || "-"}</td>
-                <td style={{ padding: 10 }}>{row.doctorName || "-"}</td>
-                <td style={{ padding: 10 }}>
-                  <span style={statusBadgeStyle(row.status)}>{statusLabel(row.status)}</span>
-                </td>
-              </tr>
-            ))}
+            {rows.map((row) => {
+              const startIso = getStartIso(row);
+              return (
+                <tr
+                  key={row.id}
+                  onClick={() => handleOpenDetails(row)}
+                  style={{ cursor: "pointer", borderTop: "1px solid #e5e7eb" }}
+                >
+                  <td style={{ padding: 10 }}>{formatYmdDot(startIso || undefined)}</td>
+                  <td style={{ padding: 10 }}>{formatHm(startIso || undefined)}</td>
+                  <td style={{ padding: 10 }}>{formatPatientShort(row)}</td>
+                  <td style={{ padding: 10 }}>{row.regNo || (row as any).patientRegNo || "-"}</td>
+                  <td style={{ padding: 10 }}>{row.branchName || (row as any).branch?.name || "-"}</td>
+                  <td style={{ padding: 10 }}>{row.doctorName || "-"}</td>
+                  <td style={{ padding: 10 }}>
+                    <span style={statusBadgeStyle(row.status)}>{statusLabel(row.status)}</span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
@@ -355,9 +322,9 @@ export default function BookedVisitsPage() {
                   {formatPatientShort(selectedRow)}
                 </h3>
 
+                {/* ✅ requested format: 2026.01.23 14:30–15:00 */}
                 <div style={{ marginTop: 6, fontSize: 13, color: "#6b7280" }}>
-                  Цаг: <strong>{formatHm(getStartIso(selectedRow) || undefined)}</strong>
-                  {getEndIso(selectedRow) ? ` – ${formatHm(getEndIso(selectedRow) || undefined)}` : ""}
+                  {formatYmdHmRange(getStartIso(selectedRow), getEndIso(selectedRow))}
                 </div>
               </div>
 
@@ -436,7 +403,7 @@ export default function BookedVisitsPage() {
                   cursor: "pointer",
                 }}
               >
-                Ха��х
+                Хаах
               </button>
             </div>
           </div>
