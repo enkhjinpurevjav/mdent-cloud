@@ -869,6 +869,13 @@ const updateBoltonLower12 = (index: number, value: string) => {
       ...prev,
       [field]: prev[field] === value ? "" : value,
     }));
+
+  // Redirect to patient profile with ortho tab for backwards compatibility
+  useEffect(() => {
+    if (!bn) return;
+    router.push(`/patients/${encodeURIComponent(bn)}?tab=ortho`);
+  }, [bn, router]);
+
   useEffect(() => {
     if (!bn) return;
 
