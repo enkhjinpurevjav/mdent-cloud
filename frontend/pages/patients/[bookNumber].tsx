@@ -272,7 +272,8 @@ export default function PatientProfilePage() {
     load();
   }, [bookNumber]);
 
-  // Handle tab query parameter for deep-linking (e.g., ?tab=ortho)
+  // Handle tab query parameter for deep-linking
+  // Accepts both "ortho" (short form) and "ortho_card" (internal tab ID) for flexibility
   useEffect(() => {
     const tabParam = router.query.tab as string | undefined;
     if (tabParam === "ortho" || tabParam === "ortho_card") {
