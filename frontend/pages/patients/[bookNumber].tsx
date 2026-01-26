@@ -749,29 +749,21 @@ export default function PatientProfilePage() {
                   </button>
 
                   {/* Гажиг заслын карт */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab("ortho_card");
-                      setEditMode(false);
-                      setSaveError("");
-                      setSaveSuccess("");
-                    }}
-                    style={{
-                      textAlign: "left",
-                      padding: "6px 10px",
-                      borderRadius: 6,
-                      border: "none",
-                      background:
-                        activeTab === "ortho_card" ? "#eff6ff" : "transparent",
-                      color:
-                        activeTab === "ortho_card" ? "#1d4ed8" : "#6b7280",
-                      fontWeight: activeTab === "ortho_card" ? 500 : 400,
-                      cursor: "pointer",
-                    }}
-                  >
-                    Гажиг заслын карт
-                  </button>
+                  {activeTab === "ortho_card" && (
+  <div
+    style={{
+      borderRadius: 12,
+      border: "1px solid #e5e7eb",
+      padding: 16,
+      background: "white",
+    }}
+  >
+    <h2 style={{ fontSize: 16, marginTop: 0, marginBottom: 12 }}>
+      Гажиг заслын карт
+    </h2>
+    <OrthoCardView />
+  </div>
+)}
 
                   {/* Future placeholders */}
                   <div
@@ -2793,12 +2785,7 @@ export default function PatientProfilePage() {
             </div>
           </section>
 
-          {/* Ortho card tab */}
-          {activeTab === "ortho_card" && (
-            <section>
-              <OrthoCardView />
-            </section>
-          )}
+         
 
           {/* Encounter history and inline appointments table shown only in profile tab */}
           {activeTab === "profile" && (
