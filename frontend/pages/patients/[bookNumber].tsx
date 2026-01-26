@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import SignaturePad from "../../components/SignaturePad";
 import ChildVisitCardForm from "../../components/ChildVisitCardForm";
+import OrthoCardView from "./OrthoCardView";
 
 type Branch = {
   id: number;
@@ -271,13 +272,14 @@ export default function PatientProfilePage() {
     load();
   }, [bookNumber]);
 
-  // Navigate to ortho card page when Гажиг заслын карт tab is selected
+  // Handle tab query parameter for deep-linking
+  // Accepts both "ortho" (short form) and "ortho_card" (internal tab ID) for flexibility
   useEffect(() => {
-    if (!bookNumber || typeof bookNumber !== "string") return;
-    if (activeTab !== "ortho_card") return;
-
-    router.push(`/ortho/${encodeURIComponent(bookNumber)}`);
-  }, [activeTab, bookNumber, router]);
+    const tabParam = router.query.tab as string | undefined;
+    if (tabParam === "ortho" || tabParam === "ortho_card") {
+      setActiveTab("ortho_card");
+    }
+  }, [router.query.tab]);
 
   // Load visit card only when visit_card tab is active
   useEffect(() => {
@@ -2790,6 +2792,13 @@ export default function PatientProfilePage() {
               )}
             </div>
           </section>
+
+          {/* Ortho card tab */}
+          {activeTab === "ortho_card" && (
+            <section>
+              <OrthoCardView />
+            </section>
+          )}
 
           {/* Encounter history and inline appointments table shown only in profile tab */}
           {activeTab === "profile" && (
