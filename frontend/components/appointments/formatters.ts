@@ -118,8 +118,23 @@ export function formatStatus(status: string): string {
 
 export function formatDetailedTimeRange(start: Date, end: Date | null): string {
   if (Number.isNaN(start.getTime())) return "-";
-  const startStr = getSlotTimeString(start);
-  if (!end || Number.isNaN(end.getTime())) return startStr;
-  const endStr = getSlotTimeString(end);
-  return `${startStr} – ${endStr}`;
+
+  const datePart = formatDateYmdDots(start);
+  const startTime = start.toLocaleTimeString("mn-MN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  if (!end || Number.isNaN(end.getTime())) {
+    return `${datePart} ${startTime}`;
+  }
+
+  const endTime = end.toLocaleTimeString("mn-MN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  return `${datePart} ${startTime} – ${endTime}`;
 }

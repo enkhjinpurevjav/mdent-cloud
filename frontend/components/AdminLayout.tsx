@@ -14,6 +14,9 @@ type NavItem = {
   children?: NavItem[];
 };
 
+// Constants for special routes
+const APPOINTMENTS_ALL_BRANCHES_ROUTE = "/appointments";
+
 // Main navigation structure
 const navItems: NavItem[] = [
   // 1. Хянах самбар (top-level link only)
@@ -31,7 +34,7 @@ const navItems: NavItem[] = [
       {
         // only "Бүх салбар" is fixed; individual branches come from backend
         label: "Бүх салбар",
-        href: "/appointments",
+        href: APPOINTMENTS_ALL_BRANCHES_ROUTE,
         icon: "📅",
       },
     ],
@@ -394,8 +397,8 @@ export default function AdminLayout({ children }: Props) {
                             >
                               <a
                                 onClick={() => {
-                                  // Clear lock when "All Branches" (no branchId param) is selected
-                                  if (child.href === "/appointments") {
+                                  // Clear lock when "All Branches" route is selected (no specific branch)
+                                  if (child.href === APPOINTMENTS_ALL_BRANCHES_ROUTE) {
                                     clearBranchLock();
                                   }
                                 }}

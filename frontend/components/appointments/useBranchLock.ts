@@ -48,6 +48,7 @@ export function useBranchLock() {
         { shallow: true }
       );
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lockState.enabled, lockState.lockedBranchId, queryBranchId, router.pathname]);
 
   const unlock = () => {
