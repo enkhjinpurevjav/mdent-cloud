@@ -49,6 +49,9 @@ export function useBranchLock() {
       );
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Justification: Only react to lock state and queryBranchId changes, not router object.
+  // Including router in deps would cause infinite loops since router.replace updates router.
+  // We explicitly include router.pathname to detect route changes while avoiding loops.
   }, [lockState.enabled, lockState.lockedBranchId, queryBranchId, router.pathname]);
 
   const unlock = () => {

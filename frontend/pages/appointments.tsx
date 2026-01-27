@@ -2215,7 +2215,14 @@ const handleCancelDraft = (appointmentId: number) => {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label>Салбар {isLocked && <span style={{ color: "#dc2626" }}>(🔒 Түгжээтэй)</span>}</label>
+            <label>
+              Салбар{" "}
+              {isLocked && (
+                <span style={{ color: "#dc2626" }}>
+                  (<span role="img" aria-label="Түгжээтэй">🔒</span> Түгжээтэй)
+                </span>
+              )}
+            </label>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <select
                 value={effectiveBranchId || filterBranchId}

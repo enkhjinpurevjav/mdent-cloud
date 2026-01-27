@@ -177,6 +177,17 @@ export default function AdminLayout({ children }: Props) {
     []
   );
 
+  // Handler for branch selection in appointments submenu
+  const handleBranchSelection = (branchId: string | null) => {
+    if (branchId === null) {
+      // "Бүх салбар" selected - clear lock
+      clearBranchLock();
+    } else {
+      // Specific branch selected - set lock
+      setBranchLock(branchId);
+    }
+  };
+
   // Auto-open the group that contains the current path
   useEffect(() => {
     const found = navItems.find((item) => {
@@ -443,10 +454,7 @@ export default function AdminLayout({ children }: Props) {
                           return (
                             <Link key={b.id} href={href} legacyBehavior>
                               <a
-                                onClick={() => {
-                                  // Set lock when a specific branch is selected
-                                  setBranchLock(b.id);
-                                }}
+                                onClick={() => handleBranchSelection(b.id)}
                                 style={{
                                   display: "flex",
                                   alignItems: "center",
