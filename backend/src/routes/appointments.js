@@ -680,4 +680,132 @@ router.get("/:id/encounter", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/appointments/:id/report
+ *
+ * Returns consolidated encounter report data for a completed appointment.
+ * Used by the Encounter Report modal.
+ *
+ * Response includes:
+ * - encounter (visitDate, id)
+ * - doctor (name, ovog, email, signatureImagePath)
+ * - patient/patientBook
+ * - appointment (scheduledAt)
+ * - branch
+ * - diagnoses (EncounterDiagnosis with diagnosis + sterilization indicators)
+ * - invoice (items, payments, eBarimtReceipt)
+ * - prescription (items)
+ * - media
+ */
+router.get("/:id/report", async (req, res) => {
+  try {
+    const apptId = Number(req.params.id);
+    if (!apptId || Number.isNaN(apptId)) {
+      return res.status(400).json({ error: "Invalid appointment id" });
+    }
+
+    // 1) Find appointment
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: apptId },
+      include: {
+        patient: {
+          include: {
+            patientBook: true,
+          },
+        },
+        branch: true,
+        doctor: true,
+      },
+    });
+
+    if (!appointment) {
+      return res.status(404).json({ error: "Appointment not found" });
+    }
+
+    // 2) Find encounter linked to this appointment (latest if multiple)
+    const encounter = await prisma.encounter.findFirst({
+      where: { appointmentId: apptId },
+      orderBy: { visitDate: "desc" },
+      include: {
+        doctor: {
+          select: {
+            id: true,
+            name: true,
+            ovog: true,
+            email: true,
+            signatureImagePath: true,
+          },
+        },
+        diagnoses: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            diagnosis: true,
+            sterilizationIndicators: {
+              include: {
+                indicator: {
+                  select: {
+                    code: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        invoice: {
+          include: {
+            items: {
+              orderBy: { id: "asc" },
+              include: {
+                service: true,
+                product: true,
+              },
+            },
+            payments: true,
+            eBarimtReceipt: true,
+          },
+        },
+        prescription: {
+          include: {
+            items: {
+              orderBy: { order: "asc" },
+            },
+          },
+        },
+        media: true,
+      },
+    });
+
+    if (!encounter) {
+      return res.status(404).json({
+        error: "No encounter found for this appointment",
+      });
+    }
+
+    // 3) Return normalized report data
+    return res.json({
+      appointment: {
+        id: appointment.id,
+        scheduledAt: appointment.scheduledAt,
+        status: appointment.status,
+      },
+      patient: appointment.patient,
+      patientBook: appointment.patient?.patientBook || null,
+      branch: appointment.branch,
+      doctor: encounter.doctor,
+      encounter: {
+        id: encounter.id,
+        visitDate: encounter.visitDate,
+        notes: encounter.notes,
+      },
+      diagnoses: encounter.diagnoses,
+      invoice: encounter.invoice,
+      prescription: encounter.prescription,
+      media: encounter.media,
+    });
+  } catch (err) {
+    console.error("GET /api/appointments/:id/report error:", err);
+    return res.status(500).json({ error: "Failed to load encounter report" });
+  }
+});
+
 export default router;

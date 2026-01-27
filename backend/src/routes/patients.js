@@ -397,6 +397,10 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
     const appointments = await prisma.appointment.findMany({
       where: { patientId: patient.id },
       orderBy: { scheduledAt: "desc" },
+      include: {
+        branch: true,
+        doctor: true,
+      },
     });
 
     res.json({
