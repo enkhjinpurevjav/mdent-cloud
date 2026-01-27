@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/router";
 import { getBranchLock, clearBranchLock } from "./storage";
 
@@ -8,6 +8,9 @@ export function useBranchLock() {
     enabled: boolean;
     lockedBranchId: string | null;
   }>({ enabled: false, lockedBranchId: null });
+
+  // Track if URL sync has been done
+  const hasInitializedRef = useRef(false);
 
   // Read lock from localStorage on mount
   useEffect(() => {
@@ -26,12 +29,16 @@ export function useBranchLock() {
     ? lockState.lockedBranchId
     : queryBranchId;
 
-  // Memoized function to update URL
-  const updateUrl = useCallback(() => {
-    if (!lockState.enabled || !lockState.lockedBranchId) return;
+  // Update URL to match locked branchId when lock is active (only once per lock state change)
+  useEffect(() => {
+    if (!lockState.enabled || !lockState.lockedBranchId) {
+      hasInitializedRef.current = false;
+      return;
+    }
     
-    // If lock is active but URL doesn't match, update URL
-    if (queryBranchId !== lockState.lockedBranchId) {
+    // Only sync URL if it doesn't match and we haven't done it yet for this lock state
+    if (queryBranchId !== lockState.lockedBranchId && !hasInitializedRef.current) {
+      hasInitializedRef.current = true;
       router.replace(
         {
           pathname: router.pathname,
@@ -41,16 +48,12 @@ export function useBranchLock() {
         { shallow: true }
       );
     }
-  }, [lockState.enabled, lockState.lockedBranchId, queryBranchId, router.pathname, router.query, router.replace]);
-
-  // Update URL to match locked branchId when lock is active
-  useEffect(() => {
-    updateUrl();
-  }, [updateUrl]);
+  }, [lockState.enabled, lockState.lockedBranchId, queryBranchId, router.pathname]);
 
   const unlock = () => {
     clearBranchLock();
     setLockState({ enabled: false, lockedBranchId: null });
+    hasInitializedRef.current = false;
   };
 
   return {

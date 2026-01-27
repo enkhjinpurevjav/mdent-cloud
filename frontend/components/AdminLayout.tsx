@@ -394,8 +394,8 @@ export default function AdminLayout({ children }: Props) {
                             >
                               <a
                                 onClick={() => {
-                                  // Clear lock when "Бүх салбар" is selected
-                                  if (child.label === "Бүх салбар") {
+                                  // Clear lock when "All Branches" (no branchId param) is selected
+                                  if (child.href === "/appointments") {
                                     clearBranchLock();
                                   }
                                 }}

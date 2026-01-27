@@ -121,5 +121,5 @@ export function formatDetailedTimeRange(start: Date, end: Date | null): string {
   const startStr = getSlotTimeString(start);
   if (!end || Number.isNaN(end.getTime())) return startStr;
   const endStr = getSlotTimeString(end);
-  return `${startStr}—${endStr}`;
+  return `${startStr} – ${endStr}`;
 }
