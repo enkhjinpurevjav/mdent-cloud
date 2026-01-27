@@ -14,5 +14,5 @@ import OrthoCardPage from "../../pages/ortho/[bookNumber]";
  *   will already be present and OrthoCardPage will load correctly.
  */
 export default function OrthoCardView() {
-  return <OrthoCardPage />;
+  return <OrthoCardPage embedded={true} />;
 }
