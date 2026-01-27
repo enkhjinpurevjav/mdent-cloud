@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { setBranchLock, clearBranchLock } from "./appointments/storage";
 
 type Props = {
   children: React.ReactNode;
@@ -392,6 +393,12 @@ export default function AdminLayout({ children }: Props) {
                               legacyBehavior
                             >
                               <a
+                                onClick={() => {
+                                  // Clear lock when "Бүх салбар" is selected
+                                  if (child.label === "Бүх салбар") {
+                                    clearBranchLock();
+                                  }
+                                }}
                                 style={{
                                   display: "flex",
                                   alignItems: "center",
@@ -433,6 +440,10 @@ export default function AdminLayout({ children }: Props) {
                           return (
                             <Link key={b.id} href={href} legacyBehavior>
                               <a
+                                onClick={() => {
+                                  // Set lock when a specific branch is selected
+                                  setBranchLock(b.id);
+                                }}
                                 style={{
                                   display: "flex",
                                   alignItems: "center",
