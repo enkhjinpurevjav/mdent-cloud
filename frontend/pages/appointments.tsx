@@ -1726,7 +1726,7 @@ function QuickAppointmentModal({
             <div style={{ display: "flex", gap: 6 }}>
               <input
                 name="patientQuery"
-                placeholder="РД, овог, нэр болон утас..."
+                placeholder="РД, овог, нэр утсаар хайх"
                 value={form.patientQuery}
                 onChange={handleChange}
                 autoComplete="off"
