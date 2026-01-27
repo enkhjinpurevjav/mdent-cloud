@@ -370,7 +370,7 @@ const emptyDiscrepancyInputs = (): DiscrepancyInputs => ({
   total: emptyAxis(),
 });
 
-export default function OrthoCardPage() {
+export default function OrthoCardPage({ embedded = false }: { embedded?: boolean }) {
   const router = useRouter();
   const { bookNumber } = router.query;
 
@@ -1642,108 +1642,112 @@ if (data.treatmentPlan) {
   return (
     <main
       style={{
-        maxWidth: 1200,
-        margin: "40px auto",
-        padding: 24,
+        maxWidth: embedded ? undefined : 1200,
+        margin: embedded ? 0 : "40px auto",
+        padding: embedded ? 0 : 24,
         fontFamily: "sans-serif",
       }}
     >
-      <button
-        type="button"
-        onClick={() => {
-          if (!bookNumber || typeof bookNumber !== "string") {
-            router.push("/patients");
-            return;
-          }
-          router.push(`/patients/${encodeURIComponent(bookNumber)}`);
-        }}
-        style={{
-          marginBottom: 16,
-          padding: "4px 8px",
-          borderRadius: 4,
-          border: "1px solid #d1d5db",
-          background: "#f9fafb",
-          cursor: "pointer",
-          fontSize: 13,
-        }}
-      >
-        ← Үйлчлүүлэгчийн хэсэг рүү буцах
-      </button>
+      {!embedded && (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              if (!bookNumber || typeof bookNumber !== "string") {
+                router.push("/patients");
+                return;
+              }
+              router.push(`/patients/${encodeURIComponent(bookNumber)}`);
+            }}
+            style={{
+              marginBottom: 16,
+              padding: "4px 8px",
+              borderRadius: 4,
+              border: "1px solid #d1d5db",
+              background: "#f9fafb",
+              cursor: "pointer",
+              fontSize: 13,
+            }}
+          >
+            ← Үйлчлүүлэгчийн хэсэг рүү буцах
+          </button>
 
-      <h1 style={{ fontSize: 20, marginTop: 0, marginBottom: 8 }}>
-        Гажиг заслын үйлчлүүлэгчийн карт
-      </h1>
+          <h1 style={{ fontSize: 20, marginTop: 0, marginBottom: 8 }}>
+            Гажиг заслын үйлчлүүлэгчийн карт
+          </h1>
 
-      {/* Patient header */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-          fontSize: 13,
-          color: "#111827",
-          marginBottom: 16,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 16,
-            alignItems: "baseline",
-          }}
-        >
-          <div>
-            <span style={{ color: "#6b7280", marginRight: 4 }}>
-              Картын дугаар:
-            </span>
-            <span style={{ fontWeight: 600 }}>{bn || "—"}</span>
+          {/* Patient header */}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              fontSize: 13,
+              color: "#111827",
+              marginBottom: 16,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 16,
+                alignItems: "baseline",
+              }}
+            >
+              <div>
+                <span style={{ color: "#6b7280", marginRight: 4 }}>
+                  Картын дугаар:
+                </span>
+                <span style={{ fontWeight: 600 }}>{bn || "—"}</span>
+              </div>
+
+              <div>
+                <span style={{ color: "#6b7280", marginRight: 4 }}>
+                  Үйлчлүүлэгч:
+                </span>
+                <span style={{ fontWeight: 600 }}>
+                  {patientNameHeader || "—"}
+                </span>
+              </div>
+
+              <div>
+                <span style={{ color: "#6b7280", marginRight: 4 }}>РД:</span>
+                <span style={{ fontWeight: 500 }}>{patientRegNo || "—"}</span>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 16,
+                alignItems: "baseline",
+              }}
+            >
+              <div>
+                <span style={{ color: "#6b7280", marginRight: 4 }}>Нас:</span>
+                <span style={{ fontWeight: 500 }}>{patientAge || "—"}</span>
+              </div>
+
+              <div>
+                <span style={{ color: "#6b7280", marginRight: 4 }}>Хүйс:</span>
+                <span style={{ fontWeight: 500 }}>{patientGender || "—"}</span>
+              </div>
+
+              <div>
+                <span style={{ color: "#6b7280", marginRight: 4 }}>Утас:</span>
+                <span style={{ fontWeight: 500 }}>{patientPhone || "—"}</span>
+              </div>
+            </div>
+
+            <div>
+              <span style={{ color: "#6b7280", marginRight: 4 }}>Хаяг:</span>
+              <span style={{ fontWeight: 500 }}>{patientAddress || "—"}</span>
+            </div>
           </div>
-
-          <div>
-            <span style={{ color: "#6b7280", marginRight: 4 }}>
-              Үйлчлүүлэгч:
-            </span>
-            <span style={{ fontWeight: 600 }}>
-              {patientNameHeader || "—"}
-            </span>
-          </div>
-
-          <div>
-            <span style={{ color: "#6b7280", marginRight: 4 }}>РД:</span>
-            <span style={{ fontWeight: 500 }}>{patientRegNo || "—"}</span>
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 16,
-            alignItems: "baseline",
-          }}
-        >
-          <div>
-            <span style={{ color: "#6b7280", marginRight: 4 }}>Нас:</span>
-            <span style={{ fontWeight: 500 }}>{patientAge || "—"}</span>
-          </div>
-
-          <div>
-            <span style={{ color: "#6b7280", marginRight: 4 }}>Хүйс:</span>
-            <span style={{ fontWeight: 500 }}>{patientGender || "—"}</span>
-          </div>
-
-          <div>
-            <span style={{ color: "#6b7280", marginRight: 4 }}>Утас:</span>
-            <span style={{ fontWeight: 500 }}>{patientPhone || "—"}</span>
-          </div>
-        </div>
-
-        <div>
-          <span style={{ color: "#6b7280", marginRight: 4 }}>Хаяг:</span>
-          <span style={{ fontWeight: 500 }}>{patientAddress || "—"}</span>
-        </div>
-      </div>
+        </>
+      )}
 
       {loading && <div>Ачааллаж байна...</div>}
       {!loading && error && (
