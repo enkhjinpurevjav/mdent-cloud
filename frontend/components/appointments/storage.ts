@@ -16,11 +16,11 @@ export function getBranchLock(): { enabled: boolean; branchId: string | null } {
   return { enabled, branchId };
 }
 
-export function setBranchLock(branchId: string) {
+export function setBranchLock(branchId: string | number) {
   if (typeof window === "undefined") return;
 
   localStorage.setItem(STORAGE_KEYS.BRANCH_LOCK_ENABLED, "true");
-  localStorage.setItem(STORAGE_KEYS.BRANCH_LOCK_ID, branchId);
+  localStorage.setItem(STORAGE_KEYS.BRANCH_LOCK_ID, String(branchId));
 }
 
 export function clearBranchLock() {

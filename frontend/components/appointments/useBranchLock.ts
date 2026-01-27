@@ -1,6 +1,4 @@
-// Custom hook for branch lock management
-
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/router";
 import { getBranchLock, clearBranchLock } from "./storage";
 
@@ -28,8 +26,8 @@ export function useBranchLock() {
     ? lockState.lockedBranchId
     : queryBranchId;
 
-  // Update URL to match locked branchId when lock is active
-  useEffect(() => {
+  // Memoized function to update URL
+  const updateUrl = useCallback(() => {
     if (!lockState.enabled || !lockState.lockedBranchId) return;
     
     // If lock is active but URL doesn't match, update URL
@@ -43,7 +41,12 @@ export function useBranchLock() {
         { shallow: true }
       );
     }
-  }, [lockState.enabled, lockState.lockedBranchId, queryBranchId, router]);
+  }, [lockState.enabled, lockState.lockedBranchId, queryBranchId, router.pathname, router.query, router.replace]);
+
+  // Update URL to match locked branchId when lock is active
+  useEffect(() => {
+    updateUrl();
+  }, [updateUrl]);
 
   const unlock = () => {
     clearBranchLock();
