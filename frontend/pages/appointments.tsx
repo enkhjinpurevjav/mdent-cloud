@@ -979,7 +979,7 @@ function AppointmentDetailsModal({
           cursor: saving ? "default" : "pointer",
         }}
       >
-        Болих
+        Цуцлах
       </button>
     </div>
 
@@ -1726,7 +1726,7 @@ function QuickAppointmentModal({
             <div style={{ display: "flex", gap: 6 }}>
               <input
                 name="patientQuery"
-                placeholder="РД, овог, нэр эс��эл утас..."
+                placeholder="РД, овог, нэр болон утас..."
                 value={form.patientQuery}
                 onChange={handleChange}
                 autoComplete="off"
@@ -1953,7 +1953,7 @@ function QuickAppointmentModal({
               name="notes"
               value={form.notes}
               onChange={handleChange}
-              placeholder="Ж: Эмчилгээний товч тэмдэглэл"
+              placeholder="Захиалгын товч тэмдэглэл"
               style={{
                 borderRadius: 6,
                 border: "1px solid #d1d5db",
@@ -1995,7 +1995,7 @@ function QuickAppointmentModal({
                 cursor: "pointer",
               }}
             >
-              Болих
+              Цуцлах
             </button>
 
             <button
@@ -2122,7 +2122,7 @@ function QuickAppointmentModal({
                         cursor: quickPatientSaving ? "default" : "pointer",
                       }}
                     >
-                      Болих
+                      Цуцлах
                     </button>
 
                     <button
@@ -3013,7 +3013,7 @@ if (quickPatientForm.regNo.trim()) {
         <label>Тэмдэглэл</label>
         <input
           name="notes"
-          placeholder="Ж: Эмчилгээний товч тэмдэглэл"
+          placeholder="Захиалгын товч тэмдэглэл"
           value={form.notes}
           onChange={handleChange}
           style={{
@@ -3246,7 +3246,7 @@ if (quickPatientForm.regNo.trim()) {
                     cursor: quickPatientSaving ? "default" : "pointer",
                   }}
                 >
-                  Болих
+                  Цуцлах
                 </button>
                 <button
                   type="button"
@@ -4907,7 +4907,7 @@ const handleCancelDraft = (appointmentId: number) => {
       Цаг захиалга өөрчлөгдлөө
     </div>
     <div style={{ fontSize: 12, color: "#6b7280" }}>
-      Та өөрчлөлтийг хадгалах уу эсвэл болих уу?
+      Та өөрчлөлтийг хадгалах уу эсвэл цуцлах уу?
     </div>
     {pendingSaveError && (
       <div style={{ fontSize: 12, color: "#b91c1c" }}>
@@ -4951,7 +4951,7 @@ const handleCancelDraft = (appointmentId: number) => {
           opacity: pendingSaving ? 0.6 : 1,
         }}
       >
-        Болих
+        Цуцлах
       </button>
     </div>
   </div>
