@@ -1,0 +1,125 @@
+// Formatting helpers for appointments
+
+import type { Doctor, Appointment, PatientLite } from "./types";
+import { pad2, getSlotTimeString } from "./time";
+
+export function formatDoctorName(d?: Doctor | null) {
+  if (!d) return "";
+  const name = (d.name || "").trim();
+  const ovog = (d.ovog || "").trim();
+  if (!name && !ovog) return "";
+
+  if (ovog) {
+    const first = ovog.charAt(0).toUpperCase();
+    return `${first}.${name}`;
+  }
+  return name;
+}
+
+export function formatPatientLabel(
+  p?: { name: string; regNo?: string | null; phone?: string | null } | null,
+  id?: number
+) {
+  if (!p) return id ? `#${id}` : "";
+  const parts = [p.name];
+  if (p.regNo) parts.push(`(${p.regNo})`);
+  if (p.phone) parts.push(`📞 ${p.phone}`);
+  return parts.join(" ");
+}
+
+export function formatGridShortLabel(a: Appointment): string {
+  const p = a.patient as any;
+
+  const rawName = (p?.name ?? a.patientName ?? "").toString().trim();
+  const rawOvog = (p?.ovog ?? a.patientOvog ?? "").toString().trim();
+
+  const rawBookNumber =
+    p?.patientBook?.bookNumber != null
+      ? String(p.patientBook.bookNumber).trim()
+      : "";
+
+  let displayName = rawName;
+  if (rawOvog) {
+    const first = rawOvog.charAt(0).toUpperCase();
+    displayName = `${first}.${rawName}`;
+  }
+
+  if (!displayName) return "";
+
+  if (rawBookNumber) {
+    return `${displayName} (${rawBookNumber})`;
+  }
+
+  return displayName;
+}
+
+export function formatPatientSearchLabel(p: PatientLite): string {
+  const parts: string[] = [];
+
+  // Ovog + name
+  const name = (p.name || "").toString().trim();
+  const ovog = (p.ovog || "").toString().trim();
+
+  if (ovog && name) {
+    parts.push(`${ovog} ${name}`);
+  } else if (name) {
+    parts.push(name);
+  } else if (ovog) {
+    parts.push(ovog);
+  }
+
+  // RegNo
+  if (p.regNo) parts.push(`(${p.regNo})`);
+
+  // Phone
+  if (p.phone) parts.push(`📞 ${p.phone}`);
+
+  // Patient book number, if present
+  const bookNumber =
+    p.patientBook && p.patientBook.bookNumber != null
+      ? String(p.patientBook.bookNumber)
+      : "";
+  if (bookNumber) parts.push(`#${bookNumber}`);
+
+  return parts.join(" ");
+}
+
+export function formatDateYmdDots(date: Date): string {
+  const y = date.getFullYear();
+  const m = pad2(date.getMonth() + 1);
+  const d = pad2(date.getDate());
+  return `${y}.${m}.${d}`;
+}
+
+export function formatStatus(status: string): string {
+  switch (status) {
+    case "booked":
+      return "Захиалсан";
+    case "confirmed":
+      return "Баталгаажсан";
+    case "online":
+      return "Онлайн";
+    case "ongoing":
+      return "Явж байна";
+    case "ready_to_pay":
+      return "Төлбөр төлөх";
+    case "completed":
+      return "Дууссан";
+    case "no_show":
+      return "Ирээгүй";
+    case "cancelled":
+      return "Цуцалсан";
+    case "other":
+      return "Бусад";
+    default:
+      return status;
+  }
+}
+
+export function formatDetailedTimeRange(start: Date, end: Date | null): string {
+  if (Number.isNaN(start.getTime())) return "-";
+  const startStr = getSlotTimeString(start);
+  if (!end || Number.isNaN(end.getTime())) return startStr;
+  const endStr = getSlotTimeString(end);
+  return `${startStr}—${endStr}`;
+}
