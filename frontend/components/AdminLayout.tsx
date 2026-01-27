@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { setBranchLock, clearBranchLock } from "./appointments/storage";
 
 type Props = {
   children: React.ReactNode;
@@ -12,6 +13,9 @@ type NavItem = {
   icon?: string;
   children?: NavItem[];
 };
+
+// Constants for special routes
+const APPOINTMENTS_ALL_BRANCHES_ROUTE = "/appointments";
 
 // Main navigation structure
 const navItems: NavItem[] = [
@@ -30,7 +34,7 @@ const navItems: NavItem[] = [
       {
         // only "Бүх салбар" is fixed; individual branches come from backend
         label: "Бүх салбар",
-        href: "/appointments",
+        href: APPOINTMENTS_ALL_BRANCHES_ROUTE,
         icon: "📅",
       },
     ],
@@ -172,6 +176,17 @@ export default function AdminLayout({ children }: Props) {
   const [branchItems, setBranchItems] = useState<{ id: string; name: string }[]>(
     []
   );
+
+  // Handler for branch selection in appointments submenu
+  const handleBranchSelection = (branchId: string | null) => {
+    if (branchId === null) {
+      // "Бүх салбар" selected - clear lock
+      clearBranchLock();
+    } else {
+      // Specific branch selected - set lock
+      setBranchLock(branchId);
+    }
+  };
 
   // Auto-open the group that contains the current path
   useEffect(() => {
@@ -392,6 +407,12 @@ export default function AdminLayout({ children }: Props) {
                               legacyBehavior
                             >
                               <a
+                                onClick={() => {
+                                  // Clear lock when "All Branches" route is selected (no specific branch)
+                                  if (child.href === APPOINTMENTS_ALL_BRANCHES_ROUTE) {
+                                    clearBranchLock();
+                                  }
+                                }}
                                 style={{
                                   display: "flex",
                                   alignItems: "center",
@@ -433,6 +454,7 @@ export default function AdminLayout({ children }: Props) {
                           return (
                             <Link key={b.id} href={href} legacyBehavior>
                               <a
+                                onClick={() => handleBranchSelection(b.id)}
                                 style={{
                                   display: "flex",
                                   alignItems: "center",
