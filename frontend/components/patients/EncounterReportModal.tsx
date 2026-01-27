@@ -360,7 +360,9 @@ export default function EncounterReportModal({
                         </tr>
                       ) : (
                         data.diagnoses.map((diag, idx) => {
-                          // Strategy 2: Sequential mapping between diagnosis rows and SERVICE items
+                          // Strategy 2: Sequential mapping between diagnosis rows (createdAt asc) 
+                          // and SERVICE items (id asc) as confirmed in the spec.
+                          // This approach assumes the items were added in the same order as diagnoses.
                           const serviceItems =
                             data.invoice?.items.filter(
                               (item) => item.itemType === "SERVICE"
@@ -399,6 +401,7 @@ export default function EncounterReportModal({
                               <td style={tableCellStyle}>
                                 {diag.note || "-"}
                               </td>
+                              {/* Per spec: "Тэмдэглэл" column remains blank (distinct from diagnosis note) */}
                               <td style={tableCellStyle}>-</td>
                             </tr>
                           );

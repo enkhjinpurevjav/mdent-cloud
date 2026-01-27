@@ -2984,7 +2984,7 @@ export default function PatientProfilePage() {
                             padding: 6,
                           }}
                         >
-                          Салбар ID
+                          Салбар
                         </th>
                         <th
                           style={{
@@ -2993,7 +2993,7 @@ export default function PatientProfilePage() {
                             padding: 6,
                           }}
                         >
-                          Эмч ID
+                          Эмч
                         </th>
                         <th
                           style={{
@@ -3012,6 +3012,15 @@ export default function PatientProfilePage() {
                           }}
                         >
                           Тэмдэглэл
+                        </th>
+                        <th
+                          style={{
+                            textAlign: "left",
+                            borderBottom: "1px solid #e5e7eb",
+                            padding: 6,
+                          }}
+                        >
+                          Үйлдэл
                         </th>
                       </tr>
                     </thead>
@@ -3037,7 +3046,7 @@ export default function PatientProfilePage() {
                                 padding: 6,
                               }}
                             >
-                              {a.branchId}
+                              {a.branch?.name || "-"}
                             </td>
                             <td
                               style={{
@@ -3045,7 +3054,7 @@ export default function PatientProfilePage() {
                                 padding: 6,
                               }}
                             >
-                              {a.doctorId ?? "-"}
+                              {formatDoctorName(a.doctor)}
                             </td>
                             <td
                               style={{
@@ -3062,6 +3071,32 @@ export default function PatientProfilePage() {
                               }}
                             >
                               {displayOrDash(a.notes ?? null)}
+                            </td>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {a.status === "completed" && (
+                                <button
+                                  onClick={() => {
+                                    setReportAppointmentId(a.id);
+                                    setReportModalOpen(true);
+                                  }}
+                                  style={{
+                                    padding: "4px 8px",
+                                    fontSize: 12,
+                                    background: "#3b82f6",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: 4,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Үзэх
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))}
