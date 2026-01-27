@@ -2805,6 +2805,15 @@ export default function PatientProfilePage() {
                     background: "white",
                   }}
                 >
+                  <h2
+                    style={{
+                      fontSize: 16,
+                      marginTop: 0,
+                      marginBottom: 12,
+                    }}
+                  >
+                    Гажиг заслын карт
+                  </h2>
                   <OrthoCardView />
                 </div>
               )}
