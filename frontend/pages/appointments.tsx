@@ -1760,7 +1760,7 @@ function QuickAppointmentModal({
                     fontWeight: 600,
                     cursor: "pointer",
                   }}
-                  title="Шинэ үйлчлэгч хурдан бүртгэх"
+                  title="Шинэ үйлчлүүлэгчийн бүртгэл"
                 >
                   +
                 </button>
@@ -2038,7 +2038,7 @@ function QuickAppointmentModal({
                 onClick={(e) => e.stopPropagation()}
               >
                 <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 15 }}>
-                  Шинэ үйлчлүүлэгч хурдан бүртгэх
+                  Шинэ үйлчлүүлэгчийн бүртгэл
                 </h3>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -2612,7 +2612,7 @@ if (quickPatientForm.regNo.trim()) {
 
     if (!selectedPatientId) {
       setError(
-        "Үйлчлүүлэгчийг жагсаалтаас сонгох эсвэл + товчоор шинээр бүртгэнэ үү."
+        "Үйлчлүүлэгчийг жагсаалтаас хайх эсвэл + товчоор шинэ бүртгэнэ үү."
       );
       return;
     }
@@ -2797,7 +2797,7 @@ if (quickPatientForm.regNo.trim()) {
         <div style={{ display: "flex", gap: 6 }}>
           <input
             name="patientQuery"
-            placeholder="РД, овог, нэр эсвэл утас..."
+            placeholder="РД, овог, нэр утсаар хайх"
             value={form.patientQuery}
             onChange={handleChange}
             autoComplete="off"
@@ -2827,7 +2827,7 @@ if (quickPatientForm.regNo.trim()) {
               fontWeight: 600,
               cursor: "pointer",
             }}
-            title="Шинэ үйлчлэгч хурдан бүртгэх"
+            title="Шинэ үйлчлүүлэгчийн бүртгэл"
           >
             +
           </button>
@@ -2890,7 +2890,7 @@ if (quickPatientForm.regNo.trim()) {
             padding: "6px 8px",
           }}
         >
-          <option value="">Ажиллах эмч сонгох</option>
+          <option value="">Эмч сонгох</option>
           {workingDoctors.map((d) => (
             <option key={d.id} value={d.id}>
               {formatDoctorName(d)}
@@ -3073,7 +3073,7 @@ if (quickPatientForm.regNo.trim()) {
             }}
           >
             <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 15 }}>
-              Шинэ үйлчлүүлэгч хурдан бүртгэх
+              Шинэ үйлчлүүлэгчийн бүртгэл
             </h3>
             <p
               style={{
