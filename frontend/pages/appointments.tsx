@@ -1880,7 +1880,7 @@ function QuickAppointmentModal({
                 padding: "6px 8px",
               }}
             >
-              <option value="">Эхлэх цаг сонгох</option>
+              <option value="">Эхлэх цаг</option>
               {popupStartSlots.map((slot) => (
                 <option key={slot.value} value={slot.value}>
                   {slot.label}
@@ -1903,7 +1903,7 @@ function QuickAppointmentModal({
                 padding: "6px 8px",
               }}
             >
-              <option value="">Дуусах цаг сонгох</option>
+              <option value="">Дуусах цаг</option>
               {popupEndSlots.map((slot) => (
                 <option key={slot.value} value={slot.value}>
                   {slot.label}
@@ -2941,7 +2941,7 @@ if (quickPatientForm.regNo.trim()) {
             padding: "6px 8px",
           }}
         >
-          <option value="">Эхлэх цаг сонгох</option>
+          <option value="">Эхлэх цаг</option>
           {dayStartSlots.map((slot) => (
             <option key={slot.value} value={slot.value}>
               {slot.label}
@@ -2967,7 +2967,7 @@ if (quickPatientForm.regNo.trim()) {
             padding: "6px 8px",
           }}
         >
-          <option value="">Дуусах цаг сонгох</option>
+          <option value="">Дуусах цаг</option>
           {dayEndSlots.map((slot) => (
             <option key={slot.value} value={slot.value}>
               {slot.label}
