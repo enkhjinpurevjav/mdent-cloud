@@ -3082,8 +3082,8 @@ if (quickPatientForm.regNo.trim()) {
                 color: "#6b7280",
               }}
             >
-              Зөвхөн нэр, утас болон салбарыг бүртгэнэ. Дэлгэрэнгүй мэдээллийг
-              дараа нь &quot;Үйлчлүүлэгчийн бүртгэл&quot; хэсгээс засварлана.
+              Доорхи мэдээллийг заавал бөглөнө үү
+              
             </p>
             <div
   style={{
@@ -3105,7 +3105,7 @@ if (quickPatientForm.regNo.trim()) {
       name="ovog"
       value={quickPatientForm.ovog}
       onChange={handleQuickPatientChange}
-      placeholder="Ж: Бат"
+      placeholder="Овог оруулна уу"
       style={{
         borderRadius: 6,
         border: "1px solid #d1d5db",
@@ -3127,7 +3127,7 @@ if (quickPatientForm.regNo.trim()) {
       name="name"
       value={quickPatientForm.name}
       onChange={handleQuickPatientChange}
-      placeholder="Ж: Болд"
+      placeholder="Нэр оруулна уу"
       style={{
         borderRadius: 6,
         border: "1px solid #d1d5db",
@@ -3149,7 +3149,7 @@ if (quickPatientForm.regNo.trim()) {
       name="phone"
       value={quickPatientForm.phone}
       onChange={handleQuickPatientChange}
-      placeholder="Ж: 99112233"
+      placeholder="Утас оруулна уу"
       style={{
         borderRadius: 6,
         border: "1px solid #d1d5db",
@@ -3199,7 +3199,7 @@ if (quickPatientForm.regNo.trim()) {
       name="regNo"
       value={quickPatientForm.regNo}
       onChange={handleQuickPatientChange}
-      placeholder="Ж: УБ99112233"
+      placeholder="РД оруулна уу"
       style={{
         borderRadius: 6,
         border: "1px solid #d1d5db",
