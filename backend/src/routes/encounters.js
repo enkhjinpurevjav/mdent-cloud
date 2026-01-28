@@ -1073,8 +1073,35 @@ router.post("/:id/follow-up-appointments", async (req, res) => {
     // This is consistent with the rest of the application's timezone handling.
 
     // Get the date portion for schedule lookup (in local timezone)
-    const slotDate = new Date(slotStart);
-    slotDate.setHours(0, 0, 0, 0);
+    // --- Timezone-safe local day range for Asia/Ulaanbaatar (UTC+8) ---
+const TZ_OFFSET_MINUTES = 8 * 60;
+
+// slotStart is already: const slotStart = new Date(slotStartIso);
+const slotUtcMs = slotStart.getTime();
+
+// Convert the UTC instant into "local wall time" ms by adding +8h,
+// then read its Y/M/D using UTC getters.
+const localMs = slotUtcMs + TZ_OFFSET_MINUTES * 60_000;
+const local = new Date(localMs);
+
+const y = local.getUTCFullYear();
+const m = local.getUTCMonth();
+const d = local.getUTCDate();
+
+// Compute the UTC instant that corresponds to local midnight
+const localMidnightUtcMs = Date.UTC(y, m, d) - TZ_OFFSET_MINUTES * 60_000;
+
+const dayStart = new Date(localMidnightUtcMs);
+const dayEnd = new Date(localMidnightUtcMs + 24 * 60 * 60_000);
+
+// Also compute slot time in local minutes for schedule window comparison
+const slotHourLocal = local.getUTCHours();
+const slotMinuteLocal = local.getUTCMinutes();
+const slotMinutes = slotHourLocal * 60 + slotMinuteLocal;
+
+const slotTimeString = `${String(slotHourLocal).padStart(2, "0")}:${String(
+  slotMinuteLocal
+).padStart(2, "0")}`;
 
     // Find all schedules for this doctor on this date
     const schedules = await prisma.doctorSchedule.findMany({
