@@ -17,6 +17,7 @@ const ALLOWED_STATUSES = [
   "online",
   "ongoing",
   "ready_to_pay", // Төлбөр төлөхөд бэлэн
+  "partial_paid", // Үлдэгдэлтэй
   "completed",
   "cancelled",
   "no_show",
@@ -46,6 +47,11 @@ function normalizeStatusForDb(raw) {
     case "readytopay":
     case "ready-to-pay":
       return "ready_to_pay";
+
+    case "partial_paid":
+    case "partialpaid":
+    case "partial-paid":
+      return "partial_paid";
 
     case "completed":
       return "completed";

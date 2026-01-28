@@ -61,6 +61,8 @@ export default function CompletedVisitsPage() {
         showStatusFilter={true}
         statuses={[
           { value: "COMPLETED", label: "Дууссан" },
+          { value: "READY_TO_PAY", label: "Төлбөр төлөх" },
+          { value: "PARTIAL_PAID", label: "Үлдэгдэлтэй" },
           { value: "CANCELLED", label: "Цуцлагдсан" },
         ]}
         branches={branches}

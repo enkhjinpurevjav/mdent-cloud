@@ -437,6 +437,20 @@ export default function AppointmentDetailsModal({
                               Төлбөр авах
                             </span>
                           )}
+                          {a.status === "partial_paid" && (
+                            <span
+                              style={{
+                                padding: "2px 6px",
+                                borderRadius: 999,
+                                background: "#fbbf24",
+                                color: "white",
+                                fontSize: 10,
+                                fontWeight: 600,
+                              }}
+                            >
+                              Үлдэгдэлтэй
+                            </span>
+                          )}
                         </div>
                        
                       </div>
@@ -502,7 +516,7 @@ export default function AppointmentDetailsModal({
                           </button>
                         )}
 
-                        {a.status === "ready_to_pay" && (
+                        {(a.status === "ready_to_pay" || a.status === "partial_paid") && (
                           <button
                             type="button"
                             onClick={() =>
@@ -523,7 +537,8 @@ export default function AppointmentDetailsModal({
                         )}
 
                         {!canStartEncounter &&
-                          a.status !== "ready_to_pay" && (
+                          a.status !== "ready_to_pay" &&
+                          a.status !== "partial_paid" && (
                             <span
                               style={{
                                 fontSize: 11,
@@ -565,6 +580,7 @@ export default function AppointmentDetailsModal({
           <option value="online">Онлайн</option>
           <option value="ongoing">Явагдаж байна</option>
           <option value="ready_to_pay">Төлбөр төлөх</option>
+          <option value="partial_paid">Үлдэгдэлтэй</option>
           <option value="completed">Дууссан</option>
           <option value="no_show">Ирээгүй</option>
           <option value="cancelled">Цуцалсан</option>
