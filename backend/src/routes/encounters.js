@@ -1114,10 +1114,7 @@ const slotTimeString = `${String(slotHourLocal).padStart(2, "0")}:${String(
       });
     }
 
-    // Extract time components from slotStart for comparison
-    const slotHour = slotStart.getHours();
-    const slotMinute = slotStart.getMinutes();
-    const slotTimeString = `${slotHour.toString().padStart(2, "0")}:${slotMinute.toString().padStart(2, "0")}`;
+
 
     // Find the schedule that contains this time slot
     // Schedule times are stored as strings like "09:00", "17:00"
@@ -1145,7 +1142,7 @@ const slotTimeString = `${String(slotHourLocal).padStart(2, "0")}:${String(
       // Convert to comparable time values (minutes from midnight)
       const scheduleStartMinutes = startHour * 60 + startMin;
       const scheduleEndMinutes = endHour * 60 + endMin;
-      const slotMinutes = slotHour * 60 + slotMinute;
+      // const slotMinutes = slotHour * 60 + slotMinute;
 
       // Check if slot is within schedule window: startTime <= slotTime < endTime
       if (slotMinutes >= scheduleStartMinutes && slotMinutes < scheduleEndMinutes) {
