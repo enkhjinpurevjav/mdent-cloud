@@ -109,6 +109,7 @@ router.post("/:id/settlement", async (req, res) => {
             patientBook: {
               include: { patient: true },
             },
+            appointment: true,
           },
         },
       },
@@ -116,6 +117,18 @@ router.post("/:id/settlement", async (req, res) => {
 
     if (!invoice) {
       return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    // Settlement gating: validate appointment status
+    if (invoice.encounter?.appointment) {
+      const appointmentStatus = invoice.encounter.appointment.status;
+      const allowedStatuses = ["ready_to_pay", "partial_paid"];
+      
+      if (!allowedStatuses.includes(appointmentStatus)) {
+        return res.status(400).json({
+          error: `Settlement not allowed for appointment status "${appointmentStatus}". Only "ready_to_pay" and "partial_paid" statuses can accept payment.`,
+        });
+      }
     }
 
     // Financial base amount to settle against
@@ -462,6 +475,25 @@ router.post("/:id/settlement", async (req, res) => {
           eBarimtReceipt: true,
         },
       });
+
+      // 6) Update appointment status based on payment totals
+      if (invoice.encounter?.appointmentId) {
+        let newAppointmentStatus;
+        
+        if (paidTotal === 0) {
+          newAppointmentStatus = "ready_to_pay";
+        } else if (paidTotal >= baseAmount) {
+          newAppointmentStatus = "completed";
+        } else {
+          // 0 < paidTotal < baseAmount
+          newAppointmentStatus = "partial_paid";
+        }
+
+        await trx.appointment.update({
+          where: { id: invoice.encounter.appointmentId },
+          data: { status: newAppointmentStatus },
+        });
+      }
 
       return { updatedInvoice, paidTotal };
     });

@@ -103,6 +103,8 @@ export function formatStatus(status: string): string {
       return "Явж байна";
     case "ready_to_pay":
       return "Төлбөр төлөх";
+    case "partial_paid":
+      return "Үлдэгдэлтэй";
     case "completed":
       return "Дууссан";
     case "no_show":
