@@ -1003,6 +1003,86 @@ router.put("/:id/diagnoses", async (req, res) => {
 });
 
 /**
+ * PUT /api/encounters/:id/diagnoses/:diagnosisId/sterilization-indicators
+ * Body: { indicatorIds: number[] }
+ *
+ * Replaces sterilization indicators for a single EncounterDiagnosis row.
+ */
+router.put("/:id/diagnoses/:diagnosisId/sterilization-indicators", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    const diagnosisRowId = Number(req.params.diagnosisId);
+
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
+    if (!diagnosisRowId || Number.isNaN(diagnosisRowId)) {
+      return res.status(400).json({ error: "Invalid diagnosis id" });
+    }
+
+    const { indicatorIds } = req.body || {};
+    if (!Array.isArray(indicatorIds)) {
+      return res.status(400).json({ error: "indicatorIds must be an array" });
+    }
+
+    const ids = indicatorIds
+      .map((x) => Number(x))
+      .filter((n) => Number.isFinite(n) && n > 0);
+
+    // Ensure this diagnosis row belongs to this encounter
+    const row = await prisma.encounterDiagnosis.findFirst({
+      where: { id: diagnosisRowId, encounterId },
+      select: { id: true },
+    });
+    if (!row) {
+      return res.status(404).json({ error: "EncounterDiagnosis not found for this encounter" });
+    }
+
+    await prisma.$transaction(async (trx) => {
+      await trx.encounterDiagnosisSterilizationIndicator.deleteMany({
+        where: { encounterDiagnosisId: diagnosisRowId },
+      });
+
+      if (ids.length) {
+        const existing = await trx.sterilizationIndicator.findMany({
+          where: { id: { in: ids } },
+          select: { id: true },
+        });
+        const ok = new Set(existing.map((x) => x.id));
+
+        for (const id of ids) {
+          if (!ok.has(id)) continue;
+          await trx.encounterDiagnosisSterilizationIndicator.create({
+            data: { encounterDiagnosisId: diagnosisRowId, indicatorId: id },
+          });
+        }
+      }
+    });
+
+    // Return updated diagnosis row with indicators
+    const updated = await prisma.encounterDiagnosis.findUnique({
+      where: { id: diagnosisRowId },
+      include: {
+        diagnosis: true,
+        sterilizationIndicators: {
+          include: {
+            indicator: { select: { id: true, packageName: true, code: true, branchId: true } },
+          },
+        },
+      },
+    });
+
+    return res.json(updated);
+  } catch (err) {
+    console.error(
+      "PUT /api/encounters/:id/diagnoses/:diagnosisId/sterilization-indicators error:",
+      err
+    );
+    return res.status(500).json({ error: "Failed to save sterilization indicators" });
+  }
+});
+
+/**
  * POST /api/encounters/:id/follow-up-appointments
  * Create a follow-up appointment with correct branch assignment.
  * The branchId is derived from the doctor's schedule for the selected date/time.
