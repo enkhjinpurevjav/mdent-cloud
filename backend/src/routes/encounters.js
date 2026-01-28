@@ -524,8 +524,17 @@ router.put("/:id/services", async (req, res) => {
   }
 
   try {
+    // SAFETY: empty payload must not wipe everything
+    if (items.length === 0) {
+      const current = await prisma.encounterService.findMany({
+        where: { encounterId },
+        include: { service: true },
+        orderBy: { id: "asc" },
+      });
+      return res.json(current);
+    }
+
     await prisma.$transaction(async (trx) => {
-      // Which diagnosis rows are being updated in this request?
       const diagnosisRowIds = Array.from(
         new Set(
           items
@@ -534,8 +543,7 @@ router.put("/:id/services", async (req, res) => {
         )
       );
 
-      // Delete only services belonging to those diagnosis rows.
-      // (We store diagnosisId in meta.diagnosisId when creating encounterService)
+      // Delete only services for the diagnosis row(s) in payload
       if (diagnosisRowIds.length > 0) {
         await trx.encounterService.deleteMany({
           where: {
@@ -546,18 +554,16 @@ router.put("/:id/services", async (req, res) => {
           },
         });
       } else {
-        // If frontend sends no diagnosisId (rare), do NOT wipe anything.
-        // We only add new items below.
+        // If no diagnosisId in payload, don't delete anything (avoid mass wipe)
       }
 
-      // Recreate services from payload
       for (const item of items) {
         const serviceId = Number(item.serviceId);
         if (!Number.isFinite(serviceId) || serviceId <= 0) continue;
 
         const svc = await trx.service.findUnique({
           where: { id: serviceId },
-          select: { price: true, category: true },
+          select: { price: true },
         });
         if (!svc) continue;
 
