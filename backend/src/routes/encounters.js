@@ -1078,10 +1078,7 @@ router.post("/:id/follow-up-appointments", async (req, res) => {
 
     // Find all schedules for this doctor on this date
     const schedules = await prisma.doctorSchedule.findMany({
-      where: {
-        doctorId: doctorId,
-        date: slotDate,
-      },
+      where: { doctorId, date: { gte: dayStart, lt: dayEnd } },
     });
 
     if (schedules.length === 0) {
