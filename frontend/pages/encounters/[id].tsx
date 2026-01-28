@@ -1082,21 +1082,13 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
   setFollowUpSuccess("");
 
   try {
-    const startDate = new Date(slotStartIso);
-    const endDate = new Date(startDate.getTime() + durationMinutes * 60_000);
-
-    // Send the appointment booking request
-    const res = await fetch("/api/appointments", {
+    // Use the new dedicated endpoint that derives branchId from doctor's schedule
+    const res = await fetch(`/api/encounters/${encounter.id}/follow-up-appointments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        patientId: encounter.patientBook.patient.id,
-        doctorId: encounter.doctorId,
-        branchId: encounter.patientBook.patient.branchId,
-        scheduledAt: startDate.toISOString(),
-        endAt: endDate.toISOString(),
-        status: "booked",
-        notes: `Давтан үзлэг — Encounter #${encounter.id}`,
+        slotStartIso: slotStartIso,
+        durationMinutes: durationMinutes,
       }),
     });
 
@@ -1135,19 +1127,14 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
       const [hh, mm] = params.time.split(":").map(Number);
       const [y, m, d] = params.date.split("-").map(Number);
       const startDate = new Date(y, m - 1, d, hh, mm, 0, 0);
-      const endDate = new Date(startDate.getTime() + params.durationMinutes * 60000);
 
-      const res = await fetch("/api/appointments", {
+      // Use the new dedicated endpoint that derives branchId from doctor's schedule
+      const res = await fetch(`/api/encounters/${encounter.id}/follow-up-appointments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          patientId: encounter.patientBook.patient.id,
-          doctorId: encounter.doctorId,
-          branchId: encounter.patientBook.patient.branchId,
-          scheduledAt: startDate.toISOString(),
-          endAt: endDate.toISOString(),
-          status: "booked",
-          notes: `Давтан үзлэг — Encounter #${encounter.id}`,
+          slotStartIso: startDate.toISOString(),
+          durationMinutes: params.durationMinutes,
         }),
       });
 
