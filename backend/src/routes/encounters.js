@@ -1027,10 +1027,13 @@ router.post("/:id/follow-up-appointments", async (req, res) => {
       return res.status(400).json({ error: "slotStartIso is invalid date" });
     }
 
-    // Default duration to 30 minutes if not provided
-    const duration = durationMinutes || 30;
-    if (typeof duration !== "number" || duration <= 0) {
-      return res.status(400).json({ error: "durationMinutes must be a positive number" });
+    // Validate and set duration
+    let duration = 30; // default
+    if (durationMinutes !== undefined && durationMinutes !== null) {
+      if (typeof durationMinutes !== "number" || durationMinutes <= 0) {
+        return res.status(400).json({ error: "durationMinutes must be a positive number" });
+      }
+      duration = durationMinutes;
     }
 
     // Calculate end time
@@ -1056,10 +1059,20 @@ router.post("/:id/follow-up-appointments", async (req, res) => {
       return res.status(400).json({ error: "Encounter has no doctor assigned" });
     }
 
+    // Validate patient data is available
+    if (!encounter.patientBook?.patient) {
+      return res.status(400).json({ error: "Encounter has no patient assigned" });
+    }
+
     const patientId = encounter.patientBook.patient.id;
     const doctorId = encounter.doctorId;
 
-    // Get the date portion for schedule lookup
+    // NOTE: Timezone handling - Server operates in local timezone (Asia/Ulaanbaatar)
+    // The slotStart date comes from the client as ISO string, but we use local time methods
+    // (getHours, getMinutes) for comparison with DoctorSchedule times which are also in local time.
+    // This is consistent with the rest of the application's timezone handling.
+
+    // Get the date portion for schedule lookup (in local timezone)
     const slotDate = new Date(slotStart);
     slotDate.setHours(0, 0, 0, 0);
 
@@ -1086,9 +1099,24 @@ router.post("/:id/follow-up-appointments", async (req, res) => {
     // Schedule times are stored as strings like "09:00", "17:00"
     let matchingSchedule = null;
     for (const schedule of schedules) {
-      // Parse schedule times
-      const [startHour, startMin] = schedule.startTime.split(":").map(Number);
-      const [endHour, endMin] = schedule.endTime.split(":").map(Number);
+      // Parse schedule times - validate format
+      const startParts = schedule.startTime.split(":");
+      const endParts = schedule.endTime.split(":");
+      
+      if (startParts.length !== 2 || endParts.length !== 2) {
+        console.warn(`Invalid schedule time format: ${schedule.startTime} - ${schedule.endTime}`);
+        continue;
+      }
+
+      const startHour = Number(startParts[0]);
+      const startMin = Number(startParts[1]);
+      const endHour = Number(endParts[0]);
+      const endMin = Number(endParts[1]);
+
+      if (Number.isNaN(startHour) || Number.isNaN(startMin) || Number.isNaN(endHour) || Number.isNaN(endMin)) {
+        console.warn(`Invalid schedule time values: ${schedule.startTime} - ${schedule.endTime}`);
+        continue;
+      }
 
       // Convert to comparable time values (minutes from midnight)
       const scheduleStartMinutes = startHour * 60 + startMin;
