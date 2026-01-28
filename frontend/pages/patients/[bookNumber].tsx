@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import SignaturePad from "../../components/SignaturePad";
 import ChildVisitCardForm from "../../components/ChildVisitCardForm";
 import OrthoCardView from "./OrthoCardView";
+import EncounterReportModal from "../../components/patients/EncounterReportModal";
 
 type Branch = {
   id: number;
@@ -168,6 +169,15 @@ type Appointment = {
   scheduledAt: string;
   status: string;
   notes?: string | null;
+  branch?: {
+    id: number;
+    name: string;
+  } | null;
+  doctor?: {
+    id: number;
+    name?: string | null;
+    ovog?: string | null;
+  } | null;
 };
 
 type PatientProfileResponse = {
@@ -216,6 +226,16 @@ function formatDisplayName(patient: Patient) {
   return name;
 }
 
+function formatDoctorName(doctor?: { name?: string | null; ovog?: string | null } | null) {
+  if (!doctor) return "-";
+  const name = doctor.name || "";
+  const ovog = (doctor.ovog || "").trim();
+  if (ovog && name) {
+    return `${ovog} ${name}`;
+  }
+  return name || ovog || "-";
+}
+
 export default function PatientProfilePage() {
   const router = useRouter();
   const { bookNumber } = router.query;
@@ -241,6 +261,10 @@ export default function PatientProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState("");
+
+  // Encounter report modal state
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportAppointmentId, setReportAppointmentId] = useState<number | null>(null);
 
   // Load main profile
   useEffect(() => {
@@ -1404,7 +1428,7 @@ export default function PatientProfilePage() {
                               padding: 6,
                             }}
                           >
-                            Салбар ID
+                            Салбар
                           </th>
                           <th
                             style={{
@@ -1413,7 +1437,7 @@ export default function PatientProfilePage() {
                               padding: 6,
                             }}
                           >
-                            Эмч ID
+                            Эмч
                           </th>
                           <th
                             style={{
@@ -1432,6 +1456,15 @@ export default function PatientProfilePage() {
                             }}
                           >
                             Тэмдэглэл
+                          </th>
+                          <th
+                            style={{
+                              textAlign: "left",
+                              borderBottom: "1px solid #e5e7eb",
+                              padding: 6,
+                            }}
+                          >
+                            Үйлдэл
                           </th>
                         </tr>
                       </thead>
@@ -1452,7 +1485,7 @@ export default function PatientProfilePage() {
                                 padding: 6,
                               }}
                             >
-                              {a.branchId}
+                              {a.branch?.name || "-"}
                             </td>
                             <td
                               style={{
@@ -1460,7 +1493,7 @@ export default function PatientProfilePage() {
                                 padding: 6,
                               }}
                             >
-                              {a.doctorId ?? "-"}
+                              {formatDoctorName(a.doctor)}
                             </td>
                             <td
                               style={{
@@ -1477,6 +1510,32 @@ export default function PatientProfilePage() {
                               }}
                             >
                               {displayOrDash(a.notes ?? null)}
+                            </td>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {a.status === "completed" && (
+                                <button
+                                  onClick={() => {
+                                    setReportAppointmentId(a.id);
+                                    setReportModalOpen(true);
+                                  }}
+                                  style={{
+                                    padding: "4px 8px",
+                                    fontSize: 12,
+                                    background: "#3b82f6",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: 4,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Үзэх
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -2925,7 +2984,7 @@ export default function PatientProfilePage() {
                             padding: 6,
                           }}
                         >
-                          Салбар ID
+                          Салбар
                         </th>
                         <th
                           style={{
@@ -2934,7 +2993,7 @@ export default function PatientProfilePage() {
                             padding: 6,
                           }}
                         >
-                          Эмч ID
+                          Эмч
                         </th>
                         <th
                           style={{
@@ -2953,6 +3012,15 @@ export default function PatientProfilePage() {
                           }}
                         >
                           Тэмдэглэл
+                        </th>
+                        <th
+                          style={{
+                            textAlign: "left",
+                            borderBottom: "1px solid #e5e7eb",
+                            padding: 6,
+                          }}
+                        >
+                          Үйлдэл
                         </th>
                       </tr>
                     </thead>
@@ -2978,7 +3046,7 @@ export default function PatientProfilePage() {
                                 padding: 6,
                               }}
                             >
-                              {a.branchId}
+                              {a.branch?.name || "-"}
                             </td>
                             <td
                               style={{
@@ -2986,7 +3054,7 @@ export default function PatientProfilePage() {
                                 padding: 6,
                               }}
                             >
-                              {a.doctorId ?? "-"}
+                              {formatDoctorName(a.doctor)}
                             </td>
                             <td
                               style={{
@@ -3004,6 +3072,32 @@ export default function PatientProfilePage() {
                             >
                               {displayOrDash(a.notes ?? null)}
                             </td>
+                            <td
+                              style={{
+                                borderBottom: "1px solid #f3f4f6",
+                                padding: 6,
+                              }}
+                            >
+                              {a.status === "completed" && (
+                                <button
+                                  onClick={() => {
+                                    setReportAppointmentId(a.id);
+                                    setReportModalOpen(true);
+                                  }}
+                                  style={{
+                                    padding: "4px 8px",
+                                    fontSize: 12,
+                                    background: "#3b82f6",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: 4,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Үзэх
+                                </button>
+                              )}
+                            </td>
                           </tr>
                         ))}
                     </tbody>
@@ -3014,6 +3108,16 @@ export default function PatientProfilePage() {
           )}
         </>
       )}
+
+      {/* Encounter Report Modal */}
+      <EncounterReportModal
+        open={reportModalOpen}
+        onClose={() => {
+          setReportModalOpen(false);
+          setReportAppointmentId(null);
+        }}
+        appointmentId={reportAppointmentId}
+      />
     </main>
   );
 }
