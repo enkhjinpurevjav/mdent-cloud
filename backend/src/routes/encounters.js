@@ -1002,4 +1002,170 @@ router.put("/:id/diagnoses", async (req, res) => {
   }
 });
 
+/**
+ * POST /api/encounters/:id/follow-up-appointments
+ * Create a follow-up appointment with correct branch assignment.
+ * The branchId is derived from the doctor's schedule for the selected date/time.
+ */
+router.post("/:id/follow-up-appointments", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.id);
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
+
+    const { slotStartIso, durationMinutes } = req.body || {};
+
+    // Validate required fields
+    if (!slotStartIso) {
+      return res.status(400).json({ error: "slotStartIso is required" });
+    }
+
+    // Parse and validate slot start time
+    const slotStart = new Date(slotStartIso);
+    if (Number.isNaN(slotStart.getTime())) {
+      return res.status(400).json({ error: "slotStartIso is invalid date" });
+    }
+
+    // Validate and set duration
+    let duration = 30; // default
+    if (durationMinutes !== undefined && durationMinutes !== null) {
+      if (typeof durationMinutes !== "number" || durationMinutes <= 0) {
+        return res.status(400).json({ error: "durationMinutes must be a positive number" });
+      }
+      duration = durationMinutes;
+    }
+
+    // Calculate end time
+    const slotEnd = new Date(slotStart.getTime() + duration * 60_000);
+
+    // Load encounter to get patientId and doctorId
+    const encounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      include: {
+        patientBook: {
+          include: {
+            patient: true,
+          },
+        },
+      },
+    });
+
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    if (!encounter.doctorId) {
+      return res.status(400).json({ error: "Encounter has no doctor assigned" });
+    }
+
+    // Validate patient data is available
+    if (!encounter.patientBook?.patient) {
+      return res.status(400).json({ error: "Encounter has no patient assigned" });
+    }
+
+    const patientId = encounter.patientBook.patient.id;
+    const doctorId = encounter.doctorId;
+
+    // NOTE: Timezone handling - Server operates in local timezone (Asia/Ulaanbaatar)
+    // The slotStart date comes from the client as ISO string, but we use local time methods
+    // (getHours, getMinutes) for comparison with DoctorSchedule times which are also in local time.
+    // This is consistent with the rest of the application's timezone handling.
+
+    // Get the date portion for schedule lookup (in local timezone)
+    const slotDate = new Date(slotStart);
+    slotDate.setHours(0, 0, 0, 0);
+
+    // Find all schedules for this doctor on this date
+    const schedules = await prisma.doctorSchedule.findMany({
+      where: {
+        doctorId: doctorId,
+        date: slotDate,
+      },
+    });
+
+    if (schedules.length === 0) {
+      return res.status(400).json({
+        error: "No schedule found for this doctor on the selected date",
+      });
+    }
+
+    // Extract time components from slotStart for comparison
+    const slotHour = slotStart.getHours();
+    const slotMinute = slotStart.getMinutes();
+    const slotTimeString = `${slotHour.toString().padStart(2, "0")}:${slotMinute.toString().padStart(2, "0")}`;
+
+    // Find the schedule that contains this time slot
+    // Schedule times are stored as strings like "09:00", "17:00"
+    let matchingSchedule = null;
+    for (const schedule of schedules) {
+      // Parse schedule times - validate format
+      const startParts = schedule.startTime.split(":");
+      const endParts = schedule.endTime.split(":");
+      
+      if (startParts.length !== 2 || endParts.length !== 2) {
+        console.warn(`Invalid schedule time format: ${schedule.startTime} - ${schedule.endTime}`);
+        continue;
+      }
+
+      const startHour = Number(startParts[0]);
+      const startMin = Number(startParts[1]);
+      const endHour = Number(endParts[0]);
+      const endMin = Number(endParts[1]);
+
+      if (Number.isNaN(startHour) || Number.isNaN(startMin) || Number.isNaN(endHour) || Number.isNaN(endMin)) {
+        console.warn(`Invalid schedule time values: ${schedule.startTime} - ${schedule.endTime}`);
+        continue;
+      }
+
+      // Convert to comparable time values (minutes from midnight)
+      const scheduleStartMinutes = startHour * 60 + startMin;
+      const scheduleEndMinutes = endHour * 60 + endMin;
+      const slotMinutes = slotHour * 60 + slotMinute;
+
+      // Check if slot is within schedule window: startTime <= slotTime < endTime
+      if (slotMinutes >= scheduleStartMinutes && slotMinutes < scheduleEndMinutes) {
+        matchingSchedule = schedule;
+        break;
+      }
+    }
+
+    if (!matchingSchedule) {
+      return res.status(400).json({
+        error: `Selected time slot ${slotTimeString} is not within any schedule window for this doctor on this date`,
+      });
+    }
+
+    // Use the branch from the matching schedule
+    const branchId = matchingSchedule.branchId;
+
+    // Create the appointment
+    const appointment = await prisma.appointment.create({
+      data: {
+        patientId: patientId,
+        doctorId: doctorId,
+        branchId: branchId,
+        scheduledAt: slotStart,
+        endAt: slotEnd,
+        status: "booked",
+        notes: `Давтан үзлэг — Encounter #${encounterId}`,
+      },
+      include: {
+        patient: {
+          include: {
+            patientBook: true,
+          },
+        },
+        doctor: true,
+        branch: true,
+      },
+    });
+
+    res.status(201).json(appointment);
+  } catch (err) {
+    console.error("Error creating follow-up appointment:", err);
+    res.status(500).json({ error: "Failed to create follow-up appointment" });
+  }
+});
+
 export default router;
