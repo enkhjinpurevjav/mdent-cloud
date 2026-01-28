@@ -50,6 +50,8 @@ function statusLabel(statusRaw: AppointmentStatus | string | null | undefined): 
       return "Явж байна";
     case "ready_to_pay":
       return "Төлбөр төлөх";
+    case "partial_paid":
+      return "Үлдэгдэлтэй";
     case "completed":
       return "Дууссан";
     case "no_show":
@@ -90,6 +92,8 @@ function statusBadgeStyle(statusRaw: AppointmentStatus | string | null | undefin
       return { ...base, background: "#fffbeb", borderColor: "#fcd34d", color: "#92400e" };
     case "ready_to_pay":
       return { ...base, background: "#f5f3ff", borderColor: "#c4b5fd", color: "#5b21b6" };
+    case "partial_paid":
+      return { ...base, background: "#fef3c7", borderColor: "#fbbf24", color: "#92400e" };
     case "completed":
       return { ...base, background: "#ecfdf3", borderColor: "#86efac", color: "#166534" };
     case "no_show":
@@ -115,6 +119,7 @@ const STATUS_ACTIONS: Array<{ s: AppointmentStatus; label: string }> = [
   { s: "online", label: "Онлайн" },
   { s: "ongoing", label: "Явж байна" },
   { s: "ready_to_pay", label: "Төлбөр төлөх" },
+  { s: "partial_paid", label: "Үлдэгдэлтэй" },
   { s: "completed", label: "Дууссан" },
   { s: "no_show", label: "Ирээгүй" },
   { s: "cancelled", label: "Цуцалсан" },

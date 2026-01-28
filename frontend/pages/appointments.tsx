@@ -947,6 +947,7 @@ if (quickPatientForm.regNo.trim()) {
 <option value="online">Онлайн</option>
 <option value="ongoing">Явагдаж байна</option>
 <option value="ready_to_pay">Төлбөр төлөх</option>
+<option value="partial_paid">Үлдэгдэлтэй</option>
 <option value="completed">Дууссан</option>
 <option value="no_show">Ирээгүй</option>
 <option value="cancelled">Цуцалсан</option>
@@ -1735,6 +1736,8 @@ const totalCompletedPatientsForDay = useMemo(() => {
       return "#9d9d9d";
     case "ready_to_pay":
       return "#facc15";
+    case "partial_paid":
+      return "#fbbf24"; // amber/yellow for partial paid
     case "no_show":
       return "#ef4444"; // red
     case "cancelled":
