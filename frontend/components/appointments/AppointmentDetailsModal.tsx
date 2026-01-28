@@ -442,7 +442,7 @@ export default function AppointmentDetailsModal({
                               style={{
                                 padding: "2px 6px",
                                 borderRadius: 999,
-                                background: "#eab308",
+                                background: "#fbbf24",
                                 color: "white",
                                 fontSize: 10,
                                 fontWeight: 600,

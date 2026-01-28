@@ -94,6 +94,8 @@ This logic is enforced server-side in the settlement endpoint.
 
 Attempting to settle an invoice with any other appointment status will return a **400 error**.
 
+**Note**: This validation only applies to invoices linked to appointments. Standalone invoices (without an associated encounter/appointment) can be settled regardless of status, as they don't have an appointment status context.
+
 ### Payment Methods
 
 The system supports multiple payment methods:
