@@ -507,6 +507,10 @@ router.get("/:id/nurses", async (req, res) => {
 
 /**
  * PUT /api/encounters/:id/services
+ * Body: { items: Array<{ serviceId, quantity?, assignedTo?, diagnosisId? }> }
+ *
+ * NOTE: Frontend sends partial updates (only services for edited diagnosis rows),
+ * so we must NOT delete all encounter services.
  */
 router.put("/:id/services", async (req, res) => {
   const encounterId = Number(req.params.id);
@@ -520,46 +524,69 @@ router.put("/:id/services", async (req, res) => {
   }
 
   try {
-  await prisma.$transaction(async (trx) => {
-    await trx.encounterService.deleteMany({
-      where: { encounterId },
+    await prisma.$transaction(async (trx) => {
+      // Which diagnosis rows are being updated in this request?
+      const diagnosisRowIds = Array.from(
+        new Set(
+          items
+            .map((x) => Number(x.diagnosisId))
+            .filter((n) => Number.isFinite(n) && n > 0)
+        )
+      );
+
+      // Delete only services belonging to those diagnosis rows.
+      // (We store diagnosisId in meta.diagnosisId when creating encounterService)
+      if (diagnosisRowIds.length > 0) {
+        await trx.encounterService.deleteMany({
+          where: {
+            encounterId,
+            OR: diagnosisRowIds.map((did) => ({
+              meta: { path: ["diagnosisId"], equals: did },
+            })),
+          },
+        });
+      } else {
+        // If frontend sends no diagnosisId (rare), do NOT wipe anything.
+        // We only add new items below.
+      }
+
+      // Recreate services from payload
+      for (const item of items) {
+        const serviceId = Number(item.serviceId);
+        if (!Number.isFinite(serviceId) || serviceId <= 0) continue;
+
+        const svc = await trx.service.findUnique({
+          where: { id: serviceId },
+          select: { price: true, category: true },
+        });
+        if (!svc) continue;
+
+        await trx.encounterService.create({
+          data: {
+            encounterId,
+            serviceId,
+            quantity: item.quantity ?? 1,
+            price: svc.price,
+            meta: {
+              assignedTo: item.assignedTo ?? "DOCTOR",
+              diagnosisId: item.diagnosisId ?? null,
+            },
+          },
+        });
+      }
     });
 
-    for (const item of items) {
-      if (!item.serviceId) continue;
+    const updated = await prisma.encounterService.findMany({
+      where: { encounterId },
+      include: { service: true },
+      orderBy: { id: "asc" },
+    });
 
-      const svc = await trx.service.findUnique({
-        where: { id: item.serviceId },
-        select: { price: true, category: true },
-      });
-      if (!svc) continue;
-
-      await trx.encounterService.create({
-        data: {
-          encounterId,
-          serviceId: item.serviceId,
-          quantity: item.quantity ?? 1,
-          price: svc.price,
-          meta: {
-            assignedTo: item.assignedTo ?? "DOCTOR",
-            diagnosisId: item.diagnosisId ?? null,
-          },
-        },
-      });
-    }
-  });
-
-  const updated = await prisma.encounterService.findMany({
-    where: { encounterId },
-    include: { service: true },
-    orderBy: { id: "asc" },
-  });
-
-  return res.json(updated);
-} catch (err) {
-  console.error("PUT /api/encounters/:id/services error:", err);
-  return res.status(500).json({ error: "Failed to save services" });
-}
+    return res.json(updated);
+  } catch (err) {
+    console.error("PUT /api/encounters/:id/services error:", err);
+    return res.status(500).json({ error: "Failed to save services" });
+  }
 });
 
 /**
@@ -943,12 +970,7 @@ router.put("/:id/diagnoses", async (req, res) => {
         .filter((n) => Number.isFinite(n) && n > 0);
 
       // delete removed rows (keep the ones we are updating)
-      await trx.encounterDiagnosis.deleteMany({
-        where: {
-          encounterId,
-          ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {}),
-        },
-      });
+    
 
       for (const item of items) {
         // ---- Validate diagnosisId type (to avoid silently dropping selectedProblemIds) ----
