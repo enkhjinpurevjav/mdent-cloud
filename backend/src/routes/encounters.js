@@ -991,8 +991,17 @@ router.put("/:id/diagnoses", async (req, res) => {
 
     const updated = await prisma.encounterDiagnosis.findMany({
       where: { encounterId },
-      include: { diagnosis: true }, // diagnosis will be null when diagnosisId is null
-      orderBy: { id: "asc" },
+      include: {
+  diagnosis: true,
+  sterilizationIndicators: {
+    include: {
+      indicator: {
+        select: { id: true, packageName: true, code: true, branchId: true },
+      },
+    },
+  },
+},
+orderBy: { createdAt: "asc" },
     });
 
     return res.json(updated);
