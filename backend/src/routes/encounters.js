@@ -938,74 +938,101 @@ router.put("/:id/diagnoses", async (req, res) => {
 
   try {
     await prisma.$transaction(async (trx) => {
-  const keepIds = items.map((x) => Number(x.id)).filter((n) => Number.isFinite(n) && n > 0);
+      const keepIds = items
+        .map((x) => Number(x.id))
+        .filter((n) => Number.isFinite(n) && n > 0);
 
-  // delete removed rows (keep the ones we are updating)
-  await trx.encounterDiagnosis.deleteMany({
-    where: {
-      encounterId,
-      ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {}),
-    },
-  });
-
-  for (const item of items) {
-    // normalize diagnosisId
-    let diagnosisIdValue = null;
-    if (item.diagnosisId !== null && item.diagnosisId !== undefined && item.diagnosisId !== "") {
-      const n = Number(item.diagnosisId);
-      diagnosisIdValue = Number.isFinite(n) && n > 0 ? n : null;
-    }
-
-    const toothCode =
-      typeof item.toothCode === "string" && item.toothCode.trim()
-        ? item.toothCode.trim()
-        : null;
-
-    const selectedProblemIdsRaw = Array.isArray(item.selectedProblemIds)
-      ? item.selectedProblemIds.map((id) => Number(id)).filter((n) => Number.isFinite(n) && n > 0)
-      : [];
-
-    const selectedProblemIds = diagnosisIdValue ? selectedProblemIdsRaw : [];
-
-    const data = {
-      encounterId,
-      diagnosisId: diagnosisIdValue,
-      selectedProblemIds,
-      note: item.note ?? null,
-      toothCode,
-    };
-
-    const rowId = Number(item.id);
-    if (Number.isFinite(rowId) && rowId > 0) {
-      // update existing (stable id)
-      await trx.encounterDiagnosis.update({
-        where: { id: rowId },
-        data,
+      // delete removed rows (keep the ones we are updating)
+      await trx.encounterDiagnosis.deleteMany({
+        where: {
+          encounterId,
+          ...(keepIds.length > 0 ? { id: { notIn: keepIds } } : {}),
+        },
       });
-    } else {
-      // create new
-      await trx.encounterDiagnosis.create({ data });
-    }
-  }
-});
+
+      for (const item of items) {
+        // ---- Validate diagnosisId type (to avoid silently dropping selectedProblemIds) ----
+        if (
+          item.diagnosisId !== null &&
+          item.diagnosisId !== undefined &&
+          item.diagnosisId !== ""
+        ) {
+          const n = Number(item.diagnosisId);
+          if (!Number.isFinite(n) || n <= 0) {
+            const err = new Error("diagnosisId must be a numeric ID, not a code string");
+            err.statusCode = 400;
+            err.received = item.diagnosisId;
+            throw err;
+          }
+        }
+
+        // normalize diagnosisId
+        let diagnosisIdValue = null;
+        if (
+          item.diagnosisId !== null &&
+          item.diagnosisId !== undefined &&
+          item.diagnosisId !== ""
+        ) {
+          const n = Number(item.diagnosisId);
+          diagnosisIdValue = Number.isFinite(n) && n > 0 ? n : null;
+        }
+
+        const toothCode =
+          typeof item.toothCode === "string" && item.toothCode.trim()
+            ? item.toothCode.trim()
+            : null;
+
+        const selectedProblemIdsRaw = Array.isArray(item.selectedProblemIds)
+          ? item.selectedProblemIds
+              .map((id) => Number(id))
+              .filter((n) => Number.isFinite(n) && n > 0)
+          : [];
+
+        // Only allow problems when diagnosisId is present
+        const selectedProblemIds = diagnosisIdValue ? selectedProblemIdsRaw : [];
+
+        const data = {
+          encounterId,
+          diagnosisId: diagnosisIdValue,
+          selectedProblemIds,
+          note: item.note ?? null,
+          toothCode,
+        };
+
+        const rowId = Number(item.id);
+        if (Number.isFinite(rowId) && rowId > 0) {
+          // update existing (stable id)
+          await trx.encounterDiagnosis.update({
+            where: { id: rowId },
+            data,
+          });
+        } else {
+          // create new
+          await trx.encounterDiagnosis.create({ data });
+        }
+      }
+    });
 
     const updated = await prisma.encounterDiagnosis.findMany({
       where: { encounterId },
       include: {
-  diagnosis: true,
-  sterilizationIndicators: {
-    include: {
-      indicator: {
-        select: { id: true, packageName: true, code: true, branchId: true },
+        diagnosis: true,
+        sterilizationIndicators: {
+          include: {
+            indicator: {
+              select: { id: true, packageName: true, code: true, branchId: true },
+            },
+          },
+        },
       },
-    },
-  },
-},
-orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "asc" },
     });
 
     return res.json(updated);
   } catch (err) {
+    if (err?.statusCode === 400) {
+      return res.status(400).json({ error: err.message, received: err.received });
+    }
     console.error("PUT /api/encounters/:id/diagnoses failed", err);
     return res.status(500).json({ error: "Failed to save diagnoses" });
   }
