@@ -745,7 +745,15 @@ router.get("/:id/report", async (req, res) => {
         diagnoses: {
           orderBy: { createdAt: "asc" },
           include: {
-            diagnosis: true,
+            diagnosis: {
+              include: {
+                problems: {
+                  where: { active: true },
+                  orderBy: [{ order: "asc" }, { id: "asc" }],
+                  select: { id: true, label: true, order: true, active: true, diagnosisId: true },
+                },
+              },
+            },
             sterilizationIndicators: {
               include: {
                 indicator: {

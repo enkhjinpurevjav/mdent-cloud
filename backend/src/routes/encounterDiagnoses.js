@@ -13,7 +13,17 @@ router.get("/encounters/:id/diagnoses", async (req, res) => {
 
     const rows = await prisma.encounterDiagnosis.findMany({
       where: { encounterId },
-      include: { diagnosis: true },
+      include: {
+        diagnosis: {
+          include: {
+            problems: {
+              where: { active: true },
+              orderBy: [{ order: "asc" }, { id: "asc" }],
+              select: { id: true, label: true, order: true, active: true, diagnosisId: true },
+            },
+          },
+        },
+      },
       orderBy: { createdAt: "asc" },
     });
 
@@ -68,7 +78,17 @@ router.put("/encounters/:id/diagnoses", async (req, res) => {
 
     const updated = await prisma.encounterDiagnosis.findMany({
       where: { encounterId },
-      include: { diagnosis: true },
+      include: {
+        diagnosis: {
+          include: {
+            problems: {
+              where: { active: true },
+              orderBy: [{ order: "asc" }, { id: "asc" }],
+              select: { id: true, label: true, order: true, active: true, diagnosisId: true },
+            },
+          },
+        },
+      },
     });
 
     res.json(updated);
