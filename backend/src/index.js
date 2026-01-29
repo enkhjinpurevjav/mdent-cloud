@@ -32,7 +32,8 @@ import staffIncomeSettingsRouter from "./routes/admin/staffIncomeSettings.js";
 // NEW: diagnoses
 import diagnosesRouter from "./routes/diagnoses.js";
 import diagnosisProblemsRouter from "./routes/diagnosisProblems.js";
-import encounterDiagnosesRouter from "./routes/encounterDiagnoses.js";
+// Legacy encounterDiagnosesRouter is not mounted to avoid route conflicts
+// import encounterDiagnosesRouter from "./routes/encounterDiagnoses.js";
 import receptionRoutes from "./routes/reception.js";
 import regnoRouter from "./routes/regno.js";
 import paymentSettingsRouter from "./routes/payment-settings.js";

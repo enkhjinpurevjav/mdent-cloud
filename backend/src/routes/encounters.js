@@ -52,7 +52,15 @@ router.get("/:id", async (req, res) => {
         nurse: true,
         diagnoses: {
   include: {
-    diagnosis: true,
+    diagnosis: {
+      include: {
+        problems: {
+          where: { active: true },
+          orderBy: [{ order: "asc" }, { id: "asc" }],
+          select: { id: true, label: true, order: true, active: true, diagnosisId: true },
+        },
+      },
+    },
     sterilizationIndicators: {
       include: {
         indicator: {
