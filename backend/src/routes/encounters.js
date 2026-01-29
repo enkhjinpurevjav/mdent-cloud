@@ -509,8 +509,11 @@ router.get("/:id/nurses", async (req, res) => {
  * PUT /api/encounters/:id/services
  * Body: { items: Array<{ serviceId, quantity?, assignedTo?, diagnosisId? }> }
  *
- * NOTE: Frontend sends partial updates (only services for edited diagnosis rows),
- * so we must NOT delete all encounter services.
+ * NOTE: Frontend sends partial updates (only services for edited diagnosis rows).
+ * This endpoint uses SAFE PARTIAL-UPDATE semantics:
+ * - Empty array: returns current services, does not delete anything
+ * - Non-empty array: only deletes/recreates services for diagnosis IDs present in payload
+ * - Services for other diagnosis rows remain unchanged
  */
 router.put("/:id/services", async (req, res) => {
   const encounterId = Number(req.params.id);
@@ -956,7 +959,11 @@ router.post("/:id/media", upload.single("file"), async (req, res) => {
 
 /**
  * PUT /api/encounters/:id/diagnoses
- * Option A: allow saving rows even when diagnosisId is null (draft rows).
+ * Body: { items: Array<{ id?, diagnosisId, selectedProblemIds, note?, toothCode? }> }
+ *
+ * NOTE: Frontend sends partial updates (only diagnosis rows being edited).
+ * This endpoint is NON-DESTRUCTIVE: it only updates/creates rows present in the payload.
+ * Diagnosis rows not included in the payload are left unchanged.
  */
 router.put("/:id/diagnoses", async (req, res) => {
   const encounterId = Number(req.params.id);
@@ -971,13 +978,7 @@ router.put("/:id/diagnoses", async (req, res) => {
 
   try {
     await prisma.$transaction(async (trx) => {
-      const keepIds = items
-        .map((x) => Number(x.id))
-        .filter((n) => Number.isFinite(n) && n > 0);
-
-      // delete removed rows (keep the ones we are updating)
-    
-
+      // PARTIAL UPDATE: only update/create rows in payload, do not delete others
       for (const item of items) {
         // ---- Validate diagnosisId type (to avoid silently dropping selectedProblemIds) ----
         if (
