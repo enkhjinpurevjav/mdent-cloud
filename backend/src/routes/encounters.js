@@ -27,7 +27,15 @@ const upload = multer({ storage });
 
 /**
  * GET /api/encounters/:id
- * Detailed encounter view for admin page / billing.
+ * Returns full encounter details including all nested relations.
+ * 
+ * Diagnosis data returned includes:
+ * - All EncounterDiagnosis rows (with toothCode, note, selectedProblemIds)
+ * - Nested diagnosis with active problems (diagnosis.problems)
+ * - Nested sterilizationIndicators for each diagnosis row
+ * 
+ * This ensures the UI has all data needed to display diagnosis cards after page refresh.
+ * The response aliases 'diagnoses' to 'encounterDiagnoses' to match frontend expectations.
  */
 router.get("/:id", async (req, res) => {
   try {
@@ -969,9 +977,18 @@ router.post("/:id/media", upload.single("file"), async (req, res) => {
  * PUT /api/encounters/:id/diagnoses
  * Body: { items: Array<{ id?, diagnosisId, selectedProblemIds, note?, toothCode? }> }
  *
- * NOTE: Frontend sends partial updates (only diagnosis rows being edited).
- * This endpoint is NON-DESTRUCTIVE: it only updates/creates rows present in the payload.
- * Diagnosis rows not included in the payload are left unchanged.
+ * IMPORTANT: This endpoint is NON-DESTRUCTIVE and preserves all fields.
+ * - If item.id exists: updates the existing EncounterDiagnosis row
+ * - If item.id is missing: creates a new EncounterDiagnosis row
+ * - Rows not in the payload are left unchanged (not deleted)
+ * - All fields are preserved: diagnosisId, toothCode, selectedProblemIds, note
+ * 
+ * This prevents data loss on page refresh. Legacy encounterDiagnosesRouter had a 
+ * destructive deleteMany+recreate pattern that would drop toothCode and other fields.
+ * That route is now removed.
+ *
+ * Returns: Array of all encounter diagnosis rows with nested diagnosis.problems and 
+ * sterilizationIndicators for UI display after save.
  */
 router.put("/:id/diagnoses", async (req, res) => {
   const encounterId = Number(req.params.id);
