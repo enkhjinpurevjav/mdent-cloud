@@ -21,10 +21,17 @@ router.get("/", async (req, res) => {
           }
         : {};
 
-    const list = await prisma.diagnosis.findMany({
-      where,
-      orderBy: { code: "asc" },
-    });
+   const list = await prisma.diagnosis.findMany({
+  where,
+  include: {
+    problems: {
+      where: { active: true },
+      orderBy: [{ order: "asc" }, { id: "asc" }],
+      select: { id: true, label: true, order: true, active: true, diagnosisId: true },
+    },
+  },
+  orderBy: { code: "asc" },
+});
 
     res.json(list);
   } catch (e) {
