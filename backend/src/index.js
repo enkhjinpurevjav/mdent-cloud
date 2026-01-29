@@ -103,7 +103,6 @@ app.use("/api/doctors", doctorsRouter);
 app.use("/api/bookings", bookingsRouter);
 app.use("/api/diagnoses", diagnosesRouter);
 app.use("/api", diagnosisProblemsRouter);
-app.use("/api", encounterDiagnosesRouter);
 app.use("/api/reception", receptionRoutes);
 app.use("/api/staff/summary", staffSummaryRoutes);
 
