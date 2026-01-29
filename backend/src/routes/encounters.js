@@ -1053,7 +1053,15 @@ router.put("/:id/diagnoses", async (req, res) => {
     const updated = await prisma.encounterDiagnosis.findMany({
       where: { encounterId },
       include: {
-        diagnosis: true,
+        diagnosis: {
+          include: {
+            problems: {
+              where: { active: true },
+              orderBy: [{ order: "asc" }, { id: "asc" }],
+              select: { id: true, label: true, order: true, active: true, diagnosisId: true },
+            },
+          },
+        },
         sterilizationIndicators: {
           include: {
             indicator: {
@@ -1136,7 +1144,15 @@ router.put("/:id/diagnoses/:diagnosisId/sterilization-indicators", async (req, r
     const updated = await prisma.encounterDiagnosis.findUnique({
       where: { id: diagnosisRowId },
       include: {
-        diagnosis: true,
+        diagnosis: {
+          include: {
+            problems: {
+              where: { active: true },
+              orderBy: [{ order: "asc" }, { id: "asc" }],
+              select: { id: true, label: true, order: true, active: true, diagnosisId: true },
+            },
+          },
+        },
         sterilizationIndicators: {
           include: {
             indicator: { select: { id: true, packageName: true, code: true, branchId: true } },
