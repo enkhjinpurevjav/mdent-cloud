@@ -1182,8 +1182,10 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
 
   // Delete follow-up appointment handler
   const deleteFollowUpAppointment = async (appointmentId: number) => {
+    if (!encounter) return;
+    
     try {
-      const res = await fetch(`/api/appointments/${appointmentId}`, {
+      const res = await fetch(`/api/appointments/${appointmentId}?encounterId=${encounter.id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
       });
@@ -1777,6 +1779,7 @@ const handleFinishEncounter = async () => {
               doctorId={encounter?.doctorId || undefined}
               currentUserId={encounter?.doctorId || undefined}
               currentUserRole={encounter?.doctorId ? "doctor" : undefined}
+              encounterId={encounter?.id || undefined}
               onReloadAvailability={loadFollowUpAvailability}
             />
           </section>
