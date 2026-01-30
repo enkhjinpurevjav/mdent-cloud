@@ -1,5 +1,6 @@
 import express from "express";
 import prisma from "../db.js";
+import { authenticateJWT } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -274,6 +275,11 @@ const rows = appointments.map((a) => {
     endAt: endIso,
     status: a.status,
     notes: a.notes || null,
+
+    // Provenance fields for deletion permission tracking
+    createdByUserId: a.createdByUserId || null,
+    source: a.source || null,
+    sourceEncounterId: a.sourceEncounterId || null,
 
     patient: patient
       ? {
@@ -819,6 +825,92 @@ router.get("/:id/report", async (req, res) => {
   } catch (err) {
     console.error("GET /api/appointments/:id/report error:", err);
     return res.status(500).json({ error: "Failed to load encounter report" });
+  }
+});
+
+/**
+ * DELETE /api/appointments/:id
+ * 
+ * Deletes an appointment with role-based permissions:
+ * - Doctors can only delete appointments they created from follow-up encounter flow
+ *   that are scheduled in the future
+ * - Admin/receptionist can delete any appointment (broader permissions)
+ */
+router.delete("/:id", authenticateJWT, async (req, res) => {
+  try {
+    const apptId = Number(req.params.id);
+    if (!apptId || Number.isNaN(apptId)) {
+      return res.status(400).json({ error: "Invalid appointment id" });
+    }
+
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+
+    if (!userId || !userRole) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    // Fetch the appointment
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: apptId },
+      select: {
+        id: true,
+        scheduledAt: true,
+        createdByUserId: true,
+        source: true,
+        sourceEncounterId: true,
+      },
+    });
+
+    if (!appointment) {
+      return res.status(404).json({ error: "Appointment not found" });
+    }
+
+    // Role-based authorization
+    if (userRole === "doctor") {
+      // Doctors have restricted delete permissions
+      
+      // Check 1: Must be created by this doctor
+      if (appointment.createdByUserId !== userId) {
+        return res.status(403).json({
+          error: "Та зөвхөн өөрийн үүсгэсэн цагийг устгах боломжтой",
+        });
+      }
+
+      // Check 2: Must be from follow-up encounter source
+      if (appointment.source !== "FOLLOW_UP_ENCOUNTER") {
+        return res.status(403).json({
+          error: "Та зөвхөн давтан үзлэгийн цагийг устгах боломжтой",
+        });
+      }
+
+      // Check 3: Must be scheduled in the future
+      const now = new Date();
+      if (appointment.scheduledAt <= now) {
+        return res.status(403).json({
+          error: "Өнгөрсөн цагийг устгах боломжгүй",
+        });
+      }
+    } else if (userRole !== "admin" && userRole !== "receptionist") {
+      // Other roles are not allowed to delete appointments
+      return res.status(403).json({
+        error: "Танд цаг устгах эрх байхгүй байна",
+      });
+    }
+    // Admin and receptionist can delete any appointment (no additional checks)
+
+    // Delete the appointment
+    await prisma.appointment.delete({
+      where: { id: apptId },
+    });
+
+    return res.json({ success: true, message: "Appointment deleted successfully" });
+  } catch (err) {
+    console.error("DELETE /api/appointments/:id error:", err);
+    if (err.code === "P2025") {
+      return res.status(404).json({ error: "Appointment not found" });
+    }
+    return res.status(500).json({ error: "Failed to delete appointment" });
   }
 });
 

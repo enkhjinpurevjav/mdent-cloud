@@ -2,6 +2,7 @@ import express from "express";
 import prisma from "../db.js";
 import multer from "multer";
 import path from "path";
+import { authenticateJWT } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -1193,7 +1194,7 @@ router.put("/:id/diagnoses/:diagnosisId/sterilization-indicators", async (req, r
  * Create a follow-up appointment with correct branch assignment.
  * The branchId is derived from the doctor's schedule for the selected date/time.
  */
-router.post("/:id/follow-up-appointments", async (req, res) => {
+router.post("/:id/follow-up-appointments", authenticateJWT, async (req, res) => {
   try {
     const encounterId = Number(req.params.id);
     if (!encounterId || Number.isNaN(encounterId)) {
@@ -1415,7 +1416,7 @@ const slotTimeString = `${String(slotHourLocal).padStart(2, "0")}:${String(
       });
     }
 
-    // Create the appointment
+    // Create the appointment with provenance tracking
     const appointment = await prisma.appointment.create({
       data: {
         patientId: patientId,
@@ -1425,6 +1426,10 @@ const slotTimeString = `${String(slotHourLocal).padStart(2, "0")}:${String(
         endAt: slotEnd,
         status: "booked",
         notes: `Давтан үзлэг — Encounter #${encounterId}`,
+        // Provenance fields for deletion permission tracking
+        createdByUserId: req.user?.id || null,
+        source: "FOLLOW_UP_ENCOUNTER",
+        sourceEncounterId: encounterId,
       },
       include: {
         patient: {
