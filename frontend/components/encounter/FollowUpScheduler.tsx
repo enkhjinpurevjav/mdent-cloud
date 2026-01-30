@@ -220,6 +220,11 @@ useEffect(() => {
   }, 500);
 };
 
+  // Constants for grid layout - shared across rendering logic
+  const COL_WIDTH = 80; // Width of each time slot column in pixels
+  const LANE_HEIGHT = 36; // Height per lane for appointment stacking
+  const LANE_PADDING = 2; // Padding between lanes
+
   const renderGrid = () => {
     if (!localAvailability) return null;
     const { days, timeLabels } = localAvailability;
@@ -327,11 +332,6 @@ useEffect(() => {
 
       return { day, appointments: aptWithLanes };
     });
-
-    // Constants for overlay calculations
-    const COL_WIDTH = 80; // min-width from original th/td
-    const LANE_HEIGHT = 36; // height per lane
-    const LANE_PADDING = 2; // padding between lanes
 
     return (
       <div
@@ -544,12 +544,38 @@ useEffect(() => {
                             alignItems: "center",
                           }}
                           title={`${formatGridShortLabel(apt) || "Захиалга"} (${getHmFromIso(apt.scheduledAt)} - ${apt.endAt ? getHmFromIso(apt.endAt) : "—"})`}
-                          onClick={() => {
-                            // Find the slot at the appointment start time
-                            const aptHm = getHmFromIso(apt.scheduledAt);
-                            const slot = day.slots.find((s) => getHmFromIso(s.start) === aptHm);
+                          onClick={(e) => {
+                            // Calculate which time slot was clicked based on click position
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const clickX = e.clientX - rect.left;
+                            const clickedColOffset = Math.floor(clickX / COL_WIDTH);
+                            const clickedCol = apt.span.startCol + clickedColOffset;
+                            
+                            // Get the time label for the clicked column
+                            const clickedTimeLabel = timeLabels[clickedCol] || timeLabels[apt.span.startCol];
+                            
+                            // Find all appointments that overlap at this time
+                            const overlappingAtTime: number[] = [];
+                            for (const a of followUpAppointments) {
+                              if (a.status === "cancelled" || a.status === "no_show" || a.status === "completed") {
+                                continue;
+                              }
+                              const aptDate = new Date(a.scheduledAt).toISOString().split('T')[0];
+                              if (aptDate !== day.date) continue;
+                              
+                              const span = getAppointmentSpan(a);
+                              if (!span) continue;
+                              
+                              // Check if this appointment overlaps the clicked column
+                              if (span.startCol <= clickedCol && span.startCol + span.colSpan > clickedCol) {
+                                overlappingAtTime.push(a.id);
+                              }
+                            }
+                            
+                            // Use the slot at the clicked position for the modal
+                            const slot = day.slots.find((s) => getHmFromIso(s.start) === clickedTimeLabel);
                             if (slot) {
-                              handleBookedSlotClick(slot.appointmentIds || [], day.date, aptHm, slot.start);
+                              handleBookedSlotClick(overlappingAtTime, day.date, clickedTimeLabel, slot.start);
                             }
                           }}
                         >
