@@ -26,3 +26,26 @@ export function authenticateJWT(req, res, next) {
     next();
   });
 }
+
+// Optional JWT Authentication Middleware - does not require auth but populates req.user if present
+export function optionalAuthenticateJWT(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    // No token provided - continue without user
+    req.user = null;
+    return next();
+  }
+
+  const token = authHeader.slice(7).trim();
+
+  jwt.verify(token, process.env.JWT_SECRET || "testsecret", (err, user) => {
+    if (err) {
+      // Invalid token - continue without user
+      console.warn("Invalid JWT token:", err.message);
+      req.user = null;
+    } else {
+      req.user = user;
+    }
+    next();
+  });
+}
