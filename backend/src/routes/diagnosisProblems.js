@@ -13,7 +13,7 @@ router.get("/diagnoses/:id/problems", async (req, res) => {
 
     const problems = await prisma.diagnosisProblem.findMany({
       where: { diagnosisId, active: true },
-      orderBy: { order: "asc" },
+      orderBy: [{ order: "asc" }, { id: "asc" }],
     });
 
     res.json(problems);

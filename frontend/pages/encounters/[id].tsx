@@ -521,6 +521,26 @@ const loadEncounter = async () => {
     setRows(mergedRows);
     setEditableDxRows(mergedRows);
 
+    // Preload problems for all diagnosis IDs in the encounter
+    // ensureProblemsLoaded already handles errors internally
+    const uniqueDiagnosisIds = Array.from(
+      new Set(
+        mergedRows
+          .map((row) => row.diagnosisId)
+          .filter((id): id is number => id != null)
+      )
+    );
+    if (uniqueDiagnosisIds.length > 0) {
+      try {
+        await Promise.all(
+          uniqueDiagnosisIds.map((diagnosisId) => ensureProblemsLoaded(diagnosisId))
+        );
+      } catch (err) {
+        // Log but don't fail the entire load if problem fetching fails
+        console.error("Failed to preload some diagnosis problems", err);
+      }
+    }
+
     // 5) Prescription items
     const rxItems: EditablePrescriptionItem[] =
       enc.prescription?.items?.map((it) => ({
