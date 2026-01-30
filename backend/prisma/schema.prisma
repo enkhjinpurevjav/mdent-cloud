@@ -304,9 +304,10 @@ model User {
   nurseSchedules NurseSchedule[]
   nurseBranches NurseBranch[]
 
-  appointments     Appointment[]
-  bookings         Booking[]
-  employeeBenefits EmployeeBenefit[]
+  appointments        Appointment[]
+  createdAppointments Appointment[] @relation("AppointmentCreator")
+  bookings            Booking[]
+  employeeBenefits    EmployeeBenefit[]
 
   calendarOrder    Int?
 
@@ -418,9 +419,16 @@ model Appointment {
   status      String    @default("booked")
   notes       String?
 
-  patient Patient @relation(fields: [patientId], references: [id])
-  doctor  User?   @relation(fields: [doctorId], references: [id])
-  branch  Branch  @relation(fields: [branchId], references: [id])
+  // Provenance tracking for deletion permissions
+  createdByUserId   Int?
+  source            String? // e.g., 'FOLLOW_UP_ENCOUNTER', 'CALENDAR'
+  sourceEncounterId Int?
+
+  patient       Patient    @relation(fields: [patientId], references: [id])
+  doctor        User?      @relation(fields: [doctorId], references: [id])
+  branch        Branch     @relation(fields: [branchId], references: [id])
+  createdBy     User?      @relation("AppointmentCreator", fields: [createdByUserId], references: [id])
+  sourceEncounter Encounter? @relation("SourceEncounter", fields: [sourceEncounterId], references: [id])
 
   encounters Encounter[]
 
@@ -479,6 +487,7 @@ model Encounter {
   consents                 EncounterConsent[]
   sterilizationPackageUses EncounterSterilizationPackageUse[] @relation("EncounterSterilizationUses")
   employeeBenefitUsages    EmployeeBenefitUsage[]
+  sourceAppointments       Appointment[]                      @relation("SourceEncounter")
 }
 
 model EncounterConsent {

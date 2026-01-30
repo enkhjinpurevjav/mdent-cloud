@@ -1180,6 +1180,35 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     }
   };
 
+  // Delete follow-up appointment handler
+  const deleteFollowUpAppointment = async (appointmentId: number) => {
+    try {
+      const res = await fetch(`/api/appointments/${appointmentId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json.error || "Цаг устгахад алдаа гарлаа");
+      }
+
+      setFollowUpSuccess("Цаг амжилттай устгагдлаа");
+
+      // Refresh the grid state
+      await loadFollowUpAvailability();
+
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => {
+        setFollowUpSuccess("");
+      }, 3000);
+    } catch (err: any) {
+      console.error("deleteFollowUpAppointment failed", err);
+      throw err; // Re-throw so the component can show the error
+    }
+  };
+
   const handleDiagnosisChange = async (
     index: number,
     diagnosisId: number
@@ -1743,8 +1772,11 @@ const handleFinishEncounter = async () => {
               onDateToChange={setFollowUpDateTo}
               onSlotMinutesChange={setFollowUpSlotMinutes}
               onBookAppointment={createFollowUpAppointment}
+              onDeleteAppointment={deleteFollowUpAppointment}
               onQuickCreate={handleQuickCreateAppointment}
               doctorId={encounter?.doctorId || undefined}
+              currentUserId={encounter?.doctorId || undefined}
+              currentUserRole={encounter?.doctorId ? "doctor" : undefined}
               onReloadAvailability={loadFollowUpAvailability}
             />
           </section>

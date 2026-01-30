@@ -31,6 +31,11 @@ type AppointmentLiteForDetails = {
 
   // ✅ add this
   branch?: { id: number; name: string } | null;
+  
+  // Provenance fields for deletion permission tracking
+  createdByUserId?: number | null;
+  source?: string | null;
+  sourceEncounterId?: number | null;
 };
 
 type FollowUpSchedulerProps = {
@@ -48,12 +53,15 @@ type FollowUpSchedulerProps = {
   followUpAppointments?: AppointmentLiteForDetails[];
   followUpNoSchedule?: boolean;
   doctorId?: number; // Add doctorId for QuickAppointmentModal
+  currentUserId?: number; // Current user ID for permission checks
+  currentUserRole?: string; // Current user role for permission checks
 
   onToggleScheduler: (checked: boolean) => void;
   onDateFromChange: (date: string) => void;
   onDateToChange: (date: string) => void;
   onSlotMinutesChange: (minutes: number) => void;
   onBookAppointment: (slotStart: string, durationMinutes?: number) => void;
+  onDeleteAppointment?: (appointmentId: number) => Promise<void>; // Delete handler
 
   onQuickCreate?: (params: { date: string; time: string; durationMinutes: number }) => void;
   onReloadAvailability?: () => void; // Callback to reload availability after creating appointment
@@ -84,11 +92,14 @@ export default function FollowUpScheduler({
   followUpAppointments = [],
   followUpNoSchedule = false,
   doctorId,
+  currentUserId,
+  currentUserRole,
   onToggleScheduler,
   onDateFromChange,
   onDateToChange,
   onSlotMinutesChange,
   onBookAppointment,
+  onDeleteAppointment,
   onQuickCreate,
   onReloadAvailability,
 }: FollowUpSchedulerProps) {
@@ -97,6 +108,7 @@ export default function FollowUpScheduler({
   const [detailsTime, setDetailsTime] = useState<string>("");
   const [detailsSlotStart, setDetailsSlotStart] = useState<string>(""); // ISO string of slot start
   const [detailsAppointmentIds, setDetailsAppointmentIds] = useState<number[]>([]);
+  const [deletingAppointmentId, setDeletingAppointmentId] = useState<number | null>(null);
 
   // Quick create UI (Option 3A)
   const [quickDate, setQuickDate] = useState<string>(followUpDateFrom);
@@ -105,6 +117,46 @@ export default function FollowUpScheduler({
 
   const [slotModalOpen, setSlotModalOpen] = useState<boolean>(false);
   const [selectedSlot, setSelectedSlot] = useState<string>("");
+
+  const handleDeleteAppointment = async (appointmentId: number) => {
+    if (!onDeleteAppointment) return;
+    
+    if (!confirm("Энэ цагийг устгахдаа итгэлтэй байна уу?")) {
+      return;
+    }
+
+    try {
+      setDeletingAppointmentId(appointmentId);
+      await onDeleteAppointment(appointmentId);
+      setDetailsOpen(false);
+      // Reload will happen in parent
+    } catch (err: any) {
+      alert(err?.message || "Цаг устгахад алдаа гарлаа");
+    } finally {
+      setDeletingAppointmentId(null);
+    }
+  };
+
+  // Check if current user can delete an appointment
+  const canDeleteAppointment = (appointment: AppointmentLiteForDetails): boolean => {
+    if (!currentUserId || !currentUserRole) return false;
+    
+    // Admin and receptionist can delete any appointment
+    if (currentUserRole === "admin" || currentUserRole === "receptionist") {
+      return true;
+    }
+    
+    // Doctors can only delete their own follow-up appointments that are in the future
+    if (currentUserRole === "doctor") {
+      const isFutureAppointment = new Date(appointment.scheduledAt) > new Date();
+      const isOwnAppointment = appointment.createdByUserId === currentUserId;
+      const isFollowUpSource = appointment.source === "FOLLOW_UP_ENCOUNTER";
+      
+      return isFutureAppointment && isOwnAppointment && isFollowUpSource;
+    }
+    
+    return false;
+  };
 
   const apptById = useMemo(() => {
     const map = new Map<number, AppointmentLiteForDetails>();
@@ -858,8 +910,30 @@ useEffect(() => {
                 border: "1px solid #e5e7eb",
               }}
             >
-              <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                Захиалга #{idx + 1}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <div style={{ fontWeight: 600 }}>
+                  Захиалга #{idx + 1}
+                </div>
+                {canDeleteAppointment(a) && (
+                  <button
+                    type="button"
+                    disabled={deletingAppointmentId === a.id}
+                    onClick={() => handleDeleteAppointment(a.id)}
+                    style={{
+                      padding: "4px 12px",
+                      borderRadius: 4,
+                      background: "#ef4444",
+                      border: "1px solid #dc2626",
+                      color: "white",
+                      cursor: deletingAppointmentId === a.id ? "not-allowed" : "pointer",
+                      fontWeight: 500,
+                      fontSize: 12,
+                      opacity: deletingAppointmentId === a.id ? 0.6 : 1,
+                    }}
+                  >
+                    {deletingAppointmentId === a.id ? "Устгаж байна..." : "Устгах"}
+                  </button>
+                )}
               </div>
               <p style={{ margin: "4px 0", fontSize: 14 }}>
                 Үйлчлүүлэгч: <strong>{formatGridShortLabel(a) || "-"}</strong>
