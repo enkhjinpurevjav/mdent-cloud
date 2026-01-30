@@ -2,6 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { PrismaClient } from "@prisma/client";
+import { authenticateJWT } from "../middleware/auth.js";
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -70,6 +71,52 @@ router.post("/", async (req, res) => {
       branchId: user.branchId,
     },
   });
+});
+
+/**
+ * GET /api/login/me
+ * 
+ * Returns the currently authenticated user's information from JWT token.
+ * Requires valid JWT token in Authorization header.
+ */
+router.get("/me", authenticateJWT, async (req, res) => {
+  try {
+    // req.user is populated by authenticateJWT middleware from JWT payload
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    // Fetch full user details from database
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        ovog: true,
+        email: true,
+        role: true,
+        branchId: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    return res.json({
+      id: user.id,
+      name: user.name,
+      ovog: user.ovog,
+      email: user.email,
+      role: user.role,
+      branchId: user.branchId,
+    });
+  } catch (err) {
+    console.error("Error fetching current user:", err);
+    return res.status(500).json({ error: "Failed to fetch user info" });
+  }
 });
 
 export default router;
