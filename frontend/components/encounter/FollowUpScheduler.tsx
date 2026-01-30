@@ -65,6 +65,12 @@ function getHmFromIso(iso: string): string {
   return date.toTimeString().substring(0, 5);
 }
 
+// Constants for grid layout
+const COL_WIDTH = 80; // Width of each time slot column in pixels
+const LANE_HEIGHT = 36; // Height per lane for appointment stacking
+const LANE_PADDING = 2; // Padding between lanes
+const MIN_ROW_HEIGHT = 80; // Minimum height for each day row
+
 export default function FollowUpScheduler({
   showFollowUpScheduler,
   followUpDateFrom,
@@ -219,11 +225,6 @@ useEffect(() => {
     onReloadAvailability?.();
   }, 500);
 };
-
-  // Constants for grid layout - shared across rendering logic
-  const COL_WIDTH = 80; // Width of each time slot column in pixels
-  const LANE_HEIGHT = 36; // Height per lane for appointment stacking
-  const LANE_PADDING = 2; // Padding between lanes
 
   const renderGrid = () => {
     if (!localAvailability) return null;
@@ -397,7 +398,7 @@ useEffect(() => {
                     borderBottom: "1px solid #e5e7eb",
                     borderRight: "1px solid #e5e7eb",
                     verticalAlign: "middle",
-                    minHeight: 80,
+                    minHeight: MIN_ROW_HEIGHT,
                   }}
                 >
                   <div>{day.dayLabel}</div>
@@ -420,7 +421,7 @@ useEffect(() => {
                   }}
                 >
                   {/* Base grid layer */}
-                  <div style={{ display: "flex" }}>
+                  <div style={{ display: "flex", minHeight: MIN_ROW_HEIGHT }}>
                     {timeLabels.map((timeLabel, colIndex) => {
                       const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
 
@@ -435,7 +436,7 @@ useEffect(() => {
                               background: "#f9fafb",
                               textAlign: "center",
                               borderRight: "1px solid #e5e7eb",
-                              minHeight: 80,
+                              minHeight: MIN_ROW_HEIGHT,
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
@@ -458,7 +459,7 @@ useEffect(() => {
                               color: "#9ca3af",
                               textAlign: "center",
                               borderRight: "1px solid #e5e7eb",
-                              minHeight: 80,
+                              minHeight: MIN_ROW_HEIGHT,
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
@@ -480,7 +481,7 @@ useEffect(() => {
                             textAlign: "center",
                             cursor: followUpBooking ? "not-allowed" : "pointer",
                             borderRight: "1px solid #e5e7eb",
-                            minHeight: 80,
+                            minHeight: MIN_ROW_HEIGHT,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
@@ -545,11 +546,21 @@ useEffect(() => {
                           }}
                           title={`${formatGridShortLabel(apt) || "Захиалга"} (${getHmFromIso(apt.scheduledAt)} - ${apt.endAt ? getHmFromIso(apt.endAt) : "—"})`}
                           onClick={(e) => {
-                            // Calculate which time slot was clicked based on click position
+                            // The appointment block has left: left + 4 and width: width - 8
+                            // Calculate the actual grid position by accounting for the offset
+                            const appointmentLeft = apt.span.startCol * COL_WIDTH;
                             const rect = e.currentTarget.getBoundingClientRect();
                             const clickX = e.clientX - rect.left;
-                            const clickedColOffset = Math.floor(clickX / COL_WIDTH);
-                            const clickedCol = apt.span.startCol + clickedColOffset;
+                            
+                            // Calculate which column within the appointment was clicked
+                            // Note: appointment block has 4px left offset and 8px total width reduction
+                            const relativeClickX = clickX;
+                            const appointmentWidth = apt.span.colSpan * COL_WIDTH - 8;
+                            
+                            // Map click position to column, considering the full width
+                            const clickRatio = Math.max(0, Math.min(1, relativeClickX / appointmentWidth));
+                            const clickedColOffset = Math.floor(clickRatio * apt.span.colSpan);
+                            const clickedCol = Math.min(apt.span.startCol + clickedColOffset, timeLabels.length - 1);
                             
                             // Get the time label for the clicked column
                             const clickedTimeLabel = timeLabels[clickedCol] || timeLabels[apt.span.startCol];
