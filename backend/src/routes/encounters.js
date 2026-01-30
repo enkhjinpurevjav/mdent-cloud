@@ -1346,6 +1346,75 @@ const slotTimeString = `${String(slotHourLocal).padStart(2, "0")}:${String(
     // Use the branch from the matching schedule
     const branchId = matchingSchedule.branchId;
 
+    // ===== CAPACITY ENFORCEMENT: Max 2 overlapping appointments =====
+    // Query existing appointments for this doctor that overlap with the requested interval
+    const existingAppointments = await prisma.appointment.findMany({
+      where: {
+        doctorId: doctorId,
+        // Only count appointments with blocking statuses
+        status: {
+          in: ["booked", "confirmed", "ongoing", "online", "other"],
+        },
+        // Appointments that overlap with [slotStart, slotEnd)
+        // Overlap condition: existingStart < slotEnd AND existingEnd > slotStart
+        scheduledAt: { lt: slotEnd },
+        OR: [
+          { endAt: { gt: slotStart } },
+          { endAt: null }, // null endAt means use default duration, consider as potential overlap
+        ],
+      },
+      select: {
+        id: true,
+        scheduledAt: true,
+        endAt: true,
+      },
+    });
+
+    // Calculate maximum concurrent overlaps if this new appointment is added
+    // We need to find the moment in time with the highest overlap count
+    
+    // Collect all time points (start and end times) including the new appointment
+    const events = [];
+    
+    // Add existing appointments
+    for (const apt of existingAppointments) {
+      const aptStart = new Date(apt.scheduledAt);
+      const aptEnd = apt.endAt ? new Date(apt.endAt) : new Date(aptStart.getTime() + 30 * 60_000);
+      events.push({ time: aptStart.getTime(), type: 'start' });
+      events.push({ time: aptEnd.getTime(), type: 'end' });
+    }
+    
+    // Add the new appointment we're trying to create
+    events.push({ time: slotStart.getTime(), type: 'start' });
+    events.push({ time: slotEnd.getTime(), type: 'end' });
+    
+    // Sort events by time, with 'end' events before 'start' events at the same time
+    events.sort((a, b) => {
+      if (a.time !== b.time) return a.time - b.time;
+      // At same time: process 'end' before 'start' to get accurate count
+      return a.type === 'end' ? -1 : 1;
+    });
+    
+    // Sweep through events to find maximum concurrent appointments
+    let currentCount = 0;
+    let maxCount = 0;
+    
+    for (const event of events) {
+      if (event.type === 'start') {
+        currentCount++;
+        maxCount = Math.max(maxCount, currentCount);
+      } else {
+        currentCount--;
+      }
+    }
+    
+    // If max concurrent count would exceed 2, reject the booking
+    if (maxCount > 2) {
+      return res.status(409).json({
+        error: `Энэ цагт эмчийн дүүргэлт хэтэрсэн байна. Хамгийн ихдээ 2 давхцах цаг авах боломжтой. (Одоогийн давхцал: ${maxCount})`,
+      });
+    }
+
     // Create the appointment
     const appointment = await prisma.appointment.create({
       data: {
