@@ -1744,6 +1744,8 @@ const handleFinishEncounter = async () => {
               onSlotMinutesChange={setFollowUpSlotMinutes}
               onBookAppointment={createFollowUpAppointment}
               onQuickCreate={handleQuickCreateAppointment}
+              doctorId={encounter?.doctorId || undefined}
+              onReloadAvailability={loadFollowUpAvailability}
             />
           </section>
 
