@@ -339,6 +339,68 @@ export default function DiagnosesEditor({
                 </div>
               </div>
 
+              {/* Problems selection */}
+              {row.diagnosisId ? (
+                <>
+                  {problems.length === 0 ? (
+                    <div
+                      style={{
+                        color: "#6b7280",
+                        fontSize: 12,
+                        marginBottom: 8,
+                      }}
+                    >
+                      Энэ оношид тохирсон зовиур бүртгээгүй байна
+                      (оношийн тохиргооноос нэмнэ).
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 8,
+                        marginBottom: 8,
+                      }}
+                    >
+                      {problems.map((p) => {
+                        const checked =
+                          row.selectedProblemIds?.includes(p.id);
+                        return (
+                          <label
+                            key={p.id}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              padding: "4px 8px",
+                              borderRadius: 999,
+                              border: checked
+                                ? "1px solid #16a34a"
+                                : "1px solid #d1d5db",
+                              background: checked ? "#dcfce7" : "#ffffff",
+                              fontSize: 12,
+                              cursor: isLocked ? "not-allowed" : "pointer",
+                              opacity: isLocked ? 0.6 : 1,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => onToggleProblem(index, p.id)}
+                              disabled={isLocked}
+                              style={{
+                                cursor: isLocked ? "not-allowed" : "pointer",
+                              }}
+                            />
+                            {p.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              ) : null}
+
               {/* Tooth code */}
               <div
                 style={{
@@ -562,68 +624,6 @@ export default function DiagnosesEditor({
                   </label>
                 </div>
               )}
-
-              {/* Problems selection */}
-              {row.diagnosisId ? (
-                <>
-                  {problems.length === 0 ? (
-                    <div
-                      style={{
-                        color: "#6b7280",
-                        fontSize: 12,
-                        marginBottom: 8,
-                      }}
-                    >
-                      Энэ оношид тохирсон зовиур бүртгээгүй байна
-                      (оношийн тохиргооноос нэмнэ).
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 8,
-                        marginBottom: 8,
-                      }}
-                    >
-                      {problems.map((p) => {
-                        const checked =
-                          row.selectedProblemIds?.includes(p.id);
-                        return (
-                          <label
-                            key={p.id}
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4,
-                              padding: "4px 8px",
-                              borderRadius: 999,
-                              border: checked
-                                ? "1px solid #16a34a"
-                                : "1px solid #d1d5db",
-                              background: checked ? "#dcfce7" : "#ffffff",
-                              fontSize: 12,
-                              cursor: isLocked ? "not-allowed" : "pointer",
-                              opacity: isLocked ? 0.6 : 1,
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => onToggleProblem(index, p.id)}
-                              disabled={isLocked}
-                              style={{
-                                cursor: isLocked ? "not-allowed" : "pointer",
-                              }}
-                            />
-                            {p.label}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              ) : null}
 
               {/* Sterilization indicators */}
               <div style={{ marginBottom: 8, position: "relative" }}>
