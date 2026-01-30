@@ -222,7 +222,94 @@ useEffect(() => {
 
   const renderGrid = () => {
     if (!localAvailability) return null;
-const { days, timeLabels } = localAvailability;
+    const { days, timeLabels } = localAvailability;
+
+    // Helper: get column index for a given time
+    const getColumnIndex = (timeStr: string): number => {
+      return timeLabels.indexOf(timeStr);
+    };
+
+    // Helper: calculate how many columns an appointment spans
+    const getAppointmentSpan = (apt: AppointmentLiteForDetails): { startCol: number; colSpan: number; date: string } | null => {
+      const start = new Date(apt.scheduledAt);
+      const end = apt.endAt ? new Date(apt.endAt) : new Date(start.getTime() + followUpSlotMinutes * 60_000);
+      
+      // Get date string (YYYY-MM-DD)
+      const dateStr = start.toISOString().split('T')[0];
+      
+      // Get HH:MM format
+      const startHm = getHmFromIso(apt.scheduledAt);
+      const endHm = getHmFromIso(end.toISOString());
+      
+      const startCol = getColumnIndex(startHm);
+      let endCol = getColumnIndex(endHm);
+      
+      if (startCol === -1) return null; // Start time not in grid
+      
+      // If end time is not in grid or is equal to start, span at least 1 column
+      if (endCol === -1 || endCol <= startCol) {
+        endCol = startCol + 1;
+      }
+      
+      const colSpan = endCol - startCol;
+      
+      return { startCol, colSpan, date: dateStr };
+    };
+
+    // For each day, calculate appointment spans and assign lanes
+    const dayAppointments = days.map((day) => {
+      const aptsThisDay = followUpAppointments.filter((apt) => {
+        if (apt.status === "cancelled" || apt.status === "no_show" || apt.status === "completed") {
+          return false;
+        }
+        const aptDate = new Date(apt.scheduledAt).toISOString().split('T')[0];
+        return aptDate === day.date;
+      });
+
+      // Calculate spans for all appointments
+      const aptsWithSpans = aptsThisDay
+        .map((apt) => {
+          const span = getAppointmentSpan(apt);
+          return span ? { ...apt, span } : null;
+        })
+        .filter(Boolean) as (AppointmentLiteForDetails & { span: NonNullable<ReturnType<typeof getAppointmentSpan>> })[];
+
+      // Sort by start time
+      aptsWithSpans.sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+
+      // Simple lane assignment: iterate and assign to first available lane
+      const laneAssignments: number[] = []; // Store assigned lane for each appointment
+      
+      for (let i = 0; i < aptsWithSpans.length; i++) {
+        const apt = aptsWithSpans[i];
+        const aptStart = new Date(apt.scheduledAt);
+        const aptEnd = apt.endAt ? new Date(apt.endAt) : new Date(aptStart.getTime() + followUpSlotMinutes * 60_000);
+        
+        // Check which lanes are free for this appointment
+        const laneFree = [true, true];
+        
+        for (let j = 0; j < i; j++) {
+          const other = aptsWithSpans[j];
+          const otherStart = new Date(other.scheduledAt);
+          const otherEnd = other.endAt ? new Date(other.endAt) : new Date(otherStart.getTime() + followUpSlotMinutes * 60_000);
+          
+          // Check if they overlap
+          if (aptStart < otherEnd && aptEnd > otherStart) {
+            laneFree[laneAssignments[j]] = false;
+          }
+        }
+        
+        // Assign to first free lane (default to 0 if both occupied)
+        laneAssignments[i] = laneFree[0] ? 0 : (laneFree[1] ? 1 : 0);
+      }
+
+      const aptWithLanes = aptsWithSpans.map((apt, idx) => ({
+        ...apt,
+        lane: laneAssignments[idx],
+      }));
+
+      return { day, appointments: aptWithLanes };
+    });
 
     return (
       <div
@@ -236,173 +323,202 @@ const { days, timeLabels } = localAvailability;
         <table
           style={{
             width: "100%",
-            borderCollapse: "collapse",
+            borderCollapse: "separate",
+            borderSpacing: 0,
             fontSize: 12,
             background: "white",
           }}
         >
           <thead>
-  <tr>
-    <th
-      style={{
-        textAlign: "center",
-        background: "#f9fafb",
-        padding: 8,
-        borderBottom: "2px solid #d1d5db",
-        borderRight: "1px solid #e5e7eb",
-        fontWeight: "bold",
-      }}
-    >
-      Огноо
-    </th>
-    {/* Add Time Column Headers */}
-    {timeLabels.map((timeLabel) => (
-      <th
-        key={timeLabel}
-        style={{
-          textAlign: "center",
-          background: "#f9fafb",
-          borderBottom: "1px solid #d1d5db",
-          borderRight: "1px solid #e5e7eb",
-          padding: 8,
-          fontWeight: "bold",
-        }}
-      >
-        {timeLabel}
-      </th>
-    ))}
-  </tr>
-</thead>
+            <tr>
+              <th
+                style={{
+                  textAlign: "center",
+                  background: "#f9fafb",
+                  padding: 8,
+                  borderBottom: "2px solid #d1d5db",
+                  borderRight: "1px solid #e5e7eb",
+                  fontWeight: "bold",
+                  minWidth: 100,
+                }}
+              >
+                Огноо
+              </th>
+              {timeLabels.map((timeLabel) => (
+                <th
+                  key={timeLabel}
+                  style={{
+                    textAlign: "center",
+                    background: "#f9fafb",
+                    borderBottom: "2px solid #d1d5db",
+                    borderRight: "1px solid #e5e7eb",
+                    padding: 8,
+                    fontWeight: "bold",
+                    minWidth: 80,
+                  }}
+                >
+                  {timeLabel}
+                </th>
+              ))}
+            </tr>
+          </thead>
           <tbody>
-  {days.map((day) => (
-    <tr key={day.date}>
-      {/* Date as the first column */}
-      <td
-        style={{
-          padding: 8,
-          textAlign: "center",
-          background: "#f9fafb",
-          fontWeight: 500,
-          borderBottom: "1px solid #e5e7eb",
-        }}
-      >
-        <div>{day.dayLabel}</div>
-        <div style={{ fontSize: 10, color: "#6b7280" }}>
-          {new Date(day.date).toLocaleDateString("mn-MN", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-          })}
-        </div>
-      </td>
-      {/* Time slots as columns */}
-      {timeLabels.map((timeLabel) => {
-        const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
-
-        if (!slot) {
-          return (
-            <td
-              key={`${day.date}-${timeLabel}`}
-              style={{
-                padding: 8,
-                background: "#f9fafb",
-                textAlign: "center",
-                borderBottom: "1px solid #e5e7eb",
-              }}
-            >
-              –
-            </td>
-          );
-        }
-
-        if (slot.status === "off") {
-          return (
-            <td
-              key={`${day.date}-${timeLabel}`}
-              style={{
-                padding: 8,
-                background: "#f3f4f6",
-                color: "#9ca3af",
-                textAlign: "center",
-                borderBottom: "1px solid #e5e7eb",
-              }}
-            >
-              -
-            </td>
-          );
-        }
-
-                if (slot.status === "booked") {
-          const count = (slot.appointmentIds || []).length;
-
-          return (
-            <td
-              key={`${day.date}-${timeLabel}`}
-              style={{
-                padding: 6,
-                background: "#fee2e2",
-                textAlign: "center",
-                cursor: "pointer",
-                fontWeight: 600,
-                borderBottom: "1px solid #e5e7eb",
-              }}
-              onClick={() =>
-                handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel, slot.start)
-              }
-            >
-              {count <= 1 ? (
-                // ✅ 1 appointment: show normal status text
-                "Захиалгатай"
-              ) : (
-                // ✅ 2 appointments: split into 2 mini blocks, status text only
-                <div style={{ display: "grid", gridTemplateRows: "1fr 1fr", gap: 4 }}>
-                  <div
-                    style={{
-                      padding: "4px 6px",
-                      borderRadius: 6,
-                      background: "#fecaca",
-                      border: "1px solid #fca5a5",
-                      fontSize: 11,
-                    }}
-                  >
-                    Захиалгатай
+            {dayAppointments.map(({ day, appointments }) => (
+              <tr key={day.date}>
+                {/* Date as the first column */}
+                <td
+                  style={{
+                    padding: 8,
+                    textAlign: "center",
+                    background: "#f9fafb",
+                    fontWeight: 500,
+                    borderBottom: "1px solid #e5e7eb",
+                    borderRight: "1px solid #e5e7eb",
+                    verticalAlign: "middle",
+                    minHeight: 80,
+                  }}
+                >
+                  <div>{day.dayLabel}</div>
+                  <div style={{ fontSize: 10, color: "#6b7280" }}>
+                    {new Date(day.date).toLocaleDateString("mn-MN", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                    })}
                   </div>
-                  <div
-                    style={{
-                      padding: "4px 6px",
-                      borderRadius: 6,
-                      background: "#fecaca",
-                      border: "1px solid #fca5a5",
-                      fontSize: 11,
-                    }}
-                  >
-                    Захиалгатай
-                  </div>
-                </div>
-              )}
-            </td>
-          );
-        }
+                </td>
+                
+                {/* Time slots as columns */}
+                {timeLabels.map((timeLabel, colIndex) => {
+                  const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
 
-        return (
-          <td
-            key={`${day.date}-${timeLabel}`}
-            style={{
-              padding: 8,
-              background: "#ccffcc",
-              textAlign: "center",
-              cursor: followUpBooking ? "not-allowed" : "pointer",
-              borderBottom: "1px solid #e5e7eb",
-            }}
-            onClick={() => handleSlotSelection(slot.start)}
-          >
-            Сул
-          </td>
-        );
-      })}
-    </tr>
-  ))}
-</tbody>
+                  // Find appointments starting in this column
+                  const aptsStartingHere = appointments.filter(
+                    (apt) => apt.span.startCol === colIndex
+                  );
+
+                  // Check if this cell is covered by an appointment starting earlier
+                  const coveredByApt = appointments.find(
+                    (apt) => apt.span.startCol < colIndex && apt.span.startCol + apt.span.colSpan > colIndex
+                  );
+
+                  // Skip rendering if covered by a spanning appointment
+                  if (coveredByApt) {
+                    return null; // This cell will be part of the colspan
+                  }
+
+                  if (!slot) {
+                    return (
+                      <td
+                        key={`${day.date}-${timeLabel}`}
+                        style={{
+                          padding: 8,
+                          background: "#f9fafb",
+                          textAlign: "center",
+                          borderBottom: "1px solid #e5e7eb",
+                          borderRight: "1px solid #e5e7eb",
+                          position: "relative",
+                          minHeight: 80,
+                        }}
+                      >
+                        –
+                      </td>
+                    );
+                  }
+
+                  if (slot.status === "off") {
+                    return (
+                      <td
+                        key={`${day.date}-${timeLabel}`}
+                        style={{
+                          padding: 8,
+                          background: "#f3f4f6",
+                          color: "#9ca3af",
+                          textAlign: "center",
+                          borderBottom: "1px solid #e5e7eb",
+                          borderRight: "1px solid #e5e7eb",
+                          position: "relative",
+                          minHeight: 80,
+                        }}
+                      >
+                        -
+                      </td>
+                    );
+                  }
+
+                  // Determine colspan: if an appointment starts here, use its colspan
+                  const spanningApt = aptsStartingHere.length > 0 ? aptsStartingHere[0] : null;
+                  const colSpan = spanningApt ? spanningApt.span.colSpan : 1;
+
+                  return (
+                    <td
+                      key={`${day.date}-${timeLabel}`}
+                      colSpan={colSpan}
+                      style={{
+                        padding: 4,
+                        background: slot.status === "booked" ? "#fef2f2" : "#ecfdf3",
+                        textAlign: "center",
+                        cursor: followUpBooking ? "not-allowed" : "pointer",
+                        borderBottom: "1px solid #e5e7eb",
+                        borderRight: "1px solid #e5e7eb",
+                        position: "relative",
+                        minHeight: 80,
+                        verticalAlign: "top",
+                      }}
+                      onClick={() => {
+                        if (slot.status === "booked") {
+                          handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel, slot.start);
+                        } else {
+                          handleSlotSelection(slot.start);
+                        }
+                      }}
+                    >
+                      {/* Stack appointments in two lanes */}
+                      <div style={{ position: "relative", minHeight: 72 }}>
+                        {aptsStartingHere.map((apt) => (
+                          <div
+                            key={apt.id}
+                            style={{
+                              position: "absolute",
+                              left: 2,
+                              right: 2,
+                              top: apt.lane === 0 ? 2 : 38,
+                              height: 32,
+                              background: "#fecaca",
+                              border: "1px solid #fca5a5",
+                              borderRadius: 6,
+                              padding: "4px 6px",
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: "#991b1b",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              zIndex: 10,
+                            }}
+                            title={`${formatGridShortLabel(apt) || "Захиалга"} (${getHmFromIso(apt.scheduledAt)} - ${apt.endAt ? getHmFromIso(apt.endAt) : "—"})`}
+                          >
+                            {formatGridShortLabel(apt) || "Захиалга"}
+                          </div>
+                        ))}
+                        
+                        {/* Show availability indicator when no appointments start here */}
+                        {aptsStartingHere.length === 0 && (
+                          <div style={{ 
+                            fontSize: 11, 
+                            color: slot.status === "booked" ? "#991b1b" : "#166534",
+                            padding: "8px 0",
+                          }}>
+                            {slot.status === "booked" ? "" : "Сул"}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
     );
