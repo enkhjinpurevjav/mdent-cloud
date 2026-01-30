@@ -923,26 +923,21 @@ router.get("/:id/report", async (req, res) => {
 /**
  * DELETE /api/appointments/:id?encounterId=123
  * 
- * Deletes an appointment with role-based permissions:
- * - Doctors can only delete appointments they created from follow-up encounter flow
- *   that are scheduled in the future AND match the specified encounterId
- * - Admin/receptionist can delete any appointment (broader permissions)
+ * Deletes a follow-up appointment in open mode (no authentication required for Phase 1).
+ * 
+ * Authorization (encounter-scoped):
+ * - Can only delete appointments with source === 'FOLLOW_UP_ENCOUNTER'
+ * - Must provide encounterId query parameter that matches sourceEncounterId
+ * - Can only delete future appointments (scheduledAt > now)
  * 
  * Query params:
- * - encounterId (number, required for doctors): The encounter ID to verify against sourceEncounterId
+ * - encounterId (number, required): The encounter ID to verify against sourceEncounterId
  */
-router.delete("/:id", authenticateJWT, async (req, res) => {
+router.delete("/:id", async (req, res) => {
   try {
     const apptId = Number(req.params.id);
     if (!apptId || Number.isNaN(apptId)) {
       return res.status(400).json({ error: "Invalid appointment id" });
-    }
-
-    const userId = req.user?.id;
-    const userRole = req.user?.role;
-
-    if (!userId || !userRole) {
-      return res.status(401).json({ error: "User not authenticated" });
     }
 
     // Fetch the appointment
@@ -951,7 +946,6 @@ router.delete("/:id", authenticateJWT, async (req, res) => {
       select: {
         id: true,
         scheduledAt: true,
-        createdByUserId: true,
         source: true,
         sourceEncounterId: true,
       },
@@ -961,65 +955,47 @@ router.delete("/:id", authenticateJWT, async (req, res) => {
       return res.status(404).json({ error: "Appointment not found" });
     }
 
-    // Role-based authorization
-    if (userRole === "doctor") {
-      // Doctors have restricted delete permissions
-      
-      // Check 1: Must be created by this doctor
-      if (appointment.createdByUserId !== userId) {
-        return res.status(403).json({
-          error: "Та зөвхөн өөрийн үүсгэсэн цагийг устгах боломжтой",
-        });
-      }
-
-      // Check 2: Must be from follow-up encounter source
-      if (appointment.source !== "FOLLOW_UP_ENCOUNTER") {
-        return res.status(403).json({
-          error: "Та зөвхөн давтан үзлэгийн цагийг устгах боломжтой",
-        });
-      }
-
-      // Check 3: Must be scheduled in the future
-      const now = new Date();
-      if (appointment.scheduledAt <= now) {
-        return res.status(403).json({
-          error: "Өнгөрсөн цагийг устгах боломжгүй",
-        });
-      }
-
-      // Check 4: NEW - Must match the specified encounterId
-      const encounterIdParam = req.query.encounterId;
-      if (!encounterIdParam) {
-        return res.status(400).json({
-          error: "encounterId query parameter is required for doctors",
-        });
-      }
-
-      const parsedEncounterId = Number(encounterIdParam);
-      if (Number.isNaN(parsedEncounterId)) {
-        return res.status(400).json({
-          error: "encounterId must be a valid number",
-        });
-      }
-
-      if (!appointment.sourceEncounterId) {
-        return res.status(403).json({
-          error: "Энэ цаг үзлэгтэй холбогдоогүй байна",
-        });
-      }
-
-      if (appointment.sourceEncounterId !== parsedEncounterId) {
-        return res.status(403).json({
-          error: "Та зөвхөн одоогийн үзлэгээс үүссэн цагийг устгах боломжтой",
-        });
-      }
-    } else if (userRole !== "admin" && userRole !== "receptionist") {
-      // Other roles are not allowed to delete appointments
+    // Check 1: Must be from follow-up encounter source
+    if (appointment.source !== "FOLLOW_UP_ENCOUNTER") {
       return res.status(403).json({
-        error: "Танд цаг устгах эрх байхгүй байна",
+        error: "Та зөвхөн давтан үзлэгийн цагийг устгах боломжтой",
       });
     }
-    // Admin and receptionist can delete any appointment (no additional checks)
+
+    // Check 2: Must be scheduled in the future
+    const now = new Date();
+    if (appointment.scheduledAt <= now) {
+      return res.status(403).json({
+        error: "Өнгөрсөн цагийг устгах боломжгүй",
+      });
+    }
+
+    // Check 3: Must match the specified encounterId
+    const encounterIdParam = req.query.encounterId;
+    if (!encounterIdParam) {
+      return res.status(400).json({
+        error: "encounterId query parameter is required",
+      });
+    }
+
+    const parsedEncounterId = Number(encounterIdParam);
+    if (Number.isNaN(parsedEncounterId)) {
+      return res.status(400).json({
+        error: "encounterId must be a valid number",
+      });
+    }
+
+    if (!appointment.sourceEncounterId) {
+      return res.status(403).json({
+        error: "Энэ цаг үзлэгтэй холбогдоогүй байна",
+      });
+    }
+
+    if (appointment.sourceEncounterId !== parsedEncounterId) {
+      return res.status(403).json({
+        error: "Та зөвхөн одоогийн үзлэгээс үүссэн цагийг устгах боломжтой",
+      });
+    }
 
     // Delete the appointment
     await prisma.appointment.delete({

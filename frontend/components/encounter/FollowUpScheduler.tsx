@@ -53,8 +53,6 @@ type FollowUpSchedulerProps = {
   followUpAppointments?: AppointmentLiteForDetails[];
   followUpNoSchedule?: boolean;
   doctorId?: number; // Add doctorId for QuickAppointmentModal
-  currentUserId?: number; // Current user ID for permission checks
-  currentUserRole?: string; // Current user role for permission checks
   encounterId?: number; // Current encounter ID for permission checks
 
   onToggleScheduler: (checked: boolean) => void;
@@ -93,8 +91,6 @@ export default function FollowUpScheduler({
   followUpAppointments = [],
   followUpNoSchedule = false,
   doctorId,
-  currentUserId,
-  currentUserRole,
   encounterId,
   onToggleScheduler,
   onDateFromChange,
@@ -139,27 +135,21 @@ export default function FollowUpScheduler({
     }
   };
 
-  // Check if current user can delete an appointment
+  // Check if appointment can be deleted (open mode - no auth required)
+  // Only follow-up appointments from current encounter that are in the future can be deleted
   const canDeleteAppointment = (appointment: AppointmentLiteForDetails): boolean => {
-    if (!currentUserId || !currentUserRole) return false;
+    if (!encounterId) return false;
     
-    // Admin and receptionist can delete any appointment
-    if (currentUserRole === "admin" || currentUserRole === "receptionist") {
-      return true;
-    }
+    // Must be from follow-up encounter source
+    const isFollowUpSource = appointment.source === "FOLLOW_UP_ENCOUNTER";
     
-    // Doctors can only delete their own follow-up appointments that are in the future
-    // AND that belong to the current encounter
-    if (currentUserRole === "doctor") {
-      const isFutureAppointment = new Date(appointment.scheduledAt) > new Date();
-      const isOwnAppointment = appointment.createdByUserId === currentUserId;
-      const isFollowUpSource = appointment.source === "FOLLOW_UP_ENCOUNTER";
-      const isCurrentEncounter = encounterId ? appointment.sourceEncounterId === encounterId : true;
-      
-      return isFutureAppointment && isOwnAppointment && isFollowUpSource && isCurrentEncounter;
-    }
+    // Must belong to the current encounter
+    const isCurrentEncounter = appointment.sourceEncounterId === encounterId;
     
-    return false;
+    // Must be scheduled in the future
+    const isFutureAppointment = new Date(appointment.scheduledAt) > new Date();
+    
+    return isFutureAppointment && isFollowUpSource && isCurrentEncounter;
   };
 
   const apptById = useMemo(() => {
@@ -433,7 +423,8 @@ useEffect(() => {
                     borderRight: "1px solid #e5e7eb",
                     padding: 8,
                     fontWeight: "bold",
-                    minWidth: COL_WIDTH,
+                    width: COL_WIDTH,
+                    maxWidth: COL_WIDTH,
                   }}
                 >
                   {timeLabel}
@@ -489,7 +480,7 @@ useEffect(() => {
                             key={`${day.date}-${timeLabel}`}
                             style={{
                               width: COL_WIDTH,
-                              minWidth: COL_WIDTH,
+                              maxWidth: COL_WIDTH,
                               padding: 8,
                               background: "rgba(249, 250, 251, 0.6)",
                               textAlign: "center",
@@ -510,7 +501,7 @@ useEffect(() => {
                             key={`${day.date}-${timeLabel}`}
                             style={{
                               width: COL_WIDTH,
-                              minWidth: COL_WIDTH,
+                              maxWidth: COL_WIDTH,
                               padding: 8,
                               background: "rgba(243, 244, 246, 0.7)",
                               color: "#9ca3af",
@@ -531,7 +522,7 @@ useEffect(() => {
                           key={`${day.date}-${timeLabel}`}
                           style={{
                             width: COL_WIDTH,
-                            minWidth: COL_WIDTH,
+                            maxWidth: COL_WIDTH,
                             padding: 4,
                             background: slot.status === "booked" ? "rgba(254, 242, 242, 0.7)" : "rgba(236, 253, 243, 0.7)",
                             textAlign: "center",

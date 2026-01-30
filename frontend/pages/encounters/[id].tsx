@@ -25,7 +25,6 @@ import { extractWarningLinesFromVisitCard } from "../../utils/visit-card-helpers
 import { displayOrDash } from "../../utils/display-helpers";
 import { ADULT_TEETH, CHILD_TEETH, ALL_TEETH_LABEL, stringifyToothList } from "../../utils/tooth-helpers";
 import { buildFollowUpAvailability } from "../../utils/scheduling";
-import { fetchCurrentUser, authenticatedFetch, type CurrentUser } from "../../utils/auth";
 import SignaturePad from "../../components/SignaturePad";
 import PatientHeader from "../../components/encounter/PatientHeader";
 import ToothChartSelector from "../../components/encounter/ToothChartSelector";
@@ -256,9 +255,6 @@ export default function EncounterAdminPage() {
   const [followUpBooking, setFollowUpBooking] = useState(false);
   const [followUpSuccess, setFollowUpSuccess] = useState("");
 
-  // Current user state for permission checks
-  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
-
   const [nursesForEncounter, setNursesForEncounter] = useState<
     {
       nurseId: number;
@@ -398,15 +394,6 @@ export default function EncounterAdminPage() {
     },
     []
   );
-
-  // Load current user on mount for permission checks
-  useEffect(() => {
-    const loadCurrentUser = async () => {
-      const user = await fetchCurrentUser();
-      setCurrentUser(user);
-    };
-    loadCurrentUser();
-  }, []);
 
   useEffect(() => {
     if (!id || typeof id !== "string") return;
@@ -1116,7 +1103,7 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
 
   try {
     // Use the new dedicated endpoint that derives branchId from doctor's schedule
-    const res = await authenticatedFetch(`/api/encounters/${encounter.id}/follow-up-appointments`, {
+    const res = await fetch(`/api/encounters/${encounter.id}/follow-up-appointments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1162,7 +1149,7 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
       const startDate = new Date(y, m - 1, d, hh, mm, 0, 0);
 
       // Use the new dedicated endpoint that derives branchId from doctor's schedule
-      const res = await authenticatedFetch(`/api/encounters/${encounter.id}/follow-up-appointments`, {
+      const res = await fetch(`/api/encounters/${encounter.id}/follow-up-appointments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1198,7 +1185,7 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     if (!encounter) return;
     
     try {
-      const res = await authenticatedFetch(`/api/appointments/${appointmentId}?encounterId=${encounter.id}`, {
+      const res = await fetch(`/api/appointments/${appointmentId}?encounterId=${encounter.id}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
       });
@@ -1790,8 +1777,6 @@ const handleFinishEncounter = async () => {
               onDeleteAppointment={deleteFollowUpAppointment}
               onQuickCreate={handleQuickCreateAppointment}
               doctorId={encounter?.doctorId || undefined}
-              currentUserId={currentUser?.id || undefined}
-              currentUserRole={currentUser?.role || undefined}
               encounterId={encounter?.id || undefined}
               onReloadAvailability={loadFollowUpAvailability}
             />
