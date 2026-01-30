@@ -246,8 +246,25 @@ useEffect(() => {
       
       if (startCol === -1) return null; // Start time not in grid
       
-      // If end time is not in grid or is equal to start, span at least 1 column
-      if (endCol === -1 || endCol <= startCol) {
+      // If end time is not in grid, round up to the next slot
+      if (endCol === -1) {
+        // Find the next slot after end time
+        for (let i = startCol + 1; i < timeLabels.length; i++) {
+          const labelTime = timeLabels[i];
+          const labelDate = new Date(`${dateStr}T${labelTime}:00`);
+          if (labelDate >= end) {
+            endCol = i;
+            break;
+          }
+        }
+        // If still not found, extend to the last column
+        if (endCol === -1) {
+          endCol = timeLabels.length;
+        }
+      }
+      
+      // Ensure end is after start
+      if (endCol <= startCol) {
         endCol = startCol + 1;
       }
       
@@ -311,6 +328,11 @@ useEffect(() => {
       return { day, appointments: aptWithLanes };
     });
 
+    // Constants for overlay calculations
+    const COL_WIDTH = 80; // min-width from original th/td
+    const LANE_HEIGHT = 36; // height per lane
+    const LANE_PADDING = 2; // padding between lanes
+
     return (
       <div
         style={{
@@ -354,7 +376,7 @@ useEffect(() => {
                     borderRight: "1px solid #e5e7eb",
                     padding: 8,
                     fontWeight: "bold",
-                    minWidth: 80,
+                    minWidth: COL_WIDTH,
                   }}
                 >
                   {timeLabel}
@@ -388,134 +410,155 @@ useEffect(() => {
                   </div>
                 </td>
                 
-                {/* Time slots as columns */}
-                {timeLabels.map((timeLabel, colIndex) => {
-                  const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
+                {/* Time slots wrapper with overlay */}
+                <td
+                  colSpan={timeLabels.length}
+                  style={{
+                    padding: 0,
+                    position: "relative",
+                    borderBottom: "1px solid #e5e7eb",
+                  }}
+                >
+                  {/* Base grid layer */}
+                  <div style={{ display: "flex" }}>
+                    {timeLabels.map((timeLabel, colIndex) => {
+                      const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
 
-                  // Find appointments starting in this column
-                  const aptsStartingHere = appointments.filter(
-                    (apt) => apt.span.startCol === colIndex
-                  );
-
-                  // Check if this cell is covered by an appointment starting earlier
-                  const coveredByApt = appointments.find(
-                    (apt) => apt.span.startCol < colIndex && apt.span.startCol + apt.span.colSpan > colIndex
-                  );
-
-                  // Skip rendering if covered by a spanning appointment
-                  if (coveredByApt) {
-                    return null; // This cell will be part of the colspan
-                  }
-
-                  if (!slot) {
-                    return (
-                      <td
-                        key={`${day.date}-${timeLabel}`}
-                        style={{
-                          padding: 8,
-                          background: "#f9fafb",
-                          textAlign: "center",
-                          borderBottom: "1px solid #e5e7eb",
-                          borderRight: "1px solid #e5e7eb",
-                          position: "relative",
-                          minHeight: 80,
-                        }}
-                      >
-                        –
-                      </td>
-                    );
-                  }
-
-                  if (slot.status === "off") {
-                    return (
-                      <td
-                        key={`${day.date}-${timeLabel}`}
-                        style={{
-                          padding: 8,
-                          background: "#f3f4f6",
-                          color: "#9ca3af",
-                          textAlign: "center",
-                          borderBottom: "1px solid #e5e7eb",
-                          borderRight: "1px solid #e5e7eb",
-                          position: "relative",
-                          minHeight: 80,
-                        }}
-                      >
-                        -
-                      </td>
-                    );
-                  }
-
-                  // Determine colspan: if an appointment starts here, use its colspan
-                  const spanningApt = aptsStartingHere.length > 0 ? aptsStartingHere[0] : null;
-                  const colSpan = spanningApt ? spanningApt.span.colSpan : 1;
-
-                  return (
-                    <td
-                      key={`${day.date}-${timeLabel}`}
-                      colSpan={colSpan}
-                      style={{
-                        padding: 4,
-                        background: slot.status === "booked" ? "#fef2f2" : "#ecfdf3",
-                        textAlign: "center",
-                        cursor: followUpBooking ? "not-allowed" : "pointer",
-                        borderBottom: "1px solid #e5e7eb",
-                        borderRight: "1px solid #e5e7eb",
-                        position: "relative",
-                        minHeight: 80,
-                        verticalAlign: "top",
-                      }}
-                      onClick={() => {
-                        if (slot.status === "booked") {
-                          handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel, slot.start);
-                        } else {
-                          handleSlotSelection(slot.start);
-                        }
-                      }}
-                    >
-                      {/* Stack appointments in two lanes */}
-                      <div style={{ position: "relative", minHeight: 72 }}>
-                        {aptsStartingHere.map((apt) => (
+                      if (!slot) {
+                        return (
                           <div
-                            key={apt.id}
+                            key={`${day.date}-${timeLabel}`}
                             style={{
-                              position: "absolute",
-                              left: 2,
-                              right: 2,
-                              top: apt.lane === 0 ? 2 : 38,
-                              height: 32,
-                              background: "#fecaca",
-                              border: "1px solid #fca5a5",
-                              borderRadius: 6,
-                              padding: "4px 6px",
-                              fontSize: 11,
-                              fontWeight: 600,
-                              color: "#991b1b",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              zIndex: 10,
+                              width: COL_WIDTH,
+                              minWidth: COL_WIDTH,
+                              padding: 8,
+                              background: "#f9fafb",
+                              textAlign: "center",
+                              borderRight: "1px solid #e5e7eb",
+                              minHeight: 80,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
                             }}
-                            title={`${formatGridShortLabel(apt) || "Захиалга"} (${getHmFromIso(apt.scheduledAt)} - ${apt.endAt ? getHmFromIso(apt.endAt) : "—"})`}
                           >
-                            {formatGridShortLabel(apt) || "Захиалга"}
+                            –
                           </div>
-                        ))}
-                        
-                        {/* Show availability indicator when no appointments start here */}
-                        {aptsStartingHere.length === 0 && (
+                        );
+                      }
+
+                      if (slot.status === "off") {
+                        return (
+                          <div
+                            key={`${day.date}-${timeLabel}`}
+                            style={{
+                              width: COL_WIDTH,
+                              minWidth: COL_WIDTH,
+                              padding: 8,
+                              background: "#f3f4f6",
+                              color: "#9ca3af",
+                              textAlign: "center",
+                              borderRight: "1px solid #e5e7eb",
+                              minHeight: 80,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            -
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={`${day.date}-${timeLabel}`}
+                          style={{
+                            width: COL_WIDTH,
+                            minWidth: COL_WIDTH,
+                            padding: 4,
+                            background: slot.status === "booked" ? "#fef2f2" : "#ecfdf3",
+                            textAlign: "center",
+                            cursor: followUpBooking ? "not-allowed" : "pointer",
+                            borderRight: "1px solid #e5e7eb",
+                            minHeight: 80,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                          onClick={() => {
+                            if (slot.status === "booked") {
+                              handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel, slot.start);
+                            } else {
+                              handleSlotSelection(slot.start);
+                            }
+                          }}
+                        >
+                          {/* Show availability indicator */}
                           <div style={{ 
                             fontSize: 11, 
                             color: slot.status === "booked" ? "#991b1b" : "#166534",
-                            padding: "8px 0",
                           }}>
                             {slot.status === "booked" ? "" : "Сул"}
                           </div>
-                        )}
-                      </div>
-                    </td>
-                  );
-                })}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Overlay layer for appointment blocks */}
+                  <div 
+                    style={{ 
+                      position: "absolute", 
+                      inset: 0, 
+                      pointerEvents: "none" 
+                    }}
+                  >
+                    {appointments.map((apt) => {
+                      const left = apt.span.startCol * COL_WIDTH;
+                      const width = apt.span.colSpan * COL_WIDTH;
+                      const top = apt.lane * LANE_HEIGHT + LANE_PADDING;
+                      const height = LANE_HEIGHT - LANE_PADDING * 2;
+
+                      return (
+                        <div
+                          key={apt.id}
+                          style={{
+                            position: "absolute",
+                            left: left + 4,
+                            width: width - 8,
+                            top,
+                            height,
+                            background: "#fecaca",
+                            border: "1px solid #fca5a5",
+                            borderRadius: 6,
+                            padding: "4px 6px",
+                            fontSize: 11,
+                            fontWeight: 600,
+                            color: "#991b1b",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            pointerEvents: "auto",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                          }}
+                          title={`${formatGridShortLabel(apt) || "Захиалга"} (${getHmFromIso(apt.scheduledAt)} - ${apt.endAt ? getHmFromIso(apt.endAt) : "—"})`}
+                          onClick={() => {
+                            // Find the slot at the appointment start time
+                            const aptHm = getHmFromIso(apt.scheduledAt);
+                            const slot = day.slots.find((s) => getHmFromIso(s.start) === aptHm);
+                            if (slot) {
+                              handleBookedSlotClick(slot.appointmentIds || [], day.date, aptHm, slot.start);
+                            }
+                          }}
+                        >
+                          {formatGridShortLabel(apt) || "Захиалга"}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </td>
               </tr>
             ))}
           </tbody>
