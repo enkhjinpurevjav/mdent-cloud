@@ -55,6 +55,7 @@ type FollowUpSchedulerProps = {
   doctorId?: number; // Add doctorId for QuickAppointmentModal
   currentUserId?: number; // Current user ID for permission checks
   currentUserRole?: string; // Current user role for permission checks
+  encounterId?: number; // Current encounter ID for permission checks
 
   onToggleScheduler: (checked: boolean) => void;
   onDateFromChange: (date: string) => void;
@@ -94,6 +95,7 @@ export default function FollowUpScheduler({
   doctorId,
   currentUserId,
   currentUserRole,
+  encounterId,
   onToggleScheduler,
   onDateFromChange,
   onDateToChange,
@@ -147,12 +149,14 @@ export default function FollowUpScheduler({
     }
     
     // Doctors can only delete their own follow-up appointments that are in the future
+    // AND that belong to the current encounter
     if (currentUserRole === "doctor") {
       const isFutureAppointment = new Date(appointment.scheduledAt) > new Date();
       const isOwnAppointment = appointment.createdByUserId === currentUserId;
       const isFollowUpSource = appointment.source === "FOLLOW_UP_ENCOUNTER";
+      const isCurrentEncounter = encounterId ? appointment.sourceEncounterId === encounterId : true;
       
-      return isFutureAppointment && isOwnAppointment && isFollowUpSource;
+      return isFutureAppointment && isOwnAppointment && isFollowUpSource && isCurrentEncounter;
     }
     
     return false;

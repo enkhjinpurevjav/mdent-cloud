@@ -325,8 +325,10 @@ const rows = appointments.map((a) => {
  *  - endAt (ISO string or YYYY-MM-DDTHH:mm, optional; must be > scheduledAt)
  *  - status (string, optional, defaults to "booked")
  *  - notes (string, optional)
+ *  - source (string, optional, e.g., 'FOLLOW_UP_ENCOUNTER')
+ *  - sourceEncounterId (number, optional)
  */
-router.post("/", async (req, res) => {
+router.post("/", authenticateJWT, async (req, res) => {
   try {
     const {
       patientId,
@@ -336,6 +338,8 @@ router.post("/", async (req, res) => {
       endAt,
       status,
       notes,
+      source,
+      sourceEncounterId,
     } = req.body || {};
 
     if (!patientId || !branchId || !scheduledAt) {
@@ -366,7 +370,7 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "scheduledAt is invalid date" });
     }
 
-    // Optional endAt
+    // Optional endAt (default to 30 minutes if not provided)
     let endDate = null;
     if (endAt !== undefined && endAt !== null && endAt !== "") {
       const tmp = new Date(endAt);
@@ -379,6 +383,9 @@ router.post("/", async (req, res) => {
           .json({ error: "endAt must be later than scheduledAt" });
       }
       endDate = tmp;
+    } else {
+      // Default to 30 minutes if endAt not provided
+      endDate = new Date(scheduledDate.getTime() + 30 * 60_000);
     }
 
     // Normalize and validate status
@@ -391,6 +398,87 @@ router.post("/", async (req, res) => {
       normalizedStatus = maybe;
     }
 
+    // ===== CAPACITY ENFORCEMENT: Max 2 overlapping appointments =====
+    // Only enforce capacity when doctorId is set
+    if (parsedDoctorId !== null) {
+      const slotStart = scheduledDate;
+      const slotEnd = endDate;
+
+      // Query existing appointments for this doctor that overlap with the requested interval
+      const existingAppointments = await prisma.appointment.findMany({
+        where: {
+          doctorId: parsedDoctorId,
+          // Only count appointments with blocking statuses
+          status: {
+            in: ["booked", "confirmed", "ongoing", "online", "other"],
+          },
+          // Appointments that overlap with [slotStart, slotEnd)
+          // Overlap condition: existingStart < slotEnd AND existingEnd > slotStart
+          scheduledAt: { lt: slotEnd },
+          OR: [
+            { endAt: { gt: slotStart } },
+            { endAt: null }, // null endAt means use default duration, consider as potential overlap
+          ],
+        },
+        select: {
+          id: true,
+          scheduledAt: true,
+          endAt: true,
+        },
+      });
+
+      // Calculate maximum concurrent overlaps if this new appointment is added
+      // We need to find the moment in time with the highest overlap count
+
+      // Collect all time points (start and end times) including the new appointment
+      const events = [];
+
+      // Add existing appointments
+      for (const apt of existingAppointments) {
+        const aptStart = new Date(apt.scheduledAt);
+        const aptEnd = apt.endAt
+          ? new Date(apt.endAt)
+          : new Date(aptStart.getTime() + 30 * 60_000);
+        events.push({ time: aptStart.getTime(), type: "start" });
+        events.push({ time: aptEnd.getTime(), type: "end" });
+      }
+
+      // Add the new appointment we're trying to create
+      events.push({ time: slotStart.getTime(), type: "start" });
+      events.push({ time: slotEnd.getTime(), type: "end" });
+
+      // Sort events by time, with 'end' events before 'start' events at the same time
+      events.sort((a, b) => {
+        if (a.time !== b.time) return a.time - b.time;
+        // At same time: process 'end' before 'start' to get accurate count
+        return a.type === "end" ? -1 : 1;
+      });
+
+      // Sweep through events to find maximum concurrent appointments
+      let currentCount = 0;
+      let maxCount = 0;
+
+      for (const event of events) {
+        if (event.type === "start") {
+          currentCount++;
+          maxCount = Math.max(maxCount, currentCount);
+        } else {
+          currentCount--;
+        }
+      }
+
+      // If max concurrent count would exceed 2, reject the booking
+      if (maxCount > 2) {
+        return res.status(409).json({
+          error: `Энэ цагт эмчийн дүүргэлт хэтэрсэн байна. Хамгийн ихдээ 2 давхцах цаг авах боломжтой. (Одоогийн давхцал: ${maxCount})`,
+        });
+      }
+    }
+
+    // Extract provenance fields
+    const createdByUserId = req.user?.id || null;
+    const parsedSourceEncounterId = sourceEncounterId ? Number(sourceEncounterId) : null;
+
     const appt = await prisma.appointment.create({
       data: {
         patientId: parsedPatientId,
@@ -400,6 +488,10 @@ router.post("/", async (req, res) => {
         endAt: endDate,
         status: normalizedStatus,
         notes: notes || null,
+        // Provenance fields for deletion permission tracking
+        createdByUserId: createdByUserId,
+        source: source || null,
+        sourceEncounterId: parsedSourceEncounterId,
       },
       include: {
         patient: {
@@ -829,12 +921,15 @@ router.get("/:id/report", async (req, res) => {
 });
 
 /**
- * DELETE /api/appointments/:id
+ * DELETE /api/appointments/:id?encounterId=123
  * 
  * Deletes an appointment with role-based permissions:
  * - Doctors can only delete appointments they created from follow-up encounter flow
- *   that are scheduled in the future
+ *   that are scheduled in the future AND match the specified encounterId
  * - Admin/receptionist can delete any appointment (broader permissions)
+ * 
+ * Query params:
+ * - encounterId (number, required for doctors): The encounter ID to verify against sourceEncounterId
  */
 router.delete("/:id", authenticateJWT, async (req, res) => {
   try {
@@ -889,6 +984,33 @@ router.delete("/:id", authenticateJWT, async (req, res) => {
       if (appointment.scheduledAt <= now) {
         return res.status(403).json({
           error: "Өнгөрсөн цагийг устгах боломжгүй",
+        });
+      }
+
+      // Check 4: NEW - Must match the specified encounterId
+      const encounterIdParam = req.query.encounterId;
+      if (!encounterIdParam) {
+        return res.status(400).json({
+          error: "encounterId query parameter is required for doctors",
+        });
+      }
+
+      const parsedEncounterId = Number(encounterIdParam);
+      if (Number.isNaN(parsedEncounterId)) {
+        return res.status(400).json({
+          error: "encounterId must be a valid number",
+        });
+      }
+
+      if (!appointment.sourceEncounterId) {
+        return res.status(403).json({
+          error: "Энэ цаг үзлэгтэй холбогдоогүй байна",
+        });
+      }
+
+      if (appointment.sourceEncounterId !== parsedEncounterId) {
+        return res.status(403).json({
+          error: "Та зөвхөн одоогийн үзлэгээс үүссэн цагийг устгах боломжтой",
         });
       }
     } else if (userRole !== "admin" && userRole !== "receptionist") {
