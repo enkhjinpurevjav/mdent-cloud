@@ -165,6 +165,8 @@ export type EditableDiagnosis = EncounterDiagnosisRow & {
   indicatorIds?: number[];
   indicatorSearchText?: string;
   assignedTo?: AssignedTo;
+  // Dirty tracking: true if user has explicitly modified indicators
+  indicatorsDirty?: boolean;
 };
 
 export type ActiveIndicator = {

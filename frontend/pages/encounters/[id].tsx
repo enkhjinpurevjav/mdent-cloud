@@ -152,6 +152,7 @@ export default function EncounterAdminPage() {
       locked: false,
       indicatorIds: [],
       indicatorSearchText: "",
+      indicatorsDirty: false,
     };
 
     setEditableDxRows((prev) => [...prev, newRow]);
@@ -385,11 +386,17 @@ export default function EncounterAdminPage() {
       field: K,
       value: EditableDiagnosis[K]
     ) => {
+      // If updating indicatorIds, also mark as dirty
+      const updates: Partial<EditableDiagnosis> = { [field]: value };
+      if (field === "indicatorIds") {
+        updates.indicatorsDirty = true;
+      }
+      
       setRows((prev) =>
-        prev.map((row, i) => (i === index ? { ...row, [field]: value } : row))
+        prev.map((row, i) => (i === index ? { ...row, ...updates } : row))
       );
       setEditableDxRows((prev) =>
-        prev.map((row, i) => (i === index ? { ...row, [field]: value } : row))
+        prev.map((row, i) => (i === index ? { ...row, ...updates } : row))
       );
     },
     []
@@ -483,6 +490,7 @@ const loadEncounter = async () => {
               .filter(Boolean)
           : [],
         indicatorSearchText: "",
+        indicatorsDirty: false, // Not dirty when loaded from backend
       })) || [];
 
     // 2) Load active indicators for patient's branch (needed for display)
@@ -1310,37 +1318,32 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
   setSaving(true);
   setSaveError("");
 
-  // ✅ Snapshot by stable key (id if exists, else localId)
-const snapById = new Map<number, {
-  serviceId?: number;
-  serviceSearchText: string;
-  indicatorIds: number[];
-  assignedTo: AssignedTo;
-}>();
+  // ✅ Snapshot by stable ID only - capture state BEFORE any updates
+  const snapById = new Map<number, {
+    serviceId?: number;
+    serviceSearchText: string;
+    indicatorIds: number[];
+    indicatorsDirty: boolean;
+    assignedTo: AssignedTo;
+  }>();
 
-const snapByIndex = new Map<number, {
-  serviceId?: number;
-  serviceSearchText: string;
-  indicatorIds: number[];
-  assignedTo: AssignedTo;
-}>();
-
-rows.forEach((r, idx) => {
-  const snap = {
-    serviceId: r.serviceId,
-    serviceSearchText: r.serviceSearchText || "",
-    indicatorIds: Array.isArray(r.indicatorIds) ? [...r.indicatorIds] : [],
-    assignedTo: r.assignedTo ?? "DOCTOR",
-  };
-
-  if (r.id) snapById.set(r.id, snap);
-  else snapByIndex.set(idx, snap); // fallback for new rows
-});
+  // Snapshot existing rows (with IDs) by their database ID
+  rows.forEach((r) => {
+    if (r.id) {
+      snapById.set(r.id, {
+        serviceId: r.serviceId,
+        serviceSearchText: r.serviceSearchText || "",
+        indicatorIds: Array.isArray(r.indicatorIds) ? [...r.indicatorIds] : [],
+        indicatorsDirty: r.indicatorsDirty ?? false,
+        assignedTo: r.assignedTo ?? "DOCTOR",
+      });
+    }
+  });
 
   try {
    const payload = {
   items: editableDxRows.map((row) => ({
-    id: row.id ?? null,              // ✅ add this
+    id: row.id ?? null,
     diagnosisId: row.diagnosisId,
     selectedProblemIds: row.selectedProblemIds,
     note: row.note || null,
@@ -1361,9 +1364,7 @@ rows.forEach((r, idx) => {
 
     const savedDxRows: EditableDiagnosis[] = saved.map((srvRow: any, idx: number) => {
       const rowId = Number(srvRow?.id);
-const snap =
-  (Number.isFinite(rowId) && rowId > 0 ? snapById.get(rowId) : undefined) ??
-  snapByIndex.get(idx);
+      const snap = snapById.get(rowId);
 
       return {
         ...srvRow,
@@ -1378,6 +1379,7 @@ const snap =
         serviceSearchText: snap?.serviceSearchText || "",
         indicatorIds: snap?.indicatorIds || [],
         indicatorSearchText: "",
+        indicatorsDirty: false, // Reset dirty flag after save
         assignedTo: snap?.assignedTo ?? "DOCTOR",
 
         searchText: srvRow.diagnosis ? `${srvRow.diagnosis.code} – ${srvRow.diagnosis.name}` : "",
@@ -1388,19 +1390,31 @@ const snap =
     setEditableDxRows(savedDxRows);
     setRows(savedDxRows);
 
-    // ✅ save indicators by matching the same key (NOT index)
+    // ✅ Save indicators ONLY for rows that:
+    // 1. Have a valid database ID (from snapById)
+    // 2. Either have indicators selected OR were explicitly modified (dirty)
     await Promise.all(
       saved.map(async (srvRow: any) => {
         const dxId = Number(srvRow?.id);
         if (!dxId) return;
 
-       
-const snap = snapById.get(dxId);
+        const snap = snapById.get(dxId);
+        if (!snap) return; // Skip new rows without snapshot
+        
+        const indicatorIds = snap.indicatorIds || [];
+        const isDirty = snap.indicatorsDirty;
+        
+        // Skip empty indicator saves unless user explicitly cleared them
+        if (indicatorIds.length === 0 && !isDirty) {
+          return;
+        }
 
-     
-        const indicatorIds = snap?.indicatorIds || [];
+        // Build URL with replace flag if user explicitly cleared indicators
+        const baseUrl = `/api/encounters/${id}/diagnoses/${dxId}/sterilization-indicators`;
+        const shouldReplace = isDirty && indicatorIds.length === 0;
+        const url = shouldReplace ? `${baseUrl}?replace=true` : baseUrl;
 
-        await fetch(`/api/encounters/${id}/diagnoses/${dxId}/sterilization-indicators`, {
+        await fetch(url, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ indicatorIds }),
@@ -1425,14 +1439,9 @@ const snap = snapById.get(dxId);
       const unsavedDiagnosisRows = rowsWithServices.filter((r) => !r.id);
       
       if (unsavedDiagnosisRows.length > 0) {
-        console.warn(
-          "⚠️ Warning: Some diagnosis rows have services selected but have not been saved yet. " +
-          "Diagnoses must be saved before services can be properly associated with them. " +
-          "These services will be saved without diagnosis linkage (diagnosisId will be null). " +
-          "Affected rows:",
-          unsavedDiagnosisRows
+        throw new Error(
+          "Онош эхлээд хадгална уу. Онош хадгалсны дараа үйлчилгээ хадгалах боломжтой."
         );
-        // Still proceed but diagnosisId will be null for these rows
       }
 
       const payload = {
@@ -1444,7 +1453,7 @@ const snap = snapById.get(dxId);
         serviceId: r.serviceId!,
         quantity: 1,
         assignedTo: isImaging ? (r.assignedTo ?? "DOCTOR") : "DOCTOR",
-        diagnosisId: r.id ?? null, // IMPORTANT: must be EncounterDiagnosis row id
+        diagnosisId: r.id!, // Now guaranteed to exist due to validation
       };
     }),
 };
@@ -1852,9 +1861,18 @@ const handleFinishEncounter = async () => {
               onSetActiveDxRowIndex={setActiveDxRowIndex}
               onUpdateRowField={updateDxRowField}
               onSave={async () => {
-                await handleSaveDiagnoses();
-                await handleSaveServices();
-                await savePrescription();
+                // Re-entrancy guard: prevent concurrent saves
+                if (saving || finishing) return;
+                
+                try {
+                  await handleSaveDiagnoses();
+                  await handleSaveServices();
+                  await savePrescription();
+                } catch (err: any) {
+                  console.error("Save failed:", err);
+                  // Display error to user
+                  setSaveError(err?.message || "Хадгалахад алдаа гарлаа");
+                }
               }}
               onFinish={handleFinishEncounter}
               onResetToothSelection={resetToothSelectionSession}
