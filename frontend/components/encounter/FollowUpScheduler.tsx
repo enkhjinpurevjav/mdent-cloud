@@ -77,6 +77,8 @@ const COL_WIDTH = 80; // Width of each time slot column in pixels
 const LANE_HEIGHT = 36; // Height per lane for appointment stacking
 const LANE_PADDING = 2; // Padding between lanes
 const MIN_ROW_HEIGHT = 80; // Minimum height for each day row
+const BLOCK_HORIZONTAL_PADDING = 2; // Horizontal padding for appointment blocks (visual spacing)
+const BLOCK_BORDER_RADIUS = 4; // Border radius for appointment blocks
 
 export default function FollowUpScheduler({
   showFollowUpScheduler,
@@ -559,9 +561,9 @@ useEffect(() => {
                     }}
                   >
                     {appointments.map((apt) => {
-                      // Calculate position based on grid columns with small padding for visual clarity
-                      const left = apt.span.startCol * COL_WIDTH + 2;
-                      const width = apt.span.colSpan * COL_WIDTH - 4;
+                      // Calculate position based on grid columns with padding for visual clarity
+                      const left = apt.span.startCol * COL_WIDTH + BLOCK_HORIZONTAL_PADDING;
+                      const width = apt.span.colSpan * COL_WIDTH - (BLOCK_HORIZONTAL_PADDING * 2);
                       const top = apt.lane * LANE_HEIGHT + LANE_PADDING;
                       const height = LANE_HEIGHT - LANE_PADDING * 2;
 
@@ -576,7 +578,7 @@ useEffect(() => {
                             height,
                             background: "rgba(254, 202, 202, 0.7)",
                             border: "1px solid #fca5a5",
-                            borderRadius: 4,
+                            borderRadius: BLOCK_BORDER_RADIUS,
                             padding: "4px 6px",
                             fontSize: 11,
                             fontWeight: 600,

@@ -1420,12 +1420,18 @@ const snap = snapById.get(dxId);
     setSaving(true);
     setSaveError("");
     try {
-      // Validate that all rows with services have diagnosis IDs
+      // Validate that all rows with services have been saved (have database IDs)
       const rowsWithServices = rows.filter((r) => r.serviceId);
-      const rowsWithoutDiagnosisId = rowsWithServices.filter((r) => !r.id);
+      const unsavedDiagnosisRows = rowsWithServices.filter((r) => !r.id);
       
-      if (rowsWithoutDiagnosisId.length > 0) {
-        console.warn("⚠️ Some rows have services but no diagnosis ID. They should be saved first:", rowsWithoutDiagnosisId);
+      if (unsavedDiagnosisRows.length > 0) {
+        console.warn(
+          "⚠️ Warning: Some diagnosis rows have services selected but have not been saved yet. " +
+          "Diagnoses must be saved before services can be properly associated with them. " +
+          "These services will be saved without diagnosis linkage (diagnosisId will be null). " +
+          "Affected rows:",
+          unsavedDiagnosisRows
+        );
         // Still proceed but diagnosisId will be null for these rows
       }
 
