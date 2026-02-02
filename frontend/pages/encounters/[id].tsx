@@ -1640,7 +1640,7 @@ const handleFinishEncounter = async () => {
     setFinishing(true);
     try {
       await handleSaveDiagnoses();
-      await handleSaveServices();
+      // Services are now saved by handleSaveDiagnoses - no separate call needed
       await savePrescription();
 
       const res = await fetch(`/api/encounters/${id}/finish`, { method: "PUT" });
