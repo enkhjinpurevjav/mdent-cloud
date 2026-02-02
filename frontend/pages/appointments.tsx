@@ -1298,7 +1298,8 @@ const workingDoctorsForFilter = scheduledDoctors.length
   ? scheduledDoctors
   : doctors;
   const [filterDate, setFilterDate] = useState<string>(todayStr);
-  // filterBranchId is kept for backward compatibility but no longer used for data fetching
+  // filterBranchId is kept in sync with URL for UI display but NOT used for data fetching
+  // Data fetching uses only effectiveBranchId from useBranchLock as single source of truth
   const [filterBranchId, setFilterBranchId] = useState<string>(
     branchIdFromQuery || ""
   );
@@ -1375,7 +1376,7 @@ const workingDoctorsForFilter = scheduledDoctors.length
       
       // Guard: only update state if this is still the latest request
       if (currentRequestId !== appointmentsRequestIdRef.current) {
-        console.log(`Discarding stale appointments response (req ${currentRequestId}, current ${appointmentsRequestIdRef.current})`);
+        console.debug(`Discarding stale appointments response (req ${currentRequestId}, current ${appointmentsRequestIdRef.current})`);
         return;
       }
 
@@ -1410,7 +1411,7 @@ const workingDoctorsForFilter = scheduledDoctors.length
       
       // Guard: only update state if this is still the latest request
       if (currentRequestId !== scheduledDoctorsRequestIdRef.current) {
-        console.log(`Discarding stale scheduledDoctors response (req ${currentRequestId}, current ${scheduledDoctorsRequestIdRef.current})`);
+        console.debug(`Discarding stale scheduledDoctors response (req ${currentRequestId}, current ${scheduledDoctorsRequestIdRef.current})`);
         return;
       }
 
@@ -1455,7 +1456,7 @@ useEffect(() => {
       
       // Guard: only update state if this is still the latest request
       if (currentRequestId !== revenueRequestIdRef.current) {
-        console.log(`Discarding stale revenue response (req ${currentRequestId}, current ${revenueRequestIdRef.current})`);
+        console.debug(`Discarding stale revenue response (req ${currentRequestId}, current ${revenueRequestIdRef.current})`);
         return;
       }
 
