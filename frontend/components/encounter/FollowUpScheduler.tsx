@@ -77,6 +77,7 @@ const nameOnly = (label: string) =>
 const COL_WIDTH = 80; // Width of each time slot column in pixels
 const MIN_ROW_HEIGHT = 80; // Minimum height for each day row
 const BLOCK_BORDER_RADIUS = 4; // Border radius for appointment blocks
+const DEFAULT_LANE = 0; // Default lane when both lanes are full
 
 export default function FollowUpScheduler({
   showFollowUpScheduler,
@@ -272,6 +273,55 @@ useEffect(() => {
   }, 500);
 };
 
+  // Compute lane assignments for appointments
+  const computeLanes = (appointments: AppointmentLiteForDetails[]): Map<number, 0 | 1> => {
+    const lanes = new Map<number, 0 | 1>();
+    const DEFAULT_SLOT_DURATION_MS = followUpSlotMinutes * 60_000;
+    
+    // Sort by start time, then by duration (longer first), then by id
+    const sorted = [...appointments].sort((a, b) => {
+      const startA = new Date(a.scheduledAt).getTime();
+      const startB = new Date(b.scheduledAt).getTime();
+      if (startA !== startB) return startA - startB;
+      
+      const endA = a.endAt ? new Date(a.endAt).getTime() : startA + DEFAULT_SLOT_DURATION_MS;
+      const endB = b.endAt ? new Date(b.endAt).getTime() : startB + DEFAULT_SLOT_DURATION_MS;
+      const durA = endA - startA;
+      const durB = endB - startB;
+      
+      if (durA !== durB) return durB - durA; // longer first
+      return a.id - b.id;
+    });
+    
+    // Track end times for each lane
+    const laneEndTime: { lane0: number | null; lane1: number | null } = { lane0: null, lane1: null };
+    
+    for (const apt of sorted) {
+      const start = new Date(apt.scheduledAt).getTime();
+      const end = apt.endAt 
+        ? new Date(apt.endAt).getTime() 
+        : start + DEFAULT_SLOT_DURATION_MS;
+      
+      // Try to assign to first available lane
+      let assignedLane: 0 | 1 = DEFAULT_LANE;
+      if (laneEndTime.lane0 === null || start >= laneEndTime.lane0) {
+        assignedLane = 0;
+        laneEndTime.lane0 = end;
+      } else if (laneEndTime.lane1 === null || start >= laneEndTime.lane1) {
+        assignedLane = 1;
+        laneEndTime.lane1 = end;
+      } else {
+        // Both lanes are occupied - force to default lane
+        assignedLane = DEFAULT_LANE;
+        laneEndTime.lane0 = Math.max(laneEndTime.lane0 ?? 0, end);
+      }
+      
+      lanes.set(apt.id, assignedLane);
+    }
+    
+    return lanes;
+  };
+
   const renderGrid = () => {
     if (!localAvailability) return null;
     const { days, timeLabels } = localAvailability;
@@ -286,13 +336,10 @@ useEffect(() => {
         return aptDate === day.date;
       });
 
-      // Sort appointments by start time, then by id for consistent ordering
-      aptsThisDay.sort((a, b) => {
-        const timeDiff = new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime();
-        return timeDiff !== 0 ? timeDiff : a.id - b.id;
-      });
+      // Compute lanes for appointments this day
+      const lanes = computeLanes(aptsThisDay);
 
-      return { day, appointments: aptsThisDay };
+      return { day, appointments: aptsThisDay, lanes };
     });
 
     return (
@@ -348,206 +395,213 @@ useEffect(() => {
             </tr>
           </thead>
           <tbody>
-            {dayAppointments.map(({ day, appointments }) => (
-              <tr key={day.date}>
-                {/* Date as the first column */}
-                <td
-                  style={{
-                    padding: 8,
-                    textAlign: "center",
-                    background: "#f9fafb",
-                    fontWeight: 500,
-                    borderBottom: "1px solid #e5e7eb",
-                    borderRight: "1px solid #e5e7eb",
-                    verticalAlign: "middle",
-                    minHeight: MIN_ROW_HEIGHT,
-                  }}
-                >
-                  <div>{day.dayLabel}</div>
-                  <div style={{ fontSize: 10, color: "#6b7280" }}>
-                    {new Date(day.date).toLocaleDateString("mn-MN", {
-                      year: "numeric",
-                      month: "2-digit",
-                      day: "2-digit",
-                    })}
-                  </div>
-                </td>
-                
-                {/* Time slots with inline appointment blocks */}
-                <td
-                  colSpan={timeLabels.length}
-                  style={{
-                    padding: 0,
-                    borderBottom: "1px solid #e5e7eb",
-                  }}
-                >
-                  {/* Grid layer with inline appointment blocks */}
-                  <div 
-                    style={{ 
-                      display: "grid",
-                      gridTemplateColumns: `repeat(${timeLabels.length}, ${COL_WIDTH}px)`,
+            {dayAppointments.map(({ day, appointments, lanes }) => {
+              const DEFAULT_SLOT_DURATION_MS = followUpSlotMinutes * 60_000;
+              
+              // Calculate column spans for appointments
+              const getColSpan = (apt: AppointmentLiteForDetails): number => {
+                const start = new Date(apt.scheduledAt);
+                const end = apt.endAt ? new Date(apt.endAt) : new Date(start.getTime() + DEFAULT_SLOT_DURATION_MS);
+                const durationMs = end.getTime() - start.getTime();
+                return Math.max(1, Math.ceil(durationMs / DEFAULT_SLOT_DURATION_MS));
+              };
+
+              const getStartCol = (apt: AppointmentLiteForDetails): number => {
+                const startTime = getHmFromIso(apt.scheduledAt);
+                return timeLabels.indexOf(startTime);
+              };
+
+              return (
+                <tr key={day.date}>
+                  {/* Date as the first column */}
+                  <td
+                    style={{
+                      padding: 8,
+                      textAlign: "center",
+                      background: "#f9fafb",
+                      fontWeight: 500,
+                      borderBottom: "1px solid #e5e7eb",
+                      borderRight: "1px solid #e5e7eb",
+                      verticalAlign: "top",
                       minHeight: MIN_ROW_HEIGHT,
                     }}
                   >
-                    {timeLabels.map((timeLabel, colIndex) => {
-  const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
+                    <div>{day.dayLabel}</div>
+                    <div style={{ fontSize: 10, color: "#6b7280" }}>
+                      {new Date(day.date).toLocaleDateString("mn-MN", {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                      })}
+                    </div>
+                  </td>
+                  
+                  {/* Time slots container with duration-spanning appointment blocks */}
+                  <td
+                    colSpan={timeLabels.length}
+                    style={{
+                      padding: 0,
+                      borderBottom: "1px solid #e5e7eb",
+                      position: "relative",
+                    }}
+                  >
+                    {/* Base grid layer for cell backgrounds and click handlers */}
+                    <div 
+                      style={{ 
+                        display: "grid",
+                        gridTemplateColumns: `repeat(${timeLabels.length}, ${COL_WIDTH}px)`,
+                        gridTemplateRows: "repeat(2, 40px)", // 2 lanes
+                        minHeight: MIN_ROW_HEIGHT,
+                      }}
+                    >
+                      {timeLabels.map((timeLabel, colIndex) => {
+                        const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
+                        
+                        if (!slot) {
+                          return (
+                            <div
+                              key={`${day.date}-${timeLabel}-lane0`}
+                              style={{
+                                gridRow: "1 / 3",
+                                padding: 8,
+                                background: "rgba(249, 250, 251, 0.6)",
+                                textAlign: "center",
+                                borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              –
+                            </div>
+                          );
+                        }
 
-  if (!slot) {
-    return (
-      <div
-        key={`${day.date}-${timeLabel}`}
-        style={{
-          padding: 8,
-          background: "rgba(249, 250, 251, 0.6)",
-          textAlign: "center",
-          borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        –
-      </div>
-    );
-  }
+                        if (slot.status === "off") {
+                          return (
+                            <div
+                              key={`${day.date}-${timeLabel}-lane0`}
+                              style={{
+                                gridRow: "1 / 3",
+                                padding: 8,
+                                background: "rgba(243, 244, 246, 0.7)",
+                                color: "#9ca3af",
+                                textAlign: "center",
+                                borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              -
+                            </div>
+                          );
+                        }
 
-  if (slot.status === "off") {
-    return (
-      <div
-        key={`${day.date}-${timeLabel}`}
-        style={{
-          padding: 8,
-          background: "rgba(243, 244, 246, 0.7)",
-          color: "#9ca3af",
-          textAlign: "center",
-          borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        -
-      </div>
-    );
-  }
+                        // Render each lane separately
+                        return (
+                          <React.Fragment key={`${day.date}-${timeLabel}`}>
+                            <div
+                              style={{
+                                gridRow: "1",
+                                padding: 4,
+                                background: slot.status === "booked"
+                                  ? "rgba(254, 242, 242, 0.7)"
+                                  : "rgba(236, 253, 243, 0.7)",
+                                borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
+                                borderBottom: "1px solid #e5e7eb",
+                                cursor: followUpBooking ? "not-allowed" : "pointer",
+                              }}
+                              onClick={() => {
+                                if (slot.status === "booked") {
+                                  handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel, slot.start);
+                                } else {
+                                  handleSlotSelection(slot.start);
+                                }
+                              }}
+                            />
+                            <div
+                              style={{
+                                gridRow: "2",
+                                padding: 4,
+                                background: slot.status === "booked"
+                                  ? "rgba(254, 242, 242, 0.7)"
+                                  : "rgba(236, 253, 243, 0.7)",
+                                borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
+                                cursor: followUpBooking ? "not-allowed" : "pointer",
+                              }}
+                              onClick={() => {
+                                if (slot.status === "booked") {
+                                  handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel, slot.start);
+                                } else {
+                                  handleSlotSelection(slot.start);
+                                }
+                              }}
+                            />
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
 
-  // slot exists from here
-  const slotAppts = (slot.appointmentIds || [])
-    .map((id) => apptById.get(id))
-    .filter(Boolean) as AppointmentLiteForDetails[];
-
-  const appointmentsAtStart = slotAppts.filter(
-    (apt) => getHmFromIso(apt.scheduledAt) === timeLabel
-  );
-
-  const appointmentsContinuing = slotAppts.filter((apt) => {
-    if (getHmFromIso(apt.scheduledAt) === timeLabel) return false;
-
-    const aptStart = new Date(apt.scheduledAt);
-    const aptEnd = apt.endAt
-      ? new Date(apt.endAt)
-      : new Date(aptStart.getTime() + followUpSlotMinutes * 60_000);
-
-    const cellStart = new Date(slot.start);
-    const cellEnd = new Date(cellStart.getTime() + followUpSlotMinutes * 60_000);
-
-    return aptStart < cellEnd && aptEnd > cellStart;
-  });
-
-  return (
-    <div
-      key={`${day.date}-${timeLabel}`}
-      style={{
-        padding: 4,
-        background: slot.status === "booked"
-          ? "rgba(254, 242, 242, 0.7)"
-          : "rgba(236, 253, 243, 0.7)",
-        borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
-        cursor: followUpBooking ? "not-allowed" : "pointer",
-        display: "flex",
-        flexDirection: "column",
-        gap: 2,
-        alignItems: "stretch",
-        justifyContent: "center",
-        overflow: "hidden",
-      }}
-      onClick={() => {
-        if (slot.status === "booked") {
-          handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel, slot.start);
-        } else {
-          handleSlotSelection(slot.start);
-        }
-      }}
-    >
-      {appointmentsAtStart.length > 0 ? (
-        appointmentsAtStart.slice(0, 2).map((apt) => (
-          <div
-            key={apt.id}
-            style={{
-              width: "100%",
-              maxWidth: "100%",
-              background: "rgba(254, 202, 202, 0.9)",
-              border: "1px solid #fca5a5",
-              borderRadius: BLOCK_BORDER_RADIUS,
-              padding: "4px 6px",
-              fontSize: 11,
-              fontWeight: 600,
-              color: "#991b1b",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              cursor: "pointer",
-            }}
-            title={`${nameOnly(formatGridShortLabel(apt)) || "Захиалга"} (${getHmFromIso(apt.scheduledAt)} - ${apt.endAt ? getHmFromIso(apt.endAt) : "—"})`}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleBookedSlotClick([apt.id], day.date, timeLabel, slot.start);
-            }}
-          >
-            {nameOnly(formatGridShortLabel(apt)) || "Захиалга"}
-          </div>
-        ))
-      ) : appointmentsContinuing.length > 0 ? (
-        appointmentsContinuing.slice(0, 2).map((apt) => (
-          <div
-            key={apt.id}
-            style={{
-              width: "100%",
-              maxWidth: "100%",
-              padding: "2px 6px",
-              borderRadius: BLOCK_BORDER_RADIUS,
-              border: "1px dashed rgba(153,27,27,0.45)",
-              background: "rgba(254, 202, 202, 0.35)",
-              color: "#991b1b",
-              fontSize: 11,
-              fontWeight: 700,
-              textAlign: "center",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              cursor: "pointer",
-            }}
-            title={`Үргэлжилж байна: ${nameOnly(formatGridShortLabel(apt)) || "Захиалга"}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel, slot.start);
-            }}
-          >
-            →
-          </div>
-        ))
-      ) : (
-        <div style={{ fontSize: 11, color: "#166534", textAlign: "center" }}>
-          Сул
-        </div>
-      )}
-    </div>
-  );
-})}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                    {/* Appointment blocks layer (absolute positioned) */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        display: "grid",
+                        gridTemplateColumns: `repeat(${timeLabels.length}, ${COL_WIDTH}px)`,
+                        gridTemplateRows: "repeat(2, 40px)",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      {appointments.map((apt) => {
+                        const startCol = getStartCol(apt);
+                        if (startCol === -1) return null; // appointment start not in visible range
+                        
+                        const colSpan = getColSpan(apt);
+                        const lane = lanes.get(apt.id) ?? DEFAULT_LANE;
+                        const gridRow = lane === 0 ? "1" : "2";
+                        
+                        return (
+                          <div
+                            key={apt.id}
+                            style={{
+                              gridColumn: `${startCol + 1} / span ${colSpan}`,
+                              gridRow: gridRow,
+                              margin: "2px",
+                              padding: "4px 8px",
+                              background: "rgba(254, 202, 202, 0.95)",
+                              border: "1px solid #fca5a5",
+                              borderRadius: BLOCK_BORDER_RADIUS,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              color: "#991b1b",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              cursor: "pointer",
+                              pointerEvents: "auto",
+                              display: "flex",
+                              alignItems: "center",
+                            }}
+                            title={`${nameOnly(formatGridShortLabel(apt)) || "Захиалга"} (${getHmFromIso(apt.scheduledAt)} - ${apt.endAt ? getHmFromIso(apt.endAt) : "—"})`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleBookedSlotClick([apt.id], day.date, getHmFromIso(apt.scheduledAt), apt.scheduledAt);
+                            }}
+                          >
+                            {nameOnly(formatGridShortLabel(apt)) || "Захиалга"}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
