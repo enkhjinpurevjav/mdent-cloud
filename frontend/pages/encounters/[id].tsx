@@ -1428,14 +1428,6 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     setSaving(false);
   }
 };
-    );
-  } catch (err: any) {
-    console.error("handleSaveDiagnoses failed", err);
-    setSaveError(err?.message || "Онош хадгалахад алдаа гарлаа.");
-  } finally {
-    setSaving(false);
-  }
-};
 
   const handleSaveServices = async () => {
     if (!id || typeof id !== "string") return;
