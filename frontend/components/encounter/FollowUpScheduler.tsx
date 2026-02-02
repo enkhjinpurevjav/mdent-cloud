@@ -400,6 +400,21 @@ useEffect(() => {
 const appointmentsAtStart = slotAppts.filter(
   (apt) => getHmFromIso(apt.scheduledAt) === timeLabel
 );
+                    // Appointments that occupy this slot but started earlier (duration spill)
+const appointmentsContinuing = slotAppts.filter((apt) => {
+  const aptStartHm = getHmFromIso(apt.scheduledAt);
+  if (aptStartHm === timeLabel) return false; // not continuing; starts here
+
+  const aptStart = new Date(apt.scheduledAt);
+  const aptEnd = apt.endAt
+    ? new Date(apt.endAt)
+    : new Date(aptStart.getTime() + followUpSlotMinutes * 60_000);
+
+  const cellStart = new Date(slot.start);
+  const cellEnd = new Date(cellStart.getTime() + followUpSlotMinutes * 60_000);
+
+  return aptStart < cellEnd && aptEnd > cellStart; // overlaps this cell
+});
 
                       if (!slot) {
                         return (
@@ -465,44 +480,46 @@ const appointmentsAtStart = slotAppts.filter(
                         >
                           {/* Show appointment blocks if any start at this time */}
                           {appointmentsAtStart.length > 0 ? (
-                            appointmentsAtStart.map((apt) => (
-                              <div
-                                key={apt.id}
-                                style={{
-                                  width: "100%",
-                                  maxWidth: "100%",
-                                  background: "rgba(254, 202, 202, 0.9)",
-                                  border: "1px solid #fca5a5",
-                                  borderRadius: BLOCK_BORDER_RADIUS,
-                                  padding: "4px 6px",
-                                  fontSize: 11,
-                                  fontWeight: 600,
-                                  color: "#991b1b",
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                  cursor: "pointer",
-                                }}
-                                title={`${nameOnly(formatGridShortLabel(apt)) || "Захиалга"} (${getHmFromIso(apt.scheduledAt)} - ${apt.endAt ? getHmFromIso(apt.endAt) : "—"})`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  // Pass only the clicked appointment's slot info
-                                  handleBookedSlotClick([apt.id], day.date, timeLabel, slot.start);
-                                }}
-                              >
-                                {formatGridShortLabel(apt) || "Захиалга"}
-                              </div>
-                            ))
-                          ) : (
-                            /* Show availability indicator if no appointments */
-                            <div style={{ 
-                              fontSize: 11, 
-                              color: slot.status === "booked" ? "#991b1b" : "#166534",
-                              textAlign: "center",
-                            }}>
-                              {slot.status === "booked" ? "" : "Сул"}
-                            </div>
-                          )}
+  appointmentsAtStart.slice(0, 2).map((apt) => (
+    <div key={apt.id} ...>
+      {nameOnly(formatGridShortLabel(apt)) || "Захиалга"}
+    </div>
+  ))
+) : appointmentsContinuing.length > 0 ? (
+  appointmentsContinuing.slice(0, 2).map((apt) => (
+    <div
+      key={apt.id}
+      style={{
+        width: "100%",
+        maxWidth: "100%",
+        padding: "2px 6px",
+        borderRadius: BLOCK_BORDER_RADIUS,
+        border: "1px dashed rgba(153,27,27,0.45)",
+        background: "rgba(254, 202, 202, 0.35)",
+        color: "#991b1b",
+        fontSize: 11,
+        fontWeight: 700,
+        textAlign: "center",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        cursor: "pointer",
+      }}
+      title={`Үргэлжилж байна: ${nameOnly(formatGridShortLabel(apt)) || "Захиалга"}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        // Open the slot details for this time with all ids in this slot
+        handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel, slot.start);
+      }}
+    >
+      →
+    </div>
+  ))
+) : (
+  <div style={{ fontSize: 11, color: "#166534", textAlign: "center" }}>
+    Сул
+  </div>
+)}
                         </div>
                       );
                     })}
