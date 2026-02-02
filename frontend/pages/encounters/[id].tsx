@@ -508,11 +508,17 @@ const loadEncounter = async () => {
       const assignedTo: AssignedTo =
         ((linkedService?.meta as any)?.assignedTo as AssignedTo) || "DOCTOR";
 
+      // Build service search text with same format as after save (code – name)
+      let serviceSearchText = "";
+      if (linkedService?.service) {
+        const svc = linkedService.service;
+        serviceSearchText = svc.code ? `${svc.code} – ${svc.name}` : svc.name;
+      }
+
       return {
         ...dxRow,
         serviceId: linkedService?.serviceId,
-        // ✅ requested: show only service name after refresh
-        serviceSearchText: linkedService?.service?.name ?? "",
+        serviceSearchText,
         assignedTo,
       };
     });
@@ -1414,10 +1420,23 @@ const snap = snapById.get(dxId);
     setSaving(true);
     setSaveError("");
     try {
+      // Validate that all rows with services have been saved (have database IDs)
+      const rowsWithServices = rows.filter((r) => r.serviceId);
+      const unsavedDiagnosisRows = rowsWithServices.filter((r) => !r.id);
+      
+      if (unsavedDiagnosisRows.length > 0) {
+        console.warn(
+          "⚠️ Warning: Some diagnosis rows have services selected but have not been saved yet. " +
+          "Diagnoses must be saved before services can be properly associated with them. " +
+          "These services will be saved without diagnosis linkage (diagnosisId will be null). " +
+          "Affected rows:",
+          unsavedDiagnosisRows
+        );
+        // Still proceed but diagnosisId will be null for these rows
+      }
+
       const payload = {
-  items: rows
-    .filter((r) => r.serviceId)
-    .map((r) => {
+  items: rowsWithServices.map((r) => {
       const svc = services.find((s) => s.id === r.serviceId);
       const isImaging = svc?.category === "IMAGING";
 
