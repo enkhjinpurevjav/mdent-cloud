@@ -1,6 +1,6 @@
 import express from "express";
 import prisma from "../db.js";
-import { authenticateJWT } from "../middleware/auth.js";
+
 
 const router = express.Router();
 
@@ -328,7 +328,7 @@ const rows = appointments.map((a) => {
  *  - source (string, optional, e.g., 'FOLLOW_UP_ENCOUNTER')
  *  - sourceEncounterId (number, optional)
  */
-router.post("/", authenticateJWT, async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const {
       patientId,
