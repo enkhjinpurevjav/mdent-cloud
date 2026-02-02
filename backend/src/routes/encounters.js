@@ -1486,7 +1486,10 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
           indicatorIds: savedRow.sterilizationIndicators.map((si) => si.indicatorId),
         });
       } catch (rowError) {
-        console.error(`Failed to process row with localId ${localId}:`, rowError);
+        console.error(
+          `Failed to process row with localId ${localId}, id ${row.id ?? "none"}:`,
+          rowError
+        );
         failedRows.push({
           localId,
           id: row.id ?? null,

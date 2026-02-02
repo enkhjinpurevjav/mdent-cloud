@@ -1350,14 +1350,14 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     // Surface any per-row errors
     if (failedRows.length > 0) {
       const errorMsg = failedRows
-        .map((f: any, idx: number) => {
-          // Use row number instead of localId for better UX
-          const rowNum = idx + 1;
-          return `Мөр ${rowNum}: ${f.error}`;
+        .map((f: any) => {
+          // Use localId from failed row for reference
+          const rowDisplay = f.localId || f.id || "Unknown";
+          return `• Мөр ${rowDisplay}: ${f.error}`;
         })
-        .join("; ");
+        .join("\n");
       console.error("Some rows failed to save:", errorMsg);
-      setSaveError(`Зарим мөрүүд хадгалагдсангүй: ${errorMsg}`);
+      setSaveError(`Зарим мөрүүд хадгалагдсангүй:\n${errorMsg}`);
     }
 
     // Update state with saved rows
