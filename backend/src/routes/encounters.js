@@ -1302,7 +1302,7 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
         ) {
           const n = Number(row.diagnosisId);
           if (!Number.isFinite(n) || n <= 0) {
-            throw new Error("diagnosisId must be a numeric ID, not a code string");
+            throw new Error("diagnosisId must be a valid positive number");
           }
           diagnosisIdValue = n;
         }
@@ -1490,7 +1490,7 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
         failedRows.push({
           localId,
           id: row.id ?? null,
-          error: rowError.message || "Failed to save row",
+          error: rowError.message || "Unknown error occurred while saving row",
         });
       }
     }
