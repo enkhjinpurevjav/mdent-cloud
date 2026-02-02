@@ -465,12 +465,16 @@ useEffect(() => {
                     padding: 0,
                     position: "relative",
                     borderBottom: "1px solid #e5e7eb",
-                    // Draw vertical grid lines using CSS gradient for continuous lines
-                    background: `repeating-linear-gradient(to right, transparent 0, transparent ${COL_WIDTH - 1}px, #e5e7eb ${COL_WIDTH - 1}px, #e5e7eb ${COL_WIDTH}px)`,
                   }}
                 >
-                  {/* Base grid layer */}
-                  <div style={{ display: "flex", minHeight: MIN_ROW_HEIGHT }}>
+                  {/* Base grid layer with CSS grid for consistent column widths */}
+                  <div 
+                    style={{ 
+                      display: "grid",
+                      gridTemplateColumns: `repeat(${timeLabels.length}, ${COL_WIDTH}px)`,
+                      minHeight: MIN_ROW_HEIGHT,
+                    }}
+                  >
                     {timeLabels.map((timeLabel, colIndex) => {
                       const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
 
@@ -479,12 +483,10 @@ useEffect(() => {
                           <div
                             key={`${day.date}-${timeLabel}`}
                             style={{
-                              width: COL_WIDTH,
-                              maxWidth: COL_WIDTH,
                               padding: 8,
                               background: "rgba(249, 250, 251, 0.6)",
                               textAlign: "center",
-                              minHeight: MIN_ROW_HEIGHT,
+                              borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
@@ -500,13 +502,11 @@ useEffect(() => {
                           <div
                             key={`${day.date}-${timeLabel}`}
                             style={{
-                              width: COL_WIDTH,
-                              maxWidth: COL_WIDTH,
                               padding: 8,
                               background: "rgba(243, 244, 246, 0.7)",
                               color: "#9ca3af",
                               textAlign: "center",
-                              minHeight: MIN_ROW_HEIGHT,
+                              borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
@@ -521,13 +521,11 @@ useEffect(() => {
                         <div
                           key={`${day.date}-${timeLabel}`}
                           style={{
-                            width: COL_WIDTH,
-                            maxWidth: COL_WIDTH,
                             padding: 4,
                             background: slot.status === "booked" ? "rgba(254, 242, 242, 0.7)" : "rgba(236, 253, 243, 0.7)",
                             textAlign: "center",
+                            borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
                             cursor: followUpBooking ? "not-allowed" : "pointer",
-                            minHeight: MIN_ROW_HEIGHT,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
@@ -561,8 +559,9 @@ useEffect(() => {
                     }}
                   >
                     {appointments.map((apt) => {
-                      const left = apt.span.startCol * COL_WIDTH;
-                      const width = apt.span.colSpan * COL_WIDTH;
+                      // Calculate position based on grid columns with small padding for visual clarity
+                      const left = apt.span.startCol * COL_WIDTH + 2;
+                      const width = apt.span.colSpan * COL_WIDTH - 4;
                       const top = apt.lane * LANE_HEIGHT + LANE_PADDING;
                       const height = LANE_HEIGHT - LANE_PADDING * 2;
 
@@ -571,13 +570,13 @@ useEffect(() => {
                           key={apt.id}
                           style={{
                             position: "absolute",
-                            left: left + 4,
-                            width: width - 8,
+                            left,
+                            width,
                             top,
                             height,
                             background: "rgba(254, 202, 202, 0.7)",
                             border: "1px solid #fca5a5",
-                            borderRadius: 6,
+                            borderRadius: 4,
                             padding: "4px 6px",
                             fontSize: 11,
                             fontWeight: 600,
@@ -592,21 +591,16 @@ useEffect(() => {
                           }}
                           title={`${formatGridShortLabel(apt) || "Захиалга"} (${getHmFromIso(apt.scheduledAt)} - ${apt.endAt ? getHmFromIso(apt.endAt) : "—"})`}
                           onClick={(e) => {
-                            // The appointment block has left: left + 4 and width: width - 8
-                            // Calculate the actual grid position by accounting for the offset
-                            const appointmentLeft = apt.span.startCol * COL_WIDTH;
+                            // Calculate which column was clicked based on grid position
                             const rect = e.currentTarget.getBoundingClientRect();
-                            const clickX = e.clientX - rect.left;
+                            const parent = e.currentTarget.parentElement!.getBoundingClientRect();
+                            const clickX = e.clientX - parent.left;
                             
-                            // Calculate which column within the appointment was clicked
-                            // Note: appointment block has 4px left offset and 8px total width reduction
-                            const relativeClickX = clickX;
-                            const appointmentWidth = apt.span.colSpan * COL_WIDTH - 8;
-                            
-                            // Map click position to column, considering the full width
-                            const clickRatio = Math.max(0, Math.min(1, relativeClickX / appointmentWidth));
-                            const clickedColOffset = Math.floor(clickRatio * apt.span.colSpan);
-                            const clickedCol = Math.min(apt.span.startCol + clickedColOffset, timeLabels.length - 1);
+                            // Determine clicked column based on grid
+                            const clickedCol = Math.min(
+                              Math.floor(clickX / COL_WIDTH),
+                              timeLabels.length - 1
+                            );
                             
                             // Get the time label for the clicked column
                             const clickedTimeLabel = timeLabels[clickedCol] || timeLabels[apt.span.startCol];
