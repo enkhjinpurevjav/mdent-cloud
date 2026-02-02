@@ -1855,19 +1855,16 @@ const handleFinishEncounter = async () => {
               onSetActiveDxRowIndex={setActiveDxRowIndex}
               onUpdateRowField={updateDxRowField}
               onSave={async () => {
-                // Re-entrancy guard: prevent concurrent saves
-                if (saving || finishing) return;
-                
-                try {
-                  await handleSaveDiagnoses();
-                  await handleSaveServices();
-                  await savePrescription();
-                } catch (err: any) {
-                  console.error("Save failed:", err);
-                  // Display error to user
-                  setSaveError(err?.message || "Хадгалахад алдаа гарлаа");
-                }
-              }}
+  if (saving || finishing) return;
+
+  try {
+    await handleSaveDiagnoses();  // includes services + indicators now
+    await savePrescription();
+  } catch (err: any) {
+    console.error("Save failed:", err);
+    setSaveError(err?.message || "Хадгалахад алдаа гарлаа");
+  }
+}}
               onFinish={handleFinishEncounter}
               onResetToothSelection={resetToothSelectionSession}
        
