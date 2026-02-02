@@ -390,34 +390,37 @@ useEffect(() => {
                     }}
                   >
                     {timeLabels.map((timeLabel, colIndex) => {
-                      const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
-                      
-                      // Find appointments that START at this exact time
-                      const slotAppts = (slot?.appointmentIds || [])
-  .map((id) => apptById.get(id))
-  .filter(Boolean) as AppointmentLiteForDetails[];
+  const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
 
-const appointmentsAtStart = slotAppts.filter(
-  (apt) => getHmFromIso(apt.scheduledAt) === timeLabel
-);
-                    // Appointments that occupy this slot but started earlier (duration spill)
-const appointmentsContinuing = slotAppts.filter((apt) => {
-  const aptStartHm = getHmFromIso(apt.scheduledAt);
-  if (aptStartHm === timeLabel) return false; // not continuing; starts here
+  // ✅ FIRST handle missing slot
+  if (!slot) { ... }
+  if (slot.status === "off") { ... }
 
-  const aptStart = new Date(apt.scheduledAt);
-  const aptEnd = apt.endAt
-    ? new Date(apt.endAt)
-    : new Date(aptStart.getTime() + followUpSlotMinutes * 60_000);
+  // ✅ THEN compute these (slot is guaranteed to exist)
+  const slotAppts = (slot.appointmentIds || [])
+    .map((id) => apptById.get(id))
+    .filter(Boolean) as AppointmentLiteForDetails[];
 
-  const cellStart = new Date(slot.start);
-  const cellEnd = new Date(cellStart.getTime() + followUpSlotMinutes * 60_000);
+  const appointmentsAtStart = slotAppts.filter(
+    (apt) => getHmFromIso(apt.scheduledAt) === timeLabel
+  );
 
-  return aptStart < cellEnd && aptEnd > cellStart; // overlaps this cell
-});
+  const appointmentsContinuing = slotAppts.filter((apt) => {
+    const aptStartHm = getHmFromIso(apt.scheduledAt);
+    if (aptStartHm === timeLabel) return false;
 
-                      if (!slot) {
-                        return (
+    const aptStart = new Date(apt.scheduledAt);
+    const aptEnd = apt.endAt
+      ? new Date(apt.endAt)
+      : new Date(aptStart.getTime() + followUpSlotMinutes * 60_000);
+
+    const cellStart = new Date(slot.start);
+    const cellEnd = new Date(cellStart.getTime() + followUpSlotMinutes * 60_000);
+
+    return aptStart < cellEnd && aptEnd > cellStart;
+  });
+
+  return(
                           <div
                             key={`${day.date}-${timeLabel}`}
                             style={{
