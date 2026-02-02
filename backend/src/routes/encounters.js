@@ -1482,7 +1482,7 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
           ...savedRow,
           localId,
           serviceId: encounterService?.serviceId ?? null,
-          assignedTo: (encounterService?.meta as any)?.assignedTo ?? "DOCTOR",
+          assignedTo: encounterService?.meta?.assignedTo ?? "DOCTOR",
           indicatorIds: savedRow.sterilizationIndicators.map((si) => si.indicatorId),
         });
       } catch (rowError) {
