@@ -1255,6 +1255,11 @@ const [editingAppointment, setEditingAppointment] = useState<Appointment | null>
 // NEW: per‑day revenue
 const [dailyRevenue, setDailyRevenue] = useState<number | null>(null);
 
+// Request ID tracking to prevent stale fetch overwrites
+const appointmentsRequestIdRef = useRef(0);
+const scheduledDoctorsRequestIdRef = useRef(0);
+const revenueRequestIdRef = useRef(0);
+
 
 type DraftAppointmentChange = {
   scheduledAt: string; // ISO
@@ -1293,6 +1298,8 @@ const workingDoctorsForFilter = scheduledDoctors.length
   ? scheduledDoctors
   : doctors;
   const [filterDate, setFilterDate] = useState<string>(todayStr);
+  // filterBranchId is kept in sync with URL for UI display but NOT used for data fetching
+  // Data fetching uses only effectiveBranchId from useBranchLock as single source of truth
   const [filterBranchId, setFilterBranchId] = useState<string>(
     branchIdFromQuery || ""
   );
@@ -1322,6 +1329,13 @@ const workingDoctorsForFilter = scheduledDoctors.length
     }
   }, [branchIdFromQuery, filterBranchId]);
 
+  // Clear data immediately when branch or date changes to prevent showing stale data
+  useEffect(() => {
+    setAppointments([]);
+    setScheduledDoctors([]);
+    setDailyRevenue(null);
+  }, [effectiveBranchId, filterDate]);
+
   // ---- load meta (branches, doctors) ----
   useEffect(() => {
     async function loadMeta() {
@@ -1347,14 +1361,25 @@ const workingDoctorsForFilter = scheduledDoctors.length
   const loadAppointments = useCallback(async () => {
     try {
       setError("");
+      // Increment request ID and capture it for this request
+      appointmentsRequestIdRef.current += 1;
+      const currentRequestId = appointmentsRequestIdRef.current;
+
       const params = new URLSearchParams();
       if (filterDate) params.set("date", filterDate);
-      const branchToUse = effectiveBranchId || filterBranchId;
-      if (branchToUse) params.set("branchId", branchToUse);
+      // Only use effectiveBranchId as single source of truth
+      if (effectiveBranchId) params.set("branchId", effectiveBranchId);
       if (filterDoctorId) params.set("doctorId", filterDoctorId);
 
       const res = await fetch(`/api/appointments?${params.toString()}`);
       const data = await res.json().catch(() => []);
+      
+      // Guard: only update state if this is still the latest request
+      if (currentRequestId !== appointmentsRequestIdRef.current) {
+        console.debug(`Discarding stale appointments response (req ${currentRequestId}, current ${appointmentsRequestIdRef.current})`);
+        return;
+      }
+
       if (!res.ok || !Array.isArray(data)) {
         throw new Error("failed");
       }
@@ -1363,7 +1388,7 @@ const workingDoctorsForFilter = scheduledDoctors.length
       console.error(e);
       setError("Цаг захиалгуудыг ачаалах үед алдаа гарлаа.");
     }
-  }, [filterDate, filterBranchId, filterDoctorId, effectiveBranchId]);
+  }, [filterDate, filterDoctorId, effectiveBranchId]);
 
   useEffect(() => {
     loadAppointments();
@@ -1372,19 +1397,30 @@ const workingDoctorsForFilter = scheduledDoctors.length
   // ---- load scheduled doctors ----
   const loadScheduledDoctors = useCallback(async () => {
     try {
+      // Increment request ID and capture it for this request
+      scheduledDoctorsRequestIdRef.current += 1;
+      const currentRequestId = scheduledDoctorsRequestIdRef.current;
+
       const params = new URLSearchParams();
-      const branchToUse = effectiveBranchId || filterBranchId;
-      if (branchToUse) params.set("branchId", branchToUse);
+      // Only use effectiveBranchId as single source of truth
+      if (effectiveBranchId) params.set("branchId", effectiveBranchId);
       if (filterDate) params.set("date", filterDate);
 
       const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
       const data = await res.json().catch(() => []);
+      
+      // Guard: only update state if this is still the latest request
+      if (currentRequestId !== scheduledDoctorsRequestIdRef.current) {
+        console.debug(`Discarding stale scheduledDoctors response (req ${currentRequestId}, current ${scheduledDoctorsRequestIdRef.current})`);
+        return;
+      }
+
       if (!res.ok || !Array.isArray(data)) return;
       setScheduledDoctors(data);
     } catch (e) {
       console.error(e);
     }
-  }, [filterBranchId, filterDate, effectiveBranchId]);
+  }, [filterDate, effectiveBranchId]);
 
   useEffect(() => {
     loadScheduledDoctors();
@@ -1407,12 +1443,23 @@ const workingDoctorsForFilter = scheduledDoctors.length
 useEffect(() => {
   const loadRevenue = async () => {
     try {
+      // Increment request ID and capture it for this request
+      revenueRequestIdRef.current += 1;
+      const currentRequestId = revenueRequestIdRef.current;
+
       const params = new URLSearchParams();
       if (filterDate) params.set("date", filterDate);
-      const branchToUse = effectiveBranchId || filterBranchId;
-      if (branchToUse) params.set("branchId", branchToUse);
+      // Only use effectiveBranchId as single source of truth
+      if (effectiveBranchId) params.set("branchId", effectiveBranchId);
 
       const res = await fetch(`/api/reports/daily-revenue?${params.toString()}`);
+      
+      // Guard: only update state if this is still the latest request
+      if (currentRequestId !== revenueRequestIdRef.current) {
+        console.debug(`Discarding stale revenue response (req ${currentRequestId}, current ${revenueRequestIdRef.current})`);
+        return;
+      }
+
       if (!res.ok) {
         setDailyRevenue(null);
         return;
@@ -1429,7 +1476,7 @@ useEffect(() => {
   };
 
   loadRevenue();
-}, [filterDate, filterBranchId, effectiveBranchId]);
+}, [filterDate, effectiveBranchId]);
   
   // current time line
   useEffect(() => {
@@ -1588,8 +1635,8 @@ const fillingStats = useMemo(() => {
 
     // ensure it’s the current day (and branch if selected)
     if (getAppointmentDayKey(a) !== dayKey) continue;
-    const branchToUse = effectiveBranchId || filterBranchId;
-    if (branchToUse && String(a.branchId) !== branchToUse) continue;
+    // Only use effectiveBranchId as single source of truth
+    if (effectiveBranchId && String(a.branchId) !== effectiveBranchId) continue;
 
     const start = new Date(a.scheduledAt);
     const end = a.endAt ? new Date(a.endAt) : addMinutes(start, SLOT_MINUTES);
@@ -1614,7 +1661,7 @@ const fillingStats = useMemo(() => {
   const percent = totalSlots === 0 ? 0 : Math.round((filledSlots / totalSlots) * 100);
 
   return { totalSlots, filledSlots, percent };
-}, [appointments, gridDoctors, selectedDay, filterDate, filterBranchId, effectiveBranchId]);
+}, [appointments, gridDoctors, selectedDay, filterDate, effectiveBranchId]);
 
   
   // lane map
@@ -1651,11 +1698,11 @@ const dayAppointments = useMemo(
       if (!scheduled) return false;
       const key = scheduled.slice(0, 10);
       if (key !== dayKey) return false;
-      const branchToUse = effectiveBranchId || filterBranchId;
-      if (branchToUse && String(a.branchId) !== branchToUse) return false;
+      // Only use effectiveBranchId as single source of truth
+      if (effectiveBranchId && String(a.branchId) !== effectiveBranchId) return false;
       return true;
     }),
-  [appointments, dayKey, filterBranchId, effectiveBranchId]
+  [appointments, dayKey, effectiveBranchId]
 );
 
 // 1) Нийт цаг захиалга – all appointments for the day
@@ -2232,9 +2279,11 @@ const handleCancelDraft = (appointmentId: number) => {
                 onChange={(e) => {
                   if (isLocked) return; // Prevent changing when locked
                   const value = e.target.value;
+                  // Update UI state for immediate feedback
                   setFilterBranchId(value);
                   setActiveBranchTab(value);
 
+                  // Update URL as single source of truth - this will trigger effectiveBranchId change
                   const query = value ? { branchId: value } : {};
                   router.push(
                     { pathname: "/appointments", query },
