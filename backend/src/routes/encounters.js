@@ -1217,6 +1217,341 @@ router.put("/:id/diagnoses/:diagnosisId/sterilization-indicators", async (req, r
 });
 
 /**
+ * PUT /api/encounters/:encounterId/diagnosis-rows
+ * 
+ * Unified save/overwrite endpoint for the "Онош хадгалах" button.
+ * Handles diagnoses, indicators, and services in a single atomic operation.
+ * 
+ * REQUEST BODY:
+ * {
+ *   rows: Array<{
+ *     id?: number | null,           // DB id for existing rows
+ *     localId: string | number,     // Client-side stable identifier (echoed back)
+ *     diagnosisId?: number | null,  // Can be null for general service row
+ *     toothCode?: string | null,    // "Бүх шүд" for general service row
+ *     note?: string | null,
+ *     selectedProblemIds: number[],
+ *     indicatorIds: number[],       // Empty array clears indicators
+ *     serviceId?: number | null,    // Empty/null removes service
+ *     assignedTo?: "DOCTOR" | "NURSE"
+ *   }>
+ * }
+ * 
+ * BEHAVIOR:
+ * - Processes each row atomically (per-row transaction)
+ * - Upserts EncounterDiagnosis (create if no id, update if id exists)
+ * - Replaces sterilization indicators to match indicatorIds exactly
+ * - Replaces service for that diagnosis row (delete if serviceId is null/missing)
+ * - After all row attempts, hard-deletes any EncounterDiagnosis not in payload
+ * - Enforces only one "Бүх шүд" row per encounter
+ * - Partial save allowed: failed rows don't prevent successful rows from saving
+ * 
+ * RESPONSE:
+ * {
+ *   savedRows: Array<{ id, localId, ... }>,
+ *   failedRows: Array<{ localId, error }>,
+ *   deletedDiagnosisIds: number[]
+ * }
+ */
+router.put("/:encounterId/diagnosis-rows", async (req, res) => {
+  const encounterId = Number(req.params.encounterId);
+  if (!encounterId || Number.isNaN(encounterId)) {
+    return res.status(400).json({ error: "Invalid encounter id" });
+  }
+
+  const { rows } = req.body || {};
+  if (!Array.isArray(rows)) {
+    return res.status(400).json({ error: "rows must be an array" });
+  }
+
+  try {
+    // Verify encounter exists
+    const encounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      select: { id: true },
+    });
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    // Validate "Бүх шүд" uniqueness in payload
+    const generalServiceRows = rows.filter(
+      (r) => r.toothCode && r.toothCode.trim() === "Бүх шүд"
+    );
+    if (generalServiceRows.length > 1) {
+      return res.status(400).json({
+        error: "Only one general service row (toothCode='Бүх шүд') is allowed per encounter",
+      });
+    }
+
+    const savedRows = [];
+    const failedRows = [];
+    const processedIds = new Set();
+
+    // Process each row atomically
+    for (const row of rows) {
+      const localId = row.localId ?? null;
+
+      try {
+        // Validate diagnosisId type
+        let diagnosisIdValue = null;
+        if (
+          row.diagnosisId !== null &&
+          row.diagnosisId !== undefined &&
+          row.diagnosisId !== ""
+        ) {
+          const n = Number(row.diagnosisId);
+          if (!Number.isFinite(n) || n <= 0) {
+            throw new Error("diagnosisId must be a valid positive number");
+          }
+          diagnosisIdValue = n;
+        }
+
+        // Normalize inputs
+        const toothCode =
+          typeof row.toothCode === "string" && row.toothCode.trim()
+            ? row.toothCode.trim()
+            : null;
+
+        const selectedProblemIdsRaw = Array.isArray(row.selectedProblemIds)
+          ? row.selectedProblemIds
+              .map((id) => Number(id))
+              .filter((n) => Number.isFinite(n) && n > 0)
+          : [];
+
+        // Only allow problems when diagnosisId is present
+        const selectedProblemIds = diagnosisIdValue ? selectedProblemIdsRaw : [];
+
+        const indicatorIds = Array.isArray(row.indicatorIds)
+          ? row.indicatorIds
+              .map((id) => Number(id))
+              .filter((n) => Number.isFinite(n) && n > 0)
+          : [];
+
+        let serviceIdValue = null;
+        if (
+          row.serviceId !== null &&
+          row.serviceId !== undefined &&
+          row.serviceId !== ""
+        ) {
+          const n = Number(row.serviceId);
+          if (Number.isFinite(n) && n > 0) {
+            serviceIdValue = n;
+          }
+        }
+
+        const assignedTo = row.assignedTo === "NURSE" ? "NURSE" : "DOCTOR";
+
+        // Use per-row transaction for atomicity
+        const result = await prisma.$transaction(async (trx) => {
+          // 1. Upsert EncounterDiagnosis
+          const diagnosisData = {
+            encounterId,
+            diagnosisId: diagnosisIdValue,
+            selectedProblemIds,
+            note: row.note ?? null,
+            toothCode,
+          };
+
+          let diagnosisRow;
+          const rowId = Number(row.id);
+          if (Number.isFinite(rowId) && rowId > 0) {
+            // Update existing row
+            diagnosisRow = await trx.encounterDiagnosis.update({
+              where: { id: rowId },
+              data: diagnosisData,
+            });
+          } else {
+            // Create new row
+            diagnosisRow = await trx.encounterDiagnosis.create({
+              data: diagnosisData,
+            });
+          }
+
+          const diagnosisRowId = diagnosisRow.id;
+
+          // 2. Replace sterilization indicators
+          await trx.encounterDiagnosisSterilizationIndicator.deleteMany({
+            where: { encounterDiagnosisId: diagnosisRowId },
+          });
+
+          if (indicatorIds.length > 0) {
+            // Verify indicators exist
+            const existingIndicators = await trx.sterilizationIndicator.findMany({
+              where: { id: { in: indicatorIds } },
+              select: { id: true },
+            });
+            const validIds = new Set(existingIndicators.map((x) => x.id));
+
+            for (const indicatorId of indicatorIds) {
+              if (validIds.has(indicatorId)) {
+                await trx.encounterDiagnosisSterilizationIndicator.create({
+                  data: {
+                    encounterDiagnosisId: diagnosisRowId,
+                    indicatorId,
+                  },
+                });
+              }
+            }
+          }
+
+          // 3. Replace service for this diagnosis row
+          // First, delete any existing service linked to this diagnosis row
+          await trx.encounterService.deleteMany({
+            where: {
+              encounterId,
+              meta: { path: ["diagnosisId"], equals: diagnosisRowId },
+            },
+          });
+
+          // Create new service if serviceId is provided
+          if (serviceIdValue) {
+            const service = await trx.service.findUnique({
+              where: { id: serviceIdValue },
+              select: { price: true },
+            });
+
+            if (service) {
+              await trx.encounterService.create({
+                data: {
+                  encounterId,
+                  serviceId: serviceIdValue,
+                  quantity: 1,
+                  price: service.price,
+                  meta: {
+                    assignedTo,
+                    diagnosisId: diagnosisRowId,
+                  },
+                },
+              });
+            }
+          }
+
+          return diagnosisRowId;
+        });
+
+        processedIds.add(result);
+
+        // Fetch the saved row with all relations
+        const savedRow = await prisma.encounterDiagnosis.findUnique({
+          where: { id: result },
+          include: {
+            diagnosis: {
+              include: {
+                problems: {
+                  where: { active: true },
+                  orderBy: [{ order: "asc" }, { id: "asc" }],
+                  select: {
+                    id: true,
+                    label: true,
+                    order: true,
+                    active: true,
+                    diagnosisId: true,
+                  },
+                },
+              },
+            },
+            sterilizationIndicators: {
+              include: {
+                indicator: {
+                  select: {
+                    id: true,
+                    packageName: true,
+                    code: true,
+                    branchId: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        // Fetch service info for this diagnosis row
+        const encounterService = await prisma.encounterService.findFirst({
+          where: {
+            encounterId,
+            meta: { path: ["diagnosisId"], equals: result },
+          },
+          select: {
+            serviceId: true,
+            meta: true,
+          },
+        });
+
+        savedRows.push({
+          ...savedRow,
+          localId,
+          serviceId: encounterService?.serviceId ?? null,
+          assignedTo: encounterService?.meta?.assignedTo ?? "DOCTOR",
+          indicatorIds: savedRow.sterilizationIndicators.map((si) => si.indicatorId),
+        });
+      } catch (rowError) {
+        console.error(
+          `Failed to process row with localId ${localId}, id ${row.id ?? "none"}:`,
+          rowError
+        );
+        failedRows.push({
+          localId,
+          id: row.id ?? null,
+          error: rowError.message || "Unknown error occurred while saving row",
+        });
+      }
+    }
+
+    // 4. Hard-delete diagnosis rows not in payload
+    const deletedDiagnosisIds = [];
+    try {
+      // Get all existing diagnosis rows for this encounter
+      const existingRows = await prisma.encounterDiagnosis.findMany({
+        where: { encounterId },
+        select: { id: true },
+      });
+
+      const toDeleteIds = existingRows
+        .map((r) => r.id)
+        .filter((id) => !processedIds.has(id));
+
+      if (toDeleteIds.length > 0) {
+        // Delete associated services first (avoid orphans)
+        await prisma.encounterService.deleteMany({
+          where: {
+            encounterId,
+            OR: toDeleteIds.map((did) => ({
+              meta: { path: ["diagnosisId"], equals: did },
+            })),
+          },
+        });
+
+        // Delete diagnosis rows (cascade will handle indicators)
+        await prisma.encounterDiagnosis.deleteMany({
+          where: {
+            id: { in: toDeleteIds },
+            encounterId, // Safety: ensure we only delete from this encounter
+          },
+        });
+
+        deletedDiagnosisIds.push(...toDeleteIds);
+      }
+    } catch (deleteError) {
+      console.error("Failed to delete diagnosis rows:", deleteError);
+      // Don't fail the entire request if deletion fails
+    }
+
+    return res.json({
+      savedRows,
+      failedRows,
+      deletedDiagnosisIds,
+    });
+  } catch (err) {
+    console.error("PUT /api/encounters/:encounterId/diagnosis-rows failed:", err);
+    return res.status(500).json({
+      error: "Failed to save diagnosis rows",
+      details: err.message,
+    });
+  }
+});
+
+/**
  * POST /api/encounters/:id/follow-up-appointments
  * Create a follow-up appointment with correct branch assignment.
  * The branchId is derived from the doctor's schedule for the selected date/time.

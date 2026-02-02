@@ -1318,71 +1318,78 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
   setSaving(true);
   setSaveError("");
 
-  // ✅ Snapshot by stable ID only - capture state BEFORE any updates
-  const snapById = new Map<number, {
-    serviceId?: number;
-    serviceSearchText: string;
-    indicatorIds: number[];
-    indicatorsDirty: boolean;
-    assignedTo: AssignedTo;
-  }>();
-
-  // Snapshot existing rows (with IDs) by their database ID
-  rows.forEach((r) => {
-    if (r.id) {
-      snapById.set(r.id, {
-        serviceId: r.serviceId,
-        serviceSearchText: r.serviceSearchText || "",
-        indicatorIds: Array.isArray(r.indicatorIds) ? [...r.indicatorIds] : [],
-        indicatorsDirty: r.indicatorsDirty ?? false,
-        assignedTo: r.assignedTo ?? "DOCTOR",
-      });
-    }
-  });
-
   try {
-   const payload = {
-  items: editableDxRows.map((row) => ({
-    id: row.id ?? null,
-    diagnosisId: row.diagnosisId,
-    selectedProblemIds: row.selectedProblemIds,
-    note: row.note || null,
-    toothCode: row.toothCode || null,
-  })),
-};
+    // Build unified payload with all row state
+    const payload = {
+      rows: editableDxRows.map((row) => ({
+        id: row.id ?? null,
+        localId: row.localId ?? 0,
+        diagnosisId: row.diagnosisId ?? null,
+        toothCode: row.toothCode || null,
+        note: row.note || null,
+        selectedProblemIds: Array.isArray(row.selectedProblemIds) ? row.selectedProblemIds : [],
+        indicatorIds: Array.isArray(row.indicatorIds) ? row.indicatorIds : [],
+        serviceId: row.serviceId ?? null,
+        assignedTo: row.assignedTo ?? "DOCTOR",
+      })),
+    };
 
-    const res = await fetch(`/api/encounters/${id}/diagnoses`, {
+    const res = await fetch(`/api/encounters/${id}/diagnosis-rows`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
     const json = await res.json().catch(() => null);
-    if (!res.ok) throw new Error((json && json.error) || "Онош хадгалахад алдаа гарлаа");
+    if (!res.ok) {
+      throw new Error((json && json.error) || "Онош хадгалахад алдаа гарлаа");
+    }
 
-    const saved = Array.isArray(json) ? json : [];
+    const { savedRows = [], failedRows = [], deletedDiagnosisIds = [] } = json || {};
 
-    const savedDxRows: EditableDiagnosis[] = saved.map((srvRow: any, idx: number) => {
-      const rowId = Number(srvRow?.id);
-      const snap = snapById.get(rowId);
+    // Surface any per-row errors
+    if (failedRows.length > 0) {
+      const errorMsg = failedRows
+        .map((f: any) => {
+          // Use localId from failed row for reference
+          const rowDisplay = f.localId || f.id || "Unknown";
+          return `• Мөр ${rowDisplay}: ${f.error}`;
+        })
+        .join("\n");
+      console.error("Some rows failed to save:", errorMsg);
+      setSaveError(`Зарим мөрүүд хадгалагдсангүй:\n${errorMsg}`);
+    }
+
+    // Update state with saved rows
+    const savedDxRows: EditableDiagnosis[] = savedRows.map((srvRow: any) => {
+      // Get service info for display text
+      const svc = services.find((s) => s.id === srvRow.serviceId);
+      const serviceSearchText = svc ? `${svc.code} – ${svc.name}` : "";
 
       return {
         ...srvRow,
         diagnosisId: srvRow.diagnosisId ?? null,
         diagnosis: srvRow.diagnosis ?? null,
-        localId: idx + 1,
-        selectedProblemIds: Array.isArray(srvRow.selectedProblemIds) ? srvRow.selectedProblemIds : [],
+        localId: srvRow.localId ?? 0,
+        selectedProblemIds: Array.isArray(srvRow.selectedProblemIds)
+          ? srvRow.selectedProblemIds
+          : [],
         note: srvRow.note || "",
         toothCode: srvRow.toothCode || "",
 
-        serviceId: snap?.serviceId,
-        serviceSearchText: snap?.serviceSearchText || "",
-        indicatorIds: snap?.indicatorIds || [],
-        indicatorSearchText: "",
-        indicatorsDirty: false, // Reset dirty flag after save
-        assignedTo: snap?.assignedTo ?? "DOCTOR",
+        // Service data (now saved atomically with diagnosis)
+        serviceId: srvRow.serviceId ?? null,
+        serviceSearchText,
+        assignedTo: srvRow.assignedTo ?? "DOCTOR",
 
-        searchText: srvRow.diagnosis ? `${srvRow.diagnosis.code} – ${srvRow.diagnosis.name}` : "",
+        // Indicator data (now saved atomically with diagnosis)
+        indicatorIds: Array.isArray(srvRow.indicatorIds) ? srvRow.indicatorIds : [],
+        indicatorSearchText: "",
+        indicatorsDirty: false,
+
+        searchText: srvRow.diagnosis
+          ? `${srvRow.diagnosis.code} – ${srvRow.diagnosis.name}`
+          : "",
         locked: true,
       };
     });
@@ -1390,37 +1397,24 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     setEditableDxRows(savedDxRows);
     setRows(savedDxRows);
 
-    // ✅ Save indicators ONLY for rows that:
-    // 1. Have a valid database ID (from snapById)
-    // 2. Either have indicators selected OR were explicitly modified (dirty)
-    await Promise.all(
-      saved.map(async (srvRow: any) => {
-        const dxId = Number(srvRow?.id);
-        if (!dxId) return;
-
-        const snap = snapById.get(dxId);
-        if (!snap) return; // Skip new rows without snapshot
-        
-        const indicatorIds = snap.indicatorIds || [];
-        const isDirty = snap.indicatorsDirty;
-        
-        // Skip empty indicator saves unless user explicitly cleared them
-        if (indicatorIds.length === 0 && !isDirty) {
-          return;
-        }
-
-        // Build URL with replace flag if user explicitly cleared indicators
-        const baseUrl = `/api/encounters/${id}/diagnoses/${dxId}/sterilization-indicators`;
-        const shouldReplace = isDirty && indicatorIds.length === 0;
-        const url = shouldReplace ? `${baseUrl}?replace=true` : baseUrl;
-
-        await fetch(url, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ indicatorIds }),
+    // Update encounter services to match saved state
+    if (encounter) {
+      // Fetch updated services to refresh encounter state
+      const servicesRes = await fetch(`/api/encounters/${id}`);
+      if (servicesRes.ok) {
+        const encounterData = await servicesRes.json();
+        setEncounter({
+          ...encounter,
+          encounterServices: encounterData.encounterServices || [],
         });
-      })
-    );
+        setEditableServices(encounterData.encounterServices || []);
+      }
+    }
+
+    // Log deletion info for debugging
+    if (deletedDiagnosisIds.length > 0) {
+      console.log("Deleted diagnosis IDs:", deletedDiagnosisIds);
+    }
   } catch (err: any) {
     console.error("handleSaveDiagnoses failed", err);
     setSaveError(err?.message || "Онош хадгалахад алдаа гарлаа.");
@@ -1646,7 +1640,7 @@ const handleFinishEncounter = async () => {
     setFinishing(true);
     try {
       await handleSaveDiagnoses();
-      await handleSaveServices();
+      // Services are now saved by handleSaveDiagnoses - no separate call needed
       await savePrescription();
 
       const res = await fetch(`/api/encounters/${id}/finish`, { method: "PUT" });
