@@ -131,6 +131,7 @@ When two appointments start at the same time slot:
 - Each block takes full cell width
 - 2px gap between them
 - Both are clickable independently
+- Backend enforces max 2 overlapping appointments, but UI will render all that exist
 
 ### Empty Slot
 - Shows "Сул" (Available) text in green
@@ -174,6 +175,9 @@ Since this is purely a visual layout change with no business logic modifications
 
 ## Future Considerations
 
-- The current implementation supports up to 2 appointments per slot (capacity = 2)
-- If capacity needs to increase, the cell height (`MIN_ROW_HEIGHT`) may need adjustment
+- The backend enforces a capacity of 2 overlapping appointments per time slot
+- The UI renders all appointments that start at the same time (no UI-side limit)
+- If more than 2 appointments start at the same time, the cell will show all of them stacked
+  - This scenario shouldn't occur due to backend validation, but the UI handles it gracefully
+- If many appointments need to be shown in one cell, consider adjusting `MIN_ROW_HEIGHT`
 - Consider adding visual indicators for appointment duration (e.g., border thickness or tooltip)

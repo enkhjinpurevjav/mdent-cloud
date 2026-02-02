@@ -394,7 +394,7 @@ useEffect(() => {
                       // Find appointments that START at this exact time
                       const appointmentsAtStart = appointments.filter(
                         (apt) => getHmFromIso(apt.scheduledAt) === timeLabel
-                      ).sort((a, b) => a.id - b.id); // Sort by id for consistent ordering
+                      ); // Already sorted by scheduledAt and id from parent
 
                       if (!slot) {
                         return (
@@ -481,7 +481,8 @@ useEffect(() => {
                                 title={`${formatGridShortLabel(apt) || "Захиалга"} (${getHmFromIso(apt.scheduledAt)} - ${apt.endAt ? getHmFromIso(apt.endAt) : "—"})`}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel, slot.start);
+                                  // Pass only the clicked appointment's slot info
+                                  handleBookedSlotClick([apt.id], day.date, timeLabel, slot.start);
                                 }}
                               >
                                 {formatGridShortLabel(apt) || "Захиалга"}
