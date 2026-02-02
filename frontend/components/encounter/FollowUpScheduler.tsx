@@ -392,11 +392,46 @@ useEffect(() => {
                     {timeLabels.map((timeLabel, colIndex) => {
   const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
 
-  // ✅ FIRST handle missing slot
-  if (!slot) { ... }
-  if (slot.status === "off") { ... }
+  if (!slot) {
+    return (
+      <div
+        key={`${day.date}-${timeLabel}`}
+        style={{
+          padding: 8,
+          background: "rgba(249, 250, 251, 0.6)",
+          textAlign: "center",
+          borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        –
+      </div>
+    );
+  }
 
-  // ✅ THEN compute these (slot is guaranteed to exist)
+  if (slot.status === "off") {
+    return (
+      <div
+        key={`${day.date}-${timeLabel}`}
+        style={{
+          padding: 8,
+          background: "rgba(243, 244, 246, 0.7)",
+          color: "#9ca3af",
+          textAlign: "center",
+          borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        -
+      </div>
+    );
+  }
+
+  // slot exists from here
   const slotAppts = (slot.appointmentIds || [])
     .map((id) => apptById.get(id))
     .filter(Boolean) as AppointmentLiteForDetails[];
@@ -406,8 +441,7 @@ useEffect(() => {
   );
 
   const appointmentsContinuing = slotAppts.filter((apt) => {
-    const aptStartHm = getHmFromIso(apt.scheduledAt);
-    if (aptStartHm === timeLabel) return false;
+    if (getHmFromIso(apt.scheduledAt) === timeLabel) return false;
 
     const aptStart = new Date(apt.scheduledAt);
     const aptEnd = apt.endAt
@@ -420,112 +454,96 @@ useEffect(() => {
     return aptStart < cellEnd && aptEnd > cellStart;
   });
 
-  return(
-                          <div
-                            key={`${day.date}-${timeLabel}`}
-                            style={{
-                              padding: 8,
-                              background: "rgba(249, 250, 251, 0.6)",
-                              textAlign: "center",
-                              borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                            }}
-                          >
-                            –
-                          </div>
-                        );
-                      }
-
-                      if (slot.status === "off") {
-                        return (
-                          <div
-                            key={`${day.date}-${timeLabel}`}
-                            style={{
-                              padding: 8,
-                              background: "rgba(243, 244, 246, 0.7)",
-                              color: "#9ca3af",
-                              textAlign: "center",
-                              borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                            }}
-                          >
-                            -
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div
-                          key={`${day.date}-${timeLabel}`}
-                          style={{
-                            padding: 4,
-                            background: slot.status === "booked" ? "rgba(254, 242, 242, 0.7)" : "rgba(236, 253, 243, 0.7)",
-                            borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
-                            cursor: followUpBooking ? "not-allowed" : "pointer",
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 2,
-                            alignItems: "stretch",
-                            justifyContent: "center",
-                            overflow: "hidden",
-                          }}
-                          onClick={() => {
-                            if (slot.status === "booked") {
-                              handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel, slot.start);
-                            } else {
-                              handleSlotSelection(slot.start);
-                            }
-                          }}
-                        >
-                          {/* Show appointment blocks if any start at this time */}
-                          {appointmentsAtStart.length > 0 ? (
-  appointmentsAtStart.slice(0, 2).map((apt) => (
-    <div key={apt.id} ...>
-      {nameOnly(formatGridShortLabel(apt)) || "Захиалга"}
-    </div>
-  ))
-) : appointmentsContinuing.length > 0 ? (
-  appointmentsContinuing.slice(0, 2).map((apt) => (
+  return (
     <div
-      key={apt.id}
+      key={`${day.date}-${timeLabel}`}
       style={{
-        width: "100%",
-        maxWidth: "100%",
-        padding: "2px 6px",
-        borderRadius: BLOCK_BORDER_RADIUS,
-        border: "1px dashed rgba(153,27,27,0.45)",
-        background: "rgba(254, 202, 202, 0.35)",
-        color: "#991b1b",
-        fontSize: 11,
-        fontWeight: 700,
-        textAlign: "center",
+        padding: 4,
+        background: slot.status === "booked"
+          ? "rgba(254, 242, 242, 0.7)"
+          : "rgba(236, 253, 243, 0.7)",
+        borderRight: colIndex < timeLabels.length - 1 ? "1px solid #e5e7eb" : "none",
+        cursor: followUpBooking ? "not-allowed" : "pointer",
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        alignItems: "stretch",
+        justifyContent: "center",
         overflow: "hidden",
-        textOverflow: "ellipsis",
-        whiteSpace: "nowrap",
-        cursor: "pointer",
       }}
-      title={`Үргэлжилж байна: ${nameOnly(formatGridShortLabel(apt)) || "Захиалга"}`}
-      onClick={(e) => {
-        e.stopPropagation();
-        // Open the slot details for this time with all ids in this slot
-        handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel, slot.start);
+      onClick={() => {
+        if (slot.status === "booked") {
+          handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel, slot.start);
+        } else {
+          handleSlotSelection(slot.start);
+        }
       }}
     >
-      →
+      {appointmentsAtStart.length > 0 ? (
+        appointmentsAtStart.slice(0, 2).map((apt) => (
+          <div
+            key={apt.id}
+            style={{
+              width: "100%",
+              maxWidth: "100%",
+              background: "rgba(254, 202, 202, 0.9)",
+              border: "1px solid #fca5a5",
+              borderRadius: BLOCK_BORDER_RADIUS,
+              padding: "4px 6px",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "#991b1b",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              cursor: "pointer",
+            }}
+            title={`${nameOnly(formatGridShortLabel(apt)) || "Захиалга"} (${getHmFromIso(apt.scheduledAt)} - ${apt.endAt ? getHmFromIso(apt.endAt) : "—"})`}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleBookedSlotClick([apt.id], day.date, timeLabel, slot.start);
+            }}
+          >
+            {nameOnly(formatGridShortLabel(apt)) || "Захиалга"}
+          </div>
+        ))
+      ) : appointmentsContinuing.length > 0 ? (
+        appointmentsContinuing.slice(0, 2).map((apt) => (
+          <div
+            key={apt.id}
+            style={{
+              width: "100%",
+              maxWidth: "100%",
+              padding: "2px 6px",
+              borderRadius: BLOCK_BORDER_RADIUS,
+              border: "1px dashed rgba(153,27,27,0.45)",
+              background: "rgba(254, 202, 202, 0.35)",
+              color: "#991b1b",
+              fontSize: 11,
+              fontWeight: 700,
+              textAlign: "center",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              cursor: "pointer",
+            }}
+            title={`Үргэлжилж байна: ${nameOnly(formatGridShortLabel(apt)) || "Захиалга"}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleBookedSlotClick(slot.appointmentIds || [], day.date, timeLabel, slot.start);
+            }}
+          >
+            →
+          </div>
+        ))
+      ) : (
+        <div style={{ fontSize: 11, color: "#166534", textAlign: "center" }}>
+          Сул
+        </div>
+      )}
     </div>
-  ))
-) : (
-  <div style={{ fontSize: 11, color: "#166534", textAlign: "center" }}>
-    Сул
-  </div>
-)}
-                        </div>
-                      );
-                    })}
+  );
+})}
                   </div>
                 </td>
               </tr>
