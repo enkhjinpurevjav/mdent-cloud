@@ -77,6 +77,7 @@ const nameOnly = (label: string) =>
 const COL_WIDTH = 80; // Width of each time slot column in pixels
 const MIN_ROW_HEIGHT = 80; // Minimum height for each day row
 const BLOCK_BORDER_RADIUS = 4; // Border radius for appointment blocks
+const DEFAULT_LANE = 0; // Default lane when both lanes are full
 
 export default function FollowUpScheduler({
   showFollowUpScheduler,
@@ -275,6 +276,7 @@ useEffect(() => {
   // Compute lane assignments for appointments
   const computeLanes = (appointments: AppointmentLiteForDetails[]): Map<number, 0 | 1> => {
     const lanes = new Map<number, 0 | 1>();
+    const DEFAULT_SLOT_DURATION_MS = followUpSlotMinutes * 60_000;
     
     // Sort by start time, then by duration (longer first), then by id
     const sorted = [...appointments].sort((a, b) => {
@@ -282,8 +284,8 @@ useEffect(() => {
       const startB = new Date(b.scheduledAt).getTime();
       if (startA !== startB) return startA - startB;
       
-      const endA = a.endAt ? new Date(a.endAt).getTime() : startA + followUpSlotMinutes * 60_000;
-      const endB = b.endAt ? new Date(b.endAt).getTime() : startB + followUpSlotMinutes * 60_000;
+      const endA = a.endAt ? new Date(a.endAt).getTime() : startA + DEFAULT_SLOT_DURATION_MS;
+      const endB = b.endAt ? new Date(b.endAt).getTime() : startB + DEFAULT_SLOT_DURATION_MS;
       const durA = endA - startA;
       const durB = endB - startB;
       
@@ -292,26 +294,26 @@ useEffect(() => {
     });
     
     // Track end times for each lane
-    const laneEndTime: [number | null, number | null] = [null, null];
+    const laneEndTime: { lane0: number | null; lane1: number | null } = { lane0: null, lane1: null };
     
     for (const apt of sorted) {
       const start = new Date(apt.scheduledAt).getTime();
       const end = apt.endAt 
         ? new Date(apt.endAt).getTime() 
-        : start + followUpSlotMinutes * 60_000;
+        : start + DEFAULT_SLOT_DURATION_MS;
       
       // Try to assign to first available lane
-      let assignedLane: 0 | 1 = 0;
-      if (laneEndTime[0] === null || start >= laneEndTime[0]) {
+      let assignedLane: 0 | 1 = DEFAULT_LANE;
+      if (laneEndTime.lane0 === null || start >= laneEndTime.lane0) {
         assignedLane = 0;
-        laneEndTime[0] = end;
-      } else if (laneEndTime[1] === null || start >= laneEndTime[1]) {
+        laneEndTime.lane0 = end;
+      } else if (laneEndTime.lane1 === null || start >= laneEndTime.lane1) {
         assignedLane = 1;
-        laneEndTime[1] = end;
+        laneEndTime.lane1 = end;
       } else {
-        // Both lanes are occupied - force to lane 0
-        assignedLane = 0;
-        laneEndTime[0] = Math.max(laneEndTime[0], end);
+        // Both lanes are occupied - force to default lane
+        assignedLane = DEFAULT_LANE;
+        laneEndTime.lane0 = Math.max(laneEndTime.lane0 ?? 0, end);
       }
       
       lanes.set(apt.id, assignedLane);
@@ -394,13 +396,14 @@ useEffect(() => {
           </thead>
           <tbody>
             {dayAppointments.map(({ day, appointments, lanes }) => {
+              const DEFAULT_SLOT_DURATION_MS = followUpSlotMinutes * 60_000;
+              
               // Calculate column spans for appointments
               const getColSpan = (apt: AppointmentLiteForDetails): number => {
                 const start = new Date(apt.scheduledAt);
-                const end = apt.endAt ? new Date(apt.endAt) : new Date(start.getTime() + followUpSlotMinutes * 60_000);
+                const end = apt.endAt ? new Date(apt.endAt) : new Date(start.getTime() + DEFAULT_SLOT_DURATION_MS);
                 const durationMs = end.getTime() - start.getTime();
-                const slotMs = followUpSlotMinutes * 60_000;
-                return Math.max(1, Math.ceil(durationMs / slotMs));
+                return Math.max(1, Math.ceil(durationMs / DEFAULT_SLOT_DURATION_MS));
               };
 
               const getStartCol = (apt: AppointmentLiteForDetails): number => {
@@ -559,7 +562,7 @@ useEffect(() => {
                         if (startCol === -1) return null; // appointment start not in visible range
                         
                         const colSpan = getColSpan(apt);
-                        const lane = lanes.get(apt.id) ?? 0;
+                        const lane = lanes.get(apt.id) ?? DEFAULT_LANE;
                         const gridRow = lane === 0 ? "1" : "2";
                         
                         return (
