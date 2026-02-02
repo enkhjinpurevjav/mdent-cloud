@@ -1409,10 +1409,10 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
           return;
         }
 
-        // Add replace flag if user explicitly cleared indicators
-        const url = isDirty && indicatorIds.length === 0
-          ? `/api/encounters/${id}/diagnoses/${dxId}/sterilization-indicators?replace=true`
-          : `/api/encounters/${id}/diagnoses/${dxId}/sterilization-indicators`;
+        // Build URL with replace flag if user explicitly cleared indicators
+        const baseUrl = `/api/encounters/${id}/diagnoses/${dxId}/sterilization-indicators`;
+        const shouldReplace = isDirty && indicatorIds.length === 0;
+        const url = shouldReplace ? `${baseUrl}?replace=true` : baseUrl;
 
         await fetch(url, {
           method: "PUT",
@@ -1868,8 +1868,10 @@ const handleFinishEncounter = async () => {
                   await handleSaveDiagnoses();
                   await handleSaveServices();
                   await savePrescription();
-                } catch (err) {
+                } catch (err: any) {
                   console.error("Save failed:", err);
+                  // Display error to user
+                  setSaveError(err?.message || "Хадгалахад алдаа гарлаа");
                 }
               }}
               onFinish={handleFinishEncounter}

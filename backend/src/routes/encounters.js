@@ -1130,7 +1130,7 @@ router.put("/:id/diagnoses/:diagnosisId/sterilization-indicators", async (req, r
 
     // Safety net: Prevent accidental clearing of indicators
     // If indicatorIds is empty and no explicit replace flag, treat as no-op
-    const replace = req.query.replace === "true" || req.body.replace === true;
+    const replace = req.query.replace === "true";
     if (ids.length === 0 && !replace) {
       // Return current state without modification
       const current = await prisma.encounterDiagnosis.findUnique({
