@@ -71,7 +71,8 @@ function getHmFromIso(iso: string): string {
   if (Number.isNaN(date.getTime())) return "";
   return date.toTimeString().substring(0, 5);
 }
-
+const nameOnly = (label: string) =>
+  (label || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
 // Constants for grid layout
 const COL_WIDTH = 80; // Width of each time slot column in pixels
 const MIN_ROW_HEIGHT = 80; // Minimum height for each day row
@@ -392,9 +393,13 @@ useEffect(() => {
                       const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
                       
                       // Find appointments that START at this exact time
-                      const appointmentsAtStart = appointments.filter(
-                        (apt) => getHmFromIso(apt.scheduledAt) === timeLabel
-                      ); // Already sorted by scheduledAt and id from parent
+                      const slotAppts = (slot?.appointmentIds || [])
+  .map((id) => apptById.get(id))
+  .filter(Boolean) as AppointmentLiteForDetails[];
+
+const appointmentsAtStart = slotAppts.filter(
+  (apt) => getHmFromIso(apt.scheduledAt) === timeLabel
+);
 
                       if (!slot) {
                         return (
@@ -478,7 +483,7 @@ useEffect(() => {
                                   whiteSpace: "nowrap",
                                   cursor: "pointer",
                                 }}
-                                title={`${formatGridShortLabel(apt) || "Захиалга"} (${getHmFromIso(apt.scheduledAt)} - ${apt.endAt ? getHmFromIso(apt.endAt) : "—"})`}
+                                title={`${nameOnly(formatGridShortLabel(apt)) || "Захиалга"} (${getHmFromIso(apt.scheduledAt)} - ${apt.endAt ? getHmFromIso(apt.endAt) : "—"})`}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   // Pass only the clicked appointment's slot info
