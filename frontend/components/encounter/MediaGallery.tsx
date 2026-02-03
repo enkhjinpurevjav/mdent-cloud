@@ -15,6 +15,7 @@ type MediaGalleryProps = {
   uploadingMedia: boolean;
   onUpload: (files: File[]) => Promise<void>;
   onDelete: (mediaId: number) => Promise<void>;
+  onRefresh?: () => Promise<void>;
 };
 
 export default function MediaGallery({
@@ -24,9 +25,11 @@ export default function MediaGallery({
   uploadingMedia,
   onUpload,
   onDelete,
+  onRefresh,
 }: MediaGalleryProps) {
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
+  const [refreshing, setRefreshing] = useState(false);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -77,6 +80,18 @@ export default function MediaGallery({
       });
     }
   };
+
+  const handleRefresh = async () => {
+    if (!onRefresh || refreshing) return;
+    
+    setRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+  
   return (
     <div
       style={{
@@ -137,27 +152,48 @@ export default function MediaGallery({
           />
         </label>
 
-        {pendingImages.length > 0 && (
+        {onRefresh && (
           <button
             type="button"
-            onClick={handleSave}
-            disabled={uploadingMedia}
+            onClick={handleRefresh}
+            disabled={refreshing || mediaLoading}
             style={{
               padding: "6px 12px",
               borderRadius: 6,
-              border: "1px solid #16a34a",
-              background: uploadingMedia ? "#f3f4f6" : "#dcfce7",
-              color: uploadingMedia ? "#9ca3af" : "#16a34a",
+              border: "1px solid #6b7280",
+              background: refreshing || mediaLoading ? "#f3f4f6" : "#ffffff",
+              color: refreshing || mediaLoading ? "#9ca3af" : "#374151",
               fontSize: 12,
-              fontWeight: 600,
-              cursor: uploadingMedia ? "default" : "pointer",
+              fontWeight: 500,
+              cursor: refreshing || mediaLoading ? "default" : "pointer",
             }}
+            title="Зургуудыг дахин ачаалах"
           >
-            {uploadingMedia
-              ? "Хадгалж байна..."
-              : `Хадгалах (${pendingImages.length})`}
+            {refreshing ? "Ачаалж байна..." : "🔄 Сэргээх"}
           </button>
         )}
+
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={uploadingMedia || pendingImages.length === 0}
+          style={{
+            padding: "6px 12px",
+            borderRadius: 6,
+            border: "none",
+            background: uploadingMedia || pendingImages.length === 0 ? "#9ca3af" : "#2563eb",
+            color: "white",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: uploadingMedia || pendingImages.length === 0 ? "default" : "pointer",
+          }}
+        >
+          {uploadingMedia
+            ? "Хадгалж байна..."
+            : pendingImages.length > 0 
+            ? `Зураг хадгалах (${pendingImages.length})`
+            : "Зураг хадгалах"}
+        </button>
       </div>
 
       {mediaLoading && (

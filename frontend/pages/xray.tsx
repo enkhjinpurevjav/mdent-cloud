@@ -251,6 +251,23 @@ export default function XrayPage() {
     }
   };
 
+  const handleMediaRefresh = async () => {
+    if (!encounterId) return;
+
+    setMediaLoading(true);
+    setMediaError("");
+    try {
+      const res = await fetch(`/api/encounters/${encounterId}/media?type=XRAY`);
+      if (!res.ok) throw new Error("Failed to fetch media");
+      const data = await res.json();
+      setMedia(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      setMediaError(err.message || "Зураг татахад алдаа гарлаа");
+    } finally {
+      setMediaLoading(false);
+    }
+  };
+
   const handleSavePerformer = async () => {
     if (!selectedAppt || selectedAppt.status !== "imaging") return;
 
@@ -563,6 +580,7 @@ export default function XrayPage() {
                 uploadingMedia={uploadingMedia}
                 onUpload={handleMediaUpload}
                 onDelete={handleMediaDelete}
+                onRefresh={handleMediaRefresh}
               />
 
               {/* Imaging-specific section */}
