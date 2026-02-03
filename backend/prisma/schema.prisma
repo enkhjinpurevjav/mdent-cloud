@@ -22,6 +22,7 @@ enum UserRole {
   accountant
   nurse
   manager
+  xray
 }
 
 enum ServiceCategory {
@@ -306,6 +307,7 @@ model User {
 
   appointments        Appointment[]
   createdAppointments Appointment[] @relation("AppointmentCreator")
+  cancelledAppointments Appointment[] @relation("AppointmentCanceller")
   bookings            Booking[]
   employeeBenefits    EmployeeBenefit[]
 
@@ -424,11 +426,16 @@ model Appointment {
   source            String? // e.g., 'FOLLOW_UP_ENCOUNTER', 'CALENDAR'
   sourceEncounterId Int?
 
-  patient       Patient    @relation(fields: [patientId], references: [id])
-  doctor        User?      @relation(fields: [doctorId], references: [id])
-  branch        Branch     @relation(fields: [branchId], references: [id])
-  createdBy     User?      @relation("AppointmentCreator", fields: [createdByUserId], references: [id])
+  // Cancellation audit fields
+  cancelledAt       DateTime?
+  cancelledByUserId Int?
+
+  patient         Patient    @relation(fields: [patientId], references: [id])
+  doctor          User?      @relation(fields: [doctorId], references: [id])
+  branch          Branch     @relation(fields: [branchId], references: [id])
+  createdBy       User?      @relation("AppointmentCreator", fields: [createdByUserId], references: [id])
   sourceEncounter Encounter? @relation("SourceEncounter", fields: [sourceEncounterId], references: [id])
+  cancelledBy     User?      @relation("AppointmentCanceller", fields: [cancelledByUserId], references: [id])
 
   encounters Encounter[]
 
