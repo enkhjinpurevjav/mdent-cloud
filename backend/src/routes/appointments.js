@@ -1128,8 +1128,8 @@ router.patch("/:id/cancel", async (req, res) => {
         status: "cancelled",
         cancelledAt: new Date(),
         cancelledByUserId: parsedUserId,
-        notes: reason 
-          ? [appt.notes, `Cancellation reason: ${reason}`].filter(Boolean).join('\n')
+        notes: reason?.trim() 
+          ? [appt.notes, `Cancellation reason: ${reason.trim()}`].filter(Boolean).join('\n')
           : appt.notes,
       },
       include: {
