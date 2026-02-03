@@ -729,24 +729,25 @@ router.get("/:patientId/unpaid-encounters", async (req, res) => {
       },
     });
 
+    // Helper function to calculate invoice amounts
+    const calculateInvoiceAmounts = (invoice) => {
+      const paidAmount = (invoice.payments || []).reduce(
+        (sum, payment) => sum + Number(payment.amount || 0),
+        0
+      );
+      const totalAmount = invoice.finalAmount != null
+        ? Number(invoice.finalAmount)
+        : Number(invoice.totalAmount || 0);
+      const remaining = totalAmount - paidAmount;
+      return { paidAmount, totalAmount, remaining };
+    };
+
     // Filter to only unpaid/partially paid encounters
     const unpaidEncounters = encounters.filter((enc) => {
       const invoice = enc.invoice;
       if (!invoice) return false;
 
-      // Calculate paid amount
-      const paidAmount = (invoice.payments || []).reduce(
-        (sum, payment) => sum + Number(payment.amount || 0),
-        0
-      );
-
-      // Calculate remaining amount
-      const totalAmount = invoice.finalAmount != null
-        ? Number(invoice.finalAmount)
-        : Number(invoice.totalAmount || 0);
-
-      const remaining = totalAmount - paidAmount;
-
+      const { remaining } = calculateInvoiceAmounts(invoice);
       // Include if there's a positive remaining balance
       return remaining > 0;
     });
@@ -754,14 +755,7 @@ router.get("/:patientId/unpaid-encounters", async (req, res) => {
     // Format response
     const result = unpaidEncounters.map((enc) => {
       const invoice = enc.invoice;
-      const paidAmount = (invoice.payments || []).reduce(
-        (sum, payment) => sum + Number(payment.amount || 0),
-        0
-      );
-      const totalAmount = invoice.finalAmount != null
-        ? Number(invoice.finalAmount)
-        : Number(invoice.totalAmount || 0);
-      const remaining = totalAmount - paidAmount;
+      const { paidAmount, totalAmount, remaining } = calculateInvoiceAmounts(invoice);
 
       return {
         encounterId: enc.id,

@@ -1858,6 +1858,7 @@ const handleFinishEncounter = async () => {
                 id="finishPreviousVisit"
                 checked={finishPreviousVisit}
                 onChange={(e) => handleFinishPreviousVisitToggle(e.target.checked)}
+                aria-label="Өмнөх үзлэгийг дуусгах - Төлбөр төлөгдөөгүй өмнөх үзлэгийг үргэлжлүүлэх"
                 style={{
                   width: 18,
                   height: 18,
@@ -1899,6 +1900,9 @@ const handleFinishEncounter = async () => {
               onClick={handleCancelUnpaidEncountersDialog}
             >
               <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="unpaid-encounters-dialog-title"
                 style={{
                   background: "#ffffff",
                   borderRadius: 12,
@@ -1910,7 +1914,7 @@ const handleFinishEncounter = async () => {
                 }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>
+                <h2 id="unpaid-encounters-dialog-title" style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>
                   Өмнөх үзлэгийг сонгох
                 </h2>
 
@@ -1949,15 +1953,19 @@ const handleFinishEncounter = async () => {
                 {!loadingUnpaidEncounters && !unpaidEncountersError && unpaidEncounters.length > 0 && (
                   <div style={{ marginBottom: 16 }}>
                     {unpaidEncounters.map((enc) => (
-                      <div
+                      <button
+                        type="button"
                         key={enc.encounterId}
                         style={{
+                          width: "100%",
                           padding: 16,
                           borderRadius: 8,
                           border: "1px solid #e5e7eb",
                           marginBottom: 12,
                           cursor: "pointer",
                           transition: "all 0.2s",
+                          background: "#ffffff",
+                          textAlign: "left",
                         }}
                         onClick={() => handleSelectUnpaidEncounter(enc.encounterId)}
                         onMouseEnter={(e) => {
@@ -1981,7 +1989,7 @@ const handleFinishEncounter = async () => {
                         <div style={{ fontSize: 13, color: "#ef4444", fontWeight: 500, marginTop: 4 }}>
                           Үлдэгдэл: {enc.invoice.remaining.toLocaleString()}₮
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
