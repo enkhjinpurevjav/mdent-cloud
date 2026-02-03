@@ -666,4 +666,120 @@ router.put("/ortho-card/:patientBookId", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/patients/:patientId/unpaid-encounters
+ * 
+ * Returns a list of encounters for the patient that have invoices
+ * that are not fully paid (status UNPAID or PARTIAL, or remaining > 0).
+ * 
+ * This is used by the "Finish previous visit" (Өмнөх үзлэгийг дуусгах) feature
+ * to allow doctors to continue working on previous unpaid encounters.
+ */
+router.get("/:patientId/unpaid-encounters", async (req, res) => {
+  try {
+    const patientId = Number(req.params.patientId);
+    if (!patientId || Number.isNaN(patientId)) {
+      return res.status(400).json({ error: "Invalid patientId" });
+    }
+
+    // Find patient and their patientBook
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId },
+      include: {
+        patientBook: true,
+      },
+    });
+
+    if (!patient || !patient.patientBook) {
+      return res.status(404).json({ error: "Patient or PatientBook not found" });
+    }
+
+    const patientBookId = patient.patientBook.id;
+
+    // Find encounters with unpaid invoices
+    const encounters = await prisma.encounter.findMany({
+      where: {
+        patientBookId: patientBookId,
+        invoice: {
+          isNot: null, // Has an invoice
+        },
+      },
+      include: {
+        doctor: {
+          select: {
+            id: true,
+            ovog: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+        invoice: {
+          include: {
+            payments: {
+              select: {
+                amount: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        visitDate: "desc",
+      },
+    });
+
+    // Helper function to calculate invoice amounts
+    const calculateInvoiceAmounts = (invoice) => {
+      const paidAmount = (invoice.payments || []).reduce(
+        (sum, payment) => sum + Number(payment.amount || 0),
+        0
+      );
+      const totalAmount = invoice.finalAmount != null
+        ? Number(invoice.finalAmount)
+        : Number(invoice.totalAmount || 0);
+      const remaining = totalAmount - paidAmount;
+      return { paidAmount, totalAmount, remaining };
+    };
+
+    // Filter to only unpaid/partially paid encounters
+    const unpaidEncounters = encounters.filter((enc) => {
+      const invoice = enc.invoice;
+      if (!invoice) return false;
+
+      const { remaining } = calculateInvoiceAmounts(invoice);
+      // Include if there's a positive remaining balance
+      return remaining > 0;
+    });
+
+    // Format response
+    const result = unpaidEncounters.map((enc) => {
+      const invoice = enc.invoice;
+      const { paidAmount, totalAmount, remaining } = calculateInvoiceAmounts(invoice);
+
+      return {
+        encounterId: enc.id,
+        visitDate: enc.visitDate,
+        doctor: {
+          id: enc.doctor.id,
+          ovog: enc.doctor.ovog,
+          name: enc.doctor.name,
+          email: enc.doctor.email,
+        },
+        invoice: {
+          id: invoice.id,
+          totalAmount: totalAmount,
+          paidAmount: paidAmount,
+          remaining: remaining,
+        },
+      };
+    });
+
+    return res.json(result);
+  } catch (err) {
+    console.error("GET /api/patients/:patientId/unpaid-encounters error:", err);
+    return res.status(500).json({ error: "Failed to load unpaid encounters" });
+  }
+});
+
 export default router;
