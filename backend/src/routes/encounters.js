@@ -554,6 +554,22 @@ router.put("/:id/services", async (req, res) => {
       return res.json(current);
     }
 
+    // Load encounter with appointment to check if imaging status
+    const encounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      include: {
+        appointment: {
+          select: { status: true },
+        },
+      },
+    });
+
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    const isImagingEncounter = encounter.appointment?.status === "imaging";
+
     await prisma.$transaction(async (trx) => {
       const diagnosisRowIds = Array.from(
         new Set(
@@ -587,16 +603,24 @@ router.put("/:id/services", async (req, res) => {
         });
         if (!svc) continue;
 
+        // Build meta object, preserving keys and adding toothScope for imaging
+        const meta = {
+          assignedTo: item.assignedTo ?? "DOCTOR",
+          diagnosisId: item.diagnosisId ?? null,
+        };
+
+        // Add toothScope for imaging encounters
+        if (isImagingEncounter) {
+          meta.toothScope = "ALL";
+        }
+
         await trx.encounterService.create({
           data: {
             encounterId,
             serviceId,
             quantity: item.quantity ?? 1,
             price: svc.price,
-            meta: {
-              assignedTo: item.assignedTo ?? "DOCTOR",
-              diagnosisId: item.diagnosisId ?? null,
-            },
+            meta,
           },
         });
       }
@@ -1290,14 +1314,20 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
   }
 
   try {
-    // Verify encounter exists
+    // Verify encounter exists and load appointment to check if imaging
     const encounter = await prisma.encounter.findUnique({
       where: { id: encounterId },
-      select: { id: true },
+      include: {
+        appointment: {
+          select: { status: true },
+        },
+      },
     });
     if (!encounter) {
       return res.status(404).json({ error: "Encounter not found" });
     }
+
+    const isImagingEncounter = encounter.appointment?.status === "imaging";
 
     // Validate "Бүх шүд" uniqueness in payload
     const generalServiceRows = rows.filter(
@@ -1437,16 +1467,24 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
             });
 
             if (service) {
+              // Build meta object, preserving keys and adding toothScope for imaging
+              const meta = {
+                assignedTo,
+                diagnosisId: diagnosisRowId,
+              };
+
+              // Add toothScope for imaging encounters
+              if (isImagingEncounter) {
+                meta.toothScope = "ALL";
+              }
+
               await trx.encounterService.create({
                 data: {
                   encounterId,
                   serviceId: serviceIdValue,
                   quantity: 1,
                   price: service.price,
-                  meta: {
-                    assignedTo,
-                    diagnosisId: diagnosisRowId,
-                  },
+                  meta,
                 },
               });
             }
