@@ -598,10 +598,11 @@ const primaryButtonStyle: React.CSSProperties = {
 
   // Auto-load appointments when tab is active and dates are set
   useEffect(() => {
-    if (activeTab === "appointments" && appointmentsFrom && appointmentsTo) {
+    if (activeTab === "appointments" && appointmentsFrom && appointmentsTo && id) {
       loadAppointments();
     }
-  }, [activeTab, appointmentsFrom, appointmentsTo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, appointmentsFrom, appointmentsTo, id]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
