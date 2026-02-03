@@ -741,11 +741,7 @@ export default function AppointmentDetailsModal({
           }}
           appointmentId={selectedAppointmentForImaging.id}
           branchId={selectedAppointmentForImaging.branchId}
-          doctorName={
-            selectedAppointmentForImaging.doctorName ||
-            selectedAppointmentForImaging.doctor?.name ||
-            undefined
-          }
+          doctorName={selectedAppointmentForImaging.doctorName || undefined}
           onSuccess={handleImagingCheckoutSuccess}
         />
       )}
