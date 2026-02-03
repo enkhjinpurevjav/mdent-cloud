@@ -1782,6 +1782,8 @@ const totalCompletedPatientsForDay = useMemo(() => {
       return "#a78bfa"; // purple
     case "ongoing":
       return "#9d9d9d";
+    case "imaging":
+      return "#8b5cf6"; // purple for imaging
     case "ready_to_pay":
       return "#facc15";
     case "partial_paid":

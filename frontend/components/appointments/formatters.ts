@@ -101,6 +101,8 @@ export function formatStatus(status: string): string {
       return "Онлайн";
     case "ongoing":
       return "Явж байна";
+    case "imaging":
+      return "Зураг";
     case "ready_to_pay":
       return "Төлбөр төлөх";
     case "partial_paid":
