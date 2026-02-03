@@ -547,4 +547,128 @@ router.get("/scheduled-with-appointments", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/doctors/:id/sales-summary
+ * 
+ * Query params:
+ *   - date (optional): YYYY-MM-DD (defaults to today in clinic timezone)
+ * 
+ * Returns:
+ * {
+ *   doctorId: number,
+ *   date: "YYYY-MM-DD",
+ *   todayTotal: number,
+ *   monthFrom: "YYYY-MM-DD",
+ *   monthTo: "YYYY-MM-DD",
+ *   monthTotal: number
+ * }
+ */
+router.get("/:id/sales-summary", async (req, res) => {
+  try {
+    const doctorId = Number(req.params.id);
+    if (!doctorId || Number.isNaN(doctorId)) {
+      return res.status(400).json({ error: "Invalid doctor id" });
+    }
+
+    // Verify doctor exists and is a doctor
+    const doctor = await prisma.user.findUnique({
+      where: { id: doctorId },
+      select: { id: true, role: true },
+    });
+
+    if (!doctor || doctor.role !== "doctor") {
+      return res.status(404).json({ error: "Doctor not found" });
+    }
+
+    // Parse date parameter (defaults to today in Mongolia time)
+    let targetDate = req.query.date;
+    if (!targetDate) {
+      // Get current date in Mongolia time (UTC+8)
+      const now = new Date();
+      const mongoliaOffset = 8 * 60; // +8 hours in minutes
+      const localTime = new Date(now.getTime() + mongoliaOffset * 60000);
+      targetDate = localTime.toISOString().slice(0, 10);
+    }
+
+    // Validate date format
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    if (!datePattern.test(targetDate)) {
+      return res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD" });
+    }
+
+    // Get day boundaries for target date
+    const dayRange = ymdToClinicStartEnd(targetDate);
+    if (!dayRange) {
+      return res.status(400).json({ error: "Invalid date format" });
+    }
+
+    // Calculate month boundaries
+    const [year, month] = targetDate.split("-").map(Number);
+    const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+    
+    // Get last day of month
+    const lastDay = new Date(year, month, 0).getDate();
+    const monthEnd = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+    const monthStartRange = ymdToClinicStartEnd(monthStart);
+    const monthEndRange = ymdToClinicStartEnd(monthEnd);
+
+    if (!monthStartRange || !monthEndRange) {
+      return res.status(400).json({ error: "Failed to calculate month boundaries" });
+    }
+
+    // Query today's payments
+    const todayPayments = await prisma.payment.findMany({
+      where: {
+        timestamp: {
+          gte: dayRange.start,
+          lte: dayRange.end,
+        },
+        invoice: {
+          encounter: {
+            doctorId: doctorId,
+          },
+        },
+      },
+      select: {
+        amount: true,
+      },
+    });
+
+    const todayTotal = todayPayments.reduce((sum, p) => sum + p.amount, 0);
+
+    // Query month's payments
+    const monthPayments = await prisma.payment.findMany({
+      where: {
+        timestamp: {
+          gte: monthStartRange.start,
+          lte: monthEndRange.end,
+        },
+        invoice: {
+          encounter: {
+            doctorId: doctorId,
+          },
+        },
+      },
+      select: {
+        amount: true,
+      },
+    });
+
+    const monthTotal = monthPayments.reduce((sum, p) => sum + p.amount, 0);
+
+    return res.json({
+      doctorId,
+      date: targetDate,
+      todayTotal,
+      monthFrom: monthStart,
+      monthTo: monthEnd,
+      monthTotal,
+    });
+  } catch (err) {
+    console.error("Error fetching doctor sales summary:", err);
+    return res.status(500).json({ error: "Failed to fetch sales summary" });
+  }
+});
+
 export default router;

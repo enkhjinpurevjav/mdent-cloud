@@ -48,6 +48,10 @@ function formatIsoDateOnly(iso?: string | null) {
   return String(iso).slice(0, 10);
 }
 
+function formatMNT(amount: number): string {
+  return new Intl.NumberFormat("en-US").format(amount) + " ₮";
+}
+
 function Card({
   title,
   right,
@@ -271,6 +275,14 @@ const primaryButtonStyle: React.CSSProperties = {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyItems, setHistoryItems] = useState<DoctorScheduleDay[]>([]);
 
+  // Sales summary state
+  const [salesSummary, setSalesSummary] = useState<{
+    todayTotal: number;
+    monthTotal: number;
+  } | null>(null);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [salesError, setSalesError] = useState<string | null>(null);
+
   const resetFormFromDoctor = () => {
     if (!doctor) return;
     setForm({
@@ -464,8 +476,33 @@ const primaryButtonStyle: React.CSSProperties = {
       }
     }
 
+    async function loadSalesSummary() {
+      setSalesLoading(true);
+      setSalesError(null);
+
+      try {
+        const res = await fetch(`/api/doctors/${id}/sales-summary`);
+        const data = await res.json();
+
+        if (res.ok) {
+          setSalesSummary({
+            todayTotal: data.todayTotal || 0,
+            monthTotal: data.monthTotal || 0,
+          });
+        } else {
+          setSalesError(data?.error || "Орлогын мэдээллийг ачааллаж чадсангүй");
+        }
+      } catch (err) {
+        console.error(err);
+        setSalesError("Сүлжээгээ шалгана уу");
+      } finally {
+        setSalesLoading(false);
+      }
+    }
+
     load();
     loadSchedule();
+    loadSalesSummary();
   }, [id]);
 
   const reloadSchedule = async () => {
@@ -1177,10 +1214,16 @@ const primaryButtonStyle: React.CSSProperties = {
       >
         Өнөөдрийн орлого
       </div>
-      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
-        Coming soon
+      <div style={{ fontSize: 24, fontWeight: 600, marginBottom: 4 }}>
+        {salesLoading
+          ? "..."
+          : salesError
+          ? "-"
+          : salesSummary
+          ? formatMNT(salesSummary.todayTotal)
+          : "-"}
       </div>
-      <div style={{ fontSize: 12, color: "#6b7280" }}>(Logic later)</div>
+      <div style={{ fontSize: 12, color: "#6b7280" }}>Өнөөдөр төлсөн</div>
     </div>
 
     <div
@@ -1201,10 +1244,16 @@ const primaryButtonStyle: React.CSSProperties = {
       >
         Энэ сарын орлого
       </div>
-      <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 4 }}>
-        Coming soon
+      <div style={{ fontSize: 24, fontWeight: 600, marginBottom: 4 }}>
+        {salesLoading
+          ? "..."
+          : salesError
+          ? "-"
+          : salesSummary
+          ? formatMNT(salesSummary.monthTotal)
+          : "-"}
       </div>
-      <div style={{ fontSize: 12, color: "#6b7280" }}>(Logic later)</div>
+      <div style={{ fontSize: 12, color: "#6b7280" }}>Энэ сарын нийт</div>
     </div>
   </div>
 )}
