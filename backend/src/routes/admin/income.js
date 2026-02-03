@@ -114,21 +114,28 @@ router.get("/doctors-income", async (req, res) => {
       const netMultiplier = totalBefore > 0 ? finalAmount / totalBefore : 0;
 
       const serviceItems = (inv.items || []).filter((it) => it.itemType === "SERVICE");
-      const serviceGross = serviceItems.reduce(
+      
+      // Separate IMAGING and NON-IMAGING services for doctor sales calculation
+      const nonImagingServiceItems = serviceItems.filter(
+        (it) => it.service?.category !== "IMAGING"
+      );
+      
+      const nonImagingServiceGross = nonImagingServiceItems.reduce(
         (sum, it) => sum + Number(it.lineTotal || it.unitPrice * it.quantity || 0),
         0
       );
-      const serviceNetAfterDiscount = serviceGross * netMultiplier;
+      const nonImagingServiceNetAfterDiscount = nonImagingServiceGross * netMultiplier;
 
-      // ---------- SALES ----------
+      // ---------- SALES (exclude IMAGING services) ----------
       if (hasOverride) {
         // insurance/application override: invoice-based, only when invoice PAID
         const status = String(inv.statusLegacy || "").toLowerCase();
         if (status === "paid") {
-          acc.doctorSalesMnt += serviceNetAfterDiscount * 0.9;
+          acc.doctorSalesMnt += nonImagingServiceNetAfterDiscount * 0.9;
         }
       } else {
         // payment-split based by Payment.timestamp in range
+        // Allocate payments proportionally to NON-IMAGING services only
         let included = 0;
         let barterSum = 0;
 
@@ -151,8 +158,22 @@ router.get("/doctors-income", async (req, res) => {
           }
         }
 
-        const barterIncluded = Math.max(0, barterSum - 800000);
-        acc.doctorSalesMnt += included + barterIncluded;
+        // Calculate total service value (including IMAGING) for proportional allocation
+        const totalServiceGross = serviceItems.reduce(
+          (sum, it) => sum + Number(it.lineTotal || it.unitPrice * it.quantity || 0),
+          0
+        );
+        const totalServiceNet = totalServiceGross * netMultiplier;
+        
+        // Allocate payments proportionally to non-IMAGING services
+        const nonImagingRatio = totalServiceNet > 0 
+          ? nonImagingServiceNetAfterDiscount / totalServiceNet 
+          : 0;
+        
+        const allocatedIncluded = included * nonImagingRatio;
+        const barterIncluded = Math.max(0, barterSum - 800000) * nonImagingRatio;
+        
+        acc.doctorSalesMnt += allocatedIncluded + barterIncluded;
 
         // barter also contributes to income via generalPct
         const generalPct = Number(cfg?.generalPct || 0);
@@ -176,9 +197,10 @@ router.get("/doctors-income", async (req, res) => {
 
           const service = it.service;
 
-          // 1) X-ray rule: all IMAGING category is x-ray -> 5%
+          // 1) IMAGING rule: exclude from doctor income (0%)
+          // Business requirement: IMAGING services are excluded from doctor sales and commission
+          // Previously contributed 5%, now 0% per finance policy update
           if (service?.category === "IMAGING") {
-            acc.doctorIncomeMnt += lineNet * 0.05;
             continue;
           }
 
@@ -255,7 +277,9 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
   function initBuckets(cfg) {
     return {
-      IMAGING: { key: "IMAGING", label: LABELS.IMAGING, salesMnt: 0, incomeMnt: 0, pctUsed: 5 },
+      // IMAGING services contribute 0% to doctor income per business requirement
+      // (IMAGING revenue is excluded from doctor sales and commission calculations)
+      IMAGING: { key: "IMAGING", label: LABELS.IMAGING, salesMnt: 0, incomeMnt: 0, pctUsed: 0 },
       ORTHODONTIC_TREATMENT: {
         key: "ORTHODONTIC_TREATMENT",
         label: LABELS.ORTHODONTIC_TREATMENT,
@@ -366,13 +390,21 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
         invoiceCategoryNet.SURGERY +
         invoiceCategoryNet.GENERAL;
 
-      // ---------- SALES (category-first) ----------
+      // Calculate non-IMAGING service net for doctor sales allocation
+      const invoiceNonImagingServiceNet =
+        invoiceCategoryNet.ORTHODONTIC_TREATMENT +
+        invoiceCategoryNet.DEFECT_CORRECTION +
+        invoiceCategoryNet.SURGERY +
+        invoiceCategoryNet.GENERAL;
+
+      // ---------- SALES (category-first, exclude IMAGING) ----------
       if (hasOverride) {
         if (isPaid && inv.createdAt >= start && inv.createdAt < endExclusive) {
-          const invoiceSalesBase = invoiceServiceNet * 0.9;
-          if (invoiceServiceNet > 0) {
+          const invoiceSalesBase = invoiceNonImagingServiceNet * 0.9;
+          if (invoiceNonImagingServiceNet > 0) {
             for (const k of Object.keys(invoiceCategoryNet)) {
-              const share = invoiceCategoryNet[k] / invoiceServiceNet;
+              if (k === "IMAGING") continue; // Skip IMAGING for sales
+              const share = invoiceCategoryNet[k] / invoiceNonImagingServiceNet;
               const amt = invoiceSalesBase * share;
               buckets[k].salesMnt += amt;
               totalSalesMnt += amt;
@@ -402,23 +434,34 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
         const barterExcess = Math.max(0, barterSum - 800000);
 
-        // allocate only includedPayments proportionally
+        // Calculate non-IMAGING ratio once for both includedPayments and barterExcess
+        const nonImagingRatio = invoiceServiceNet > 0 
+          ? invoiceNonImagingServiceNet / invoiceServiceNet 
+          : 0;
+
+        // allocate only includedPayments proportionally to NON-IMAGING services
         if (invoiceServiceNet > 0 && includedPayments !== 0) {
-          for (const k of Object.keys(invoiceCategoryNet)) {
-            const share = invoiceCategoryNet[k] / invoiceServiceNet;
-            const amt = includedPayments * share;
-            buckets[k].salesMnt += amt;
-            totalSalesMnt += amt;
+          const allocatedIncluded = includedPayments * nonImagingRatio;
+          
+          if (invoiceNonImagingServiceNet > 0) {
+            for (const k of Object.keys(invoiceCategoryNet)) {
+              if (k === "IMAGING") continue; // Skip IMAGING for sales
+              const share = invoiceCategoryNet[k] / invoiceNonImagingServiceNet;
+              const amt = allocatedIncluded * share;
+              buckets[k].salesMnt += amt;
+              totalSalesMnt += amt;
+            }
           }
         }
 
-        // barter excess separate row
+        // barter excess separate row (also exclude IMAGING proportion)
         if (barterExcess > 0) {
-          buckets.BARTER_EXCESS.salesMnt += barterExcess;
-          totalSalesMnt += barterExcess;
+          const allocatedBarterExcess = barterExcess * nonImagingRatio;
+          buckets.BARTER_EXCESS.salesMnt += allocatedBarterExcess;
+          totalSalesMnt += allocatedBarterExcess;
 
           const generalPct = Number(cfg?.generalPct || 0);
-          const barterIncome = barterExcess * (generalPct / 100);
+          const barterIncome = allocatedBarterExcess * (generalPct / 100);
           buckets.BARTER_EXCESS.incomeMnt += barterIncome;
           totalIncomeMnt += barterIncome;
         }
@@ -439,11 +482,10 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
           const service = it.service;
 
-          // IMAGING -> 5%
+          // IMAGING -> 0% (excluded from doctor income)
+          // Business requirement: IMAGING services are excluded from doctor sales and commission
+          // Previously contributed 5%, now 0% per finance policy update
           if (service?.category === "IMAGING") {
-            const income = lineNet * 0.05;
-            buckets.IMAGING.incomeMnt += income;
-            totalIncomeMnt += income;
             continue;
           }
 

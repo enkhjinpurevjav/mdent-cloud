@@ -325,7 +325,7 @@ router.get("/scheduled-with-appointments", async (req, res) => {
     // 2) Fetch appointments for these doctors in the same range
     // IMPORTANT: front desk creates status "booked" by default.
     // Only show "active" statuses on schedule:
-    const visibleStatuses = ["booked", "confirmed", "online", "ongoing", "ready_to_pay"];
+    const visibleStatuses = ["booked", "confirmed", "online", "ongoing", "imaging", "ready_to_pay"];
 
     const apptWhere = {
       doctorId: { in: doctorIds },
@@ -499,7 +499,7 @@ router.get("/scheduled-with-appointments", async (req, res) => {
 
     // 2) Load appointments in the same range for these doctors
     // (front desk creates "booked" by default)
-    const visibleStatuses = ["booked", "confirmed", "online", "ongoing", "ready_to_pay"];
+    const visibleStatuses = ["booked", "confirmed", "online", "ongoing", "imaging", "ready_to_pay"];
 
     const apptWhere = {
       doctorId: { in: doctorIds },

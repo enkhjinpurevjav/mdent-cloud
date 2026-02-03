@@ -870,6 +870,7 @@ export default function QuickAppointmentModal({
                 <option value="confirmed">Баталгаажсан</option>
                 <option value="online">Онлайн</option>
                 <option value="ongoing">Явагдаж байна</option>
+                <option value="imaging">Зураг авах</option>
                 <option value="ready_to_pay">Төлбөр төлөх</option>
                 <option value="completed">Дууссан</option>
                 <option value="no_show">Ирээгүй</option>
