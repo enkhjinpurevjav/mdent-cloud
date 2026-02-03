@@ -145,12 +145,15 @@ export default function XrayPage() {
   // Load nurses if imaging appointment
   useEffect(() => {
     if (!selectedAppt || selectedAppt.status !== "imaging") return;
+    if (!selectedAppt.branchId) {
+      console.warn("Branch ID not available for appointment", selectedAppt.id);
+      return;
+    }
 
     const fetchNurses = async () => {
       setLoadingNurses(true);
       try {
-        const branchId = selectedAppt.branchId || 1;
-        const res = await fetch(`/api/users/nurses/today?branchId=${branchId}`);
+        const res = await fetch(`/api/users/nurses/today?branchId=${selectedAppt.branchId}`);
         if (!res.ok) throw new Error("Failed to fetch nurses");
         const data = await res.json();
         const nurseItems = data.items || [];
@@ -241,15 +244,20 @@ export default function XrayPage() {
     }
   };
 
-  const handleSavePerformerAndServices = async () => {
+  const handleSavePerformer = async () => {
     if (!selectedAppt || selectedAppt.status !== "imaging") return;
+
+    // Validate nurse selection if performer type is NURSE
+    if (performerType === "NURSE" && !selectedNurseId) {
+      setError("Сувилагч сонгоно уу");
+      return;
+    }
 
     setSaving(true);
     setError("");
     setSuccessMsg("");
 
     try {
-      // 1. Save performer
       const performerRes = await fetch(
         `/api/appointments/${selectedAppt.id}/imaging/set-performer`,
         {
@@ -264,10 +272,10 @@ export default function XrayPage() {
 
       if (!performerRes.ok) {
         const data = await performerRes.json();
-        throw new Error(data.error || "Performer хадгалахад алдаа гарлаа");
+        throw new Error(data.error || "Гүйцэтгэгч хадгалахад алдаа гарлаа");
       }
 
-      setSuccessMsg("Амжилттай хадгалагдлаа");
+      setSuccessMsg("Гүйцэтгэгч амжилттай хадгалагдлаа");
     } catch (err: any) {
       setError(err.message || "Хадгалахад алдаа гарлаа");
     } finally {
@@ -277,6 +285,18 @@ export default function XrayPage() {
 
   const handleTransitionToReady = async () => {
     if (!selectedAppt || selectedAppt.status !== "imaging") return;
+
+    // Validate performer selection
+    if (performerType === "NURSE" && !selectedNurseId) {
+      setError("Төлбөрт шилжүүлэхээс өмнө сувилагч сонгоно уу");
+      return;
+    }
+
+    // Validate service selection
+    if (selectedServiceIds.length === 0) {
+      setError("Төлбөрт шилжүүлэхээс өмнө үйлчилгээ сонгоно уу");
+      return;
+    }
 
     setTransitioning(true);
     setError("");
@@ -665,8 +685,8 @@ export default function XrayPage() {
 
                   <div style={{ display: "flex", gap: 12 }}>
                     <button
-                      onClick={handleSavePerformerAndServices}
-                      disabled={saving}
+                      onClick={handleSavePerformer}
+                      disabled={saving || (performerType === "NURSE" && !selectedNurseId)}
                       style={{
                         flex: 1,
                         padding: "10px 16px",
@@ -676,15 +696,15 @@ export default function XrayPage() {
                         borderRadius: 6,
                         fontSize: 14,
                         fontWeight: 500,
-                        cursor: saving ? "default" : "pointer",
-                        opacity: saving ? 0.6 : 1,
+                        cursor: saving || (performerType === "NURSE" && !selectedNurseId) ? "default" : "pointer",
+                        opacity: saving || (performerType === "NURSE" && !selectedNurseId) ? 0.6 : 1,
                       }}
                     >
-                      {saving ? "Хадгалж байна..." : "Хадгалах"}
+                      {saving ? "Хадгалж байна..." : "Гүйцэтгэгч хадгалах"}
                     </button>
                     <button
                       onClick={handleTransitionToReady}
-                      disabled={transitioning || selectedServiceIds.length === 0}
+                      disabled={transitioning}
                       style={{
                         flex: 1,
                         padding: "10px 16px",
@@ -694,14 +714,8 @@ export default function XrayPage() {
                         borderRadius: 6,
                         fontSize: 14,
                         fontWeight: 500,
-                        cursor:
-                          transitioning || selectedServiceIds.length === 0
-                            ? "default"
-                            : "pointer",
-                        opacity:
-                          transitioning || selectedServiceIds.length === 0
-                            ? 0.6
-                            : 1,
+                        cursor: transitioning ? "default" : "pointer",
+                        opacity: transitioning ? 0.6 : 1,
                       }}
                     >
                       {transitioning ? "Шилжүүлж байна..." : "Төлбөрт шилжүүлэх"}
