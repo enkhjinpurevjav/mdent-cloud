@@ -225,7 +225,6 @@ export default function XrayPage() {
       }
     } catch (err: any) {
       setError(err.message || "Зураг хуулахад алдаа гарлаа");
-      throw err; // Re-throw to let MediaGallery handle it
     } finally {
       setUploadingMedia(false);
     }
@@ -249,7 +248,6 @@ export default function XrayPage() {
       setMedia((prev) => prev.filter((m) => m.id !== mediaId));
     } catch (err: any) {
       setError(err.message || "Зураг устгахад алдаа гарлаа");
-      throw err; // Re-throw to let MediaGallery handle it
     }
   };
 

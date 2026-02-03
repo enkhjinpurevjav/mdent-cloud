@@ -1633,7 +1633,6 @@ setRows((prev) =>
       setMediaError(
         err?.message || "Файл байршуулахад алдаа гарлаа."
       );
-      throw err; // Re-throw to let MediaGallery handle it
     } finally {
       setUploadingMedia(false);
     }
@@ -1660,7 +1659,6 @@ setRows((prev) =>
       setMediaError(
         err?.message || "Зураг устгахад алдаа гарлаа."
       );
-      throw err; // Re-throw to let MediaGallery handle it
     }
   };
 

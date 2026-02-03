@@ -32,10 +32,10 @@ export default function MediaGallery({
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    const newPending = files.map((file) => ({
+    const newPending = files.map((file, index) => ({
       file,
       previewUrl: URL.createObjectURL(file),
-      id: `${Date.now()}-${Math.random()}`,
+      id: `${Date.now()}-${index}-${Math.random().toString(36).substring(2)}`,
     }));
 
     setPendingImages((prev) => [...prev, ...newPending]);

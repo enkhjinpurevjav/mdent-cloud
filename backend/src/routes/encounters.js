@@ -2,6 +2,7 @@ import express from "express";
 import prisma from "../db.js";
 import multer from "multer";
 import path from "path";
+import fs from "fs";
 import { authenticateJWT, optionalAuthenticateJWT } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -1063,7 +1064,6 @@ router.delete("/:encounterId/media/:mediaId", async (req, res) => {
 
     // Best effort: attempt to delete file from disk
     try {
-      const fs = await import("fs");
       const filePath = media.filePath.startsWith("/")
         ? media.filePath.substring(1)
         : media.filePath;
