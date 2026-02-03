@@ -20,6 +20,13 @@ type Performer = {
   nurseId?: number;
 };
 
+type NurseTodayResponse = {
+  items?: Array<{
+    nurseId: number;
+    name: string;
+  }>;
+};
+
 type ImagingCheckoutModalProps = {
   open: boolean;
   onClose: () => void;
@@ -93,7 +100,7 @@ export default function ImagingCheckoutModal({
         );
         if (!res.ok) throw new Error("Failed to fetch nurses");
 
-        const data: { items?: Array<{ nurseId: number; name: string }> } = await res.json();
+        const data: NurseTodayResponse = await res.json();
         
         // Extract nurses from the response structure
         const nurseList = (data.items || []).map((item) => ({
@@ -205,6 +212,9 @@ export default function ImagingCheckoutModal({
   };
 
   if (!open) return null;
+
+  const isSubmitDisabled = 
+    loading || (performerType === "NURSE" && !selectedNurseId && !isPerformerSet);
 
   return (
     <div
@@ -465,18 +475,15 @@ export default function ImagingCheckoutModal({
           <button
             type="button"
             onClick={handleSave}
-            disabled={loading || (performerType === "NURSE" && !selectedNurseId && !isPerformerSet)}
+            disabled={isSubmitDisabled}
             style={{
               padding: "8px 16px",
               borderRadius: 6,
               border: "none",
-              background: loading ? "#9ca3af" : "#8b5cf6",
+              background: isSubmitDisabled ? "#9ca3af" : "#8b5cf6",
               color: "#ffffff",
               fontSize: 13,
-              cursor:
-                loading || (performerType === "NURSE" && !selectedNurseId && !isPerformerSet)
-                  ? "not-allowed"
-                  : "pointer",
+              cursor: isSubmitDisabled ? "not-allowed" : "pointer",
             }}
           >
             {loading ? "Хадгалж байна..." : "Төлбөр авах руу шилжих"}
