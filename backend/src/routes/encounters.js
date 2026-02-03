@@ -554,7 +554,7 @@ router.put("/:id/services", async (req, res) => {
       return res.json(current);
     }
 
-    // Load encounter with appointment to check if imaging status
+    // Load encounter with appointment to check imaging status
     const encounter = await prisma.encounter.findUnique({
       where: { id: encounterId },
       include: {

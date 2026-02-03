@@ -624,7 +624,7 @@ export default function DiagnosesEditor({
                     Сувилагч
                   </label>
 
-                  {/* Badge showing "Бүх шүд" for imaging services */}
+                  {/* Badge: All imaging services apply to all teeth */}
                   <div
                     style={{
                       padding: "4px 10px",

@@ -95,7 +95,7 @@ function parseClinicDay(value) {
 /**
  * Helper: Ensure an Encounter exists for an appointment.
  * Given appointment id, load appointment including patient and patientBook, 
- * doctorId, scheduledAt, branchId. Ensure PatientBook exists using upsert 
+ * doctorId, scheduledAt. Ensure PatientBook exists using upsert 
  * (avoid unique constraint errors). Find latest Encounter by appointmentId 
  * (order desc). If missing, create Encounter with patientBookId, doctorId, 
  * visitDate=appointment.scheduledAt, appointmentId. Return encounter.
