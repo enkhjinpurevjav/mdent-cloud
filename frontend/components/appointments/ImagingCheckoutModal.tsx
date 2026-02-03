@@ -93,10 +93,10 @@ export default function ImagingCheckoutModal({
         );
         if (!res.ok) throw new Error("Failed to fetch nurses");
 
-        const data = await res.json();
+        const data: { items?: Array<{ nurseId: number; name: string }> } = await res.json();
         
         // Extract nurses from the response structure
-        const nurseList = (data.items || []).map((item: any) => ({
+        const nurseList = (data.items || []).map((item) => ({
           id: item.nurseId,
           name: item.name,
         }));
@@ -150,8 +150,10 @@ export default function ImagingCheckoutModal({
           const errData = await performerRes.json();
           throw new Error(errData.error || "Failed to set performer");
         }
-      } catch (err: any) {
-        setError(err.message || "Гүйцэтгэгч тохируулахад алдаа гарлаа");
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Гүйцэтгэгч тохируулахад алдаа гарлаа";
+        setError(errorMessage);
         setLoading(false);
         return;
       }
@@ -193,8 +195,10 @@ export default function ImagingCheckoutModal({
       }
       
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Төлбөр төлөх төлөвт шилжүүлэхэд алдаа гарлаа");
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Төлбөр төлөх төлөвт шилжүүлэхэд алдаа гарлаа";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
