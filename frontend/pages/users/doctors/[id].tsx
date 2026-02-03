@@ -33,6 +33,21 @@ type DoctorScheduleDay = {
   note?: string | null;
 };
 
+type DoctorAppointment = {
+  id: number;
+  patientId: number;
+  branchId: number;
+  doctorId: number;
+  scheduledAt: string; // ISO string
+  endAt: string | null; // ISO string
+  status: string;
+  notes: string | null;
+  patientName: string | null;
+  patientOvog: string | null;
+  patientBookNumber: string | null;
+  branchName: string | null;
+};
+
 type ShiftType = "AM" | "PM" | "WEEKEND_FULL";
 type DoctorTabKey = "profile" | "schedule" | "appointments" | "test1" | "test2";
 
@@ -283,6 +298,13 @@ const primaryButtonStyle: React.CSSProperties = {
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesError, setSalesError] = useState<string | null>(null);
 
+  // Appointments state
+  const [appointments, setAppointments] = useState<DoctorAppointment[]>([]);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(false);
+  const [appointmentsError, setAppointmentsError] = useState<string | null>(null);
+  const [appointmentsFrom, setAppointmentsFrom] = useState<string>("");
+  const [appointmentsTo, setAppointmentsTo] = useState<string>("");
+
   const resetFormFromDoctor = () => {
     if (!doctor) return;
     setForm({
@@ -500,6 +522,16 @@ const primaryButtonStyle: React.CSSProperties = {
       }
     }
 
+    // Initialize appointments date range: today to today+30
+    const today = new Date();
+    const defaultFrom = today.toISOString().slice(0, 10);
+    const thirtyDaysLater = new Date(today);
+    thirtyDaysLater.setDate(today.getDate() + 30);
+    const defaultTo = thirtyDaysLater.toISOString().slice(0, 10);
+    
+    setAppointmentsFrom(defaultFrom);
+    setAppointmentsTo(defaultTo);
+
     load();
     loadSchedule();
     loadSalesSummary();
@@ -536,6 +568,40 @@ const primaryButtonStyle: React.CSSProperties = {
       setScheduleLoading(false);
     }
   };
+
+  const loadAppointments = async () => {
+    if (!id || !appointmentsFrom || !appointmentsTo) return;
+
+    setAppointmentsLoading(true);
+    setAppointmentsError(null);
+
+    try {
+      const res = await fetch(
+        `/api/doctors/${id}/appointments?from=${appointmentsFrom}&to=${appointmentsTo}`
+      );
+      const data = await res.json();
+
+      if (res.ok && Array.isArray(data)) {
+        setAppointments(data);
+      } else {
+        setAppointmentsError(
+          data?.error || "Цагуудыг ачааллаж чадсангүй"
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      setAppointmentsError("Сүлжээгээ шалгана уу");
+    } finally {
+      setAppointmentsLoading(false);
+    }
+  };
+
+  // Auto-load appointments when tab is active and dates are set
+  useEffect(() => {
+    if (activeTab === "appointments" && appointmentsFrom && appointmentsTo) {
+      loadAppointments();
+    }
+  }, [activeTab, appointmentsFrom, appointmentsTo]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2049,9 +2115,288 @@ fontSize: 13
 
           {activeTab === "appointments" && (
             <Card title="Цагууд">
-              <div style={{ color: "#6b7280", fontSize: 13 }}>
-                (Placeholder) Later we will list this doctor’s appointments here.
+              {/* Date Range Filter */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  marginBottom: 16,
+                  alignItems: "flex-end",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div style={{ flex: "0 0 auto" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      marginBottom: 4,
+                      color: "#374151",
+                    }}
+                  >
+                    Эхлэх өдөр:
+                  </label>
+                  <input
+                    type="date"
+                    value={appointmentsFrom}
+                    onChange={(e) => setAppointmentsFrom(e.target.value)}
+                    style={{
+                      padding: "8px 10px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      fontSize: 14,
+                    }}
+                  />
+                </div>
+                <div style={{ flex: "0 0 auto" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      marginBottom: 4,
+                      color: "#374151",
+                    }}
+                  >
+                    Дуусах өдөр:
+                  </label>
+                  <input
+                    type="date"
+                    value={appointmentsTo}
+                    onChange={(e) => setAppointmentsTo(e.target.value)}
+                    style={{
+                      padding: "8px 10px",
+                      border: "1px solid #d1d5db",
+                      borderRadius: 6,
+                      fontSize: 14,
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={loadAppointments}
+                  disabled={appointmentsLoading || !appointmentsFrom || !appointmentsTo}
+                  style={{
+                    padding: "8px 16px",
+                    background: appointmentsLoading ? "#9ca3af" : "#3b82f6",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 6,
+                    fontSize: 14,
+                    fontWeight: 500,
+                    cursor: appointmentsLoading ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {appointmentsLoading ? "Ачаалж байна..." : "Харах"}
+                </button>
               </div>
+
+              {/* Loading State */}
+              {appointmentsLoading && (
+                <div style={{ color: "#6b7280", fontSize: 14, padding: "20px 0" }}>
+                  Цагуудыг ачаалж байна...
+                </div>
+              )}
+
+              {/* Error State */}
+              {appointmentsError && !appointmentsLoading && (
+                <div style={{ color: "#dc2626", fontSize: 14, padding: "12px 0" }}>
+                  {appointmentsError}
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!appointmentsLoading &&
+                !appointmentsError &&
+                appointments.length === 0 && (
+                  <div style={{ color: "#6b7280", fontSize: 14, padding: "20px 0" }}>
+                    Тухайн хугацаанд цаг олдсонгүй.
+                  </div>
+                )}
+
+              {/* Appointments Table */}
+              {!appointmentsLoading &&
+                !appointmentsError &&
+                appointments.length > 0 && (
+                  <div style={{ overflowX: "auto" }}>
+                    <table
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontSize: 14,
+                      }}
+                    >
+                      <thead>
+                        <tr
+                          style={{
+                            borderBottom: "2px solid #e5e7eb",
+                            backgroundColor: "#f9fafb",
+                          }}
+                        >
+                          <th
+                            style={{
+                              padding: "10px 8px",
+                              textAlign: "left",
+                              fontWeight: 600,
+                              color: "#374151",
+                            }}
+                          >
+                            Огноо
+                          </th>
+                          <th
+                            style={{
+                              padding: "10px 8px",
+                              textAlign: "left",
+                              fontWeight: 600,
+                              color: "#374151",
+                            }}
+                          >
+                            Цаг
+                          </th>
+                          <th
+                            style={{
+                              padding: "10px 8px",
+                              textAlign: "left",
+                              fontWeight: 600,
+                              color: "#374151",
+                            }}
+                          >
+                            Өвчтөн
+                          </th>
+                          <th
+                            style={{
+                              padding: "10px 8px",
+                              textAlign: "left",
+                              fontWeight: 600,
+                              color: "#374151",
+                            }}
+                          >
+                            Төлөв
+                          </th>
+                          <th
+                            style={{
+                              padding: "10px 8px",
+                              textAlign: "left",
+                              fontWeight: 600,
+                              color: "#374151",
+                            }}
+                          >
+                            Салбар
+                          </th>
+                          <th
+                            style={{
+                              padding: "10px 8px",
+                              textAlign: "left",
+                              fontWeight: 600,
+                              color: "#374151",
+                            }}
+                          >
+                            Үйлдэл
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {appointments.map((appt) => {
+                          const scheduledDate = appt.scheduledAt
+                            ? new Date(appt.scheduledAt)
+                            : null;
+                          const dateStr = scheduledDate
+                            ? scheduledDate.toISOString().slice(0, 10)
+                            : "";
+                          const timeStr = scheduledDate
+                            ? scheduledDate.toLocaleTimeString("en-GB", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "";
+                          const endTimeStr =
+                            appt.endAt && new Date(appt.endAt)
+                              ? new Date(appt.endAt).toLocaleTimeString("en-GB", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "";
+
+                          const patientFullName = [appt.patientOvog, appt.patientName]
+                            .filter(Boolean)
+                            .join(" ");
+
+                          return (
+                            <tr
+                              key={appt.id}
+                              style={{
+                                borderBottom: "1px solid #e5e7eb",
+                              }}
+                            >
+                              <td style={{ padding: "10px 8px" }}>{dateStr}</td>
+                              <td style={{ padding: "10px 8px" }}>
+                                {timeStr}
+                                {endTimeStr && ` - ${endTimeStr}`}
+                              </td>
+                              <td style={{ padding: "10px 8px" }}>
+                                {patientFullName || "—"}
+                              </td>
+                              <td style={{ padding: "10px 8px" }}>
+                                <span
+                                  style={{
+                                    padding: "2px 8px",
+                                    borderRadius: 4,
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    backgroundColor:
+                                      appt.status === "completed"
+                                        ? "#d1fae5"
+                                        : appt.status === "ongoing"
+                                        ? "#fef3c7"
+                                        : "#dbeafe",
+                                    color:
+                                      appt.status === "completed"
+                                        ? "#065f46"
+                                        : appt.status === "ongoing"
+                                        ? "#92400e"
+                                        : "#1e40af",
+                                  }}
+                                >
+                                  {appt.status}
+                                </span>
+                              </td>
+                              <td style={{ padding: "10px 8px" }}>
+                                {appt.branchName || `#${appt.branchId}`}
+                              </td>
+                              <td style={{ padding: "10px 8px" }}>
+                                {appt.patientBookNumber ? (
+                                  <button
+                                    onClick={() =>
+                                      router.push(
+                                        `/patients/${appt.patientBookNumber}`
+                                      )
+                                    }
+                                    style={{
+                                      padding: "4px 12px",
+                                      backgroundColor: "#3b82f6",
+                                      color: "white",
+                                      border: "none",
+                                      borderRadius: 4,
+                                      fontSize: 13,
+                                      fontWeight: 500,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    Харах
+                                  </button>
+                                ) : (
+                                  <span style={{ color: "#9ca3af", fontSize: 12 }}>
+                                    —
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
             </Card>
           )}
 

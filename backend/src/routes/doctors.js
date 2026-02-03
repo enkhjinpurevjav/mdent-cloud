@@ -548,6 +548,139 @@ router.get("/scheduled-with-appointments", async (req, res) => {
 });
 
 /**
+ * GET /api/doctors/:id/appointments
+ * 
+ * Query params:
+ *   - from (required): YYYY-MM-DD
+ *   - to (required): YYYY-MM-DD
+ * 
+ * Returns array of appointments for the doctor in the date range:
+ * [
+ *   {
+ *     id, patientId, branchId, doctorId,
+ *     scheduledAt, endAt, status, notes,
+ *     patientName, patientOvog, patientBookNumber,
+ *     branchName
+ *   }
+ * ]
+ * 
+ * Filters:
+ * - doctorId = :id
+ * - scheduledAt between from/to (Mongolia timezone UTC+8)
+ * - Excludes status 'cancelled' and 'no_show'
+ * - Max range: 62 days
+ */
+router.get("/:id/appointments", async (req, res) => {
+  try {
+    const doctorId = Number(req.params.id);
+    if (!doctorId || Number.isNaN(doctorId)) {
+      return res.status(400).json({ error: "Invalid doctor id" });
+    }
+
+    // Verify doctor exists and is a doctor
+    const doctor = await prisma.user.findUnique({
+      where: { id: doctorId },
+      select: { id: true, role: true },
+    });
+
+    if (!doctor || doctor.role !== "doctor") {
+      return res.status(404).json({ error: "Doctor not found" });
+    }
+
+    const { from, to } = req.query;
+
+    // Validate required params
+    if (!from || !to) {
+      return res.status(400).json({ error: "from and to date parameters are required (YYYY-MM-DD)" });
+    }
+
+    // Validate date format
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    if (!datePattern.test(from) || !datePattern.test(to)) {
+      return res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD" });
+    }
+
+    // Validate date range
+    const days = diffDaysInclusive(from, to);
+    if (days == null) {
+      return res.status(400).json({ error: "Invalid date range" });
+    }
+    if (days < 1) {
+      return res.status(400).json({ error: "to date must be >= from date" });
+    }
+    if (days > 62) {
+      return res.status(400).json({ error: "Date range too large (max 62 days)" });
+    }
+
+    // Get date range boundaries (Mongolia timezone UTC+8)
+    const fromRange = ymdToClinicStartEnd(from);
+    const toRange = ymdToClinicStartEnd(to);
+
+    if (!fromRange || !toRange) {
+      return res.status(400).json({ error: "Invalid date format" });
+    }
+
+    // Fetch appointments
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        doctorId: doctorId,
+        scheduledAt: {
+          gte: fromRange.start,
+          lte: toRange.end,
+        },
+        status: {
+          notIn: ["cancelled", "no_show"],
+        },
+      },
+      include: {
+        patient: {
+          select: {
+            id: true,
+            name: true,
+            ovog: true,
+            patientBook: {
+              select: {
+                bookNumber: true,
+              },
+            },
+          },
+        },
+        branch: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        scheduledAt: "asc",
+      },
+    });
+
+    // Map to response format
+    const rows = appointments.map((a) => ({
+      id: a.id,
+      patientId: a.patientId,
+      branchId: a.branchId,
+      doctorId: a.doctorId,
+      scheduledAt: a.scheduledAt.toISOString(),
+      endAt: a.endAt ? a.endAt.toISOString() : null,
+      status: a.status,
+      notes: a.notes || null,
+      patientName: a.patient?.name || null,
+      patientOvog: a.patient?.ovog || null,
+      patientBookNumber: a.patient?.patientBook?.bookNumber || null,
+      branchName: a.branch?.name || null,
+    }));
+
+    return res.json(rows);
+  } catch (err) {
+    console.error("Error fetching doctor appointments:", err);
+    return res.status(500).json({ error: "Failed to fetch appointments" });
+  }
+});
+
+/**
  * GET /api/doctors/:id/sales-summary
  * 
  * Query params:
