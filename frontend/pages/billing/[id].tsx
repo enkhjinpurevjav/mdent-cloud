@@ -58,6 +58,24 @@ type InvoiceResponse = {
   patientBalance?: number;
 };
 
+type EncounterService = {
+  id: number;
+  serviceId: number;
+  quantity: number;
+  price: number;
+  meta?: {
+    toothScope?: string;
+    assignedTo?: string;
+    diagnosisId?: number;
+  } | null;
+  service?: {
+    id: number;
+    name: string;
+    code?: string;
+    price: number;
+  };
+};
+
 type Encounter = {
   id: number;
   visitDate: string;
@@ -65,6 +83,7 @@ type Encounter = {
   patientBook: PatientBook;
   doctor: Doctor | null;
   prescription?: Prescription | null;
+  encounterServices?: EncounterService[];
 };
 
 type PrescriptionItem = {
@@ -2223,6 +2242,12 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
   const locked = row.source === "ENCOUNTER";
   const lineTotal = (row.unitPrice || 0) * (row.quantity || 0);
 
+  // Check if this service has toothScope=ALL from encounter
+  const matchingEncounterService = encounter?.encounterServices?.find(
+    (es) => es.serviceId === row.serviceId && row.source === "ENCOUNTER"
+  );
+  const isAllTeeth = matchingEncounterService?.meta?.toothScope === "ALL";
+
   return (
     <div
       key={index}
@@ -2463,23 +2488,39 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
       />
 
       {/* 4 - Teeth Numbers */}
-      <input
-        type="text"
-        placeholder="11, 12, 16"
-        value={(row.teethNumbers || []).join(", ")}
-        disabled={locked}
-        onChange={(e) => handleTeethNumbersChange(index, e.target.value)}
-        style={{
-          width: "70px",
-          borderRadius: 6,
-          border: "1px solid #d1d5db",
-          padding: "4px 6px",
-          fontSize: 13,
-          textAlign: "left",
-          background: locked ? "#f3f4f6" : "#ffffff",
-          cursor: locked ? "not-allowed" : "text",
-        }}
-      />
+      {isAllTeeth ? (
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 500,
+            textAlign: "center",
+            padding: "4px 6px",
+            background: "#fef3c7",
+            borderRadius: 6,
+            color: "#92400e",
+          }}
+        >
+          Бүх шүд
+        </div>
+      ) : (
+        <input
+          type="text"
+          placeholder="11, 12, 16"
+          value={(row.teethNumbers || []).join(", ")}
+          disabled={locked}
+          onChange={(e) => handleTeethNumbersChange(index, e.target.value)}
+          style={{
+            width: "70px",
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "4px 6px",
+            fontSize: 13,
+            textAlign: "left",
+            background: locked ? "#f3f4f6" : "#ffffff",
+            cursor: locked ? "not-allowed" : "text",
+          }}
+        />
+      )}
 
       {/* 5 - Line Total */}
       <div style={{ fontSize: 13, fontWeight: 600, textAlign: "right" }}>
