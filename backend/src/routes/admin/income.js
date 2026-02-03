@@ -431,12 +431,13 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
         const barterExcess = Math.max(0, barterSum - 800000);
 
+        // Calculate non-IMAGING ratio once for both includedPayments and barterExcess
+        const nonImagingRatio = invoiceServiceNet > 0 
+          ? invoiceNonImagingServiceNet / invoiceServiceNet 
+          : 0;
+
         // allocate only includedPayments proportionally to NON-IMAGING services
         if (invoiceServiceNet > 0 && includedPayments !== 0) {
-          // Allocate based on ratio to total invoice (including IMAGING)
-          const nonImagingRatio = invoiceServiceNet > 0 
-            ? invoiceNonImagingServiceNet / invoiceServiceNet 
-            : 0;
           const allocatedIncluded = includedPayments * nonImagingRatio;
           
           if (invoiceNonImagingServiceNet > 0) {
@@ -452,9 +453,6 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
         // barter excess separate row (also exclude IMAGING proportion)
         if (barterExcess > 0) {
-          const nonImagingRatio = invoiceServiceNet > 0 
-            ? invoiceNonImagingServiceNet / invoiceServiceNet 
-            : 0;
           const allocatedBarterExcess = barterExcess * nonImagingRatio;
           buckets.BARTER_EXCESS.salesMnt += allocatedBarterExcess;
           totalSalesMnt += allocatedBarterExcess;

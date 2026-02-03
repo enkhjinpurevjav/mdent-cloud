@@ -1080,6 +1080,7 @@ router.patch("/:id/cancel", async (req, res) => {
         id: true,
         status: true,
         cancelledAt: true,
+        notes: true,
       },
     });
 
@@ -1271,8 +1272,17 @@ router.post("/:id/imaging/set-performer", async (req, res) => {
       }
 
       // Parse time and check if current time is within shift window
-      const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
-      if (currentTime < nurseSchedule.startTime || currentTime >= nurseSchedule.endTime) {
+      // Convert HH:MM strings to minutes for proper comparison
+      const timeToMinutes = (timeStr) => {
+        const [hours, minutes] = timeStr.split(':').map(Number);
+        return hours * 60 + minutes;
+      };
+      
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const startMinutes = timeToMinutes(nurseSchedule.startTime);
+      const endMinutes = timeToMinutes(nurseSchedule.endTime);
+      
+      if (currentMinutes < startMinutes || currentMinutes >= endMinutes) {
         return res.status(400).json({
           error: "Selected nurse is not currently on shift (outside shift hours)",
         });
