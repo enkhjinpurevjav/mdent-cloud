@@ -1128,7 +1128,9 @@ router.patch("/:id/cancel", async (req, res) => {
         status: "cancelled",
         cancelledAt: new Date(),
         cancelledByUserId: parsedUserId,
-        notes: reason ? `${appt.notes || ""}\nCancellation reason: ${reason}`.trim() : appt.notes,
+        notes: reason 
+          ? [appt.notes, `Cancellation reason: ${reason}`].filter(Boolean).join('\n')
+          : appt.notes,
       },
       include: {
         patient: true,
@@ -1274,17 +1276,34 @@ router.post("/:id/imaging/set-performer", async (req, res) => {
       // Parse time and check if current time is within shift window
       // Convert HH:MM strings to minutes for proper comparison
       const timeToMinutes = (timeStr) => {
-        const [hours, minutes] = timeStr.split(':').map(Number);
+        if (!timeStr || typeof timeStr !== 'string') {
+          throw new Error('Invalid time format');
+        }
+        const parts = timeStr.split(':');
+        if (parts.length !== 2) {
+          throw new Error('Invalid time format - expected HH:MM');
+        }
+        const [hours, minutes] = parts.map(Number);
+        if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+          throw new Error('Invalid time values');
+        }
         return hours * 60 + minutes;
       };
       
-      const currentMinutes = now.getHours() * 60 + now.getMinutes();
-      const startMinutes = timeToMinutes(nurseSchedule.startTime);
-      const endMinutes = timeToMinutes(nurseSchedule.endTime);
-      
-      if (currentMinutes < startMinutes || currentMinutes >= endMinutes) {
-        return res.status(400).json({
-          error: "Selected nurse is not currently on shift (outside shift hours)",
+      try {
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const startMinutes = timeToMinutes(nurseSchedule.startTime);
+        const endMinutes = timeToMinutes(nurseSchedule.endTime);
+        
+        if (currentMinutes < startMinutes || currentMinutes >= endMinutes) {
+          return res.status(400).json({
+            error: "Selected nurse is not currently on shift (outside shift hours)",
+          });
+        }
+      } catch (err) {
+        console.error("Error parsing nurse schedule times:", err);
+        return res.status(500).json({
+          error: "Invalid nurse schedule time format",
         });
       }
 

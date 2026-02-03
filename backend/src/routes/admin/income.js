@@ -198,8 +198,9 @@ router.get("/doctors-income", async (req, res) => {
           const service = it.service;
 
           // 1) IMAGING rule: exclude from doctor income (0%)
+          // Business requirement: IMAGING services are excluded from doctor sales and commission
+          // Previously contributed 5%, now 0% per finance policy update
           if (service?.category === "IMAGING") {
-            // IMAGING services contribute 0 to doctor income
             continue;
           }
 
@@ -276,6 +277,8 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
   function initBuckets(cfg) {
     return {
+      // IMAGING services contribute 0% to doctor income per business requirement
+      // (IMAGING revenue is excluded from doctor sales and commission calculations)
       IMAGING: { key: "IMAGING", label: LABELS.IMAGING, salesMnt: 0, incomeMnt: 0, pctUsed: 0 },
       ORTHODONTIC_TREATMENT: {
         key: "ORTHODONTIC_TREATMENT",
@@ -480,8 +483,9 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
           const service = it.service;
 
           // IMAGING -> 0% (excluded from doctor income)
+          // Business requirement: IMAGING services are excluded from doctor sales and commission
+          // Previously contributed 5%, now 0% per finance policy update
           if (service?.category === "IMAGING") {
-            // IMAGING services contribute 0 to doctor income
             continue;
           }
 
