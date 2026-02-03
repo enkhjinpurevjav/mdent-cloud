@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 
 type Branch = {
@@ -56,6 +56,15 @@ function formatDoctorShortName(doc: Doctor) {
   const ovog = (doc.ovog || "").toString().trim();
   if (ovog) return `${ovog.charAt(0).toUpperCase()}.${name || doc.email}`;
   return name || doc.email;
+}
+
+function formatTime(isoString: string | null): string {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  return date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function formatIsoDateOnly(iso?: string | null) {
@@ -569,7 +578,7 @@ const primaryButtonStyle: React.CSSProperties = {
     }
   };
 
-  const loadAppointments = async () => {
+  const loadAppointments = useCallback(async () => {
     if (!id || !appointmentsFrom || !appointmentsTo) return;
 
     setAppointmentsLoading(true);
@@ -594,15 +603,14 @@ const primaryButtonStyle: React.CSSProperties = {
     } finally {
       setAppointmentsLoading(false);
     }
-  };
+  }, [id, appointmentsFrom, appointmentsTo]);
 
   // Auto-load appointments when tab is active and dates are set
   useEffect(() => {
-    if (activeTab === "appointments" && appointmentsFrom && appointmentsTo && id) {
+    if (activeTab === "appointments") {
       loadAppointments();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, appointmentsFrom, appointmentsTo, id]);
+  }, [activeTab, loadAppointments]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2304,19 +2312,8 @@ fontSize: 13
                           const dateStr = scheduledDate
                             ? scheduledDate.toISOString().slice(0, 10)
                             : "";
-                          const timeStr = scheduledDate
-                            ? scheduledDate.toLocaleTimeString("en-GB", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                            : "";
-                          const endTimeStr =
-                            appt.endAt && new Date(appt.endAt)
-                              ? new Date(appt.endAt).toLocaleTimeString("en-GB", {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })
-                              : "";
+                          const timeStr = formatTime(appt.scheduledAt);
+                          const endTimeStr = formatTime(appt.endAt);
 
                           const patientFullName = [appt.patientOvog, appt.patientName]
                             .filter(Boolean)
