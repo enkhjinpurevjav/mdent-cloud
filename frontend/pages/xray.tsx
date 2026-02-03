@@ -194,27 +194,30 @@ export default function XrayPage() {
     fetchServices();
   }, [selectedAppt]);
 
-  const handleMediaUpload = async (file: File) => {
-    if (!encounterId) return;
+  const handleMediaUpload = async (files: File[]) => {
+    if (!encounterId || files.length === 0) return;
 
     setUploadingMedia(true);
     setError("");
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("type", "XRAY");
+      // Upload all files sequentially
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("type", "XRAY");
 
-      const res = await fetch(`/api/encounters/${encounterId}/media`, {
-        method: "POST",
-        body: formData,
-      });
+        const res = await fetch(`/api/encounters/${encounterId}/media`, {
+          method: "POST",
+          body: formData,
+        });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Зураг хуулахад алдаа гарлаа");
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Зураг хуулахад алдаа гарлаа");
+        }
       }
 
-      // Reload media
+      // Reload media after all uploads
       const mediaRes = await fetch(`/api/encounters/${encounterId}/media?type=XRAY`);
       if (mediaRes.ok) {
         const data = await mediaRes.json();
@@ -227,20 +230,24 @@ export default function XrayPage() {
     }
   };
 
-  const handleMediaReload = async () => {
+  const handleMediaDelete = async (mediaId: number) => {
     if (!encounterId) return;
 
-    setMediaLoading(true);
-    setMediaError("");
+    setError("");
     try {
-      const res = await fetch(`/api/encounters/${encounterId}/media?type=XRAY`);
-      if (!res.ok) throw new Error("Failed to fetch media");
-      const data = await res.json();
-      setMedia(Array.isArray(data) ? data : []);
+      const res = await fetch(`/api/encounters/${encounterId}/media/${mediaId}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Зураг устгахад алдаа гарлаа");
+      }
+
+      // Update local state immediately
+      setMedia((prev) => prev.filter((m) => m.id !== mediaId));
     } catch (err: any) {
-      setMediaError(err.message || "Зураг татахад алдаа гарлаа");
-    } finally {
-      setMediaLoading(false);
+      setError(err.message || "Зураг устгахад алдаа гарлаа");
     }
   };
 
@@ -555,7 +562,7 @@ export default function XrayPage() {
                 mediaError={mediaError}
                 uploadingMedia={uploadingMedia}
                 onUpload={handleMediaUpload}
-                onReload={handleMediaReload}
+                onDelete={handleMediaDelete}
               />
 
               {/* Imaging-specific section */}

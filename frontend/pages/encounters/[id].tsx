@@ -1599,28 +1599,32 @@ setRows((prev) =>
 
  
 
-  const handleMediaUpload = async (file: File) => {
-    if (!id || typeof id !== "string") return;
+  const handleMediaUpload = async (files: File[]) => {
+    if (!id || typeof id !== "string" || files.length === 0) return;
     try {
       setUploadingMedia(true);
       setMediaError("");
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("toothCode", selectedTeeth.join(",") || "");
-      formData.append(
-        "type",
-        mediaTypeFilter === "ALL" ? "XRAY" : mediaTypeFilter
-      );
 
-      const res = await fetch(`/api/encounters/${id}/media`, {
-        method: "POST",
-        body: formData,
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(
-          (json && json.error) || "Файл байршуулахад алдаа гарлаа"
+      // Upload all files sequentially
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("toothCode", selectedTeeth.join(",") || "");
+        formData.append(
+          "type",
+          mediaTypeFilter === "ALL" ? "XRAY" : mediaTypeFilter
         );
+
+        const res = await fetch(`/api/encounters/${id}/media`, {
+          method: "POST",
+          body: formData,
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(
+            (json && json.error) || "Файл байршуулахад алдаа гарлаа"
+          );
+        }
       }
 
       await reloadMedia();
@@ -1631,6 +1635,30 @@ setRows((prev) =>
       );
     } finally {
       setUploadingMedia(false);
+    }
+  };
+
+  const handleMediaDelete = async (mediaId: number) => {
+    if (!id || typeof id !== "string") return;
+    try {
+      setMediaError("");
+      const res = await fetch(`/api/encounters/${id}/media/${mediaId}`, {
+        method: "DELETE",
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          (json && json.error) || "Зураг устгахад алдаа гарлаа"
+        );
+      }
+
+      // Update local state immediately
+      setMedia((prev) => prev.filter((m) => m.id !== mediaId));
+    } catch (err: any) {
+      console.error("handleMediaDelete failed", err);
+      setMediaError(
+        err?.message || "Зураг устгахад алдаа гарлаа."
+      );
     }
   };
 
@@ -1876,7 +1904,7 @@ const handleFinishEncounter = async () => {
               mediaError={mediaError}
               uploadingMedia={uploadingMedia}
               onUpload={handleMediaUpload}
-              onReload={reloadMedia}
+              onDelete={handleMediaDelete}
             />
 
             <PrescriptionEditor

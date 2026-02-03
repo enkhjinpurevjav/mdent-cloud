@@ -2,6 +2,7 @@ import express from "express";
 import prisma from "../db.js";
 import multer from "multer";
 import path from "path";
+import fs from "fs";
 import { authenticateJWT, optionalAuthenticateJWT } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -1020,6 +1021,66 @@ router.post("/:id/media", upload.single("file"), async (req, res) => {
   } catch (err) {
     console.error("POST /api/encounters/:id/media error:", err);
     return res.status(500).json({ error: "Failed to upload media" });
+  }
+});
+
+/**
+ * DELETE /api/encounters/:encounterId/media/:mediaId
+ * Deletes a media item from an encounter.
+ * - Validates that the media belongs to the encounter
+ * - Deletes the DB record
+ * - Attempts to delete the file from disk (best effort)
+ */
+router.delete("/:encounterId/media/:mediaId", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.encounterId);
+    const mediaId = Number(req.params.mediaId);
+    
+    if (!encounterId || Number.isNaN(encounterId)) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
+    
+    if (!mediaId || Number.isNaN(mediaId)) {
+      return res.status(400).json({ error: "Invalid media id" });
+    }
+
+    // Find the media to ensure it belongs to this encounter
+    const media = await prisma.media.findUnique({
+      where: { id: mediaId },
+    });
+
+    if (!media) {
+      return res.status(404).json({ error: "Media not found" });
+    }
+
+    if (media.encounterId !== encounterId) {
+      return res.status(403).json({ error: "Media does not belong to this encounter" });
+    }
+
+    // Delete from database
+    await prisma.media.delete({
+      where: { id: mediaId },
+    });
+
+    // Best effort: attempt to delete file from disk
+    try {
+      const filePath = media.filePath.startsWith("/")
+        ? media.filePath.substring(1)
+        : media.filePath;
+      const fullPath = path.join(uploadDir, path.basename(filePath));
+      
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+      }
+    } catch (fileErr) {
+      // Log but don't fail the request if file deletion fails
+      console.warn(`Failed to delete file for media ${mediaId}:`, fileErr);
+    }
+
+    return res.status(200).json({ success: true, message: "Media deleted successfully" });
+  } catch (err) {
+    console.error("DELETE /api/encounters/:encounterId/media/:mediaId error:", err);
+    return res.status(500).json({ error: "Failed to delete media" });
   }
 });
 
