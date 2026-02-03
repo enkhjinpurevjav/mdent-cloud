@@ -848,6 +848,31 @@ router.post("/:id/start-encounter", async (req, res) => {
   }
 });
 
+/**
+ * POST /api/appointments/:id/ensure-encounter
+ *
+ * XRAY/general endpoint: Ensure an encounter exists for this appointment.
+ * Works for both "ongoing" and "imaging" statuses.
+ * Returns encounterId. If encounter already exists, returns the latest one.
+ * If not, creates a new encounter using ensureEncounterForAppointment helper.
+ */
+router.post("/:id/ensure-encounter", async (req, res) => {
+  try {
+    const apptId = Number(req.params.id);
+    if (!apptId || Number.isNaN(apptId)) {
+      return res.status(400).json({ error: "Invalid appointment id" });
+    }
+
+    const encounter = await ensureEncounterForAppointment(apptId);
+    return res.json({ encounterId: encounter.id });
+  } catch (err) {
+    console.error("Error in POST /api/appointments/:id/ensure-encounter:", err);
+    return res.status(500).json({ 
+      error: err.message || "Failed to ensure encounter for appointment" 
+    });
+  }
+});
+
 // ... keep existing code above
 
 /**
