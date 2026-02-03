@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useRouter } from "next/router";
 import type { Appointment, Doctor } from "./types";
 import { formatStatus, formatDateYmdDots } from "./formatters";
+import ImagingCheckoutModal from "./ImagingCheckoutModal";
 
 type AppointmentDetailsModalProps = {
   open: boolean;
@@ -60,6 +61,9 @@ export default function AppointmentDetailsModal({
   const [editingNote, setEditingNote] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [imagingModalOpen, setImagingModalOpen] = useState(false);
+  const [selectedAppointmentForImaging, setSelectedAppointmentForImaging] =
+    useState<Appointment | null>(null);
   const canReceptionEditAppointment = (status: string) =>
   ["booked", "confirmed", "online", "other"].includes(
     String(status || "").toLowerCase()
@@ -195,6 +199,18 @@ export default function AppointmentDetailsModal({
       console.error("view-encounter-for-payment network error", e);
       setError("Үзлэгийн мэдээлэл авах үед сүлжээний алдаа гарлаа.");
     }
+  };
+
+  const handleOpenImagingCheckout = (a: Appointment) => {
+    setSelectedAppointmentForImaging(a);
+    setImagingModalOpen(true);
+  };
+
+  const handleImagingCheckoutSuccess = (encounterId: number) => {
+    setImagingModalOpen(false);
+    setSelectedAppointmentForImaging(null);
+    // Redirect to billing page
+    router.push(`/billing/${encounterId}`);
   };
 
   return (
@@ -536,6 +552,24 @@ export default function AppointmentDetailsModal({
                           </button>
                         )}
 
+                        {a.status === "imaging" && (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenImagingCheckout(a)}
+                            style={{
+                              padding: "4px 10px",
+                              borderRadius: 6,
+                              border: "1px solid #8b5cf6",
+                              background: "#f3e8ff",
+                              color: "#6d28d9",
+                              fontSize: 12,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Зураг авалт - Төлбөрт шилжүүлэх
+                          </button>
+                        )}
+
                         {!canStartEncounter &&
                           a.status !== "ready_to_pay" &&
                           a.status !== "partial_paid" && (
@@ -579,6 +613,7 @@ export default function AppointmentDetailsModal({
           <option value="confirmed">Баталгаажсан</option>
           <option value="online">Онлайн</option>
           <option value="ongoing">Явагдаж байна</option>
+          <option value="imaging">Зураг</option>
           <option value="ready_to_pay">Төлбөр төлөх</option>
           <option value="partial_paid">Үлдэгдэлтэй</option>
           <option value="completed">Дууссан</option>
@@ -695,6 +730,25 @@ export default function AppointmentDetailsModal({
           </button>
         </div>
       </div>
+
+      {/* Imaging Checkout Modal */}
+      {imagingModalOpen && selectedAppointmentForImaging && (
+        <ImagingCheckoutModal
+          open={imagingModalOpen}
+          onClose={() => {
+            setImagingModalOpen(false);
+            setSelectedAppointmentForImaging(null);
+          }}
+          appointmentId={selectedAppointmentForImaging.id}
+          branchId={selectedAppointmentForImaging.branchId}
+          doctorName={
+            selectedAppointmentForImaging.doctorName ||
+            selectedAppointmentForImaging.doctor?.name ||
+            undefined
+          }
+          onSuccess={handleImagingCheckoutSuccess}
+        />
+      )}
     </div>
   );
 }
