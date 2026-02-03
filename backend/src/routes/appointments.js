@@ -17,6 +17,7 @@ const ALLOWED_STATUSES = [
   "confirmed",
   "online",
   "ongoing",
+  "imaging", // Зураг авах (XRAY workflow)
   "ready_to_pay", // Төлбөр төлөхөд бэлэн
   "partial_paid", // Үлдэгдэлтэй
   "completed",
@@ -43,6 +44,9 @@ function normalizeStatusForDb(raw) {
 
     case "ongoing":
       return "ongoing";
+
+    case "imaging":
+      return "imaging";
 
     case "ready_to_pay":
     case "readytopay":
@@ -644,6 +648,39 @@ router.patch("/:id", async (req, res) => {
       },
     });
 
+    // If status changed to "imaging", create encounter immediately (similar to "ongoing")
+    if (data.status === "imaging" && appt.doctorId) {
+      // Ensure patient has a PatientBook
+      let book = appt.patient?.patientBook;
+      if (!book) {
+        book = await prisma.patientBook.create({
+          data: {
+            patientId: appt.patientId,
+            bookNumber: String(appt.patientId),
+          },
+        });
+      }
+
+      // Check if encounter already exists for this appointment
+      const existingEncounter = await prisma.encounter.findFirst({
+        where: { appointmentId: appt.id },
+        orderBy: { id: "desc" },
+      });
+
+      // Create encounter if it doesn't exist
+      if (!existingEncounter) {
+        await prisma.encounter.create({
+          data: {
+            patientBookId: book.id,
+            doctorId: appt.doctorId,
+            visitDate: appt.scheduledAt,
+            notes: null,
+            appointmentId: appt.id,
+          },
+        });
+      }
+    }
+
     return res.json(appt);
   } catch (err) {
     console.error("Error updating appointment:", err);
@@ -685,11 +722,11 @@ router.post("/:id/start-encounter", async (req, res) => {
       return res.status(404).json({ error: "Appointment not found" });
     }
 
-    // 2) Only allow when status is "ongoing" (Явагдаж байна)
-    if (appt.status !== "ongoing") {
+    // 2) Only allow when status is "ongoing" or "imaging"
+    if (appt.status !== "ongoing" && appt.status !== "imaging") {
       return res.status(400).json({
         error:
-          'Зөвхөн "Явагдаж байна" (ongoing) төлөвтэй цаг дээр үзлэг эхлүүлэх боломжтой.',
+          'Зөвхөн "Явагдаж байна" (ongoing) эсвэл "Зураг авах" (imaging) төлөвтэй цаг дээр үзлэг эхлүүлэх боломжтой.',
       });
     }
 
@@ -1009,6 +1046,400 @@ router.delete("/:id", async (req, res) => {
       return res.status(404).json({ error: "Appointment not found" });
     }
     return res.status(500).json({ error: "Failed to delete appointment" });
+  }
+});
+
+/**
+ * PATCH /api/appointments/:id/cancel
+ * 
+ * Cancels an appointment with audit trail.
+ * - Only reception/admin can cancel
+ * - Records cancelledAt and cancelledByUserId
+ * - Cancellation is terminal - cannot be reactivated
+ * 
+ * Note: Full role validation requires authentication (req.user)
+ * For now, accepts userId in request body as workaround
+ * 
+ * Request body:
+ * - userId: number (user performing cancellation)
+ * - reason: string (optional cancellation reason)
+ */
+router.patch("/:id/cancel", async (req, res) => {
+  try {
+    const apptId = Number(req.params.id);
+    if (!apptId || Number.isNaN(apptId)) {
+      return res.status(400).json({ error: "Invalid appointment id" });
+    }
+
+    const { userId, reason } = req.body || {};
+
+    // Validate appointment exists
+    const appt = await prisma.appointment.findUnique({
+      where: { id: apptId },
+      select: {
+        id: true,
+        status: true,
+        cancelledAt: true,
+      },
+    });
+
+    if (!appt) {
+      return res.status(404).json({ error: "Appointment not found" });
+    }
+
+    // Check if already cancelled
+    if (appt.cancelledAt) {
+      return res.status(400).json({
+        error: "Appointment is already cancelled and cannot be reactivated",
+      });
+    }
+
+    // Validate user (temporary workaround until full auth is implemented)
+    if (!userId || Number.isNaN(Number(userId))) {
+      return res.status(400).json({
+        error: "userId is required",
+      });
+    }
+
+    const parsedUserId = Number(userId);
+
+    // Validate user exists and has appropriate role
+    const user = await prisma.user.findUnique({
+      where: { id: parsedUserId },
+      select: { id: true, role: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Only reception and admin can cancel appointments
+    if (user.role !== "receptionist" && user.role !== "admin") {
+      return res.status(403).json({
+        error: "Only reception and admin users can cancel appointments",
+      });
+    }
+
+    // Update appointment with cancellation audit fields
+    const updatedAppt = await prisma.appointment.update({
+      where: { id: apptId },
+      data: {
+        status: "cancelled",
+        cancelledAt: new Date(),
+        cancelledByUserId: parsedUserId,
+        notes: reason ? `${appt.notes || ""}\nCancellation reason: ${reason}`.trim() : appt.notes,
+      },
+      include: {
+        patient: true,
+        doctor: true,
+        cancelledBy: {
+          select: {
+            id: true,
+            name: true,
+            ovog: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: "Appointment cancelled successfully",
+      appointment: {
+        id: updatedAppt.id,
+        status: updatedAppt.status,
+        cancelledAt: updatedAppt.cancelledAt,
+        cancelledBy: updatedAppt.cancelledBy,
+      },
+    });
+  } catch (err) {
+    console.error("PATCH /api/appointments/:id/cancel error:", err);
+    return res.status(500).json({ error: "Failed to cancel appointment" });
+  }
+});
+
+/**
+ * POST /api/appointments/:id/imaging/set-performer
+ * 
+ * XRAY endpoint: Set performer for imaging appointment.
+ * - Doctor performer is always appointment.doctorId (no override allowed)
+ * - Nurse performer is selectable only from nurses on shift
+ * 
+ * Request body:
+ * - performerType: "DOCTOR" | "NURSE"
+ * - nurseId: number (required if performerType === "NURSE")
+ */
+router.post("/:id/imaging/set-performer", async (req, res) => {
+  try {
+    const apptId = Number(req.params.id);
+    if (!apptId || Number.isNaN(apptId)) {
+      return res.status(400).json({ error: "Invalid appointment id" });
+    }
+
+    const { performerType, nurseId } = req.body || {};
+
+    // Validate appointment exists and is in imaging status
+    const appt = await prisma.appointment.findUnique({
+      where: { id: apptId },
+      include: {
+        encounters: {
+          orderBy: { id: "desc" },
+          take: 1,
+        },
+      },
+    });
+
+    if (!appt) {
+      return res.status(404).json({ error: "Appointment not found" });
+    }
+
+    if (appt.status !== "imaging") {
+      return res.status(400).json({
+        error: "Performer can only be set when appointment status is 'imaging'",
+      });
+    }
+
+    if (!appt.encounters || appt.encounters.length === 0) {
+      return res.status(400).json({
+        error: "No encounter found for this imaging appointment",
+      });
+    }
+
+    const encounter = appt.encounters[0];
+
+    // Validate performerType
+    if (performerType !== "DOCTOR" && performerType !== "NURSE") {
+      return res.status(400).json({
+        error: "performerType must be 'DOCTOR' or 'NURSE'",
+      });
+    }
+
+    const updateData = {};
+
+    if (performerType === "DOCTOR") {
+      // Doctor is always the slot-holder (appointment.doctorId)
+      if (!appt.doctorId) {
+        return res.status(400).json({
+          error: "No doctor assigned to this appointment",
+        });
+      }
+      // Doctor is already set from appointment creation, no need to update
+      updateData.nurseId = null; // Clear nurse if switching to doctor
+    } else {
+      // NURSE - validate nurse is on shift
+      if (!nurseId || Number.isNaN(Number(nurseId))) {
+        return res.status(400).json({
+          error: "nurseId is required when performerType is NURSE",
+        });
+      }
+
+      const parsedNurseId = Number(nurseId);
+
+      // Check if nurse exists and has nurse role
+      const nurse = await prisma.user.findUnique({
+        where: { id: parsedNurseId },
+      });
+
+      if (!nurse || nurse.role !== "nurse") {
+        return res.status(400).json({
+          error: "Invalid nurse selection",
+        });
+      }
+
+      // Check if nurse is currently on shift
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const todayEnd = new Date(todayStart);
+      todayEnd.setDate(todayEnd.getDate() + 1);
+
+      const nurseSchedule = await prisma.nurseSchedule.findFirst({
+        where: {
+          nurseId: parsedNurseId,
+          branchId: appt.branchId,
+          date: {
+            gte: todayStart,
+            lt: todayEnd,
+          },
+        },
+      });
+
+      if (!nurseSchedule) {
+        return res.status(400).json({
+          error: "Selected nurse is not currently on shift",
+        });
+      }
+
+      // Parse time and check if current time is within shift window
+      const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+      if (currentTime < nurseSchedule.startTime || currentTime >= nurseSchedule.endTime) {
+        return res.status(400).json({
+          error: "Selected nurse is not currently on shift (outside shift hours)",
+        });
+      }
+
+      updateData.nurseId = parsedNurseId;
+    }
+
+    // Update encounter with performer
+    const updatedEncounter = await prisma.encounter.update({
+      where: { id: encounter.id },
+      data: updateData,
+      include: {
+        doctor: true,
+        nurse: true,
+      },
+    });
+
+    return res.json({
+      success: true,
+      encounter: {
+        id: updatedEncounter.id,
+        doctorId: updatedEncounter.doctorId,
+        doctorName: updatedEncounter.doctor?.name,
+        nurseId: updatedEncounter.nurseId,
+        nurseName: updatedEncounter.nurse?.name,
+      },
+    });
+  } catch (err) {
+    console.error("POST /api/appointments/:id/imaging/set-performer error:", err);
+    return res.status(500).json({ error: "Failed to set performer" });
+  }
+});
+
+/**
+ * POST /api/appointments/:id/imaging/transition-to-ready
+ * 
+ * Reception/admin endpoint: Transition imaging → ready_to_pay with service addition.
+ * - Popup shown only when current status is "imaging"
+ * - Add IMAGING services (add-only, no removal)
+ * - Duplicate prevention: block if any selected service already exists
+ * - Performer is immutable (read-only in popup)
+ * - Can proceed without media upload
+ * 
+ * Request body:
+ * - serviceIds: number[] (array of service IDs to add)
+ */
+router.post("/:id/imaging/transition-to-ready", async (req, res) => {
+  try {
+    const apptId = Number(req.params.id);
+    if (!apptId || Number.isNaN(apptId)) {
+      return res.status(400).json({ error: "Invalid appointment id" });
+    }
+
+    const { serviceIds } = req.body || {};
+
+    // Validate appointment exists and is in imaging status
+    const appt = await prisma.appointment.findUnique({
+      where: { id: apptId },
+      include: {
+        encounters: {
+          orderBy: { id: "desc" },
+          take: 1,
+          include: {
+            encounterServices: {
+              include: { service: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!appt) {
+      return res.status(404).json({ error: "Appointment not found" });
+    }
+
+    if (appt.status !== "imaging") {
+      return res.status(400).json({
+        error: "Transition to ready_to_pay is only allowed when status is 'imaging'",
+      });
+    }
+
+    if (!appt.encounters || appt.encounters.length === 0) {
+      return res.status(400).json({
+        error: "No encounter found for this imaging appointment",
+      });
+    }
+
+    const encounter = appt.encounters[0];
+
+    // Validate serviceIds
+    if (!Array.isArray(serviceIds)) {
+      return res.status(400).json({
+        error: "serviceIds must be an array",
+      });
+    }
+
+    // Check for duplicates in existing services
+    if (serviceIds.length > 0) {
+      const existingServiceIds = new Set(
+        encounter.encounterServices.map((es) => es.serviceId)
+      );
+      const duplicates = serviceIds.filter((sid) => existingServiceIds.has(sid));
+
+      if (duplicates.length > 0) {
+        // Fetch service names for error message
+        const duplicateServices = await prisma.service.findMany({
+          where: { id: { in: duplicates } },
+          select: { id: true, name: true, code: true },
+        });
+
+        return res.status(400).json({
+          error: "Duplicate services detected. The following services already exist on this encounter:",
+          duplicates: duplicateServices.map((s) => `${s.code || s.id}: ${s.name}`),
+        });
+      }
+
+      // Validate all serviceIds exist and are IMAGING category
+      const services = await prisma.service.findMany({
+        where: {
+          id: { in: serviceIds },
+          isActive: true,
+        },
+      });
+
+      if (services.length !== serviceIds.length) {
+        return res.status(400).json({
+          error: "One or more services not found or inactive",
+        });
+      }
+
+      // Add only IMAGING services
+      const imagingServices = services.filter((s) => s.category === "IMAGING");
+      if (imagingServices.length !== services.length) {
+        return res.status(400).json({
+          error: "Only IMAGING category services can be added in imaging workflow",
+        });
+      }
+
+      // Add services to encounter
+      for (const service of imagingServices) {
+        await prisma.encounterService.create({
+          data: {
+            encounterId: encounter.id,
+            serviceId: service.id,
+            quantity: 1,
+            price: service.price,
+          },
+        });
+      }
+    }
+
+    // Update appointment status to ready_to_pay
+    await prisma.appointment.update({
+      where: { id: apptId },
+      data: { status: "ready_to_pay" },
+    });
+
+    return res.json({
+      success: true,
+      message: "Appointment transitioned to ready_to_pay",
+      appointmentId: apptId,
+      encounterId: encounter.id,
+    });
+  } catch (err) {
+    console.error("POST /api/appointments/:id/imaging/transition-to-ready error:", err);
+    return res.status(500).json({ error: "Failed to transition appointment" });
   }
 });
 

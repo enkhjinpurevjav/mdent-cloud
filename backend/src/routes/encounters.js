@@ -940,6 +940,9 @@ router.get("/:id/media", async (req, res) => {
 
 /**
  * POST /api/encounters/:id/media
+ * 
+ * Note: XRAY users should only be able to upload when appointment.status === "imaging"
+ * After ready_to_pay (and later statuses), XRAY becomes read-only.
  */
 router.post("/:id/media", upload.single("file"), async (req, res) => {
   try {
@@ -950,6 +953,32 @@ router.post("/:id/media", upload.single("file"), async (req, res) => {
 
     if (!req.file) {
       return res.status(400).json({ error: "file is required" });
+    }
+
+    // Check if XRAY is allowed to upload (only during imaging status)
+    // Note: Full enforcement requires authentication to check user role
+    const encounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      include: {
+        appointment: true,
+      },
+    });
+
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    // If appointment status is past "imaging", block XRAY modifications
+    // (This is a simplified check; full implementation should check req.user.role === 'xray')
+    if (encounter.appointment?.status && 
+        ["ready_to_pay", "partial_paid", "completed"].includes(encounter.appointment.status)) {
+      // For now, we'll allow all users to upload in these statuses
+      // TODO: Add role-based check to block XRAY users specifically
+      // if (req.user?.role === 'xray') {
+      //   return res.status(403).json({ 
+      //     error: "XRAY users cannot modify media after appointment moves to payment status" 
+      //   });
+      // }
     }
 
     const { toothCode, type } = req.body || {};
