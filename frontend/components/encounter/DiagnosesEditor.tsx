@@ -575,6 +575,7 @@ export default function DiagnosesEditor({
                     display: "flex",
                     gap: 16,
                     alignItems: "center",
+                    flexWrap: "wrap",
                   }}
                 >
                   <span style={{ fontSize: 12, color: "#6b7280" }}>
@@ -622,6 +623,20 @@ export default function DiagnosesEditor({
                     />
                     Сувилагч
                   </label>
+
+                  {/* Badge: All imaging services apply to all teeth */}
+                  <div
+                    style={{
+                      padding: "4px 10px",
+                      background: "#fef3c7",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: "#92400e",
+                    }}
+                  >
+                    🦷 Бүх шүд
+                  </div>
                 </div>
               )}
 

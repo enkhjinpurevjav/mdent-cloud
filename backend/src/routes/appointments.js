@@ -93,6 +93,70 @@ function parseClinicDay(value) {
 }
 
 /**
+ * Helper: Ensure an Encounter exists for an appointment.
+ * Given appointment id, load appointment including patient and patientBook, 
+ * doctorId, scheduledAt. Ensure PatientBook exists using upsert 
+ * (avoid unique constraint errors). Find latest Encounter by appointmentId 
+ * (order desc). If missing, create Encounter with patientBookId, doctorId, 
+ * visitDate=appointment.scheduledAt, appointmentId. Return encounter.
+ */
+async function ensureEncounterForAppointment(appointmentId) {
+  // Load appointment with patient + patientBook
+  const appt = await prisma.appointment.findUnique({
+    where: { id: appointmentId },
+    include: {
+      patient: {
+        include: {
+          patientBook: true,
+        },
+      },
+    },
+  });
+
+  if (!appt) {
+    throw new Error("Appointment not found");
+  }
+
+  if (!appt.patient) {
+    throw new Error("Appointment has no patient linked");
+  }
+
+  if (!appt.doctorId) {
+    throw new Error("Appointment has no doctor assigned");
+  }
+
+  // Ensure PatientBook exists using upsert
+  const book = await prisma.patientBook.upsert({
+    where: { patientId: appt.patient.id },
+    update: {},
+    create: {
+      patientId: appt.patient.id,
+      bookNumber: String(appt.patient.id),
+    },
+  });
+
+  // Find latest Encounter by appointmentId
+  let encounter = await prisma.encounter.findFirst({
+    where: { appointmentId },
+    orderBy: { id: "desc" },
+  });
+
+  // If missing, create Encounter
+  if (!encounter) {
+    encounter = await prisma.encounter.create({
+      data: {
+        patientBookId: book.id,
+        doctorId: appt.doctorId,
+        visitDate: appt.scheduledAt,
+        appointmentId,
+      },
+    });
+  }
+
+  return encounter;
+}
+
+/**
  * GET /api/appointments
  *
  * Used by:
@@ -1204,13 +1268,20 @@ router.post("/:id/imaging/set-performer", async (req, res) => {
       });
     }
 
+    // Ensure encounter exists (auto-create if missing)
+    let encounter;
     if (!appt.encounters || appt.encounters.length === 0) {
-      return res.status(400).json({
-        error: "No encounter found for this imaging appointment",
-      });
+      try {
+        encounter = await ensureEncounterForAppointment(apptId);
+      } catch (err) {
+        console.error("Failed to ensure encounter:", err);
+        return res.status(400).json({
+          error: "Failed to create encounter for this imaging appointment",
+        });
+      }
+    } else {
+      encounter = appt.encounters[0];
     }
-
-    const encounter = appt.encounters[0];
 
     // Validate performerType
     if (performerType !== "DOCTOR" && performerType !== "NURSE") {
@@ -1385,13 +1456,29 @@ router.post("/:id/imaging/transition-to-ready", async (req, res) => {
       });
     }
 
+    // Ensure encounter exists (auto-create if missing)
+    let encounter;
     if (!appt.encounters || appt.encounters.length === 0) {
-      return res.status(400).json({
-        error: "No encounter found for this imaging appointment",
-      });
+      try {
+        encounter = await ensureEncounterForAppointment(apptId);
+        // Re-fetch with encounterServices for duplicate check
+        encounter = await prisma.encounter.findUnique({
+          where: { id: encounter.id },
+          include: {
+            encounterServices: {
+              include: { service: true },
+            },
+          },
+        });
+      } catch (err) {
+        console.error("Failed to ensure encounter:", err);
+        return res.status(400).json({
+          error: "Failed to create encounter for this imaging appointment",
+        });
+      }
+    } else {
+      encounter = appt.encounters[0];
     }
-
-    const encounter = appt.encounters[0];
 
     // Validate serviceIds
     if (!Array.isArray(serviceIds)) {
@@ -1442,7 +1529,7 @@ router.post("/:id/imaging/transition-to-ready", async (req, res) => {
         });
       }
 
-      // Add services to encounter
+      // Add services to encounter with toothScope: "ALL" for imaging
       for (const service of imagingServices) {
         await prisma.encounterService.create({
           data: {
@@ -1450,6 +1537,7 @@ router.post("/:id/imaging/transition-to-ready", async (req, res) => {
             serviceId: service.id,
             quantity: 1,
             price: service.price,
+            meta: { toothScope: "ALL" },
           },
         });
       }
