@@ -100,6 +100,27 @@ export default function EncounterAdminPage() {
   const [activeDxRowIndex, setActiveDxRowIndex] = useState<number | null>(null);
   const [customToothRange, setCustomToothRange] = useState("");
 
+  // State for "Finish previous visit" feature
+  const [finishPreviousVisit, setFinishPreviousVisit] = useState(false);
+  const [showUnpaidEncountersDialog, setShowUnpaidEncountersDialog] = useState(false);
+  const [unpaidEncounters, setUnpaidEncounters] = useState<Array<{
+    encounterId: number;
+    visitDate: string;
+    doctor: {
+      id: number;
+      ovog: string | null;
+      name: string | null;
+      email: string;
+    };
+    invoice: {
+      id: number;
+      totalAmount: number;
+      paidAmount: number;
+      remaining: number;
+    };
+  }>>([]);
+  const [loadingUnpaidEncounters, setLoadingUnpaidEncounters] = useState(false);
+  const [unpaidEncountersError, setUnpaidEncountersError] = useState("");
 
  
 
@@ -1003,6 +1024,55 @@ function removeDiagnosisRow(index: number) {
     }
   };
 
+  // "Finish previous visit" handlers
+  const handleFinishPreviousVisitToggle = async (checked: boolean) => {
+    if (checked) {
+      // Show confirmation dialog and load unpaid encounters
+      if (!encounter?.patientBook?.patient?.id) {
+        setUnpaidEncountersError("Үйлчлүүлэгчийн мэдээлэл олдсонгүй");
+        return;
+      }
+
+      setLoadingUnpaidEncounters(true);
+      setUnpaidEncountersError("");
+      setShowUnpaidEncountersDialog(true);
+
+      try {
+        const patientId = encounter.patientBook.patient.id;
+        const res = await fetch(`/api/patients/${patientId}/unpaid-encounters`);
+        const json = await res.json();
+
+        if (!res.ok) {
+          throw new Error(json?.error || "Өмнөх үзлэгүүдийг ачааллахад алдаа гарлаа");
+        }
+
+        setUnpaidEncounters(Array.isArray(json) ? json : []);
+      } catch (err: any) {
+        console.error("Failed to load unpaid encounters:", err);
+        setUnpaidEncountersError(err?.message || "Өмнөх үзлэгүүдийг ачааллахад алдаа гарлаа");
+      } finally {
+        setLoadingUnpaidEncounters(false);
+      }
+    } else {
+      setFinishPreviousVisit(false);
+      setShowUnpaidEncountersDialog(false);
+    }
+  };
+
+  const handleSelectUnpaidEncounter = (encounterId: number) => {
+    // Navigate to the selected encounter
+    router.push(`/encounters/${encounterId}`);
+    setShowUnpaidEncountersDialog(false);
+    setFinishPreviousVisit(false);
+  };
+
+  const handleCancelUnpaidEncountersDialog = () => {
+    setShowUnpaidEncountersDialog(false);
+    setFinishPreviousVisit(false);
+    setUnpaidEncounters([]);
+    setUnpaidEncountersError("");
+  };
+
   // Follow-up appointment scheduling functions
   const loadFollowUpAvailability = async () => {
     if (!encounter || !followUpDateFrom || !followUpDateTo) return;
@@ -1771,6 +1841,170 @@ const handleFinishEncounter = async () => {
               )
             }
           />
+
+          {/* Finish Previous Visit (Өмнөх үзлэгийг дуусгах) */}
+          <section
+            style={{
+              marginBottom: 16,
+              padding: 16,
+              borderRadius: 8,
+              border: "1px solid #e5e7eb",
+              background: "#ffffff",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <input
+                type="checkbox"
+                id="finishPreviousVisit"
+                checked={finishPreviousVisit}
+                onChange={(e) => handleFinishPreviousVisitToggle(e.target.checked)}
+                style={{
+                  width: 18,
+                  height: 18,
+                  cursor: "pointer",
+                }}
+              />
+              <label
+                htmlFor="finishPreviousVisit"
+                style={{
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+              >
+                Өмнөх үзлэгийг дуусгах
+              </label>
+            </div>
+            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4, marginLeft: 30 }}>
+              Төлбөр төлөгдөөгүй өмнөх үзлэгийг үргэлжлүүлэх
+            </div>
+          </section>
+
+          {/* Unpaid Encounters Dialog */}
+          {showUnpaidEncountersDialog && (
+            <div
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: "rgba(0, 0, 0, 0.5)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 9999,
+              }}
+              onClick={handleCancelUnpaidEncountersDialog}
+            >
+              <div
+                style={{
+                  background: "#ffffff",
+                  borderRadius: 12,
+                  padding: 24,
+                  maxWidth: 600,
+                  width: "90%",
+                  maxHeight: "80vh",
+                  overflow: "auto",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>
+                  Өмнөх үзлэгийг сонгох
+                </h2>
+
+                {loadingUnpaidEncounters && (
+                  <div style={{ padding: 20, textAlign: "center" }}>
+                    Ачаалж байна...
+                  </div>
+                )}
+
+                {!loadingUnpaidEncounters && unpaidEncountersError && (
+                  <div
+                    style={{
+                      padding: 12,
+                      borderRadius: 8,
+                      background: "#fee2e2",
+                      color: "#b91c1c",
+                      marginBottom: 16,
+                    }}
+                  >
+                    {unpaidEncountersError}
+                  </div>
+                )}
+
+                {!loadingUnpaidEncounters && !unpaidEncountersError && unpaidEncounters.length === 0 && (
+                  <div
+                    style={{
+                      padding: 20,
+                      textAlign: "center",
+                      color: "#6b7280",
+                    }}
+                  >
+                    Төлбөр төлөгдөөгүй үзлэг олдсонгүй
+                  </div>
+                )}
+
+                {!loadingUnpaidEncounters && !unpaidEncountersError && unpaidEncounters.length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    {unpaidEncounters.map((enc) => (
+                      <div
+                        key={enc.encounterId}
+                        style={{
+                          padding: 16,
+                          borderRadius: 8,
+                          border: "1px solid #e5e7eb",
+                          marginBottom: 12,
+                          cursor: "pointer",
+                          transition: "all 0.2s",
+                        }}
+                        onClick={() => handleSelectUnpaidEncounter(enc.encounterId)}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "#f9fafb";
+                          e.currentTarget.style.borderColor = "#3b82f6";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "#ffffff";
+                          e.currentTarget.style.borderColor = "#e5e7eb";
+                        }}
+                      >
+                        <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                          {formatShortDate(enc.visitDate)}
+                        </div>
+                        <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 4 }}>
+                          Эмч: {formatDoctorDisplayName(enc.doctor)}
+                        </div>
+                        <div style={{ fontSize: 13, color: "#6b7280" }}>
+                          Төлбөр: {enc.invoice.paidAmount.toLocaleString()}₮ / {enc.invoice.totalAmount.toLocaleString()}₮
+                        </div>
+                        <div style={{ fontSize: 13, color: "#ef4444", fontWeight: 500, marginTop: 4 }}>
+                          Үлдэгдэл: {enc.invoice.remaining.toLocaleString()}₮
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+                  <button
+                    type="button"
+                    onClick={handleCancelUnpaidEncountersDialog}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      background: "#f9fafb",
+                      fontSize: 14,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Цуцлах
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <section
             style={{

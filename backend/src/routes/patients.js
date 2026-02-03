@@ -710,6 +710,7 @@ router.get("/:patientId/unpaid-encounters", async (req, res) => {
             id: true,
             ovog: true,
             name: true,
+            email: true,
             role: true,
           },
         },
@@ -769,6 +770,7 @@ router.get("/:patientId/unpaid-encounters", async (req, res) => {
           id: enc.doctor.id,
           ovog: enc.doctor.ovog,
           name: enc.doctor.name,
+          email: enc.doctor.email,
         },
         invoice: {
           id: invoice.id,
