@@ -1122,14 +1122,15 @@ router.patch("/:id/cancel", async (req, res) => {
     }
 
     // Update appointment with cancellation audit fields
+    const trimmedReason = reason?.trim();
     const updatedAppt = await prisma.appointment.update({
       where: { id: apptId },
       data: {
         status: "cancelled",
         cancelledAt: new Date(),
         cancelledByUserId: parsedUserId,
-        notes: reason?.trim() 
-          ? [appt.notes, `Cancellation reason: ${reason.trim()}`].filter(Boolean).join('\n')
+        notes: trimmedReason 
+          ? [appt.notes, `Cancellation reason: ${trimmedReason}`].filter(Boolean).join('\n')
           : appt.notes,
       },
       include: {
