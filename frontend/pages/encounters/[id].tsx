@@ -1467,6 +1467,48 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     setEditableDxRows(savedDxRows);
     setRows(savedDxRows);
 
+    // Sync problem texts and service texts for each saved diagnosis
+    for (const srvRow of savedRows) {
+      if (!srvRow.id) continue;
+
+      // Find the corresponding editable row to get draft texts
+      const editableRow = editableDxRows.find(r => r.localId === srvRow.localId);
+      if (!editableRow) continue;
+
+      // Sync problem texts if there are drafts
+      if (editableRow.draftProblemTexts && Array.isArray(editableRow.draftProblemTexts)) {
+        try {
+          await fetch(`/api/encounter-diagnoses/${srvRow.id}/problem-texts/sync`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ texts: editableRow.draftProblemTexts }),
+          });
+        } catch (err) {
+          console.error(`Error syncing problem texts for diagnosis ${srvRow.id}:`, err);
+        }
+      }
+
+      // Sync service texts if the row has a service
+      if (srvRow.serviceId && editableRow.draftServiceTexts && Array.isArray(editableRow.draftServiceTexts)) {
+        // Find the corresponding encounterService by checking meta.diagnosisId
+        const matchingEncounterService = encounter?.encounterServices?.find(
+          (es: any) => es.meta?.diagnosisId === srvRow.id
+        );
+        
+        if (matchingEncounterService?.id) {
+          try {
+            await fetch(`/api/encounter-services/${matchingEncounterService.id}/texts/sync`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ texts: editableRow.draftServiceTexts }),
+            });
+          } catch (err) {
+            console.error(`Error syncing service texts for service ${matchingEncounterService.id}:`, err);
+          }
+        }
+      }
+    }
+
     // Update encounter services to match saved state
     if (encounter) {
       // Fetch updated services to refresh encounter state
