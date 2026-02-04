@@ -174,6 +174,8 @@ export default function EncounterAdminPage() {
       indicatorIds: [],
       indicatorSearchText: "",
       indicatorsDirty: false,
+      draftProblemTexts: [""], // Start with one empty text field
+      draftServiceTexts: undefined,
     };
 
     setEditableDxRows((prev) => [...prev, newRow]);
@@ -512,6 +514,10 @@ const loadEncounter = async () => {
           : [],
         indicatorSearchText: "",
         indicatorsDirty: false, // Not dirty when loaded from backend
+
+        // Initialize draft text arrays from saved texts
+        draftProblemTexts: row.problemTexts?.map((pt) => pt.text) || undefined,
+        draftServiceTexts: undefined, // Will be set during merge with services
       })) || [];
 
     // 2) Load active indicators for patient's branch (needed for display)
@@ -544,11 +550,15 @@ const loadEncounter = async () => {
         serviceSearchText = svc.code ? `${svc.code} – ${svc.name}` : svc.name;
       }
 
+      // Initialize draft service texts from saved texts
+      const draftServiceTexts = linkedService?.texts?.map((t) => t.text) || undefined;
+
       return {
         ...dxRow,
         serviceId: linkedService?.serviceId,
         serviceSearchText,
         assignedTo,
+        draftServiceTexts,
       };
     });
 

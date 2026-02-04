@@ -550,6 +550,10 @@ export default function DiagnosesEditor({
                                   "assignedTo",
                                   nextAssignedTo
                                 );
+                                // Initialize draft service texts with one empty field if not already set
+                                if (!row.draftServiceTexts) {
+                                  onUpdateRowField(index, "draftServiceTexts", [""]);
+                                }
                                 onSetOpenServiceIndex(null);
                               }}
                               style={{
