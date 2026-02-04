@@ -1,6 +1,6 @@
 import express from "express";
 import prisma from "../db.js";
-import { authenticateJWT } from "../middleware/auth.js";
+
 
 const router = express.Router();
 
@@ -8,7 +8,7 @@ const router = express.Router();
  * PUT /api/encounter-diagnosis-problem-texts/:id
  * Update a problem text row
  */
-router.put("/:id", authenticateJWT, async (req, res) => {
+router.put("/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!id || Number.isNaN(id)) {
@@ -43,7 +43,7 @@ router.put("/:id", authenticateJWT, async (req, res) => {
  * DELETE /api/encounter-diagnosis-problem-texts/:id
  * Delete a problem text row
  */
-router.delete("/:id", authenticateJWT, async (req, res) => {
+router.delete("/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
     if (!id || Number.isNaN(id)) {
