@@ -62,6 +62,15 @@ export type DiagnosisProblem = {
   active: boolean;
 };
 
+export type EncounterDiagnosisProblemText = {
+  id: number;
+  encounterDiagnosisId: number;
+  text: string;
+  order: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type EncounterDiagnosisRow = {
   id?: number;
   diagnosisId: number | null;
@@ -69,6 +78,7 @@ export type EncounterDiagnosisRow = {
   selectedProblemIds: number[];
   note?: string;
   toothCode?: string | null;
+  problemTexts?: EncounterDiagnosisProblemText[];
 };
 
 export type ServiceCategory =
@@ -96,6 +106,15 @@ export type Service = {
   serviceBranches: ServiceBranch[];
 };
 
+export type EncounterServiceText = {
+  id: number;
+  encounterServiceId: number;
+  text: string;
+  order: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type EncounterService = {
   id?: number;
   encounterId: number;
@@ -109,6 +128,7 @@ export type EncounterService = {
     assignedTo?: AssignedTo;
     diagnosisId?: number | null;
   } | null;
+  texts?: EncounterServiceText[];
 };
 
 export type PrescriptionItem = {

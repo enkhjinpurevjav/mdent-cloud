@@ -6,7 +6,10 @@ import type {
   Service,
   ActiveIndicator,
   AssignedTo,
+  EncounterService,
 } from "../../types/encounter-admin";
+import ProblemTextsEditor from "./ProblemTextsEditor";
+import ServiceTextsEditor from "./ServiceTextsEditor";
 
 type DiagnosesEditorProps = {
   rows: EditableDiagnosis[];
@@ -25,6 +28,7 @@ type DiagnosesEditorProps = {
   openIndicatorIndex: number | null;
   activeDxRowIndex: number | null;
   totalDiagnosisServicesPrice: number;
+  encounterServices?: EncounterService[];
   onDiagnosisChange: (index: number, diagnosisId: number) => Promise<void>;
   onToggleProblem: (index: number, problemId: number) => void;
   onNoteChange: (index: number, value: string) => void;
@@ -44,6 +48,7 @@ type DiagnosesEditorProps = {
   onSave: () => Promise<void>;
   onFinish: () => Promise<void>;
   onResetToothSelection: () => void;
+  onReloadEncounter?: () => Promise<void>;
 };
 
 export default function DiagnosesEditor({
@@ -63,6 +68,7 @@ export default function DiagnosesEditor({
   openIndicatorIndex,
   activeDxRowIndex,
   totalDiagnosisServicesPrice,
+  encounterServices,
   onDiagnosisChange,
   onToggleProblem,
   onNoteChange,
@@ -78,6 +84,7 @@ export default function DiagnosesEditor({
   onSave,
   onFinish,
   onResetToothSelection,
+  onReloadEncounter,
 }: DiagnosesEditorProps) {
   return (
     <section
@@ -400,6 +407,64 @@ export default function DiagnosesEditor({
                   )}
                 </>
               ) : null}
+
+              {/* Problem Texts Editor */}
+              {row.diagnosisId && row.id && (
+                <ProblemTextsEditor
+                  diagnosisId={row.id}
+                  problemTexts={row.problemTexts || []}
+                  onAdd={async () => {
+                    try {
+                      const res = await fetch(
+                        `/api/encounter-diagnoses/${row.id}/problem-texts`,
+                        {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ text: "", order: (row.problemTexts?.length || 0) }),
+                        }
+                      );
+                      if (!res.ok) throw new Error("Failed to create problem text");
+                      if (onReloadEncounter) await onReloadEncounter();
+                    } catch (err) {
+                      console.error("Error creating problem text:", err);
+                      alert("Бодит үзлэг нэмэхэд алдаа гарлаа");
+                    }
+                  }}
+                  onUpdate={async (id: number, text: string) => {
+                    try {
+                      const res = await fetch(
+                        `/api/encounter-diagnosis-problem-texts/${id}`,
+                        {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ text }),
+                        }
+                      );
+                      if (!res.ok) throw new Error("Failed to update problem text");
+                      if (onReloadEncounter) await onReloadEncounter();
+                    } catch (err) {
+                      console.error("Error updating problem text:", err);
+                      alert("Бодит үзлэг засахад алдаа гарлаа");
+                    }
+                  }}
+                  onDelete={async (id: number) => {
+                    if (!confirm("Энэ бодит үзлэгийг устгах уу?")) return;
+                    try {
+                      const res = await fetch(
+                        `/api/encounter-diagnosis-problem-texts/${id}`,
+                        {
+                          method: "DELETE",
+                        }
+                      );
+                      if (!res.ok) throw new Error("Failed to delete problem text");
+                      if (onReloadEncounter) await onReloadEncounter();
+                    } catch (err) {
+                      console.error("Error deleting problem text:", err);
+                      alert("Бодит үзлэг устгахад алдаа гарлаа");
+                    }
+                  }}
+                />
+              )}
 
               {/* Tooth code */}
               <div
@@ -831,6 +896,79 @@ export default function DiagnosesEditor({
                   харагдана.
                 </div>
               </div>
+
+              {/* Service Texts Editor */}
+              {row.serviceId && row.id && (() => {
+                // Find the encounterService that matches this diagnosis row
+                const matchingEncounterService = (encounterServices || []).find(
+                  (es) => {
+                    const meta = es.meta as { diagnosisId?: number | null } | null;
+                    return meta?.diagnosisId === row.id;
+                  }
+                );
+                if (!matchingEncounterService || !matchingEncounterService.id) {
+                  return null;
+                }
+                return (
+                  <ServiceTextsEditor
+                    serviceId={matchingEncounterService.id}
+                    serviceTexts={matchingEncounterService.texts || []}
+                    onAdd={async () => {
+                      try {
+                        const res = await fetch(
+                          `/api/encounter-services/${matchingEncounterService.id}/texts`,
+                          {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              text: "",
+                              order: (matchingEncounterService.texts?.length || 0),
+                            }),
+                          }
+                        );
+                        if (!res.ok) throw new Error("Failed to create service text");
+                        if (onReloadEncounter) await onReloadEncounter();
+                      } catch (err) {
+                        console.error("Error creating service text:", err);
+                        alert("Эмчилгээний тайлбар нэмэхэд алдаа гарлаа");
+                      }
+                    }}
+                    onUpdate={async (id: number, text: string) => {
+                      try {
+                        const res = await fetch(
+                          `/api/encounter-service-texts/${id}`,
+                          {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ text }),
+                          }
+                        );
+                        if (!res.ok) throw new Error("Failed to update service text");
+                        if (onReloadEncounter) await onReloadEncounter();
+                      } catch (err) {
+                        console.error("Error updating service text:", err);
+                        alert("Эмчилгээний тайлбар засахад алдаа гарлаа");
+                      }
+                    }}
+                    onDelete={async (id: number) => {
+                      if (!confirm("Энэ эмчилгээний тайлбарыг устгах уу?")) return;
+                      try {
+                        const res = await fetch(
+                          `/api/encounter-service-texts/${id}`,
+                          {
+                            method: "DELETE",
+                          }
+                        );
+                        if (!res.ok) throw new Error("Failed to delete service text");
+                        if (onReloadEncounter) await onReloadEncounter();
+                      } catch (err) {
+                        console.error("Error deleting service text:", err);
+                        alert("Эмчилгээний тайлбар устгахад алдаа гарлаа");
+                      }
+                    }}
+                  />
+                );
+              })()}
 
               {/* Note textarea */}
               <textarea

@@ -83,11 +83,19 @@ router.get("/:id", async (req, res) => {
         },
       },
     },
+    problemTexts: {
+      orderBy: { order: "asc" },
+    },
   },
   orderBy: { createdAt: "asc" },
 },
         encounterServices: {
-          include: { service: true },
+          include: {
+            service: true,
+            texts: {
+              orderBy: { order: "asc" },
+            },
+          },
           orderBy: { id: "asc" },
         },
         invoice: {
@@ -1935,6 +1943,206 @@ const slotTimeString = `${String(slotHourLocal).padStart(2, "0")}:${String(
   } catch (err) {
     console.error("Error creating follow-up appointment:", err);
     res.status(500).json({ error: "Failed to create follow-up appointment" });
+  }
+});
+
+// ============================
+// ENCOUNTER DIAGNOSIS PROBLEM TEXTS
+// ============================
+
+/**
+ * POST /api/encounter-diagnoses/:id/problem-texts
+ * Create a new problem text row for a diagnosis
+ */
+router.post("/encounter-diagnoses/:id/problem-texts", authenticateJWT, async (req, res) => {
+  try {
+    const encounterDiagnosisId = Number(req.params.id);
+    if (!encounterDiagnosisId || Number.isNaN(encounterDiagnosisId)) {
+      return res.status(400).json({ error: "Invalid encounter diagnosis id" });
+    }
+
+    // Verify diagnosis exists
+    const diagnosis = await prisma.encounterDiagnosis.findUnique({
+      where: { id: encounterDiagnosisId },
+    });
+    if (!diagnosis) {
+      return res.status(404).json({ error: "Encounter diagnosis not found" });
+    }
+
+    const { text, order } = req.body;
+
+    const problemText = await prisma.encounterDiagnosisProblemText.create({
+      data: {
+        encounterDiagnosisId,
+        text: (text || "").trim(),
+        order: order ?? 0,
+      },
+    });
+
+    res.status(201).json(problemText);
+  } catch (err) {
+    console.error("Error creating problem text:", err);
+    res.status(500).json({ error: "Failed to create problem text" });
+  }
+});
+
+/**
+ * PUT /api/encounter-diagnosis-problem-texts/:id
+ * Update a problem text row
+ */
+router.put("/encounter-diagnosis-problem-texts/:id", authenticateJWT, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid problem text id" });
+    }
+
+    const { text, order } = req.body;
+
+    if (!text || text.trim() === "") {
+      return res.status(400).json({ error: "Text is required" });
+    }
+
+    const problemText = await prisma.encounterDiagnosisProblemText.update({
+      where: { id },
+      data: {
+        text: text.trim(),
+        order: order ?? undefined,
+      },
+    });
+
+    res.json(problemText);
+  } catch (err) {
+    console.error("Error updating problem text:", err);
+    if (err.code === "P2025") {
+      return res.status(404).json({ error: "Problem text not found" });
+    }
+    res.status(500).json({ error: "Failed to update problem text" });
+  }
+});
+
+/**
+ * DELETE /api/encounter-diagnosis-problem-texts/:id
+ * Delete a problem text row
+ */
+router.delete("/encounter-diagnosis-problem-texts/:id", authenticateJWT, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid problem text id" });
+    }
+
+    await prisma.encounterDiagnosisProblemText.delete({
+      where: { id },
+    });
+
+    res.status(204).send();
+  } catch (err) {
+    console.error("Error deleting problem text:", err);
+    if (err.code === "P2025") {
+      return res.status(404).json({ error: "Problem text not found" });
+    }
+    res.status(500).json({ error: "Failed to delete problem text" });
+  }
+});
+
+// ============================
+// ENCOUNTER SERVICE TEXTS
+// ============================
+
+/**
+ * POST /api/encounter-services/:id/texts
+ * Create a new text row for a service
+ */
+router.post("/encounter-services/:id/texts", authenticateJWT, async (req, res) => {
+  try {
+    const encounterServiceId = Number(req.params.id);
+    if (!encounterServiceId || Number.isNaN(encounterServiceId)) {
+      return res.status(400).json({ error: "Invalid encounter service id" });
+    }
+
+    // Verify service exists
+    const service = await prisma.encounterService.findUnique({
+      where: { id: encounterServiceId },
+    });
+    if (!service) {
+      return res.status(404).json({ error: "Encounter service not found" });
+    }
+
+    const { text, order } = req.body;
+
+    const serviceText = await prisma.encounterServiceText.create({
+      data: {
+        encounterServiceId,
+        text: (text || "").trim(),
+        order: order ?? 0,
+      },
+    });
+
+    res.status(201).json(serviceText);
+  } catch (err) {
+    console.error("Error creating service text:", err);
+    res.status(500).json({ error: "Failed to create service text" });
+  }
+});
+
+/**
+ * PUT /api/encounter-service-texts/:id
+ * Update a service text row
+ */
+router.put("/encounter-service-texts/:id", authenticateJWT, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid service text id" });
+    }
+
+    const { text, order } = req.body;
+
+    if (!text || text.trim() === "") {
+      return res.status(400).json({ error: "Text is required" });
+    }
+
+    const serviceText = await prisma.encounterServiceText.update({
+      where: { id },
+      data: {
+        text: text.trim(),
+        order: order ?? undefined,
+      },
+    });
+
+    res.json(serviceText);
+  } catch (err) {
+    console.error("Error updating service text:", err);
+    if (err.code === "P2025") {
+      return res.status(404).json({ error: "Service text not found" });
+    }
+    res.status(500).json({ error: "Failed to update service text" });
+  }
+});
+
+/**
+ * DELETE /api/encounter-service-texts/:id
+ * Delete a service text row
+ */
+router.delete("/encounter-service-texts/:id", authenticateJWT, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id || Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid service text id" });
+    }
+
+    await prisma.encounterServiceText.delete({
+      where: { id },
+    });
+
+    res.status(204).send();
+  } catch (err) {
+    console.error("Error deleting service text:", err);
+    if (err.code === "P2025") {
+      return res.status(404).json({ error: "Service text not found" });
+    }
+    res.status(500).json({ error: "Failed to delete service text" });
   }
 });
 
