@@ -1,6 +1,5 @@
 import express from "express";
 import prisma from "../db.js";
-import { authenticateJWT } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -8,7 +7,7 @@ const router = express.Router();
  * POST /api/encounter-services/:id/texts
  * Create a service text row
  */
-router.post("/:id/texts", authenticateJWT, async (req, res) => {
+router.post("/:id/texts", async (req, res) => {
   try {
     const encounterServiceId = Number(req.params.id);
     if (!encounterServiceId || Number.isNaN(encounterServiceId)) {
@@ -44,7 +43,7 @@ router.post("/:id/texts", authenticateJWT, async (req, res) => {
  * PUT /api/encounter-services/:id/texts/sync
  * Sync service texts - batch update to match provided list
  */
-router.put("/:id/texts/sync", authenticateJWT, async (req, res) => {
+router.put("/:id/texts/sync", async (req, res) => {
   try {
     const encounterServiceId = Number(req.params.id);
     if (!encounterServiceId || Number.isNaN(encounterServiceId)) {
