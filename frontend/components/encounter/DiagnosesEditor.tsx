@@ -587,6 +587,28 @@ export default function DiagnosesEditor({
                 </div>
               </div>
 
+              {/* Service Texts Editor */}
+              {row.serviceId && (() => {
+                // Find the encounterService that matches this diagnosis row to get existing texts
+                const matchingEncounterService = (encounterServices || []).find(
+                  (es) => {
+                    const meta = es.meta as { diagnosisId?: number | null } | null;
+                    return meta?.diagnosisId === row.id;
+                  }
+                );
+                // Initialize draft texts from existing or start with one empty field
+                const existingTexts = matchingEncounterService?.texts?.map(t => t.text) || [];
+                const drafts = row.draftServiceTexts ?? (existingTexts.length > 0 ? existingTexts : [""]);
+                
+                return (
+                  <ServiceTextsEditor
+                    texts={drafts}
+                    onChange={(texts) => onUpdateRowField(index, "draftServiceTexts", texts)}
+                    isLocked={isLocked}
+                  />
+                );
+              })()}
+
               {/* Imaging assignedTo selector */}
               {isImaging && (
                 <div
@@ -851,28 +873,6 @@ export default function DiagnosesEditor({
                   харагдана.
                 </div>
               </div>
-
-              {/* Service Texts Editor */}
-              {row.serviceId && (() => {
-                // Find the encounterService that matches this diagnosis row to get existing texts
-                const matchingEncounterService = (encounterServices || []).find(
-                  (es) => {
-                    const meta = es.meta as { diagnosisId?: number | null } | null;
-                    return meta?.diagnosisId === row.id;
-                  }
-                );
-                // Initialize draft texts from existing or start with one empty field
-                const existingTexts = matchingEncounterService?.texts?.map(t => t.text) || [];
-                const drafts = row.draftServiceTexts ?? (existingTexts.length > 0 ? existingTexts : [""]);
-                
-                return (
-                  <ServiceTextsEditor
-                    texts={drafts}
-                    onChange={(texts) => onUpdateRowField(index, "draftServiceTexts", texts)}
-                    isLocked={isLocked}
-                  />
-                );
-              })()}
 
               {/* Note textarea */}
               <textarea
