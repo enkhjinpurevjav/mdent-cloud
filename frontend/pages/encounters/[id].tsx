@@ -1521,15 +1521,30 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
 
     // Update encounter services to match saved state
     if (encounter) {
-      // Fetch updated services to refresh encounter state
+      // Fetch updated encounter to refresh services and text arrays
       const servicesRes = await fetch(`/api/encounters/${id}`);
       if (servicesRes.ok) {
         const encounterData = await servicesRes.json();
         setEncounter({
           ...encounter,
           encounterServices: encounterData.encounterServices || [],
+          encounterDiagnoses: encounterData.encounterDiagnoses || [],
         });
         setEditableServices(encounterData.encounterServices || []);
+        
+        // Update savedDxRows with fresh problemTexts and serviceTexts from backend
+        const refreshedDxRows: EditableDiagnosis[] = savedDxRows.map((savedRow) => {
+          const backendDx = encounterData.encounterDiagnoses?.find((dx: any) => dx.id === savedRow.id);
+          return {
+            ...savedRow,
+            problemTexts: backendDx?.problemTexts || [],
+            draftProblemTexts: undefined, // Clear drafts, use saved data
+            draftServiceTexts: undefined, // Clear drafts, use saved data
+          };
+        });
+        
+        setEditableDxRows(refreshedDxRows);
+        setRows(refreshedDxRows);
       }
     }
 
