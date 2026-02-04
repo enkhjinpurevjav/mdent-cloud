@@ -2112,6 +2112,7 @@ const handleFinishEncounter = async () => {
               openIndicatorIndex={openIndicatorIndex}
               activeDxRowIndex={activeDxRowIndex}
               totalDiagnosisServicesPrice={totalDiagnosisServicesPrice}
+              encounterServices={editableServices}
               onDiagnosisChange={handleDiagnosisChange}
               onToggleProblem={toggleProblem}
               onNoteChange={handleNoteChange}
