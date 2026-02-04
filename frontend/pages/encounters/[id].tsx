@@ -2137,6 +2137,7 @@ const handleFinishEncounter = async () => {
 }}
               onFinish={handleFinishEncounter}
               onResetToothSelection={resetToothSelectionSession}
+              onReloadEncounter={reloadEncounter}
        
             />
 

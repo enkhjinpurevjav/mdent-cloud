@@ -7,6 +7,7 @@ import type {
   ActiveIndicator,
   AssignedTo,
 } from "../../types/encounter-admin";
+import ProblemTextsEditor from "./ProblemTextsEditor";
 
 type DiagnosesEditorProps = {
   rows: EditableDiagnosis[];
@@ -44,6 +45,7 @@ type DiagnosesEditorProps = {
   onSave: () => Promise<void>;
   onFinish: () => Promise<void>;
   onResetToothSelection: () => void;
+  onReloadEncounter?: () => Promise<void>;
 };
 
 export default function DiagnosesEditor({
@@ -78,6 +80,7 @@ export default function DiagnosesEditor({
   onSave,
   onFinish,
   onResetToothSelection,
+  onReloadEncounter,
 }: DiagnosesEditorProps) {
   return (
     <section
@@ -400,6 +403,64 @@ export default function DiagnosesEditor({
                   )}
                 </>
               ) : null}
+
+              {/* Problem Texts Editor */}
+              {row.diagnosisId && row.id && (
+                <ProblemTextsEditor
+                  diagnosisId={row.id}
+                  problemTexts={row.problemTexts || []}
+                  onAdd={async () => {
+                    try {
+                      const res = await fetch(
+                        `/api/encounter-diagnoses/${row.id}/problem-texts`,
+                        {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ text: "", order: (row.problemTexts?.length || 0) }),
+                        }
+                      );
+                      if (!res.ok) throw new Error("Failed to create problem text");
+                      if (onReloadEncounter) await onReloadEncounter();
+                    } catch (err) {
+                      console.error("Error creating problem text:", err);
+                      alert("Бодит үзлэг нэмэхэд алдаа гарлаа");
+                    }
+                  }}
+                  onUpdate={async (id: number, text: string) => {
+                    try {
+                      const res = await fetch(
+                        `/api/encounter-diagnosis-problem-texts/${id}`,
+                        {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ text }),
+                        }
+                      );
+                      if (!res.ok) throw new Error("Failed to update problem text");
+                      if (onReloadEncounter) await onReloadEncounter();
+                    } catch (err) {
+                      console.error("Error updating problem text:", err);
+                      alert("Бодит үзлэг засахад алдаа гарлаа");
+                    }
+                  }}
+                  onDelete={async (id: number) => {
+                    if (!confirm("Энэ бодит үзлэгийг устгах уу?")) return;
+                    try {
+                      const res = await fetch(
+                        `/api/encounter-diagnosis-problem-texts/${id}`,
+                        {
+                          method: "DELETE",
+                        }
+                      );
+                      if (!res.ok) throw new Error("Failed to delete problem text");
+                      if (onReloadEncounter) await onReloadEncounter();
+                    } catch (err) {
+                      console.error("Error deleting problem text:", err);
+                      alert("Бодит үзлэг устгахад алдаа гарлаа");
+                    }
+                  }}
+                />
+              )}
 
               {/* Tooth code */}
               <div
