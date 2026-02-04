@@ -7,6 +7,8 @@ type ProblemTextsEditorProps = {
   onAdd: () => Promise<void>;
   onUpdate: (id: number, text: string) => Promise<void>;
   onDelete: (id: number) => Promise<void>;
+  isLocked?: boolean;
+  errorMessage?: string | null;
 };
 
 export default function ProblemTextsEditor({
@@ -15,6 +17,8 @@ export default function ProblemTextsEditor({
   onAdd,
   onUpdate,
   onDelete,
+  isLocked = false,
+  errorMessage = null,
 }: ProblemTextsEditorProps) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingText, setEditingText] = useState("");
@@ -55,10 +59,26 @@ export default function ProblemTextsEditor({
           margin: 0,
           marginBottom: 6,
           fontWeight: 600,
+          color: isLocked ? "#9ca3af" : undefined,
         }}
       >
-        Бодит үзлэг
+        Бодит үзлэг {isLocked && "(Түгжээтэй)"}
       </h4>
+
+      {errorMessage && (
+        <div
+          style={{
+            fontSize: 12,
+            color: "#dc2626",
+            background: "#fef2f2",
+            padding: "4px 8px",
+            borderRadius: 4,
+            marginBottom: 6,
+          }}
+        >
+          {errorMessage}
+        </div>
+      )}
 
       <div
         style={{
@@ -143,42 +163,53 @@ export default function ProblemTextsEditor({
                 >
                   {text.text}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleStartEdit(text)}
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid #2563eb",
-                    background: "#eff6ff",
-                    color: "#2563eb",
-                    cursor: "pointer",
-                    fontSize: 11,
-                  }}
-                >
-                  Засах
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onDelete(text.id)}
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 6,
-                    border: "1px solid #dc2626",
-                    background: "#fef2f2",
-                    color: "#b91c1c",
-                    cursor: "pointer",
-                    fontSize: 11,
-                  }}
-                >
-                  Устгах
-                </button>
+                {!isLocked && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleStartEdit(text)}
+                      style={{
+                        padding: "4px 8px",
+                        borderRadius: 6,
+                        border: "1px solid #2563eb",
+                        background: "#eff6ff",
+                        color: "#2563eb",
+                        cursor: "pointer",
+                        fontSize: 11,
+                      }}
+                    >
+                      Засах
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(text.id)}
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 4,
+                        border: "1px solid #dc2626",
+                        background: "#fef2f2",
+                        color: "#b91c1c",
+                        cursor: "pointer",
+                        fontSize: 16,
+                        lineHeight: "20px",
+                        padding: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                      title="Устгах"
+                    >
+                      ×
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>
         ))}
 
-        {problemTexts.length === 0 && (
+        {problemTexts.length === 0 && !isLocked && (
           <div
             style={{
               fontSize: 12,
@@ -190,23 +221,25 @@ export default function ProblemTextsEditor({
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={onAdd}
-          style={{
-            marginTop: 4,
-            padding: "4px 10px",
-            borderRadius: 6,
-            border: "1px solid #2563eb",
-            background: "#eff6ff",
-            color: "#2563eb",
-            cursor: "pointer",
-            fontSize: 12,
-            alignSelf: "flex-start",
-          }}
-        >
-          + Нэмэх
-        </button>
+        {!isLocked && (
+          <button
+            type="button"
+            onClick={onAdd}
+            style={{
+              marginTop: 4,
+              padding: "4px 10px",
+              borderRadius: 6,
+              border: "1px solid #2563eb",
+              background: "#eff6ff",
+              color: "#2563eb",
+              cursor: "pointer",
+              fontSize: 12,
+              alignSelf: "flex-start",
+            }}
+          >
+            + Нэмэх
+          </button>
+        )}
       </div>
     </div>
   );

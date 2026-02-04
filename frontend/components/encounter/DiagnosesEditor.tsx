@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import type {
   EditableDiagnosis,
   Diagnosis,
@@ -86,6 +86,9 @@ export default function DiagnosesEditor({
   onResetToothSelection,
   onReloadEncounter,
 }: DiagnosesEditorProps) {
+  const [problemTextsErrors, setProblemTextsErrors] = useState<Record<number, string>>({});
+  const [serviceTextsErrors, setServiceTextsErrors] = useState<Record<number, string>>({});
+
   return (
     <section
       style={{
@@ -413,24 +416,38 @@ export default function DiagnosesEditor({
                 <ProblemTextsEditor
                   diagnosisId={row.id}
                   problemTexts={row.problemTexts || []}
+                  isLocked={isLocked}
+                  errorMessage={problemTextsErrors[row.id] || null}
                   onAdd={async () => {
+                    if (!row.id) return;
+                    const rowId = row.id;
+                    setProblemTextsErrors(prev => ({ ...prev, [rowId]: "" }));
                     try {
                       const res = await fetch(
-                        `/api/encounter-diagnoses/${row.id}/problem-texts`,
+                        `/api/encounter-diagnoses/${rowId}/problem-texts`,
                         {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ text: "", order: (row.problemTexts?.length || 0) }),
                         }
                       );
-                      if (!res.ok) throw new Error("Failed to create problem text");
+                      if (!res.ok) {
+                        if (res.status === 404) {
+                          setProblemTextsErrors(prev => ({ ...prev, [rowId]: "Бодит үзлэг нэмэх боломжгүй: API олдсонгүй (404). Системийн удирдлагатай холбогдоно уу." }));
+                          return;
+                        }
+                        throw new Error("Failed to create problem text");
+                      }
                       if (onReloadEncounter) await onReloadEncounter();
                     } catch (err) {
                       console.error("Error creating problem text:", err);
-                      alert("Бодит үзлэг нэмэхэд алдаа гарлаа");
+                      setProblemTextsErrors(prev => ({ ...prev, [rowId]: "Бодит үзлэг нэмэхэд алдаа гарлаа" }));
                     }
                   }}
                   onUpdate={async (id: number, text: string) => {
+                    if (!row.id) return;
+                    const rowId = row.id;
+                    setProblemTextsErrors(prev => ({ ...prev, [rowId]: "" }));
                     try {
                       const res = await fetch(
                         `/api/encounter-diagnosis-problem-texts/${id}`,
@@ -440,15 +457,23 @@ export default function DiagnosesEditor({
                           body: JSON.stringify({ text }),
                         }
                       );
-                      if (!res.ok) throw new Error("Failed to update problem text");
+                      if (!res.ok) {
+                        if (res.status === 404) {
+                          setProblemTextsErrors(prev => ({ ...prev, [rowId]: "Бодит үзлэг засах боломжгүй: API олдсонгүй (404)" }));
+                          return;
+                        }
+                        throw new Error("Failed to update problem text");
+                      }
                       if (onReloadEncounter) await onReloadEncounter();
                     } catch (err) {
                       console.error("Error updating problem text:", err);
-                      alert("Бодит үзлэг засахад алдаа гарлаа");
+                      setProblemTextsErrors(prev => ({ ...prev, [rowId]: "Бодит үзлэг засахад алдаа гарлаа" }));
                     }
                   }}
                   onDelete={async (id: number) => {
-                    if (!confirm("Энэ бодит үзлэгийг устгах уу?")) return;
+                    if (!row.id) return;
+                    const rowId = row.id;
+                    setProblemTextsErrors(prev => ({ ...prev, [rowId]: "" }));
                     try {
                       const res = await fetch(
                         `/api/encounter-diagnosis-problem-texts/${id}`,
@@ -456,11 +481,17 @@ export default function DiagnosesEditor({
                           method: "DELETE",
                         }
                       );
-                      if (!res.ok) throw new Error("Failed to delete problem text");
+                      if (!res.ok) {
+                        if (res.status === 404) {
+                          setProblemTextsErrors(prev => ({ ...prev, [rowId]: "Бодит үзлэг устгах боломжгүй: API олдсонгүй (404)" }));
+                          return;
+                        }
+                        throw new Error("Failed to delete problem text");
+                      }
                       if (onReloadEncounter) await onReloadEncounter();
                     } catch (err) {
                       console.error("Error deleting problem text:", err);
-                      alert("Бодит үзлэг устгахад алдаа гарлаа");
+                      setProblemTextsErrors(prev => ({ ...prev, [rowId]: "Бодит үзлэг устгахад алдаа гарлаа" }));
                     }
                   }}
                 />
@@ -909,14 +940,18 @@ export default function DiagnosesEditor({
                 if (!matchingEncounterService || !matchingEncounterService.id) {
                   return null;
                 }
+                const serviceId = matchingEncounterService.id;
                 return (
                   <ServiceTextsEditor
-                    serviceId={matchingEncounterService.id}
+                    serviceId={serviceId}
                     serviceTexts={matchingEncounterService.texts || []}
+                    isLocked={isLocked}
+                    errorMessage={serviceTextsErrors[serviceId] || null}
                     onAdd={async () => {
+                      setServiceTextsErrors(prev => ({ ...prev, [serviceId]: "" }));
                       try {
                         const res = await fetch(
-                          `/api/encounter-services/${matchingEncounterService.id}/texts`,
+                          `/api/encounter-services/${serviceId}/texts`,
                           {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
@@ -926,14 +961,21 @@ export default function DiagnosesEditor({
                             }),
                           }
                         );
-                        if (!res.ok) throw new Error("Failed to create service text");
+                        if (!res.ok) {
+                          if (res.status === 404) {
+                            setServiceTextsErrors(prev => ({ ...prev, [serviceId]: "Эмчилгээний тайлбар нэмэх боломжгүй: API олдсонгүй (404). Системийн удирдлагатай холбогдоно уу." }));
+                            return;
+                          }
+                          throw new Error("Failed to create service text");
+                        }
                         if (onReloadEncounter) await onReloadEncounter();
                       } catch (err) {
                         console.error("Error creating service text:", err);
-                        alert("Эмчилгээний тайлбар нэмэхэд алдаа гарлаа");
+                        setServiceTextsErrors(prev => ({ ...prev, [serviceId]: "Эмчилгээний тайлбар нэмэхэд алдаа гарлаа" }));
                       }
                     }}
                     onUpdate={async (id: number, text: string) => {
+                      setServiceTextsErrors(prev => ({ ...prev, [serviceId]: "" }));
                       try {
                         const res = await fetch(
                           `/api/encounter-service-texts/${id}`,
@@ -943,15 +985,21 @@ export default function DiagnosesEditor({
                             body: JSON.stringify({ text }),
                           }
                         );
-                        if (!res.ok) throw new Error("Failed to update service text");
+                        if (!res.ok) {
+                          if (res.status === 404) {
+                            setServiceTextsErrors(prev => ({ ...prev, [serviceId]: "Эмчилгээний тайлбар засах боломжгүй: API олдсонгүй (404)" }));
+                            return;
+                          }
+                          throw new Error("Failed to update service text");
+                        }
                         if (onReloadEncounter) await onReloadEncounter();
                       } catch (err) {
                         console.error("Error updating service text:", err);
-                        alert("Эмчилгээний тайлбар засахад алдаа гарлаа");
+                        setServiceTextsErrors(prev => ({ ...prev, [serviceId]: "Эмчилгээний тайлбар засахад алдаа гарлаа" }));
                       }
                     }}
                     onDelete={async (id: number) => {
-                      if (!confirm("Энэ эмчилгээний тайлбарыг устгах уу?")) return;
+                      setServiceTextsErrors(prev => ({ ...prev, [serviceId]: "" }));
                       try {
                         const res = await fetch(
                           `/api/encounter-service-texts/${id}`,
@@ -959,11 +1007,17 @@ export default function DiagnosesEditor({
                             method: "DELETE",
                           }
                         );
-                        if (!res.ok) throw new Error("Failed to delete service text");
+                        if (!res.ok) {
+                          if (res.status === 404) {
+                            setServiceTextsErrors(prev => ({ ...prev, [serviceId]: "Эмчилгээний тайлбар устгах боломжгүй: API олдсонгүй (404)" }));
+                            return;
+                          }
+                          throw new Error("Failed to delete service text");
+                        }
                         if (onReloadEncounter) await onReloadEncounter();
                       } catch (err) {
                         console.error("Error deleting service text:", err);
-                        alert("Эмчилгээний тайлбар устгахад алдаа гарлаа");
+                        setServiceTextsErrors(prev => ({ ...prev, [serviceId]: "Эмчилгээний тайлбар устгахад алдаа гарлаа" }));
                       }
                     }}
                   />
