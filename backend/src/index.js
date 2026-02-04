@@ -38,6 +38,10 @@ import paymentSettingsRouter from "./routes/payment-settings.js";
 import adminRouter from "./routes/admin.js";
 import qpayRouter from "./routes/qpay.js";
 import settingsRouter from "./routes/settings.js";
+import encounterDiagnosesRouter from "./routes/encounterDiagnoses.js";
+import encounterServicesRouter from "./routes/encounterServices.js";
+import encounterDiagnosisProblemTextsRouter from "./routes/encounterDiagnosisProblemTexts.js";
+import encounterServiceTextsRouter from "./routes/encounterServiceTexts.js";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const app = express();
@@ -112,6 +116,12 @@ app.use("/api/admin", adminRouter);
 
 // QPay integration
 app.use("/api/qpay", qpayRouter);
+
+// Encounter-related routes at root /api level
+app.use("/api/encounter-diagnoses", encounterDiagnosesRouter);
+app.use("/api/encounter-services", encounterServicesRouter);
+app.use("/api/encounter-diagnosis-problem-texts", encounterDiagnosisProblemTextsRouter);
+app.use("/api/encounter-service-texts", encounterServiceTextsRouter);
 
 // Optional central error handler
 app.use((err, _req, res, _next) => {
