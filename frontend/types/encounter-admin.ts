@@ -178,6 +178,7 @@ export type Encounter = {
 export type EditableDiagnosis = EncounterDiagnosisRow & {
   localId: number;
   serviceId?: number;
+  encounterServiceId?: number | null;
   searchText?: string;
   serviceSearchText?: string;
   locked?: boolean;

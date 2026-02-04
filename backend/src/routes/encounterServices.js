@@ -68,6 +68,15 @@ router.put("/:id/texts/sync", async (req, res) => {
       .map(t => (typeof t === 'string' ? t.trim() : ''))
       .filter(t => t.length > 0);
 
+    // If no non-empty texts provided, treat as no-op (don't delete existing data)
+    if (nonEmptyTexts.length === 0) {
+      const existing = await prisma.encounterServiceText.findMany({
+        where: { encounterServiceId },
+        orderBy: { order: 'asc' },
+      });
+      return res.json(existing);
+    }
+
     // Delete all existing texts first
     await prisma.encounterServiceText.deleteMany({
       where: { encounterServiceId },
