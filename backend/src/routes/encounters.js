@@ -1605,6 +1605,7 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
             meta: { path: ["diagnosisId"], equals: result },
           },
           select: {
+            id: true,
             serviceId: true,
             meta: true,
           },
@@ -1614,6 +1615,7 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
           ...savedRow,
           localId,
           serviceId: encounterService?.serviceId ?? null,
+          encounterServiceId: encounterService?.id ?? null,
           assignedTo: encounterService?.meta?.assignedTo ?? "DOCTOR",
           indicatorIds: savedRow.sterilizationIndicators.map((si) => si.indicatorId),
         });

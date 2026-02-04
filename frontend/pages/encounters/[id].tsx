@@ -1498,23 +1498,16 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
         }
       }
 
-      // Sync service texts if the row has a service
-      if (srvRow.serviceId && editableRow.draftServiceTexts && Array.isArray(editableRow.draftServiceTexts)) {
-        // Find the corresponding encounterService by checking meta.diagnosisId
-        const matchingEncounterService = encounter?.encounterServices?.find(
-          (es: any) => es.meta?.diagnosisId === srvRow.id
-        );
-        
-        if (matchingEncounterService?.id) {
-          try {
-            await fetch(`/api/encounter-services/${matchingEncounterService.id}/texts/sync`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ texts: editableRow.draftServiceTexts }),
-            });
-          } catch (err) {
-            console.error(`Error syncing service texts for service ${matchingEncounterService.id}:`, err);
-          }
+      // Sync service texts if the row has a service and encounterServiceId
+      if (srvRow.serviceId && srvRow.encounterServiceId && editableRow.draftServiceTexts && Array.isArray(editableRow.draftServiceTexts)) {
+        try {
+          await fetch(`/api/encounter-services/${srvRow.encounterServiceId}/texts/sync`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ texts: editableRow.draftServiceTexts }),
+          });
+        } catch (err) {
+          console.error(`Error syncing service texts for service ${srvRow.encounterServiceId}:`, err);
         }
       }
     }
