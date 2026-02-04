@@ -901,7 +901,10 @@ export default function DiagnosesEditor({
               {row.serviceId && row.id && (() => {
                 // Find the encounterService that matches this diagnosis row
                 const matchingEncounterService = (encounterServices || []).find(
-                  (es) => (es.meta as any)?.diagnosisId === row.id
+                  (es) => {
+                    const meta = es.meta as { diagnosisId?: number | null } | null;
+                    return meta?.diagnosisId === row.id;
+                  }
                 );
                 if (!matchingEncounterService || !matchingEncounterService.id) {
                   return null;
