@@ -572,6 +572,7 @@ model EncounterDiagnosis {
 
   createdAt               DateTime                                   @default(now())
   sterilizationIndicators EncounterDiagnosisSterilizationIndicator[]
+  problemTexts            EncounterDiagnosisProblemText[]
 }
 
 model EncounterDiagnosisSterilizationIndicator {
@@ -585,6 +586,19 @@ model EncounterDiagnosisSterilizationIndicator {
 
   @@index([encounterDiagnosisId])
   @@index([indicatorId])
+}
+
+model EncounterDiagnosisProblemText {
+  id                   Int      @id @default(autoincrement())
+  encounterDiagnosisId Int
+  text                 String   @db.Text
+  order                Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  encounterDiagnosis EncounterDiagnosis @relation(fields: [encounterDiagnosisId], references: [id], onDelete: Cascade)
+
+  @@index([encounterDiagnosisId])
 }
 
 // ==========================================================
@@ -625,7 +639,21 @@ model EncounterService {
   price    Float
 
   // NEW:
-  meta Json?   // store { assignedTo: "DOCTOR" | "NURSE" }
+  meta  Json?                   // store { assignedTo: "DOCTOR" | "NURSE" }
+  texts EncounterServiceText[]
+}
+
+model EncounterServiceText {
+  id                 Int      @id @default(autoincrement())
+  encounterServiceId Int
+  text               String   @db.Text
+  order              Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  encounterService EncounterService @relation(fields: [encounterServiceId], references: [id], onDelete: Cascade)
+
+  @@index([encounterServiceId])
 }
 
 // Optional legacy Procedure catalog – wired to InvoiceItem
