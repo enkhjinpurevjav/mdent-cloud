@@ -187,6 +187,9 @@ export type EditableDiagnosis = EncounterDiagnosisRow & {
   assignedTo?: AssignedTo;
   // Dirty tracking: true if user has explicitly modified indicators
   indicatorsDirty?: boolean;
+  // Draft text arrays for local editing before save
+  draftProblemTexts?: string[];
+  draftServiceTexts?: string[];
 };
 
 export type ActiveIndicator = {

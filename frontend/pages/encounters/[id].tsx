@@ -174,6 +174,8 @@ export default function EncounterAdminPage() {
       indicatorIds: [],
       indicatorSearchText: "",
       indicatorsDirty: false,
+      draftProblemTexts: [""], // Start with one empty text field
+      draftServiceTexts: undefined,
     };
 
     setEditableDxRows((prev) => [...prev, newRow]);
@@ -512,6 +514,10 @@ const loadEncounter = async () => {
           : [],
         indicatorSearchText: "",
         indicatorsDirty: false, // Not dirty when loaded from backend
+
+        // Initialize draft text arrays from saved texts
+        draftProblemTexts: row.problemTexts?.map((pt) => pt.text) || undefined,
+        draftServiceTexts: undefined, // Will be set during merge with services
       })) || [];
 
     // 2) Load active indicators for patient's branch (needed for display)
@@ -544,11 +550,15 @@ const loadEncounter = async () => {
         serviceSearchText = svc.code ? `${svc.code} – ${svc.name}` : svc.name;
       }
 
+      // Initialize draft service texts from saved texts
+      const draftServiceTexts = linkedService?.texts?.map((t) => t.text) || undefined;
+
       return {
         ...dxRow,
         serviceId: linkedService?.serviceId,
         serviceSearchText,
         assignedTo,
+        draftServiceTexts,
       };
     });
 
@@ -1467,17 +1477,74 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     setEditableDxRows(savedDxRows);
     setRows(savedDxRows);
 
+    // Sync problem texts and service texts for each saved diagnosis
+    for (const srvRow of savedRows) {
+      if (!srvRow.id) continue;
+
+      // Find the corresponding editable row to get draft texts
+      const editableRow = editableDxRows.find(r => r.localId === srvRow.localId);
+      if (!editableRow) continue;
+
+      // Sync problem texts if there are drafts
+      if (editableRow.draftProblemTexts && Array.isArray(editableRow.draftProblemTexts)) {
+        try {
+          await fetch(`/api/encounter-diagnoses/${srvRow.id}/problem-texts/sync`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ texts: editableRow.draftProblemTexts }),
+          });
+        } catch (err) {
+          console.error(`Error syncing problem texts for diagnosis ${srvRow.id}:`, err);
+        }
+      }
+
+      // Sync service texts if the row has a service
+      if (srvRow.serviceId && editableRow.draftServiceTexts && Array.isArray(editableRow.draftServiceTexts)) {
+        // Find the corresponding encounterService by checking meta.diagnosisId
+        const matchingEncounterService = encounter?.encounterServices?.find(
+          (es: any) => es.meta?.diagnosisId === srvRow.id
+        );
+        
+        if (matchingEncounterService?.id) {
+          try {
+            await fetch(`/api/encounter-services/${matchingEncounterService.id}/texts/sync`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ texts: editableRow.draftServiceTexts }),
+            });
+          } catch (err) {
+            console.error(`Error syncing service texts for service ${matchingEncounterService.id}:`, err);
+          }
+        }
+      }
+    }
+
     // Update encounter services to match saved state
     if (encounter) {
-      // Fetch updated services to refresh encounter state
+      // Fetch updated encounter to refresh services and text arrays
       const servicesRes = await fetch(`/api/encounters/${id}`);
       if (servicesRes.ok) {
         const encounterData = await servicesRes.json();
         setEncounter({
           ...encounter,
           encounterServices: encounterData.encounterServices || [],
+          encounterDiagnoses: encounterData.encounterDiagnoses || [],
         });
         setEditableServices(encounterData.encounterServices || []);
+        
+        // Update savedDxRows with fresh problemTexts and serviceTexts from backend
+        const refreshedDxRows: EditableDiagnosis[] = savedDxRows.map((savedRow) => {
+          const backendDx = encounterData.encounterDiagnoses?.find((dx: any) => dx.id === savedRow.id);
+          return {
+            ...savedRow,
+            problemTexts: backendDx?.problemTexts || [],
+            draftProblemTexts: undefined, // Clear drafts, use saved data
+            draftServiceTexts: undefined, // Clear drafts, use saved data
+          };
+        });
+        
+        setEditableDxRows(refreshedDxRows);
+        setRows(refreshedDxRows);
       }
     }
 
