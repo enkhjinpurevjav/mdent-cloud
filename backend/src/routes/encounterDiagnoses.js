@@ -43,6 +43,10 @@ router.post("/:id/problem-texts", async (req, res) => {
 /**
  * PUT /api/encounter-diagnoses/:id/problem-texts/sync
  * Sync problem texts - batch update to match provided list
+ * 
+ * Query parameters:
+ * - replace: If 'true', enables destructive replacement (delete all then recreate).
+ *            Default (not set or not 'true'): safe mode - empty arrays won't delete existing data.
  */
 router.put("/:id/problem-texts/sync", async (req, res) => {
   try {
@@ -64,13 +68,17 @@ router.put("/:id/problem-texts/sync", async (req, res) => {
       return res.status(400).json({ error: "texts must be an array" });
     }
 
+    // Check if destructive replacement is explicitly requested
+    const replaceMode = req.query.replace === 'true';
+
     // Trim texts and filter out empty ones
     const nonEmptyTexts = texts
       .map(t => (typeof t === 'string' ? t.trim() : ''))
       .filter(t => t.length > 0);
 
-    // If no non-empty texts provided, treat as no-op (don't delete existing data)
-    if (nonEmptyTexts.length === 0) {
+    // SAFE mode (default): If no non-empty texts provided, treat as no-op (don't delete existing data)
+    // This prevents unintentional data loss when frontend sends {texts: []} for unedited rows
+    if (nonEmptyTexts.length === 0 && !replaceMode) {
       const existing = await prisma.encounterDiagnosisProblemText.findMany({
         where: { encounterDiagnosisId },
         orderBy: { order: 'asc' },
@@ -79,6 +87,7 @@ router.put("/:id/problem-texts/sync", async (req, res) => {
     }
 
     // Delete all existing texts first (simpler than complex upsert logic)
+    // In SAFE mode with data, or REPLACE mode (even with empty array)
     await prisma.encounterDiagnosisProblemText.deleteMany({
       where: { encounterDiagnosisId },
     });
