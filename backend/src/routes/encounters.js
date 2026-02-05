@@ -1519,17 +1519,17 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
             }
           }
 
-          // 3. Replace service for this diagnosis row
-          // First, delete any existing service linked to this diagnosis row
-          await trx.encounterService.deleteMany({
+          // 3. Upsert service for this diagnosis row (preserves EncounterServiceText)
+          // Find existing service for this diagnosis row
+          const existingService = await trx.encounterService.findFirst({
             where: {
               encounterId,
               meta: { path: ["diagnosisId"], equals: diagnosisRowId },
             },
           });
 
-          // Create new service if serviceId is provided
           if (serviceIdValue) {
+            // Service ID is provided - create or update
             const service = await trx.service.findUnique({
               where: { id: serviceIdValue },
               select: { price: true },
@@ -1547,14 +1547,35 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
                 meta.toothScope = "ALL";
               }
 
-              await trx.encounterService.create({
-                data: {
-                  encounterId,
-                  serviceId: serviceIdValue,
-                  quantity: 1,
-                  price: service.price,
-                  meta,
-                },
+              if (existingService) {
+                // Update existing service (preserves texts)
+                await trx.encounterService.update({
+                  where: { id: existingService.id },
+                  data: {
+                    serviceId: serviceIdValue,
+                    quantity: 1,
+                    price: service.price,
+                    meta,
+                  },
+                });
+              } else {
+                // Create new service
+                await trx.encounterService.create({
+                  data: {
+                    encounterId,
+                    serviceId: serviceIdValue,
+                    quantity: 1,
+                    price: service.price,
+                    meta,
+                  },
+                });
+              }
+            }
+          } else {
+            // Service ID is null/empty - delete existing service if any (intentional removal)
+            if (existingService) {
+              await trx.encounterService.delete({
+                where: { id: existingService.id },
               });
             }
           }
