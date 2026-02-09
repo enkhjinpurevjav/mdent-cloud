@@ -703,8 +703,9 @@ function BillingPaymentSection({
         const data = await res.json().catch(() => null);
 
         if (!res.ok || !data) {
-          // Check for sterilization mismatch error
-          if (data?.error?.includes("UNRESOLVED_STERILIZATION_MISMATCH") || 
+          // Check for sterilization mismatch error code
+          if (data?.errorCode === "UNRESOLVED_STERILIZATION_MISMATCH" ||
+              data?.error?.includes("UNRESOLVED_STERILIZATION_MISMATCH") || 
               data?.error?.includes("mismatch") ||
               data?.error?.includes("sterilization")) {
             throw new Error("Ариутгалын багажийн зөрүү шийдвэрлээгүй байна. Эхлээд зөрүүг шийдвэрлэнэ үү.");

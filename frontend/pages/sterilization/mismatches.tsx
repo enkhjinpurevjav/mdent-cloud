@@ -100,7 +100,7 @@ export default function MismatchesPage() {
 
       if (!groups[encId]) {
         const patient = mismatch.encounter?.patient;
-        const patientName = patient ? `${patient.lastName} ${patient.firstName}` : "Unknown";
+        const patientName = patient ? `${patient.lastName} ${patient.firstName}` : "Тодорхойгүй";
         const branchName = branches.find((b) => b.id === branchId)?.name || "—";
         const visitDate = mismatch.encounter?.startTime || "";
 
@@ -146,7 +146,7 @@ export default function MismatchesPage() {
   const submitResolve = async () => {
     if (!resolvingEncounterId) return;
     if (!resolverName.trim()) {
-      alert("Шийдвэрлэсэн хүний нэрийг оруулна уу.");
+      setError("Шийдвэрлэсэн хүний нэрийг оруулна уу.");
       return;
     }
 
