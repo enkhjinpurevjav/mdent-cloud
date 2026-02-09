@@ -180,7 +180,7 @@ export default function CycleCreatePage() {
       }
       if (pressure.trim()) {
         // Sanitize pressure: keep only digits and spaces, normalize spacing
-        const sanitizedPressure = pressure.replace(/[^\d\s]/g, '').replace(/\s+/g, ' ').trim();
+        const sanitizedPressure = pressure.replace(/-/g, ' ').replace(/[^\d\s]/g, '').replace(/\s+/g, ' ').trim();
         if (sanitizedPressure) {
           body.pressure = sanitizedPressure;
         }

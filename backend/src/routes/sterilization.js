@@ -422,8 +422,8 @@ router.post("/sterilization/cycles", async (req, res) => {
     if (req.body?.pressure) {
       const pressureStr = String(req.body.pressure).trim();
       if (pressureStr) {
-        // Extract only digits and spaces, then normalize multiple spaces to single space
-        pressure = pressureStr.replace(/[^\d\s]/g, '').replace(/\s+/g, ' ').trim();
+        // First replace hyphens with spaces, then extract only digits and spaces, then normalize multiple spaces to single space
+        pressure = pressureStr.replace(/-/g, ' ').replace(/[^\d\s]/g, '').replace(/\s+/g, ' ').trim();
         // If empty after sanitization, set to null
         if (!pressure) pressure = null;
       }
