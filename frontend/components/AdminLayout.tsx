@@ -82,10 +82,13 @@ const navItems: NavItem[] = [
   label: "Ариутгал",
   icon: "🧼",
   children: [
-    { label: "Ариутгалын тайлан", href: "/sterilization/reports", icon: "📊" },
-    { label: "Индикатор үүсгэх", href: "/sterilization/indicators/new", icon: "🧾" },
-    { label: "Идэвхитэй индикатор", href: "/sterilization/indicators/active", icon: "✅" },
     { label: "Тохиргоо", href: "/sterilization/settings", icon: "⚙️" },
+    { label: "Цикл үүсгэх", href: "/sterilization/cycles/new", icon: "🔄" },
+    { label: "Циклийн жагсаалт", href: "/sterilization/cycles", icon: "📋" },
+    { label: "Зөрүү", href: "/sterilization/mismatches", icon: "⚠️" },
+    { label: "Ариутгалын тайлан", href: "/sterilization/reports", icon: "📊" },
+    { label: "Индикатор үүсгэх (хуучин)", href: "/sterilization/indicators/new", icon: "🧾" },
+    { label: "Идэвхитэй индикатор (хуучин)", href: "/sterilization/indicators/active", icon: "✅" },
   ],
 },
 
