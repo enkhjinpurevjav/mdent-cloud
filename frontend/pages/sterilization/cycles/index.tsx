@@ -6,7 +6,13 @@ type AutoclaveCycle = {
   id: number;
   branchId: number;
   code: string;
+  sterilizationRunNumber: string | null;
   machineNumber: string;
+  startedAt: string | null;
+  pressure: number | null;
+  temperature: number | null;
+  finishedAt: string | null;
+  removedFromAutoclaveAt: string | null;
   completedAt: string;
   result: "PASS" | "FAIL";
   operator: string;
@@ -207,7 +213,47 @@ export default function CyclesListPage() {
                     {isExpanded && (
                       <tr style={{ background: "#f9fafb" }}>
                         <td colSpan={8} style={{ padding: 16 }}>
-                          <div style={{ marginBottom: 8 }}>
+                          {/* Cycle Details */}
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }}>
+                            {cycle.sterilizationRunNumber && (
+                              <div>
+                                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>Ариутгалын дугаар:</div>
+                                <div style={{ fontSize: 13, fontWeight: 500 }}>{cycle.sterilizationRunNumber}</div>
+                              </div>
+                            )}
+                            {cycle.startedAt && (
+                              <div>
+                                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>Эхэлсэн цаг:</div>
+                                <div style={{ fontSize: 13 }}>{formatDateTime(cycle.startedAt)}</div>
+                              </div>
+                            )}
+                            {cycle.finishedAt && (
+                              <div>
+                                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>Дууссан цаг:</div>
+                                <div style={{ fontSize: 13 }}>{formatDateTime(cycle.finishedAt)}</div>
+                              </div>
+                            )}
+                            {cycle.removedFromAutoclaveAt && (
+                              <div>
+                                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>Автоклаваас гаргасан:</div>
+                                <div style={{ fontSize: 13 }}>{formatDateTime(cycle.removedFromAutoclaveAt)}</div>
+                              </div>
+                            )}
+                            {cycle.pressure !== null && cycle.pressure !== undefined && (
+                              <div>
+                                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>Даралт:</div>
+                                <div style={{ fontSize: 13 }}>{cycle.pressure}</div>
+                              </div>
+                            )}
+                            {cycle.temperature !== null && cycle.temperature !== undefined && (
+                              <div>
+                                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>Температур:</div>
+                                <div style={{ fontSize: 13 }}>{cycle.temperature}°C</div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div style={{ marginBottom: 12 }}>
                             <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Тэмдэглэл:</div>
                             <div style={{ fontSize: 13 }}>
                               {cycle.notes || <span style={{ color: "#9ca3af" }}>Тэмдэглэл байхгүй</span>}
