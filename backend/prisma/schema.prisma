@@ -309,7 +309,7 @@ model AutoclaveCycle {
   sterilizationRunNumber  String?  // Run counter per machine (Ариутгалын дугаар)
   machineNumber           String   // Machine number (from AutoclaveMachine)
   startedAt               DateTime? // When cycle started
-  pressure                Float?   // Pressure value
+  pressure                String?  // Pressure value (stored as string with spaces, e.g., "90 230")
   temperature             Float?   // Temperature value
   finishedAt              DateTime? // When cycle finished
   removedFromAutoclaveAt  DateTime? // When removed from autoclave

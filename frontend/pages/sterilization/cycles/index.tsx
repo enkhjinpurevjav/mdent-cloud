@@ -9,7 +9,7 @@ type AutoclaveCycle = {
   sterilizationRunNumber: string | null;
   machineNumber: string;
   startedAt: string | null;
-  pressure: number | null;
+  pressure: string | null;
   temperature: number | null;
   finishedAt: string | null;
   removedFromAutoclaveAt: string | null;
@@ -242,7 +242,7 @@ export default function CyclesListPage() {
                             {cycle.pressure !== null && cycle.pressure !== undefined && (
                               <div>
                                 <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>Даралт:</div>
-                                <div style={{ fontSize: 13 }}>{cycle.pressure}</div>
+                                <div style={{ fontSize: 13 }}>{cycle.pressure} kPa</div>
                               </div>
                             )}
                             {cycle.temperature !== null && cycle.temperature !== undefined && (
