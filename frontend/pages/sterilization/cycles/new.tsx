@@ -37,6 +37,7 @@ export default function CycleCreatePage() {
   const [branchId, setBranchId] = useState<number | "">("");
   const [code, setCode] = useState("");
   const [codeWarning, setCodeWarning] = useState("");
+  const [lastCheckedCode, setLastCheckedCode] = useState("");
   const [sterilizationRunNumber, setSterilizationRunNumber] = useState("");
   const [machineId, setMachineId] = useState<number | "">("");
   const [startedAt, setStartedAt] = useState(formatDateTime(new Date()));
@@ -104,6 +105,13 @@ export default function CycleCreatePage() {
       setCodeWarning("");
       return;
     }
+    
+    // Avoid duplicate checks for the same code
+    if (code.trim() === lastCheckedCode) {
+      return;
+    }
+    
+    setLastCheckedCode(code.trim());
     
     try {
       const res = await fetch(`/api/sterilization/cycles/check-code?branchId=${branchId}&code=${encodeURIComponent(code.trim())}`);
@@ -193,6 +201,7 @@ export default function CycleCreatePage() {
       // Reset form
       setCode("");
       setCodeWarning("");
+      setLastCheckedCode("");
       setSterilizationRunNumber("");
       setStartedAt(formatDateTime(new Date()));
       setPressure("");
@@ -254,9 +263,10 @@ export default function CycleCreatePage() {
               onBlur={checkCodeUniqueness}
               placeholder="Ж: T-2024-001"
               style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+              aria-describedby={codeWarning ? "code-warning" : undefined}
             />
             {codeWarning && (
-              <div style={{ fontSize: 11, color: "#ea580c", marginTop: 4 }}>
+              <div id="code-warning" role="alert" aria-live="polite" style={{ fontSize: 11, color: "#ea580c", marginTop: 4 }}>
                 {codeWarning}
               </div>
             )}
