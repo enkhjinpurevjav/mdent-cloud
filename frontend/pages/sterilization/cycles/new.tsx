@@ -33,8 +33,10 @@ function formatDateTime(date: Date) {
   return `${y}-${m}-${d}T${h}:${min}`;
 }
 
+let toolLineIdCounter = 0;
+
 function generateId() {
-  return `tool-line-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  return `tool-line-${Date.now()}-${++toolLineIdCounter}`;
 }
 
 export default function CycleCreatePage() {
