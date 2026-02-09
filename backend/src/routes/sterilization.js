@@ -451,8 +451,14 @@ router.post("/sterilization/cycles", async (req, res) => {
   try {
     const branchId = Number(req.body?.branchId);
     const code = String(req.body?.code || "").trim();
+    const sterilizationRunNumber = req.body?.sterilizationRunNumber ? String(req.body?.sterilizationRunNumber).trim() : null;
     const machineNumber = String(req.body?.machineNumber || "").trim();
-    const completedAtRaw = req.body?.completedAt;
+    const startedAtRaw = req.body?.startedAt;
+    const pressure = req.body?.pressure ? Number(req.body?.pressure) : null;
+    const temperature = req.body?.temperature ? Number(req.body?.temperature) : null;
+    const finishedAtRaw = req.body?.finishedAt;
+    const removedFromAutoclaveAtRaw = req.body?.removedFromAutoclaveAt;
+    const completedAtRaw = req.body?.completedAt || req.body?.finishedAt; // fallback to finishedAt
     const result = String(req.body?.result || "").toUpperCase();
     const operator = String(req.body?.operator || "").trim();
     const notes = req.body?.notes ? String(req.body?.notes).trim() : null;
@@ -461,7 +467,7 @@ router.post("/sterilization/cycles", async (req, res) => {
     if (!branchId) return res.status(400).json({ error: "branchId is required" });
     if (!code) return res.status(400).json({ error: "code is required" });
     if (!machineNumber) return res.status(400).json({ error: "machineNumber is required" });
-    if (!completedAtRaw) return res.status(400).json({ error: "completedAt is required" });
+    if (!completedAtRaw) return res.status(400).json({ error: "completedAt or finishedAt is required" });
     if (!operator) return res.status(400).json({ error: "operator is required" });
     if (result !== "PASS" && result !== "FAIL") {
       return res.status(400).json({ error: "result must be PASS or FAIL" });
@@ -470,9 +476,25 @@ router.post("/sterilization/cycles", async (req, res) => {
       return res.status(400).json({ error: "At least one tool line is required" });
     }
 
+    // Parse dates
     const completedAt = new Date(completedAtRaw);
     if (Number.isNaN(completedAt.getTime())) {
       return res.status(400).json({ error: "completedAt is invalid" });
+    }
+
+    const startedAt = startedAtRaw ? new Date(startedAtRaw) : null;
+    if (startedAt && Number.isNaN(startedAt.getTime())) {
+      return res.status(400).json({ error: "startedAt is invalid" });
+    }
+
+    const finishedAt = finishedAtRaw ? new Date(finishedAtRaw) : null;
+    if (finishedAt && Number.isNaN(finishedAt.getTime())) {
+      return res.status(400).json({ error: "finishedAt is invalid" });
+    }
+
+    const removedFromAutoclaveAt = removedFromAutoclaveAtRaw ? new Date(removedFromAutoclaveAtRaw) : null;
+    if (removedFromAutoclaveAt && Number.isNaN(removedFromAutoclaveAt.getTime())) {
+      return res.status(400).json({ error: "removedFromAutoclaveAt is invalid" });
     }
 
     // Validate tool lines
@@ -492,7 +514,13 @@ router.post("/sterilization/cycles", async (req, res) => {
       data: {
         branchId,
         code,
+        sterilizationRunNumber,
         machineNumber,
+        startedAt,
+        pressure,
+        temperature,
+        finishedAt,
+        removedFromAutoclaveAt,
         completedAt,
         result,
         operator,
@@ -518,6 +546,28 @@ router.post("/sterilization/cycles", async (req, res) => {
       return res.status(400).json({ error: "Cycle code already exists for this branch" });
     }
     return res.status(500).json({ error: "Failed to create cycle" });
+  }
+});
+
+// GET check if cycle code (cycleNumber) exists for a branch
+router.get("/sterilization/cycles/check-code", async (req, res) => {
+  try {
+    const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+    const code = req.query.code ? String(req.query.code).trim() : "";
+    
+    if (!branchId || !code) {
+      return res.status(400).json({ error: "branchId and code are required" });
+    }
+    
+    const existing = await prisma.autoclaveCycle.findFirst({
+      where: { branchId, code },
+      select: { id: true, code: true },
+    });
+    
+    res.json({ exists: !!existing, code });
+  } catch (err) {
+    console.error("GET /api/sterilization/cycles/check-code error:", err);
+    return res.status(500).json({ error: "Failed to check code" });
   }
 });
 
