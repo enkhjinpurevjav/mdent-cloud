@@ -87,8 +87,6 @@ const navItems: NavItem[] = [
     { label: "Циклийн жагсаалт", href: "/sterilization/cycles", icon: "📋" },
     { label: "Зөрүү", href: "/sterilization/mismatches", icon: "⚠️" },
     { label: "Ариутгалын тайлан", href: "/sterilization/reports", icon: "📊" },
-    { label: "Индикатор үүсгэх (хуучин)", href: "/sterilization/indicators/new", icon: "🧾" },
-    { label: "Идэвхитэй индикатор (хуучин)", href: "/sterilization/indicators/active", icon: "✅" },
   ],
 },
 
