@@ -19,6 +19,8 @@ type ToolLine = {
   toolId: number | "";
   producedQty: number;
   toolSearch: string; // Search query for filtering tools
+  showDropdown: boolean; // Whether to show the dropdown
+  duplicateError: string; // Error message for duplicate selection
 };
 
 function formatDateTime(date: Date) {
@@ -49,7 +51,7 @@ export default function CycleCreatePage() {
   const [result, setResult] = useState<"PASS" | "FAIL">("PASS");
   const [operator, setOperator] = useState("");
   const [notes, setNotes] = useState("");
-  const [toolLines, setToolLines] = useState<ToolLine[]>([{ toolId: "", producedQty: 1, toolSearch: "" }]);
+  const [toolLines, setToolLines] = useState<ToolLine[]>([{ toolId: "", producedQty: 1, toolSearch: "", showDropdown: false, duplicateError: "" }]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -129,7 +131,7 @@ export default function CycleCreatePage() {
   };
 
   const addToolLine = () => {
-    setToolLines([...toolLines, { toolId: "", producedQty: 1, toolSearch: "" }]);
+    setToolLines([...toolLines, { toolId: "", producedQty: 1, toolSearch: "", showDropdown: false, duplicateError: "" }]);
   };
 
   const removeToolLine = (index: number) => {
@@ -139,6 +141,30 @@ export default function CycleCreatePage() {
   const updateToolLine = (index: number, field: keyof ToolLine, value: any) => {
     const updated = [...toolLines];
     updated[index] = { ...updated[index], [field]: value };
+    setToolLines(updated);
+  };
+
+  const selectTool = (index: number, toolId: number) => {
+    // Check if this tool is already selected in another line
+    const alreadySelected = toolLines.some((line, i) => i !== index && line.toolId === toolId);
+    
+    if (alreadySelected) {
+      // Don't select, show error
+      updateToolLine(index, "duplicateError", "Энэ багаж аль хэдийн сонгогдсон байна");
+      return;
+    }
+    
+    // Find the tool name
+    const selectedTool = tools.find((t) => t.id === toolId);
+    
+    const updated = [...toolLines];
+    updated[index] = {
+      ...updated[index],
+      toolId,
+      toolSearch: selectedTool?.name || "",
+      showDropdown: false,
+      duplicateError: "",
+    };
     setToolLines(updated);
   };
 
@@ -215,7 +241,7 @@ export default function CycleCreatePage() {
       setRemovedFromAutoclaveAt("");
       setOperator("");
       setNotes("");
-      setToolLines([{ toolId: "", producedQty: 1, toolSearch: "" }]);
+      setToolLines([{ toolId: "", producedQty: 1, toolSearch: "", showDropdown: false, duplicateError: "" }]);
       // Reset machine to first one if available
       if (machines.length > 0) {
         setMachineId(machines[0].id);
@@ -260,6 +286,18 @@ export default function CycleCreatePage() {
 
           <div>
             <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
+              Ариутгалын дугаар
+            </label>
+            <input
+              value={sterilizationRunNumber}
+              onChange={(e) => setSterilizationRunNumber(e.target.value)}
+              placeholder="Ж: SR-001"
+              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
               Циклын код <span style={{ color: "#dc2626" }}>*</span>
             </label>
             <input
@@ -275,18 +313,6 @@ export default function CycleCreatePage() {
                 {codeWarning}
               </div>
             )}
-          </div>
-
-          <div>
-            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Ариутгалын дугаар
-            </label>
-            <input
-              value={sterilizationRunNumber}
-              onChange={(e) => setSterilizationRunNumber(e.target.value)}
-              placeholder="Ж: SR-001"
-              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
-            />
           </div>
 
           <div>
@@ -322,15 +348,15 @@ export default function CycleCreatePage() {
             <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
               Даралт
             </label>
-            <div style={{ position: "relative" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <input
                 type="text"
                 value={pressure}
                 onChange={(e) => setPressure(e.target.value)}
                 placeholder="Ж: 90 230"
-                style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", paddingRight: "45px", fontSize: 13 }}
+                style={{ flex: 1, border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13, minWidth: 0 }}
               />
-              <span style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "#6b7280", pointerEvents: "none" }}>
+              <span style={{ fontSize: 13, color: "#6b7280", whiteSpace: "nowrap" }}>
                 kPa
               </span>
             </div>
@@ -474,7 +500,7 @@ export default function CycleCreatePage() {
             </thead>
             <tbody>
               {toolLines.map((line, index) => {
-                // Filter tools based on search query
+                // Filter tools based on search query (case-insensitive contains search)
                 const filteredTools = line.toolSearch.trim()
                   ? tools.filter((tool) => 
                       tool.name.toLowerCase().includes(line.toolSearch.toLowerCase())
@@ -485,47 +511,84 @@ export default function CycleCreatePage() {
                   <tr key={index} style={{ borderBottom: "1px solid #f3f4f6" }}>
                     <td style={{ padding: "8px 4px", verticalAlign: "top", paddingTop: "12px" }}>{index + 1}</td>
                     <td style={{ padding: "8px 4px" }}>
-                      {/* Search input */}
-                      <input
-                        type="text"
-                        value={line.toolSearch}
-                        onChange={(e) => updateToolLine(index, "toolSearch", e.target.value)}
-                        placeholder="Хайх..."
-                        style={{ 
-                          width: "100%", 
-                          border: "1px solid #d1d5db", 
-                          borderRadius: 8, 
-                          padding: "6px 8px", 
-                          fontSize: 13,
-                          marginBottom: "4px"
-                        }}
-                      />
-                      {/* Tool select dropdown */}
-                      <select
-                        value={line.toolId}
-                        onChange={(e) => updateToolLine(index, "toolId", e.target.value ? Number(e.target.value) : "")}
-                        style={{ 
-                          width: "100%", 
-                          border: "1px solid #d1d5db", 
-                          borderRadius: 8, 
-                          padding: "6px 8px", 
-                          fontSize: 13,
-                          maxHeight: "200px"
-                        }}
-                      >
-                        <option value="">Багаж сонгох...</option>
-                        {filteredTools.map((tool) => (
-                          <option key={tool.id} value={tool.id}>{tool.name}</option>
-                        ))}
-                      </select>
-                      {line.toolSearch.trim() && filteredTools.length === 0 && (
+                      {/* Single autocomplete-style input */}
+                      <div style={{ position: "relative" }}>
+                        <input
+                          type="text"
+                          value={line.toolSearch}
+                          onChange={(e) => {
+                            updateToolLine(index, "toolSearch", e.target.value);
+                            updateToolLine(index, "showDropdown", true);
+                            updateToolLine(index, "duplicateError", "");
+                          }}
+                          onFocus={() => updateToolLine(index, "showDropdown", true)}
+                          onBlur={() => {
+                            // Delay to allow click on dropdown item
+                            setTimeout(() => updateToolLine(index, "showDropdown", false), 200);
+                          }}
+                          placeholder="Багаж хайх..."
+                          style={{ 
+                            width: "100%", 
+                            border: line.duplicateError ? "1px solid #dc2626" : "1px solid #d1d5db", 
+                            borderRadius: 8, 
+                            padding: "6px 8px", 
+                            fontSize: 13
+                          }}
+                        />
+                        {/* Dropdown with filtered options */}
+                        {line.showDropdown && filteredTools.length > 0 && (
+                          <div 
+                            style={{
+                              position: "absolute",
+                              top: "100%",
+                              left: 0,
+                              right: 0,
+                              maxHeight: "200px",
+                              overflowY: "auto",
+                              background: "#fff",
+                              border: "1px solid #d1d5db",
+                              borderRadius: 8,
+                              marginTop: 2,
+                              zIndex: 10,
+                              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
+                            }}
+                          >
+                            {filteredTools.map((tool) => (
+                              <div
+                                key={tool.id}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  selectTool(index, tool.id);
+                                }}
+                                style={{
+                                  padding: "8px 10px",
+                                  cursor: "pointer",
+                                  fontSize: 13,
+                                  borderBottom: "1px solid #f3f4f6",
+                                  background: line.toolId === tool.id ? "#eff6ff" : "#fff"
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = "#f3f4f6";
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = line.toolId === tool.id ? "#eff6ff" : "#fff";
+                                }}
+                              >
+                                {tool.name}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {/* Error messages */}
+                      {line.duplicateError && (
                         <div style={{ fontSize: 11, color: "#dc2626", marginTop: 2 }}>
-                          Илэрц олдсонгүй
+                          {line.duplicateError}
                         </div>
                       )}
-                      {line.toolSearch.trim() && filteredTools.length > 0 && (
-                        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
-                          {filteredTools.length} багаж
+                      {line.toolSearch.trim() && !line.showDropdown && filteredTools.length === 0 && (
+                        <div style={{ fontSize: 11, color: "#dc2626", marginTop: 2 }}>
+                          Илэрц олдсонгүй
                         </div>
                       )}
                     </td>
