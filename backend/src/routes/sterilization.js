@@ -681,4 +681,125 @@ router.delete("/sterilization/draft-attachments/:id", async (req, res) => {
   }
 });
 
+// ==========================================================
+// V1 STERILIZATION: Mismatch Management
+// ==========================================================
+
+// GET mismatches by encounter
+router.get("/sterilization/mismatches", async (req, res) => {
+  try {
+    const encounterId = req.query.encounterId ? Number(req.query.encounterId) : null;
+    const status = req.query.status ? String(req.query.status).toUpperCase() : null;
+    
+    const where = {
+      ...(encounterId ? { encounterId } : {}),
+      ...(status ? { status } : {}),
+    };
+
+    const mismatches = await prisma.sterilizationMismatch.findMany({
+      where,
+      include: {
+        encounter: {
+          select: {
+            id: true,
+            visitDate: true,
+            patientBook: {
+              select: {
+                patient: { select: { id: true, name: true, ovog: true } },
+              },
+            },
+          },
+        },
+        branch: { select: { id: true, name: true } },
+        tool: { select: { id: true, name: true } },
+        adjustments: {
+          include: {
+            resolvedBy: { select: { id: true, name: true, ovog: true } },
+          },
+        },
+      },
+      orderBy: [{ createdAt: "desc" }],
+    });
+
+    res.json(mismatches);
+  } catch (err) {
+    console.error("GET /api/sterilization/mismatches error:", err);
+    return res.status(500).json({ error: "Failed to get mismatches" });
+  }
+});
+
+// POST resolve mismatches for an encounter
+router.post("/sterilization/mismatches/:encounterId/resolve", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.encounterId);
+    const resolvedByName = String(req.body?.resolvedByName || "").trim();
+    const resolvedByUserId = req.body?.resolvedByUserId ? Number(req.body.resolvedByUserId) : null;
+    const note = req.body?.note ? String(req.body.note).trim() : null;
+
+    if (!encounterId) {
+      return res.status(400).json({ error: "Invalid encounterId" });
+    }
+    if (!resolvedByName) {
+      return res.status(400).json({ error: "resolvedByName is required" });
+    }
+
+    // TODO: Add role checking (nurse, manager, admin only)
+    // For now, we'll allow any request with a resolvedByName
+
+    // Get all unresolved mismatches for this encounter
+    const unresolvedMismatches = await prisma.sterilizationMismatch.findMany({
+      where: {
+        encounterId,
+        status: "UNRESOLVED",
+      },
+    });
+
+    if (unresolvedMismatches.length === 0) {
+      return res.status(400).json({ error: "No unresolved mismatches for this encounter" });
+    }
+
+    // Use transaction to resolve all mismatches
+    const result = await prisma.$transaction(async (tx) => {
+      const adjustments = [];
+      const updatedMismatches = [];
+
+      for (const mismatch of unresolvedMismatches) {
+        // Create adjustment consumption
+        const adjustment = await tx.sterilizationAdjustmentConsumption.create({
+          data: {
+            mismatchId: mismatch.id,
+            encounterId: mismatch.encounterId,
+            branchId: mismatch.branchId,
+            toolId: mismatch.toolId,
+            code: mismatch.code,
+            quantity: mismatch.mismatchQty,
+            resolvedByUserId,
+            resolvedByName,
+            note,
+          },
+        });
+        adjustments.push(adjustment);
+
+        // Mark mismatch as resolved
+        const updated = await tx.sterilizationMismatch.update({
+          where: { id: mismatch.id },
+          data: { status: "RESOLVED" },
+        });
+        updatedMismatches.push(updated);
+      }
+
+      return { adjustments, mismatches: updatedMismatches };
+    });
+
+    res.json({
+      message: `Resolved ${result.mismatches.length} mismatch(es)`,
+      adjustments: result.adjustments,
+      mismatches: result.mismatches,
+    });
+  } catch (err) {
+    console.error("POST /api/sterilization/mismatches/:encounterId/resolve error:", err);
+    return res.status(500).json({ error: "Failed to resolve mismatches" });
+  }
+});
+
 export default router;

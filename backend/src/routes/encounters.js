@@ -4,6 +4,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { authenticateJWT, optionalAuthenticateJWT } from "../middleware/auth.js";
+import { finalizeSterilizationForEncounter } from "../services/sterilizationFinalize.js";
 
 const router = express.Router();
 
@@ -905,6 +906,7 @@ router.put("/:id/chart-teeth", async (req, res) => {
  * PUT /api/encounters/:id/finish
  *
  * Doctor finishes encounter → mark related appointment as ready_to_pay
+ * NEW: Also finalizes sterilization draft attachments
  */
 router.put("/:id/finish", async (req, res) => {
   try {
@@ -922,19 +924,33 @@ router.put("/:id/finish", async (req, res) => {
       return res.status(404).json({ error: "Encounter not found" });
     }
 
-    if (!encounter.appointmentId || !encounter.appointment) {
-      return res.json({ ok: true, updatedAppointment: null });
+    // NEW: Finalize sterilization draft attachments
+    let sterilizationResult = null;
+    try {
+      sterilizationResult = await finalizeSterilizationForEncounter(encounterId);
+    } catch (sterilizationErr) {
+      console.error("Sterilization finalization error:", sterilizationErr);
+      // Log error but don't block encounter finish
+      sterilizationResult = { error: sterilizationErr.message };
     }
 
-    const appt = await prisma.appointment.update({
-      where: { id: encounter.appointmentId },
-      data: {
-        // NOTE: make sure this matches your AppointmentStatus enum value
-        status: "ready_to_pay",
-      },
-    });
+    // Update appointment status if linked
+    let updatedAppointment = null;
+    if (encounter.appointmentId && encounter.appointment) {
+      updatedAppointment = await prisma.appointment.update({
+        where: { id: encounter.appointmentId },
+        data: {
+          // NOTE: make sure this matches your AppointmentStatus enum value
+          status: "ready_to_pay",
+        },
+      });
+    }
 
-    return res.json({ ok: true, updatedAppointment: appt });
+    return res.json({ 
+      ok: true, 
+      updatedAppointment,
+      sterilization: sterilizationResult,
+    });
   } catch (err) {
     console.error("PUT /api/encounters/:id/finish error:", err);
     return res.status(500).json({

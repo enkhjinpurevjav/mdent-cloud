@@ -131,6 +131,24 @@ router.post("/:id/settlement", async (req, res) => {
       }
     }
 
+    // NEW: Billing gate - check for unresolved sterilization mismatches
+    if (invoice.encounterId) {
+      const unresolvedMismatches = await prisma.sterilizationMismatch.findFirst({
+        where: {
+          encounterId: invoice.encounterId,
+          status: "UNRESOLVED",
+        },
+        select: { id: true },
+      });
+
+      if (unresolvedMismatches) {
+        return res.status(400).json({
+          error: "Төлбөр батлах боломжгүй: Ариутгалын тохиргоо дутуу байна. Эхлээд ариутгалын зөрүүг шийдвэрлэнэ үү.",
+          errorCode: "UNRESOLVED_STERILIZATION_MISMATCH",
+        });
+      }
+    }
+
     // Financial base amount to settle against
     const baseAmount =
       invoice.finalAmount != null
