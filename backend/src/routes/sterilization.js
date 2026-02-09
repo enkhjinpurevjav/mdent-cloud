@@ -167,21 +167,32 @@ router.delete("/sterilization/categories/:id", async (req, res) => {
   res.json({ ok: true });
 });
 
-// --- Sterilization settings: Items ---
-router.get("/sterilization/items", async (_req, res) => {
+// --- Sterilization settings: Items (Branch-Scoped Tool Master) ---
+router.get("/sterilization/items", async (req, res) => {
+  const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+  
+  const where = branchId ? { branchId } : {};
+  
   const items = await prisma.sterilizationItem.findMany({
-    orderBy: [{ categoryId: "asc" }, { name: "asc" }],
+    where,
+    orderBy: [{ branchId: "asc" }, { categoryId: "asc" }, { name: "asc" }],
+    include: {
+      branch: { select: { id: true, name: true } },
+      category: { select: { id: true, name: true } },
+    },
   });
   res.json(items);
 });
 
 router.post("/sterilization/items", async (req, res) => {
   const name = String(req.body?.name || "").trim();
+  const branchId = Number(req.body?.branchId);  // NEW: Required
   const categoryId = Number(req.body?.categoryId);
   const quantityRaw = req.body?.quantity;
   const quantity = quantityRaw === undefined || quantityRaw === null ? 1 : Number(quantityRaw);
 
   if (!name) return res.status(400).json({ error: "name is required" });
+  if (!branchId) return res.status(400).json({ error: "branchId is required" });  // NEW
   if (!categoryId) return res.status(400).json({ error: "categoryId is required" });
   if (!Number.isFinite(quantity) || quantity < 1) {
     return res.status(400).json({ error: "quantity must be >= 1" });
@@ -189,11 +200,15 @@ router.post("/sterilization/items", async (req, res) => {
 
   try {
     const created = await prisma.sterilizationItem.create({
-      data: { name, categoryId, quantity: Math.floor(quantity) },
+      data: { name, branchId, categoryId, quantity: Math.floor(quantity) },  // NEW: branchId
+      include: {
+        branch: { select: { id: true, name: true } },
+        category: { select: { id: true, name: true } },
+      },
     });
     res.json(created);
   } catch {
-    res.status(400).json({ error: "Item already exists or invalid" });
+    res.status(400).json({ error: "Item already exists in this branch or invalid" });
   }
 });
 
@@ -217,10 +232,14 @@ router.patch("/sterilization/items/:id", async (req, res) => {
         ...(name !== undefined ? { name } : {}),
         ...(quantity !== undefined ? { quantity: Math.floor(quantity) } : {}),
       },
+      include: {
+        branch: { select: { id: true, name: true } },
+        category: { select: { id: true, name: true } },
+      },
     });
     res.json(updated);
   } catch {
-    res.status(400).json({ error: "Item update failed" });
+    res.status(400).json({ error: "Item update failed (possibly duplicate name in branch)" });
   }
 });
 
@@ -420,6 +439,366 @@ router.get("/sterilization/reports", async (req, res) => {
   } catch (err) {
     console.error("GET /api/sterilization/reports error:", err);
     return res.status(500).json({ error: "internal server error" });
+  }
+});
+
+// ==========================================================
+// V1 STERILIZATION: Autoclave Cycles
+// ==========================================================
+
+// POST create autoclave cycle with tool lines
+router.post("/sterilization/cycles", async (req, res) => {
+  try {
+    const branchId = Number(req.body?.branchId);
+    const code = String(req.body?.code || "").trim();
+    const machineNumber = String(req.body?.machineNumber || "").trim();
+    const completedAtRaw = req.body?.completedAt;
+    const result = String(req.body?.result || "").toUpperCase();
+    const operator = String(req.body?.operator || "").trim();
+    const notes = req.body?.notes ? String(req.body?.notes).trim() : null;
+    const toolLines = Array.isArray(req.body?.toolLines) ? req.body.toolLines : [];
+
+    if (!branchId) return res.status(400).json({ error: "branchId is required" });
+    if (!code) return res.status(400).json({ error: "code is required" });
+    if (!machineNumber) return res.status(400).json({ error: "machineNumber is required" });
+    if (!completedAtRaw) return res.status(400).json({ error: "completedAt is required" });
+    if (!operator) return res.status(400).json({ error: "operator is required" });
+    if (result !== "PASS" && result !== "FAIL") {
+      return res.status(400).json({ error: "result must be PASS or FAIL" });
+    }
+    if (toolLines.length === 0) {
+      return res.status(400).json({ error: "At least one tool line is required" });
+    }
+
+    const completedAt = new Date(completedAtRaw);
+    if (Number.isNaN(completedAt.getTime())) {
+      return res.status(400).json({ error: "completedAt is invalid" });
+    }
+
+    // Validate tool lines
+    const validatedLines = [];
+    for (const line of toolLines) {
+      const toolId = Number(line.toolId);
+      const producedQty = Number(line.producedQty);
+      
+      if (!toolId || !Number.isFinite(producedQty) || producedQty < 1) {
+        return res.status(400).json({ error: "Each tool line must have valid toolId and producedQty >= 1" });
+      }
+      
+      validatedLines.push({ toolId, producedQty: Math.floor(producedQty) });
+    }
+
+    const cycle = await prisma.autoclaveCycle.create({
+      data: {
+        branchId,
+        code,
+        machineNumber,
+        completedAt,
+        result,
+        operator,
+        notes,
+        toolLines: {
+          create: validatedLines,
+        },
+      },
+      include: {
+        branch: { select: { id: true, name: true } },
+        toolLines: {
+          include: {
+            tool: { select: { id: true, name: true, quantity: true } },
+          },
+        },
+      },
+    });
+
+    res.json(cycle);
+  } catch (err) {
+    console.error("POST /api/sterilization/cycles error:", err);
+    if (err.code === "P2002") {
+      return res.status(400).json({ error: "Cycle code already exists for this branch" });
+    }
+    return res.status(500).json({ error: "Failed to create cycle" });
+  }
+});
+
+// GET list cycles by branch
+router.get("/sterilization/cycles", async (req, res) => {
+  try {
+    const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+    const result = req.query.result ? String(req.query.result).toUpperCase() : null;
+    
+    const where = {
+      ...(branchId ? { branchId } : {}),
+      ...(result ? { result } : {}),
+    };
+
+    const cycles = await prisma.autoclaveCycle.findMany({
+      where,
+      orderBy: [{ completedAt: "desc" }, { id: "desc" }],
+      include: {
+        branch: { select: { id: true, name: true } },
+        toolLines: {
+          include: {
+            tool: { select: { id: true, name: true, quantity: true } },
+          },
+        },
+      },
+    });
+
+    res.json(cycles);
+  } catch (err) {
+    console.error("GET /api/sterilization/cycles error:", err);
+    return res.status(500).json({ error: "Failed to list cycles" });
+  }
+});
+
+// GET active indicators for doctor selection (PASS only, remaining > 0)
+router.get("/sterilization/cycles/active-indicators", async (req, res) => {
+  try {
+    const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+    const toolId = req.query.toolId ? Number(req.query.toolId) : null;
+    
+    if (!branchId) {
+      return res.status(400).json({ error: "branchId is required" });
+    }
+
+    // Build where clause for cycles
+    const cycleWhere = {
+      branchId,
+      result: "PASS", // Only PASS cycles
+      ...(toolId ? { toolLines: { some: { toolId } } } : {}),
+    };
+
+    const cycles = await prisma.autoclaveCycle.findMany({
+      where: cycleWhere,
+      include: {
+        toolLines: {
+          ...(toolId ? { where: { toolId } } : {}),
+          include: {
+            tool: { select: { id: true, name: true } },
+            finalizedUsages: { select: { usedQty: true } },
+          },
+        },
+      },
+      orderBy: [{ completedAt: "desc" }],
+    });
+
+    // Compute remaining for each tool line
+    const activeLines = [];
+    for (const cycle of cycles) {
+      for (const line of cycle.toolLines) {
+        const produced = line.producedQty || 0;
+        const used = (line.finalizedUsages || []).reduce((sum, u) => sum + (u.usedQty || 0), 0);
+        const remaining = Math.max(0, produced - used);
+        
+        if (remaining > 0) {
+          activeLines.push({
+            cycleId: cycle.id,
+            cycleCode: cycle.code,
+            machineNumber: cycle.machineNumber,
+            completedAt: cycle.completedAt,
+            toolLineId: line.id,
+            toolId: line.tool.id,
+            toolName: line.tool.name,
+            produced,
+            used,
+            remaining,
+          });
+        }
+      }
+    }
+
+    res.json(activeLines);
+  } catch (err) {
+    console.error("GET /api/sterilization/cycles/active-indicators error:", err);
+    return res.status(500).json({ error: "Failed to get active indicators" });
+  }
+});
+
+// ==========================================================
+// V1 STERILIZATION: Draft Attachments
+// ==========================================================
+
+// POST create draft attachment
+router.post("/sterilization/draft-attachments", async (req, res) => {
+  try {
+    const encounterDiagnosisId = Number(req.body?.encounterDiagnosisId);
+    const cycleId = Number(req.body?.cycleId);
+    const toolId = Number(req.body?.toolId);
+    const requestedQty = Number(req.body?.requestedQty) || 1;
+
+    if (!encounterDiagnosisId) {
+      return res.status(400).json({ error: "encounterDiagnosisId is required" });
+    }
+    if (!cycleId) {
+      return res.status(400).json({ error: "cycleId is required" });
+    }
+    if (!toolId) {
+      return res.status(400).json({ error: "toolId is required" });
+    }
+    if (!Number.isFinite(requestedQty) || requestedQty < 1) {
+      return res.status(400).json({ error: "requestedQty must be >= 1" });
+    }
+
+    const draft = await prisma.sterilizationDraftAttachment.create({
+      data: {
+        encounterDiagnosisId,
+        cycleId,
+        toolId,
+        requestedQty: Math.floor(requestedQty),
+      },
+      include: {
+        cycle: {
+          select: {
+            id: true,
+            code: true,
+            machineNumber: true,
+            completedAt: true,
+          },
+        },
+        tool: { select: { id: true, name: true } },
+      },
+    });
+
+    res.json(draft);
+  } catch (err) {
+    console.error("POST /api/sterilization/draft-attachments error:", err);
+    return res.status(500).json({ error: "Failed to create draft attachment" });
+  }
+});
+
+// DELETE remove draft attachment
+router.delete("/sterilization/draft-attachments/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: "invalid id" });
+
+    await prisma.sterilizationDraftAttachment.delete({ where: { id } });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("DELETE /api/sterilization/draft-attachments error:", err);
+    return res.status(404).json({ error: "Draft attachment not found" });
+  }
+});
+
+// ==========================================================
+// V1 STERILIZATION: Mismatch Management
+// ==========================================================
+
+// GET mismatches by encounter
+router.get("/sterilization/mismatches", async (req, res) => {
+  try {
+    const encounterId = req.query.encounterId ? Number(req.query.encounterId) : null;
+    const status = req.query.status ? String(req.query.status).toUpperCase() : null;
+    
+    const where = {
+      ...(encounterId ? { encounterId } : {}),
+      ...(status ? { status } : {}),
+    };
+
+    const mismatches = await prisma.sterilizationMismatch.findMany({
+      where,
+      include: {
+        encounter: {
+          select: {
+            id: true,
+            visitDate: true,
+            patientBook: {
+              select: {
+                patient: { select: { id: true, name: true, ovog: true } },
+              },
+            },
+          },
+        },
+        branch: { select: { id: true, name: true } },
+        tool: { select: { id: true, name: true } },
+        adjustments: {
+          include: {
+            resolvedBy: { select: { id: true, name: true, ovog: true } },
+          },
+        },
+      },
+      orderBy: [{ createdAt: "desc" }],
+    });
+
+    res.json(mismatches);
+  } catch (err) {
+    console.error("GET /api/sterilization/mismatches error:", err);
+    return res.status(500).json({ error: "Failed to get mismatches" });
+  }
+});
+
+// POST resolve mismatches for an encounter
+router.post("/sterilization/mismatches/:encounterId/resolve", async (req, res) => {
+  try {
+    const encounterId = Number(req.params.encounterId);
+    const resolvedByName = String(req.body?.resolvedByName || "").trim();
+    const resolvedByUserId = req.body?.resolvedByUserId ? Number(req.body.resolvedByUserId) : null;
+    const note = req.body?.note ? String(req.body.note).trim() : null;
+
+    if (!encounterId) {
+      return res.status(400).json({ error: "Invalid encounterId" });
+    }
+    if (!resolvedByName) {
+      return res.status(400).json({ error: "resolvedByName is required" });
+    }
+
+    // TODO: Add role checking (nurse, manager, admin only)
+    // For now, we'll allow any request with a resolvedByName
+
+    // Get all unresolved mismatches for this encounter
+    const unresolvedMismatches = await prisma.sterilizationMismatch.findMany({
+      where: {
+        encounterId,
+        status: "UNRESOLVED",
+      },
+    });
+
+    if (unresolvedMismatches.length === 0) {
+      return res.status(400).json({ error: "No unresolved mismatches for this encounter" });
+    }
+
+    // Use transaction to resolve all mismatches
+    const result = await prisma.$transaction(async (tx) => {
+      const adjustments = [];
+      const updatedMismatches = [];
+
+      for (const mismatch of unresolvedMismatches) {
+        // Create adjustment consumption
+        const adjustment = await tx.sterilizationAdjustmentConsumption.create({
+          data: {
+            mismatchId: mismatch.id,
+            encounterId: mismatch.encounterId,
+            branchId: mismatch.branchId,
+            toolId: mismatch.toolId,
+            code: mismatch.code,
+            quantity: mismatch.mismatchQty,
+            resolvedByUserId,
+            resolvedByName,
+            note,
+          },
+        });
+        adjustments.push(adjustment);
+
+        // Mark mismatch as resolved
+        const updated = await tx.sterilizationMismatch.update({
+          where: { id: mismatch.id },
+          data: { status: "RESOLVED" },
+        });
+        updatedMismatches.push(updated);
+      }
+
+      return { adjustments, mismatches: updatedMismatches };
+    });
+
+    res.json({
+      message: `Resolved ${result.mismatches.length} mismatch(es)`,
+      adjustments: result.adjustments,
+      mismatches: result.mismatches,
+    });
+  } catch (err) {
+    console.error("POST /api/sterilization/mismatches/:encounterId/resolve error:", err);
+    return res.status(500).json({ error: "Failed to resolve mismatches" });
   }
 });
 

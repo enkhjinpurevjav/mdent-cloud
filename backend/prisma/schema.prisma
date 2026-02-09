@@ -137,6 +137,12 @@ model Branch {
   // NEW: employee voucher benefit pools in this branch
   employeeVouchers        EmployeeVoucher[]
   sterilizationIndicators SterilizationIndicator[] @relation("BranchSterilizationIndicators")
+  
+  // NEW: v1 sterilization relations
+  sterilizationItems       SterilizationItem[]       @relation("BranchSterilizationItems")
+  autoclaveCycles          AutoclaveCycle[]          @relation("BranchAutoclaveCycles")
+  sterilizationMismatches  SterilizationMismatch[]   @relation("BranchSterilizationMismatches")
+  adjustmentConsumptions   SterilizationAdjustmentConsumption[] @relation("BranchAdjustmentConsumptions")
 }
 
 model EmployeeBenefit {
@@ -193,16 +199,25 @@ model SterilizationCategory {
 
 model SterilizationItem {
   id         Int      @id @default(autoincrement())
+  branchId   Int      // NEW: Branch-scoped tool master
   categoryId Int
   name       String
-  quantity   Int      @default(1)
+  quantity   Int      @default(1)  // baseline amount per branch
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  branch         Branch                       @relation("BranchSterilizationItems", fields: [branchId], references: [id])
   category       SterilizationCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   indicatorItems SterilizationIndicatorItem[] @relation("SterilizationItemIndicatorItems")
+  cycleToolLines AutoclaveCycleToolLine[]     // NEW: Links to autoclave cycles
+  
+  // NEW: v1 sterilization relations
+  draftAttachments       SterilizationDraftAttachment[]       @relation("DraftAttachmentTool")
+  mismatches             SterilizationMismatch[]              @relation("ToolMismatches")
+  adjustmentConsumptions SterilizationAdjustmentConsumption[] @relation("ToolAdjustments")
 
-  @@unique([categoryId, name])
+  @@unique([branchId, name])  // NEW: Tool name must be unique within a branch
+  @@index([branchId])
   @@index([categoryId])
 }
 
@@ -211,6 +226,18 @@ enum SterilizationIndicatorStatus {
   USED
   EXPIRED
   CANCELLED
+}
+
+// NEW: Autoclave cycle result
+enum AutoclaveCycleResult {
+  PASS
+  FAIL
+}
+
+// NEW: Sterilization mismatch status
+enum SterilizationMismatchStatus {
+  UNRESOLVED
+  RESOLVED
 }
 
 model SterilizationIndicator {
@@ -269,6 +296,135 @@ model EncounterSterilizationPackageUse {
   @@index([indicatorId])
 }
 
+// NEW: Autoclave Cycle (v1 sterilization)
+model AutoclaveCycle {
+  id            Int      @id @default(autoincrement())
+  branchId      Int
+  code          String   // Autoclave certificate number (e.g., T-975)
+  machineNumber String   // Machine number
+  completedAt   DateTime // Completion timestamp
+  result        AutoclaveCycleResult // PASS or FAIL
+  operator      String   // Operator name (free text for now)
+  notes         String?  @db.Text
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch    Branch                   @relation("BranchAutoclaveCycles", fields: [branchId], references: [id])
+  toolLines AutoclaveCycleToolLine[] // Multiple tool lines per cycle
+  draftAttachments SterilizationDraftAttachment[]
+
+  @@unique([branchId, code]) // One cycle per (branch, code)
+  @@index([branchId])
+  @@index([code])
+  @@index([result])
+}
+
+// NEW: Tool lines under an autoclave cycle
+model AutoclaveCycleToolLine {
+  id          Int @id @default(autoincrement())
+  cycleId     Int
+  toolId      Int // References SterilizationItem
+  producedQty Int // Quantity produced in this cycle for this tool
+  
+  createdAt DateTime @default(now())
+
+  cycle AutoclaveCycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  tool  SterilizationItem  @relation(fields: [toolId], references: [id])
+  finalizedUsages SterilizationFinalizedUsage[]
+
+  @@unique([cycleId, toolId]) // Unique within (cycle, tool)
+  @@index([cycleId])
+  @@index([toolId])
+}
+
+// NEW: Draft attachments (before encounter close)
+model SterilizationDraftAttachment {
+  id                   Int      @id @default(autoincrement())
+  encounterDiagnosisId Int      // Links to diagnosis row
+  cycleId              Int      // References the autoclave cycle
+  toolId               Int      // References the tool
+  requestedQty         Int      @default(1) // How many requested
+  
+  createdAt DateTime @default(now())
+
+  encounterDiagnosis EncounterDiagnosis @relation(fields: [encounterDiagnosisId], references: [id], onDelete: Cascade)
+  cycle              AutoclaveCycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  tool               SterilizationItem  @relation("DraftAttachmentTool", fields: [toolId], references: [id])
+
+  @@index([encounterDiagnosisId])
+  @@index([cycleId])
+  @@index([toolId])
+}
+
+// NEW: Finalized usage (after encounter close)
+model SterilizationFinalizedUsage {
+  id          Int      @id @default(autoincrement())
+  encounterId Int
+  toolLineId  Int      // References AutoclaveCycleToolLine
+  usedQty     Int      // Quantity actually used/finalized
+  
+  createdAt DateTime @default(now())
+
+  encounter Encounter              @relation("EncounterFinalizedSterilization", fields: [encounterId], references: [id], onDelete: Cascade)
+  toolLine  AutoclaveCycleToolLine @relation(fields: [toolLineId], references: [id])
+
+  @@index([encounterId])
+  @@index([toolLineId])
+}
+
+// NEW: Sterilization mismatches (insufficient availability)
+model SterilizationMismatch {
+  id          Int      @id @default(autoincrement())
+  encounterId Int
+  branchId    Int
+  toolId      Int      // Tool that had mismatch
+  code        String   // Cycle code
+  requiredQty Int      // How much was required
+  finalizedQty Int     // How much was finalized (available)
+  mismatchQty Int      // Difference (required - finalized)
+  status      SterilizationMismatchStatus @default(UNRESOLVED)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  encounter   Encounter             @relation("EncounterSterilizationMismatches", fields: [encounterId], references: [id], onDelete: Cascade)
+  branch      Branch                @relation("BranchSterilizationMismatches", fields: [branchId], references: [id])
+  tool        SterilizationItem     @relation("ToolMismatches", fields: [toolId], references: [id])
+  adjustments SterilizationAdjustmentConsumption[]
+
+  @@index([encounterId])
+  @@index([status])
+  @@index([branchId])
+}
+
+// NEW: Manual adjustment consumption (mismatch resolution)
+model SterilizationAdjustmentConsumption {
+  id           Int      @id @default(autoincrement())
+  mismatchId   Int      // Link to mismatch that was resolved
+  encounterId  Int
+  branchId     Int
+  toolId       Int
+  code         String   // Cycle code (for tracking even if not in stock)
+  quantity     Int      // Adjustment quantity
+  resolvedByUserId Int? // User who resolved (nullable until auth)
+  resolvedByName String // Fallback name
+  note         String?  @db.Text
+  resolvedAt   DateTime @default(now())
+
+  mismatch   SterilizationMismatch @relation(fields: [mismatchId], references: [id], onDelete: Cascade)
+  encounter  Encounter             @relation("EncounterAdjustmentConsumptions", fields: [encounterId], references: [id], onDelete: Cascade)
+  branch     Branch                @relation("BranchAdjustmentConsumptions", fields: [branchId], references: [id])
+  tool       SterilizationItem     @relation("ToolAdjustments", fields: [toolId], references: [id])
+  resolvedBy User?                 @relation("UserAdjustmentResolutions", fields: [resolvedByUserId], references: [id])
+
+  @@index([mismatchId])
+  @@index([encounterId])
+  @@index([branchId])
+  @@index([toolId])
+  @@index([resolvedByUserId])
+}
+
 // ==========================================================
 // USERS (Doctors, Nurses, Admin, etc.)
 // ==========================================================
@@ -322,6 +478,9 @@ model User {
   authorizationCodes          AuthorizationCode[]
   sterilizationIndicators     SterilizationIndicator[]           @relation("UserSterilizationIndicators")
   openedSterilizationPackages EncounterSterilizationPackageUse[] @relation("UserOpenedSterilizationPackages")
+  
+  // NEW: v1 sterilization adjustment resolutions
+  adjustmentResolutions SterilizationAdjustmentConsumption[] @relation("UserAdjustmentResolutions")
 
   // Doctor commission configuration
   generalPct  Float @default(0) // General treatment commission %
@@ -495,6 +654,11 @@ model Encounter {
   sterilizationPackageUses EncounterSterilizationPackageUse[] @relation("EncounterSterilizationUses")
   employeeBenefitUsages    EmployeeBenefitUsage[]
   sourceAppointments       Appointment[]                      @relation("SourceEncounter")
+  
+  // NEW: v1 sterilization relations
+  finalizedSterilization    SterilizationFinalizedUsage[]       @relation("EncounterFinalizedSterilization")
+  sterilizationMismatches   SterilizationMismatch[]             @relation("EncounterSterilizationMismatches")
+  adjustmentConsumptions    SterilizationAdjustmentConsumption[] @relation("EncounterAdjustmentConsumptions")
 }
 
 model EncounterConsent {
@@ -572,6 +736,7 @@ model EncounterDiagnosis {
 
   createdAt               DateTime                                   @default(now())
   sterilizationIndicators EncounterDiagnosisSterilizationIndicator[]
+  draftAttachments        SterilizationDraftAttachment[]  // NEW: v1 draft attachments
   problemTexts            EncounterDiagnosisProblemText[]
 }
 
