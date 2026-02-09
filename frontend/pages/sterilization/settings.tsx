@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 
 type Branch = {
   id: number;
@@ -8,7 +8,6 @@ type Branch = {
 type SterilizationCategory = {
   id: number;
   name: string;
-  createdAt?: string;
 };
 
 type SterilizationItem = {
@@ -17,9 +16,8 @@ type SterilizationItem = {
   branchId: number;
   name: string;
   quantity: number;
-  createdAt?: string;
   branch?: Branch;
-  category?: { id: number; name: string };
+  category?: SterilizationCategory;
 };
 
 export default function SterilizationSettingsPage() {
@@ -28,28 +26,19 @@ export default function SterilizationSettingsPage() {
   const [items, setItems] = useState<SterilizationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   const [selectedBranchId, setSelectedBranchId] = useState<number | "">("");
-  const [categoryName, setCategoryName] = useState("");
   const [itemName, setItemName] = useState("");
   const [itemQty, setItemQty] = useState<number>(1);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | "">("");
 
   const [filterText, setFilterText] = useState("");
 
-  const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
-  const [editCategoryName, setEditCategoryName] = useState("");
-
-  // inline edit state for items
+  // Inline edit state for items
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [editItemName, setEditItemName] = useState("");
   const [editItemQty, setEditItemQty] = useState<number>(1);
-
-  const filteredCategories = useMemo(() => {
-    const q = filterText.trim().toLowerCase();
-    if (!q) return categories;
-    return categories.filter((c) => c.name.toLowerCase().includes(q));
-  }, [categories, filterText]);
 
   const filteredItems = useMemo(() => {
     const q = filterText.trim().toLowerCase();
@@ -76,10 +65,9 @@ export default function SterilizationSettingsPage() {
       const its = await itemRes.json().catch(() => []);
 
       if (branchRes.ok) setBranches(Array.isArray(br) ? br : []);
-      if (!catRes.ok) throw new Error(cats?.error || "Failed to load categories");
+      if (catRes.ok) setCategories(Array.isArray(cats) ? cats : []);
       if (!itemRes.ok) throw new Error(its?.error || "Failed to load items");
 
-      setCategories(Array.isArray(cats) ? cats : []);
       setItems(Array.isArray(its) ? its : []);
     } catch (e: any) {
       setError(e?.message || "Алдаа гарлаа");
@@ -90,88 +78,7 @@ export default function SterilizationSettingsPage() {
 
   useEffect(() => {
     void loadAll();
-  }, []);
-
-  useEffect(() => {
-    void loadAll();
   }, [selectedBranchId]);
-
-  const createCategory = async () => {
-    const name = categoryName.trim();
-    if (!name) return;
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch("/api/sterilization/categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to create category");
-      setCategoryName("");
-      await loadAll();
-    } catch (e: any) {
-      setError(e?.message || "Алдаа гарлаа");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteCategory = async (id: number) => {
-    if (!confirm("Ангиллыг устгах уу? (Доторх багажууд хамт устаж болно)")) return;
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch(`/api/sterilization/categories/${id}`, { method: "DELETE" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to delete category");
-      await loadAll();
-    } catch (e: any) {
-      setError(e?.message || "Алдаа гарлаа");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const startEditCategory = (cat: SterilizationCategory) => {
-  setEditingCategoryId(cat.id);
-  setEditCategoryName(cat.name);
-};
-
-const cancelEditCategory = () => {
-  setEditingCategoryId(null);
-  setEditCategoryName("");
-};
-
-const saveEditCategory = async () => {
-  if (editingCategoryId === null) return;
-
-  const name = editCategoryName.trim();
-  if (!name) {
-    setError("Ангиллын нэр хоосон байж болохгүй.");
-    return;
-  }
-
-  setLoading(true);
-  setError("");
-  try {
-    const res = await fetch(`/api/sterilization/categories/${editingCategoryId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-    const json = await res.json().catch(() => null);
-    if (!res.ok) throw new Error(json?.error || "Failed to update category");
-
-    cancelEditCategory();
-    await loadAll();
-  } catch (e: any) {
-    setError(e?.message || "Алдаа гарлаа");
-  } finally {
-    setLoading(false);
-  }
-};
 
   const createItem = async () => {
     const name = itemName.trim();
@@ -187,6 +94,7 @@ const saveEditCategory = async () => {
 
     setLoading(true);
     setError("");
+    setSuccessMsg("");
     try {
       const res = await fetch("/api/sterilization/items", {
         method: "POST",
@@ -198,8 +106,11 @@ const saveEditCategory = async () => {
           quantity: qty 
         }),
       });
+
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Failed to create item");
+
+      setSuccessMsg(`Багаж үүслээ: ${name}`);
       setItemName("");
       setItemQty(1);
       await loadAll();
@@ -210,10 +121,31 @@ const saveEditCategory = async () => {
     }
   };
 
-  const startEditItem = (it: SterilizationItem) => {
-    setEditingItemId(it.id);
-    setEditItemName(it.name);
-    setEditItemQty(it.quantity ?? 1);
+  const deleteItem = async (id: number) => {
+    if (!confirm("Багажийг устгах уу?")) return;
+
+    setLoading(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      const res = await fetch(`/api/sterilization/items/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error || "Failed to delete item");
+      }
+      setSuccessMsg("Багаж устгагдлаа");
+      await loadAll();
+    } catch (e: any) {
+      setError(e?.message || "Алдаа гарлаа");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startEditItem = (item: SterilizationItem) => {
+    setEditingItemId(item.id);
+    setEditItemName(item.name);
+    setEditItemQty(item.quantity);
   };
 
   const cancelEditItem = () => {
@@ -224,11 +156,11 @@ const saveEditCategory = async () => {
 
   const saveEditItem = async () => {
     if (editingItemId === null) return;
+
     const name = editItemName.trim();
     const qty = Number(editItemQty);
-
     if (!name) {
-      setError("Нэр хоосон байж болохгүй.");
+      setError("Багажийн нэр хоосон байж болохгүй.");
       return;
     }
     if (!Number.isFinite(qty) || qty < 1) {
@@ -238,15 +170,18 @@ const saveEditCategory = async () => {
 
     setLoading(true);
     setError("");
+    setSuccessMsg("");
     try {
       const res = await fetch(`/api/sterilization/items/${editingItemId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, quantity: qty }),
       });
+
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Failed to update item");
 
+      setSuccessMsg("Багаж шинэчлэгдлээ");
       cancelEditItem();
       await loadAll();
     } catch (e: any) {
@@ -256,414 +191,361 @@ const saveEditCategory = async () => {
     }
   };
 
-  const deleteItem = async (id: number) => {
-    if (!confirm("Багаж устгах уу?")) return;
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch(`/api/sterilization/items/${id}`, { method: "DELETE" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(json?.error || "Failed to delete item");
-      await loadAll();
-    } catch (e: any) {
-      setError(e?.message || "Алдаа гарлаа");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const itemsByCategory = useMemo(() => {
-    const map: Record<number, SterilizationItem[]> = {};
-    for (const it of filteredItems) {
-      map[it.categoryId] = map[it.categoryId] || [];
-      map[it.categoryId].push(it);
-    }
-    return map;
-  }, [filteredItems]);
-
   return (
- 
-      <div style={{ maxWidth: 1100 }}>
-        <h1 style={{ fontSize: 18, marginBottom: 6 }}>Ариутгал → Тохиргоо</h1>
-        <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
-          Ариутгалд орох багажийн ангилал болон багажийн жагсаалтыг удирдана.
+    <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+      <h1 style={{ fontSize: 24, marginBottom: 8, fontWeight: 700 }}>
+        Ариутгалын багажийн тохиргоо
+      </h1>
+      <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>
+        Салбар бүрт харгалзах ариутгалын багажуудыг бүртгэж удирдана.
+      </div>
+
+      {error && (
+        <div
+          style={{
+            background: "#fee",
+            color: "#b91c1c",
+            padding: 12,
+            borderRadius: 8,
+            marginBottom: 12,
+            fontSize: 14,
+          }}
+        >
+          {error}
         </div>
+      )}
+      {successMsg && (
+        <div
+          style={{
+            background: "#d1fae5",
+            color: "#065f46",
+            padding: 12,
+            borderRadius: 8,
+            marginBottom: 12,
+            fontSize: 14,
+          }}
+        >
+          {successMsg}
+        </div>
+      )}
 
-        {error && <div style={{ color: "#b91c1c", marginBottom: 10, fontSize: 13 }}>{error}</div>}
-
-        <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+      {/* Branch selector and filter */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+        <div style={{ flex: "0 0 300px" }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+            Салбар
+          </label>
           <select
             value={selectedBranchId}
             onChange={(e) => setSelectedBranchId(e.target.value ? Number(e.target.value) : "")}
-            style={{ flex: "0 1 220px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+            style={{
+              width: "100%",
+              border: "1px solid #d1d5db",
+              borderRadius: 8,
+              padding: "8px 10px",
+              fontSize: 14,
+            }}
           >
-            <option value="">Бүх салбар</option>
+            <option value="">Бүгд</option>
             {branches.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
             ))}
           </select>
-          
+        </div>
+        <div style={{ flex: "1 1 300px" }}>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+            Хайлт
+          </label>
           <input
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
-            placeholder="Хайх (ангилал эсвэл багаж)..."
-            style={{ flex: "1 1 260px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+            placeholder="Багажийн нэрээр хайх..."
+            style={{
+              width: "100%",
+              border: "1px solid #d1d5db",
+              borderRadius: 8,
+              padding: "8px 10px",
+              fontSize: 14,
+            }}
           />
-          <button
-            type="button"
-            onClick={() => void loadAll()}
-            disabled={loading}
-            style={{ border: "1px solid #d1d5db", background: "#fff", borderRadius: 8, padding: "8px 10px", cursor: loading ? "default" : "pointer", fontSize: 13 }}
-          >
-            {loading ? "Ачаалж байна..." : "Шинэчлэх"}
-          </button>
         </div>
+      </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Ангилал нэмэх</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                value={categoryName}
-                onChange={(e) => setCategoryName(e.target.value)}
-                placeholder="Ж: Үзлэгийн багаж"
-                style={{ flex: 1, border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
-              />
-              <button
-                type="button"
-                onClick={() => void createCategory()}
-                disabled={loading || !categoryName.trim()}
-                style={{ border: "none", background: "#2563eb", color: "#fff", borderRadius: 8, padding: "8px 12px", cursor: "pointer" }}
-              >
-                Нэмэх
-              </button>
-            </div>
-          </div>
-
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Багаж нэмэх</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <select
-                value={selectedBranchId}
-                onChange={(e) => setSelectedBranchId(e.target.value ? Number(e.target.value) : "")}
-                style={{ flex: "1 1 180px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
-              >
-                <option value="">Салбар сонгох</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
-
-              <select
-                value={selectedCategoryId}
-                onChange={(e) => setSelectedCategoryId(e.target.value ? Number(e.target.value) : "")}
-                style={{ flex: "1 1 180px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
-              >
-                <option value="">Ангилал сонгох</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-
-              <input
-                value={itemName}
-                onChange={(e) => setItemName(e.target.value)}
-                placeholder="Багажийн нэр"
-                style={{ flex: "1 1 200px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
-              />
-
-              <input
-                type="number"
-                min={1}
-                value={itemQty}
-                onChange={(e) => setItemQty(Math.max(1, Number(e.target.value) || 1))}
-                placeholder="Тоо"
-                style={{ width: 110, border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
-              />
-
-              <button
-                type="button"
-                onClick={() => void createItem()}
-                disabled={loading || !itemName.trim() || !selectedCategoryId || !selectedBranchId}
-                style={{ border: "none", background: "#16a34a", color: "#fff", borderRadius: 8, padding: "8px 12px", cursor: "pointer" }}
-              >
-                Нэмэх
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-  {filteredCategories.map((cat) => {
-    const isEditingCategory = editingCategoryId === cat.id;
-
-    return (
+      {/* Create item form */}
       <div
-        key={cat.id}
         style={{
-          border: "1px solid #e5e7eb",
-          borderRadius: 10,
           background: "#fff",
+          border: "1px solid #e5e7eb",
+          borderRadius: 12,
+          padding: 20,
+          marginBottom: 20,
         }}
       >
-        {/* Category header */}
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>
+          Шинэ багаж нэмэх
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "250px 1fr 150px 100px 140px", gap: 12, alignItems: "end" }}>
+          <div>
+            <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
+              Салбар *
+            </label>
+            <select
+              value={selectedBranchId}
+              onChange={(e) => setSelectedBranchId(e.target.value ? Number(e.target.value) : "")}
+              style={{
+                width: "100%",
+                border: "1px solid #d1d5db",
+                borderRadius: 8,
+                padding: "8px 10px",
+                fontSize: 14,
+              }}
+            >
+              <option value="">Сонгох...</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
+              Багажийн нэр *
+            </label>
+            <input
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+              placeholder="Ж: Үзлэгийн багаж"
+              style={{
+                width: "100%",
+                border: "1px solid #d1d5db",
+                borderRadius: 8,
+                padding: "8px 10px",
+                fontSize: 14,
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
+              Ангилал *
+            </label>
+            <select
+              value={selectedCategoryId}
+              onChange={(e) => setSelectedCategoryId(e.target.value ? Number(e.target.value) : "")}
+              style={{
+                width: "100%",
+                border: "1px solid #d1d5db",
+                borderRadius: 8,
+                padding: "8px 10px",
+                fontSize: 14,
+              }}
+            >
+              <option value="">Сонгох...</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
+              Тоо ширхэг *
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={itemQty}
+              onChange={(e) => setItemQty(Math.max(1, Number(e.target.value) || 1))}
+              style={{
+                width: "100%",
+                border: "1px solid #d1d5db",
+                borderRadius: 8,
+                padding: "8px 10px",
+                fontSize: 14,
+              }}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={createItem}
+            disabled={loading}
+            style={{
+              background: "#2563eb",
+              color: "#fff",
+              border: "none",
+              borderRadius: 8,
+              padding: "9px 16px",
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: loading ? "not-allowed" : "pointer",
+            }}
+          >
+            {loading ? "..." : "Нэмэх"}
+          </button>
+        </div>
+      </div>
+
+      {/* Items list */}
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #e5e7eb",
+          borderRadius: 12,
+          overflow: "hidden",
+        }}
+      >
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: 12,
-            borderBottom: "1px solid #f3f4f6",
+            padding: "14px 16px",
+            borderBottom: "1px solid #e5e7eb",
+            fontSize: 16,
+            fontWeight: 600,
           }}
         >
-          <div style={{ fontWeight: 700, flex: 1 }}>
-            {isEditingCategory ? (
-              <input
-                value={editCategoryName}
-                onChange={(e) => setEditCategoryName(e.target.value)}
-                style={{
-                  width: "100%",
-                  maxWidth: 420,
-                  border: "1px solid #d1d5db",
-                  borderRadius: 8,
-                  padding: "6px 8px",
-                  fontSize: 13,
-                }}
-              />
-            ) : (
-              cat.name
-            )}
-          </div>
-
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-            {isEditingCategory ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void saveEditCategory()}
-                  disabled={loading}
-                  style={{
-                    border: "none",
-                    background: "#2563eb",
-                    color: "#fff",
-                    borderRadius: 8,
-                    padding: "6px 10px",
-                    cursor: "pointer",
-                    fontSize: 12,
-                  }}
-                >
-                  Хадгалах
-                </button>
-                <button
-                  type="button"
-                  onClick={cancelEditCategory}
-                  disabled={loading}
-                  style={{
-                    border: "1px solid #d1d5db",
-                    background: "#fff",
-                    borderRadius: 8,
-                    padding: "6px 10px",
-                    cursor: "pointer",
-                    fontSize: 12,
-                  }}
-                >
-                  Болих
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => startEditCategory(cat)}
-                  disabled={loading}
-                  style={{
-                    border: "1px solid #2563eb",
-                    background: "#eff6ff",
-                    color: "#2563eb",
-                    borderRadius: 8,
-                    padding: "6px 10px",
-                    cursor: "pointer",
-                    fontSize: 12,
-                  }}
-                >
-                  Засах
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => void deleteCategory(cat.id)}
-                  disabled={loading}
-                  style={{
-                    border: "1px solid #dc2626",
-                    background: "#fef2f2",
-                    color: "#b91c1c",
-                    borderRadius: 8,
-                    padding: "6px 10px",
-                    cursor: "pointer",
-                    fontSize: 12,
-                  }}
-                >
-                  Устгах
-                </button>
-              </>
-            )}
-          </div>
+          Багажуудын жагсаалт ({filteredItems.length})
         </div>
-
-        {/* Items table */}
-        <div style={{ padding: 12 }}>
-          {(itemsByCategory[cat.id] || []).length === 0 ? (
-            <div style={{ fontSize: 13, color: "#6b7280" }}>
-              Энэ ангилалд багаж бүртгэгдээгүй байна.
-            </div>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr style={{ color: "#6b7280", textAlign: "left" }}>
-                  <th style={{ padding: "6px 4px" }}>Багаж</th>
-                  <th style={{ padding: "6px 4px", width: 140 }}>Салбар</th>
-                  <th style={{ padding: "6px 4px", width: 90 }}>Тоо</th>
-                  <th style={{ padding: "6px 4px", width: 220 }} />
-                </tr>
-              </thead>
-              <tbody>
-                {(itemsByCategory[cat.id] || []).map((it) => {
-                  const isEditing = editingItemId === it.id;
-
-                  return (
-                    <tr key={it.id} style={{ borderTop: "1px solid #f3f4f6" }}>
-                      <td style={{ padding: "8px 4px" }}>
-                        {isEditing ? (
-                          <input
-                            value={editItemName}
-                            onChange={(e) => setEditItemName(e.target.value)}
+        
+        {filteredItems.length === 0 ? (
+          <div style={{ padding: 20, textAlign: "center", color: "#6b7280", fontSize: 14 }}>
+            {loading ? "Ачаалж байна..." : "Багаж олдсонгүй"}
+          </div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <thead>
+              <tr style={{ background: "#f9fafb", textAlign: "left" }}>
+                <th style={{ padding: "10px 16px", fontWeight: 600 }}>Салбар</th>
+                <th style={{ padding: "10px 16px", fontWeight: 600 }}>Ангилал</th>
+                <th style={{ padding: "10px 16px", fontWeight: 600 }}>Багажийн нэр</th>
+                <th style={{ padding: "10px 16px", fontWeight: 600, width: 120 }}>Тоо ширхэг</th>
+                <th style={{ padding: "10px 16px", fontWeight: 600, width: 200 }}>Үйлдэл</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredItems.map((item) => {
+                const isEditing = editingItemId === item.id;
+                return (
+                  <tr key={item.id} style={{ borderTop: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "10px 16px" }}>
+                      {item.branch?.name || `Branch #${item.branchId}`}
+                    </td>
+                    <td style={{ padding: "10px 16px", color: "#6b7280" }}>
+                      {item.category?.name || `Category #${item.categoryId}`}
+                    </td>
+                    <td style={{ padding: "10px 16px" }}>
+                      {isEditing ? (
+                        <input
+                          value={editItemName}
+                          onChange={(e) => setEditItemName(e.target.value)}
+                          style={{
+                            width: "100%",
+                            border: "1px solid #d1d5db",
+                            borderRadius: 6,
+                            padding: "6px 8px",
+                            fontSize: 13,
+                          }}
+                        />
+                      ) : (
+                        <span style={{ fontWeight: 600 }}>{item.name}</span>
+                      )}
+                    </td>
+                    <td style={{ padding: "10px 16px" }}>
+                      {isEditing ? (
+                        <input
+                          type="number"
+                          min={1}
+                          value={editItemQty}
+                          onChange={(e) => setEditItemQty(Math.max(1, Number(e.target.value) || 1))}
+                          style={{
+                            width: "100%",
+                            border: "1px solid #d1d5db",
+                            borderRadius: 6,
+                            padding: "6px 8px",
+                            fontSize: 13,
+                          }}
+                        />
+                      ) : (
+                        <span>{item.quantity}</span>
+                      )}
+                    </td>
+                    <td style={{ padding: "10px 16px" }}>
+                      {isEditing ? (
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={saveEditItem}
                             style={{
-                              width: "100%",
-                              border: "1px solid #d1d5db",
-                              borderRadius: 8,
-                              padding: "6px 8px",
+                              background: "#16a34a",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: 6,
+                              padding: "6px 12px",
+                              fontSize: 12,
+                              cursor: "pointer",
                             }}
-                          />
-                        ) : (
-                          it.name
-                        )}
-                      </td>
-
-                      <td style={{ padding: "8px 4px" }}>
-                        <span style={{ fontSize: 12, color: "#6b7280" }}>
-                          {it.branch?.name || "—"}
-                        </span>
-                      </td>
-
-                      <td style={{ padding: "8px 4px" }}>
-                        {isEditing ? (
-                          <input
-                            type="number"
-                            min={1}
-                            value={editItemQty}
-                            onChange={(e) =>
-                              setEditItemQty(Math.max(1, Number(e.target.value) || 1))
-                            }
+                          >
+                            Хадгалах
+                          </button>
+                          <button
+                            type="button"
+                            onClick={cancelEditItem}
                             style={{
-                              width: 80,
-                              border: "1px solid #d1d5db",
-                              borderRadius: 8,
-                              padding: "6px 8px",
+                              background: "#6b7280",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: 6,
+                              padding: "6px 12px",
+                              fontSize: 12,
+                              cursor: "pointer",
                             }}
-                          />
-                        ) : (
-                          it.quantity
-                        )}
-                      </td>
-
-                      <td style={{ padding: "8px 4px", textAlign: "right" }}>
-                        {isEditing ? (
-                          <div style={{ display: "inline-flex", gap: 8 }}>
-                            <button
-                              type="button"
-                              onClick={() => void saveEditItem()}
-                              disabled={loading}
-                              style={{
-                                border: "none",
-                                background: "#2563eb",
-                                color: "#fff",
-                                borderRadius: 8,
-                                padding: "6px 10px",
-                                cursor: "pointer",
-                                fontSize: 12,
-                              }}
-                            >
-                              Хадгалах
-                            </button>
-                            <button
-                              type="button"
-                              onClick={cancelEditItem}
-                              disabled={loading}
-                              style={{
-                                border: "1px solid #d1d5db",
-                                background: "#fff",
-                                borderRadius: 8,
-                                padding: "6px 10px",
-                                cursor: "pointer",
-                                fontSize: 12,
-                              }}
-                            >
-                              Болих
-                            </button>
-                          </div>
-                        ) : (
-                          <div style={{ display: "inline-flex", gap: 8 }}>
-                            <button
-                              type="button"
-                              onClick={() => startEditItem(it)}
-                              disabled={loading}
-                              style={{
-                                border: "1px solid #2563eb",
-                                background: "#eff6ff",
-                                color: "#2563eb",
-                                borderRadius: 8,
-                                padding: "6px 10px",
-                                cursor: "pointer",
-                                fontSize: 12,
-                              }}
-                            >
-                              Засах
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void deleteItem(it.id)}
-                              disabled={loading}
-                              style={{
-                                border: "1px solid #dc2626",
-                                background: "#fff",
-                                color: "#b91c1c",
-                                borderRadius: 8,
-                                padding: "6px 10px",
-                                cursor: "pointer",
-                                fontSize: 12,
-                              }}
-                            >
-                              Устгах
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
-    );
-  })}
-</div>
-
-        {filteredCategories.length === 0 && !loading && (
-          <div style={{ fontSize: 13, color: "#6b7280" }}>Ангилал олдсонгүй.</div>
+                          >
+                            Болих
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={() => startEditItem(item)}
+                            style={{
+                              background: "#f59e0b",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: 6,
+                              padding: "6px 12px",
+                              fontSize: 12,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Засах
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteItem(item.id)}
+                            style={{
+                              background: "#dc2626",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: 6,
+                              padding: "6px 12px",
+                              fontSize: 12,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Устгах
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         )}
       </div>
-   
+    </div>
   );
 }

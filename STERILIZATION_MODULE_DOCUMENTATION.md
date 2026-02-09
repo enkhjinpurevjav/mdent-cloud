@@ -11,18 +11,35 @@ The Sterilization Module manages autoclave cycles, sterilized tool tracking, and
 - Tool names must be unique within a branch (can be duplicated across branches)
 - Tools have a baseline quantity for reference (not enforced stock)
 
-### 2. Autoclave Cycles
+### 2. Autoclave Machines
+- Each branch can have multiple autoclave machines registered
+- Machine records include:
+  - **Machine Number**: Unique identifier within the branch (e.g., A-1, A-2)
+  - **Name**: Optional descriptive name for the machine
+- Used to track which physical machine ran each cycle
+- Helps with sterilization run number tracking per machine
+
+### 3. Autoclave Cycles
 - Represent individual autoclave runs with certificate numbers (codes)
 - Each cycle has:
-  - **Code**: Autoclave certificate number (e.g., T-975, M-123)
-  - **Machine Number**: Physical autoclave machine identifier
-  - **Completion Date/Time**: When the cycle finished
-  - **Result**: PASS or FAIL
-  - **Operator**: Person who ran the cycle
+  - **Code** (Cycle Number): Autoclave certificate/indicator number (e.g., T-975, M-123) - what doctors attach, unique per branch
+  - **Sterilization Run Number**: Optional run counter per machine (Ариутгалын дугаар)
+  - **Machine Number**: Physical autoclave machine identifier (from AutoclaveMachine settings)
+  - **Started At**: When the autoclave cycle started
+  - **Pressure**: Pressure reading during cycle (optional)
+  - **Temperature**: Temperature reading during cycle (optional)
+  - **Finished At**: When the cycle finished processing
+  - **Removed From Autoclave At**: When items were removed from autoclave (optional)
+  - **Completed At**: Overall completion timestamp
+  - **Result**: PASS or FAIL (only PASS cycles are available for doctor attachment)
+  - **Operator/Nurse Name**: Person who ran the cycle (free text)
   - **Notes**: Optional additional information
 - One cycle can sterilize multiple tool types (tool lines)
+- **Uniqueness Rules:**
+  - Cycle Number (code) must be unique per branch
+  - Sterilization Run Number should be unique per machine (not enforced in DB)
 
-### 3. Cycle Tool Lines
+### 4. Cycle Tool Lines
 - Under each cycle, multiple tool lines specify what was produced
 - Each line links:
   - **Tool**: Which tool was sterilized
@@ -30,7 +47,7 @@ The Sterilization Module manages autoclave cycles, sterilized tool tracking, and
 - Codes can overlap across tool types (same code T-975 can have lines for different tools)
 - Unique constraint: One line per (cycle, tool) combination
 
-### 4. Draft Attachments
+### 5. Draft Attachments
 - When doctors select sterilization during diagnosis, attachments are created as **drafts**
 - Drafts do NOT decrement available inventory immediately
 - Drafts record:
@@ -236,6 +253,88 @@ The old system used `SterilizationIndicator` model which combined package concep
 3. Old SterilizationIndicator records remain for historical reporting
 4. New entries use the v1 cycle-based workflow
 5. Both systems can coexist during transition
+
+## Database Tables
+
+### Core Tables
+
+#### AutoclaveMachine
+- `id`: Primary key
+- `branchId`: Foreign key to Branch
+- `machineNumber`: Machine identifier (unique within branch)
+- `name`: Optional descriptive name
+- `createdAt`, `updatedAt`: Timestamps
+
+#### AutoclaveCycle
+- `id`: Primary key
+- `branchId`: Foreign key to Branch
+- `code`: Cycle number / indicator label (unique within branch)
+- `sterilizationRunNumber`: Optional run counter per machine
+- `machineNumber`: Machine identifier
+- `startedAt`: When cycle started (optional)
+- `pressure`: Pressure reading (optional)
+- `temperature`: Temperature reading (optional)
+- `finishedAt`: When cycle finished (optional)
+- `removedFromAutoclaveAt`: When removed from autoclave (optional)
+- `completedAt`: Overall completion timestamp (required for compatibility)
+- `result`: PASS or FAIL (enum)
+- `operator`: Nurse/operator name (free text)
+- `notes`: Optional notes
+- `createdAt`, `updatedAt`: Timestamps
+- **Unique constraint**: (branchId, code)
+
+#### AutoclaveCycleToolLine
+- `id`: Primary key
+- `cycleId`: Foreign key to AutoclaveCycle
+- `toolId`: Foreign key to SterilizationItem
+- `producedQty`: Quantity produced in this cycle
+- `createdAt`: Timestamp
+- **Unique constraint**: (cycleId, toolId)
+
+#### SterilizationDraftAttachment
+- `id`: Primary key
+- `encounterDiagnosisId`: Foreign key to EncounterDiagnosis
+- `cycleId`: Foreign key to AutoclaveCycle
+- `toolId`: Foreign key to SterilizationItem
+- `requestedQty`: Requested quantity
+- `createdAt`: Timestamp
+
+#### SterilizationFinalizedUsage
+- `id`: Primary key
+- `encounterId`: Foreign key to Encounter
+- `toolLineId`: Foreign key to AutoclaveCycleToolLine
+- `usedQty`: Quantity actually finalized/used
+- `createdAt`: Timestamp
+
+#### SterilizationMismatch
+- `id`: Primary key
+- `encounterId`: Foreign key to Encounter
+- `branchId`: Foreign key to Branch
+- `toolId`: Foreign key to SterilizationItem
+- `code`: Cycle code reference
+- `requiredQty`: Total quantity requested
+- `finalizedQty`: Quantity that was available and finalized
+- `mismatchQty`: Shortfall quantity
+- `status`: UNRESOLVED or RESOLVED (enum)
+- `createdAt`, `updatedAt`: Timestamps
+
+#### SterilizationAdjustmentConsumption
+- `id`: Primary key
+- `encounterId`: Foreign key to Encounter
+- `branchId`: Foreign key to Branch
+- `toolId`: Foreign key to SterilizationItem
+- `code`: Cycle code reference
+- `adjustedQty`: Quantity adjusted/resolved
+- `resolvedBy`: User who performed resolution
+- `note`: Optional resolution note
+- `createdAt`: Timestamp
+
+### Legacy Table (Maintained for Historical Data)
+
+#### SterilizationIndicator
+- Old package-based system
+- Still accessible for reporting on historical data
+- New entries use AutoclaveCycle workflow
 
 ## Future Enhancements (Not in V1)
 

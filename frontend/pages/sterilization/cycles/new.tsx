@@ -8,6 +8,13 @@ type SterilizationItem = {
   branchId: number;
 };
 
+type Machine = {
+  id: number;
+  machineNumber: string;
+  name: string | null;
+  branchId: number;
+};
+
 type ToolLine = {
   toolId: number | "";
   producedQty: number;
@@ -25,11 +32,19 @@ function formatDateTime(date: Date) {
 export default function CycleCreatePage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [tools, setTools] = useState<SterilizationItem[]>([]);
+  const [machines, setMachines] = useState<Machine[]>([]);
   
   const [branchId, setBranchId] = useState<number | "">("");
   const [code, setCode] = useState("");
-  const [machineNumber, setMachineNumber] = useState("");
-  const [completedAt, setCompletedAt] = useState(formatDateTime(new Date()));
+  const [codeWarning, setCodeWarning] = useState("");
+  const [lastCheckedCode, setLastCheckedCode] = useState("");
+  const [sterilizationRunNumber, setSterilizationRunNumber] = useState("");
+  const [machineId, setMachineId] = useState<number | "">("");
+  const [startedAt, setStartedAt] = useState(formatDateTime(new Date()));
+  const [pressure, setPressure] = useState("");
+  const [temperature, setTemperature] = useState("");
+  const [finishedAt, setFinishedAt] = useState(formatDateTime(new Date()));
+  const [removedFromAutoclaveAt, setRemovedFromAutoclaveAt] = useState("");
   const [result, setResult] = useState<"PASS" | "FAIL">("PASS");
   const [operator, setOperator] = useState("");
   const [notes, setNotes] = useState("");
@@ -54,19 +69,63 @@ export default function CycleCreatePage() {
   useEffect(() => {
     if (!branchId) {
       setTools([]);
+      setMachines([]);
+      setMachineId("");
       return;
     }
     
     (async () => {
       try {
-        const res = await fetch(`/api/sterilization/items?branchId=${branchId}`);
-        const data = await res.json().catch(() => []);
-        if (res.ok) setTools(Array.isArray(data) ? data : []);
+        const [itemsRes, machinesRes] = await Promise.all([
+          fetch(`/api/sterilization/items?branchId=${branchId}`),
+          fetch(`/api/sterilization/machines?branchId=${branchId}`)
+        ]);
+        
+        const itemsData = await itemsRes.json().catch(() => []);
+        const machinesData = await machinesRes.json().catch(() => []);
+        
+        if (itemsRes.ok) setTools(Array.isArray(itemsData) ? itemsData : []);
+        if (machinesRes.ok) {
+          const machinesList = Array.isArray(machinesData) ? machinesData : [];
+          setMachines(machinesList);
+          // Default to first machine
+          if (machinesList.length > 0) {
+            setMachineId(machinesList[0].id);
+          }
+        }
       } catch {
         setTools([]);
+        setMachines([]);
       }
     })();
   }, [branchId]);
+
+  const checkCodeUniqueness = async () => {
+    if (!branchId || !code.trim()) {
+      setCodeWarning("");
+      return;
+    }
+    
+    // Avoid duplicate checks for the same code
+    if (code.trim() === lastCheckedCode) {
+      return;
+    }
+    
+    setLastCheckedCode(code.trim());
+    
+    try {
+      const res = await fetch(`/api/sterilization/cycles/check-code?branchId=${branchId}&code=${encodeURIComponent(code.trim())}`);
+      const data = await res.json().catch(() => ({ exists: false }));
+      
+      if (data.exists) {
+        setCodeWarning("⚠️ Энэ циклийн дугаар аль хэдийн ашиглагдсан байна");
+      } else {
+        setCodeWarning("");
+      }
+    } catch {
+      setCodeWarning("");
+    }
+  };
 
   const addToolLine = () => {
     setToolLines([...toolLines, { toolId: "", producedQty: 1 }]);
@@ -88,9 +147,10 @@ export default function CycleCreatePage() {
 
     if (!branchId) return setError("Салбар сонгоно уу.");
     if (!code.trim()) return setError("Циклын код оруулна уу.");
-    if (!machineNumber.trim()) return setError("Машины дугаар оруулна уу.");
-    if (!completedAt) return setError("Огноо цаг оруулна уу.");
-    if (!operator.trim()) return setError("Ажилтны нэр оруулна уу.");
+    if (!machineId) return setError("Машин сонгоно уу.");
+    if (!startedAt) return setError("Эхэлсэн цаг оруулна уу.");
+    if (!finishedAt) return setError("Дууссан цаг оруулна уу.");
+    if (!operator.trim()) return setError("Сувилагчийн нэр оруулна уу.");
 
     const validLines = toolLines.filter((line) => line.toolId && line.producedQty >= 1);
     if (validLines.length === 0) {
@@ -99,22 +159,38 @@ export default function CycleCreatePage() {
 
     setLoading(true);
     try {
+      const body: any = {
+        branchId: Number(branchId),
+        code: code.trim(),
+        machineId: Number(machineId),
+        startedAt: new Date(startedAt).toISOString(),
+        finishedAt: new Date(finishedAt).toISOString(),
+        result,
+        operator: operator.trim(),
+        notes: notes.trim() || undefined,
+        toolLines: validLines.map((line) => ({
+          toolId: Number(line.toolId),
+          producedQty: Math.floor(line.producedQty),
+        })),
+      };
+
+      if (sterilizationRunNumber.trim()) {
+        body.sterilizationRunNumber = sterilizationRunNumber.trim();
+      }
+      if (pressure.trim()) {
+        body.pressure = Number(pressure);
+      }
+      if (temperature.trim()) {
+        body.temperature = Number(temperature);
+      }
+      if (removedFromAutoclaveAt) {
+        body.removedFromAutoclaveAt = new Date(removedFromAutoclaveAt).toISOString();
+      }
+
       const res = await fetch("/api/sterilization/cycles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          branchId: Number(branchId),
-          code: code.trim(),
-          machineNumber: machineNumber.trim(),
-          completedAt: new Date(completedAt).toISOString(),
-          result,
-          operator: operator.trim(),
-          notes: notes.trim() || undefined,
-          toolLines: validLines.map((line) => ({
-            toolId: Number(line.toolId),
-            producedQty: Math.floor(line.producedQty),
-          })),
-        }),
+        body: JSON.stringify(body),
       });
 
       const json = await res.json().catch(() => null);
@@ -124,11 +200,21 @@ export default function CycleCreatePage() {
       
       // Reset form
       setCode("");
-      setMachineNumber("");
-      setCompletedAt(formatDateTime(new Date()));
+      setCodeWarning("");
+      setLastCheckedCode("");
+      setSterilizationRunNumber("");
+      setStartedAt(formatDateTime(new Date()));
+      setPressure("");
+      setTemperature("");
+      setFinishedAt(formatDateTime(new Date()));
+      setRemovedFromAutoclaveAt("");
       setOperator("");
       setNotes("");
       setToolLines([{ toolId: "", producedQty: 1 }]);
+      // Reset machine to first one if available
+      if (machines.length > 0) {
+        setMachineId(machines[0].id);
+      }
     } catch (e: any) {
       setError(e?.message || "Алдаа гарлаа");
     } finally {
@@ -174,31 +260,105 @@ export default function CycleCreatePage() {
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
+              onBlur={checkCodeUniqueness}
               placeholder="Ж: T-2024-001"
               style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+              aria-describedby={codeWarning ? "code-warning" : undefined}
             />
+            {codeWarning && (
+              <div id="code-warning" role="alert" aria-live="polite" style={{ fontSize: 11, color: "#ea580c", marginTop: 4 }}>
+                {codeWarning}
+              </div>
+            )}
           </div>
 
           <div>
             <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Машины дугаар <span style={{ color: "#dc2626" }}>*</span>
+              Ариутгалын дугаар
             </label>
             <input
-              value={machineNumber}
-              onChange={(e) => setMachineNumber(e.target.value)}
-              placeholder="Ж: AC-01"
+              value={sterilizationRunNumber}
+              onChange={(e) => setSterilizationRunNumber(e.target.value)}
+              placeholder="Ж: SR-001"
               style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
             />
           </div>
 
           <div>
             <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Дууссан огноо цаг <span style={{ color: "#dc2626" }}>*</span>
+              Машин <span style={{ color: "#dc2626" }}>*</span>
+            </label>
+            <select
+              value={machineId}
+              onChange={(e) => setMachineId(e.target.value ? Number(e.target.value) : "")}
+              disabled={!branchId || machines.length === 0}
+              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+            >
+              <option value="">Сонгох...</option>
+              {machines.map((m) => (
+                <option key={m.id} value={m.id}>{m.name || m.machineNumber}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
+              Эхэлсэн цаг <span style={{ color: "#dc2626" }}>*</span>
             </label>
             <input
               type="datetime-local"
-              value={completedAt}
-              onChange={(e) => setCompletedAt(e.target.value)}
+              value={startedAt}
+              onChange={(e) => setStartedAt(e.target.value)}
+              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
+              Даралт
+            </label>
+            <input
+              type="number"
+              value={pressure}
+              onChange={(e) => setPressure(e.target.value)}
+              placeholder="Ж: 121"
+              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
+              Температур
+            </label>
+            <input
+              type="number"
+              value={temperature}
+              onChange={(e) => setTemperature(e.target.value)}
+              placeholder="Ж: 134"
+              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
+              Дууссан цаг <span style={{ color: "#dc2626" }}>*</span>
+            </label>
+            <input
+              type="datetime-local"
+              value={finishedAt}
+              onChange={(e) => setFinishedAt(e.target.value)}
+              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
+              Автоклаваас гаргасан цаг
+            </label>
+            <input
+              type="datetime-local"
+              value={removedFromAutoclaveAt}
+              onChange={(e) => setRemovedFromAutoclaveAt(e.target.value)}
               style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
             />
           </div>
@@ -233,12 +393,12 @@ export default function CycleCreatePage() {
 
           <div>
             <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Ажилтан <span style={{ color: "#dc2626" }}>*</span>
+              Сувилагчийн нэр <span style={{ color: "#dc2626" }}>*</span>
             </label>
             <input
               value={operator}
               onChange={(e) => setOperator(e.target.value)}
-              placeholder="Ажилтны нэр"
+              placeholder="Сувилагчийн нэр"
               style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
             />
           </div>

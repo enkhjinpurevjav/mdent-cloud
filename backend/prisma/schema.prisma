@@ -140,6 +140,7 @@ model Branch {
   
   // NEW: v1 sterilization relations
   sterilizationItems       SterilizationItem[]       @relation("BranchSterilizationItems")
+  autoclaveMachines        AutoclaveMachine[]        @relation("BranchAutoclaveMachines")
   autoclaveCycles          AutoclaveCycle[]          @relation("BranchAutoclaveCycles")
   sterilizationMismatches  SterilizationMismatch[]   @relation("BranchSterilizationMismatches")
   adjustmentConsumptions   SterilizationAdjustmentConsumption[] @relation("BranchAdjustmentConsumptions")
@@ -296,16 +297,38 @@ model EncounterSterilizationPackageUse {
   @@index([indicatorId])
 }
 
-// NEW: Autoclave Cycle (v1 sterilization)
-model AutoclaveCycle {
+// NEW: Autoclave Machine (v1 sterilization)
+model AutoclaveMachine {
   id            Int      @id @default(autoincrement())
   branchId      Int
-  code          String   // Autoclave certificate number (e.g., T-975)
-  machineNumber String   // Machine number
-  completedAt   DateTime // Completion timestamp
-  result        AutoclaveCycleResult // PASS or FAIL
-  operator      String   // Operator name (free text for now)
-  notes         String?  @db.Text
+  machineNumber String   // Machine identifier
+  name          String?  // Optional machine name/description
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch Branch @relation("BranchAutoclaveMachines", fields: [branchId], references: [id])
+
+  @@unique([branchId, machineNumber]) // Unique machine number per branch
+  @@index([branchId])
+}
+
+// NEW: Autoclave Cycle (v1 sterilization)
+model AutoclaveCycle {
+  id                      Int      @id @default(autoincrement())
+  branchId                Int
+  code                    String   // Cycle number / indicator label (e.g., T-975) - unique per branch
+  sterilizationRunNumber  String?  // Run counter per machine (Ариутгалын дугаар)
+  machineNumber           String   // Machine number (from AutoclaveMachine)
+  startedAt               DateTime? // When cycle started
+  pressure                Float?   // Pressure value
+  temperature             Float?   // Temperature value
+  finishedAt              DateTime? // When cycle finished
+  removedFromAutoclaveAt  DateTime? // When removed from autoclave
+  completedAt             DateTime // Completion timestamp (for backward compatibility)
+  result                  AutoclaveCycleResult // PASS or FAIL
+  operator                String   // Operator/nurse name (free text for now)
+  notes                   String?  @db.Text
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
