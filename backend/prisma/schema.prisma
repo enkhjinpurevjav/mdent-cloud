@@ -140,6 +140,7 @@ model Branch {
   
   // NEW: v1 sterilization relations
   sterilizationItems       SterilizationItem[]       @relation("BranchSterilizationItems")
+  autoclaveMachines        AutoclaveMachine[]        @relation("BranchAutoclaveMachines")
   autoclaveCycles          AutoclaveCycle[]          @relation("BranchAutoclaveCycles")
   sterilizationMismatches  SterilizationMismatch[]   @relation("BranchSterilizationMismatches")
   adjustmentConsumptions   SterilizationAdjustmentConsumption[] @relation("BranchAdjustmentConsumptions")
@@ -294,6 +295,22 @@ model EncounterSterilizationPackageUse {
 
   @@index([encounterId])
   @@index([indicatorId])
+}
+
+// NEW: Autoclave Machine (v1 sterilization)
+model AutoclaveMachine {
+  id            Int      @id @default(autoincrement())
+  branchId      Int
+  machineNumber String   // Machine identifier
+  name          String?  // Optional machine name/description
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch Branch @relation("BranchAutoclaveMachines", fields: [branchId], references: [id])
+
+  @@unique([branchId, machineNumber]) // Unique machine number per branch
+  @@index([branchId])
 }
 
 // NEW: Autoclave Cycle (v1 sterilization)

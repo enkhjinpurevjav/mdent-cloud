@@ -802,4 +802,109 @@ router.post("/sterilization/mismatches/:encounterId/resolve", async (req, res) =
   }
 });
 
+// ==========================================================
+// AUTOCLAVE MACHINES SETTINGS
+// ==========================================================
+
+// GET machines for a branch
+router.get("/sterilization/machines", async (req, res) => {
+  try {
+    const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+    
+    const where = branchId ? { branchId } : {};
+    
+    const machines = await prisma.autoclaveMachine.findMany({
+      where,
+      orderBy: [{ branchId: "asc" }, { machineNumber: "asc" }],
+      include: {
+        branch: { select: { id: true, name: true } },
+      },
+    });
+    
+    res.json(machines);
+  } catch (err) {
+    console.error("GET /api/sterilization/machines error:", err);
+    return res.status(500).json({ error: "Failed to list machines" });
+  }
+});
+
+// POST create a machine
+router.post("/sterilization/machines", async (req, res) => {
+  try {
+    const branchId = Number(req.body?.branchId);
+    const machineNumber = String(req.body?.machineNumber || "").trim();
+    const name = req.body?.name ? String(req.body?.name).trim() : null;
+    
+    if (!branchId) return res.status(400).json({ error: "branchId is required" });
+    if (!machineNumber) return res.status(400).json({ error: "machineNumber is required" });
+    
+    const machine = await prisma.autoclaveMachine.create({
+      data: { branchId, machineNumber, name },
+      include: {
+        branch: { select: { id: true, name: true } },
+      },
+    });
+    
+    res.json(machine);
+  } catch (err) {
+    console.error("POST /api/sterilization/machines error:", err);
+    if (err.code === "P2002") {
+      return res.status(400).json({ error: "Machine number already exists for this branch" });
+    }
+    return res.status(500).json({ error: "Failed to create machine" });
+  }
+});
+
+// PATCH update a machine
+router.patch("/sterilization/machines/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: "invalid id" });
+    
+    const machineNumber = req.body?.machineNumber !== undefined 
+      ? String(req.body?.machineNumber || "").trim() 
+      : undefined;
+    const name = req.body?.name !== undefined 
+      ? (req.body?.name ? String(req.body?.name).trim() : null)
+      : undefined;
+    
+    if (machineNumber !== undefined && !machineNumber) {
+      return res.status(400).json({ error: "machineNumber cannot be empty" });
+    }
+    
+    const updated = await prisma.autoclaveMachine.update({
+      where: { id },
+      data: {
+        ...(machineNumber !== undefined ? { machineNumber } : {}),
+        ...(name !== undefined ? { name } : {}),
+      },
+      include: {
+        branch: { select: { id: true, name: true } },
+      },
+    });
+    
+    res.json(updated);
+  } catch (err) {
+    console.error("PATCH /api/sterilization/machines/:id error:", err);
+    if (err.code === "P2002") {
+      return res.status(400).json({ error: "Machine number already exists for this branch" });
+    }
+    return res.status(404).json({ error: "Machine not found" });
+  }
+});
+
+// DELETE a machine
+router.delete("/sterilization/machines/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: "invalid id" });
+    
+    await prisma.autoclaveMachine.delete({ where: { id } });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("DELETE /api/sterilization/machines/:id error:", err);
+    return res.status(404).json({ error: "Machine not found" });
+  }
+});
+
 export default router;
