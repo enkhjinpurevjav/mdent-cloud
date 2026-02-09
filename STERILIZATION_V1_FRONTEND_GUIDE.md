@@ -31,9 +31,8 @@ const createItem = async () => {
     method: "POST",
     body: JSON.stringify({ 
       name, 
-      branchId: selectedBranchId,  // NEW
-      categoryId, 
-      quantity 
+      branchId: selectedBranchId,
+      baselineAmount 
     }),
   });
 };

@@ -9,7 +9,8 @@ The Sterilization Module manages autoclave cycles, sterilized tool tracking, and
 ### 1. Branch Tool Master
 - Each branch maintains its own catalog of sterilizable tools
 - Tool names must be unique within a branch (can be duplicated across branches)
-- Tools have a baseline quantity for reference (not enforced stock)
+- Tools have a baselineAmount for reference (not enforced stock)
+- Tools do not have categories - they are managed by name only
 
 ### 2. Autoclave Machines
 - Each branch can have multiple autoclave machines registered
@@ -192,9 +193,9 @@ The Sterilization Module manages autoclave cycles, sterilized tool tracking, and
 
 ### Tool Master
 - `GET /api/sterilization/items?branchId={id}` - List tools by branch
-- `POST /api/sterilization/items` - Create tool (requires branchId)
-- `PATCH /api/sterilization/items/:id` - Update tool
-- `DELETE /api/sterilization/items/:id` - Delete tool
+- `POST /api/sterilization/items` - Create tool (requires name, branchId, baselineAmount)
+- `PATCH /api/sterilization/items/:id` - Update tool (name, baselineAmount)
+- `DELETE /api/sterilization/items/:id` - Delete tool (returns 409 if referenced by cycles/indicators)
 
 ### Cycles
 - `GET /api/sterilization/cycles?branchId={id}&result={PASS|FAIL}` - List cycles
