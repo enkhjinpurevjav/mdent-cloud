@@ -16,6 +16,7 @@ type Machine = {
 };
 
 type ToolLine = {
+  id: string; // Stable unique identifier for React key
   toolId: number | "";
   producedQty: number;
   toolSearch: string; // Search query for filtering tools
@@ -30,6 +31,10 @@ function formatDateTime(date: Date) {
   const h = String(date.getHours()).padStart(2, "0");
   const min = String(date.getMinutes()).padStart(2, "0");
   return `${y}-${m}-${d}T${h}:${min}`;
+}
+
+function generateId() {
+  return `tool-line-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
 export default function CycleCreatePage() {
@@ -51,7 +56,7 @@ export default function CycleCreatePage() {
   const [result, setResult] = useState<"PASS" | "FAIL">("PASS");
   const [operator, setOperator] = useState("");
   const [notes, setNotes] = useState("");
-  const [toolLines, setToolLines] = useState<ToolLine[]>([{ toolId: "", producedQty: 1, toolSearch: "", showDropdown: false, duplicateError: "" }]);
+  const [toolLines, setToolLines] = useState<ToolLine[]>([{ id: generateId(), toolId: "", producedQty: 1, toolSearch: "", showDropdown: false, duplicateError: "" }]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -131,7 +136,7 @@ export default function CycleCreatePage() {
   };
 
   const addToolLine = () => {
-    setToolLines([...toolLines, { toolId: "", producedQty: 1, toolSearch: "", showDropdown: false, duplicateError: "" }]);
+    setToolLines([...toolLines, { id: generateId(), toolId: "", producedQty: 1, toolSearch: "", showDropdown: false, duplicateError: "" }]);
   };
 
   const removeToolLine = (index: number) => {
@@ -144,28 +149,33 @@ export default function CycleCreatePage() {
     setToolLines(updated);
   };
 
+  // Helper to update multiple fields in a single state update (reduces re-renders)
+  const patchToolLine = (index: number, patches: Partial<ToolLine>) => {
+    const updated = [...toolLines];
+    updated[index] = { ...updated[index], ...patches };
+    setToolLines(updated);
+  };
+
   const selectTool = (index: number, toolId: number) => {
     // Check if this tool is already selected in another line
     const alreadySelected = toolLines.some((line, i) => i !== index && line.toolId === toolId);
     
     if (alreadySelected) {
       // Don't select, show error
-      updateToolLine(index, "duplicateError", "Энэ багаж аль хэдийн сонгогдсон байна");
+      patchToolLine(index, { duplicateError: "Энэ багаж аль хэдийн сонгогдсон байна" });
       return;
     }
     
     // Find the tool name
     const selectedTool = tools.find((t) => t.id === toolId);
     
-    const updated = [...toolLines];
-    updated[index] = {
-      ...updated[index],
+    // Update with single state change
+    patchToolLine(index, {
       toolId,
       toolSearch: selectedTool?.name || "",
       showDropdown: false,
       duplicateError: "",
-    };
-    setToolLines(updated);
+    });
   };
 
   const submit = async () => {
@@ -241,7 +251,7 @@ export default function CycleCreatePage() {
       setRemovedFromAutoclaveAt("");
       setOperator("");
       setNotes("");
-      setToolLines([{ toolId: "", producedQty: 1, toolSearch: "", showDropdown: false, duplicateError: "" }]);
+      setToolLines([{ id: generateId(), toolId: "", producedQty: 1, toolSearch: "", showDropdown: false, duplicateError: "" }]);
       // Reset machine to first one if available
       if (machines.length > 0) {
         setMachineId(machines[0].id);
@@ -348,7 +358,7 @@ export default function CycleCreatePage() {
             <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
               Даралт
             </label>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 6 }}>
               <input
                 type="text"
                 value={pressure}
@@ -508,7 +518,7 @@ export default function CycleCreatePage() {
                   : tools;
 
                 return (
-                  <tr key={index} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <tr key={line.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
                     <td style={{ padding: "8px 4px", verticalAlign: "top", paddingTop: "12px" }}>{index + 1}</td>
                     <td style={{ padding: "8px 4px" }}>
                       {/* Single autocomplete-style input */}
@@ -517,14 +527,19 @@ export default function CycleCreatePage() {
                           type="text"
                           value={line.toolSearch}
                           onChange={(e) => {
-                            updateToolLine(index, "toolSearch", e.target.value);
-                            updateToolLine(index, "showDropdown", true);
-                            updateToolLine(index, "duplicateError", "");
+                            // Clear toolId when typing to avoid mismatch
+                            patchToolLine(index, {
+                              toolSearch: e.target.value,
+                              toolId: "",
+                              showDropdown: true,
+                              duplicateError: "",
+                            });
                           }}
-                          onFocus={() => updateToolLine(index, "showDropdown", true)}
-                          onBlur={() => {
-                            // Delay to allow click on dropdown item
-                            setTimeout(() => updateToolLine(index, "showDropdown", false), 200);
+                          onFocus={() => patchToolLine(index, { showDropdown: true })}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                              patchToolLine(index, { showDropdown: false });
+                            }
                           }}
                           placeholder="Багаж хайх..."
                           style={{ 
