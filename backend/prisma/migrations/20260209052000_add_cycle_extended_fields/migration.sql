@@ -7,7 +7,8 @@ ADD COLUMN "temperature" DOUBLE PRECISION,
 ADD COLUMN "finishedAt" TIMESTAMP(3),
 ADD COLUMN "removedFromAutoclaveAt" TIMESTAMP(3);
 
--- Update existing records to set startedAt and finishedAt to completedAt for backward compatibility
+-- Backfill existing records: set startedAt and finishedAt to completedAt
+-- WHERE clause ensures we only update existing records (new columns start as NULL)
 UPDATE "AutoclaveCycle" 
 SET "startedAt" = "completedAt", "finishedAt" = "completedAt" 
 WHERE "startedAt" IS NULL;

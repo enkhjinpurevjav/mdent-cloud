@@ -10,8 +10,8 @@ type SterilizationItem = {
 
 type Machine = {
   id: number;
-  name: string;
-  code: string;
+  machineNumber: string;
+  name: string | null;
   branchId: number;
 };
 
@@ -286,7 +286,7 @@ export default function CycleCreatePage() {
             >
               <option value="">Сонгох...</option>
               {machines.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
+                <option key={m.id} value={m.id}>{m.name || m.machineNumber}</option>
               ))}
             </select>
           </div>

@@ -452,13 +452,12 @@ router.post("/sterilization/cycles", async (req, res) => {
     const branchId = Number(req.body?.branchId);
     const code = String(req.body?.code || "").trim();
     const sterilizationRunNumber = req.body?.sterilizationRunNumber ? String(req.body?.sterilizationRunNumber).trim() : null;
-    const machineNumber = String(req.body?.machineNumber || "").trim();
+    const machineId = req.body?.machineId ? Number(req.body?.machineId) : null;
     const startedAtRaw = req.body?.startedAt;
     const pressure = req.body?.pressure ? Number(req.body?.pressure) : null;
     const temperature = req.body?.temperature ? Number(req.body?.temperature) : null;
     const finishedAtRaw = req.body?.finishedAt;
     const removedFromAutoclaveAtRaw = req.body?.removedFromAutoclaveAt;
-    const completedAtRaw = req.body?.completedAt || req.body?.finishedAt; // fallback to finishedAt
     const result = String(req.body?.result || "").toUpperCase();
     const operator = String(req.body?.operator || "").trim();
     const notes = req.body?.notes ? String(req.body?.notes).trim() : null;
@@ -466,8 +465,9 @@ router.post("/sterilization/cycles", async (req, res) => {
 
     if (!branchId) return res.status(400).json({ error: "branchId is required" });
     if (!code) return res.status(400).json({ error: "code is required" });
-    if (!machineNumber) return res.status(400).json({ error: "machineNumber is required" });
-    if (!completedAtRaw) return res.status(400).json({ error: "completedAt or finishedAt is required" });
+    if (!machineId) return res.status(400).json({ error: "machineId is required" });
+    if (!startedAtRaw) return res.status(400).json({ error: "startedAt is required" });
+    if (!finishedAtRaw) return res.status(400).json({ error: "finishedAt is required" });
     if (!operator) return res.status(400).json({ error: "operator is required" });
     if (result !== "PASS" && result !== "FAIL") {
       return res.status(400).json({ error: "result must be PASS or FAIL" });
@@ -476,21 +476,31 @@ router.post("/sterilization/cycles", async (req, res) => {
       return res.status(400).json({ error: "At least one tool line is required" });
     }
 
-    // Parse dates
-    const completedAt = new Date(completedAtRaw);
-    if (Number.isNaN(completedAt.getTime())) {
-      return res.status(400).json({ error: "completedAt is invalid" });
+    // Look up machine to get machineNumber
+    const machine = await prisma.autoclaveMachine.findUnique({
+      where: { id: machineId },
+    });
+    if (!machine) {
+      return res.status(400).json({ error: "Invalid machineId" });
     }
+    if (machine.branchId !== branchId) {
+      return res.status(400).json({ error: "Machine does not belong to the selected branch" });
+    }
+    const machineNumber = machine.machineNumber;
 
-    const startedAt = startedAtRaw ? new Date(startedAtRaw) : null;
-    if (startedAt && Number.isNaN(startedAt.getTime())) {
+    // Parse dates
+    const startedAt = new Date(startedAtRaw);
+    if (Number.isNaN(startedAt.getTime())) {
       return res.status(400).json({ error: "startedAt is invalid" });
     }
 
-    const finishedAt = finishedAtRaw ? new Date(finishedAtRaw) : null;
-    if (finishedAt && Number.isNaN(finishedAt.getTime())) {
+    const finishedAt = new Date(finishedAtRaw);
+    if (Number.isNaN(finishedAt.getTime())) {
       return res.status(400).json({ error: "finishedAt is invalid" });
     }
+
+    // Use finishedAt as completedAt for backward compatibility
+    const completedAt = finishedAt;
 
     const removedFromAutoclaveAt = removedFromAutoclaveAtRaw ? new Date(removedFromAutoclaveAtRaw) : null;
     if (removedFromAutoclaveAt && Number.isNaN(removedFromAutoclaveAt.getTime())) {
