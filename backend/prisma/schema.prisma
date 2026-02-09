@@ -189,37 +189,25 @@ model EmployeeBenefitUsage {
   @@index([patientId])
 }
 
-model SterilizationCategory {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  items SterilizationItem[]
-}
-
 model SterilizationItem {
-  id         Int      @id @default(autoincrement())
-  branchId   Int      // NEW: Branch-scoped tool master
-  categoryId Int
-  name       String
-  quantity   Int      @default(1)  // baseline amount per branch
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             Int      @id @default(autoincrement())
+  branchId       Int      // Branch-scoped tool master
+  name           String
+  baselineAmount Int      @default(1)  // baseline amount per branch
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   branch         Branch                       @relation("BranchSterilizationItems", fields: [branchId], references: [id])
-  category       SterilizationCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   indicatorItems SterilizationIndicatorItem[] @relation("SterilizationItemIndicatorItems")
-  cycleToolLines AutoclaveCycleToolLine[]     // NEW: Links to autoclave cycles
+  cycleToolLines AutoclaveCycleToolLine[]     // Links to autoclave cycles
   
-  // NEW: v1 sterilization relations
+  // v1 sterilization relations
   draftAttachments       SterilizationDraftAttachment[]       @relation("DraftAttachmentTool")
   mismatches             SterilizationMismatch[]              @relation("ToolMismatches")
   adjustmentConsumptions SterilizationAdjustmentConsumption[] @relation("ToolAdjustments")
 
-  @@unique([branchId, name])  // NEW: Tool name must be unique within a branch
+  @@unique([branchId, name])  // Tool name must be unique within a branch
   @@index([branchId])
-  @@index([categoryId])
 }
 
 enum SterilizationIndicatorStatus {

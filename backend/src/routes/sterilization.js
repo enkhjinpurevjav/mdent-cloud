@@ -123,50 +123,6 @@ router.post("/sterilization/indicators", async (req, res) => {
 });
 
 // --- Sterilization settings: Categories ---
-router.get("/sterilization/categories", async (_req, res) => {
-  const cats = await prisma.sterilizationCategory.findMany({
-    orderBy: { name: "asc" },
-  });
-  res.json(cats);
-});
-
-router.post("/sterilization/categories", async (req, res) => {
-  const name = String(req.body?.name || "").trim();
-  if (!name) return res.status(400).json({ error: "name is required" });
-
-  try {
-    const created = await prisma.sterilizationCategory.create({ data: { name } });
-    res.json(created);
-  } catch {
-    res.status(400).json({ error: "Category already exists or invalid" });
-  }
-});
-
-router.patch("/sterilization/categories/:id", async (req, res) => {
-  const id = Number(req.params.id);
-  const name = String(req.body?.name || "").trim();
-  if (!id) return res.status(400).json({ error: "invalid id" });
-  if (!name) return res.status(400).json({ error: "name is required" });
-
-  try {
-    const updated = await prisma.sterilizationCategory.update({
-      where: { id },
-      data: { name },
-    });
-    res.json(updated);
-  } catch {
-    res.status(400).json({ error: "Category update failed (maybe duplicate name)" });
-  }
-});
-
-router.delete("/sterilization/categories/:id", async (req, res) => {
-  const id = Number(req.params.id);
-  if (!id) return res.status(400).json({ error: "invalid id" });
-
-  await prisma.sterilizationCategory.delete({ where: { id } });
-  res.json({ ok: true });
-});
-
 // --- Sterilization settings: Items (Branch-Scoped Tool Master) ---
 router.get("/sterilization/items", async (req, res) => {
   const branchId = req.query.branchId ? Number(req.query.branchId) : null;
@@ -175,10 +131,9 @@ router.get("/sterilization/items", async (req, res) => {
   
   const items = await prisma.sterilizationItem.findMany({
     where,
-    orderBy: [{ branchId: "asc" }, { categoryId: "asc" }, { name: "asc" }],
+    orderBy: [{ branchId: "asc" }, { name: "asc" }],
     include: {
       branch: { select: { id: true, name: true } },
-      category: { select: { id: true, name: true } },
     },
   });
   res.json(items);
@@ -186,24 +141,21 @@ router.get("/sterilization/items", async (req, res) => {
 
 router.post("/sterilization/items", async (req, res) => {
   const name = String(req.body?.name || "").trim();
-  const branchId = Number(req.body?.branchId);  // NEW: Required
-  const categoryId = Number(req.body?.categoryId);
-  const quantityRaw = req.body?.quantity;
-  const quantity = quantityRaw === undefined || quantityRaw === null ? 1 : Number(quantityRaw);
+  const branchId = Number(req.body?.branchId);
+  const baselineAmountRaw = req.body?.baselineAmount;
+  const baselineAmount = baselineAmountRaw === undefined || baselineAmountRaw === null ? 1 : Number(baselineAmountRaw);
 
   if (!name) return res.status(400).json({ error: "name is required" });
-  if (!branchId) return res.status(400).json({ error: "branchId is required" });  // NEW
-  if (!categoryId) return res.status(400).json({ error: "categoryId is required" });
-  if (!Number.isFinite(quantity) || quantity < 1) {
-    return res.status(400).json({ error: "quantity must be >= 1" });
+  if (!branchId) return res.status(400).json({ error: "branchId is required" });
+  if (!Number.isFinite(baselineAmount) || baselineAmount < 1) {
+    return res.status(400).json({ error: "baselineAmount must be >= 1" });
   }
 
   try {
     const created = await prisma.sterilizationItem.create({
-      data: { name, branchId, categoryId, quantity: Math.floor(quantity) },  // NEW: branchId
+      data: { name, branchId, baselineAmount: Math.floor(baselineAmount) },
       include: {
         branch: { select: { id: true, name: true } },
-        category: { select: { id: true, name: true } },
       },
     });
     res.json(created);
@@ -217,12 +169,12 @@ router.patch("/sterilization/items/:id", async (req, res) => {
   if (!id) return res.status(400).json({ error: "invalid id" });
 
   const name = req.body?.name !== undefined ? String(req.body?.name || "").trim() : undefined;
-  const quantityRaw = req.body?.quantity;
-  const quantity = quantityRaw === undefined ? undefined : Number(quantityRaw);
+  const baselineAmountRaw = req.body?.baselineAmount;
+  const baselineAmount = baselineAmountRaw === undefined ? undefined : Number(baselineAmountRaw);
 
   if (name !== undefined && !name) return res.status(400).json({ error: "name cannot be empty" });
-  if (quantity !== undefined && (!Number.isFinite(quantity) || quantity < 1)) {
-    return res.status(400).json({ error: "quantity must be >= 1" });
+  if (baselineAmount !== undefined && (!Number.isFinite(baselineAmount) || baselineAmount < 1)) {
+    return res.status(400).json({ error: "baselineAmount must be >= 1" });
   }
 
   try {
@@ -230,11 +182,10 @@ router.patch("/sterilization/items/:id", async (req, res) => {
       where: { id },
       data: {
         ...(name !== undefined ? { name } : {}),
-        ...(quantity !== undefined ? { quantity: Math.floor(quantity) } : {}),
+        ...(baselineAmount !== undefined ? { baselineAmount: Math.floor(baselineAmount) } : {}),
       },
       include: {
         branch: { select: { id: true, name: true } },
-        category: { select: { id: true, name: true } },
       },
     });
     res.json(updated);
@@ -247,8 +198,19 @@ router.delete("/sterilization/items/:id", async (req, res) => {
   const id = Number(req.params.id);
   if (!id) return res.status(400).json({ error: "invalid id" });
 
-  await prisma.sterilizationItem.delete({ where: { id } });
-  res.json({ ok: true });
+  try {
+    await prisma.sterilizationItem.delete({ where: { id } });
+    res.json({ ok: true });
+  } catch (error) {
+    // Check if it's a foreign key constraint error (P2003)
+    if (error && typeof error === "object" && error.code === "P2003") {
+      return res.status(409).json({ 
+        error: "Cannot delete this tool as it is referenced by existing indicators, cycles, or other records. Please remove those references first." 
+      });
+    }
+    // For other errors, return a generic error
+    res.status(400).json({ error: "Failed to delete item" });
+  }
 });
 
 // GET active indicators (produced/used/current)
@@ -543,7 +505,7 @@ router.post("/sterilization/cycles", async (req, res) => {
         branch: { select: { id: true, name: true } },
         toolLines: {
           include: {
-            tool: { select: { id: true, name: true, quantity: true } },
+            tool: { select: { id: true, name: true, baselineAmount: true } },
           },
         },
       },
@@ -599,7 +561,7 @@ router.get("/sterilization/cycles", async (req, res) => {
         branch: { select: { id: true, name: true } },
         toolLines: {
           include: {
-            tool: { select: { id: true, name: true, quantity: true } },
+            tool: { select: { id: true, name: true, baselineAmount: true } },
           },
         },
       },
