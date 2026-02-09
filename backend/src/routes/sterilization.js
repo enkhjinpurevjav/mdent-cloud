@@ -416,7 +416,19 @@ router.post("/sterilization/cycles", async (req, res) => {
     const sterilizationRunNumber = req.body?.sterilizationRunNumber ? String(req.body?.sterilizationRunNumber).trim() : null;
     const machineId = req.body?.machineId ? Number(req.body?.machineId) : null;
     const startedAtRaw = req.body?.startedAt;
-    const pressure = req.body?.pressure ? Number(req.body?.pressure) : null;
+    
+    // Sanitize pressure: keep only digits and spaces, normalize spacing
+    let pressure = null;
+    if (req.body?.pressure) {
+      const pressureStr = String(req.body.pressure).trim();
+      if (pressureStr) {
+        // Extract only digits and spaces, then normalize multiple spaces to single space
+        pressure = pressureStr.replace(/[^\d\s]/g, '').replace(/\s+/g, ' ').trim();
+        // If empty after sanitization, set to null
+        if (!pressure) pressure = null;
+      }
+    }
+    
     const temperature = req.body?.temperature ? Number(req.body?.temperature) : null;
     const finishedAtRaw = req.body?.finishedAt;
     const removedFromAutoclaveAtRaw = req.body?.removedFromAutoclaveAt;
