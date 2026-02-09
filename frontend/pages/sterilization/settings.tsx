@@ -5,24 +5,16 @@ type Branch = {
   name: string;
 };
 
-type SterilizationCategory = {
-  id: number;
-  name: string;
-};
-
 type SterilizationItem = {
   id: number;
-  categoryId: number;
   branchId: number;
   name: string;
-  quantity: number;
+  baselineAmount: number;
   branch?: Branch;
-  category?: SterilizationCategory;
 };
 
 export default function SterilizationSettingsPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [categories, setCategories] = useState<SterilizationCategory[]>([]);
   const [items, setItems] = useState<SterilizationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -31,7 +23,6 @@ export default function SterilizationSettingsPage() {
   const [selectedBranchId, setSelectedBranchId] = useState<number | "">("");
   const [itemName, setItemName] = useState("");
   const [itemQty, setItemQty] = useState<number>(1);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | "">("");
 
   const [filterText, setFilterText] = useState("");
 
@@ -54,18 +45,15 @@ export default function SterilizationSettingsPage() {
         ? `/api/sterilization/items?branchId=${selectedBranchId}`
         : `/api/sterilization/items`;
       
-      const [branchRes, catRes, itemRes] = await Promise.all([
+      const [branchRes, itemRes] = await Promise.all([
         fetch("/api/branches"),
-        fetch("/api/sterilization/categories"),
         fetch(itemUrl),
       ]);
 
       const br = await branchRes.json().catch(() => []);
-      const cats = await catRes.json().catch(() => []);
       const its = await itemRes.json().catch(() => []);
 
       if (branchRes.ok) setBranches(Array.isArray(br) ? br : []);
-      if (catRes.ok) setCategories(Array.isArray(cats) ? cats : []);
       if (!itemRes.ok) throw new Error(its?.error || "Failed to load items");
 
       setItems(Array.isArray(its) ? its : []);
@@ -83,8 +71,8 @@ export default function SterilizationSettingsPage() {
   const createItem = async () => {
     const name = itemName.trim();
     const qty = Number(itemQty);
-    if (!name || !selectedCategoryId || !selectedBranchId) {
-      setError("Салбар, ангилал, нэр бүгдийг бөглөнө үү.");
+    if (!name || !selectedBranchId) {
+      setError("Салбар, нэр бүгдийг бөглөнө үү.");
       return;
     }
     if (!Number.isFinite(qty) || qty < 1) {
@@ -102,8 +90,7 @@ export default function SterilizationSettingsPage() {
         body: JSON.stringify({ 
           name, 
           branchId: Number(selectedBranchId),
-          categoryId: Number(selectedCategoryId), 
-          quantity: qty 
+          baselineAmount: qty 
         }),
       });
 
@@ -145,7 +132,7 @@ export default function SterilizationSettingsPage() {
   const startEditItem = (item: SterilizationItem) => {
     setEditingItemId(item.id);
     setEditItemName(item.name);
-    setEditItemQty(item.quantity);
+    setEditItemQty(item.baselineAmount);
   };
 
   const cancelEditItem = () => {
@@ -175,7 +162,7 @@ export default function SterilizationSettingsPage() {
       const res = await fetch(`/api/sterilization/items/${editingItemId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, quantity: qty }),
+        body: JSON.stringify({ name, baselineAmount: qty }),
       });
 
       const json = await res.json().catch(() => null);
@@ -286,7 +273,7 @@ export default function SterilizationSettingsPage() {
         <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>
           Шинэ багаж нэмэх
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "250px 1fr 150px 100px 140px", gap: 12, alignItems: "end" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "250px 1fr 100px 140px", gap: 12, alignItems: "end" }}>
           <div>
             <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
               Салбар *
@@ -329,30 +316,7 @@ export default function SterilizationSettingsPage() {
           </div>
           <div>
             <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-              Ангилал *
-            </label>
-            <select
-              value={selectedCategoryId}
-              onChange={(e) => setSelectedCategoryId(e.target.value ? Number(e.target.value) : "")}
-              style={{
-                width: "100%",
-                border: "1px solid #d1d5db",
-                borderRadius: 8,
-                padding: "8px 10px",
-                fontSize: 14,
-              }}
-            >
-              <option value="">Сонгох...</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-              Тоо ширхэг *
+              Үндсэн тоо *
             </label>
             <input
               type="number"
@@ -417,9 +381,8 @@ export default function SterilizationSettingsPage() {
             <thead>
               <tr style={{ background: "#f9fafb", textAlign: "left" }}>
                 <th style={{ padding: "10px 16px", fontWeight: 600 }}>Салбар</th>
-                <th style={{ padding: "10px 16px", fontWeight: 600 }}>Ангилал</th>
                 <th style={{ padding: "10px 16px", fontWeight: 600 }}>Багажийн нэр</th>
-                <th style={{ padding: "10px 16px", fontWeight: 600, width: 120 }}>Тоо ширхэг</th>
+                <th style={{ padding: "10px 16px", fontWeight: 600, width: 120 }}>Үндсэн тоо</th>
                 <th style={{ padding: "10px 16px", fontWeight: 600, width: 200 }}>Үйлдэл</th>
               </tr>
             </thead>
@@ -430,9 +393,6 @@ export default function SterilizationSettingsPage() {
                   <tr key={item.id} style={{ borderTop: "1px solid #f3f4f6" }}>
                     <td style={{ padding: "10px 16px" }}>
                       {item.branch?.name || `Branch #${item.branchId}`}
-                    </td>
-                    <td style={{ padding: "10px 16px", color: "#6b7280" }}>
-                      {item.category?.name || `Category #${item.categoryId}`}
                     </td>
                     <td style={{ padding: "10px 16px" }}>
                       {isEditing ? (
@@ -467,7 +427,7 @@ export default function SterilizationSettingsPage() {
                           }}
                         />
                       ) : (
-                        <span>{item.quantity}</span>
+                        <span>{item.baselineAmount}</span>
                       )}
                     </td>
                     <td style={{ padding: "10px 16px" }}>
