@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 
+type Branch = {
+  id: number;
+  name: string;
+};
 
 type SterilizationCategory = {
   id: number;
@@ -10,17 +14,22 @@ type SterilizationCategory = {
 type SterilizationItem = {
   id: number;
   categoryId: number;
+  branchId: number;
   name: string;
   quantity: number;
   createdAt?: string;
+  branch?: Branch;
+  category?: { id: number; name: string };
 };
 
 export default function SterilizationSettingsPage() {
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [categories, setCategories] = useState<SterilizationCategory[]>([]);
   const [items, setItems] = useState<SterilizationItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [selectedBranchId, setSelectedBranchId] = useState<number | "">("");
   const [categoryName, setCategoryName] = useState("");
   const [itemName, setItemName] = useState("");
   const [itemQty, setItemQty] = useState<number>(1);
@@ -52,14 +61,21 @@ export default function SterilizationSettingsPage() {
     setLoading(true);
     setError("");
     try {
-      const [catRes, itemRes] = await Promise.all([
+      const itemUrl = selectedBranchId 
+        ? `/api/sterilization/items?branchId=${selectedBranchId}`
+        : `/api/sterilization/items`;
+      
+      const [branchRes, catRes, itemRes] = await Promise.all([
+        fetch("/api/branches"),
         fetch("/api/sterilization/categories"),
-        fetch("/api/sterilization/items"),
+        fetch(itemUrl),
       ]);
 
+      const br = await branchRes.json().catch(() => []);
       const cats = await catRes.json().catch(() => []);
       const its = await itemRes.json().catch(() => []);
 
+      if (branchRes.ok) setBranches(Array.isArray(br) ? br : []);
       if (!catRes.ok) throw new Error(cats?.error || "Failed to load categories");
       if (!itemRes.ok) throw new Error(its?.error || "Failed to load items");
 
@@ -75,6 +91,10 @@ export default function SterilizationSettingsPage() {
   useEffect(() => {
     void loadAll();
   }, []);
+
+  useEffect(() => {
+    void loadAll();
+  }, [selectedBranchId]);
 
   const createCategory = async () => {
     const name = categoryName.trim();
@@ -156,7 +176,10 @@ const saveEditCategory = async () => {
   const createItem = async () => {
     const name = itemName.trim();
     const qty = Number(itemQty);
-    if (!name || !selectedCategoryId) return;
+    if (!name || !selectedCategoryId || !selectedBranchId) {
+      setError("Салбар, ангилал, нэр бүгдийг бөглөнө үү.");
+      return;
+    }
     if (!Number.isFinite(qty) || qty < 1) {
       setError("Тоо ширхэг 1-с бага байж болохгүй.");
       return;
@@ -168,7 +191,12 @@ const saveEditCategory = async () => {
       const res = await fetch("/api/sterilization/items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, categoryId: Number(selectedCategoryId), quantity: qty }),
+        body: JSON.stringify({ 
+          name, 
+          branchId: Number(selectedBranchId),
+          categoryId: Number(selectedCategoryId), 
+          quantity: qty 
+        }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Failed to create item");
@@ -264,6 +292,17 @@ const saveEditCategory = async () => {
         {error && <div style={{ color: "#b91c1c", marginBottom: 10, fontSize: 13 }}>{error}</div>}
 
         <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+          <select
+            value={selectedBranchId}
+            onChange={(e) => setSelectedBranchId(e.target.value ? Number(e.target.value) : "")}
+            style={{ flex: "0 1 220px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+          >
+            <option value="">Бүх салбар</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+          
           <input
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
@@ -305,9 +344,20 @@ const saveEditCategory = async () => {
             <div style={{ fontWeight: 600, marginBottom: 8 }}>Багаж нэмэх</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value ? Number(e.target.value) : "")}
+                style={{ flex: "1 1 180px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+              >
+                <option value="">Салбар сонгох</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+
+              <select
                 value={selectedCategoryId}
                 onChange={(e) => setSelectedCategoryId(e.target.value ? Number(e.target.value) : "")}
-                style={{ flex: "1 1 200px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+                style={{ flex: "1 1 180px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
               >
                 <option value="">Ангилал сонгох</option>
                 {categories.map((c) => (
@@ -334,7 +384,7 @@ const saveEditCategory = async () => {
               <button
                 type="button"
                 onClick={() => void createItem()}
-                disabled={loading || !itemName.trim() || !selectedCategoryId}
+                disabled={loading || !itemName.trim() || !selectedCategoryId || !selectedBranchId}
                 style={{ border: "none", background: "#16a34a", color: "#fff", borderRadius: 8, padding: "8px 12px", cursor: "pointer" }}
               >
                 Нэмэх
@@ -471,6 +521,7 @@ const saveEditCategory = async () => {
               <thead>
                 <tr style={{ color: "#6b7280", textAlign: "left" }}>
                   <th style={{ padding: "6px 4px" }}>Багаж</th>
+                  <th style={{ padding: "6px 4px", width: 140 }}>Салбар</th>
                   <th style={{ padding: "6px 4px", width: 90 }}>Тоо</th>
                   <th style={{ padding: "6px 4px", width: 220 }} />
                 </tr>
@@ -496,6 +547,12 @@ const saveEditCategory = async () => {
                         ) : (
                           it.name
                         )}
+                      </td>
+
+                      <td style={{ padding: "8px 4px" }}>
+                        <span style={{ fontSize: 12, color: "#6b7280" }}>
+                          {it.branch?.name || "—"}
+                        </span>
                       </td>
 
                       <td style={{ padding: "8px 4px" }}>

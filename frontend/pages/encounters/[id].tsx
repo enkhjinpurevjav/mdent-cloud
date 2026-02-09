@@ -126,6 +126,29 @@ export default function EncounterAdminPage() {
 
   const loadActiveIndicators = async (branchId: number) => {
   try {
+    // Try new cycle-based API first
+    const resNew = await fetch(
+      `/api/sterilization/cycles/active-indicators?branchId=${branchId}`
+    );
+    if (resNew.ok) {
+      const jsonNew = await resNew.json().catch(() => []);
+      if (Array.isArray(jsonNew)) {
+        // Transform new format to match old ActiveIndicator type
+        const transformed = jsonNew.map((item: any) => ({
+          id: item.cycleId, // Use cycleId as the identifier
+          packageName: item.toolName, // Tool name instead of package name
+          code: item.cycleCode, // Cycle code
+          current: item.remaining,
+          produced: item.produced,
+          used: item.used,
+          indicatorDate: item.completedAt || new Date().toISOString(),
+        }));
+        setActiveIndicators(transformed);
+        return;
+      }
+    }
+
+    // Fallback to old API if new one fails
     const res = await fetch(
       `/api/sterilization/indicators/active?branchId=${branchId}`
     );

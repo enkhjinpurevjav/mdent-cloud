@@ -193,6 +193,10 @@ function BillingPaymentSection({
   const [voucherType, setVoucherType] = useState<"MARKETING" | "GIFT" | "">("");
   const [voucherMaxAmount, setVoucherMaxAmount] = useState<number | null>(null);
 
+  // Sterilization mismatch state
+  const [unresolvedMismatches, setUnresolvedMismatches] = useState<any[]>([]);
+  const [loadingMismatches, setLoadingMismatches] = useState(false);
+
   // QPay state
   const [qpayModalOpen, setQpayModalOpen] = useState(false);
   const [qpayInvoiceId, setQpayInvoiceId] = useState<string | null>(null);
@@ -225,6 +229,33 @@ function BillingPaymentSection({
 
     void loadPaymentSettings();
   }, []);
+
+  // Load sterilization mismatches for this encounter
+  useEffect(() => {
+    if (!invoice.encounterId) return;
+
+    const loadMismatches = async () => {
+      setLoadingMismatches(true);
+      try {
+        const res = await fetch(
+          `/api/sterilization/mismatches?encounterId=${invoice.encounterId}&status=UNRESOLVED`
+        );
+        const data = await res.json().catch(() => []);
+        if (res.ok && Array.isArray(data)) {
+          setUnresolvedMismatches(data);
+        } else {
+          setUnresolvedMismatches([]);
+        }
+      } catch (err) {
+        console.error("Failed to load mismatches:", err);
+        setUnresolvedMismatches([]);
+      } finally {
+        setLoadingMismatches(false);
+      }
+    };
+
+    void loadMismatches();
+  }, [invoice.encounterId]);
 
   const hasRealInvoice = !!invoice.id;
   const unpaid =
@@ -672,6 +703,13 @@ function BillingPaymentSection({
         const data = await res.json().catch(() => null);
 
         if (!res.ok || !data) {
+          // Check for sterilization mismatch error code
+          if (data?.errorCode === "UNRESOLVED_STERILIZATION_MISMATCH" ||
+              data?.error?.includes("UNRESOLVED_STERILIZATION_MISMATCH") || 
+              data?.error?.includes("mismatch") ||
+              data?.error?.includes("sterilization")) {
+            throw new Error("Ариутгалын багажийн зөрүү шийдвэрлээгүй байна. Эхлээд зөрүүг шийдвэрлэнэ үү.");
+          }
           throw new Error((data && data.error) || "Төлбөр бүртгэхэд алдаа гарлаа.");
         }
 
@@ -1247,6 +1285,38 @@ function BillingPaymentSection({
           </div>
         </div>
 
+        {/* Sterilization Mismatch Warning */}
+        {unresolvedMismatches.length > 0 && (
+          <div
+            style={{
+              background: "#fef3c7",
+              border: "1px solid #f59e0b",
+              borderRadius: 8,
+              padding: 12,
+              marginTop: 12,
+              fontSize: 13,
+            }}
+          >
+            <div style={{ fontWeight: 600, color: "#92400e", marginBottom: 4 }}>
+              ⚠️ Ариутгалын тохиргоо дутуу байна
+            </div>
+            <div style={{ color: "#78350f", marginBottom: 8 }}>
+              Энэ үзлэгт {unresolvedMismatches.length} ширхэг ариутгалын багажийн зөрүү шийдвэрлэгдээгүй байна. 
+              Төлбөр батлах боломжгүй.
+            </div>
+            <a
+              href="/sterilization/mismatches"
+              style={{
+                color: "#1e40af",
+                textDecoration: "underline",
+                cursor: "pointer",
+              }}
+            >
+              Зөрүү шийдвэрлэх хуудас руу шилжих →
+            </a>
+          </div>
+        )}
+
         {error && (
           <div style={{ fontSize: 13, color: "#b91c1c", marginTop: 4 }}>
             {error}
@@ -1263,14 +1333,14 @@ function BillingPaymentSection({
         >
           <button
             type="submit"
-            disabled={submitting || !hasRealInvoice}
+            disabled={submitting || !hasRealInvoice || unresolvedMismatches.length > 0}
             style={{
               padding: "8px 16px",
               borderRadius: 6,
               border: "none",
-              background: hasRealInvoice ? "#16a34a" : "#9ca3af",
+              background: hasRealInvoice && unresolvedMismatches.length === 0 ? "#16a34a" : "#9ca3af",
               color: "#ffffff",
-              cursor: hasRealInvoice ? "pointer" : "not-allowed",
+              cursor: hasRealInvoice && unresolvedMismatches.length === 0 ? "pointer" : "not-allowed",
               fontSize: 14,
             }}
           >

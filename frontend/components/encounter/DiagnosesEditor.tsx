@@ -685,7 +685,7 @@ export default function DiagnosesEditor({
               {/* Sterilization indicators */}
               <div style={{ marginBottom: 8, position: "relative" }}>
                 <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-                  Ариутгалын багц (идэвхитэй индикатор)
+                  Ариутгалын багц (идэвхитэй багаж/индикатор)
                 </div>
 
                 {/* Selected indicators list */}
@@ -756,7 +756,7 @@ export default function DiagnosesEditor({
                     style={{ position: "relative", minWidth: 260, flex: "0 0 auto" }}
                   >
                     <input
-                      placeholder="Багцын нэр эсвэл кодоор хайх..."
+                      placeholder="Багаж эсвэл циклын кодоор хайх..."
                       value={row.indicatorSearchText ?? ""}
                       onChange={(e) => {
                         if (isLocked) return;
