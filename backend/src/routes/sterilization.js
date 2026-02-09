@@ -203,7 +203,7 @@ router.delete("/sterilization/items/:id", async (req, res) => {
     res.json({ ok: true });
   } catch (error) {
     // Check if it's a foreign key constraint error (P2003)
-    if (error.code === "P2003") {
+    if (error && typeof error === "object" && error.code === "P2003") {
       return res.status(409).json({ 
         error: "Cannot delete this tool as it is referenced by existing indicators, cycles, or other records. Please remove those references first." 
       });
