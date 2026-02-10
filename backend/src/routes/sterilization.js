@@ -1027,18 +1027,34 @@ router.post("/sterilization/bur-cycles", async (req, res) => {
 // GET list bur cycles (with date range filter)
 router.get("/sterilization/bur-cycles", async (req, res) => {
   try {
-    const branchId = req.query.branchId ? Number(req.query.branchId) : null;
-    const from = req.query.from ? new Date(req.query.from) : null;
-    const to = req.query.to ? new Date(req.query.to) : null;
+      const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+
+    const fromStr = req.query.from ? String(req.query.from) : "";
+    const toStr = req.query.to ? String(req.query.to) : "";
+
+    let rangeStart = null;
+    let rangeEnd = null;
+
+    if (fromStr) {
+      const [fy, fm, fd] = fromStr.split("-").map(Number);
+      if (fy && fm && fd) rangeStart = new Date(fy, fm - 1, fd, 0, 0, 0, 0);
+    }
+
+    if (toStr) {
+      const [ty, tm, td] = toStr.split("-").map(Number);
+      if (ty && tm && td) rangeEnd = new Date(ty, tm - 1, td, 23, 59, 59, 999);
+    }
 
     const where = {
       ...(branchId ? { branchId } : {}),
-      ...(from || to ? {
-        startedAt: {
-          ...(from ? { gte: from } : {}),
-          ...(to ? { lte: to } : {}),
-        },
-      } : {}),
+      ...(rangeStart || rangeEnd
+        ? {
+            startedAt: {
+              ...(rangeStart ? { gte: rangeStart } : {}),
+              ...(rangeEnd ? { lte: rangeEnd } : {}),
+            },
+          }
+        : {}),
     };
 
     const burCycles = await prisma.burSterilizationCycle.findMany({
