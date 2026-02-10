@@ -1421,6 +1421,119 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     );
   };
 
+  // NEW: Tool-line draft handlers
+  const handleAddToolLineDraft = async (index: number, toolLineId: number) => {
+    const row = editableDxRows[index];
+    if (!row || !row.id) {
+      console.error("Cannot add tool line draft: diagnosis row not saved yet");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/sterilization/draft-attachments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          encounterDiagnosisId: row.id,
+          toolLineId,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to add tool line draft");
+      }
+
+      const draft = await res.json();
+
+      // Update local state with new draft
+      setEditableDxRows((prev) =>
+        prev.map((r, i) => {
+          if (i !== index) return r;
+          const existing = r.draftAttachments || [];
+          // Check if we're incrementing an existing draft or adding new
+          const existingIndex = existing.findIndex(
+            (d) => d.id === draft.id
+          );
+          if (existingIndex >= 0) {
+            // Update existing draft with new requestedQty
+            const updated = [...existing];
+            updated[existingIndex] = draft;
+            return { ...r, draftAttachments: updated };
+          } else {
+            // Add new draft
+            return { ...r, draftAttachments: [...existing, draft] };
+          }
+        })
+      );
+      setRows((prev) =>
+        prev.map((r, i) => {
+          if (i !== index) return r;
+          const existing = r.draftAttachments || [];
+          const existingIndex = existing.findIndex(
+            (d) => d.id === draft.id
+          );
+          if (existingIndex >= 0) {
+            const updated = [...existing];
+            updated[existingIndex] = draft;
+            return { ...r, draftAttachments: updated };
+          } else {
+            return { ...r, draftAttachments: [...existing, draft] };
+          }
+        })
+      );
+    } catch (err) {
+      console.error("Failed to add tool line draft:", err);
+    }
+  };
+
+  const handleRemoveToolLineDraft = async (index: number, draftId: number) => {
+    try {
+      const res = await fetch(`/api/sterilization/draft-attachments/${draftId}/decrement`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to remove tool line draft");
+      }
+
+      const result = await res.json();
+
+      // Update local state
+      setEditableDxRows((prev) =>
+        prev.map((r, i) => {
+          if (i !== index) return r;
+          const drafts = r.draftAttachments || [];
+          if (result.deleted) {
+            // Remove draft entirely
+            return { ...r, draftAttachments: drafts.filter((d) => d.id !== draftId) };
+          } else {
+            // Update with decremented qty
+            return {
+              ...r,
+              draftAttachments: drafts.map((d) => (d.id === draftId ? result : d)),
+            };
+          }
+        })
+      );
+      setRows((prev) =>
+        prev.map((r, i) => {
+          if (i !== index) return r;
+          const drafts = r.draftAttachments || [];
+          if (result.deleted) {
+            return { ...r, draftAttachments: drafts.filter((d) => d.id !== draftId) };
+          } else {
+            return {
+              ...r,
+              draftAttachments: drafts.map((d) => (d.id === draftId ? result : d)),
+            };
+          }
+        })
+      );
+    } catch (err) {
+      console.error("Failed to remove tool line draft:", err);
+    }
+  };
+
   const handleSaveDiagnoses = async () => {
   if (!id || typeof id !== "string") return;
 
@@ -2202,6 +2315,7 @@ const handleFinishEncounter = async () => {
               activeDxRowIndex={activeDxRowIndex}
               totalDiagnosisServicesPrice={totalDiagnosisServicesPrice}
               encounterServices={editableServices}
+              branchId={encounter?.patientBook?.patient?.branchId}
               onDiagnosisChange={handleDiagnosisChange}
               onToggleProblem={toggleProblem}
               onNoteChange={handleNoteChange}
@@ -2214,6 +2328,8 @@ const handleFinishEncounter = async () => {
               onSetOpenIndicatorIndex={setOpenIndicatorIndex}
               onSetActiveDxRowIndex={setActiveDxRowIndex}
               onUpdateRowField={updateDxRowField}
+              onAddToolLineDraft={handleAddToolLineDraft}
+              onRemoveToolLineDraft={handleRemoveToolLineDraft}
               onSave={async () => {
   if (saving || finishing) return;
 

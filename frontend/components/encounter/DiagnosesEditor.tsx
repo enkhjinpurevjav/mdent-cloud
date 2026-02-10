@@ -10,6 +10,7 @@ import type {
 } from "../../types/encounter-admin";
 import ProblemTextsEditor from "./ProblemTextsEditor";
 import ServiceTextsEditor from "./ServiceTextsEditor";
+import SterilizationToolLineSelector from "./SterilizationToolLineSelector";
 
 type DiagnosesEditorProps = {
   rows: EditableDiagnosis[];
@@ -29,6 +30,7 @@ type DiagnosesEditorProps = {
   activeDxRowIndex: number | null;
   totalDiagnosisServicesPrice: number;
   encounterServices?: EncounterService[];
+  branchId?: number;
   onDiagnosisChange: (index: number, diagnosisId: number) => Promise<void>;
   onToggleProblem: (index: number, problemId: number) => void;
   onNoteChange: (index: number, value: string) => void;
@@ -45,6 +47,8 @@ type DiagnosesEditorProps = {
     field: K,
     value: EditableDiagnosis[K]
   ) => void;
+  onAddToolLineDraft?: (index: number, toolLineId: number) => Promise<void>;
+  onRemoveToolLineDraft?: (index: number, draftId: number) => Promise<void>;
   onSave: () => Promise<void>;
   onFinish: () => Promise<void>;
   onResetToothSelection: () => void;
@@ -69,6 +73,7 @@ export default function DiagnosesEditor({
   activeDxRowIndex,
   totalDiagnosisServicesPrice,
   encounterServices,
+  branchId,
   onDiagnosisChange,
   onToggleProblem,
   onNoteChange,
@@ -81,6 +86,8 @@ export default function DiagnosesEditor({
   onSetOpenIndicatorIndex,
   onSetActiveDxRowIndex,
   onUpdateRowField,
+  onAddToolLineDraft,
+  onRemoveToolLineDraft,
   onSave,
   onFinish,
   onResetToothSelection,
@@ -682,198 +689,27 @@ export default function DiagnosesEditor({
                 </div>
               )}
 
-              {/* Sterilization indicators */}
-              <div style={{ marginBottom: 8, position: "relative" }}>
-                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-                  Ариутгалын багц (идэвхитэй багаж/индикатор)
-                </div>
+              {/* NEW: Tool-line based sterilization selection */}
+              {branchId && onAddToolLineDraft && onRemoveToolLineDraft && (
+                <SterilizationToolLineSelector
+                  diagnosisRowId={row.id}
+                  branchId={branchId}
+                  draftAttachments={row.draftAttachments || []}
+                  searchText={row.toolLineSearchText || ""}
+                  isOpen={openIndicatorIndex === index}
+                  isLocked={isLocked}
+                  onSearchTextChange={(text) =>
+                    onUpdateRowField(index, "toolLineSearchText", text)
+                  }
+                  onOpen={() => onSetOpenIndicatorIndex(index)}
+                  onClose={() => onSetOpenIndicatorIndex(null)}
+                  onAddToolLine={(toolLineId) => onAddToolLineDraft(index, toolLineId)}
+                  onRemoveDraft={(draftId) => onRemoveToolLineDraft(index, draftId)}
+                />
+              )}
 
-                {/* Selected indicators list */}
-                {(row.indicatorIds || []).length > 0 && (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 6,
-                      marginBottom: 6,
-                    }}
-                  >
-                    {(row.indicatorIds || []).map((iid, k) => {
-                      const ind = activeIndicators.find((x) => x.id === iid);
-                      const label = ind
-                        ? `${ind.packageName} ${ind.code}`
-                        : `#${iid}`;
-                      return (
-                        <div
-                          key={`${iid}-${k}`}
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 6,
-                            padding: "4px 8px",
-                            borderRadius: 999,
-                            border: "1px solid #d1d5db",
-                            background: "#ffffff",
-                            fontSize: 12,
-                            opacity: isLocked ? 0.6 : 1,
-                          }}
-                        >
-                          <span>{label}</span>
-                          {!isLocked && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newIndicatorIds = (
-                                  row.indicatorIds || []
-                                ).filter((_, idx) => idx !== k);
-                                onUpdateRowField(
-                                  index,
-                                  "indicatorIds",
-                                  newIndicatorIds
-                                );
-                              }}
-                              style={{
-                                border: "none",
-                                background: "transparent",
-                                cursor: "pointer",
-                                color: "#dc2626",
-                                fontWeight: 700,
-                                lineHeight: 1,
-                              }}
-                            >
-                              ×
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Indicator search input */}
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <div
-                    style={{ position: "relative", minWidth: 260, flex: "0 0 auto" }}
-                  >
-                    <input
-                      placeholder="Багаж эсвэл циклын кодоор хайх..."
-                      value={row.indicatorSearchText ?? ""}
-                      onChange={(e) => {
-                        if (isLocked) return;
-                        const text = e.target.value;
-                        onSetOpenIndicatorIndex(index);
-                        onUpdateRowField(index, "indicatorSearchText", text);
-                      }}
-                      onFocus={() => {
-                        if (!isLocked) onSetOpenIndicatorIndex(index);
-                      }}
-                      onBlur={() => {
-                        setTimeout(() => onSetOpenIndicatorIndex(null), 150);
-                      }}
-                      disabled={isLocked}
-                      style={{
-                        width: "100%",
-                        borderRadius: 6,
-                        border: "1px solid #d1d5db",
-                        padding: "6px 8px",
-                        fontSize: 13,
-                        background: isLocked ? "#f3f4f6" : "#ffffff",
-                        cursor: isLocked ? "not-allowed" : "text",
-                        opacity: isLocked ? 0.6 : 1,
-                      }}
-                    />
-
-                    {openIndicatorIndex === index && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: "100%",
-                          left: 0,
-                          right: 0,
-                          maxHeight: 220,
-                          overflowY: "auto",
-                          marginTop: 4,
-                          background: "white",
-                          borderRadius: 6,
-                          boxShadow:
-                            "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
-                          zIndex: 20,
-                          fontSize: 13,
-                        }}
-                      >
-                        {activeIndicators
-                          .filter((it) => {
-                            const q = (row.indicatorSearchText || "")
-                              .toLowerCase()
-                              .trim();
-                            if (!q) return true;
-                            const hay = `${it.packageName} ${it.code}`.toLowerCase();
-                            return hay.includes(q);
-                          })
-                          .slice(0, 200)
-                          .map((it) => (
-                            <div
-                              key={it.id}
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                const next = [...(row.indicatorIds || []), it.id];
-                                onUpdateRowField(index, "indicatorIds", next);
-                                onUpdateRowField(index, "indicatorSearchText", "");
-                                onSetOpenIndicatorIndex(null);
-                              }}
-                              style={{
-                                padding: "6px 8px",
-                                cursor: "pointer",
-                                borderBottom: "1px solid #f3f4f6",
-                                background: "white",
-                              }}
-                            >
-                              <div style={{ fontWeight: 500 }}>
-                                {it.packageName} — {it.code}
-                              </div>
-                              <div
-                                style={{
-                                  fontSize: 11,
-                                  color: "#6b7280",
-                                  marginTop: 2,
-                                }}
-                              >
-                                Үлдэгдэл: {it.current} (нийт {it.produced}, ашигласан{" "}
-                                {it.used})
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={isLocked}
-                    onClick={() => {
-                      if (isLocked) return;
-                      onSetOpenIndicatorIndex(index);
-                    }}
-                    style={{
-                      padding: "6px 10px",
-                      borderRadius: 6,
-                      border: "1px solid #d1d5db",
-                      background: "#ffffff",
-                      cursor: isLocked ? "not-allowed" : "pointer",
-                      opacity: isLocked ? 0.6 : 1,
-                      fontWeight: 700,
-                    }}
-                  >
-                    +
-                  </button>
-                </div>
-
-                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
-                  * Зөвхөн тухайн өвчтөний салбарын идэвхитэй индикаторууд
-                  харагдана.
-                </div>
-              </div>
-
+              {/* Service assignment section */}
+              
               {/* Note textarea */}
               <textarea
                 placeholder="Энэ оношид холбогдох тэмдэглэл (сонголттой)"
