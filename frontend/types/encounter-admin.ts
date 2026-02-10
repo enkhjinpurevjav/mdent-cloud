@@ -182,15 +182,44 @@ export type EditableDiagnosis = EncounterDiagnosisRow & {
   searchText?: string;
   serviceSearchText?: string;
   locked?: boolean;
-  // Sterilization indicators selection per diagnosis row
+  // Sterilization indicators selection per diagnosis row (DEPRECATED - use draftAttachments)
   indicatorIds?: number[];
   indicatorSearchText?: string;
+  // NEW: Tool-line based draft attachments
+  draftAttachments?: SterilizationDraftAttachment[];
+  toolLineSearchText?: string;
   assignedTo?: AssignedTo;
   // Dirty tracking: true if user has explicitly modified indicators
   indicatorsDirty?: boolean;
   // Draft text arrays for local editing before save
   draftProblemTexts?: string[];
   draftServiceTexts?: string[];
+};
+
+export type SterilizationDraftAttachment = {
+  id: number;
+  encounterDiagnosisId: number;
+  cycleId: number;
+  toolId: number;
+  requestedQty: number;
+  createdAt: string;
+  cycle: {
+    id: number;
+    code: string;
+  };
+  tool: {
+    id: number;
+    name: string;
+  };
+};
+
+export type ToolLineSearchResult = {
+  toolLineId: number;
+  cycleId: number;
+  cycleCode: string;
+  toolId: number;
+  toolName: string;
+  remaining: number;
 };
 
 export type ActiveIndicator = {

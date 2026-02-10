@@ -1735,4 +1735,225 @@ router.get("/sterilization/disposals", async (req, res) => {
   }
 });
 
+/**
+ * POST /api/sterilization/draft-attachments
+ * Create or increment a draft attachment for a diagnosis row
+ * Body: { encounterDiagnosisId, toolLineId }
+ */
+router.post("/sterilization/draft-attachments", async (req, res) => {
+  try {
+    const encounterDiagnosisId = Number(req.body?.encounterDiagnosisId);
+    const toolLineId = Number(req.body?.toolLineId);
+
+    if (!encounterDiagnosisId || !toolLineId) {
+      return res.status(400).json({ error: "encounterDiagnosisId and toolLineId are required" });
+    }
+
+    // Verify diagnosis exists
+    const diagnosis = await prisma.encounterDiagnosis.findUnique({
+      where: { id: encounterDiagnosisId },
+    });
+    if (!diagnosis) {
+      return res.status(404).json({ error: "Encounter diagnosis not found" });
+    }
+
+    // Get tool line to extract cycleId and toolId
+    const toolLine = await prisma.autoclaveCycleToolLine.findUnique({
+      where: { id: toolLineId },
+      select: { cycleId: true, toolId: true },
+    });
+    if (!toolLine) {
+      return res.status(404).json({ error: "Tool line not found" });
+    }
+
+    // Check if a draft already exists for this diagnosis + cycle + tool
+    const existing = await prisma.sterilizationDraftAttachment.findFirst({
+      where: {
+        encounterDiagnosisId,
+        cycleId: toolLine.cycleId,
+        toolId: toolLine.toolId,
+      },
+    });
+
+    if (existing) {
+      // Increment requestedQty
+      const updated = await prisma.sterilizationDraftAttachment.update({
+        where: { id: existing.id },
+        data: { requestedQty: existing.requestedQty + 1 },
+        include: {
+          cycle: { select: { id: true, code: true } },
+          tool: { select: { id: true, name: true } },
+        },
+      });
+      return res.json(updated);
+    }
+
+    // Create new draft
+    const draft = await prisma.sterilizationDraftAttachment.create({
+      data: {
+        encounterDiagnosisId,
+        cycleId: toolLine.cycleId,
+        toolId: toolLine.toolId,
+        requestedQty: 1,
+      },
+      include: {
+        cycle: { select: { id: true, code: true } },
+        tool: { select: { id: true, name: true } },
+      },
+    });
+
+    res.status(201).json(draft);
+  } catch (err) {
+    console.error("POST /api/sterilization/draft-attachments error:", err);
+    return res.status(500).json({ error: "Failed to create draft attachment" });
+  }
+});
+
+/**
+ * DELETE /api/sterilization/draft-attachments/:id/decrement
+ * Decrement requestedQty of a draft attachment by 1, delete if reaches 0
+ */
+router.delete("/sterilization/draft-attachments/:id/decrement", async (req, res) => {
+  try {
+    const draftId = Number(req.params.id);
+    if (!draftId || Number.isNaN(draftId)) {
+      return res.status(400).json({ error: "Invalid draft id" });
+    }
+
+    const draft = await prisma.sterilizationDraftAttachment.findUnique({
+      where: { id: draftId },
+    });
+
+    if (!draft) {
+      return res.status(404).json({ error: "Draft attachment not found" });
+    }
+
+    if (draft.requestedQty <= 1) {
+      // Delete the draft
+      await prisma.sterilizationDraftAttachment.delete({
+        where: { id: draftId },
+      });
+      return res.json({ deleted: true });
+    }
+
+    // Decrement by 1
+    const updated = await prisma.sterilizationDraftAttachment.update({
+      where: { id: draftId },
+      data: { requestedQty: draft.requestedQty - 1 },
+      include: {
+        cycle: { select: { id: true, code: true } },
+        tool: { select: { id: true, name: true } },
+      },
+    });
+
+    res.json(updated);
+  } catch (err) {
+    console.error("DELETE /api/sterilization/draft-attachments/:id/decrement error:", err);
+    return res.status(500).json({ error: "Failed to decrement draft attachment" });
+  }
+});
+
+/**
+ * GET /api/sterilization/draft-attachments/by-diagnosis/:diagnosisId
+ * Get all draft attachments for a diagnosis row
+ */
+router.get("/sterilization/draft-attachments/by-diagnosis/:diagnosisId", async (req, res) => {
+  try {
+    const diagnosisId = Number(req.params.diagnosisId);
+    if (!diagnosisId || Number.isNaN(diagnosisId)) {
+      return res.status(400).json({ error: "Invalid diagnosis id" });
+    }
+
+    const drafts = await prisma.sterilizationDraftAttachment.findMany({
+      where: { encounterDiagnosisId: diagnosisId },
+      include: {
+        cycle: { select: { id: true, code: true } },
+        tool: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    res.json(drafts);
+  } catch (err) {
+    console.error("GET /api/sterilization/draft-attachments/by-diagnosis/:diagnosisId error:", err);
+    return res.status(500).json({ error: "Failed to load draft attachments" });
+  }
+});
+
+/**
+ * GET /api/sterilization/tool-lines/search
+ * Search for available tool lines for encounter sterilization selection
+ * Query params: branchId (required), query (optional search text)
+ * Returns: Array of tool lines with cycleId, cycleCode, toolId, toolName, toolLineId, remaining
+ */
+router.get("/sterilization/tool-lines/search", async (req, res) => {
+  try {
+    const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+    const searchQuery = String(req.query.query || "").trim().toLowerCase();
+
+    if (!branchId) {
+      return res.status(400).json({ error: "branchId is required" });
+    }
+
+    // Get all PASS cycles for this branch with tool lines
+    const cycles = await prisma.autoclaveCycle.findMany({
+      where: {
+        branchId,
+        result: "PASS",
+      },
+      include: {
+        toolLines: {
+          include: {
+            tool: { select: { id: true, name: true } },
+            finalizedUsages: { select: { usedQty: true } },
+            disposalLines: { select: { quantity: true } },
+          },
+        },
+      },
+      orderBy: [{ completedAt: "desc" }],
+    });
+
+    // Build searchable tool line items
+    const toolLineItems = [];
+    
+    for (const cycle of cycles) {
+      for (const line of cycle.toolLines) {
+        const produced = line.producedQty || 0;
+        const used = (line.finalizedUsages || []).reduce((sum, u) => sum + (u.usedQty || 0), 0);
+        const disposed = (line.disposalLines || []).reduce((sum, d) => sum + (d.quantity || 0), 0);
+        const remaining = Math.max(0, produced - used - disposed);
+
+        // Only include if remaining > 0
+        if (remaining > 0) {
+          const toolName = line.tool.name || "";
+          const cycleCode = cycle.code || "";
+          
+          // Filter by search query if provided
+          if (searchQuery) {
+            const searchable = `${toolName} ${cycleCode}`.toLowerCase();
+            if (!searchable.includes(searchQuery)) {
+              continue;
+            }
+          }
+
+          toolLineItems.push({
+            toolLineId: line.id,
+            cycleId: cycle.id,
+            cycleCode: cycle.code,
+            toolId: line.tool.id,
+            toolName: line.tool.name,
+            remaining,
+          });
+        }
+      }
+    }
+
+    // Limit results to 200 for performance
+    res.json(toolLineItems.slice(0, 200));
+  } catch (err) {
+    console.error("GET /api/sterilization/tool-lines/search error:", err);
+    return res.status(500).json({ error: "Failed to search tool lines" });
+  }
+});
+
 export default router;

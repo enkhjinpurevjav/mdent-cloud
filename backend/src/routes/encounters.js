@@ -84,6 +84,13 @@ router.get("/:id", async (req, res) => {
         },
       },
     },
+    draftAttachments: {
+      include: {
+        cycle: { select: { id: true, code: true } },
+        tool: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    },
     problemTexts: {
       orderBy: { order: "asc" },
     },

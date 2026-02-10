@@ -529,7 +529,13 @@ const loadEncounter = async () => {
 
         locked: true,
 
-        // indicators
+        // NEW: tool-line based draft attachments (replaces indicatorIds)
+        draftAttachments: Array.isArray((row as any).draftAttachments)
+          ? (row as any).draftAttachments
+          : [],
+        toolLineSearchText: "",
+        
+        // DEPRECATED: old indicator-based approach (kept for backward compatibility)
         indicatorIds: Array.isArray((row as any).sterilizationIndicators)
           ? (row as any).sterilizationIndicators
               .map((x: any) => x.indicatorId)
