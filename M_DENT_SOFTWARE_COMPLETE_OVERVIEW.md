@@ -77,6 +77,12 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
 - **Finalization**: Decrement inventory on cycle finalization
 - **Mismatch Detection**: Automatic generation of mismatches between draft attachments and finalized usage
 - **Mismatch Resolution**: Adjustment consumption records to resolve discrepancies
+- **Bur Sterilization Compliance Log**: Compliance-only tracking of bur (dental drill bit) sterilization cycles
+  - Separate from main autoclave cycles (no encounter linkage)
+  - Tracks fast bur and slow bur quantities per cycle
+  - Machine-specific run numbers with uniqueness validation
+  - PASS/FAIL result tracking for audit compliance
+  - Date range filtering and historical reporting
 - **Billing Gate**: Invoice settlement blocked when unresolved sterilization mismatches exist
 
 ### 4.6 Reporting & Analytics
@@ -123,6 +129,7 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
 - **AutoclaveMachine**: machineId, branchId, machineNumber, name (optional)
 - **AutoclaveCycle**: cycleId, branchId, code (certificate number, unique per branch), sterilizationRunNumber, machineId, startedAt, finishedAt, pressure, temperature, removedFromAutoclaveAt, result (PASS/FAIL), operator, notes
 - **AutoclaveCycleToolLine**: lineId, cycleId, toolId (SterilizationItem), producedQty
+- **BurSterilizationCycle**: cycleId, branchId, code (unique per branch), sterilizationRunNumber (unique per machine), machineId, startedAt, finishedAt, pressure, temperature, removedFromAutoclaveAt, result (PASS/FAIL), operator, notes, fastBurQty, slowBurQty (compliance-only tracking, no encounter linkage)
 - **SterilizationDraftAttachment**: draftId, patientId, appointmentId, cycleId, toolId, draftQty, createdBy, createdAt
 - **SterilizationFinalizedUsage**: usageId, cycleId, toolId, finalizedQty, patientId, invoiceId, finalizedAt
 - **SterilizationMismatch**: mismatchId, cycleId, toolId, draftQty, finalizedQty, variance, status (UNRESOLVED/RESOLVED), createdAt, resolvedAt

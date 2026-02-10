@@ -142,6 +142,7 @@ model Branch {
   sterilizationItems       SterilizationItem[]       @relation("BranchSterilizationItems")
   autoclaveMachines        AutoclaveMachine[]        @relation("BranchAutoclaveMachines")
   autoclaveCycles          AutoclaveCycle[]          @relation("BranchAutoclaveCycles")
+  burSterilizationCycles   BurSterilizationCycle[]   @relation("BranchBurCycles")
   sterilizationMismatches  SterilizationMismatch[]   @relation("BranchSterilizationMismatches")
   adjustmentConsumptions   SterilizationAdjustmentConsumption[] @relation("BranchAdjustmentConsumptions")
 }
@@ -347,6 +348,37 @@ model AutoclaveCycleToolLine {
   @@unique([cycleId, toolId]) // Unique within (cycle, tool)
   @@index([cycleId])
   @@index([toolId])
+}
+
+// NEW: Bur Sterilization Cycle (compliance-only tracking, no encounter linkage)
+model BurSterilizationCycle {
+  id                      Int      @id @default(autoincrement())
+  branchId                Int
+  code                    String   // Cycle code - unique per branch
+  sterilizationRunNumber  String   // Run counter per machine (Ариутгалын дугаар)
+  machineId               Int      // Reference to AutoclaveMachine ID (not machineNumber)
+  startedAt               DateTime
+  pressure                String?  // Pressure value (stored as string with spaces, e.g., "90 230")
+  temperature             Float?   // Temperature value (optional)
+  finishedAt              DateTime
+  removedFromAutoclaveAt  DateTime? // When removed from autoclave (optional)
+  result                  AutoclaveCycleResult // PASS or FAIL
+  operator                String   // Operator/nurse name (free text)
+  notes                   String?  @db.Text
+  fastBurQty              Int      @default(0) // Fast bur quantity
+  slowBurQty              Int      @default(0) // Slow bur quantity
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch  Branch @relation("BranchBurCycles", fields: [branchId], references: [id])
+
+  @@unique([branchId, code]) // One cycle per (branch, code)
+  @@unique([machineId, sterilizationRunNumber]) // Unique run number per machine
+  @@index([branchId])
+  @@index([machineId])
+  @@index([result])
+  @@index([startedAt])
 }
 
 // NEW: Draft attachments (before encounter close)

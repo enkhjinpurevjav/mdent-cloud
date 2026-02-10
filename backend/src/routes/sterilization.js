@@ -941,4 +941,178 @@ router.delete("/sterilization/machines/:id", async (req, res) => {
   }
 });
 
+// ==========================================================
+// BUR STERILIZATION CYCLES (Compliance-Only Tracking)
+// ==========================================================
+
+// POST create bur sterilization cycle
+router.post("/sterilization/bur-cycles", async (req, res) => {
+  try {
+    const branchId = Number(req.body?.branchId);
+    const code = String(req.body?.code || "").trim();
+    const sterilizationRunNumber = String(req.body?.sterilizationRunNumber || "").trim();
+    const machineId = Number(req.body?.machineId);
+    const startedAt = req.body?.startedAt ? new Date(req.body.startedAt) : null;
+    // Sanitize pressure: keep only digits and spaces (expected format: "90 230")
+    const pressure = String(req.body?.pressure || "").trim().replace(/[^\d\s]/g, "");
+    const temperature = req.body?.temperature ? Number(req.body.temperature) : null;
+    const finishedAt = req.body?.finishedAt ? new Date(req.body.finishedAt) : null;
+    const removedFromAutoclaveAt = req.body?.removedFromAutoclaveAt ? new Date(req.body.removedFromAutoclaveAt) : null;
+    const result = String(req.body?.result || "").trim();
+    const operator = String(req.body?.operator || "").trim();
+    const notes = req.body?.notes ? String(req.body.notes).trim() : null;
+    const fastBurQty = Number(req.body?.fastBurQty) || 0;
+    const slowBurQty = Number(req.body?.slowBurQty) || 0;
+
+    // Validation
+    if (!branchId) return res.status(400).json({ error: "branchId is required" });
+    if (!code) return res.status(400).json({ error: "code is required" });
+    if (!sterilizationRunNumber) return res.status(400).json({ error: "sterilizationRunNumber is required" });
+    if (!machineId) return res.status(400).json({ error: "machineId is required" });
+    if (!startedAt || isNaN(startedAt.getTime())) return res.status(400).json({ error: "startedAt is required and must be valid" });
+    if (!finishedAt || isNaN(finishedAt.getTime())) return res.status(400).json({ error: "finishedAt is required and must be valid" });
+    if (!result || !["PASS", "FAIL"].includes(result)) return res.status(400).json({ error: "result must be PASS or FAIL" });
+    if (!operator) return res.status(400).json({ error: "operator is required" });
+
+    // Check fastBurQty and slowBurQty
+    if (!Number.isInteger(fastBurQty) || fastBurQty < 0) {
+      return res.status(400).json({ error: "fastBurQty must be >= 0" });
+    }
+    if (!Number.isInteger(slowBurQty) || slowBurQty < 0) {
+      return res.status(400).json({ error: "slowBurQty must be >= 0" });
+    }
+    if (fastBurQty === 0 && slowBurQty === 0) {
+      return res.status(400).json({ error: "At least one of fastBurQty or slowBurQty must be > 0" });
+    }
+
+    const burCycle = await prisma.burSterilizationCycle.create({
+      data: {
+        branchId,
+        code,
+        sterilizationRunNumber,
+        machineId,
+        startedAt,
+        pressure: pressure || null,
+        temperature,
+        finishedAt,
+        removedFromAutoclaveAt,
+        result,
+        operator,
+        notes,
+        fastBurQty,
+        slowBurQty,
+      },
+      include: {
+        branch: { select: { id: true, name: true } },
+      },
+    });
+
+    res.json(burCycle);
+  } catch (err) {
+    console.error("POST /api/sterilization/bur-cycles error:", err);
+    if (err.code === "P2002") {
+      const target = err.meta?.target || [];
+      if (target.includes("code")) {
+        return res.status(409).json({ error: "Cycle code already exists for this branch" });
+      }
+      if (target.includes("sterilizationRunNumber")) {
+        return res.status(409).json({ error: "Sterilization run number already exists for this machine" });
+      }
+      return res.status(409).json({ error: "Unique constraint violation" });
+    }
+    return res.status(500).json({ error: "Failed to create bur sterilization cycle" });
+  }
+});
+
+// GET list bur cycles (with date range filter)
+router.get("/sterilization/bur-cycles", async (req, res) => {
+  try {
+    const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+    const from = req.query.from ? new Date(req.query.from) : null;
+    const to = req.query.to ? new Date(req.query.to) : null;
+
+    const where = {
+      ...(branchId ? { branchId } : {}),
+      ...(from || to ? {
+        startedAt: {
+          ...(from ? { gte: from } : {}),
+          ...(to ? { lte: to } : {}),
+        },
+      } : {}),
+    };
+
+    const burCycles = await prisma.burSterilizationCycle.findMany({
+      where,
+      orderBy: [{ startedAt: "desc" }, { id: "desc" }],
+      include: {
+        branch: { select: { id: true, name: true } },
+      },
+    });
+
+    // Fetch machine details for each cycle
+    const machineIds = [...new Set(burCycles.map(c => c.machineId))];
+    const machines = await prisma.autoclaveMachine.findMany({
+      where: { id: { in: machineIds } },
+      select: { id: true, machineNumber: true, name: true },
+    });
+
+    const machineMap = new Map(machines.map(m => [m.id, m]));
+
+    // Enrich cycles with machine details
+    const enrichedCycles = burCycles.map(cycle => ({
+      ...cycle,
+      machine: machineMap.get(cycle.machineId) || null,
+    }));
+
+    res.json(enrichedCycles);
+  } catch (err) {
+    console.error("GET /api/sterilization/bur-cycles error:", err);
+    return res.status(500).json({ error: "Failed to retrieve bur cycles" });
+  }
+});
+
+// GET check if cycle code exists for a branch
+router.get("/sterilization/bur-cycles/check-code", async (req, res) => {
+  try {
+    const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+    const code = req.query.code ? String(req.query.code).trim() : "";
+
+    if (!branchId || !code) {
+      return res.status(400).json({ error: "branchId and code are required" });
+    }
+
+    const existing = await prisma.burSterilizationCycle.findFirst({
+      where: { branchId, code },
+      select: { id: true, code: true },
+    });
+
+    res.json({ exists: !!existing, code });
+  } catch (err) {
+    console.error("GET /api/sterilization/bur-cycles/check-code error:", err);
+    return res.status(500).json({ error: "Failed to check code" });
+  }
+});
+
+// GET check if sterilization run number exists for a machine
+router.get("/sterilization/bur-cycles/check-run-number", async (req, res) => {
+  try {
+    const machineId = req.query.machineId ? Number(req.query.machineId) : null;
+    const sterilizationRunNumber = req.query.sterilizationRunNumber ? String(req.query.sterilizationRunNumber).trim() : "";
+
+    if (!machineId || !sterilizationRunNumber) {
+      return res.status(400).json({ error: "machineId and sterilizationRunNumber are required" });
+    }
+
+    const existing = await prisma.burSterilizationCycle.findFirst({
+      where: { machineId, sterilizationRunNumber },
+      select: { id: true, sterilizationRunNumber: true },
+    });
+
+    res.json({ exists: !!existing, sterilizationRunNumber });
+  } catch (err) {
+    console.error("GET /api/sterilization/bur-cycles/check-run-number error:", err);
+    return res.status(500).json({ error: "Failed to check run number" });
+  }
+});
+
 export default router;
