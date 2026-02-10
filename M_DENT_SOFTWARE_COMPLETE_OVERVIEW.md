@@ -76,12 +76,17 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
 - **Tool-Line Based Draft Attachments**: Doctor-side draft attachment workflow using tool lines (V1 approach)
   - **Local Selection Before Save**: Doctors can select sterilization tools on unsaved diagnosis rows
   - Tool selections stored locally in `selectedToolLineIds` array until save
-  - Simple UX: shows only tool name and cycle code
-  - Allows duplicate selections: each selection adds to array, displaying as repeated identical chips
-  - Remove chip removes one occurrence from array
+  - **Dropdown Selection UX**: Click-outside handling prevents premature dropdown close, ensuring reliable tool selection
+  - Simple UX: shows tool name and cycle code as chips
+  - **Repeated Chip Rendering**: Each tool with `requestedQty=N` displays as N identical chips
+    - Server-backed chips (from `draftAttachments`) expanded by `requestedQty`
+    - Local unsaved chips from `selectedToolLineIds` array
+  - Allows duplicate selections: each selection adds to array
+  - Remove chip: decrements `requestedQty` by 1 for server-backed chips, removes one occurrence for local chips
   - On save: frontend aggregates duplicates by toolLineId to calculate `requestedQty`
   - Backend receives `toolLineDrafts: [{ toolLineId, requestedQty }]` per diagnosis row
   - Backend upserts `SterilizationDraftAttachment` records with unique key `(encounterDiagnosisId, cycleId, toolId)`
+  - **Chips persist after save**: Refreshed from `draftAttachments` in backend response
   - Drafts persist across page refreshes until encounter is finished
   - Replaced previous indicator-based selection approach
 - **Finalization**: On encounter finish, draft attachments are converted to finalized usages
