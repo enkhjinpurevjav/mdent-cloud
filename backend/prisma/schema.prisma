@@ -146,6 +146,7 @@ model Branch {
   sterilizationMismatches  SterilizationMismatch[]   @relation("BranchSterilizationMismatches")
   adjustmentConsumptions   SterilizationAdjustmentConsumption[] @relation("BranchAdjustmentConsumptions")
   disinfectionLogs DisinfectionLog[] @relation("BranchDisinfectionLogs")
+  sterilizationReturns SterilizationReturn[] @relation("BranchSterilizationReturns")
 }
 
 model EmployeeBenefit {
@@ -558,6 +559,8 @@ model User {
   authorizationCodes          AuthorizationCode[]
   sterilizationIndicators     SterilizationIndicator[]           @relation("UserSterilizationIndicators")
   openedSterilizationPackages EncounterSterilizationPackageUse[] @relation("UserOpenedSterilizationPackages")
+
+  sterilizationReturns SterilizationReturn[] @relation("DoctorSterilizationReturns")
   
   // NEW: v1 sterilization adjustment resolutions
   adjustmentResolutions SterilizationAdjustmentConsumption[] @relation("UserAdjustmentResolutions")
