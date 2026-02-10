@@ -1546,7 +1546,14 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
           const toolLineDrafts = Array.isArray(row.toolLineDrafts) ? row.toolLineDrafts : [];
           
           if (toolLineDrafts.length > 0) {
-            // First, get all tool lines to extract cycleId and toolId
+            // Validate tool line drafts
+            for (const draft of toolLineDrafts) {
+              if (!Number.isInteger(draft.requestedQty) || draft.requestedQty < 1) {
+                throw new Error(`Invalid requestedQty for toolLineId ${draft.toolLineId}: must be a positive integer`);
+              }
+            }
+            
+            // Get all tool lines to extract cycleId and toolId
             const toolLineIds = toolLineDrafts.map(d => d.toolLineId).filter(Boolean);
             const toolLines = await trx.autoclaveCycleToolLine.findMany({
               where: { id: { in: toolLineIds } },
@@ -1563,7 +1570,7 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
             // Create new drafts
             for (const draft of toolLineDrafts) {
               const toolLine = toolLineMap.get(draft.toolLineId);
-              if (toolLine && draft.requestedQty > 0) {
+              if (toolLine) {
                 await trx.sterilizationDraftAttachment.create({
                   data: {
                     encounterDiagnosisId: diagnosisRowId,

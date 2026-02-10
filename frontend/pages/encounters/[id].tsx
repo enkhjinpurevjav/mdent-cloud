@@ -1538,40 +1538,26 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     }
 
     // Add toolLineId to local array (allow duplicates)
-    setEditableDxRows((prev) =>
-      prev.map((r, i) =>
-        i === index
-          ? { ...r, selectedToolLineIds: [...(r.selectedToolLineIds || []), toolLineId] }
-          : r
-      )
-    );
-    setRows((prev) =>
-      prev.map((r, i) =>
-        i === index
-          ? { ...r, selectedToolLineIds: [...(r.selectedToolLineIds || []), toolLineId] }
-          : r
-      )
-    );
+    const updateRow = (r: EditableDiagnosis, i: number) =>
+      i === index
+        ? { ...r, selectedToolLineIds: [...(r.selectedToolLineIds || []), toolLineId] }
+        : r;
+    
+    setEditableDxRows((prev) => prev.map(updateRow));
+    setRows((prev) => prev.map(updateRow));
   };
 
   const handleRemoveToolLineLocal = (index: number, chipIndex: number) => {
     // Remove one occurrence at chipIndex
-    setEditableDxRows((prev) =>
-      prev.map((r, i) => {
-        if (i !== index) return r;
-        const newIds = [...(r.selectedToolLineIds || [])];
-        newIds.splice(chipIndex, 1);
-        return { ...r, selectedToolLineIds: newIds };
-      })
-    );
-    setRows((prev) =>
-      prev.map((r, i) => {
-        if (i !== index) return r;
-        const newIds = [...(r.selectedToolLineIds || [])];
-        newIds.splice(chipIndex, 1);
-        return { ...r, selectedToolLineIds: newIds };
-      })
-    );
+    const updateRow = (r: EditableDiagnosis, i: number) => {
+      if (i !== index) return r;
+      const newIds = [...(r.selectedToolLineIds || [])];
+      newIds.splice(chipIndex, 1);
+      return { ...r, selectedToolLineIds: newIds };
+    };
+    
+    setEditableDxRows((prev) => prev.map(updateRow));
+    setRows((prev) => prev.map(updateRow));
   };
 
   const handleSaveDiagnoses = async () => {
