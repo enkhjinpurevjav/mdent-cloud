@@ -83,6 +83,17 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
   - Machine-specific run numbers with uniqueness validation
   - PASS/FAIL result tracking for audit compliance
   - Date range filtering and historical reporting
+- **Active Cycles Report**: Real-time tracking of available sterilized tools
+  - Shows today's used tools count per branch (always today's calendar date)
+  - Lists only PASS cycles with remaining inventory (remaining = produced - used - disposed)
+  - Branch-required filter with expandable cycle details
+  - Displays produced, used, disposed, and remaining quantities per tool line
+- **Disposal Workflow**: Recording and tracking of disposed/discarded sterilized tools
+  - Modal-based disposal entry from active cycles report
+  - Records disposal date/time, person responsible, quantity, reason, and notes
+  - Linked to specific autoclave cycle tool lines
+  - Separate disposal history page with branch and date range filtering
+  - Expandable disposal details showing cycle, tool, and quantities
 - **Billing Gate**: Invoice settlement blocked when unresolved sterilization mismatches exist
 
 ### 4.6 Reporting & Analytics
@@ -134,6 +145,8 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
 - **SterilizationFinalizedUsage**: usageId, cycleId, toolId, finalizedQty, patientId, invoiceId, finalizedAt
 - **SterilizationMismatch**: mismatchId, cycleId, toolId, draftQty, finalizedQty, variance, status (UNRESOLVED/RESOLVED), createdAt, resolvedAt
 - **SterilizationAdjustmentConsumption**: adjustmentId, mismatchId, toolId, adjustmentQty, reason, createdBy, createdAt
+- **SterilizationDisposal**: disposalId, branchId, disposedAt, disposedByName, reason (optional), notes (optional), createdAt, updatedAt
+- **SterilizationDisposalLine**: lineId, disposalId, toolLineId (AutoclaveCycleToolLine), quantity, createdAt
 
 ### Key Relationships
 - Branch → Users (one-to-many)
@@ -145,10 +158,13 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
 - Invoice → Payments (one-to-many)
 - Branch → AutoclaveMachines (one-to-many)
 - Branch → AutoclaveCycles (one-to-many)
+- Branch → SterilizationDisposals (one-to-many)
 - AutoclaveCycle → CycleToolLines (one-to-many)
 - AutoclaveCycle → DraftAttachments (one-to-many)
 - AutoclaveCycle → FinalizedUsages (one-to-many)
 - AutoclaveCycle → Mismatches (one-to-many)
+- AutoclaveCycleToolLine → DisposalLines (one-to-many)
+- SterilizationDisposal → DisposalLines (one-to-many)
 
 ## 6. Security & Compliance
 

@@ -147,6 +147,7 @@ model Branch {
   adjustmentConsumptions   SterilizationAdjustmentConsumption[] @relation("BranchAdjustmentConsumptions")
   disinfectionLogs DisinfectionLog[] @relation("BranchDisinfectionLogs")
   sterilizationReturns SterilizationReturn[] @relation("BranchSterilizationReturns")
+  sterilizationDisposals   SterilizationDisposal[]   @relation("BranchSterilizationDisposals")
 }
 
 model EmployeeBenefit {
@@ -386,6 +387,7 @@ model AutoclaveCycleToolLine {
   cycle AutoclaveCycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
   tool  SterilizationItem  @relation(fields: [toolId], references: [id])
   finalizedUsages SterilizationFinalizedUsage[]
+  disposalLines   SterilizationDisposalLine[]
 
   @@unique([cycleId, toolId]) // Unique within (cycle, tool)
   @@index([cycleId])
@@ -544,6 +546,41 @@ model SterilizationAdjustmentConsumption {
   @@index([branchId])
   @@index([toolId])
   @@index([resolvedByUserId])
+}
+
+// NEW: Sterilization Disposal (tracking disposed/discarded tools)
+model SterilizationDisposal {
+  id              Int      @id @default(autoincrement())
+  branchId        Int
+  disposedAt      DateTime
+  disposedByName  String   // Free text for who disposed
+  reason          String?  @db.Text // Optional reason for disposal
+  notes           String?  @db.Text // Optional notes
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch Branch                      @relation("BranchSterilizationDisposals", fields: [branchId], references: [id])
+  lines  SterilizationDisposalLine[]
+
+  @@index([branchId])
+  @@index([disposedAt])
+}
+
+// NEW: Sterilization Disposal Line (links disposal to specific tool lines)
+model SterilizationDisposalLine {
+  id         Int @id @default(autoincrement())
+  disposalId Int
+  toolLineId Int // References AutoclaveCycleToolLine
+  quantity   Int // Quantity disposed
+  
+  createdAt DateTime @default(now())
+
+  disposal SterilizationDisposal  @relation(fields: [disposalId], references: [id], onDelete: Cascade)
+  toolLine AutoclaveCycleToolLine @relation(fields: [toolLineId], references: [id])
+
+  @@index([disposalId])
+  @@index([toolLineId])
 }
 
 // ==========================================================
