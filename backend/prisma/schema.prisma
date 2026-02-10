@@ -232,6 +232,45 @@ enum SterilizationMismatchStatus {
   RESOLVED
 }
 
+model SterilizationReturn {
+  id       Int      @id @default(autoincrement())
+  branchId Int
+  date     DateTime // store as local midnight for the selected calendar date
+  time     String   // "HH:mm"
+
+  doctorId  Int
+  nurseName String
+  notes     String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch Branch @relation("BranchSterilizationReturns", fields: [branchId], references: [id])
+  doctor User   @relation("DoctorSterilizationReturns", fields: [doctorId], references: [id])
+
+  lines SterilizationReturnLine[]
+
+  @@index([branchId])
+  @@index([date])
+  @@index([doctorId])
+}
+
+model SterilizationReturnLine {
+  id          Int @id @default(autoincrement())
+  returnId    Int
+  toolId      Int
+  returnedQty Int
+
+  createdAt DateTime @default(now())
+
+  ret  SterilizationReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  tool SterilizationItem   @relation(fields: [toolId], references: [id])
+
+  @@unique([returnId, toolId])
+  @@index([returnId])
+  @@index([toolId])
+}
+
 model SterilizationIndicator {
   id       Int @id @default(autoincrement())
   branchId Int
