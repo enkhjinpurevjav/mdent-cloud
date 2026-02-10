@@ -78,6 +78,159 @@ router.get("/sterilization/branch-prefixes", async (_req, res) => {
   res.json(prefixes); // { [branchId]: "M" or "MA" ... }
 });
 
+router.get("/sterilization/doctors", async (_req, res) => {
+  const users = await prisma.user.findMany({
+    where: { role: "doctor" },
+    select: { id: true, name: true, ovog: true, email: true, branchId: true },
+    orderBy: [{ name: "asc" }, { email: "asc" }],
+  });
+  res.json(users);
+});
+
+
+router.post("/sterilization/returns", async (req, res) => {
+  try {
+    const branchId = Number(req.body?.branchId);
+    const dateStr = String(req.body?.date || "").trim();
+    const time = String(req.body?.time || "").trim();
+    const doctorId = Number(req.body?.doctorId);
+    const nurseName = String(req.body?.nurseName || "").trim();
+    const notes = req.body?.notes ? String(req.body.notes).trim() : null;
+
+    const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
+
+    if (!branchId) return res.status(400).json({ error: "branchId is required" });
+
+    const date = parseYmdToLocalMidnight(dateStr);
+    if (!date) return res.status(400).json({ error: "date is required (YYYY-MM-DD)" });
+
+    if (!isValidHHmm(time)) return res.status(400).json({ error: "time is required (HH:mm)" });
+
+    if (!doctorId) return res.status(400).json({ error: "doctorId is required" });
+    if (!nurseName) return res.status(400).json({ error: "nurseName is required" });
+
+    if (lines.length === 0) {
+      return res.status(400).json({ error: "lines are required" });
+    }
+
+    // Validate doctor exists and is doctor
+    const doctor = await prisma.user.findUnique({ where: { id: doctorId }, select: { id: true, role: true } });
+    if (!doctor || doctor.role !== "doctor") {
+      return res.status(400).json({ error: "Invalid doctorId" });
+    }
+
+    // Keep only qty>0 (your requirement)
+    const normalized = [];
+    for (const ln of lines) {
+      const toolId = Number(ln?.toolId);
+      const returnedQty = Number(ln?.returnedQty);
+
+      if (!toolId || !Number.isInteger(returnedQty) || returnedQty < 0) {
+        return res.status(400).json({ error: "Each line must have valid toolId and returnedQty >= 0 integer" });
+      }
+      if (returnedQty > 0) normalized.push({ toolId, returnedQty });
+    }
+
+    if (normalized.length === 0) {
+      return res.status(400).json({ error: "At least one returnedQty must be > 0" });
+    }
+
+    // Ensure tools belong to branch (SterilizationItem is branch-scoped)
+    const toolIds = [...new Set(normalized.map((x) => x.toolId))];
+    const tools = await prisma.sterilizationItem.findMany({
+      where: { id: { in: toolIds } },
+      select: { id: true, branchId: true },
+    });
+
+    if (tools.length !== toolIds.length) {
+      return res.status(400).json({ error: "One or more toolId is invalid" });
+    }
+    if (tools.some((t) => t.branchId !== branchId)) {
+      return res.status(400).json({ error: "All tools must belong to the selected branch" });
+    }
+
+    const created = await prisma.sterilizationReturn.create({
+      data: {
+        branchId,
+        date,
+        time,
+        doctorId,
+        nurseName,
+        notes,
+        lines: {
+          create: normalized.map((x) => ({
+            toolId: x.toolId,
+            returnedQty: x.returnedQty,
+          })),
+        },
+      },
+      include: {
+        branch: { select: { id: true, name: true } },
+        doctor: { select: { id: true, name: true, ovog: true, email: true } },
+        lines: { include: { tool: { select: { id: true, name: true } } } },
+      },
+    });
+
+    res.json(created);
+  } catch (err) {
+    console.error("POST /api/sterilization/returns error:", err);
+    return res.status(500).json({ error: "Failed to create return record" });
+  }
+});
+
+router.get("/sterilization/returns", async (req, res) => {
+  try {
+    const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+    const fromStr = req.query.from ? String(req.query.from) : "";
+    const toStr = req.query.to ? String(req.query.to) : "";
+    const doctorId = req.query.doctorId ? Number(req.query.doctorId) : null;
+
+    if (!branchId) return res.status(400).json({ error: "branchId is required" });
+
+    let rangeStart = null;
+    let rangeEnd = null;
+
+    if (fromStr) {
+      rangeStart = parseYmdToLocalMidnight(fromStr);
+      if (!rangeStart) return res.status(400).json({ error: "from is invalid (YYYY-MM-DD)" });
+    }
+    if (toStr) {
+      const toMid = parseYmdToLocalMidnight(toStr);
+      if (!toMid) return res.status(400).json({ error: "to is invalid (YYYY-MM-DD)" });
+      rangeEnd = new Date(toMid.getFullYear(), toMid.getMonth(), toMid.getDate(), 23, 59, 59, 999);
+    }
+
+    const where = {
+      branchId,
+      ...(doctorId ? { doctorId } : {}),
+      ...(rangeStart || rangeEnd
+        ? {
+            date: {
+              ...(rangeStart ? { gte: rangeStart } : {}),
+              ...(rangeEnd ? { lte: rangeEnd } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const rows = await prisma.sterilizationReturn.findMany({
+      where,
+      orderBy: [{ date: "desc" }, { id: "desc" }],
+      include: {
+        branch: { select: { id: true, name: true } },
+        doctor: { select: { id: true, name: true, ovog: true, email: true } },
+        lines: { include: { tool: { select: { id: true, name: true } } } },
+      },
+    });
+
+    res.json(rows);
+  } catch (err) {
+    console.error("GET /api/sterilization/returns error:", err);
+    return res.status(500).json({ error: "Failed to list return records" });
+  }
+});
+
+
 // POST create indicator
 router.post("/sterilization/indicators", async (req, res) => {
   const branchId = Number(req.body?.branchId);
