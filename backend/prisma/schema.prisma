@@ -211,6 +211,7 @@ model SterilizationItem {
 
   @@unique([branchId, name])  // Tool name must be unique within a branch
   @@index([branchId])
+  returnLines SterilizationReturnLine[] @relation("SterilizationReturnLineTool")
 }
 
 enum SterilizationIndicatorStatus {
@@ -264,7 +265,7 @@ model SterilizationReturnLine {
   createdAt DateTime @default(now())
 
   ret  SterilizationReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
-  tool SterilizationItem   @relation(fields: [toolId], references: [id])
+  tool SterilizationItem   @relation("SterilizationReturnLineTool", fields: [toolId], references: [id])
 
   @@unique([returnId, toolId])
   @@index([returnId])
