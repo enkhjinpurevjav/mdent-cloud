@@ -73,9 +73,15 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
   - Pressure, temperature, and time tracking
   - Operator documentation
 - **Tool Line Production**: Multi-tool sterilization per cycle with produced quantities
-- **Draft Attachments**: Doctor-side draft attachment workflow before finalization
-- **Finalization**: Decrement inventory on cycle finalization
-- **Mismatch Detection**: Automatic generation of mismatches between draft attachments and finalized usage
+- **Tool-Line Based Draft Attachments**: Doctor-side draft attachment workflow using tool lines (NEW V1 approach)
+  - Doctors select specific tool + cycle combinations during encounter
+  - Simple UX: shows only tool name and cycle code (no remaining/quantity displayed)
+  - Allows duplicate selections: selecting same tool+cycle multiple times increments requestedQty
+  - Remove chip decrements quantity and deletes draft when reaching 0
+  - Drafts are created per encounter diagnosis row
+  - Replaced previous indicator-based selection approach
+- **Finalization**: On encounter finish, draft attachments are converted to finalized usages and decrement inventory
+- **Mismatch Detection**: Automatic generation of mismatches between draft attachments and finalized usage when insufficient inventory
 - **Mismatch Resolution**: Adjustment consumption records to resolve discrepancies
 - **Bur Sterilization Compliance Log**: Compliance-only tracking of bur (dental drill bit) sterilization cycles
   - Separate from main autoclave cycles (no encounter linkage)
@@ -138,12 +144,12 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
 #### Sterilization Module
 - **SterilizationItem**: itemId, branchId, name, baselineAmount (tool master per branch)
 - **AutoclaveMachine**: machineId, branchId, machineNumber, name (optional)
-- **AutoclaveCycle**: cycleId, branchId, code (certificate number, unique per branch), sterilizationRunNumber, machineId, startedAt, finishedAt, pressure, temperature, removedFromAutoclaveAt, result (PASS/FAIL), operator, notes
-- **AutoclaveCycleToolLine**: lineId, cycleId, toolId (SterilizationItem), producedQty
-- **BurSterilizationCycle**: cycleId, branchId, code (unique per branch), sterilizationRunNumber (unique per machine), machineId, startedAt, finishedAt, pressure, temperature, removedFromAutoclaveAt, result (PASS/FAIL), operator, notes, fastBurQty, slowBurQty (compliance-only tracking, no encounter linkage)
-- **SterilizationDraftAttachment**: draftId, patientId, appointmentId, cycleId, toolId, draftQty, createdBy, createdAt
-- **SterilizationFinalizedUsage**: usageId, cycleId, toolId, finalizedQty, patientId, invoiceId, finalizedAt
-- **SterilizationMismatch**: mismatchId, cycleId, toolId, draftQty, finalizedQty, variance, status (UNRESOLVED/RESOLVED), createdAt, resolvedAt
+- **AutoclaveCycle**: cycleId, branchId, code (certificate number, unique per branch), sterilizationRunNumber, machineNumber, startedAt, finishedAt, pressure, temperature, removedFromAutoclaveAt, result (PASS/FAIL), operator, notes, createdAt, updatedAt
+- **AutoclaveCycleToolLine**: lineId, cycleId, toolId (SterilizationItem), producedQty, createdAt
+- **BurSterilizationCycle**: cycleId, branchId, code (unique per branch), sterilizationRunNumber (unique per machine), machineId, startedAt, finishedAt, pressure, temperature, removedFromAutoclaveAt, result (PASS/FAIL), operator, notes, fastBurQty, slowBurQty, createdAt, updatedAt (compliance-only tracking, no encounter linkage)
+- **SterilizationDraftAttachment**: draftId, encounterDiagnosisId, cycleId, toolId, requestedQty (default 1), createdAt (NEW V1: tool-line based, linked to encounter diagnosis rows)
+- **SterilizationFinalizedUsage**: usageId, encounterId, toolLineId (AutoclaveCycleToolLine), usedQty, createdAt (created on encounter finish, decrements inventory)
+- **SterilizationMismatch**: mismatchId, encounterId, branchId, toolId, code (cycle code), requiredQty, finalizedQty, mismatchQty, status (UNRESOLVED/RESOLVED), createdAt, updatedAt
 - **SterilizationAdjustmentConsumption**: adjustmentId, mismatchId, toolId, adjustmentQty, reason, createdBy, createdAt
 - **SterilizationDisposal**: disposalId, branchId, disposedAt, disposedByName, reason (optional), notes (optional), createdAt, updatedAt
 - **SterilizationDisposalLine**: lineId, disposalId, toolLineId (AutoclaveCycleToolLine), quantity, createdAt

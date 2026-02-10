@@ -69,6 +69,9 @@ export async function finalizeSterilizationForEncounter(encounterId) {
                 finalizedUsages: {
                   select: { usedQty: true },
                 },
+                disposalLines: {
+                  select: { quantity: true },
+                },
               },
             },
           },
@@ -116,6 +119,8 @@ export async function finalizeSterilizationForEncounter(encounterId) {
         group.producedQty = toolLine.producedQty || 0;
         group.alreadyUsedQty = (toolLine.finalizedUsages || [])
           .reduce((sum, u) => sum + (u.usedQty || 0), 0);
+        group.disposedQty = (toolLine.disposalLines || [])
+          .reduce((sum, d) => sum + (d.quantity || 0), 0);
       }
     }
 
@@ -142,7 +147,8 @@ export async function finalizeSterilizationForEncounter(encounterId) {
         continue;
       }
 
-      const available = Math.max(0, group.producedQty - group.alreadyUsedQty);
+      // Calculate available considering disposed quantities
+      const available = Math.max(0, group.producedQty - group.alreadyUsedQty - (group.disposedQty || 0));
       const toFinalize = Math.min(group.requestedQty, available);
       const shortfall = Math.max(0, group.requestedQty - toFinalize);
 
