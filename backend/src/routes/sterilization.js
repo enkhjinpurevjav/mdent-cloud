@@ -953,7 +953,8 @@ router.post("/sterilization/bur-cycles", async (req, res) => {
     const sterilizationRunNumber = String(req.body?.sterilizationRunNumber || "").trim();
     const machineId = Number(req.body?.machineId);
     const startedAt = req.body?.startedAt ? new Date(req.body.startedAt) : null;
-    const pressure = String(req.body?.pressure || "").trim().replace(/[^\d\s]/g, ""); // Sanitize pressure
+    // Sanitize pressure: keep only digits and spaces (expected format: "90 230")
+    const pressure = String(req.body?.pressure || "").trim().replace(/[^\d\s]/g, "");
     const temperature = req.body?.temperature ? Number(req.body.temperature) : null;
     const finishedAt = req.body?.finishedAt ? new Date(req.body.finishedAt) : null;
     const removedFromAutoclaveAt = req.body?.removedFromAutoclaveAt ? new Date(req.body.removedFromAutoclaveAt) : null;
@@ -1032,10 +1033,10 @@ router.get("/sterilization/bur-cycles", async (req, res) => {
 
     const where = {
       ...(branchId ? { branchId } : {}),
-      ...(from && to ? {
+      ...(from || to ? {
         startedAt: {
-          gte: from,
-          lte: to,
+          ...(from ? { gte: from } : {}),
+          ...(to ? { lte: to } : {}),
         },
       } : {}),
     };
@@ -1048,7 +1049,22 @@ router.get("/sterilization/bur-cycles", async (req, res) => {
       },
     });
 
-    res.json(burCycles);
+    // Fetch machine details for each cycle
+    const machineIds = [...new Set(burCycles.map(c => c.machineId))];
+    const machines = await prisma.autoclaveMachine.findMany({
+      where: { id: { in: machineIds } },
+      select: { id: true, machineNumber: true, name: true },
+    });
+
+    const machineMap = new Map(machines.map(m => [m.id, m]));
+
+    // Enrich cycles with machine details
+    const enrichedCycles = burCycles.map(cycle => ({
+      ...cycle,
+      machine: machineMap.get(cycle.machineId) || null,
+    }));
+
+    res.json(enrichedCycles);
   } catch (err) {
     console.error("GET /api/sterilization/bur-cycles error:", err);
     return res.status(500).json({ error: "Failed to retrieve bur cycles" });

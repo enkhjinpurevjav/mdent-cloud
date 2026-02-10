@@ -28,6 +28,7 @@ type BurCycle = {
   createdAt: string;
   updatedAt: string;
   branch: { id: number; name: string };
+  machine: { id: number; machineNumber: string; name: string | null } | null;
 };
 
 function formatDateTime(date: Date) {
@@ -45,6 +46,8 @@ function formatDateOnly(date: Date) {
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 export default function BurCyclesPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -72,7 +75,7 @@ export default function BurCyclesPage() {
   const [slowBurQty, setSlowBurQty] = useState<number>(0);
 
   // Filter fields
-  const [filterFrom, setFilterFrom] = useState(formatDateOnly(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))); // 30 days ago
+  const [filterFrom, setFilterFrom] = useState(formatDateOnly(new Date(Date.now() - THIRTY_DAYS_MS))); // 30 days ago
   const [filterTo, setFilterTo] = useState(formatDateOnly(new Date()));
   const [filterBranchId, setFilterBranchId] = useState<number | "">("");
 
@@ -594,7 +597,11 @@ export default function BurCyclesPage() {
                   <tr key={cycle.id} style={{ borderBottom: "1px solid #eee" }}>
                     <td style={{ padding: "10px" }}>{new Date(cycle.startedAt).toLocaleString("mn-MN")}</td>
                     <td style={{ padding: "10px" }}>{cycle.branch.name}</td>
-                    <td style={{ padding: "10px" }}>{cycle.machineId}</td>
+                    <td style={{ padding: "10px" }}>
+                      {cycle.machine
+                        ? `${cycle.machine.machineNumber}${cycle.machine.name ? ` (${cycle.machine.name})` : ""}`
+                        : cycle.machineId}
+                    </td>
                     <td style={{ padding: "10px" }}>{cycle.sterilizationRunNumber}</td>
                     <td style={{ padding: "10px" }}>{cycle.code}</td>
                     <td style={{ padding: "10px", textAlign: "right" }}>{cycle.fastBurQty}</td>
