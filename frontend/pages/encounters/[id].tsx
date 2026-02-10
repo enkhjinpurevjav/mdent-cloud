@@ -539,7 +539,7 @@ const loadEncounter = async () => {
           ? (row as any).draftAttachments
           : [],
         toolLineSearchText: "",
-        selectedToolLineIds: [], // NEW: Initialize local selections from drafts after save
+        selectedToolLineIds: [], // Local selections - empty on load, will be populated on add
         
         // DEPRECATED: old indicator-based approach (kept for backward compatibility)
         indicatorIds: Array.isArray((row as any).sterilizationIndicators)
@@ -1661,7 +1661,7 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
           ? serverRow.draftAttachments 
           : originalRow?.draftAttachments || [],
         toolLineSearchText: originalRow?.toolLineSearchText || "",
-        // Clear local selections after save (drafts are now in backend)
+        // Keep selectedToolLineIds empty after save - chips will be rendered from draftAttachments
         selectedToolLineIds: [],
 
         searchText: serverRow.diagnosis
@@ -1727,6 +1727,8 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
           const backendDx = encounterData.encounterDiagnoses?.find((dx: any) => dx.id === savedRow.id);
           return {
             ...savedRow,
+            // Preserve draftAttachments from backend refresh
+            draftAttachments: backendDx?.draftAttachments ?? savedRow.draftAttachments ?? [],
             problemTexts: backendDx?.problemTexts || [],
             draftProblemTexts: undefined, // Clear drafts, use saved data
             draftServiceTexts: undefined, // Clear drafts, use saved data
