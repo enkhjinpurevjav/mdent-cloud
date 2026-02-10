@@ -1555,34 +1555,47 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     }
 
     // Update state with saved rows
-    const savedDxRows: EditableDiagnosis[] = savedRows.map((srvRow: any) => {
+    const savedDxRows: EditableDiagnosis[] = savedRows.map((serverRow: any) => {
       // Get service info for display text
-      const svc = services.find((s) => s.id === srvRow.serviceId);
+      const svc = services.find((s) => s.id === serverRow.serviceId);
       const serviceSearchText = svc ? `${svc.code} – ${svc.name}` : "";
 
+      // Ensure localId is a number for comparison
+      const serverLocalId = serverRow.localId ?? 0;
+
+      // Find the original editable row to preserve UI state (match by localId)
+      const originalRow = editableDxRows.find(row => row.localId === serverLocalId);
+
       return {
-        ...srvRow,
-        diagnosisId: srvRow.diagnosisId ?? null,
-        diagnosis: srvRow.diagnosis ?? null,
-        localId: srvRow.localId ?? 0,
-        selectedProblemIds: Array.isArray(srvRow.selectedProblemIds)
-          ? srvRow.selectedProblemIds
+        ...serverRow,
+        diagnosisId: serverRow.diagnosisId ?? null,
+        diagnosis: serverRow.diagnosis ?? null,
+        localId: serverLocalId,
+        selectedProblemIds: Array.isArray(serverRow.selectedProblemIds)
+          ? serverRow.selectedProblemIds
           : [],
-        note: srvRow.note || "",
-        toothCode: srvRow.toothCode || "",
+        note: serverRow.note || "",
+        toothCode: serverRow.toothCode || "",
 
         // Service data (now saved atomically with diagnosis)
-        serviceId: srvRow.serviceId ?? null,
+        serviceId: serverRow.serviceId ?? null,
         serviceSearchText,
-        assignedTo: srvRow.assignedTo ?? "DOCTOR",
+        assignedTo: serverRow.assignedTo ?? "DOCTOR",
 
         // Indicator data (now saved atomically with diagnosis)
-        indicatorIds: Array.isArray(srvRow.indicatorIds) ? srvRow.indicatorIds : [],
+        indicatorIds: Array.isArray(serverRow.indicatorIds) ? serverRow.indicatorIds : [],
         indicatorSearchText: "",
         indicatorsDirty: false,
 
-        searchText: srvRow.diagnosis
-          ? `${srvRow.diagnosis.code} – ${srvRow.diagnosis.name}`
+        // Preserve tool-line based draft attachments and search text
+        // Priority: 1) backend draftAttachments array, 2) original row state, 3) empty array
+        draftAttachments: Array.isArray(serverRow.draftAttachments) 
+          ? serverRow.draftAttachments 
+          : originalRow?.draftAttachments || [],
+        toolLineSearchText: originalRow?.toolLineSearchText || "",
+
+        searchText: serverRow.diagnosis
+          ? `${serverRow.diagnosis.code} – ${serverRow.diagnosis.name}`
           : "",
         locked: true,
       };
