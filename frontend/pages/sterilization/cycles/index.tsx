@@ -173,6 +173,7 @@ export default function CyclesListPage() {
               {cycles.map((cycle) => {
                 const isExpanded = expandedCycleId === cycle.id;
                 const toolCount = cycle.toolLines?.length || 0;
+                const totalProducedQty =cycle.toolLines?.reduce((sum, line) => sum + (Number(line.producedQty) || 0), 0) || 0;
 
                 return (
                   <React.Fragment key={cycle.id}>
@@ -271,13 +272,19 @@ export default function CyclesListPage() {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {cycle.toolLines?.map((line) => (
-                                    <tr key={line.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                                      <td style={{ padding: "6px 8px" }}>{line.tool?.name || `Tool #${line.toolId}`}</td>
-                                      <td style={{ padding: "6px 8px" }}>{line.producedQty}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
+  {cycle.toolLines?.map((line) => (
+    <tr key={line.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+      <td style={{ padding: "6px 8px" }}>{line.tool?.name || `Tool #${line.toolId}`}</td>
+      <td style={{ padding: "6px 8px" }}>{line.producedQty}</td>
+    </tr>
+  ))}
+
+  {/* Bottom total row */}
+  <tr style={{ borderTop: "2px solid #e5e7eb" }}>
+    <td style={{ padding: "6px 8px", fontWeight: 600 }}>Бүгд</td>
+    <td style={{ padding: "6px 8px", fontWeight: 600 }}>{totalProducedQty}</td>
+  </tr>
+</tbody>
                               </table>
                             </div>
                           )}
