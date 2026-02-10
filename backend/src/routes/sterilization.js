@@ -3,6 +3,16 @@ import prisma from "../db.js";
 
 const router = express.Router();
 
+
+function parseYmdToLocalMidnight(ymd) {
+  const [y, m, d] = String(ymd || "").split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+
+function isValidHHmm(s) {
+  return /^\d{2}:\d{2}$/.test(String(s || ""));
+}
 /**
  * Helper: build minimal unique prefix for each branch.
  * Example:
@@ -532,6 +542,147 @@ router.post("/sterilization/cycles", async (req, res) => {
     return res.status(500).json({ error: "Failed to create cycle" });
   }
 });
+
+
+router.post("/sterilization/disinfection-logs", async (req, res) => {
+  try {
+    const branchId = Number(req.body?.branchId);
+    const dateStr = String(req.body?.date || "").trim();
+    const startTime = String(req.body?.startTime || "").trim();
+    const endTime = String(req.body?.endTime || "").trim();
+
+    const rinsedWithDistilledWater = req.body?.rinsedWithDistilledWater;
+    const driedInUVCabinet = req.body?.driedInUVCabinet;
+
+    const nurseName = String(req.body?.nurseName || "").trim();
+    const notes = req.body?.notes ? String(req.body.notes).trim() : null;
+
+    if (!branchId) return res.status(400).json({ error: "branchId is required" });
+
+    const date = parseYmdToLocalMidnight(dateStr);
+    if (!date) return res.status(400).json({ error: "date is required (YYYY-MM-DD)" });
+
+    if (!isValidHHmm(startTime)) return res.status(400).json({ error: "startTime is required (HH:mm)" });
+    if (!isValidHHmm(endTime)) return res.status(400).json({ error: "endTime is required (HH:mm)" });
+
+    if (typeof rinsedWithDistilledWater !== "boolean") {
+      return res.status(400).json({ error: "rinsedWithDistilledWater must be boolean" });
+    }
+    if (typeof driedInUVCabinet !== "boolean") {
+      return res.status(400).json({ error: "driedInUVCabinet must be boolean" });
+    }
+    if (!nurseName) return res.status(400).json({ error: "nurseName is required" });
+
+    // Qty fields (13)
+    const qtyFields = [
+      "qtyPolishingRubber",
+      "qtyBrush",
+      "qtyCup",
+      "qtyLine",
+      "qtyShoeCutter",
+      "qtyPlasticMedicineTray",
+      "qtyPlasticSpatula",
+      "qtyTongueDepressor",
+      "qtyMouthOpener",
+      "qtyRootmeterTip",
+      "qtyTighteningTip",
+      "qtyBurContainer",
+      "qtyPlasticSpoon",
+    ];
+
+    const qtyData = {};
+    let anyPositive = false;
+
+    for (const f of qtyFields) {
+      const n = Number(req.body?.[f] ?? 0);
+      if (!Number.isInteger(n) || n < 0) {
+        return res.status(400).json({ error: `${f} must be an integer >= 0` });
+      }
+      qtyData[f] = n;
+      if (n > 0) anyPositive = true;
+    }
+
+    if (!anyPositive) {
+      return res.status(400).json({ error: "At least one quantity must be > 0" });
+    }
+
+    const created = await prisma.disinfectionLog.create({
+      data: {
+        branchId,
+        date,
+        startTime,
+        endTime,
+        rinsedWithDistilledWater,
+        driedInUVCabinet,
+        nurseName,
+        notes,
+        ...qtyData,
+      },
+      include: {
+        branch: { select: { id: true, name: true } },
+      },
+    });
+
+    res.json(created);
+  } catch (err) {
+    console.error("POST /api/sterilization/disinfection-logs error:", err);
+    return res.status(500).json({ error: "Failed to create disinfection log" });
+  }
+});
+
+
+router.get("/sterilization/disinfection-logs", async (req, res) => {
+  try {
+    const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+    const fromStr = req.query.from ? String(req.query.from) : "";
+    const toStr = req.query.to ? String(req.query.to) : "";
+
+    if (!branchId) {
+      return res.status(400).json({ error: "branchId is required" });
+    }
+
+    let rangeStart = null;
+    let rangeEnd = null;
+
+    if (fromStr) {
+      rangeStart = parseYmdToLocalMidnight(fromStr);
+      if (!rangeStart) return res.status(400).json({ error: "from is invalid (YYYY-MM-DD)" });
+    }
+
+    if (toStr) {
+      const toMidnight = parseYmdToLocalMidnight(toStr);
+      if (!toMidnight) return res.status(400).json({ error: "to is invalid (YYYY-MM-DD)" });
+      rangeEnd = new Date(toMidnight.getFullYear(), toMidnight.getMonth(), toMidnight.getDate(), 23, 59, 59, 999);
+    }
+
+    const where = {
+      branchId,
+      ...(rangeStart || rangeEnd
+        ? {
+            date: {
+              ...(rangeStart ? { gte: rangeStart } : {}),
+              ...(rangeEnd ? { lte: rangeEnd } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const rows = await prisma.disinfectionLog.findMany({
+      where,
+      orderBy: [{ date: "desc" }, { id: "desc" }],
+      include: {
+        branch: { select: { id: true, name: true } },
+      },
+    });
+
+    res.json(rows);
+  } catch (err) {
+    console.error("GET /api/sterilization/disinfection-logs error:", err);
+    return res.status(500).json({ error: "Failed to list disinfection logs" });
+  }
+});
+
+
 
 // GET check if cycle code (cycleNumber) exists for a branch
 router.get("/sterilization/cycles/check-code", async (req, res) => {
