@@ -86,6 +86,7 @@ const navItems: NavItem[] = [
     { label: "Машинууд", href: "/sterilization/machines", icon: "🔧" },
     { label: "Цикл үүсгэх", href: "/sterilization/cycles/new", icon: "🔄" },
     { label: "Циклийн жагсаалт", href: "/sterilization/cycles", icon: "📋" },
+    { label: "Өрмийн бүртгэл, хяналт", href: "/sterilization/bur-cycles", icon: "🦷" },
     { label: "Зөрүү", href: "/sterilization/mismatches", icon: "⚠️" },
     { label: "Ариутгалын тайлан", href: "/sterilization/reports", icon: "📊" },
   ],
