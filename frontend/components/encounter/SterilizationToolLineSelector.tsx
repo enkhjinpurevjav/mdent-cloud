@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type {
   SterilizationDraftAttachment,
   ToolLineSearchResult,
@@ -39,6 +39,23 @@ export default function SterilizationToolLineSelector({
 }: SterilizationToolLineSelectorProps) {
   const [toolLineResults, setToolLineResults] = useState<ToolLineSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen, onClose]);
 
   // Load tool line search results when search text changes
   useEffect(() => {
@@ -103,7 +120,7 @@ export default function SterilizationToolLineSelector({
 
   // Show all selections as chips (allow duplicates with identical labels)
   return (
-    <div style={{ marginBottom: 8, position: "relative" }}>
+    <div ref={containerRef} style={{ marginBottom: 8, position: "relative" }}>
       <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
         Ариутгалын багаж (багаж/цикл)
       </div>
@@ -175,9 +192,6 @@ export default function SterilizationToolLineSelector({
             }}
             onFocus={() => {
               if (!isLocked) onOpen();
-            }}
-            onBlur={() => {
-              setTimeout(() => onClose(), 150);
             }}
             disabled={isLocked}
             style={{
