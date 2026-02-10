@@ -690,23 +690,38 @@ export default function DiagnosesEditor({
               )}
 
               {/* NEW: Tool-line based sterilization selection */}
-              {branchId && onAddToolLineDraft && onRemoveToolLineDraft && (
-                <SterilizationToolLineSelector
-                  diagnosisRowId={row.id}
-                  branchId={branchId}
-                  draftAttachments={row.draftAttachments || []}
-                  searchText={row.toolLineSearchText || ""}
-                  isOpen={openIndicatorIndex === index}
-                  isLocked={isLocked}
-                  onSearchTextChange={(text) =>
-                    onUpdateRowField(index, "toolLineSearchText", text)
-                  }
-                  onOpen={() => onSetOpenIndicatorIndex(index)}
-                  onClose={() => onSetOpenIndicatorIndex(null)}
-                  onAddToolLine={(toolLineId) => onAddToolLineDraft(index, toolLineId)}
-                  onRemoveDraft={(draftId) => onRemoveToolLineDraft(index, draftId)}
-                />
-              )}
+              {onAddToolLineDraft && onRemoveToolLineDraft ? (
+                branchId ? (
+                  <SterilizationToolLineSelector
+                    diagnosisRowId={row.id}
+                    branchId={branchId}
+                    draftAttachments={row.draftAttachments || []}
+                    searchText={row.toolLineSearchText || ""}
+                    isOpen={openIndicatorIndex === index}
+                    isLocked={isLocked}
+                    onSearchTextChange={(text) =>
+                      onUpdateRowField(index, "toolLineSearchText", text)
+                    }
+                    onOpen={() => onSetOpenIndicatorIndex(index)}
+                    onClose={() => onSetOpenIndicatorIndex(null)}
+                    onAddToolLine={(toolLineId) => onAddToolLineDraft(index, toolLineId)}
+                    onRemoveDraft={(draftId) => onRemoveToolLineDraft(index, draftId)}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      padding: "8px 12px",
+                      marginBottom: 8,
+                      background: "#fef3c7",
+                      borderRadius: 6,
+                      fontSize: 12,
+                      color: "#92400e",
+                    }}
+                  >
+                    ⚠️ Ариутгалын багаж сонгох боломжгүй: Өвчтөний салбар тодорхойгүй байна
+                  </div>
+                )
+              ) : null}
 
               {/* Service assignment section */}
               

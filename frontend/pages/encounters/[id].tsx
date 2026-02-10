@@ -1560,6 +1560,9 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
       const svc = services.find((s) => s.id === srvRow.serviceId);
       const serviceSearchText = svc ? `${svc.code} – ${svc.name}` : "";
 
+      // Find the original editable row to preserve UI state
+      const originalRow = editableDxRows.find(r => r.localId === srvRow.localId);
+
       return {
         ...srvRow,
         diagnosisId: srvRow.diagnosisId ?? null,
@@ -1580,6 +1583,12 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
         indicatorIds: Array.isArray(srvRow.indicatorIds) ? srvRow.indicatorIds : [],
         indicatorSearchText: "",
         indicatorsDirty: false,
+
+        // Preserve tool-line based draft attachments and search text from backend or original row
+        draftAttachments: Array.isArray(srvRow.draftAttachments) 
+          ? srvRow.draftAttachments 
+          : (originalRow?.draftAttachments || []),
+        toolLineSearchText: originalRow?.toolLineSearchText || "",
 
         searchText: srvRow.diagnosis
           ? `${srvRow.diagnosis.code} – ${srvRow.diagnosis.name}`
