@@ -8,20 +8,24 @@ type SterilizationToolLineSelectorProps = {
   diagnosisRowId: number | undefined;
   branchId: number;
   draftAttachments: SterilizationDraftAttachment[];
+  selectedToolLineIds: number[];
+  toolLineMetadata: Map<number, { toolName: string; cycleCode: string }>;
   searchText: string;
   isOpen: boolean;
   isLocked: boolean;
   onSearchTextChange: (text: string) => void;
   onOpen: () => void;
   onClose: () => void;
-  onAddToolLine: (toolLineId: number) => Promise<void>;
-  onRemoveDraft: (draftId: number) => Promise<void>;
+  onAddToolLine: (toolLineId: number) => void;
+  onRemoveToolLine: (index: number) => void;
 };
 
 export default function SterilizationToolLineSelector({
   diagnosisRowId,
   branchId,
   draftAttachments,
+  selectedToolLineIds,
+  toolLineMetadata,
   searchText,
   isOpen,
   isLocked,
@@ -29,7 +33,7 @@ export default function SterilizationToolLineSelector({
   onOpen,
   onClose,
   onAddToolLine,
-  onRemoveDraft,
+  onRemoveToolLine,
 }: SterilizationToolLineSelectorProps) {
   const [toolLineResults, setToolLineResults] = useState<ToolLineSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -68,15 +72,15 @@ export default function SterilizationToolLineSelector({
     searchToolLines();
   }, [isOpen, branchId, searchText]);
 
-  // Show all drafts as chips (allow viewing duplicates with their quantities)
+  // Show all selections as chips (allow duplicates with identical labels)
   return (
     <div style={{ marginBottom: 8, position: "relative" }}>
       <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
         Ариутгалын багаж (багаж/цикл)
       </div>
 
-      {/* Selected tool lines (chips) */}
-      {draftAttachments.length > 0 && (
+      {/* Selected tool lines (chips) - show duplicates as separate chips */}
+      {selectedToolLineIds.length > 0 && (
         <div
           style={{
             display: "flex",
@@ -85,11 +89,15 @@ export default function SterilizationToolLineSelector({
             marginBottom: 6,
           }}
         >
-          {draftAttachments.map((draft) => {
-            const label = `${draft.tool.name} — ${draft.cycle.code}`;
+          {selectedToolLineIds.map((toolLineId, index) => {
+            const metadata = toolLineMetadata.get(toolLineId);
+            const label = metadata 
+              ? `${metadata.toolName} — ${metadata.cycleCode}`
+              : `Tool Line #${toolLineId}`;
+            
             return (
               <div
-                key={draft.id}
+                key={`${toolLineId}-${index}`}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -102,13 +110,11 @@ export default function SterilizationToolLineSelector({
                   opacity: isLocked ? 0.6 : 1,
                 }}
               >
-                <span>
-                  {label} {draft.requestedQty > 1 && `×${draft.requestedQty}`}
-                </span>
+                <span>{label}</span>
                 {!isLocked && (
                   <button
                     type="button"
-                    onClick={() => onRemoveDraft(draft.id)}
+                    onClick={() => onRemoveToolLine(index)}
                     style={{
                       border: "none",
                       background: "transparent",
@@ -145,20 +151,20 @@ export default function SterilizationToolLineSelector({
             onBlur={() => {
               setTimeout(() => onClose(), 150);
             }}
-            disabled={isLocked || !diagnosisRowId}
+            disabled={isLocked}
             style={{
               width: "100%",
               borderRadius: 6,
               border: "1px solid #d1d5db",
               padding: "6px 8px",
               fontSize: 13,
-              background: isLocked || !diagnosisRowId ? "#f3f4f6" : "#ffffff",
-              cursor: isLocked || !diagnosisRowId ? "not-allowed" : "text",
-              opacity: isLocked || !diagnosisRowId ? 0.6 : 1,
+              background: isLocked ? "#f3f4f6" : "#ffffff",
+              cursor: isLocked ? "not-allowed" : "text",
+              opacity: isLocked ? 0.6 : 1,
             }}
           />
 
-          {isOpen && diagnosisRowId && (
+          {isOpen && (
             <div
               style={{
                 position: "absolute",

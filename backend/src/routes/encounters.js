@@ -1542,6 +1542,45 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
             }
           }
 
+          // 2b. Upsert sterilization tool line draft attachments (NEW)
+          const toolLineDrafts = Array.isArray(row.toolLineDrafts) ? row.toolLineDrafts : [];
+          
+          if (toolLineDrafts.length > 0) {
+            // First, get all tool lines to extract cycleId and toolId
+            const toolLineIds = toolLineDrafts.map(d => d.toolLineId).filter(Boolean);
+            const toolLines = await trx.autoclaveCycleToolLine.findMany({
+              where: { id: { in: toolLineIds } },
+              select: { id: true, cycleId: true, toolId: true },
+            });
+            
+            const toolLineMap = new Map(toolLines.map(tl => [tl.id, tl]));
+            
+            // Delete existing drafts for this diagnosis row
+            await trx.sterilizationDraftAttachment.deleteMany({
+              where: { encounterDiagnosisId: diagnosisRowId },
+            });
+            
+            // Create new drafts
+            for (const draft of toolLineDrafts) {
+              const toolLine = toolLineMap.get(draft.toolLineId);
+              if (toolLine && draft.requestedQty > 0) {
+                await trx.sterilizationDraftAttachment.create({
+                  data: {
+                    encounterDiagnosisId: diagnosisRowId,
+                    cycleId: toolLine.cycleId,
+                    toolId: toolLine.toolId,
+                    requestedQty: draft.requestedQty,
+                  },
+                });
+              }
+            }
+          } else {
+            // If no tool line drafts provided, delete existing ones
+            await trx.sterilizationDraftAttachment.deleteMany({
+              where: { encounterDiagnosisId: diagnosisRowId },
+            });
+          }
+
           // 3. Upsert service for this diagnosis row (preserves EncounterServiceText)
           // Find existing service for this diagnosis row
           const existingService = await trx.encounterService.findFirst({
@@ -1635,6 +1674,22 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
                     packageName: true,
                     code: true,
                     branchId: true,
+                  },
+                },
+              },
+            },
+            draftAttachments: {
+              include: {
+                cycle: {
+                  select: {
+                    id: true,
+                    code: true,
+                  },
+                },
+                tool: {
+                  select: {
+                    id: true,
+                    name: true,
                   },
                 },
               },

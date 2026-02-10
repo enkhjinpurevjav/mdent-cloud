@@ -49,6 +49,9 @@ type DiagnosesEditorProps = {
   ) => void;
   onAddToolLineDraft?: (index: number, toolLineId: number) => Promise<void>;
   onRemoveToolLineDraft?: (index: number, draftId: number) => Promise<void>;
+  onAddToolLineLocal?: (index: number, toolLineId: number) => void;
+  onRemoveToolLineLocal?: (index: number, chipIndex: number) => void;
+  toolLineMetadata?: Map<number, { toolName: string; cycleCode: string }>;
   onSave: () => Promise<void>;
   onFinish: () => Promise<void>;
   onResetToothSelection: () => void;
@@ -88,6 +91,9 @@ export default function DiagnosesEditor({
   onUpdateRowField,
   onAddToolLineDraft,
   onRemoveToolLineDraft,
+  onAddToolLineLocal,
+  onRemoveToolLineLocal,
+  toolLineMetadata,
   onSave,
   onFinish,
   onResetToothSelection,
@@ -690,12 +696,14 @@ export default function DiagnosesEditor({
               )}
 
               {/* NEW: Tool-line based sterilization selection */}
-              {onAddToolLineDraft && onRemoveToolLineDraft ? (
+              {onAddToolLineLocal && onRemoveToolLineLocal && toolLineMetadata ? (
                 branchId ? (
                   <SterilizationToolLineSelector
                     diagnosisRowId={row.id}
                     branchId={branchId}
                     draftAttachments={row.draftAttachments || []}
+                    selectedToolLineIds={row.selectedToolLineIds || []}
+                    toolLineMetadata={toolLineMetadata}
                     searchText={row.toolLineSearchText || ""}
                     isOpen={openIndicatorIndex === index}
                     isLocked={isLocked}
@@ -704,8 +712,8 @@ export default function DiagnosesEditor({
                     }
                     onOpen={() => onSetOpenIndicatorIndex(index)}
                     onClose={() => onSetOpenIndicatorIndex(null)}
-                    onAddToolLine={(toolLineId) => onAddToolLineDraft(index, toolLineId)}
-                    onRemoveDraft={(draftId) => onRemoveToolLineDraft(index, draftId)}
+                    onAddToolLine={(toolLineId) => onAddToolLineLocal(index, toolLineId)}
+                    onRemoveToolLine={(chipIndex) => onRemoveToolLineLocal(index, chipIndex)}
                   />
                 ) : (
                   <div

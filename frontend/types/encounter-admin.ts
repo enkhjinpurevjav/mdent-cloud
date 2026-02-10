@@ -188,6 +188,8 @@ export type EditableDiagnosis = EncounterDiagnosisRow & {
   // NEW: Tool-line based draft attachments
   draftAttachments?: SterilizationDraftAttachment[];
   toolLineSearchText?: string;
+  // NEW: Local tool line selections (allows duplicates, stored before save)
+  selectedToolLineIds?: number[];
   assignedTo?: AssignedTo;
   // Dirty tracking: true if user has explicitly modified indicators
   indicatorsDirty?: boolean;
