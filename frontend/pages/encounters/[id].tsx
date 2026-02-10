@@ -1560,14 +1560,17 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
       const svc = services.find((s) => s.id === serverRow.serviceId);
       const serviceSearchText = svc ? `${svc.code} – ${svc.name}` : "";
 
-      // Find the original editable row to preserve UI state
-      const originalRow = editableDxRows.find(row => Number(row.localId) === Number(serverRow.localId));
+      // Ensure localId is a number for comparison
+      const serverLocalId = serverRow.localId ?? 0;
+
+      // Find the original editable row to preserve UI state (match by localId)
+      const originalRow = editableDxRows.find(row => row.localId === serverLocalId);
 
       return {
         ...serverRow,
         diagnosisId: serverRow.diagnosisId ?? null,
         diagnosis: serverRow.diagnosis ?? null,
-        localId: serverRow.localId ?? 0,
+        localId: serverLocalId,
         selectedProblemIds: Array.isArray(serverRow.selectedProblemIds)
           ? serverRow.selectedProblemIds
           : [],
