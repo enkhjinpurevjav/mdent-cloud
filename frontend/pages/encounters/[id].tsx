@@ -62,6 +62,9 @@ export default function EncounterAdminPage() {
   const [finishing, setFinishing] = useState(false);
   const [activeIndicators, setActiveIndicators] = useState<ActiveIndicator[]>([]);
   const [openIndicatorIndex, setOpenIndicatorIndex] = useState<number | null>(null);
+  
+  // Tool line metadata cache for rendering chips
+  const [toolLineMetadata, setToolLineMetadata] = useState<Map<number, { toolName: string; cycleCode: string }>>(new Map());
 
   const [services, setServices] = useState<Service[]>([]);
   const [serviceFilterBranchId, setServiceFilterBranchId] = useState<
@@ -197,6 +200,8 @@ export default function EncounterAdminPage() {
       indicatorIds: [],
       indicatorSearchText: "",
       indicatorsDirty: false,
+      selectedToolLineIds: [], // NEW: Initialize empty array for local selections
+      toolLineSearchText: "",
       draftProblemTexts: [""], // Start with one empty text field
       draftServiceTexts: undefined,
     };
@@ -534,6 +539,7 @@ const loadEncounter = async () => {
           ? (row as any).draftAttachments
           : [],
         toolLineSearchText: "",
+        selectedToolLineIds: [], // NEW: Initialize local selections from drafts after save
         
         // DEPRECATED: old indicator-based approach (kept for backward compatibility)
         indicatorIds: Array.isArray((row as any).sterilizationIndicators)
@@ -1506,6 +1512,54 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     }
   };
 
+  // NEW: Local handlers for tool line selection (no API calls until save)
+  const handleAddToolLineLocal = async (index: number, toolLineId: number) => {
+    // Fetch metadata if not cached
+    if (!toolLineMetadata.has(toolLineId)) {
+      try {
+        const branchId = encounter?.patientBook?.patient?.branchId;
+        if (branchId) {
+          const res = await fetch(`/api/sterilization/tool-lines/search?branchId=${branchId}`);
+          if (res.ok) {
+            const results = await res.json();
+            const newMetadata = new Map(toolLineMetadata);
+            for (const result of results) {
+              newMetadata.set(result.toolLineId, {
+                toolName: result.toolName,
+                cycleCode: result.cycleCode,
+              });
+            }
+            setToolLineMetadata(newMetadata);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch tool line metadata:", err);
+      }
+    }
+
+    // Add toolLineId to local array (allow duplicates)
+    const updateRow = (r: EditableDiagnosis, i: number) =>
+      i === index
+        ? { ...r, selectedToolLineIds: [...(r.selectedToolLineIds || []), toolLineId] }
+        : r;
+    
+    setEditableDxRows((prev) => prev.map(updateRow));
+    setRows((prev) => prev.map(updateRow));
+  };
+
+  const handleRemoveToolLineLocal = (index: number, chipIndex: number) => {
+    // Remove one occurrence at chipIndex
+    const updateRow = (r: EditableDiagnosis, i: number) => {
+      if (i !== index) return r;
+      const newIds = [...(r.selectedToolLineIds || [])];
+      newIds.splice(chipIndex, 1);
+      return { ...r, selectedToolLineIds: newIds };
+    };
+    
+    setEditableDxRows((prev) => prev.map(updateRow));
+    setRows((prev) => prev.map(updateRow));
+  };
+
   const handleSaveDiagnoses = async () => {
   if (!id || typeof id !== "string") return;
 
@@ -1515,17 +1569,31 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
   try {
     // Build unified payload with all row state
     const payload = {
-      rows: editableDxRows.map((row) => ({
-        id: row.id ?? null,
-        localId: row.localId ?? 0,
-        diagnosisId: row.diagnosisId ?? null,
-        toothCode: row.toothCode || null,
-        note: row.note || null,
-        selectedProblemIds: Array.isArray(row.selectedProblemIds) ? row.selectedProblemIds : [],
-        indicatorIds: Array.isArray(row.indicatorIds) ? row.indicatorIds : [],
-        serviceId: row.serviceId ?? null,
-        assignedTo: row.assignedTo ?? "DOCTOR",
-      })),
+      rows: editableDxRows.map((row) => {
+        // Aggregate duplicates in selectedToolLineIds to get requestedQty
+        const toolLineCounts = new Map<number, number>();
+        (row.selectedToolLineIds || []).forEach((toolLineId) => {
+          toolLineCounts.set(toolLineId, (toolLineCounts.get(toolLineId) || 0) + 1);
+        });
+        
+        const toolLineDrafts = Array.from(toolLineCounts.entries()).map(([toolLineId, requestedQty]) => ({
+          toolLineId,
+          requestedQty,
+        }));
+
+        return {
+          id: row.id ?? null,
+          localId: row.localId ?? 0,
+          diagnosisId: row.diagnosisId ?? null,
+          toothCode: row.toothCode || null,
+          note: row.note || null,
+          selectedProblemIds: Array.isArray(row.selectedProblemIds) ? row.selectedProblemIds : [],
+          indicatorIds: Array.isArray(row.indicatorIds) ? row.indicatorIds : [],
+          serviceId: row.serviceId ?? null,
+          assignedTo: row.assignedTo ?? "DOCTOR",
+          toolLineDrafts, // NEW: Include aggregated tool line selections
+        };
+      }),
     };
 
     const res = await fetch(`/api/encounters/${id}/diagnosis-rows`, {
@@ -1593,6 +1661,8 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
           ? serverRow.draftAttachments 
           : originalRow?.draftAttachments || [],
         toolLineSearchText: originalRow?.toolLineSearchText || "",
+        // Clear local selections after save (drafts are now in backend)
+        selectedToolLineIds: [],
 
         searchText: serverRow.diagnosis
           ? `${serverRow.diagnosis.code} – ${serverRow.diagnosis.name}`
@@ -2315,6 +2385,9 @@ const handleFinishEncounter = async () => {
               onUpdateRowField={updateDxRowField}
               onAddToolLineDraft={handleAddToolLineDraft}
               onRemoveToolLineDraft={handleRemoveToolLineDraft}
+              onAddToolLineLocal={handleAddToolLineLocal}
+              onRemoveToolLineLocal={handleRemoveToolLineLocal}
+              toolLineMetadata={toolLineMetadata}
               onSave={async () => {
   if (saving || finishing) return;
 

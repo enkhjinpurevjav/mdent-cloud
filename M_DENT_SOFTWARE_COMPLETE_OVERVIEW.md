@@ -73,15 +73,25 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
   - Pressure, temperature, and time tracking
   - Operator documentation
 - **Tool Line Production**: Multi-tool sterilization per cycle with produced quantities
-- **Tool-Line Based Draft Attachments**: Doctor-side draft attachment workflow using tool lines (NEW V1 approach)
-  - Doctors select specific tool + cycle combinations during encounter
-  - Simple UX: shows only tool name and cycle code (no remaining/quantity displayed)
-  - Allows duplicate selections: selecting same tool+cycle multiple times increments requestedQty
-  - Remove chip decrements quantity and deletes draft when reaching 0
-  - Drafts are created per encounter diagnosis row
+- **Tool-Line Based Draft Attachments**: Doctor-side draft attachment workflow using tool lines (V1 approach)
+  - **Local Selection Before Save**: Doctors can select sterilization tools on unsaved diagnosis rows
+  - Tool selections stored locally in `selectedToolLineIds` array until save
+  - Simple UX: shows only tool name and cycle code
+  - Allows duplicate selections: each selection adds to array, displaying as repeated identical chips
+  - Remove chip removes one occurrence from array
+  - On save: frontend aggregates duplicates by toolLineId to calculate `requestedQty`
+  - Backend receives `toolLineDrafts: [{ toolLineId, requestedQty }]` per diagnosis row
+  - Backend upserts `SterilizationDraftAttachment` records with unique key `(encounterDiagnosisId, cycleId, toolId)`
+  - Drafts persist across page refreshes until encounter is finished
   - Replaced previous indicator-based selection approach
-- **Finalization**: On encounter finish, draft attachments are converted to finalized usages and decrement inventory
-- **Mismatch Detection**: Automatic generation of mismatches between draft attachments and finalized usage when insufficient inventory
+- **Finalization**: On encounter finish, draft attachments are converted to finalized usages
+  - Creates `SterilizationFinalizedUsage` records referencing `AutoclaveCycleToolLine`
+  - Decrements active cycle remaining (calculated as: produced - used - disposed)
+  - Idempotent: won't double-finalize if already completed
+- **Mismatch Detection**: Automatic generation of mismatches when insufficient inventory
+  - Compares requested quantity in drafts vs available quantity in tool lines
+  - Creates `SterilizationMismatch` records for shortfalls
+  - Status: UNRESOLVED until manually addressed
 - **Mismatch Resolution**: Adjustment consumption records to resolve discrepancies
 - **Bur Sterilization Compliance Log**: Compliance-only tracking of bur (dental drill bit) sterilization cycles
   - Separate from main autoclave cycles (no encounter linkage)
@@ -145,9 +155,9 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
 - **SterilizationItem**: itemId, branchId, name, baselineAmount (tool master per branch)
 - **AutoclaveMachine**: machineId, branchId, machineNumber, name (optional)
 - **AutoclaveCycle**: cycleId, branchId, code (certificate number, unique per branch), sterilizationRunNumber, machineNumber, startedAt, finishedAt, pressure, temperature, removedFromAutoclaveAt, result (PASS/FAIL), operator, notes, createdAt, updatedAt
-- **AutoclaveCycleToolLine**: lineId, cycleId, toolId (SterilizationItem), producedQty, createdAt
+- **AutoclaveCycleToolLine**: lineId, cycleId, toolId (SterilizationItem), producedQty, createdAt (represents specific tool+cycle combination with produced quantity)
 - **BurSterilizationCycle**: cycleId, branchId, code (unique per branch), sterilizationRunNumber (unique per machine), machineId, startedAt, finishedAt, pressure, temperature, removedFromAutoclaveAt, result (PASS/FAIL), operator, notes, fastBurQty, slowBurQty, createdAt, updatedAt (compliance-only tracking, no encounter linkage)
-- **SterilizationDraftAttachment**: draftId, encounterDiagnosisId, cycleId, toolId, requestedQty (default 1), createdAt (NEW V1: tool-line based, linked to encounter diagnosis rows)
+- **SterilizationDraftAttachment**: draftId, encounterDiagnosisId, cycleId, toolId, requestedQty (default 1), createdAt (draft selections during encounter entry, unique key: encounterDiagnosisId + cycleId + toolId)
 - **SterilizationFinalizedUsage**: usageId, encounterId, toolLineId (AutoclaveCycleToolLine), usedQty, createdAt (created on encounter finish, decrements inventory)
 - **SterilizationMismatch**: mismatchId, encounterId, branchId, toolId, code (cycle code), requiredQty, finalizedQty, mismatchQty, status (UNRESOLVED/RESOLVED), createdAt, updatedAt
 - **SterilizationAdjustmentConsumption**: adjustmentId, mismatchId, toolId, adjustmentQty, reason, createdBy, createdAt
