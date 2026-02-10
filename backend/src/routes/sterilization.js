@@ -1435,4 +1435,304 @@ router.get("/sterilization/bur-cycles/check-run-number", async (req, res) => {
   }
 });
 
+// ==========================================================
+// ACTIVE CYCLES & DISPOSAL ENDPOINTS
+// ==========================================================
+
+// GET active cycles report (PASS only, remaining > 0)
+// Query params: branchId (required)
+router.get("/sterilization/active-cycles", async (req, res) => {
+  try {
+    const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+    
+    if (!branchId) {
+      return res.status(400).json({ error: "branchId is required" });
+    }
+
+    // Today's boundaries (calendar date, server time)
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    // 1) TODAY CARDS: sum SterilizationFinalizedUsage.usedQty per branch where encounter.visitDate is today
+    // Get all branches for cards
+    const branches = await prisma.branch.findMany({
+      select: { id: true, name: true },
+      orderBy: { id: "asc" },
+    });
+
+    // Get today's usages grouped by branch
+    const todayUsages = await prisma.sterilizationFinalizedUsage.groupBy({
+      by: ["toolLineId"],
+      _sum: { usedQty: true },
+      where: {
+        encounter: {
+          visitDate: { gte: todayStart, lte: todayEnd },
+        },
+      },
+    });
+
+    // Map toolLineId -> total used
+    const usedByToolLine = new Map();
+    for (const u of todayUsages) {
+      usedByToolLine.set(u.toolLineId, u._sum.usedQty || 0);
+    }
+
+    // Get tool lines with their cycles to map to branches
+    const toolLines = await prisma.autoclaveCycleToolLine.findMany({
+      where: {
+        id: { in: Array.from(usedByToolLine.keys()) },
+      },
+      select: {
+        id: true,
+        cycle: { select: { branchId: true } },
+      },
+    });
+
+    // Sum by branch
+    const usedByBranchToday = new Map();
+    for (const line of toolLines) {
+      const bid = line.cycle.branchId;
+      const qty = usedByToolLine.get(line.id) || 0;
+      usedByBranchToday.set(bid, (usedByBranchToday.get(bid) || 0) + qty);
+    }
+
+    const todayCards = branches.map((b) => ({
+      branchId: b.id,
+      branchName: b.name,
+      usedTotal: usedByBranchToday.get(b.id) || 0,
+    }));
+
+    // 2) ACTIVE CYCLES: PASS only, with remaining > 0, for selected branch
+    const cycles = await prisma.autoclaveCycle.findMany({
+      where: {
+        branchId,
+        result: "PASS",
+      },
+      include: {
+        branch: { select: { id: true, name: true } },
+        toolLines: {
+          include: {
+            tool: { select: { id: true, name: true, baselineAmount: true } },
+            finalizedUsages: { select: { usedQty: true } },
+            disposalLines: { select: { quantity: true } },
+          },
+        },
+      },
+      orderBy: [{ completedAt: "desc" }],
+    });
+
+    // Filter cycles with at least one active tool line (remaining > 0)
+    const activeCycles = [];
+    for (const cycle of cycles) {
+      const toolLinesData = [];
+      let cycleProduced = 0;
+      let cycleUsed = 0;
+      let cycleDisposed = 0;
+      let cycleRemaining = 0;
+
+      for (const line of cycle.toolLines) {
+        const produced = line.producedQty || 0;
+        const used = (line.finalizedUsages || []).reduce((sum, u) => sum + (u.usedQty || 0), 0);
+        const disposed = (line.disposalLines || []).reduce((sum, d) => sum + (d.quantity || 0), 0);
+        const remaining = Math.max(0, produced - used - disposed);
+
+        cycleProduced += produced;
+        cycleUsed += used;
+        cycleDisposed += disposed;
+        cycleRemaining += remaining;
+
+        toolLinesData.push({
+          toolLineId: line.id,
+          toolId: line.tool.id,
+          toolName: line.tool.name,
+          produced,
+          used,
+          disposed,
+          remaining,
+        });
+      }
+
+      // Include cycle if any tool line has remaining > 0
+      if (cycleRemaining > 0) {
+        activeCycles.push({
+          cycleId: cycle.id,
+          branchId: cycle.branchId,
+          branchName: cycle.branch.name,
+          code: cycle.code,
+          machineNumber: cycle.machineNumber,
+          completedAt: cycle.completedAt,
+          operator: cycle.operator,
+          result: cycle.result,
+          notes: cycle.notes,
+          totals: {
+            produced: cycleProduced,
+            used: cycleUsed,
+            disposed: cycleDisposed,
+            remaining: cycleRemaining,
+          },
+          toolLines: toolLinesData,
+        });
+      }
+    }
+
+    res.json({
+      todayCards,
+      activeCycles,
+    });
+  } catch (err) {
+    console.error("GET /api/sterilization/active-cycles error:", err);
+    return res.status(500).json({ error: "Failed to load active cycles" });
+  }
+});
+
+// POST create disposal
+// Body: { branchId, disposedAt, disposedByName, reason?, notes?, lines: [{ toolLineId, quantity }] }
+router.post("/sterilization/disposals", async (req, res) => {
+  try {
+    const branchId = Number(req.body?.branchId);
+    const disposedAt = req.body?.disposedAt ? new Date(req.body.disposedAt) : new Date();
+    const disposedByName = String(req.body?.disposedByName || "").trim();
+    const reason = req.body?.reason ? String(req.body.reason).trim() : null;
+    const notes = req.body?.notes ? String(req.body.notes).trim() : null;
+    const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
+
+    if (!branchId) {
+      return res.status(400).json({ error: "branchId is required" });
+    }
+    if (!disposedByName) {
+      return res.status(400).json({ error: "disposedByName is required" });
+    }
+    if (lines.length === 0) {
+      return res.status(400).json({ error: "At least one disposal line is required" });
+    }
+
+    // Validate each line
+    for (const line of lines) {
+      const toolLineId = Number(line.toolLineId);
+      const quantity = Number(line.quantity);
+
+      if (!toolLineId || !quantity || quantity <= 0) {
+        return res.status(400).json({ error: "Invalid line: toolLineId and quantity must be positive" });
+      }
+
+      // Check remaining availability
+      const toolLine = await prisma.autoclaveCycleToolLine.findUnique({
+        where: { id: toolLineId },
+        include: {
+          finalizedUsages: { select: { usedQty: true } },
+          disposalLines: { select: { quantity: true } },
+        },
+      });
+
+      if (!toolLine) {
+        return res.status(400).json({ error: `Tool line ${toolLineId} not found` });
+      }
+
+      const produced = toolLine.producedQty || 0;
+      const used = (toolLine.finalizedUsages || []).reduce((sum, u) => sum + (u.usedQty || 0), 0);
+      const disposed = (toolLine.disposalLines || []).reduce((sum, d) => sum + (d.quantity || 0), 0);
+      const remaining = Math.max(0, produced - used - disposed);
+
+      if (quantity > remaining) {
+        return res.status(400).json({
+          error: `Disposal quantity ${quantity} exceeds remaining ${remaining} for tool line ${toolLineId}`,
+        });
+      }
+    }
+
+    // Create disposal with lines in a transaction
+    const disposal = await prisma.sterilizationDisposal.create({
+      data: {
+        branchId,
+        disposedAt,
+        disposedByName,
+        reason,
+        notes,
+        lines: {
+          create: lines.map((line) => ({
+            toolLineId: Number(line.toolLineId),
+            quantity: Number(line.quantity),
+          })),
+        },
+      },
+      include: {
+        branch: { select: { id: true, name: true } },
+        lines: {
+          include: {
+            toolLine: {
+              include: {
+                tool: { select: { id: true, name: true } },
+                cycle: { select: { id: true, code: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    res.json(disposal);
+  } catch (err) {
+    console.error("POST /api/sterilization/disposals error:", err);
+    return res.status(500).json({ error: "Failed to create disposal" });
+  }
+});
+
+// GET disposal history
+// Query params: branchId (required), from (optional YYYY-MM-DD), to (optional YYYY-MM-DD)
+router.get("/sterilization/disposals", async (req, res) => {
+  try {
+    const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+    const from = String(req.query.from || "");
+    const to = String(req.query.to || "");
+
+    if (!branchId) {
+      return res.status(400).json({ error: "branchId is required" });
+    }
+
+    const where = { branchId };
+
+    // Optional date range filter
+    if (from && to) {
+      const [fy, fm, fd] = from.split("-").map(Number);
+      const [ty, tm, td] = to.split("-").map(Number);
+      
+      if (fy && fm && fd && ty && tm && td) {
+        const rangeStart = new Date(fy, fm - 1, fd, 0, 0, 0, 0);
+        const rangeEnd = new Date(ty, tm - 1, td, 23, 59, 59, 999);
+        where.disposedAt = { gte: rangeStart, lte: rangeEnd };
+      }
+    }
+
+    const disposals = await prisma.sterilizationDisposal.findMany({
+      where,
+      orderBy: { disposedAt: "desc" },
+      include: {
+        branch: { select: { id: true, name: true } },
+        lines: {
+          include: {
+            toolLine: {
+              include: {
+                tool: { select: { id: true, name: true } },
+                cycle: { select: { id: true, code: true, machineNumber: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Add total quantity per disposal
+    const result = disposals.map((d) => ({
+      ...d,
+      totalQuantity: d.lines.reduce((sum, line) => sum + (line.quantity || 0), 0),
+    }));
+
+    res.json(result);
+  } catch (err) {
+    console.error("GET /api/sterilization/disposals error:", err);
+    return res.status(500).json({ error: "Failed to load disposals" });
+  }
+});
+
 export default router;
