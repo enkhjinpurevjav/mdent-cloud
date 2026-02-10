@@ -1889,7 +1889,7 @@ router.get("/sterilization/draft-attachments/by-diagnosis/:diagnosisId", async (
 router.get("/sterilization/tool-lines/search", async (req, res) => {
   try {
     const branchId = req.query.branchId ? Number(req.query.branchId) : null;
-    const searchQuery = String(req.query.query || "").trim().toLowerCase();
+    const searchQuery = (req.query.query ?? "").toString().trim().toLowerCase();
 
     if (!branchId) {
       return res.status(400).json({ error: "branchId is required" });

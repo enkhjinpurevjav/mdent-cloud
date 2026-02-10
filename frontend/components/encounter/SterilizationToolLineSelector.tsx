@@ -68,16 +68,7 @@ export default function SterilizationToolLineSelector({
     searchToolLines();
   }, [isOpen, branchId, searchText]);
 
-  // Group draft attachments by (cycleId + toolId) to show with quantity
-  const groupedDrafts = draftAttachments.reduce((acc, draft) => {
-    const key = `${draft.cycleId}-${draft.toolId}`;
-    if (!acc[key]) {
-      acc[key] = { ...draft, totalQty: 0 };
-    }
-    acc[key].totalQty += draft.requestedQty;
-    return acc;
-  }, {} as Record<string, SterilizationDraftAttachment & { totalQty: number }>);
-
+  // Show all drafts as chips (allow viewing duplicates with their quantities)
   return (
     <div style={{ marginBottom: 8, position: "relative" }}>
       <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
@@ -94,11 +85,11 @@ export default function SterilizationToolLineSelector({
             marginBottom: 6,
           }}
         >
-          {Object.values(groupedDrafts).map((draft) => {
+          {draftAttachments.map((draft) => {
             const label = `${draft.tool.name} — ${draft.cycle.code}`;
             return (
               <div
-                key={`${draft.cycleId}-${draft.toolId}`}
+                key={draft.id}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -112,7 +103,7 @@ export default function SterilizationToolLineSelector({
                 }}
               >
                 <span>
-                  {label} {draft.totalQty > 1 && `×${draft.totalQty}`}
+                  {label} {draft.requestedQty > 1 && `×${draft.requestedQty}`}
                 </span>
                 {!isLocked && (
                   <button

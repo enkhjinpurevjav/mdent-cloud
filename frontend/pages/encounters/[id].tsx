@@ -1445,42 +1445,26 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
 
       const draft = await res.json();
 
+      // Helper to update draft attachments in a row
+      const updateDraftsInRow = (r: EditableDiagnosis, i: number) => {
+        if (i !== index) return r;
+        const existing = r.draftAttachments || [];
+        // Check if we're incrementing an existing draft or adding new
+        const existingIndex = existing.findIndex((d) => d.id === draft.id);
+        if (existingIndex >= 0) {
+          // Update existing draft with new requestedQty
+          const updated = [...existing];
+          updated[existingIndex] = draft;
+          return { ...r, draftAttachments: updated };
+        } else {
+          // Add new draft
+          return { ...r, draftAttachments: [...existing, draft] };
+        }
+      };
+
       // Update local state with new draft
-      setEditableDxRows((prev) =>
-        prev.map((r, i) => {
-          if (i !== index) return r;
-          const existing = r.draftAttachments || [];
-          // Check if we're incrementing an existing draft or adding new
-          const existingIndex = existing.findIndex(
-            (d) => d.id === draft.id
-          );
-          if (existingIndex >= 0) {
-            // Update existing draft with new requestedQty
-            const updated = [...existing];
-            updated[existingIndex] = draft;
-            return { ...r, draftAttachments: updated };
-          } else {
-            // Add new draft
-            return { ...r, draftAttachments: [...existing, draft] };
-          }
-        })
-      );
-      setRows((prev) =>
-        prev.map((r, i) => {
-          if (i !== index) return r;
-          const existing = r.draftAttachments || [];
-          const existingIndex = existing.findIndex(
-            (d) => d.id === draft.id
-          );
-          if (existingIndex >= 0) {
-            const updated = [...existing];
-            updated[existingIndex] = draft;
-            return { ...r, draftAttachments: updated };
-          } else {
-            return { ...r, draftAttachments: [...existing, draft] };
-          }
-        })
-      );
+      setEditableDxRows((prev) => prev.map(updateDraftsInRow));
+      setRows((prev) => prev.map(updateDraftsInRow));
     } catch (err) {
       console.error("Failed to add tool line draft:", err);
     }
@@ -1498,37 +1482,25 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
 
       const result = await res.json();
 
+      // Helper to update drafts after removal/decrement
+      const updateDraftsAfterRemoval = (r: EditableDiagnosis, i: number) => {
+        if (i !== index) return r;
+        const drafts = r.draftAttachments || [];
+        if (result.deleted) {
+          // Remove draft entirely
+          return { ...r, draftAttachments: drafts.filter((d) => d.id !== draftId) };
+        } else {
+          // Update with decremented qty
+          return {
+            ...r,
+            draftAttachments: drafts.map((d) => (d.id === draftId ? result : d)),
+          };
+        }
+      };
+
       // Update local state
-      setEditableDxRows((prev) =>
-        prev.map((r, i) => {
-          if (i !== index) return r;
-          const drafts = r.draftAttachments || [];
-          if (result.deleted) {
-            // Remove draft entirely
-            return { ...r, draftAttachments: drafts.filter((d) => d.id !== draftId) };
-          } else {
-            // Update with decremented qty
-            return {
-              ...r,
-              draftAttachments: drafts.map((d) => (d.id === draftId ? result : d)),
-            };
-          }
-        })
-      );
-      setRows((prev) =>
-        prev.map((r, i) => {
-          if (i !== index) return r;
-          const drafts = r.draftAttachments || [];
-          if (result.deleted) {
-            return { ...r, draftAttachments: drafts.filter((d) => d.id !== draftId) };
-          } else {
-            return {
-              ...r,
-              draftAttachments: drafts.map((d) => (d.id === draftId ? result : d)),
-            };
-          }
-        })
-      );
+      setEditableDxRows((prev) => prev.map(updateDraftsAfterRemoval));
+      setRows((prev) => prev.map(updateDraftsAfterRemoval));
     } catch (err) {
       console.error("Failed to remove tool line draft:", err);
     }
