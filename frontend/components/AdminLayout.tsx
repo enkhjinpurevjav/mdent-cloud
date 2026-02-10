@@ -89,6 +89,7 @@ const navItems: NavItem[] = [
     { label: "Ариутгалын тайлан", href: "/sterilization/reports", icon: "📊" },
     { label: "Зөрүү", href: "/sterilization/mismatches", icon: "⚠️" },
     { label: "Багаж буцаалт", href: "/sterilization/returns", icon: "↩️" },
+    { label: "Хаягдал (Устгал)", href: "/sterilization/disposals", icon: "🗑️" },
     { label: "Тохиргоо", href: "/sterilization/settings", icon: "⚙️" },
     { label: "Машинууд", href: "/sterilization/machines", icon: "🔧" },
   ],
