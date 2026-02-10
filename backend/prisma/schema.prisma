@@ -145,6 +145,7 @@ model Branch {
   burSterilizationCycles   BurSterilizationCycle[]   @relation("BranchBurCycles")
   sterilizationMismatches  SterilizationMismatch[]   @relation("BranchSterilizationMismatches")
   adjustmentConsumptions   SterilizationAdjustmentConsumption[] @relation("BranchAdjustmentConsumptions")
+  disinfectionLogs DisinfectionLog[] @relation("BranchDisinfectionLogs")
 }
 
 model EmployeeBenefit {
@@ -381,6 +382,42 @@ model BurSterilizationCycle {
   @@index([startedAt])
 }
 
+model DisinfectionLog {
+  id        Int      @id @default(autoincrement())
+  branchId  Int
+  date      DateTime // store as local midnight for the chosen calendar date
+  startTime String   // "HH:mm"
+  endTime   String   // "HH:mm"
+
+  rinsedWithDistilledWater Boolean @default(true)
+  driedInUVCabinet         Boolean @default(false)
+
+  nurseName String
+  notes     String?  @db.Text
+
+  // Fixed 13 tool qty columns (0 allowed)
+  qtyPolishingRubber      Int @default(0) // Өнгөлгөөний резин
+  qtyBrush                Int @default(0) // Браш
+  qtyCup                  Int @default(0) // Хундага
+  qtyLine                 Int @default(0) // Шугам
+  qtyShoeCutter           Int @default(0) // Гута тасдагч
+  qtyPlasticMedicineTray  Int @default(0) // Эмийн хуванцар тавиур
+  qtyPlasticSpatula       Int @default(0) // Хуванцар шпатель
+  qtyTongueDepressor      Int @default(0) // Хэл дарагч
+  qtyMouthOpener          Int @default(0) // Ам тэлэгч
+  qtyRootmeterTip         Int @default(0) // Рутмерийн хошуу
+  qtyTighteningTip        Int @default(0) // Чангалагч хошуу
+  qtyBurContainer         Int @default(0) // Борын сав
+  qtyPlasticSpoon         Int @default(0) // Хуванцар халбага
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch Branch @relation("BranchDisinfectionLogs", fields: [branchId], references: [id])
+
+  @@index([branchId])
+  @@index([date])
+}
 // NEW: Draft attachments (before encounter close)
 model SterilizationDraftAttachment {
   id                   Int      @id @default(autoincrement())
