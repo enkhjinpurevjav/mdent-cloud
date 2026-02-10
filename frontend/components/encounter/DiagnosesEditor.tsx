@@ -709,6 +709,8 @@ export default function DiagnosesEditor({
                   />
                 ) : (
                   <div
+                    role="alert"
+                    aria-live="polite"
                     style={{
                       padding: "8px 12px",
                       marginBottom: 8,

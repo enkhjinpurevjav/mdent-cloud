@@ -1587,7 +1587,8 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
         indicatorSearchText: "",
         indicatorsDirty: false,
 
-        // Preserve tool-line based draft attachments and search text from backend or original row
+        // Preserve tool-line based draft attachments and search text
+        // Priority: 1) backend draftAttachments array, 2) original row state, 3) empty array
         draftAttachments: Array.isArray(serverRow.draftAttachments) 
           ? serverRow.draftAttachments 
           : originalRow?.draftAttachments || [],
