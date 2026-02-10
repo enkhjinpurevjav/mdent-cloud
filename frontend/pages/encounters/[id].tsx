@@ -1561,7 +1561,7 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
       const serviceSearchText = svc ? `${svc.code} – ${svc.name}` : "";
 
       // Find the original editable row to preserve UI state
-      const originalRow = editableDxRows.find(row => row.localId === serverRow.localId);
+      const originalRow = editableDxRows.find(row => Number(row.localId) === Number(serverRow.localId));
 
       return {
         ...serverRow,
