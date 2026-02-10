@@ -1555,43 +1555,43 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     }
 
     // Update state with saved rows
-    const savedDxRows: EditableDiagnosis[] = savedRows.map((srvRow: any) => {
+    const savedDxRows: EditableDiagnosis[] = savedRows.map((serverRow: any) => {
       // Get service info for display text
-      const svc = services.find((s) => s.id === srvRow.serviceId);
+      const svc = services.find((s) => s.id === serverRow.serviceId);
       const serviceSearchText = svc ? `${svc.code} – ${svc.name}` : "";
 
       // Find the original editable row to preserve UI state
-      const originalRow = editableDxRows.find(r => r.localId === srvRow.localId);
+      const originalRow = editableDxRows.find(row => row.localId === serverRow.localId);
 
       return {
-        ...srvRow,
-        diagnosisId: srvRow.diagnosisId ?? null,
-        diagnosis: srvRow.diagnosis ?? null,
-        localId: srvRow.localId ?? 0,
-        selectedProblemIds: Array.isArray(srvRow.selectedProblemIds)
-          ? srvRow.selectedProblemIds
+        ...serverRow,
+        diagnosisId: serverRow.diagnosisId ?? null,
+        diagnosis: serverRow.diagnosis ?? null,
+        localId: serverRow.localId ?? 0,
+        selectedProblemIds: Array.isArray(serverRow.selectedProblemIds)
+          ? serverRow.selectedProblemIds
           : [],
-        note: srvRow.note || "",
-        toothCode: srvRow.toothCode || "",
+        note: serverRow.note || "",
+        toothCode: serverRow.toothCode || "",
 
         // Service data (now saved atomically with diagnosis)
-        serviceId: srvRow.serviceId ?? null,
+        serviceId: serverRow.serviceId ?? null,
         serviceSearchText,
-        assignedTo: srvRow.assignedTo ?? "DOCTOR",
+        assignedTo: serverRow.assignedTo ?? "DOCTOR",
 
         // Indicator data (now saved atomically with diagnosis)
-        indicatorIds: Array.isArray(srvRow.indicatorIds) ? srvRow.indicatorIds : [],
+        indicatorIds: Array.isArray(serverRow.indicatorIds) ? serverRow.indicatorIds : [],
         indicatorSearchText: "",
         indicatorsDirty: false,
 
         // Preserve tool-line based draft attachments and search text from backend or original row
-        draftAttachments: Array.isArray(srvRow.draftAttachments) 
-          ? srvRow.draftAttachments 
-          : (originalRow?.draftAttachments || []),
+        draftAttachments: Array.isArray(serverRow.draftAttachments) 
+          ? serverRow.draftAttachments 
+          : originalRow?.draftAttachments || [],
         toolLineSearchText: originalRow?.toolLineSearchText || "",
 
-        searchText: srvRow.diagnosis
-          ? `${srvRow.diagnosis.code} – ${srvRow.diagnosis.name}`
+        searchText: serverRow.diagnosis
+          ? `${serverRow.diagnosis.code} – ${serverRow.diagnosis.name}`
           : "",
         locked: true,
       };
