@@ -388,6 +388,7 @@ model AutoclaveCycleToolLine {
   tool  SterilizationItem  @relation(fields: [toolId], references: [id])
   finalizedUsages SterilizationFinalizedUsage[]
   disposalLines   SterilizationDisposalLine[]
+  draftAttachments SterilizationDraftAttachment[] // NEW: Reverse relation for toolLineId
 
   @@unique([cycleId, toolId]) // Unique within (cycle, tool)
   @@index([cycleId])
@@ -467,17 +468,20 @@ model SterilizationDraftAttachment {
   encounterDiagnosisId Int      // Links to diagnosis row
   cycleId              Int      // References the autoclave cycle
   toolId               Int      // References the tool
+  toolLineId           Int?     // NEW: References AutoclaveCycleToolLine (nullable for Phase 1)
   requestedQty         Int      @default(1) // How many requested
   
   createdAt DateTime @default(now())
 
-  encounterDiagnosis EncounterDiagnosis @relation(fields: [encounterDiagnosisId], references: [id], onDelete: Cascade)
-  cycle              AutoclaveCycle     @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  tool               SterilizationItem  @relation("DraftAttachmentTool", fields: [toolId], references: [id])
+  encounterDiagnosis EncounterDiagnosis      @relation(fields: [encounterDiagnosisId], references: [id], onDelete: Cascade)
+  cycle              AutoclaveCycle          @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  tool               SterilizationItem       @relation("DraftAttachmentTool", fields: [toolId], references: [id])
+  toolLine           AutoclaveCycleToolLine? @relation(fields: [toolLineId], references: [id])
 
   @@index([encounterDiagnosisId])
   @@index([cycleId])
   @@index([toolId])
+  @@index([toolLineId])
 }
 
 // NEW: Finalized usage (after encounter close)
