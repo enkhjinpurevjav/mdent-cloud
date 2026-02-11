@@ -111,11 +111,24 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
   - Branch-required filter with expandable cycle details
   - Displays produced, used, disposed, and remaining quantities per tool line
 - **Disposal Workflow**: Recording and tracking of disposed/discarded sterilized tools
-  - Modal-based disposal entry from active cycles report
+  - **Creation**: Modal-based disposal entry from disposal history page (Хаягдлын түүх / Устгал)
+    - "Устгал нэмэх" button opens modal for creating new disposal records
+    - Fetches active cycles with remaining inventory from `/api/sterilization/active-cycles`
+    - User flow: select cycle → select tool line (filtered by cycle) → enter quantity (≤ remaining)
+    - Supports multiple disposal lines with add/remove functionality
+    - Automatically merges duplicate toolLineId entries
+    - Required fields: disposedByName, at least one disposal line
+    - Optional fields: disposedAt (defaults to now), reason, notes
+    - Validates quantity does not exceed remaining inventory per tool line
+    - Submits via `POST /api/sterilization/disposals` with branchId, disposedAt, disposedByName, reason, notes, and lines
+    - On success: closes modal, shows success message, refreshes disposal history list
+  - **History**: Separate disposal history page with branch and date range filtering
+    - Expandable disposal details showing cycle, tool, and quantities
+    - Lists all historical disposal records for selected branch and date range
+  - Modal-based disposal entry also available from active cycles report page
   - Records disposal date/time, person responsible, quantity, reason, and notes
   - Linked to specific autoclave cycle tool lines
-  - Separate disposal history page with branch and date range filtering
-  - Expandable disposal details showing cycle, tool, and quantities
+  - Decrements remaining inventory (remaining = produced - used - disposed)
 - **Billing Gate**: Invoice settlement blocked when unresolved sterilization mismatches exist
 
 ### 4.6 Reporting & Analytics
