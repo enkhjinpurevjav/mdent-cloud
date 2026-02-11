@@ -1570,12 +1570,32 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     // Build unified payload with all row state
     const payload = {
       rows: editableDxRows.map((row) => {
-        // Aggregate duplicates in selectedToolLineIds to get requestedQty
-        const toolLineCounts = new Map<number, number>();
-        (row.selectedToolLineIds || []).forEach((toolLineId) => {
-          toolLineCounts.set(toolLineId, (toolLineCounts.get(toolLineId) || 0) + 1);
-        });
+        // Build toolLineDrafts from TWO sources:
+        // 1. Existing server-backed drafts (from row.draftAttachments)
+        // 2. New local selections (from row.selectedToolLineIds)
         
+        const toolLineCounts = new Map<number, number>();
+        
+        // First, add existing server-backed drafts with their requestedQty
+        if (row.draftAttachments && Array.isArray(row.draftAttachments)) {
+          row.draftAttachments.forEach((draft) => {
+            if (draft.toolLineId) {
+              toolLineCounts.set(
+                draft.toolLineId, 
+                (toolLineCounts.get(draft.toolLineId) || 0) + (draft.requestedQty || 1)
+              );
+            }
+          });
+        }
+        
+        // Then, add local unsaved selections (each occurrence increments count)
+        if (row.selectedToolLineIds && Array.isArray(row.selectedToolLineIds)) {
+          row.selectedToolLineIds.forEach((toolLineId) => {
+            toolLineCounts.set(toolLineId, (toolLineCounts.get(toolLineId) || 0) + 1);
+          });
+        }
+        
+        // Convert aggregated counts to toolLineDrafts array
         const toolLineDrafts = Array.from(toolLineCounts.entries()).map(([toolLineId, requestedQty]) => ({
           toolLineId,
           requestedQty,
@@ -1591,7 +1611,7 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
           indicatorIds: Array.isArray(row.indicatorIds) ? row.indicatorIds : [],
           serviceId: row.serviceId ?? null,
           assignedTo: row.assignedTo ?? "DOCTOR",
-          toolLineDrafts, // NEW: Include aggregated tool line selections
+          toolLineDrafts, // Includes both existing and new selections
         };
       }),
     };

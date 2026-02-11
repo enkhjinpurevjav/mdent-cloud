@@ -203,6 +203,7 @@ export type SterilizationDraftAttachment = {
   encounterDiagnosisId: number;
   cycleId: number;
   toolId: number;
+  toolLineId?: number | null; // NEW: Added for round-trip persistence
   requestedQty: number;
   createdAt: string;
   cycle: {
