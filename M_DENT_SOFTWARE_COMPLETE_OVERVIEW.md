@@ -85,8 +85,9 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
   - Remove chip: decrements `requestedQty` by 1 for server-backed chips, removes one occurrence for local chips
   - On save: frontend aggregates duplicates by toolLineId to calculate `requestedQty`
   - Backend receives `toolLineDrafts: [{ toolLineId, requestedQty }]` per diagnosis row
-  - Backend upserts `SterilizationDraftAttachment` records with unique key `(encounterDiagnosisId, cycleId, toolId)`
-  - **Chips persist after save**: Refreshed from `draftAttachments` in backend response
+  - Backend stores `SterilizationDraftAttachment` records including `toolLineId` for round-trip persistence
+  - **Chips persist after save**: Refreshed from `draftAttachments` in backend response (includes toolLineId)
+  - **Idempotent saves**: Clicking Save multiple times preserves existing drafts (no deletion)
   - Drafts persist across page refreshes until encounter is finished
   - Replaced previous indicator-based selection approach
 - **Finalization**: On encounter finish, draft attachments are converted to finalized usages
@@ -162,7 +163,7 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
 - **AutoclaveCycle**: cycleId, branchId, code (certificate number, unique per branch), sterilizationRunNumber, machineNumber, startedAt, finishedAt, pressure, temperature, removedFromAutoclaveAt, result (PASS/FAIL), operator, notes, createdAt, updatedAt
 - **AutoclaveCycleToolLine**: lineId, cycleId, toolId (SterilizationItem), producedQty, createdAt (represents specific tool+cycle combination with produced quantity)
 - **BurSterilizationCycle**: cycleId, branchId, code (unique per branch), sterilizationRunNumber (unique per machine), machineId, startedAt, finishedAt, pressure, temperature, removedFromAutoclaveAt, result (PASS/FAIL), operator, notes, fastBurQty, slowBurQty, createdAt, updatedAt (compliance-only tracking, no encounter linkage)
-- **SterilizationDraftAttachment**: draftId, encounterDiagnosisId, cycleId, toolId, requestedQty (default 1), createdAt (draft selections during encounter entry, unique key: encounterDiagnosisId + cycleId + toolId)
+- **SterilizationDraftAttachment**: draftId, encounterDiagnosisId, cycleId, toolId, toolLineId (nullable, references AutoclaveCycleToolLine for round-trip persistence), requestedQty (default 1), createdAt (draft selections during encounter entry, persists across page refreshes and repeated saves)
 - **SterilizationFinalizedUsage**: usageId, encounterId, toolLineId (AutoclaveCycleToolLine), usedQty, createdAt (created on encounter finish, decrements inventory)
 - **SterilizationMismatch**: mismatchId, encounterId, branchId, toolId, code (cycle code), requiredQty, finalizedQty, mismatchQty, status (UNRESOLVED/RESOLVED), createdAt, updatedAt
 - **SterilizationAdjustmentConsumption**: adjustmentId, mismatchId, toolId, adjustmentQty, reason, createdBy, createdAt
