@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type {
   SterilizationDraftAttachment,
   ToolLineSearchResult,
@@ -18,6 +18,7 @@ type SterilizationToolLineSelectorProps = {
   onClose: () => void;
   onAddToolLine: (toolLineId: number) => void;
   onRemoveToolLine: (index: number) => void;
+  onRemoveToolLineDraft?: (draftId: number) => void;
 };
 
 export default function SterilizationToolLineSelector({
@@ -34,9 +35,27 @@ export default function SterilizationToolLineSelector({
   onClose,
   onAddToolLine,
   onRemoveToolLine,
+  onRemoveToolLineDraft,
 }: SterilizationToolLineSelectorProps) {
   const [toolLineResults, setToolLineResults] = useState<ToolLineSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen, onClose]);
 
   // Load tool line search results when search text changes
   useEffect(() => {
@@ -72,15 +91,42 @@ export default function SterilizationToolLineSelector({
     searchToolLines();
   }, [isOpen, branchId, searchText]);
 
+  // Expand draftAttachments into individual chips based on requestedQty
+  const draftChips = draftAttachments.flatMap((draft) =>
+    Array(draft.requestedQty || 1).fill(null).map((_, idx) => ({
+      type: 'draft' as const,
+      draftId: draft.id,
+      label: `${draft.tool.name} — ${draft.cycle.code}`,
+      chipIndex: idx,
+    }))
+  );
+
+  // Map local selections to chips
+  const localChips = selectedToolLineIds.map((toolLineId, index) => {
+    const metadata = toolLineMetadata.get(toolLineId);
+    const label = metadata 
+      ? `${metadata.toolName} — ${metadata.cycleCode}`
+      : `Tool Line #${toolLineId}`;
+    return {
+      type: 'local' as const,
+      toolLineId,
+      label,
+      chipIndex: index,
+    };
+  });
+
+  // Combine all chips (drafts first, then local)
+  const allChips = [...draftChips, ...localChips];
+
   // Show all selections as chips (allow duplicates with identical labels)
   return (
-    <div style={{ marginBottom: 8, position: "relative" }}>
+    <div ref={containerRef} style={{ marginBottom: 8, position: "relative" }}>
       <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
         Ариутгалын багаж (багаж/цикл)
       </div>
 
-      {/* Selected tool lines (chips) - show duplicates as separate chips */}
-      {selectedToolLineIds.length > 0 && (
+      {/* Selected tool lines (chips) - show both draft and local chips */}
+      {allChips.length > 0 && (
         <div
           style={{
             display: "flex",
@@ -89,47 +135,46 @@ export default function SterilizationToolLineSelector({
             marginBottom: 6,
           }}
         >
-          {selectedToolLineIds.map((toolLineId, index) => {
-            const metadata = toolLineMetadata.get(toolLineId);
-            const label = metadata 
-              ? `${metadata.toolName} — ${metadata.cycleCode}`
-              : `Tool Line #${toolLineId}`;
-            
-            return (
-              <div
-                key={`${toolLineId}-${index}`}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  border: "1px solid #d1d5db",
-                  background: "#ffffff",
-                  fontSize: 12,
-                  opacity: isLocked ? 0.6 : 1,
-                }}
-              >
-                <span>{label}</span>
-                {!isLocked && (
-                  <button
-                    type="button"
-                    onClick={() => onRemoveToolLine(index)}
-                    style={{
-                      border: "none",
-                      background: "transparent",
-                      cursor: "pointer",
-                      color: "#dc2626",
-                      fontWeight: 700,
-                      lineHeight: 1,
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            );
-          })}
+          {allChips.map((chip, displayIndex) => (
+            <div
+              key={`chip-${chip.type}-${chip.type === 'draft' ? chip.draftId : chip.toolLineId}-${displayIndex}`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "4px 8px",
+                borderRadius: 999,
+                border: "1px solid #d1d5db",
+                background: "#ffffff",
+                fontSize: 12,
+                opacity: isLocked ? 0.6 : 1,
+              }}
+            >
+              <span>{chip.label}</span>
+              {!isLocked && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (chip.type === 'draft' && onRemoveToolLineDraft) {
+                      onRemoveToolLineDraft(chip.draftId);
+                    } else if (chip.type === 'local') {
+                      onRemoveToolLine(chip.chipIndex);
+                    }
+                  }}
+                  style={{
+                    border: "none",
+                    background: "transparent",
+                    cursor: "pointer",
+                    color: "#dc2626",
+                    fontWeight: 700,
+                    lineHeight: 1,
+                  }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
@@ -147,9 +192,6 @@ export default function SterilizationToolLineSelector({
             }}
             onFocus={() => {
               if (!isLocked) onOpen();
-            }}
-            onBlur={() => {
-              setTimeout(() => onClose(), 150);
             }}
             disabled={isLocked}
             style={{

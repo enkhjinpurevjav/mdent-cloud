@@ -712,8 +712,21 @@ export default function DiagnosesEditor({
                     }
                     onOpen={() => onSetOpenIndicatorIndex(index)}
                     onClose={() => onSetOpenIndicatorIndex(null)}
-                    onAddToolLine={(toolLineId) => onAddToolLineLocal(index, toolLineId)}
-                    onRemoveToolLine={(chipIndex) => onRemoveToolLineLocal(index, chipIndex)}
+                    onAddToolLine={(toolLineId) => {
+                      if (onAddToolLineLocal) {
+                        onAddToolLineLocal(index, toolLineId);
+                      }
+                    }}
+                    onRemoveToolLine={(chipIndex) => {
+                      if (onRemoveToolLineLocal) {
+                        onRemoveToolLineLocal(index, chipIndex);
+                      }
+                    }}
+                    onRemoveToolLineDraft={
+                      row.id && onRemoveToolLineDraft 
+                        ? (draftId) => onRemoveToolLineDraft(index, draftId)
+                        : undefined
+                    }
                   />
                 ) : (
                   <div
