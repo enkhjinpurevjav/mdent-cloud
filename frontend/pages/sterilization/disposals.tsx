@@ -439,13 +439,13 @@ function CreateDisposalModal({
 
   // Multiple disposal lines
   const [disposalLines, setDisposalLines] = useState<DisposalLineInput[]>([
-    { id: crypto.randomUUID(), cycleId: "", toolLineId: "", quantity: 1, maxQuantity: 0 },
+    { id: crypto.randomUUID(), cycleId: "", toolLineId: "", quantity: 0, maxQuantity: 0 },
   ]);
 
   const addLine = () => {
     setDisposalLines((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), cycleId: "", toolLineId: "", quantity: 1, maxQuantity: 0 },
+      { id: crypto.randomUUID(), cycleId: "", toolLineId: "", quantity: 0, maxQuantity: 0 },
     ]);
   };
 
@@ -471,6 +471,10 @@ function CreateDisposalModal({
           const cycle = activeCycles.find((c) => c.cycleId === updated.cycleId);
           const toolLine = cycle?.toolLines.find((tl) => tl.toolLineId === updates.toolLineId);
           updated.maxQuantity = toolLine?.remaining || 0;
+          // Set quantity to 1 when a valid tool line is selected (with remaining > 0)
+          if (updated.maxQuantity > 0) {
+            updated.quantity = 1;
+          }
         }
 
         return updated;
@@ -504,7 +508,11 @@ function CreateDisposalModal({
         return;
       }
       if (line.quantity <= 0 || line.quantity > line.maxQuantity) {
-        alert(`Тоо ширхэг 1-с ${line.maxQuantity} хооронд байх ёстой.`);
+        const cycle = activeCycles.find((c) => c.cycleId === line.cycleId);
+        const toolLine = cycle?.toolLines.find((tl) => tl.toolLineId === line.toolLineId);
+        alert(
+          `Багаж "${toolLine?.toolName}" (Цикл: ${cycle?.code}): Тоо ширхэг 1-с ${line.maxQuantity} хооронд байх ёстой.`
+        );
         return;
       }
     }
@@ -795,9 +803,9 @@ function CreateDisposalModal({
                           <input
                             type="number"
                             min="1"
-                            max={line.maxQuantity || 999}
-                            value={line.quantity}
-                            onChange={(e) => updateLine(line.id, { quantity: Number(e.target.value) || 1 })}
+                            max={line.maxQuantity || undefined}
+                            value={line.quantity || ""}
+                            onChange={(e) => updateLine(line.id, { quantity: Number(e.target.value) || 0 })}
                             disabled={!line.toolLineId}
                             style={{
                               width: "100%",
