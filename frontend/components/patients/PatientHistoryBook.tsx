@@ -505,25 +505,24 @@ const PatientHistoryBook: React.FC<Props> = ({
                 marginBottom: 16,
               }}
             >
-              <div
-                style={{
-                  width: 80,
-                  height: 80,
-                  background: "#f3f4f6",
-                  borderRadius: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginRight: 16,
-                  fontSize: 12,
-                  color: "#6b7280",
-                  textAlign: "center",
+              <img
+                src="/clinic-logo.png"
+                alt="Clinic Logo"
+                onError={(e) => {
+                  // Fallback to placeholder if logo fails to load
+                  e.currentTarget.style.display = 'none';
+                  const placeholder = document.createElement('div');
+                  placeholder.style.cssText = 'width:100px;height:100px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#6b7280;text-align:center;margin-right:16px;';
+                  placeholder.textContent = 'CLINIC LOGO';
+                  e.currentTarget.parentElement?.insertBefore(placeholder, e.currentTarget);
                 }}
-              >
-                CLINIC
-                <br />
-                LOGO
-              </div>
+                style={{
+                  width: 100,
+                  height: "auto",
+                  marginRight: 16,
+                  objectFit: "contain",
+                }}
+              />
               <div style={{ flex: 1 }}>
                 <h1
                   style={{
@@ -831,6 +830,11 @@ const PatientHistoryBook: React.FC<Props> = ({
             border: none !important;
             padding: 0 !important;
             margin: 0 !important;
+          }
+          img {
+            max-width: 100px;
+            height: auto;
+            display: block;
           }
           @page {
             size: A4;
