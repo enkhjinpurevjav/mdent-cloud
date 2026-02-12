@@ -189,6 +189,7 @@ type PatientProfileResponse = {
   patientBook: PatientBook;
   encounters: Encounter[];
   appointments: Appointment[];
+  visitCard?: VisitCard | null;
 };
 
 function formatDateTime(iso?: string) {
@@ -1624,10 +1625,10 @@ export default function PatientProfilePage() {
                 </div>
               )}
 
-              {activeTab === "patient_history" && patient && patientBook && (
+              {activeTab === "patient_history" && patient && pb && (
                 <PatientHistoryBook
                   patient={patient}
-                  patientBook={patientBook}
+                  patientBook={pb}
                   visitCard={data?.visitCard}
                   encounters={encounters || []}
                 />
