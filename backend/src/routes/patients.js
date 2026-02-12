@@ -399,15 +399,18 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
         diagnosis: true,
         problemTexts: true,
         sterilizationIndicators: {
+  include: {
+    indicator: {
+      include: {
+        items: {
           include: {
-            indicator: {
-              include: {
-                tool: true,
-              },
-            },
+            item: true,
           },
         },
       },
+    },
+  },
+},
       orderBy: {
         id: "asc",
       },
