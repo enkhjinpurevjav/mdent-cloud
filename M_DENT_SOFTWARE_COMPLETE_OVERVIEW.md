@@ -97,14 +97,14 @@ The system implements two distinct patient-card related modules following Mongol
   - **Important**: Switching form type always requires a new signature
 - **Active Form Resolution**:
   - If both Adult and Child forms exist for a patient (legacy/test scenarios):
-    - The **active/visible** form is the one with the latest saved timestamp
-    - Timestamp updated when user clicks the save button ("Хадгалах")
+    - The **active/visible** form is the one with the latest saved timestamp (`updatedAt`)
+    - The `updatedAt` timestamp is updated when user clicks the save button ("Хадгалах")
 - **Storage**: VisitCard table (one active form per patient at a time)
 - **Data Fields**: 
   - Type: ADULT | CHILD (enum)
   - Answers: JSON object with all form responses
   - Patient/guardian signature: file upload with path and signedAt timestamp
-  - Updated timestamp: tracks when save button was clicked (for active form resolution)
+  - `updatedAt` timestamp: tracks when save button was clicked (for active form resolution)
 - **Signature Requirements**:
   - Signature UI is shared between form types, but label/legal text differs:
     - **Child Form**: `Урьдчилан сэргийлэх асуумжийг үнэн зөв бөглөж, эмчилгээний нөхцөлтэй танилцсан үйлчлүүлэгчийн асран хамгаалагчийн гарын үсэг`
