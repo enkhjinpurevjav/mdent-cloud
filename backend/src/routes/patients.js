@@ -370,65 +370,44 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
 
     // Load encounters for this patientBook
     const encounters = await prisma.encounter.findMany({
-  // KEEP whatever you had originally:
-  where: { patientBookId: pb.id }, // or patientBookId: someId
+  where: { patientBookId: pb.id },
   orderBy: { visitDate: "desc" },
   include: {
     doctor: true,
     nurse: true,
     invoice: {
       include: {
-        // updated names matching Prisma schema:
         payments: true,
         eBarimtReceipt: true,
-        items: {
-          include: {
-            procedure: true,
-          },
-        },
+        items: { include: { procedure: true } },
       },
     },
-    chartTeeth: {
-      include: {
-        chartNotes: true,
-      },
-    },
+    chartTeeth: { include: { chartNotes: true } },
     media: true,
     diagnoses: {
+      orderBy: { id: "asc" },
       include: {
         diagnosis: true,
         problemTexts: true,
         sterilizationIndicators: {
-  include: {
-    indicator: {
-      include: {
-        items: {
           include: {
-            item: true,
+            indicator: {
+              include: {
+                items: { include: { item: true } },
+              },
+            },
           },
         },
-      },
-    },
-  },
-},
-      orderBy: {
-        id: "asc",
       },
     },
     encounterServices: {
+      orderBy: { id: "asc" },
       include: {
         service: true,
-        texts: {
-          orderBy: {
-            order: "asc",
-          },
-        },
-      },
-      orderBy: {
-        id: "asc",
+        texts: { orderBy: { order: "asc" } },
       },
     },
-   },
+  },
 });
 
     const invoices = encounters
