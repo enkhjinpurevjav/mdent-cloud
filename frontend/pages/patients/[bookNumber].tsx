@@ -4,6 +4,7 @@ import SignaturePad from "../../components/SignaturePad";
 import ChildVisitCardForm from "../../components/ChildVisitCardForm";
 import OrthoCardView from "./OrthoCardView";
 import EncounterReportModal from "../../components/patients/EncounterReportModal";
+import PatientHistoryBook from "../../components/patients/PatientHistoryBook";
 
 type Branch = {
   id: number;
@@ -19,7 +20,9 @@ type Patient = {
   gender?: string | null;
   birthDate?: string | null;
   phone?: string | null;
+  email?: string | null;
   address?: string | null;
+  workPlace?: string | null;
   bloodType?: string | null;
   citizenship?: string | null;
   emergencyPhone?: string | null;
@@ -33,6 +36,7 @@ type Patient = {
 type ActiveTab =
   | "profile"
   | "appointments"
+  | "patient_history"
   | "visit_card"
   | "history"
   | "billing"
@@ -185,6 +189,7 @@ type PatientProfileResponse = {
   patientBook: PatientBook;
   encounters: Encounter[];
   appointments: Appointment[];
+  visitCard?: VisitCard | null;
 };
 
 function formatDateTime(iso?: string) {
@@ -396,9 +401,11 @@ export default function PatientProfilePage() {
       name: patient.name || "",
       regNo: patient.regNo || "",
       phone: patient.phone || "",
+      email: patient.email || "",
       gender: patient.gender || "",
       birthDate: patient.birthDate ? patient.birthDate.slice(0, 10) : "",
       address: patient.address || "",
+      workPlace: patient.workPlace || "",
       bloodType: patient.bloodType || "",
       citizenship: patient.citizenship || "Монгол",
       emergencyPhone: patient.emergencyPhone || "",
@@ -454,9 +461,11 @@ export default function PatientProfilePage() {
         name: (editForm.name || "").trim(),
         regNo: (editForm.regNo || "").trim() || null,
         phone: (editForm.phone || "").trim() || null,
+        email: (editForm.email || "").trim() || null,
         gender: editForm.gender || null,
         birthDate: editForm.birthDate || null,
         address: (editForm.address || "").trim() || null,
+        workPlace: (editForm.workPlace || "").trim() || null,
         bloodType: (editForm.bloodType || "").trim() || null,
         citizenship: (editForm.citizenship || "").trim() || null,
         emergencyPhone: (editForm.emergencyPhone || "").trim() || null,
@@ -712,6 +721,36 @@ export default function PatientProfilePage() {
                     Профайл
                   </button>
 
+                  {/* Үйлчлүүлэгчийн карт */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("patient_history");
+                      setEditMode(false);
+                      setSaveError("");
+                      setSaveSuccess("");
+                    }}
+                    style={{
+                      textAlign: "left",
+                      padding: "6px 10px",
+                      borderRadius: 6,
+                      border: "none",
+                      background:
+                        activeTab === "patient_history"
+                          ? "#eff6ff"
+                          : "transparent",
+                      color:
+                        activeTab === "patient_history"
+                          ? "#1d4ed8"
+                          : "#6b7280",
+                      fontWeight:
+                        activeTab === "patient_history" ? 500 : 400,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Үйлчлүүлэгчийн карт
+                  </button>
+
                   {/* Цагууд */}
                   <button
                     type="button"
@@ -742,7 +781,7 @@ export default function PatientProfilePage() {
                     Цагууд
                   </button>
 
-                  {/* Үзлэгийн карт */}
+                  {/* Карт бөглөх */}
                   <button
                     type="button"
                     onClick={() => {
@@ -769,7 +808,7 @@ export default function PatientProfilePage() {
                       cursor: "pointer",
                     }}
                   >
-                    Үзлэгийн карт
+                    Карт бөглөх
                   </button>
 
                   {/* Гажиг заслын карт */}
@@ -1140,6 +1179,47 @@ export default function PatientProfilePage() {
                           />
                         ) : (
                           <div>{displayOrDash(patient.emergencyPhone)}</div>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          E-mail
+                        </div>
+                        {editMode ? (
+                          <input
+                            name="email"
+                            type="email"
+                            value={editForm.email ?? ""}
+                            onChange={handleEditChange}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                            }}
+                          />
+                        ) : (
+                          <div>{displayOrDash(patient.email)}</div>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ color: "#6b7280", marginBottom: 2 }}>
+                          Ажлын газар
+                        </div>
+                        {editMode ? (
+                          <input
+                            name="workPlace"
+                            value={editForm.workPlace ?? ""}
+                            onChange={handleEditChange}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                            }}
+                          />
+                        ) : (
+                          <div>{displayOrDash(patient.workPlace)}</div>
                         )}
                       </div>
 
@@ -1543,6 +1623,15 @@ export default function PatientProfilePage() {
                     </table>
                   )}
                 </div>
+              )}
+
+              {activeTab === "patient_history" && patient && pb && (
+                <PatientHistoryBook
+                  patient={patient}
+                  patientBook={pb}
+                  visitCard={data?.visitCard}
+                  encounters={encounters || []}
+                />
               )}
 
               {activeTab === "visit_card" && (
