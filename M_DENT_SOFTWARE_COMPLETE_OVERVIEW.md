@@ -51,9 +51,9 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
 - **Document Management**: File attachments, imaging integration
 
 #### Digital History Book System
-The system implements two distinct patient card types following Mongolian Health Ministry requirements:
+The system implements two distinct patient-card related modules following Mongolian Health Ministry requirements:
 
-**Үйлчлүүлэгчийн карт (Patient History Book)** - Ministry-Required Read-Only Document
+**Үйлчлүүлэгчийн карт (Patient Card / History Book View)** - Ministry-Required Read-Only Document
 - **Purpose**: Official ministry-compliant patient history record for audit and reporting
 - **Access**: Read-only, printable A4 format
 - **Location**: Patient profile → "Үйлчлүүлэгчийн карт" tab
@@ -84,18 +84,37 @@ The system implements two distinct patient card types following Mongolian Health
   - CSS @media print optimized for A4 paper
   - Page break handling for long tables
 
-**Карт бөглөх (Patient-Filled Visit Card)** - Patient Input Form
-- **Purpose**: Collect patient medical history and questionnaire responses
-- **Access**: Editable form (previously labeled "Үзлэгийн карт")
+**Карт бөглөх (Patient Intake Form)** - Patient-Level Intake Questionnaire
+- **Purpose**: Collect patient medical history and questionnaire responses during intake
+- **Access**: Editable form for patients and staff (previously labeled "Үзлэгийн карт")
 - **Location**: Patient profile → "Карт бөглөх" tab
-- **Card Types**: Adult (ADULT) or Child (CHILD) form variants
-- **Storage**: VisitCard table (one per patient, type immutable after first save)
+- **Form Types**: Two distinct intake questionnaires
+  - **Adult Form**: Standard adult patient intake questionnaire
+  - **Child Form**: Pediatric patient intake questionnaire
+- **Form Type Selection**:
+  - Staff can manually choose or switch between Adult and Child form types
+  - No automatic switching based on registration number (regNo) or age
+  - **Important**: Switching form type always requires a new signature
+- **Active Form Resolution**:
+  - If both Adult and Child forms exist for a patient (legacy/test scenarios):
+    - The **active/visible** form is the one with the latest saved timestamp (`updatedAt`)
+    - The `updatedAt` timestamp is updated when user clicks the save button ("Хадгалах")
+- **Storage**: VisitCard table (one active form per patient at a time)
 - **Data Fields**: 
   - Type: ADULT | CHILD (enum)
   - Answers: JSON object with all form responses
-  - Patient signature: file upload with path and signedAt timestamp
+  - Patient/guardian signature: file upload with path and signedAt timestamp
+  - `updatedAt` timestamp: tracks when save button was clicked (for active form resolution)
+- **Signature Requirements**:
+  - Signature UI is shared between form types, but label/legal text differs:
+    - **Child Form**: `Урьдчилан сэргийлэх асуумжийг үнэн зөв бөглөж, эмчилгээний нөхцөлтэй танилцсан үйлчлүүлэгчийн асран хамгаалагчийн гарын үсэг`
+      (Parent/guardian signature acknowledging prevention questionnaire completion and treatment conditions)
+    - **Adult Form**: `Урьдчилан сэргийлэх асуумжийг үнэн зөв бөглөж, эмчилгээний нөхцөлтэй танилцсан үйлчлүүлэгчийн гарын үсэг :`
+      (Patient signature acknowledging prevention questionnaire completion and treatment conditions)
+  - When switching form type, the previous signature is not carried over—a new signature must be obtained
+- **Save Button**: Renamed from "Үзлэгийн карт хадгалах" to "Хадгалах" (Save)
 - **API Endpoints**:
-  - `GET /api/patients/visit-card/by-book/:bookNumber` - Load card
+  - `GET /api/patients/visit-card/by-book/:bookNumber` - Load active card
   - `PUT /api/patients/visit-card/:patientBookId` - Save/update card
   - `POST /api/patients/visit-card/:patientBookId/signature` - Upload signature
 - **Functionality**: Form stays fully functional, signature capture, auto-save
@@ -203,6 +222,13 @@ The system implements two distinct patient card types following Mongolian Health
 - **Patient**: patientId, demographics (ovog, name, regNo, gender, birthDate), contact (phone, email, emergencyPhone), address, workPlace, bloodType, citizenship, notes, branchId, createdAt, updatedAt
 - **PatientBook**: bookId, bookNumber (unique), patientId (1:1 with Patient)
 - **VisitCard**: cardId, patientBookId (1:1), type (ADULT|CHILD), answers (JSON), patientSignaturePath, signedAt, createdAt, updatedAt
+  - Stores patient intake forms (adult or child questionnaire variants)
+  - The `updatedAt` timestamp determines the active/visible form when both ADULT and CHILD forms exist for a patient
+  - Active form is the one with the latest `updatedAt` (set when save button is clicked)
+  - Switching form type (ADULT ↔ CHILD) requires a new signature; previous signature is not carried over
+  - Signature captured with different legal text depending on form type:
+    - Child form: guardian/parent signature
+    - Adult form: patient signature
 - **Appointment**: appointmentId, patientId, branchId, dateTime, status, notes
 
 #### Clinical Records
