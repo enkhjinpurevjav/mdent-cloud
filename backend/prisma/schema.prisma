@@ -701,13 +701,13 @@ model PatientBook {
 
   encounters Encounter[]
 
-  visitCard VisitCard?
-  orthoCard OrthoCard?
+  visitCards VisitCard[] // Changed from one-to-one to one-to-many
+  orthoCard  OrthoCard?
 }
 
 model VisitCard {
   id            Int         @id @default(autoincrement())
-  patientBookId Int         @unique
+  patientBookId Int
   patientBook   PatientBook @relation(fields: [patientBookId], references: [id])
 
   type    VisitCardType
@@ -715,9 +715,12 @@ model VisitCard {
 
   patientSignaturePath String?
   signedAt             DateTime?
+  savedAt              DateTime? // Timestamp when form is saved (Хадгалах button)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([patientBookId, type])
 }
 
 model OrthoCard {
