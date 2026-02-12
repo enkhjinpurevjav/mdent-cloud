@@ -428,8 +428,8 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
         id: "asc",
       },
     },
-  },
-};
+   },
+});
 
     const invoices = encounters
       .map((e) => e.invoice)
