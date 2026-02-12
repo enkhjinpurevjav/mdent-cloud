@@ -55,7 +55,7 @@ The system implements two distinct patient card types following Mongolian Health
 - **Access**: Read-only, printable A4 format
 - **Location**: Patient profile → "Үйлчлүүлэгчийн карт" tab
 - **Visual Components**:
-  - **Clinic Logo**: Rendered at top-left of printable header from `/clinic-logo.png` (80-120px wide, aspect ratio preserved)
+  - **Clinic Logo**: Rendered at top-left of printable header from `/clinic-logo.png` (100px wide, aspect ratio preserved)
   - Logo prints correctly on A4 with `@media print` styles
 - **Data Sources**:
   - **Header Section**: 

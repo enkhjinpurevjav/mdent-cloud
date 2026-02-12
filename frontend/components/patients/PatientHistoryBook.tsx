@@ -508,6 +508,14 @@ const PatientHistoryBook: React.FC<Props> = ({
               <img
                 src="/clinic-logo.png"
                 alt="Clinic Logo"
+                onError={(e) => {
+                  // Fallback to placeholder if logo fails to load
+                  e.currentTarget.style.display = 'none';
+                  const placeholder = document.createElement('div');
+                  placeholder.style.cssText = 'width:100px;height:100px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#6b7280;text-align:center;margin-right:16px;';
+                  placeholder.textContent = 'CLINIC LOGO';
+                  e.currentTarget.parentElement?.insertBefore(placeholder, e.currentTarget);
+                }}
                 style={{
                   width: 100,
                   height: "auto",
