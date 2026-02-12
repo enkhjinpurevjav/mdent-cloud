@@ -190,7 +190,8 @@ const PatientHistoryBook: React.FC<Props> = ({
       // Diagnosis code only (strip description)
       let diagnosisCode = "-";
       if (diag.diagnosis?.code) {
-        diagnosisCode = diag.diagnosis.code.split("–")[0].trim();
+        // Split on various dash types (hyphen, en-dash, em-dash) and take first part
+        diagnosisCode = diag.diagnosis.code.split(/[-–—]/)[0].trim();
       }
 
       // Treatment lines (services assigned to this diagnosis)
