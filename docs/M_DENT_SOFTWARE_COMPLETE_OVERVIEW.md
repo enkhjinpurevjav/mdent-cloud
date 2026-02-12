@@ -45,7 +45,65 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
 - **Appointments**: Scheduling, calendar view, reminders, status tracking
 - **Treatment Plans**: Multi-visit treatment workflows, progress tracking
 
-### 4.2 Clinical Records
+### 4.2 Clinical Records & Patient History
+
+The system implements two distinct patient card types following Mongolian Health Ministry requirements:
+
+#### 4.2.1 Үйлчлүүлэгчийн карт (Patient History Book)
+**Official ministry-compliant patient history record**
+- **Purpose**: Ministry-required read-only document for audit and reporting
+- **Access**: Read-only, printable A4 format
+- **Location**: Patient profile → "Үйлчлүүлэгчийн карт" tab
+- **Visual Components**:
+  - **Clinic Logo**: Rendered at top-left of printable header from `/clinic-logo.png` (80-120px wide, aspect ratio preserved)
+  - Logo prints correctly on A4 with `@media print` styles
+- **Data Sources**:
+  - **Header Section**: 
+    - Card fill date (from patient-filled visit card signed date or fallback to created/updated date)
+    - Patient demographics: Book number, ovog/name, birthDate, regNo, gender, age (calculated), phone, email, address, workPlace
+    - All demographic fields sourced from Patient master record ("Үндсэн мэдээлэл")
+  - **Questionnaire Sections**: 
+    - Adult or Child visit card answers (VisitCard.answers JSON)
+    - Prevention questions (reason for visit, previous dental visits)
+    - General medical history questions
+    - One card per patient (either ADULT or CHILD type)
+  - **Encounter Table**: **One row per diagnosis entry** (not per encounter)
+    - Он/сар/өдөр: Encounter.visitDate
+    - Шүдний дугаар: EncounterDiagnosis.toothCode (verbatim text)
+    - Бодит үзлэг, зовиур: Multi-line cell with complaint chips from EncounterDiagnosisProblemText
+    - Онош: Diagnosis.code only (e.g., `K01.8` stripped of description)
+    - Эмчилгээ: EncounterService texts assigned to diagnosis (via meta.diagnosisId)
+    - Индикатор: Sterilization indicators from EncounterDiagnosisSterilizationIndicator
+      - Tools sourced from SterilizationIndicator.items → SterilizationIndicatorItem.item (SterilizationItem)
+      - Print format: tool name + package code (e.g., "ToolName/PackageCode")
+    - Тэмдэглэл: EncounterDiagnosis.note
+    - Эмч болон сувилагч: Doctor/Nurse initials format `О.Нэр`, combined as `Д.Эмч / С.Сувилагч`
+- **Print Features**:
+  - Print button with filter controls
+  - Date range filtering for encounter rows
+  - Toggles to show/hide header, questionnaire, or table sections
+  - CSS @media print optimized for A4 paper
+  - Page break handling for long tables
+
+#### 4.2.2 Карт бөглөх (Patient-Filled Visit Card)
+**Patient input form for medical history and questionnaire responses**
+- **Purpose**: Collect patient medical history and questionnaire responses
+- **Access**: Editable form (one per patient)
+- **Location**: Patient profile → "Карт бөглөх" tab
+- **Card Types**: Adult (ADULT) or Child (CHILD) form variants
+- **Storage**: VisitCard table (one per patient, type immutable after first save)
+- **Data Fields**: 
+  - Type: ADULT | CHILD (enum)
+  - Answers: JSON object with all form responses
+  - Patient signature: file upload with path and signedAt timestamp
+  - Filled-up date captured for use in history book header
+- **API Endpoints**:
+  - `GET /api/patients/visit-card/by-book/:bookNumber` - Load card
+  - `PUT /api/patients/visit-card/:patientBookId` - Save/update card
+  - `POST /api/patients/visit-card/:patientBookId/signature` - Upload signature
+- **Functionality**: Form stays fully functional, signature capture, auto-save
+
+#### 4.2.3 Other Clinical Documentation
 - **Treatment Documentation**: Detailed procedure notes, tooth charts
 - **Digital Forms**: Consent forms, medical questionnaires
 - **Document Management**: File attachments, imaging integration
@@ -150,10 +208,30 @@ M DENT Cloud is a comprehensive dental practice management system designed to ha
 - **BranchSettings**: Branch-specific configurations
 
 #### Patient Management
-- **Patient**: patientId, demographics, contact, medical history
+- **Patient**: patientId, demographics (ovog, name, regNo, gender, birthDate), contact (phone, email, emergencyPhone), address, workPlace, bloodType, citizenship, notes, branchId, createdAt, updatedAt
+- **PatientBook**: bookId, bookNumber (unique), patientId (1:1 with Patient)
+- **VisitCard**: cardId, patientBookId (1:1), type (ADULT|CHILD), answers (JSON), patientSignaturePath, signedAt, createdAt, updatedAt
 - **Appointment**: appointmentId, patientId, branchId, dateTime, status, notes
 
 #### Clinical Records
+- **Encounter**: encounterId, patientBookId, doctorId, nurseId, visitDate, notes, appointmentId, patientSignaturePath, patientSignedAt, doctorSignaturePath, doctorSignedAt
+- **EncounterDiagnosis**: diagnosisId, encounterId, diagnosisId (FK to Diagnosis), toothCode (verbatim text), selectedProblemIds (JSON array), note, createdAt
+  - **Represents one diagnosis entry** (one row in patient history book printed table)
+  - toothCode stores exact text entered by user (e.g., "11,12", "16-26", "ALL_TEETH")
+- **EncounterDiagnosisProblemText**: problemTextId, encounterDiagnosisId, text, order, createdAt, updatedAt
+  - Complaint text lines associated with diagnosis entry
+  - Displayed in "Бодит үзлэг, зовиур" column in printed history book
+- **EncounterDiagnosisSterilizationIndicator**: linkId, encounterDiagnosisId, indicatorId (FK to SterilizationIndicator), createdAt
+  - **Sterilization indicators attached per diagnosis entry**
+  - Links to SterilizationIndicator which references SterilizationIndicatorItem
+  - Tool name comes from SterilizationIndicator.items → SterilizationIndicatorItem.item (SterilizationItem)
+  - Print format in "Индикатор" column: tool name + package code (e.g., "ToolName/PackageCode")
+- **EncounterService**: serviceId, encounterId, serviceId (FK to Service), quantity, price, meta (JSON with diagnosisId assignment), createdAt
+  - Treatment services assigned to diagnosis via meta.diagnosisId
+- **EncounterServiceText**: textId, encounterServiceId, text, order, createdAt, updatedAt
+  - Treatment text lines displayed in "Эмчилгээ" column in printed history book
+- **Diagnosis**: diagnosisId, code (e.g., "K01.8"), name, description
+- **DiagnosisProblem**: problemId, diagnosisId, label, order, active
 - **Treatment**: treatmentId, patientId, date, procedure, notes
 - **TreatmentPlan**: planId, patientId, stages, completion status
 - **Document**: documentId, patientId, type, filePath, uploadDate

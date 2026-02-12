@@ -505,25 +505,16 @@ const PatientHistoryBook: React.FC<Props> = ({
                 marginBottom: 16,
               }}
             >
-              <div
+              <img
+                src="/clinic-logo.png"
+                alt="Clinic Logo"
                 style={{
-                  width: 80,
-                  height: 80,
-                  background: "#f3f4f6",
-                  borderRadius: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  width: 100,
+                  height: "auto",
                   marginRight: 16,
-                  fontSize: 12,
-                  color: "#6b7280",
-                  textAlign: "center",
+                  objectFit: "contain",
                 }}
-              >
-                CLINIC
-                <br />
-                LOGO
-              </div>
+              />
               <div style={{ flex: 1 }}>
                 <h1
                   style={{
@@ -831,6 +822,11 @@ const PatientHistoryBook: React.FC<Props> = ({
             border: none !important;
             padding: 0 !important;
             margin: 0 !important;
+          }
+          img {
+            max-width: 100px;
+            height: auto;
+            display: block;
           }
           @page {
             size: A4;
