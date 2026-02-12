@@ -4,6 +4,7 @@ import SignaturePad from "../../components/SignaturePad";
 import ChildVisitCardForm from "../../components/ChildVisitCardForm";
 import OrthoCardView from "./OrthoCardView";
 import EncounterReportModal from "../../components/patients/EncounterReportModal";
+import PatientHistoryBook from "../../components/patients/PatientHistoryBook";
 
 type Branch = {
   id: number;
@@ -1623,28 +1624,13 @@ export default function PatientProfilePage() {
                 </div>
               )}
 
-              {activeTab === "patient_history" && (
-                <div
-                  style={{
-                    borderRadius: 12,
-                    border: "1px solid #e5e7eb",
-                    padding: 16,
-                    background: "white",
-                  }}
-                >
-                  <h2
-                    style={{
-                      fontSize: 16,
-                      marginTop: 0,
-                      marginBottom: 12,
-                    }}
-                  >
-                    Үйлчлүүлэгчийн карт
-                  </h2>
-                  <div style={{ color: "#6b7280", fontSize: 13 }}>
-                    Энэ хэсгийг хөгжүүлж байна...
-                  </div>
-                </div>
+              {activeTab === "patient_history" && patient && patientBook && (
+                <PatientHistoryBook
+                  patient={patient}
+                  patientBook={patientBook}
+                  visitCard={data?.visitCard}
+                  encounters={encounters || []}
+                />
               )}
 
               {activeTab === "visit_card" && (
