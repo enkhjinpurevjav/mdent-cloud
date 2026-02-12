@@ -241,9 +241,11 @@ router.patch("/:id", async (req, res) => {
       name,
       regNo,
       phone,
+      email,
       gender,
       birthDate,
       address,
+      workPlace,
       bloodType,
       citizenship,
       emergencyPhone,
@@ -263,6 +265,9 @@ router.patch("/:id", async (req, res) => {
     }
     if (phone !== undefined) {
       data.phone = phone === "" ? null : String(phone).trim();
+    }
+    if (email !== undefined) {
+      data.email = email === "" ? null : String(email).trim();
     }
 
     // gender: optional, must be "эр" or "эм" if provided
@@ -295,6 +300,9 @@ router.patch("/:id", async (req, res) => {
 
     if (address !== undefined) {
       data.address = address === "" ? null : String(address).trim();
+    }
+    if (workPlace !== undefined) {
+      data.workPlace = workPlace === "" ? null : String(workPlace).trim();
     }
     if (bloodType !== undefined) {
       data.bloodType = bloodType === "" ? null : String(bloodType).trim();
@@ -350,6 +358,7 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
             branch: true,
           },
         },
+        visitCard: true,
       },
     });
 
@@ -366,6 +375,7 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
   orderBy: { visitDate: "desc" },
   include: {
     doctor: true,
+    nurse: true,
     invoice: {
       include: {
         // updated names matching Prisma schema:
@@ -384,6 +394,37 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
       },
     },
     media: true,
+    diagnoses: {
+      include: {
+        diagnosis: true,
+        problemTexts: true,
+        sterilizationIndicators: {
+          include: {
+            indicator: {
+              include: {
+                tool: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        id: "asc",
+      },
+    },
+    encounterServices: {
+      include: {
+        service: true,
+        texts: {
+          orderBy: {
+            order: "asc",
+          },
+        },
+      },
+      orderBy: {
+        id: "asc",
+      },
+    },
   },
 });
 
@@ -410,6 +451,7 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
       invoices,
       media,
       appointments,
+      visitCard: pb.visitCard,
     });
   } catch (err) {
     console.error("GET /api/patients/profile/by-book/:bookNumber error:", err);

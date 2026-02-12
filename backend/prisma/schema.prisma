@@ -663,7 +663,9 @@ model Patient {
   gender         String?
   birthDate      DateTime?
   phone          String?
+  email          String?
   address        String?
+  workPlace      String?
   bloodType      String?
   citizenship    String?   @default("Mongolian")
   emergencyPhone String?
