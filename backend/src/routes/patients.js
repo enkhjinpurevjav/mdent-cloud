@@ -548,6 +548,7 @@ router.put("/visit-card/:patientBookId", async (req, res) => {
         answers: answers ?? {},
         savedAt: now,
         // Keep existing signature if signed flag is false
+        // In Prisma, undefined means "do not update this field"
         signedAt: signed ? now : undefined,
       },
     });

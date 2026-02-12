@@ -622,8 +622,10 @@ export default function PatientProfilePage() {
       }
 
       // Update the current visitCard and the visitCards array
+      // Find the existing card for this type or create a new one
+      const existingCard = visitCards.find(c => c.type === json.type);
       const updatedCard = {
-        ...visitCard,
+        ...(existingCard || visitCard || {}),
         patientSignaturePath: json.patientSignaturePath,
         signedAt: json.signedAt,
         type: json.type,
