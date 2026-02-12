@@ -631,7 +631,7 @@ export default function ChildVisitCardForm({
         }}
       >
         <div style={{ fontSize: 13, marginBottom: 4 }}>
-          Үйлчлүүлэгч / асран хамгаалагчийн гарын үсэг:
+          Урьдчилан сэргийлэх асуумжийг үнэн зөв бөглөж, эмчилгээний нөхцөлтэй танилцсан үйлчлүүлэгчийн асран хамгаалагчийн гарын үсэг
         </div>
         {visitCard?.patientSignaturePath ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -692,7 +692,7 @@ export default function ChildVisitCardForm({
             cursor: visitCardSaving ? "default" : "pointer",
           }}
         >
-          {visitCardSaving ? "Хадгалж байна..." : "Үзлэгийн карт хадгалах"}
+          {visitCardSaving ? "Хадгалж байна..." : "Хадгалах"}
         </button>
       </div>
     </div>

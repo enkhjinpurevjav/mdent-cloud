@@ -252,6 +252,7 @@ export default function PatientProfilePage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("profile");
 
   const [visitCard, setVisitCard] = useState<VisitCard | null>(null);
+  const [visitCards, setVisitCards] = useState<VisitCard[]>([]); // All visit cards
   const [visitCardLoading, setVisitCardLoading] = useState(false);
   const [visitCardError, setVisitCardError] = useState("");
   const [visitCardTypeDraft, setVisitCardTypeDraft] =
@@ -330,8 +331,12 @@ export default function PatientProfilePage() {
           );
         }
 
-        const card: VisitCard | null = json.visitCard || null;
+        const card: VisitCard | null = json.visitCard || null; // Active card
+        const cards: VisitCard[] = json.visitCards || []; // All cards
+        
         setVisitCard(card);
+        setVisitCards(cards);
+        
         if (card) {
           setVisitCardTypeDraft(card.type);
           setVisitCardAnswers(card.answers || {});
@@ -345,6 +350,7 @@ export default function PatientProfilePage() {
           err?.message || "Үзлэгийн карт ачаалахад алдаа гарлаа."
         );
         setVisitCard(null);
+        setVisitCards([]);
       } finally {
         setVisitCardLoading(false);
       }
@@ -358,6 +364,25 @@ export default function PatientProfilePage() {
   const encounters = data?.encounters || [];
   const appointments = data?.appointments || [];
   const patientBookId = pb?.id || null;
+
+  // Handler for type switching - loads the corresponding card's data if it exists
+  const handleTypeChange = (newType: VisitCardType) => {
+    setVisitCardTypeDraft(newType);
+    
+    // Find existing card for this type
+    const existingCard = visitCards.find(c => c.type === newType);
+    
+    if (existingCard) {
+      // Load data from existing card
+      setVisitCardAnswers(existingCard.answers || {});
+      setVisitCard(existingCard);
+    } else {
+      // Clear form for new type
+      setVisitCardAnswers({});
+      // Keep visitCard as null or the other type's card for signature checking
+      setVisitCard(null);
+    }
+  };
 
   const updateVisitCardAnswer = (
     key: keyof VisitCardAnswers,
@@ -542,6 +567,13 @@ export default function PatientProfilePage() {
       }
 
       const card: VisitCard = json.visitCard;
+      
+      // Update the visitCards array with the new/updated card
+      setVisitCards((prev) => {
+        const filtered = prev.filter(c => c.type !== card.type);
+        return [...filtered, card];
+      });
+      
       setVisitCard(card);
       setVisitCardTypeDraft(card.type);
       setVisitCardAnswers(card.answers || {});
@@ -560,11 +592,19 @@ export default function PatientProfilePage() {
       setVisitCardError("PatientBook ID олдсонгүй.");
       return;
     }
+    
+    const currentType = visitCardTypeDraft;
+    if (!currentType) {
+      setVisitCardError("Картын төрлийг сонгоно уу.");
+      return;
+    }
+    
     setSignatureSaving(true);
     setVisitCardError("");
     try {
       const formData = new FormData();
       formData.append("file", blob, "signature.png");
+      formData.append("type", currentType); // Send the type
 
       const res = await fetch(
         `/api/patients/visit-card/${patientBookId}/signature`,
@@ -581,15 +621,22 @@ export default function PatientProfilePage() {
         );
       }
 
-      setVisitCard((prev) =>
-        prev
-          ? {
-              ...prev,
-              patientSignaturePath: json.patientSignaturePath,
-              signedAt: json.signedAt,
-            }
-          : prev
-      );
+      // Update the current visitCard and the visitCards array
+      // Find the existing card for this type or create a new one
+      const existingCard = visitCards.find(c => c.type === json.type);
+      const updatedCard = {
+        ...(existingCard || visitCard || {}),
+        patientSignaturePath: json.patientSignaturePath,
+        signedAt: json.signedAt,
+        type: json.type,
+      } as VisitCard;
+      
+      setVisitCard(updatedCard);
+      
+      setVisitCards((prev) => {
+        const filtered = prev.filter(c => c.type !== json.type);
+        return [...filtered, updatedCard];
+      });
     } catch (err: any) {
       console.error("upload signature failed", err);
       setVisitCardError(
@@ -1674,7 +1721,7 @@ export default function PatientProfilePage() {
                           name="visitCardType"
                           value="ADULT"
                           checked={visitCardTypeDraft === "ADULT"}
-                          onChange={() => setVisitCardTypeDraft("ADULT")}
+                          onChange={() => handleTypeChange("ADULT")}
                         />
                         <span>Үзлэгийн карт (Том хүн)</span>
                       </label>
@@ -1690,7 +1737,7 @@ export default function PatientProfilePage() {
                           name="visitCardType"
                           value="CHILD"
                           checked={visitCardTypeDraft === "CHILD"}
-                          onChange={() => setVisitCardTypeDraft("CHILD")}
+                          onChange={() => handleTypeChange("CHILD")}
                         />
                         <span>Үзлэгийн карт (Хүүхэд)</span>
                       </label>
@@ -2823,7 +2870,7 @@ export default function PatientProfilePage() {
                             <div
                               style={{ fontSize: 13, marginBottom: 4 }}
                             >
-                              Үйлчлүүлэгч / асран хамгаалагчийн гарын үсэг:
+                              Урьдчилан сэргийлэх асуумжийг үнэн зөв бөглөж, эмчилгээний нөхцөлтэй танилцсан үйлчлүүлэгчийн гарын үсэг :
                             </div>
                             {visitCard?.patientSignaturePath ? (
                               <div
@@ -2905,7 +2952,7 @@ export default function PatientProfilePage() {
                             >
                               {visitCardSaving
                                 ? "Хадгалж байна..."
-                                : "Үзлэгийн карт хадгалах"}
+                                : "Хадгалах"}
                             </button>
                           </div>
                         </>

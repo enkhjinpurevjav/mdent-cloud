@@ -358,7 +358,7 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
             branch: true,
           },
         },
-        visitCard: true,
+        visitCards: true, // Changed to plural
       },
     });
 
@@ -426,6 +426,17 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
       },
     });
 
+    // Find the active visit card (latest savedAt)
+    let activeVisitCard = null;
+    if (pb.visitCards && pb.visitCards.length > 0) {
+      activeVisitCard = pb.visitCards.reduce((latest, card) => {
+        if (!latest) return card;
+        if (!card.savedAt) return latest;
+        if (!latest.savedAt) return card;
+        return card.savedAt > latest.savedAt ? card : latest;
+      }, null);
+    }
+
     res.json({
       patient,
       patientBook: { id: pb.id, bookNumber: pb.bookNumber },
@@ -433,7 +444,8 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
       invoices,
       media,
       appointments,
-      visitCard: pb.visitCard,
+      visitCard: activeVisitCard, // Return active card for backwards compatibility
+      visitCards: pb.visitCards, // Return all cards
     });
   } catch (err) {
     console.error("GET /api/patients/profile/by-book/:bookNumber error:", err);
@@ -453,7 +465,7 @@ router.get("/visit-card/by-book/:bookNumber", async (req, res) => {
     const pb = await prisma.patientBook.findUnique({
       where: { bookNumber },
       include: {
-        visitCard: true,
+        visitCards: true, // Changed to plural
         patient: {
           include: { branch: true },
         },
@@ -464,10 +476,22 @@ router.get("/visit-card/by-book/:bookNumber", async (req, res) => {
       return res.status(404).json({ error: "Patient not found" });
     }
 
+    // Find the active card (latest savedAt)
+    let activeCard = null;
+    if (pb.visitCards && pb.visitCards.length > 0) {
+      activeCard = pb.visitCards.reduce((latest, card) => {
+        if (!latest) return card;
+        if (!card.savedAt) return latest;
+        if (!latest.savedAt) return card;
+        return card.savedAt > latest.savedAt ? card : latest;
+      }, null);
+    }
+
     return res.json({
       patientBook: { id: pb.id, bookNumber: pb.bookNumber },
       patient: pb.patient,
-      visitCard: pb.visitCard, // may be null if not yet created
+      visitCard: activeCard, // Return the active card for backwards compatibility
+      visitCards: pb.visitCards, // Return all cards
     });
   } catch (err) {
     console.error("GET /api/patients/visit-card/by-book/:bookNumber error:", err);
@@ -504,30 +528,30 @@ router.put("/visit-card/:patientBookId", async (req, res) => {
 
     const now = new Date();
 
-    const existing = await prisma.visitCard.findUnique({
-      where: { patientBookId },
-    });
-
-    let visitCard;
-    if (!existing) {
-      visitCard = await prisma.visitCard.create({
-        data: {
+    // Use upsert with composite key (patientBookId, type)
+    // This allows switching types and keeps separate cards per type
+    const visitCard = await prisma.visitCard.upsert({
+      where: {
+        patientBookId_type: {
           patientBookId,
           type,
-          answers: answers ?? {},
-          signedAt: signed ? now : null,
         },
-      });
-    } else {
-      // Do not allow type switch after first save to avoid mixing forms
-      visitCard = await prisma.visitCard.update({
-        where: { patientBookId },
-        data: {
-          answers: answers ?? {},
-          signedAt: signed ? existing.signedAt || now : existing.signedAt,
-        },
-      });
-    }
+      },
+      create: {
+        patientBookId,
+        type,
+        answers: answers ?? {},
+        savedAt: now,
+        signedAt: signed ? now : null,
+      },
+      update: {
+        answers: answers ?? {},
+        savedAt: now,
+        // Keep existing signature if signed flag is false
+        // In Prisma, undefined means "do not update this field"
+        signedAt: signed ? now : undefined,
+      },
+    });
 
     return res.json({ visitCard });
   } catch (err) {
@@ -554,6 +578,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // POST /api/patients/visit-card/:patientBookId/signature
+// Body (form-data): file, type (ADULT or CHILD)
 router.post(
   "/visit-card/:patientBookId/signature",
   upload.single("file"),
@@ -567,26 +592,46 @@ router.post(
         return res.status(400).json({ error: "file is required" });
       }
 
+      // Get type from request body (form-data)
+      const { type } = req.body || {};
+      if (type !== "ADULT" && type !== "CHILD") {
+        return res
+          .status(400)
+          .json({ error: "type must be 'ADULT' or 'CHILD'" });
+      }
+
       const publicPath = `/media/${path.basename(req.file.path)}`;
 
+      // Find the specific visit card for this type
       const existing = await prisma.visitCard.findUnique({
-        where: { patientBookId },
+        where: {
+          patientBookId_type: {
+            patientBookId,
+            type,
+          },
+        },
       });
       if (!existing) {
-        return res.status(404).json({ error: "Visit card not found" });
+        return res.status(404).json({ error: "Visit card not found for this type" });
       }
 
       const updated = await prisma.visitCard.update({
-        where: { patientBookId },
+        where: {
+          patientBookId_type: {
+            patientBookId,
+            type,
+          },
+        },
         data: {
           patientSignaturePath: publicPath,
-          signedAt: existing.signedAt || new Date(),
+          signedAt: new Date(),
         },
       });
 
       return res.status(201).json({
         patientSignaturePath: updated.patientSignaturePath,
         signedAt: updated.signedAt,
+        type: updated.type,
       });
     } catch (err) {
       console.error(
