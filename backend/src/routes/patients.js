@@ -429,7 +429,7 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
       },
     },
   },
-});
+};
 
     const invoices = encounters
       .map((e) => e.invoice)
