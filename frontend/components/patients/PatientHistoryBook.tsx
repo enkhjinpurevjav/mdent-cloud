@@ -32,7 +32,7 @@ type DiagnosisEntry = {
   diagnosisId?: number | null;
   toothCode?: string | null;
   note?: string | null;
-  selectedProblemIds?: any;
+  selectedProblemIds?: number[];
   diagnosis?: {
     code: string;
     name: string;
@@ -338,16 +338,18 @@ const PatientHistoryBook: React.FC<Props> = ({
       const complaints: string[] = [];
       
       // Add selected problem chips first
-      if (Array.isArray(diag.selectedProblemIds) && diag.diagnosis?.problems) {
+      if (
+        Array.isArray(diag.selectedProblemIds) && 
+        diag.diagnosis?.problems && 
+        diag.diagnosis.problems.length > 0
+      ) {
         const problemsMap = new Map(
           diag.diagnosis.problems.map(p => [p.id, p.label])
         );
-        diag.selectedProblemIds.forEach((id: any) => {
-          if (typeof id === 'number') {
-            const label = problemsMap.get(id);
-            if (label) {
-              complaints.push(label);
-            }
+        diag.selectedProblemIds.forEach((id) => {
+          const label = problemsMap.get(id);
+          if (label) {
+            complaints.push(label);
           }
         });
       }
