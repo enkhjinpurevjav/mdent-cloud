@@ -104,6 +104,179 @@ const PatientHistoryBook: React.FC<Props> = ({
   const [showTable, setShowTable] = useState(true);
 
   // Helper functions
+  const displayOrDash = (value?: string | null) => {
+    if (value == null || value === "") return "-";
+    return value;
+  };
+
+  const hasText = (value?: string | null) => {
+    return value != null && value.trim() !== "";
+  };
+
+  const buildReasonToVisitList = (reasonToVisit: any): string => {
+    const reasons: string[] = [];
+    if (reasonToVisit?.toothPain) reasons.push("Шүд өвдөх");
+    if (reasonToVisit?.toothBroken) reasons.push("Шүд хугарах");
+    if (reasonToVisit?.toothDecay) reasons.push("Шүд цоорох");
+    if (reasonToVisit?.badBite) reasons.push("Хазуулын зөрүү");
+    if (reasonToVisit?.preventiveCheck) reasons.push("Урьдчилан сэргийлэх үзлэг");
+    if (reasonToVisit?.cosmeticSmile) reasons.push("Гоо сайхны инээмсэглэл");
+    if (hasText(reasonToVisit?.other)) {
+      reasons.push(`Бусад: ${reasonToVisit.other}`);
+    }
+    return reasons.length > 0 ? reasons.join(", ") : "-";
+  };
+
+  const collectYesFindings = (answers: any): Array<{ label: string; detail?: string }> => {
+    const findings: Array<{ label: string; detail?: string }> = [];
+    
+    // General Medical section
+    const generalMed = answers.generalMedical || {};
+    if (generalMed.heartDisease === "yes") {
+      findings.push({ 
+        label: "Зүрхний өвчин", 
+        detail: generalMed.heartDiseaseDetail 
+      });
+    }
+    if (generalMed.highBloodPressure === "yes") {
+      findings.push({ 
+        label: "Цусны даралт өндөр", 
+        detail: generalMed.highBloodPressureDetail 
+      });
+    }
+    if (generalMed.infectiousDisease === "yes") {
+      findings.push({ 
+        label: "Халдварт өвчин", 
+        detail: generalMed.infectiousDiseaseDetail 
+      });
+    }
+    if (generalMed.tuberculosis === "yes") {
+      findings.push({ 
+        label: "Сүрьеэ", 
+        detail: generalMed.tuberculosisDetail 
+      });
+    }
+    if (generalMed.hepatitisBC === "yes") {
+      findings.push({ 
+        label: "Гепатит B/C", 
+        detail: generalMed.hepatitisBCDetail 
+      });
+    }
+    if (generalMed.diabetes === "yes") {
+      findings.push({ 
+        label: "Чихрийн шижин", 
+        detail: generalMed.diabetesDetail 
+      });
+    }
+    if (generalMed.onMedication === "yes") {
+      findings.push({ 
+        label: "Эм хэрэглэж байгаа", 
+        detail: generalMed.onMedicationDetail 
+      });
+    }
+    if (generalMed.seriousIllnessOrSurgery === "yes") {
+      findings.push({ 
+        label: "Хүнд өвчин/мэс засал", 
+        detail: generalMed.seriousIllnessOrSurgeryDetail 
+      });
+    }
+    if (generalMed.pregnant === "yes") {
+      findings.push({ 
+        label: "Жирэмсэн", 
+        detail: generalMed.pregnantDetail 
+      });
+    }
+    if (generalMed.other === "yes") {
+      findings.push({ 
+        label: "Бусад", 
+        detail: generalMed.otherDetail 
+      });
+    }
+
+    // Allergies section
+    const allergies = answers.allergies || {};
+    if (allergies.allergyMedicine === "yes") {
+      findings.push({ 
+        label: "Эмийн харшил", 
+        detail: allergies.allergyMedicineDetail 
+      });
+    }
+    if (allergies.allergyFood === "yes") {
+      findings.push({ 
+        label: "Хүнсний харшил", 
+        detail: allergies.allergyFoodDetail 
+      });
+    }
+    if (allergies.allergyAnesthesia === "yes") {
+      findings.push({ 
+        label: "Мэдээ алдуулах бодисын харшил", 
+        detail: allergies.allergyAnesthesiaDetail 
+      });
+    }
+    if (allergies.childAllergyFood === "yes") {
+      findings.push({ 
+        label: "Хүүхдийн хүнсний харшил", 
+        detail: allergies.childAllergyFoodDetail 
+      });
+    }
+    if (allergies.childAllergyMedicine === "yes") {
+      findings.push({ 
+        label: "Хүүхдийн эмийн харшил", 
+        detail: allergies.childAllergyMedicineDetail 
+      });
+    }
+    if (allergies.other === "yes") {
+      findings.push({ 
+        label: "Бусад харшил", 
+        detail: allergies.otherDetail 
+      });
+    }
+
+    // Habits section
+    const habits = answers.habits || {};
+    if (habits.smoking === "yes") {
+      findings.push({ 
+        label: "Тамхи татах", 
+        detail: habits.smokingDetail 
+      });
+    }
+    if (habits.alcohol === "yes") {
+      findings.push({ 
+        label: "Согтууруулах ундаа", 
+        detail: habits.alcoholDetail 
+      });
+    }
+    if (habits.other === "yes") {
+      findings.push({ 
+        label: "Бусад дадал", 
+        detail: habits.otherDetail 
+      });
+    }
+
+    // Dental followup section
+    const dentalFollowup = answers.dentalFollowup || {};
+    if (dentalFollowup.regularCheckup === "yes") {
+      findings.push({ 
+        label: "Тогтмол үзлэг", 
+        detail: dentalFollowup.regularCheckupDetail 
+      });
+    }
+    if (dentalFollowup.brushingFrequency === "yes") {
+      findings.push({ 
+        label: "Шүд угаах давтамж", 
+        detail: dentalFollowup.brushingFrequencyDetail 
+      });
+    }
+    if (dentalFollowup.other === "yes") {
+      findings.push({ 
+        label: "Бусад шүдний асуудал", 
+        detail: dentalFollowup.otherDetail 
+      });
+    }
+
+    return findings;
+  };
+
   const formatDate = (dateStr?: string | null) => {
     if (!dateStr) return "-";
     const d = new Date(dateStr);
@@ -256,22 +429,14 @@ const PatientHistoryBook: React.FC<Props> = ({
 
     const isAdult = visitCard.type === "ADULT";
 
-    // Prevention reason
-    const reasonToVisit = answers.reasonToVisit || {};
-    const reasons: string[] = [];
-    if (reasonToVisit.toothPain) reasons.push("Шүд өвдөх");
-    if (reasonToVisit.toothBroken) reasons.push("Шүд хугарах");
-    if (reasonToVisit.toothDecay) reasons.push("Шүд цоорох");
-    if (reasonToVisit.badBite) reasons.push("Хазуулын зөрүү");
-    if (reasonToVisit.preventiveCheck) reasons.push("Урьдчилан сэргийлэх үзлэг");
-    if (reasonToVisit.cosmeticSmile) reasons.push("Гоо сайхны инээмсэглэл");
-    if (reasonToVisit.other) reasons.push(`Бусад: ${reasonToVisit.other}`);
+    // Use the new helper for reason to visit
+    const reasonToVisitText = buildReasonToVisitList(answers.reasonToVisit);
 
     // Previous dental visit
     const prevDental = answers.previousDentalVisit || {};
 
-    // General medical
-    const generalMed = answers.generalMedical || {};
+    // Collect all YES findings
+    const yesFindings = collectYesFindings(answers);
 
     return (
       <div style={{ marginTop: 16 }}>
@@ -287,26 +452,42 @@ const PatientHistoryBook: React.FC<Props> = ({
           УРЬДЧИЛАН СЭРГИЙЛЭХ АСУУМЖ
         </div>
         <div style={{ fontSize: 12, marginBottom: 8 }}>
-          <strong>Ирсэн шалтгаан:</strong>{" "}
-          {reasons.length > 0 ? reasons.join(", ") : "-"}
+          <strong>Ирсэн шалтгаан:</strong> {reasonToVisitText}
         </div>
+        
+        {/* Previous dental visit section - only show if hasVisited is yes */}
         {prevDental.hasVisited === "yes" && (
           <>
             <div style={{ fontSize: 12, marginBottom: 4 }}>
-              <strong>Өмнө шүдний эмнэлэгт очиж байсан:</strong> Тийм
+              <strong>Өмнө шүдний эмнэлэгт үзүүлж байсан:</strong> Тийм
             </div>
-            {prevDental.clinicName && (
+            {hasText(prevDental.clinicName) && (
               <div style={{ fontSize: 12, marginBottom: 4 }}>
                 <strong>Эмнэлгийн нэр:</strong> {prevDental.clinicName}
               </div>
             )}
-            {prevDental.hadComplication === "yes" && (
+          </>
+        )}
+
+        {/* Complication section - NOT nested under hasVisited */}
+        {prevDental.hadComplication === "yes" && (
+          <>
+            <div style={{ fontSize: 12, marginBottom: 4 }}>
+              <strong>Өмнө шүдний эмчилгээ хийхэд хүндрэл гарч байсан:</strong> Тийм
+            </div>
+            {hasText(prevDental.reactionOrComplication) && (
               <div style={{ fontSize: 12, marginBottom: 4 }}>
-                <strong>Хүндрэл:</strong>{" "}
-                {prevDental.reactionOrComplication || "-"}
+                <strong>Тайлбар:</strong> {prevDental.reactionOrComplication}
               </div>
             )}
           </>
+        )}
+
+        {/* Dentist attention notes - only if has text */}
+        {hasText(answers.dentistAttentionNotes) && (
+          <div style={{ fontSize: 12, marginBottom: 4 }}>
+            <strong>Шүдний эмчилгээний үед эмчийн зүгээс анхаарах зүйлс:</strong> {answers.dentistAttentionNotes}
+          </div>
         )}
 
         <div
@@ -322,27 +503,14 @@ const PatientHistoryBook: React.FC<Props> = ({
           ЕРӨНХИЙ БИЕИЙН ТАЛААРХИ АСУУМЖ
         </div>
         <div style={{ fontSize: 12 }}>
-          {generalMed.heartDisease === "yes" && (
-            <div>• Зүрхний өвчин: Тийм</div>
-          )}
-          {generalMed.highBloodPressure === "yes" && (
-            <div>• Цусны даралт өндөр: Тийм</div>
-          )}
-          {generalMed.infectiousDisease === "yes" && (
-            <div>• Халдварт өвчин: Тийм</div>
-          )}
-          {generalMed.tuberculosis === "yes" && <div>• Сүрьеэ: Тийм</div>}
-          {generalMed.hepatitisBC === "yes" && (
-            <div>• Гепатит B/C: Тийм</div>
-          )}
-          {generalMed.diabetes === "yes" && <div>• Чихрийн шижин: Тийм</div>}
-          {generalMed.onMedication === "yes" && (
-            <div>• Эм хэрэглэж байгаа: Тийм</div>
-          )}
-          {generalMed.seriousIllnessOrSurgery === "yes" && (
-            <div>• Хүнд өвчин/мэс засал: Тийм</div>
-          )}
-          {!Object.values(generalMed).some((v) => v === "yes") && (
+          {yesFindings.length > 0 ? (
+            yesFindings.map((finding, idx) => (
+              <div key={idx}>
+                • {finding.label}: Тийм
+                {hasText(finding.detail) && ` - ${finding.detail}`}
+              </div>
+            ))
+          ) : (
             <div style={{ color: "#6b7280" }}>Мэдээлэл ороогүй байна.</div>
           )}
         </div>
@@ -587,13 +755,13 @@ const PatientHistoryBook: React.FC<Props> = ({
                 <strong>Утасны дугаар:</strong> {patient.phone || "-"}
               </div>
               <div>
-                <strong>E-mail:</strong> {patient.email || "-"}
+                <strong>E-mail:</strong> {displayOrDash(patient.email)}
               </div>
               <div>
-                <strong>Гэрийн хаяг:</strong> {patient.address || "-"}
+                <strong>Гэрийн хаяг:</strong> {displayOrDash(patient.address)}
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
-                <strong>Ажлын газар:</strong> {patient.workPlace || "-"}
+                <strong>Ажлын газар:</strong> {displayOrDash(patient.workPlace)}
               </div>
             </div>
           </>
