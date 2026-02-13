@@ -144,7 +144,7 @@ const PatientHistoryBook: React.FC<Props> = ({
   const [encounterDetailsCache, setEncounterDetailsCache] = useState<
     Map<number, EncounterDetails>
   >(new Map());
-  
+
   // Use refs to track fetching state synchronously to prevent race conditions
   const fetchingEncounterIdsRef = useRef<Set<number>>(new Set());
   const encounterDetailsCacheRef = useRef<Map<number, EncounterDetails>>(
@@ -376,7 +376,7 @@ const PatientHistoryBook: React.FC<Props> = ({
   // Fetch encounter details for filtered encounters (to get draft attachments)
   useEffect(() => {
     filteredEncounters.forEach((enc) => {
-      // Check ref for synchronous state to prevent race conditions
+      // Check cache ref synchronously to prevent duplicate fetches from concurrent renders
       if (
         !encounterDetailsCacheRef.current.has(enc.id) &&
         !fetchingEncounterIdsRef.current.has(enc.id)
