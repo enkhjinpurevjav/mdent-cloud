@@ -12,6 +12,20 @@ export function usePatientProfile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  // Shared fetch logic
+  const fetchProfile = async (bookNum: string) => {
+    const res = await fetch(
+      `/api/patients/profile/by-book/${encodeURIComponent(bookNum)}`
+    );
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      throw new Error((json && json.error) || "failed to load");
+    }
+
+    return json as PatientProfileResponse;
+  };
+
   useEffect(() => {
     if (!bookNumber || typeof bookNumber !== "string") return;
 
@@ -19,16 +33,8 @@ export function usePatientProfile() {
       setLoading(true);
       setError("");
       try {
-        const res = await fetch(
-          `/api/patients/profile/by-book/${encodeURIComponent(bookNumber)}`
-        );
-        const json = await res.json().catch(() => null);
-
-        if (!res.ok) {
-          throw new Error((json && json.error) || "failed to load");
-        }
-
-        setData(json as PatientProfileResponse);
+        const json = await fetchProfile(bookNumber);
+        setData(json);
       } catch (err) {
         console.error(err);
         setError("Профайлыг ачааллах үед алдаа гарлаа");
@@ -41,22 +47,22 @@ export function usePatientProfile() {
     load();
   }, [bookNumber]);
 
-  return { data, loading, error, bookNumber, refetch: () => {
+  const refetch = async () => {
     if (bookNumber && typeof bookNumber === "string") {
       setLoading(true);
       setError("");
-      fetch(`/api/patients/profile/by-book/${encodeURIComponent(bookNumber)}`)
-        .then(res => res.json())
-        .then(json => {
-          setData(json as PatientProfileResponse);
-          setLoading(false);
-        })
-        .catch(err => {
-          console.error(err);
-          setError("Профайлыг ачааллах үед алдаа гарлаа");
-          setData(null);
-          setLoading(false);
-        });
+      try {
+        const json = await fetchProfile(bookNumber);
+        setData(json);
+      } catch (err) {
+        console.error(err);
+        setError("Профайлыг ачааллах үед алдаа гарлаа");
+        setData(null);
+      } finally {
+        setLoading(false);
+      }
     }
-  } };
+  };
+
+  return { data, loading, error, bookNumber, refetch };
 }
