@@ -6,262 +6,42 @@ import PreventativeQuestionnaire from "../../components/PreventativeQuestionnair
 import OrthoCardView from "./OrthoCardView";
 import EncounterReportModal from "../../components/patients/EncounterReportModal";
 import PatientHistoryBook from "../../components/patients/PatientHistoryBook";
-
-type Branch = {
-  id: number;
-  name: string;
-  address?: string | null;
-};
-
-type Patient = {
-  id: number;
-  regNo: string;
-  ovog?: string | null;
-  name: string;
-  gender?: string | null;
-  birthDate?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  address?: string | null;
-  workPlace?: string | null;
-  bloodType?: string | null;
-  citizenship?: string | null;
-  emergencyPhone?: string | null;
-  notes?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
-  branchId: number;
-  branch?: Branch;
-};
-
-type ActiveTab =
-  | "profile"
-  | "appointments"
-  | "patient_history"
-  | "visit_card"
-  | "history"
-  | "billing"
-  | "ortho_card";
-
-type PatientBook = {
-  id: number;
-  bookNumber: string;
-};
-
-type VisitCardType = "ADULT" | "CHILD";
-
-type VisitCard = {
-  id: number;
-  patientBookId: number;
-  type: VisitCardType;
-  answers: any;
-  patientSignaturePath?: string | null;
-  signedAt?: string | null;
-};
-
-type VisitCardAnswers = {
-  // shared header
-  date?: string;
-  email?: string;
-  phone?: string;
-  workPlace?: string;
-  address?: string;
-
-  // adult/child-specific simple text fields
-  previousClinicName?: string;
-  previousTreatmentIssues?: string;
-  dentistAttentionNotes?: string;
-
-  // simple complaint fields we already use in JSX
-  mainComplaint?: string;
-  pastHistory?: string;
-
-  // prevention reason (multi-choice)
-  reasonToVisit?: {
-    toothPain?: boolean;
-    toothBroken?: boolean;
-    toothDecay?: boolean;
-    badBite?: boolean;
-    preventiveCheck?: boolean;
-    cosmeticSmile?: boolean;
-    other?: string;
-  };
-
-  previousDentalVisit?: {
-    hasVisited?: "yes" | "no";
-    clinicName?: string;
-    reactionOrComplication?: string;
-    hadComplication?: "yes" | "no";
-  };
-
-  generalMedical?: {
-    heartDisease?: "yes" | "no";
-    highBloodPressure?: "yes" | "no";
-    infectiousDisease?: "yes" | "no";
-    tuberculosis?: "yes" | "no";
-    hepatitisBC?: "yes" | "no";
-    diabetes?: "yes" | "no";
-    onMedication?: "yes" | "no";
-    seriousIllnessOrSurgery?: "yes" | "no";
-    implant?: "yes" | "no";
-    generalAnesthesia?: "yes" | "no";
-    chemoOrRadiation?: "yes" | "no";
-    pregnant?: "yes" | "no";
-    childAllergyFood?: "yes" | "no";
-    details?: string;
-  };
-
-  allergies?: {
-    drug?: "yes" | "no";
-    drugDetail?: string;
-    metal?: "yes" | "no";
-    localAnesthetic?: "yes" | "no";
-    latex?: "yes" | "no";
-    other?: "yes" | "no";
-    otherDetail?: string;
-  };
-
-  habits?: {
-    smoking?: "yes" | "no";
-    smokingDetail?: string;
-
-    alcohol?: "yes" | "no";
-    alcoholDetail?: string;
-
-    coffee?: "yes" | "no";
-    coffeeDetail?: string;
-
-    nightGrinding?: "yes" | "no";
-    nightGrindingDetail?: string;
-
-    mouthBreathing?: "yes" | "no";
-    mouthBreathingDetail?: string;
-
-    other?: "yes" | "no";
-    otherDetail?: string;
-  };
-
-  dentalFollowup?: {
-    regularCheckups?: "yes" | "no";
-    regularCheckupsDetail?: string;
-
-    bleedingAfterExtraction?: "yes" | "no";
-    bleedingAfterExtractionDetail?: string;
-
-    gumBleeding?: "yes" | "no";
-    gumBleedingDetail?: string;
-
-    badBreath?: "yes" | "no";
-    badBreathDetail?: string;
-  };
-
-  consentAccepted?: boolean; // adult
-  childConsentAccepted?: boolean; // child
-  notes?: string;
-};
-
-type Encounter = {
-  id: number;
-  visitDate: string;
-  notes?: string | null;
-};
-
-type Appointment = {
-  id: number;
-  patientId: number;
-  doctorId?: number | null;
-  branchId: number;
-  scheduledAt: string;
-  status: string;
-  notes?: string | null;
-  branch?: {
-    id: number;
-    name: string;
-  } | null;
-  doctor?: {
-    id: number;
-    name?: string | null;
-    ovog?: string | null;
-  } | null;
-};
-
-type PatientProfileResponse = {
-  patient: Patient;
-  patientBook: PatientBook;
-  encounters: Encounter[];
-  appointments: Appointment[];
-  visitCard?: VisitCard | null;
-};
-
-function formatDateTime(iso?: string) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "-";
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  return `${y}.${m}.${day} ${hh}:${mm}`;
-}
-
-function formatDate(iso?: string) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "-";
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}.${m}.${day}`;
-}
-
-function displayOrDash(value?: string | null) {
-  if (value === undefined || value === null) return "-";
-  const trimmed = String(value).trim();
-  if (!trimmed || trimmed.toLowerCase() === "null") return "-";
-  return trimmed;
-}
-
-function formatDisplayName(patient: Patient) {
-  const name = patient.name || "";
-  const ovog = (patient.ovog || "").trim();
-  if (ovog) {
-    const first = ovog.charAt(0).toUpperCase();
-    return `${first}.${name}`;
-  }
-  return name;
-}
-
-function formatDoctorName(doctor?: { name?: string | null; ovog?: string | null } | null) {
-  if (!doctor) return "-";
-  const name = doctor.name || "";
-  const ovog = (doctor.ovog || "").trim();
-  if (ovog && name) {
-    return `${ovog} ${name}`;
-  }
-  return name || ovog || "-";
-}
+import type { ActiveTab, Patient, PatientBook } from "../../types/patients";
+import type { VisitCardType, VisitCardAnswers } from "../../types/visitCard";
+import { formatDateTime, formatDate, displayOrDash, formatDisplayName, formatDoctorName } from "../../utils/format";
+import { usePatientProfile } from "../../hooks/usePatientProfile";
+import { useVisitCard } from "../../hooks/useVisitCard";
+import type { Encounter, Appointment, PatientProfileResponse } from "../../types/patients";
+import type { VisitCard } from "../../types/visitCard";
 
 export default function PatientProfilePage() {
   const router = useRouter();
   const { bookNumber } = router.query;
 
-  const [data, setData] = useState<PatientProfileResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  // Use custom hooks for data fetching
+  const { data, loading, error, refetch } = usePatientProfile();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("profile");
 
-  const [visitCard, setVisitCard] = useState<VisitCard | null>(null);
-  const [visitCards, setVisitCards] = useState<VisitCard[]>([]); // All visit cards
-  const [visitCardLoading, setVisitCardLoading] = useState(false);
-  const [visitCardError, setVisitCardError] = useState("");
-  const [visitCardTypeDraft, setVisitCardTypeDraft] =
-    useState<VisitCardType | null>("ADULT");
-  const [visitCardAnswers, setVisitCardAnswers] =
-    useState<VisitCardAnswers>({});
-  const [visitCardSaving, setVisitCardSaving] = useState(false);
-  const [signatureSaving, setSignatureSaving] = useState(false);
+  const patientBookId = data?.patientBook?.id || null;
+  
+  // Use custom hook for visit card
+  const {
+    visitCard,
+    visitCards,
+    visitCardLoading,
+    visitCardError,
+    visitCardTypeDraft,
+    visitCardAnswers,
+    visitCardSaving,
+    signatureSaving,
+    handleTypeChange,
+    updateVisitCardAnswer,
+    updateNested,
+    handleSaveVisitCard,
+    handleUploadSignature,
+    setVisitCardTypeDraft,
+  } = useVisitCard({ bookNumber, activeTab, patientBookId });
 
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Patient>>({});
@@ -273,36 +53,6 @@ export default function PatientProfilePage() {
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportAppointmentId, setReportAppointmentId] = useState<number | null>(null);
 
-  // Load main profile
-  useEffect(() => {
-    if (!bookNumber || typeof bookNumber !== "string") return;
-
-    const load = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const res = await fetch(
-          `/api/patients/profile/by-book/${encodeURIComponent(bookNumber)}`
-        );
-        const json = await res.json().catch(() => null);
-
-        if (!res.ok) {
-          throw new Error((json && json.error) || "failed to load");
-        }
-
-        setData(json as PatientProfileResponse);
-      } catch (err) {
-        console.error(err);
-        setError("Профайлыг ачааллах үед алдаа гарлаа");
-        setData(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
-  }, [bookNumber]);
-
   // Handle tab query parameter for deep-linking
   // Accepts both "ortho" (short form) and "ortho_card" (internal tab ID) for flexibility
   useEffect(() => {
@@ -312,102 +62,10 @@ export default function PatientProfilePage() {
     }
   }, [router.query.tab]);
 
-  // Load visit card only when visit_card tab is active
-  useEffect(() => {
-    if (!bookNumber || typeof bookNumber !== "string") return;
-    if (activeTab !== "visit_card") return;
-
-    const loadVisitCard = async () => {
-      setVisitCardLoading(true);
-      setVisitCardError("");
-      try {
-        const res = await fetch(
-          `/api/patients/visit-card/by-book/${encodeURIComponent(bookNumber)}`
-        );
-        const json = await res.json().catch(() => null);
-
-        if (!res.ok) {
-          throw new Error(
-            (json && json.error) || "Үзлэгийн карт ачаалахад алдаа гарлаа."
-          );
-        }
-
-        const card: VisitCard | null = json.visitCard || null; // Active card
-        const cards: VisitCard[] = json.visitCards || []; // All cards
-        
-        setVisitCard(card);
-        setVisitCards(cards);
-        
-        if (card) {
-          setVisitCardTypeDraft(card.type);
-          setVisitCardAnswers(card.answers || {});
-        } else {
-          setVisitCardTypeDraft("ADULT");
-          setVisitCardAnswers({});
-        }
-      } catch (err: any) {
-        console.error("loadVisitCard failed", err);
-        setVisitCardError(
-          err?.message || "Үзлэгийн карт ачаалахад алдаа гарлаа."
-        );
-        setVisitCard(null);
-        setVisitCards([]);
-      } finally {
-        setVisitCardLoading(false);
-      }
-    };
-
-    void loadVisitCard();
-  }, [bookNumber, activeTab]);
-
   const patient = data?.patient;
   const pb = data?.patientBook;
   const encounters = data?.encounters || [];
   const appointments = data?.appointments || [];
-  const patientBookId = pb?.id || null;
-
-  // Handler for type switching - loads the corresponding card's data if it exists
-  const handleTypeChange = (newType: VisitCardType) => {
-    setVisitCardTypeDraft(newType);
-    
-    // Find existing card for this type
-    const existingCard = visitCards.find(c => c.type === newType);
-    
-    if (existingCard) {
-      // Load data from existing card
-      setVisitCardAnswers(existingCard.answers || {});
-      setVisitCard(existingCard);
-    } else {
-      // Clear form for new type
-      setVisitCardAnswers({});
-      // Keep visitCard as null or the other type's card for signature checking
-      setVisitCard(null);
-    }
-  };
-
-  const updateVisitCardAnswer = (
-    key: keyof VisitCardAnswers,
-    value: VisitCardAnswers[typeof key]
-  ) => {
-    setVisitCardAnswers((prev: VisitCardAnswers) => ({
-      ...(prev || {}),
-      [key]: value,
-    }));
-  };
-
-  const updateNested = (
-    section: keyof VisitCardAnswers,
-    field: string,
-    value: any
-  ) => {
-    setVisitCardAnswers((prev: VisitCardAnswers) => ({
-      ...(prev || {}),
-      [section]: {
-        ...(prev?.[section] as any),
-        [field]: value,
-      },
-    }));
-  };
 
   const totalEncounters = encounters.length;
   const lastEncounter = encounters[0];
@@ -512,17 +170,8 @@ export default function PatientProfilePage() {
       }
 
       const updatedPatient = (json && json.patient) || json || patient;
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              patient: {
-                ...prev.patient,
-                ...updatedPatient,
-              },
-            }
-          : prev
-      );
+      // Call refetch to reload the whole patient profile with updated data
+      refetch();
 
       setSaveSuccess("Мэдээлэл амжилттай хадгалагдлаа.");
       setEditMode(false);
@@ -531,120 +180,6 @@ export default function PatientProfilePage() {
       setSaveError(err?.message || "Өгөгдөл хадгалах үед алдаа гарлаа.");
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleSaveVisitCard = async () => {
-    if (!patientBookId) {
-      setVisitCardError("PatientBook ID олдсонгүй.");
-      return;
-    }
-
-    const type = visitCardTypeDraft;
-    if (!type) {
-      setVisitCardError(
-        "Эхлээд картын төрлийг сонгоно уу (том хүн / хүүхэд)."
-      );
-      return;
-    }
-
-    setVisitCardSaving(true);
-    setVisitCardError("");
-    try {
-      const res = await fetch(`/api/patients/visit-card/${patientBookId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type,
-          answers: visitCardAnswers,
-        }),
-      });
-
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(
-          (json && json.error) || "Үзлэгийн карт хадгалахад алдаа гарлаа."
-        );
-      }
-
-      const card: VisitCard = json.visitCard;
-      
-      // Update the visitCards array with the new/updated card
-      setVisitCards((prev) => {
-        const filtered = prev.filter(c => c.type !== card.type);
-        return [...filtered, card];
-      });
-      
-      setVisitCard(card);
-      setVisitCardTypeDraft(card.type);
-      setVisitCardAnswers(card.answers || {});
-    } catch (err: any) {
-      console.error("save visit card failed", err);
-      setVisitCardError(
-        err?.message || "Үзлэгийн карт хадгалахад алдаа гарлаа."
-      );
-    } finally {
-      setVisitCardSaving(false);
-    }
-  };
-
-  const handleUploadSignature = async (blob: Blob) => {
-    if (!patientBookId) {
-      setVisitCardError("PatientBook ID олдсонгүй.");
-      return;
-    }
-    
-    const currentType = visitCardTypeDraft;
-    if (!currentType) {
-      setVisitCardError("Картын төрлийг сонгоно уу.");
-      return;
-    }
-    
-    setSignatureSaving(true);
-    setVisitCardError("");
-    try {
-      const formData = new FormData();
-      formData.append("file", blob, "signature.png");
-      formData.append("type", currentType); // Send the type
-
-      const res = await fetch(
-        `/api/patients/visit-card/${patientBookId}/signature`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error(
-          (json && json.error) || "Гарын үсэг хадгалахад алдаа гарлаа."
-        );
-      }
-
-      // Update the current visitCard and the visitCards array
-      // Find the existing card for this type or create a new one
-      const existingCard = visitCards.find(c => c.type === json.type);
-      const updatedCard = {
-        ...(existingCard || visitCard || {}),
-        patientSignaturePath: json.patientSignaturePath,
-        signedAt: json.signedAt,
-        type: json.type,
-      } as VisitCard;
-      
-      setVisitCard(updatedCard);
-      
-      setVisitCards((prev) => {
-        const filtered = prev.filter(c => c.type !== json.type);
-        return [...filtered, updatedCard];
-      });
-    } catch (err: any) {
-      console.error("upload signature failed", err);
-      setVisitCardError(
-        err?.message || "Гарын үсэг хадгалахад алдаа гарлаа."
-      );
-    } finally {
-      setSignatureSaving(false);
     }
   };
 

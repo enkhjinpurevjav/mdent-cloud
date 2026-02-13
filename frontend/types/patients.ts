@@ -1,5 +1,7 @@
 // Type definitions for patient profile page
 
+import type { VisitCard } from './visitCard';
+
 export type Branch = {
   id: number;
   name: string;
@@ -73,6 +75,3 @@ export type PatientProfileResponse = {
   appointments: Appointment[];
   visitCard?: VisitCard | null;
 };
-
-// Import VisitCard from visitCard.ts
-import type { VisitCard } from './visitCard';
