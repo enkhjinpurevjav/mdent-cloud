@@ -779,13 +779,14 @@ const PatientHistoryBook: React.FC<Props> = ({
 <div
   style={{
     display: "grid",
-    gridTemplateColumns: "120px 1fr 120px",
+    gridTemplateColumns: "160px 1fr 160px",
     alignItems: "start",
     marginBottom: 16,
+    columnGap: 12,
   }}
 >
-  {/* Left: logo (unchanged position) */}
-  <div style={{ display: "flex", alignItems: "flex-start" }}>
+  {/* Left: logo + date/number under logo */}
+  <div>
     <img
       src="/clinic-logo.png"
       alt="Clinic Logo"
@@ -793,49 +794,52 @@ const PatientHistoryBook: React.FC<Props> = ({
         e.currentTarget.style.display = "none";
         const placeholder = document.createElement("div");
         placeholder.style.cssText =
-          "width:100px;height:100px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#6b7280;text-align:center;";
+          "width:100px;height:100px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#6b7280;text-align:center;margin-bottom:6px;";
         placeholder.textContent = "CLINIC LOGO";
-        e.currentTarget.parentElement?.appendChild(placeholder);
+        e.currentTarget.parentElement?.insertBefore(placeholder, e.currentTarget);
       }}
       style={{
         width: 100,
         height: "auto",
         objectFit: "contain",
+        display: "block",
+        marginBottom: 6,
       }}
     />
+
+    {/* Under-logo line: date left, number right */}
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        fontSize: 12,
+        alignItems: "baseline",
+      }}
+    >
+      <div style={{ textAlign: "left" }}>
+        <strong>Он/Сар/Өдөр:</strong> {getCardFillDate()}
+      </div>
+      <div style={{ textAlign: "right" }}>
+        <strong>Дугаар:</strong> {patientBook.bookNumber}
+      </div>
+    </div>
   </div>
 
-  {/* Middle: centered title + date/number */}
+  {/* Middle: centered title only */}
   <div style={{ textAlign: "center" }}>
     <h1
       style={{
         fontSize: 18,
         fontWeight: 700,
         margin: 0,
-        marginBottom: 6,
+        marginTop: 6,
       }}
     >
       ҮЙЛЧЛҮҮЛЭГЧИЙН КАРТ
     </h1>
-
-    <div
-      style={{
-        fontSize: 12,
-        display: "flex",
-        justifyContent: "center",
-        gap: 32,
-      }}
-    >
-      <div>
-        <strong>Он/Сар/Өдөр:</strong> {getCardFillDate()}
-      </div>
-      <div>
-        <strong>Дугаар:</strong> {patientBook.bookNumber}
-      </div>
-    </div>
   </div>
 
-  {/* Right: spacer (keeps middle truly centered) */}
+  {/* Right: spacer */}
   <div />
 </div>
 
