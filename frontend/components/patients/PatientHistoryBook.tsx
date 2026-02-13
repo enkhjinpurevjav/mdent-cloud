@@ -32,10 +32,15 @@ type DiagnosisEntry = {
   diagnosisId?: number | null;
   toothCode?: string | null;
   note?: string | null;
-  selectedProblemIds?: any;
+  selectedProblemIds?: number[];
   diagnosis?: {
     code: string;
     name: string;
+    problems?: Array<{
+      id: number;
+      label: string;
+      order: number;
+    }>;
   } | null;
   problemTexts?: Array<{
     text: string;
@@ -329,10 +334,31 @@ const PatientHistoryBook: React.FC<Props> = ({
       // Tooth code
       const toothCode = diag.toothCode || "-";
 
-      // Complaints (from problemTexts)
-      const complaints = (diag.problemTexts || [])
+      // Complaints: First, selected chip labels from selectedProblemIds
+      const complaints: string[] = [];
+      
+      // Add selected problem chips first
+      if (
+        Array.isArray(diag.selectedProblemIds) && 
+        diag.diagnosis?.problems && 
+        diag.diagnosis.problems.length > 0
+      ) {
+        const problemsMap = new Map(
+          diag.diagnosis.problems.map(p => [p.id, p.label])
+        );
+        diag.selectedProblemIds.forEach((id) => {
+          const label = problemsMap.get(id);
+          if (label) {
+            complaints.push(label);
+          }
+        });
+      }
+      
+      // Then add free-text problem texts
+      const problemTexts = (diag.problemTexts || [])
         .sort((a, b) => a.order - b.order)
         .map((pt) => pt.text);
+      complaints.push(...problemTexts);
 
       // Diagnosis code only (strip description)
       let diagnosisCode = "-";

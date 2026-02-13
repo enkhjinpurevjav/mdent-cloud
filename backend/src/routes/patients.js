@@ -387,7 +387,14 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
     diagnoses: {
       orderBy: { id: "asc" },
       include: {
-        diagnosis: true,
+        diagnosis: {
+          include: {
+            problems: {
+              where: { active: true },
+              orderBy: { order: "asc" },
+            },
+          },
+        },
         problemTexts: true,
         sterilizationIndicators: {
           include: {
