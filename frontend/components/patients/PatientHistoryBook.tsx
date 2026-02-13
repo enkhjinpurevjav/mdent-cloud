@@ -785,12 +785,13 @@ const PatientHistoryBook: React.FC<Props> = ({
     columnGap: 12,
   }}
 >
-  {/* Left: logo + date/number under logo */}
+  {/* Left: logo + date (left aligned) */}
   <div>
     <img
       src="/clinic-logo.png"
       alt="Clinic Logo"
       onError={(e) => {
+        // Fallback to placeholder if logo fails to load
         e.currentTarget.style.display = "none";
         const placeholder = document.createElement("div");
         placeholder.style.cssText =
@@ -807,25 +808,12 @@ const PatientHistoryBook: React.FC<Props> = ({
       }}
     />
 
-    {/* Under-logo line: date left, number right */}
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        fontSize: 12,
-        alignItems: "baseline",
-      }}
-    >
-      <div style={{ textAlign: "left" }}>
-        <strong>Он/Сар/Өдөр:</strong> {getCardFillDate()}
-      </div>
-      <div style={{ textAlign: "right" }}>
-        <strong>Дугаар:</strong> {patientBook.bookNumber}
-      </div>
+    <div style={{ fontSize: 12, textAlign: "left", whiteSpace: "nowrap" }}>
+      <strong>Огноо:</strong> {getCardFillDate()}
     </div>
   </div>
 
-  {/* Middle: centered title only */}
+  {/* Middle: title centered */}
   <div style={{ textAlign: "center" }}>
     <h1
       style={{
@@ -839,8 +827,10 @@ const PatientHistoryBook: React.FC<Props> = ({
     </h1>
   </div>
 
-  {/* Right: spacer */}
-  <div />
+  {/* Right: book number on far right */}
+  <div style={{ fontSize: 12, textAlign: "right", whiteSpace: "nowrap" }}>
+    <strong>Дугаар:</strong> {patientBook.bookNumber}
+  </div>
 </div>
 
             {/* Patient information grid */}
