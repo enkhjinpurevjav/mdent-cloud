@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 
 type Patient = {
   id: number;
@@ -144,8 +144,11 @@ const PatientHistoryBook: React.FC<Props> = ({
   const [encounterDetailsCache, setEncounterDetailsCache] = useState<
     Map<number, EncounterDetails>
   >(new Map());
-  const [fetchingEncounterIds, setFetchingEncounterIds] = useState<Set<number>>(
-    new Set()
+  
+  // Use refs to track fetching state synchronously to prevent race conditions
+  const fetchingEncounterIdsRef = useRef<Set<number>>(new Set());
+  const encounterDetailsCacheRef = useRef<Map<number, EncounterDetails>>(
+    new Map()
   );
 
   // Helper functions
@@ -344,7 +347,8 @@ const PatientHistoryBook: React.FC<Props> = ({
       const res = await fetch(`/api/encounters/${encounterId}`);
       if (res.ok) {
         const data: EncounterDetails = await res.json();
-        setEncounterDetailsCache((prev) => new Map(prev).set(encounterId, data));
+        encounterDetailsCacheRef.current.set(encounterId, data);
+        setEncounterDetailsCache(new Map(encounterDetailsCacheRef.current));
       } else {
         console.warn(`Failed to fetch encounter ${encounterId}:`, res.status);
       }
@@ -372,18 +376,14 @@ const PatientHistoryBook: React.FC<Props> = ({
   // Fetch encounter details for filtered encounters (to get draft attachments)
   useEffect(() => {
     filteredEncounters.forEach((enc) => {
-      // Only fetch if not already cached and not currently fetching
+      // Check ref for synchronous state to prevent race conditions
       if (
-        !encounterDetailsCache.has(enc.id) &&
-        !fetchingEncounterIds.has(enc.id)
+        !encounterDetailsCacheRef.current.has(enc.id) &&
+        !fetchingEncounterIdsRef.current.has(enc.id)
       ) {
-        setFetchingEncounterIds((prev) => new Set(prev).add(enc.id));
+        fetchingEncounterIdsRef.current.add(enc.id);
         fetchEncounterDetails(enc.id).finally(() => {
-          setFetchingEncounterIds((prev) => {
-            const next = new Set(prev);
-            next.delete(enc.id);
-            return next;
-          });
+          fetchingEncounterIdsRef.current.delete(enc.id);
         });
       }
     });
