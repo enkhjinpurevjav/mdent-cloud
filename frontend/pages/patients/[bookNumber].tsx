@@ -2275,7 +2275,7 @@ export default function PatientProfilePage() {
                                           <input
                                             type="radio"
                                             name={`gm_${key}`}
-                                            checked={value === "no"}
+                                            checked={value !== "yes"}
                                             onChange={() =>
                                               updateNested(
                                                 "generalMedical",
@@ -2384,7 +2384,7 @@ export default function PatientProfilePage() {
                                       detailKey
                                     ] || "";
                                   const isYes = value === "yes";
-                                  const isNo = value === "no";
+                                  const isNo = value !== "yes";
                                   return (
                                     <React.Fragment key={key}>
                                       <tr>
@@ -2505,8 +2505,7 @@ export default function PatientProfilePage() {
                                       key as keyof VisitCardAnswers["habits"]
                                     ];
                                   const isYes = value === "yes";
-                                  const isNo =
-                                    value === "no" || value === undefined;
+                                  const isNo = value !== "yes";
 
                                   const detailKey =
                                     key === "other"
@@ -2653,8 +2652,7 @@ export default function PatientProfilePage() {
                                       key as keyof VisitCardAnswers["dentalFollowup"]
                                     ];
                                   const isYes = value === "yes";
-                                  const isNo =
-                                    value === "no" || value === undefined;
+                                  const isNo = value !== "yes";
 
                                   const detailKey =
                                     `${key}Detail` as keyof VisitCardAnswers["dentalFollowup"];
