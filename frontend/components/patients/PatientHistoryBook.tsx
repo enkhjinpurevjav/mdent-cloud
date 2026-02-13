@@ -113,166 +113,104 @@ const PatientHistoryBook: React.FC<Props> = ({
     return value != null && value.trim() !== "";
   };
 
-  const buildReasonToVisitList = (reasonToVisit: any): string => {
-    const reasons: string[] = [];
-    if (reasonToVisit?.toothPain) reasons.push("Шүд өвдөх");
-    if (reasonToVisit?.toothBroken) reasons.push("Шүд хугарах");
-    if (reasonToVisit?.toothDecay) reasons.push("Шүд цоорох");
-    if (reasonToVisit?.badBite) reasons.push("Хазуулын зөрүү");
-    if (reasonToVisit?.preventiveCheck) reasons.push("Урьдчилан сэргийлэх үзлэг");
-    if (reasonToVisit?.cosmeticSmile) reasons.push("Гоо сайхны инээмсэглэл");
-    if (hasText(reasonToVisit?.other)) {
-      reasons.push(`Бусад: ${reasonToVisit.other}`);
-    }
-    return reasons.length > 0 ? reasons.join(", ") : "-";
+  // Label mappings matching the UI exactly
+  const REASON_TO_VISIT_LABELS: Record<string, string> = {
+    toothPain: "Шүд өвдсөн",
+    toothBroken: "Шүд цоорсон",
+    badBite: "Шүд буруу ургасан",
+    toothDecay: "Ломбо унасан",
+    preventiveCheck: "Урьдчилан сэргийлэх хяналтанд орох",
+    cosmeticSmile: "Гоо сайхны /цайруулах, Hollywood smile гэх мэт/",
+  };
+
+  const GENERAL_MEDICAL_LABELS: Record<string, string> = {
+    heartDisease: "Зүрх судасны өвчтэй эсэх",
+    highBloodPressure: "Даралт ихсэх өвчтэй эсэх",
+    infectiousDisease: "Халдварт өвчний түүхтэй эсэх",
+    tuberculosis: "Сүрьеэ өвчнөөр өвчилж байсан эсэх",
+    hepatitisBC: "Халдварт гепатит B, C‑сээр өвдөж байсан эсэх",
+    diabetes: "Чихрийн шижинтэй эсэх",
+    onMedication: "Одоо хэрэглэж байгаа эм, тариа байгаа эсэх",
+    seriousIllnessOrSurgery: "Ойрын 5 жилд хүнд өвчнөөр өвчилсөн болон мэс ажилбар хийлгэж байсан эсэх",
+    implant: "Зүрхний импланттай эсэх",
+    generalAnesthesia: "Бүтэн наркоз хийлгэж байсан эсэх",
+    chemoOrRadiation: "Хими / туяа эмчилгээ хийлгэж байгаа эсэх",
+  };
+
+  const ALLERGIES_LABELS: Record<string, string> = {
+    drug: "Эм тариа",
+    metal: "Метал",
+    localAnesthetic: "Шүдний мэдээ алдуулах тариа",
+    latex: "Латекс",
+    other: "Бусад",
+  };
+
+  const HABITS_LABELS: Record<string, string> = {
+    smoking: "Тамхи татдаг эсэх",
+    alcohol: "Архи хэрэглэдэг эсэх",
+    coffee: "Кофе хэрэглэдэг эсэх",
+    nightGrinding: "Шөнө шүдээ хавирдаг эсэх",
+    mouthBreathing: "Ам ангайж унтдаг / амаар амьсгалдаг эсэх",
+    other: "Бусад",
+  };
+
+  const DENTAL_FOLLOWUP_LABELS: Record<string, string> = {
+    regularCheckups: "Шүдний эмчид байнга үзүүлдэг эсэх",
+    bleedingAfterExtraction: "Шүд авахуулсны дараа цус тогтол удаан эсэх",
+    gumBleeding: "Буйлнаас цус гардаг эсэх",
+    badBreath: "Амнаас эвгүй үнэр гардаг эсэх",
   };
 
   const collectYesFindings = (answers: any): Array<{ label: string; detail?: string }> => {
     const findings: Array<{ label: string; detail?: string }> = [];
     
-    // General Medical section
+    // General Medical section - using UI labels
     const generalMed = answers.generalMedical || {};
-    if (generalMed.heartDisease === "yes") {
-      findings.push({ 
-        label: "Зүрхний өвчин", 
-        detail: generalMed.heartDiseaseDetail 
-      });
-    }
-    if (generalMed.highBloodPressure === "yes") {
-      findings.push({ 
-        label: "Цусны даралт өндөр", 
-        detail: generalMed.highBloodPressureDetail 
-      });
-    }
-    if (generalMed.infectiousDisease === "yes") {
-      findings.push({ 
-        label: "Халдварт өвчин", 
-        detail: generalMed.infectiousDiseaseDetail 
-      });
-    }
-    if (generalMed.tuberculosis === "yes") {
-      findings.push({ 
-        label: "Сүрьеэ", 
-        detail: generalMed.tuberculosisDetail 
-      });
-    }
-    if (generalMed.hepatitisBC === "yes") {
-      findings.push({ 
-        label: "Гепатит B/C", 
-        detail: generalMed.hepatitisBCDetail 
-      });
-    }
-    if (generalMed.diabetes === "yes") {
-      findings.push({ 
-        label: "Чихрийн шижин", 
-        detail: generalMed.diabetesDetail 
-      });
-    }
-    if (generalMed.onMedication === "yes") {
-      findings.push({ 
-        label: "Эм хэрэглэж байгаа", 
-        detail: generalMed.onMedicationDetail 
-      });
-    }
-    if (generalMed.seriousIllnessOrSurgery === "yes") {
-      findings.push({ 
-        label: "Хүнд өвчин/мэс засал", 
-        detail: generalMed.seriousIllnessOrSurgeryDetail 
-      });
-    }
-    if (generalMed.pregnant === "yes") {
-      findings.push({ 
-        label: "Жирэмсэн", 
-        detail: generalMed.pregnantDetail 
-      });
-    }
-    if (generalMed.other === "yes") {
-      findings.push({ 
-        label: "Бусад", 
-        detail: generalMed.otherDetail 
-      });
-    }
+    Object.keys(GENERAL_MEDICAL_LABELS).forEach((key) => {
+      if (generalMed[key] === "yes") {
+        const detailKey = `${key}Detail`;
+        findings.push({ 
+          label: GENERAL_MEDICAL_LABELS[key], 
+          detail: generalMed[detailKey] || generalMed.details || ""
+        });
+      }
+    });
 
-    // Allergies section
+    // Allergies section - using UI labels
     const allergies = answers.allergies || {};
-    if (allergies.allergyMedicine === "yes") {
-      findings.push({ 
-        label: "Эмийн харшил", 
-        detail: allergies.allergyMedicineDetail 
-      });
-    }
-    if (allergies.allergyFood === "yes") {
-      findings.push({ 
-        label: "Хүнсний харшил", 
-        detail: allergies.allergyFoodDetail 
-      });
-    }
-    if (allergies.allergyAnesthesia === "yes") {
-      findings.push({ 
-        label: "Мэдээ алдуулах бодисын харшил", 
-        detail: allergies.allergyAnesthesiaDetail 
-      });
-    }
-    if (allergies.childAllergyFood === "yes") {
-      findings.push({ 
-        label: "Хүүхдийн хүнсний харшил", 
-        detail: allergies.childAllergyFoodDetail 
-      });
-    }
-    if (allergies.childAllergyMedicine === "yes") {
-      findings.push({ 
-        label: "Хүүхдийн эмийн харшил", 
-        detail: allergies.childAllergyMedicineDetail 
-      });
-    }
-    if (allergies.other === "yes") {
-      findings.push({ 
-        label: "Бусад харшил", 
-        detail: allergies.otherDetail 
-      });
-    }
+    Object.keys(ALLERGIES_LABELS).forEach((key) => {
+      if (allergies[key] === "yes") {
+        const detailKey = key === "other" ? "otherDetail" : `${key}Detail`;
+        findings.push({ 
+          label: ALLERGIES_LABELS[key], 
+          detail: allergies[detailKey] || ""
+        });
+      }
+    });
 
-    // Habits section
+    // Habits section - using UI labels
     const habits = answers.habits || {};
-    if (habits.smoking === "yes") {
-      findings.push({ 
-        label: "Тамхи татах", 
-        detail: habits.smokingDetail 
-      });
-    }
-    if (habits.alcohol === "yes") {
-      findings.push({ 
-        label: "Согтууруулах ундаа", 
-        detail: habits.alcoholDetail 
-      });
-    }
-    if (habits.other === "yes") {
-      findings.push({ 
-        label: "Бусад дадал", 
-        detail: habits.otherDetail 
-      });
-    }
+    Object.keys(HABITS_LABELS).forEach((key) => {
+      if (habits[key] === "yes") {
+        const detailKey = key === "other" ? "otherDetail" : `${key}Detail`;
+        findings.push({ 
+          label: HABITS_LABELS[key], 
+          detail: habits[detailKey] || ""
+        });
+      }
+    });
 
-    // Dental followup section
+    // Dental followup section - using UI labels
     const dentalFollowup = answers.dentalFollowup || {};
-    if (dentalFollowup.regularCheckup === "yes") {
-      findings.push({ 
-        label: "Тогтмол үзлэг", 
-        detail: dentalFollowup.regularCheckupDetail 
-      });
-    }
-    if (dentalFollowup.brushingFrequency === "yes") {
-      findings.push({ 
-        label: "Шүд угаах давтамж", 
-        detail: dentalFollowup.brushingFrequencyDetail 
-      });
-    }
-    if (dentalFollowup.other === "yes") {
-      findings.push({ 
-        label: "Бусад шүдний асуудал", 
-        detail: dentalFollowup.otherDetail 
-      });
-    }
+    Object.keys(DENTAL_FOLLOWUP_LABELS).forEach((key) => {
+      if (dentalFollowup[key] === "yes") {
+        const detailKey = `${key}Detail`;
+        findings.push({ 
+          label: DENTAL_FOLLOWUP_LABELS[key], 
+          detail: dentalFollowup[detailKey] || ""
+        });
+      }
+    });
 
     return findings;
   };
@@ -429,8 +367,19 @@ const PatientHistoryBook: React.FC<Props> = ({
 
     const isAdult = visitCard.type === "ADULT";
 
-    // Use the new helper for reason to visit
-    const reasonToVisitText = buildReasonToVisitList(answers.reasonToVisit);
+    // Build reason to visit bullet list
+    const reasonBullets: string[] = [];
+    const reasonToVisit = answers.reasonToVisit || {};
+    
+    Object.keys(REASON_TO_VISIT_LABELS).forEach((key) => {
+      if (reasonToVisit[key]) {
+        reasonBullets.push(REASON_TO_VISIT_LABELS[key]);
+      }
+    });
+    
+    if (hasText(reasonToVisit.other)) {
+      reasonBullets.push(`Бусад: ${reasonToVisit.other}`);
+    }
 
     // Previous dental visit
     const prevDental = answers.previousDentalVisit || {};
@@ -451,19 +400,28 @@ const PatientHistoryBook: React.FC<Props> = ({
         >
           УРЬДЧИЛАН СЭРГИЙЛЭХ АСУУМЖ
         </div>
-        <div style={{ fontSize: 12, marginBottom: 8 }}>
-          <strong>Ирсэн шалтгаан:</strong> {reasonToVisitText}
-        </div>
+        
+        {/* Reason to visit - bullet format */}
+        {reasonBullets.length > 0 && (
+          <div style={{ fontSize: 12, marginBottom: 8 }}>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+              Таны эмнэлэгт хандах болсон шалтгаан юу вэ?
+            </div>
+            {reasonBullets.map((reason, idx) => (
+              <div key={idx}>• {reason}</div>
+            ))}
+          </div>
+        )}
         
         {/* Previous dental visit section - only show if hasVisited is yes */}
         {prevDental.hasVisited === "yes" && (
           <>
             <div style={{ fontSize: 12, marginBottom: 4 }}>
-              <strong>Өмнө шүдний эмнэлэгт үзүүлж байсан:</strong> Тийм
+              • Өмнө нь шүдний эмнэлэгт үзүүлж байсан: Тийм
             </div>
             {hasText(prevDental.clinicName) && (
               <div style={{ fontSize: 12, marginBottom: 4 }}>
-                <strong>Эмнэлгийн нэр:</strong> {prevDental.clinicName}
+                • Өмнө үзүүлж байсан эмнэлгийн нэр: {prevDental.clinicName}
               </div>
             )}
           </>
@@ -473,11 +431,11 @@ const PatientHistoryBook: React.FC<Props> = ({
         {prevDental.hadComplication === "yes" && (
           <>
             <div style={{ fontSize: 12, marginBottom: 4 }}>
-              <strong>Өмнө шүдний эмчилгээ хийхэд хүндрэл гарч байсан:</strong> Тийм
+              • Өмнө шүдний эмчилгээ хийхэд хүндрэл гарч байсан: Тийм
             </div>
             {hasText(prevDental.reactionOrComplication) && (
               <div style={{ fontSize: 12, marginBottom: 4 }}>
-                <strong>Тайлбар:</strong> {prevDental.reactionOrComplication}
+                • Тайлбар: {prevDental.reactionOrComplication}
               </div>
             )}
           </>
@@ -486,7 +444,7 @@ const PatientHistoryBook: React.FC<Props> = ({
         {/* Dentist attention notes - only if has text */}
         {hasText(answers.dentistAttentionNotes) && (
           <div style={{ fontSize: 12, marginBottom: 4 }}>
-            <strong>Шүдний эмчилгээний үед эмчийн зүгээс анхаарах зүйлс:</strong> {answers.dentistAttentionNotes}
+            • Шүдний эмчилгээний үед эмчийн зүгээс анхаарах зүйлс: {answers.dentistAttentionNotes}
           </div>
         )}
 
