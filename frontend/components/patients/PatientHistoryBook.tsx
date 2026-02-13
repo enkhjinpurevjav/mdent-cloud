@@ -1099,44 +1099,61 @@ const PatientHistoryBook: React.FC<Props> = ({
       </div>
 
       {/* Print styles */}
-      <style jsx>{`
-        @media print {
-          .no-print {
-            display: none !important;
-          }
-          .printable-content {
-            border: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-          }
-          img {
-            max-width: 100px;
-            height: auto;
-            display: block;
-          }
-          @page {
-            size: A4;
-            margin: 15mm;
-          }
-          body {
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-          }
-          table {
-            page-break-inside: auto;
-          }
-          tr {
-            page-break-inside: avoid;
-            page-break-after: auto;
-          }
-          thead {
-            display: table-header-group;
-          }
-          tfoot {
-            display: table-footer-group;
-          }
-        }
-      `}</style>
+     <style jsx>{`
+  @media print {
+    /* Hide everything by default */
+    body * {
+      visibility: hidden !important;
+    }
+
+    /* Show only the printable content */
+    .printable-content,
+    .printable-content * {
+      visibility: visible !important;
+    }
+
+    /* Position printable content at top-left of page */
+    .printable-content {
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+      border: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      background: white !important;
+    }
+
+    /* Existing rules */
+    .no-print {
+      display: none !important;
+    }
+
+    @page {
+      size: A4;
+      margin: 15mm;
+    }
+
+    body {
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    table {
+      page-break-inside: auto;
+    }
+    tr {
+      page-break-inside: avoid;
+      page-break-after: auto;
+    }
+    thead {
+      display: table-header-group;
+    }
+    tfoot {
+      display: table-footer-group;
+    }
+  }
+`}</style>
     </div>
   );
 };
