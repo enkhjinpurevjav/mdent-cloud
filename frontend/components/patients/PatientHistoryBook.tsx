@@ -123,7 +123,8 @@ const PatientHistoryBook: React.FC<Props> = ({
     cosmeticSmile: "Гоо сайхны /цайруулах, Hollywood smile гэх мэт/",
   };
 
-  const GENERAL_MEDICAL_LABELS: Record<string, string> = {
+  // Adult labels
+  const GENERAL_MEDICAL_LABELS_ADULT: Record<string, string> = {
     heartDisease: "Зүрх судасны өвчтэй эсэх",
     highBloodPressure: "Даралт ихсэх өвчтэй эсэх",
     infectiousDisease: "Халдварт өвчний түүхтэй эсэх",
@@ -137,6 +138,21 @@ const PatientHistoryBook: React.FC<Props> = ({
     chemoOrRadiation: "Хими / туяа эмчилгээ хийлгэж байгаа эсэх",
   };
 
+  // Child labels (slightly different wording)
+  const GENERAL_MEDICAL_LABELS_CHILD: Record<string, string> = {
+    heartDisease: "Зүрх судасны өвчинтэй эсэх",
+    highBloodPressure: "Даралт ихсэх өвчинтэй эсэх",
+    infectiousDisease: "Халдварт өвчинтэй эсэх",
+    tuberculosis: "Сүрьеэ өвчнөөр өвчилж байсан эсэх",
+    hepatitisBC: "Халдварт гепатит В, С-ээр өвдөж байсан эсэх",
+    diabetes: "Чихрийн шижинтэй эсэх",
+    onMedication: "Одоо хэрэглэж байгаа эм, тариа байгаа эсэх",
+    seriousIllnessOrSurgery: "Ойрын 5 жилд хүнд өвчнөөр өвчилсөн болон мэс ажилбарт орж байсан эсэх",
+    implant: "Зүрхний импланттай эсэх",
+    generalAnesthesia: "Бүтэн наркоз хийлгэж байсан эсэх",
+    chemoOrRadiation: "Химийн/ туяа эмчилгээ хийлгэж байгаа эсэх",
+  };
+
   const ALLERGIES_LABELS: Record<string, string> = {
     drug: "Эм тариа",
     metal: "Метал",
@@ -145,7 +161,8 @@ const PatientHistoryBook: React.FC<Props> = ({
     other: "Бусад",
   };
 
-  const HABITS_LABELS: Record<string, string> = {
+  // Adult habits labels
+  const HABITS_LABELS_ADULT: Record<string, string> = {
     smoking: "Тамхи татдаг эсэх",
     alcohol: "Архи хэрэглэдэг эсэх",
     coffee: "Кофе хэрэглэдэг эсэх",
@@ -154,15 +171,34 @@ const PatientHistoryBook: React.FC<Props> = ({
     other: "Бусад",
   };
 
-  const DENTAL_FOLLOWUP_LABELS: Record<string, string> = {
+  // Child habits labels (different questions)
+  const HABITS_LABELS_CHILD: Record<string, string> = {
+    mouthBreathing: "Хэл, хуруу хөхдөг эсэх",
+    nightGrinding: "Шөнө амаа ангайж унтдаг эсэх",
+    other: "Бусад",
+  };
+
+  const DENTAL_FOLLOWUP_LABELS_ADULT: Record<string, string> = {
     regularCheckups: "Шүдний эмчид байнга үзүүлдэг эсэх",
     bleedingAfterExtraction: "Шүд авахуулсны дараа цус тогтол удаан эсэх",
     gumBleeding: "Буйлнаас цус гардаг эсэх",
     badBreath: "Амнаас эвгүй үнэр гардаг эсэх",
   };
 
-  const collectYesFindings = (answers: any): Array<{ label: string; detail?: string }> => {
+  const DENTAL_FOLLOWUP_LABELS_CHILD: Record<string, string> = {
+    regularCheckups: "Шүдний эмчид байнга үзүүлдэг эсэх",
+    bleedingAfterExtraction: "Шүд авахуулсны дараа цус тогтолт удаан эсэх",
+    gumBleeding: "Буйлнаас цус гардаг эсэх",
+    badBreath: "Амнаас эвгүй үнэр гардаг эсэх",
+  };
+
+  const collectYesFindings = (answers: any, isChild: boolean): Array<{ label: string; detail?: string }> => {
     const findings: Array<{ label: string; detail?: string }> = [];
+    
+    // Select appropriate label sets based on card type
+    const GENERAL_MEDICAL_LABELS = isChild ? GENERAL_MEDICAL_LABELS_CHILD : GENERAL_MEDICAL_LABELS_ADULT;
+    const HABITS_LABELS = isChild ? HABITS_LABELS_CHILD : HABITS_LABELS_ADULT;
+    const DENTAL_FOLLOWUP_LABELS = isChild ? DENTAL_FOLLOWUP_LABELS_CHILD : DENTAL_FOLLOWUP_LABELS_ADULT;
     
     // General Medical section - using UI labels
     const generalMed = answers.generalMedical || {};
@@ -384,8 +420,8 @@ const PatientHistoryBook: React.FC<Props> = ({
     // Previous dental visit
     const prevDental = answers.previousDentalVisit || {};
 
-    // Collect all YES findings
-    const yesFindings = collectYesFindings(answers);
+    // Collect all YES findings - pass isChild parameter
+    const yesFindings = collectYesFindings(answers, !isAdult);
 
     return (
       <div style={{ marginTop: 16 }}>
