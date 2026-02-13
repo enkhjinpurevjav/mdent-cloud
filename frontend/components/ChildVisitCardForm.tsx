@@ -1,5 +1,6 @@
 import React from "react";
 import SignaturePad from "./SignaturePad";
+import PreventativeQuestionnaire from "./PreventativeQuestionnaire";
 
 type VisitCardType = "ADULT" | "CHILD";
 
@@ -51,6 +52,14 @@ export default function ChildVisitCardForm({
 
       {/* Type selector – same as in page */}
       
+
+      {/* Урьдчилан сэргийлэх асуумж */}
+      <PreventativeQuestionnaire
+        answers={answers}
+        updateNested={updateNested}
+        updateVisitCardAnswer={updateVisitCardAnswer}
+        radioNamePrefix="child_"
+      />
 
       {/* 3) Ерөнхий биеийн талаархи асуумж — with child labels */}
       <section style={{ marginTop: 16 }}>
