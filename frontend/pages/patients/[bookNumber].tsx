@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import SignaturePad from "../../components/SignaturePad";
 import ChildVisitCardForm from "../../components/ChildVisitCardForm";
+import SharedConsentAndSignature from "../../components/SharedConsentAndSignature";
 import PreventativeQuestionnaire from "../../components/PreventativeQuestionnaire";
 import OrthoCardView from "./OrthoCardView";
 import EncounterReportModal from "../../components/patients/EncounterReportModal";
@@ -35,11 +36,14 @@ export default function PatientProfilePage() {
     visitCardAnswers,
     visitCardSaving,
     signatureSaving,
+    sharedSignature,
+    sharedSignatureLoading,
     handleTypeChange,
     updateVisitCardAnswer,
     updateNested,
     handleSaveVisitCard,
     handleUploadSignature,
+    handleUploadSharedSignature,
     setVisitCardTypeDraft,
   } = useVisitCard({ bookNumber, activeTab, patientBookId });
 
@@ -1942,198 +1946,6 @@ export default function PatientProfilePage() {
                             </table>
                           </section>
 
-                          {/* Consent declaration */}
-                          <section
-                            style={{
-                              marginTop: 16,
-                              paddingTop: 12,
-                              borderTop: "1px dashed #e5e7eb",
-                              fontSize: 13,
-                            }}
-                          >
-                            <div style={{ marginBottom: 8 }}>
-                              Та доорхи таниулсан зөвшөөрлийг бүрэн уншиж
-                              танилцана уу
-                            </div>
-                            <ol
-                              style={{
-                                paddingLeft: 18,
-                                margin: 0,
-                                marginBottom: 8,
-                              }}
-                            >
-                              <li style={{ marginBottom: 4 }}>
-                                Манай эмнэлгийн <strong>7715-1551</strong> утсаар
-                                болон биечлэн уулзаж эмчилгээ хийлгэх цагаа
-                                урьдчилан захиална.
-                              </li>
-                              <li style={{ marginBottom: 4 }}>
-                                Таньд анхны үзлэгээр эмчилгээний төлөвлөгөө,
-                                төлбөрийн баримжаа, цаашид хийгдэх эмчилгээний
-                                үр дүнгийн талаар эмч урьдчилан мэдээллэх үүрэгтэй.
-                              </li>
-                              <li style={{ marginBottom: 4 }}>
-                                Давтан ирэх шаардлагатай эмчилгээнд эмчийн
-                                тогтоосон өдөр та ирэх үүрэгтэй ба хугацаандаа
-                                ирээгүйн улмаас эмчилгээ дахих, цаг хугацаа
-                                алдах, дахин төлбөр төлөх зэрэг асуудал гардаг
-                                ба тухайн асуудлыг үйлчлүүлэгч өөрөө хариуцна.
-                              </li>
-                              <li style={{ marginBottom: 4 }}>
-                                Сувгийн эмчилгээ нь тухайн шүдний үрэвслийн
-                                байдал, тойрон эдийн эдгэрэлт зэргээс хамаарч 2
-                                болон түүнээс дээш удаагийн ирэлтээр хийгддэг.
-                              </li>
-                              <li style={{ marginBottom: 4 }}>
-                                Та хүндэтгэх шалтгааны улмаас товлосон үзлэгийн
-                                цагтаа ирэх боломжгүй болсон тохиолдолд урьдчилан
-                                манай эмнэлгийн <strong>7715-1551</strong>{" "}
-                                утсанд мэдэгдэнэ үү. Ингэснээр таны эмчилгээ үр
-                                дүнгүй болох зэрэг таагүй байдлаас та урьдчилан
-                                сэргийлэх боломжтой болно.
-                              </li>
-                              <li style={{ marginBottom: 4 }}>
-                                Та хийлгэсэн эмчилгээний дараахь эмчийн хэлсэн
-                                заавар зөвлөмжийг дагаж биелүүлэх үүрэгтэй ба
-                                ингэснээр эмчилгээ үр дүнгүй болох, дараачийн
-                                хүндрэлүүд үүсэх зэрэг асуудлаас өөрийгөө
-                                сэргийлж байгаа юм.
-                              </li>
-                              <li style={{ marginBottom: 4 }}>
-                                Манай эмнэлэгт хэрэглэгдэж буй нэг удаагийн
-                                зүүний лацны бүрэн бүтэн, аюулгүй байдалд та
-                                давхар хяналт тавих эрхтэй.
-                              </li>
-                              <li style={{ marginBottom: 4 }}>
-                                Гоо заслын эмчилгээнээс бусад ломбонд таныг
-                                эмчлэгч эмч <strong>1 жилийн баталгаа</strong>{" "}
-                                олгоно.
-                              </li>
-                            </ol>
-
-                            <label
-                              style={{
-                                display: "flex",
-                                alignItems: "flex-start",
-                                gap: 6,
-                                marginTop: 4,
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={
-                                  visitCardAnswers.consentAccepted || false
-                                }
-                                onChange={(e) =>
-                                  updateVisitCardAnswer(
-                                    "consentAccepted",
-                                    e.target.checked
-                                  )
-                                }
-                              />
-                              <span>
-                                Урьдчилан сэргийлэх асуумжийг үнэн зөв бөглөж,
-                                эмчилгээний нөхцөлтэй танилцсан.
-                              </span>
-                            </label>
-                          </section>
-
-                          {/* Signature */}
-                          <section
-                            style={{
-                              marginTop: 16,
-                              paddingTop: 12,
-                              borderTop: "1px dashed #e5e7eb",
-                            }}
-                          >
-                            <div
-                              style={{ fontSize: 13, marginBottom: 4 }}
-                            >
-                              Урьдчилан сэргийлэх асуумжийг үнэн зөв бөглөж, эмчилгээний нөхцөлтэй танилцсан үйлчлүүлэгчийн гарын үсэг :
-                            </div>
-                            {visitCard?.patientSignaturePath ? (
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: 4,
-                                }}
-                              >
-                                <img
-                                  src={visitCard.patientSignaturePath}
-                                  alt="Visit card signature"
-                                  style={{
-                                    maxWidth: 400,
-                                    borderRadius: 8,
-                                    border: "1px solid #d1d5db",
-                                    background: "#ffffff",
-                                  }}
-                                />
-                                {visitCard.signedAt && (
-                                  <span
-                                    style={{
-                                      fontSize: 11,
-                                      color: "#6b7280",
-                                    }}
-                                  >
-                                    Огноо: {formatDate(visitCard.signedAt)}
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <div>
-                                <SignaturePad
-                                  disabled={signatureSaving}
-                                  onChange={(blob) =>
-                                    void handleUploadSignature(blob)
-                                  }
-                                />
-                                <div
-                                  style={{
-                                    fontSize: 11,
-                                    color: "#6b7280",
-                                    marginTop: 4,
-                                  }}
-                                >
-                                  Таблет, утас эсвэл хулгана ашиглан доор
-                                  гарын үсэг зурна уу.
-                                </div>
-                              </div>
-                            )}
-                          </section>
-
-                          {/* Save button */}
-                          <div
-                            style={{
-                              marginTop: 16,
-                              display: "flex",
-                              justifyContent: "flex-end",
-                              gap: 8,
-                            }}
-                          >
-                            <button
-                              type="button"
-                              onClick={handleSaveVisitCard}
-                              disabled={visitCardSaving}
-                              style={{
-                                padding: "6px 12px",
-                                borderRadius: 6,
-                                border: "none",
-                                background: visitCardSaving
-                                  ? "#9ca3af"
-                                  : "#2563eb",
-                                color: "#ffffff",
-                                fontSize: 13,
-                                cursor: visitCardSaving
-                                  ? "default"
-                                  : "pointer",
-                              }}
-                            >
-                              {visitCardSaving
-                                ? "Хадгалж байна..."
-                                : "Хадгалах"}
-                            </button>
-                          </div>
                         </>
                       )}
                     </div>
@@ -2141,9 +1953,6 @@ export default function PatientProfilePage() {
                     <div style={{ marginTop: 16 }}>
                       <ChildVisitCardForm
                         answers={visitCardAnswers}
-                        visitCard={visitCard}
-                        visitCardTypeDraft={visitCardTypeDraft}
-                        setVisitCardTypeDraft={setVisitCardTypeDraft}
                         updateVisitCardAnswer={(
                           key: keyof VisitCardAnswers,
                           value: VisitCardAnswers[keyof VisitCardAnswers]
@@ -2159,14 +1968,48 @@ export default function PatientProfilePage() {
                             value
                           )
                         }
-                        signatureSaving={signatureSaving}
-                        handleUploadSignature={handleUploadSignature}
-                        handleSaveVisitCard={handleSaveVisitCard}
-                        visitCardSaving={visitCardSaving}
-                        formatDate={formatDate}
                       />
                     </div>
                   )}
+                  
+                  {/* Shared Consent and Signature Section */}
+                  <SharedConsentAndSignature
+                    sharedSignature={sharedSignature}
+                    sharedSignatureLoading={sharedSignatureLoading}
+                    signatureSaving={signatureSaving}
+                    consentAccepted={visitCardAnswers.sharedConsentAccepted || false}
+                    onConsentChange={(accepted) => 
+                      updateVisitCardAnswer("sharedConsentAccepted", accepted)
+                    }
+                    onSaveSignature={handleUploadSharedSignature}
+                    formatDate={formatDate}
+                  />
+
+                  {/* Shared Save Button */}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      marginTop: 16,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={handleSaveVisitCard}
+                      disabled={visitCardSaving}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 6,
+                        border: "none",
+                        background: visitCardSaving ? "#9ca3af" : "#2563eb",
+                        color: "#ffffff",
+                        fontSize: 13,
+                        cursor: visitCardSaving ? "default" : "pointer",
+                      }}
+                    >
+                      {visitCardSaving ? "Хадгалж байна..." : "Хадгалах"}
+                    </button>
+                  </div>
                 </>
               )}
 
