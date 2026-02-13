@@ -19,6 +19,10 @@ export function useVisitCard({ bookNumber, activeTab, patientBookId }: UseVisitC
   const [visitCardAnswers, setVisitCardAnswers] = useState<VisitCardAnswers>({});
   const [visitCardSaving, setVisitCardSaving] = useState(false);
   const [signatureSaving, setSignatureSaving] = useState(false);
+  
+  // Shared signature state
+  const [sharedSignature, setSharedSignature] = useState<{ filePath: string; signedAt: string } | null>(null);
+  const [sharedSignatureLoading, setSharedSignatureLoading] = useState(false);
 
   // Load visit card only when visit_card tab is active
   useEffect(() => {
@@ -68,6 +72,34 @@ export function useVisitCard({ bookNumber, activeTab, patientBookId }: UseVisitC
     void loadVisitCard();
   }, [bookNumber, activeTab]);
 
+  // Load shared signature when visit_card tab is active
+  useEffect(() => {
+    if (!patientBookId) return;
+    if (activeTab !== "visit_card") return;
+
+    const loadSharedSignature = async () => {
+      setSharedSignatureLoading(true);
+      try {
+        const res = await fetch(
+          `/api/patients/visit-card/${patientBookId}/shared-signature`
+        );
+        if (res.ok) {
+          const json = await res.json();
+          setSharedSignature(json);
+        } else {
+          setSharedSignature(null);
+        }
+      } catch (err) {
+        console.error("loadSharedSignature failed", err);
+        setSharedSignature(null);
+      } finally {
+        setSharedSignatureLoading(false);
+      }
+    };
+
+    void loadSharedSignature();
+  }, [patientBookId, activeTab]);
+
   const handleTypeChange = (newType: VisitCardType) => {
     setVisitCardTypeDraft(newType);
     
@@ -106,6 +138,19 @@ export function useVisitCard({ bookNumber, activeTab, patientBookId }: UseVisitC
     }));
   };
 
+  // Normalize answers to ensure all fields have default values
+  const normalizeAnswers = (answers: VisitCardAnswers): VisitCardAnswers => {
+    const normalized = { ...answers };
+    
+    // Ensure each section exists with at least an empty object
+    if (!normalized.generalMedical) normalized.generalMedical = {};
+    if (!normalized.allergies) normalized.allergies = {};
+    if (!normalized.habits) normalized.habits = {};
+    if (!normalized.dentalFollowup) normalized.dentalFollowup = {};
+    
+    return normalized;
+  };
+
   const handleSaveVisitCard = async () => {
     if (!patientBookId) {
       setVisitCardError("PatientBook ID олдсонгүй.");
@@ -123,12 +168,15 @@ export function useVisitCard({ bookNumber, activeTab, patientBookId }: UseVisitC
     setVisitCardSaving(true);
     setVisitCardError("");
     try {
+      // Normalize answers before sending to ensure non-empty structure
+      const normalizedAnswers = normalizeAnswers(visitCardAnswers);
+      
       const res = await fetch(`/api/patients/visit-card/${patientBookId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type,
-          answers: visitCardAnswers,
+          answers: normalizedAnswers,
         }),
       });
 
@@ -217,6 +265,47 @@ export function useVisitCard({ bookNumber, activeTab, patientBookId }: UseVisitC
     }
   };
 
+  const handleUploadSharedSignature = async (blob: Blob) => {
+    if (!patientBookId) {
+      setVisitCardError("PatientBook ID олдсонгүй.");
+      return;
+    }
+    
+    setSignatureSaving(true);
+    setVisitCardError("");
+    try {
+      const formData = new FormData();
+      formData.append("file", blob, "signature.png");
+
+      const res = await fetch(
+        `/api/patients/visit-card/${patientBookId}/shared-signature`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          (json && json.error) || "Гарын үсэг хадгалахад алдаа гарлаа."
+        );
+      }
+
+      setSharedSignature({
+        filePath: json.filePath,
+        signedAt: json.signedAt,
+      });
+    } catch (err: any) {
+      console.error("upload shared signature failed", err);
+      setVisitCardError(
+        err?.message || "Гарын үсэг хадгалахад алдаа гарлаа."
+      );
+    } finally {
+      setSignatureSaving(false);
+    }
+  };
+
   return {
     visitCard,
     visitCards,
@@ -226,11 +315,14 @@ export function useVisitCard({ bookNumber, activeTab, patientBookId }: UseVisitC
     visitCardAnswers,
     visitCardSaving,
     signatureSaving,
+    sharedSignature,
+    sharedSignatureLoading,
     handleTypeChange,
     updateVisitCardAnswer,
     updateNested,
     handleSaveVisitCard,
     handleUploadSignature,
+    handleUploadSharedSignature,
     setVisitCardTypeDraft,
   };
 }

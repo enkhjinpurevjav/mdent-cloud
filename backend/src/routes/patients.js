@@ -643,6 +643,89 @@ router.post(
   }
 );
 
+// GET /api/patients/visit-card/:patientBookId/shared-signature
+router.get("/visit-card/:patientBookId/shared-signature", async (req, res) => {
+  try {
+    const patientBookId = Number(req.params.patientBookId);
+    if (!patientBookId || Number.isNaN(patientBookId)) {
+      return res.status(400).json({ error: "Invalid patientBookId" });
+    }
+
+    const sharedSignature = await prisma.visitCardSharedSignature.findUnique({
+      where: { patientBookId },
+    });
+
+    if (!sharedSignature) {
+      return res.status(200).json(null);
+    }
+
+    return res.status(200).json({
+      filePath: sharedSignature.filePath,
+      signedAt: sharedSignature.signedAt,
+    });
+  } catch (err) {
+    console.error(
+      "GET /api/patients/visit-card/:patientBookId/shared-signature error:",
+      err
+    );
+    return res.status(500).json({ error: "failed to fetch shared signature" });
+  }
+});
+
+// POST /api/patients/visit-card/:patientBookId/shared-signature
+// Body (form-data): file
+router.post(
+  "/visit-card/:patientBookId/shared-signature",
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      const patientBookId = Number(req.params.patientBookId);
+      if (!patientBookId || Number.isNaN(patientBookId)) {
+        return res.status(400).json({ error: "Invalid patientBookId" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ error: "file is required" });
+      }
+
+      const publicPath = `/media/${path.basename(req.file.path)}`;
+
+      // Check if shared signature already exists
+      const existing = await prisma.visitCardSharedSignature.findUnique({
+        where: { patientBookId },
+      });
+
+      // If exists, we could optionally delete the old file here
+      // For now, we'll just overwrite the record
+      // TODO: Implement file cleanup if needed
+
+      // Upsert the shared signature
+      const sharedSignature = await prisma.visitCardSharedSignature.upsert({
+        where: { patientBookId },
+        update: {
+          filePath: publicPath,
+          signedAt: new Date(),
+        },
+        create: {
+          patientBookId,
+          filePath: publicPath,
+          signedAt: new Date(),
+        },
+      });
+
+      return res.status(201).json({
+        filePath: sharedSignature.filePath,
+        signedAt: sharedSignature.signedAt,
+      });
+    } catch (err) {
+      console.error(
+        "POST /api/patients/visit-card/:patientBookId/shared-signature error:",
+        err
+      );
+      return res.status(500).json({ error: "failed to save shared signature" });
+    }
+  }
+);
+
 // GET /api/patients/ortho-card/by-book/:bookNumber
 router.get("/ortho-card/by-book/:bookNumber", async (req, res) => {
   try {

@@ -107,7 +107,8 @@ export type VisitCardAnswers = {
     badBreathDetail?: string;
   };
 
-  consentAccepted?: boolean; // adult
-  childConsentAccepted?: boolean; // child
+  consentAccepted?: boolean; // adult (deprecated, use sharedConsentAccepted)
+  childConsentAccepted?: boolean; // child (deprecated, use sharedConsentAccepted)
+  sharedConsentAccepted?: boolean; // shared consent for both adult and child
   notes?: string;
 };

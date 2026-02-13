@@ -1,11 +1,17 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from "react";
 
 type Props = {
   disabled?: boolean;
-  onChange?: (blob: Blob) => void;
+  onChange?: (blob: Blob) => void; // Keep for backward compatibility
 };
 
-export default function SignaturePad({ disabled, onChange }: Props) {
+export type SignaturePadRef = {
+  clear: () => void;
+  getBlob: () => Promise<Blob | null>;
+  hasDrawn: () => boolean;
+};
+
+const SignaturePad = forwardRef<SignaturePadRef, Props>(({ disabled, onChange }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
   const [hasDrawn, setHasDrawn] = useState(false);
@@ -61,11 +67,15 @@ export default function SignaturePad({ disabled, onChange }: Props) {
     if (!drawing.current) return;
     drawing.current = false;
     e.currentTarget.releasePointerCapture(e.pointerId);
-    const canvas = canvasRef.current;
-    if (!canvas || !hasDrawn || !onChange) return;
-    canvas.toBlob((blob) => {
-      if (blob) onChange(blob);
-    }, "image/png");
+    
+    // If onChange is provided (backward compatibility), auto-upload
+    if (onChange && hasDrawn) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      canvas.toBlob((blob) => {
+        if (blob) onChange(blob);
+      }, "image/png");
+    }
   };
 
   const handleClear = () => {
@@ -77,6 +87,23 @@ export default function SignaturePad({ disabled, onChange }: Props) {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     setHasDrawn(false);
   };
+
+  const getBlob = (): Promise<Blob | null> => {
+    const canvas = canvasRef.current;
+    if (!canvas) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => {
+        resolve(blob);
+      }, "image/png");
+    });
+  };
+
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    clear: handleClear,
+    getBlob,
+    hasDrawn: () => hasDrawn,
+  }));
 
   return (
     <div>
@@ -109,9 +136,13 @@ export default function SignaturePad({ disabled, onChange }: Props) {
             cursor: disabled ? "default" : "pointer",
           }}
         >
-          Цэвэрлэх
+          Арилгах
         </button>
       </div>
     </div>
   );
-}
+});
+
+SignaturePad.displayName = "SignaturePad";
+
+export default SignaturePad;
