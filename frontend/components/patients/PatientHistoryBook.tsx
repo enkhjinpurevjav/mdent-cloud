@@ -121,7 +121,7 @@ const PatientHistoryBook: React.FC<Props> = ({
     if (reasonToVisit?.badBite) reasons.push("Хазуулын зөрүү");
     if (reasonToVisit?.preventiveCheck) reasons.push("Урьдчилан сэргийлэх үзлэг");
     if (reasonToVisit?.cosmeticSmile) reasons.push("Гоо сайхны инээмсэглэл");
-    if (reasonToVisit?.other && hasText(reasonToVisit.other)) {
+    if (hasText(reasonToVisit?.other)) {
       reasons.push(`Бусад: ${reasonToVisit.other}`);
     }
     return reasons.length > 0 ? reasons.join(", ") : "-";
