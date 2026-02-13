@@ -702,6 +702,7 @@ model PatientBook {
   encounters Encounter[]
 
   visitCards VisitCard[] // Changed from one-to-one to one-to-many
+  visitCardSharedSignature VisitCardSharedSignature?
   orthoCard  OrthoCard?
 }
 
@@ -721,6 +722,18 @@ model VisitCard {
   updatedAt DateTime @updatedAt
 
   @@unique([patientBookId, type])
+}
+
+model VisitCardSharedSignature {
+  id            Int         @id @default(autoincrement())
+  patientBookId Int         @unique
+  patientBook   PatientBook @relation(fields: [patientBookId], references: [id])
+
+  filePath String
+  signedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model OrthoCard {
