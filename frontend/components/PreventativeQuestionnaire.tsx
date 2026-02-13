@@ -4,12 +4,14 @@ type Props = {
   answers: any;
   updateNested: (section: string, field: string, value: any) => void;
   updateVisitCardAnswer: (key: string, value: any) => void;
+  radioNamePrefix?: string;
 };
 
 export default function PreventativeQuestionnaire({
   answers,
   updateNested,
   updateVisitCardAnswer,
+  radioNamePrefix = "",
 }: Props) {
   return (
     <section style={{ marginTop: 8, fontSize: 13 }}>
@@ -135,7 +137,7 @@ export default function PreventativeQuestionnaire({
             >
               <input
                 type="radio"
-                name="prevVisit"
+                name={`${radioNamePrefix}prevVisit`}
                 value="no"
                 checked={answers.previousDentalVisit?.hasVisited === "no"}
                 onChange={() =>
@@ -153,7 +155,7 @@ export default function PreventativeQuestionnaire({
             >
               <input
                 type="radio"
-                name="prevVisit"
+                name={`${radioNamePrefix}prevVisit`}
                 value="yes"
                 checked={answers.previousDentalVisit?.hasVisited === "yes"}
                 onChange={() =>
@@ -221,7 +223,7 @@ export default function PreventativeQuestionnaire({
             >
               <input
                 type="radio"
-                name="prevComplication"
+                name={`${radioNamePrefix}prevComplication`}
                 value="no"
                 checked={
                   answers.previousDentalVisit?.hadComplication === "no" ||
@@ -251,7 +253,7 @@ export default function PreventativeQuestionnaire({
             >
               <input
                 type="radio"
-                name="prevComplication"
+                name={`${radioNamePrefix}prevComplication`}
                 value="yes"
                 checked={
                   answers.previousDentalVisit?.hadComplication === "yes"

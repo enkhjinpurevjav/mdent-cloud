@@ -1792,6 +1792,7 @@ export default function PatientProfilePage() {
                             answers={visitCardAnswers}
                             updateNested={updateNested}
                             updateVisitCardAnswer={updateVisitCardAnswer}
+                            radioNamePrefix="adult_"
                           />
 
                           {/* 3) Ерөнхий биеийн талаархи асуумж + Харшил + Зуршил */}

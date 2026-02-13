@@ -58,6 +58,7 @@ export default function ChildVisitCardForm({
         answers={answers}
         updateNested={updateNested}
         updateVisitCardAnswer={updateVisitCardAnswer}
+        radioNamePrefix="child_"
       />
 
       {/* 3) Ерөнхий биеийн талаархи асуумж — with child labels */}
