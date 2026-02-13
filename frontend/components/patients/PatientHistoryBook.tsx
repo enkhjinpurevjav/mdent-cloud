@@ -776,59 +776,68 @@ const PatientHistoryBook: React.FC<Props> = ({
         {showHeader && (
           <>
             {/* Logo and header */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                marginBottom: 16,
-              }}
-            >
-              <img
-                src="/clinic-logo.png"
-                alt="Clinic Logo"
-                onError={(e) => {
-                  // Fallback to placeholder if logo fails to load
-                  e.currentTarget.style.display = 'none';
-                  const placeholder = document.createElement('div');
-                  placeholder.style.cssText = 'width:100px;height:100px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#6b7280;text-align:center;margin-right:16px;';
-                  placeholder.textContent = 'CLINIC LOGO';
-                  e.currentTarget.parentElement?.insertBefore(placeholder, e.currentTarget);
-                }}
-                style={{
-                  width: 100,
-                  height: "auto",
-                  marginRight: 16,
-                  objectFit: "contain",
-                }}
-              />
-              <div style={{ flex: 1 }}>
-                <h1
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 700,
-                    margin: 0,
-                    marginBottom: 8,
-                  }}
-                >
-                  ҮЙЛЧЛҮҮЛЭГЧИЙН КАРТ
-                </h1>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, 1fr)",
-                    gap: 8,
-                    fontSize: 12,
-                  }}
-                >
-                  <div>
-                    <strong>Он/Сар/Өдөр:</strong> {getCardFillDate()}
-                  </div>
-                  <div>
-                    <strong>Дугаар:</strong> {patientBook.bookNumber}
-                  </div>
-                </div>
-              </div>
-            </div>
+<div
+  style={{
+    display: "grid",
+    gridTemplateColumns: "120px 1fr 120px",
+    alignItems: "start",
+    marginBottom: 16,
+  }}
+>
+  {/* Left: logo (unchanged position) */}
+  <div style={{ display: "flex", alignItems: "flex-start" }}>
+    <img
+      src="/clinic-logo.png"
+      alt="Clinic Logo"
+      onError={(e) => {
+        e.currentTarget.style.display = "none";
+        const placeholder = document.createElement("div");
+        placeholder.style.cssText =
+          "width:100px;height:100px;background:#f3f4f6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#6b7280;text-align:center;";
+        placeholder.textContent = "CLINIC LOGO";
+        e.currentTarget.parentElement?.appendChild(placeholder);
+      }}
+      style={{
+        width: 100,
+        height: "auto",
+        objectFit: "contain",
+      }}
+    />
+  </div>
+
+  {/* Middle: centered title + date/number */}
+  <div style={{ textAlign: "center" }}>
+    <h1
+      style={{
+        fontSize: 18,
+        fontWeight: 700,
+        margin: 0,
+        marginBottom: 6,
+      }}
+    >
+      ҮЙЛЧЛҮҮЛЭГЧИЙН КАРТ
+    </h1>
+
+    <div
+      style={{
+        fontSize: 12,
+        display: "flex",
+        justifyContent: "center",
+        gap: 32,
+      }}
+    >
+      <div>
+        <strong>Он/Сар/Өдөр:</strong> {getCardFillDate()}
+      </div>
+      <div>
+        <strong>Дугаар:</strong> {patientBook.bookNumber}
+      </div>
+    </div>
+  </div>
+
+  {/* Right: spacer (keeps middle truly centered) */}
+  <div />
+</div>
 
             {/* Patient information grid */}
             <div
