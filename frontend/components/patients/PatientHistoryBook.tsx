@@ -49,6 +49,7 @@ type DiagnosisEntry = {
   sterilizationIndicators?: Array<{
     indicator: {
       id: number;
+      code?: string;   // add this
       name: string;
       tool?: {
         name: string;
@@ -382,7 +383,7 @@ const PatientHistoryBook: React.FC<Props> = ({
 
       // Indicators (sterilization tools)
      const indicators = (diag.sterilizationIndicators || [])
-  .map((si) => si.indicator?.name)
+  .map((si) => si.indicator?.code || si.indicator?.name)
   .filter((v): v is string => Boolean(v && v.trim()));
 
       // Note
