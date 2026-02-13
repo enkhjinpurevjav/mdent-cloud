@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 
 type Patient = {
   id: number;
@@ -339,39 +339,19 @@ const PatientHistoryBook: React.FC<Props> = ({
   };
 
   // Fetch encounter details to get draft attachments
-  const fetchEncounterDetails = useCallback(
-    async (encounterId: number) => {
-      if (
-        encounterDetailsCache.has(encounterId) ||
-        fetchingEncounterIds.has(encounterId)
-      ) {
-        return;
+  const fetchEncounterDetails = async (encounterId: number) => {
+    try {
+      const res = await fetch(`/api/encounters/${encounterId}`);
+      if (res.ok) {
+        const data: EncounterDetails = await res.json();
+        setEncounterDetailsCache((prev) => new Map(prev).set(encounterId, data));
+      } else {
+        console.warn(`Failed to fetch encounter ${encounterId}:`, res.status);
       }
-
-      setFetchingEncounterIds((prev) => new Set(prev).add(encounterId));
-
-      try {
-        const res = await fetch(`/api/encounters/${encounterId}`);
-        if (res.ok) {
-          const data: EncounterDetails = await res.json();
-          setEncounterDetailsCache((prev) =>
-            new Map(prev).set(encounterId, data)
-          );
-        } else {
-          console.warn(`Failed to fetch encounter ${encounterId}:`, res.status);
-        }
-      } catch (err) {
-        console.warn(`Error fetching encounter ${encounterId}:`, err);
-      } finally {
-        setFetchingEncounterIds((prev) => {
-          const next = new Set(prev);
-          next.delete(encounterId);
-          return next;
-        });
-      }
-    },
-    [encounterDetailsCache, fetchingEncounterIds]
-  );
+    } catch (err) {
+      console.warn(`Error fetching encounter ${encounterId}:`, err);
+    }
+  };
 
   // Filter encounters by date range
   const filteredEncounters = encounters.filter((enc) => {
@@ -392,22 +372,22 @@ const PatientHistoryBook: React.FC<Props> = ({
   // Fetch encounter details for filtered encounters (to get draft attachments)
   useEffect(() => {
     filteredEncounters.forEach((enc) => {
-      // fetchEncounterDetails checks cache and avoids duplicate fetches
+      // Only fetch if not already cached and not currently fetching
       if (
         !encounterDetailsCache.has(enc.id) &&
         !fetchingEncounterIds.has(enc.id)
       ) {
-        fetchEncounterDetails(enc.id);
+        setFetchingEncounterIds((prev) => new Set(prev).add(enc.id));
+        fetchEncounterDetails(enc.id).finally(() => {
+          setFetchingEncounterIds((prev) => {
+            const next = new Set(prev);
+            next.delete(enc.id);
+            return next;
+          });
+        });
       }
     });
-  }, [
-    filterStartDate,
-    filterEndDate,
-    encounters,
-    fetchEncounterDetails,
-    encounterDetailsCache,
-    fetchingEncounterIds,
-  ]);
+  }, [filterStartDate, filterEndDate, encounters]);
 
   // Build diagnosis rows (one row per diagnosis entry)
   const diagnosisRows: Array<{
