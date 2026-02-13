@@ -339,14 +339,15 @@ const PatientHistoryBook: React.FC<Props> = ({
       
       // Add selected problem chips first
       if (Array.isArray(diag.selectedProblemIds) && diag.diagnosis?.problems) {
-        const selectedIds = diag.selectedProblemIds as number[];
         const problemsMap = new Map(
           diag.diagnosis.problems.map(p => [p.id, p.label])
         );
-        selectedIds.forEach(id => {
-          const label = problemsMap.get(id);
-          if (label) {
-            complaints.push(label);
+        diag.selectedProblemIds.forEach((id: any) => {
+          if (typeof id === 'number') {
+            const label = problemsMap.get(id);
+            if (label) {
+              complaints.push(label);
+            }
           }
         });
       }
