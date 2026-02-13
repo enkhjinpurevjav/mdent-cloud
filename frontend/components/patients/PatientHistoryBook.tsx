@@ -894,7 +894,7 @@ const PatientHistoryBook: React.FC<Props> = ({
                 textAlign: "center",
               }}
             >
-              ОНОШ ЭМЧИЛГЭЭНИЙ БҮРТГЭЛ
+              ЭМЧИЛГЭЭНИЙ БҮРТГЭЛ
             </div>
             <table
               style={{
