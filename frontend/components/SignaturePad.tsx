@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } f
 
 type Props = {
   disabled?: boolean;
+  onChange?: (blob: Blob) => void; // Keep for backward compatibility
 };
 
 export type SignaturePadRef = {
@@ -10,7 +11,7 @@ export type SignaturePadRef = {
   hasDrawn: () => boolean;
 };
 
-const SignaturePad = forwardRef<SignaturePadRef, Props>(({ disabled }, ref) => {
+const SignaturePad = forwardRef<SignaturePadRef, Props>(({ disabled, onChange }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
   const [hasDrawn, setHasDrawn] = useState(false);
@@ -66,6 +67,15 @@ const SignaturePad = forwardRef<SignaturePadRef, Props>(({ disabled }, ref) => {
     if (!drawing.current) return;
     drawing.current = false;
     e.currentTarget.releasePointerCapture(e.pointerId);
+    
+    // If onChange is provided (backward compatibility), auto-upload
+    if (onChange && hasDrawn) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      canvas.toBlob((blob) => {
+        if (blob) onChange(blob);
+      }, "image/png");
+    }
   };
 
   const handleClear = () => {

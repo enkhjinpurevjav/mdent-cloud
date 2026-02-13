@@ -143,7 +143,6 @@ export function useVisitCard({ bookNumber, activeTab, patientBookId }: UseVisitC
     const normalized = { ...answers };
     
     // Ensure each section exists with at least an empty object
-    if (!normalized.preventative) normalized.preventative = {};
     if (!normalized.generalMedical) normalized.generalMedical = {};
     if (!normalized.allergies) normalized.allergies = {};
     if (!normalized.habits) normalized.habits = {};
