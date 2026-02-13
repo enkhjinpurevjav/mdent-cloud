@@ -846,13 +846,13 @@ const PatientHistoryBook: React.FC<Props> = ({
               }}
             >
               <div>
-                <strong>Овог, нэр:</strong>{" "}
+                <strong>Овог Нэр:</strong>{" "}
                 {patient.ovog
                   ? `${patient.ovog} ${patient.name}`
                   : patient.name}
               </div>
               <div>
-                <strong>Төрсөн он/сар/өдөр:</strong>{" "}
+                <strong>Төрсөн огноо:</strong>{" "}
                 {formatDate(patient.birthDate)}
               </div>
               <div>
@@ -915,7 +915,7 @@ const PatientHistoryBook: React.FC<Props> = ({
                       width: "8%",
                     }}
                   >
-                    Он/сар/өдөр
+                    Огноо
                   </th>
                   <th
                     style={{
