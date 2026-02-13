@@ -381,11 +381,9 @@ const PatientHistoryBook: React.FC<Props> = ({
       });
 
       // Indicators (sterilization tools)
-      const indicators = (diag.sterilizationIndicators || []).map((si) => {
-        const toolName = si.indicator.tool?.name || "";
-        const indicatorName = si.indicator.name || "";
-        return toolName ? `${toolName}/${indicatorName}` : indicatorName;
-      });
+     const indicators = (diag.sterilizationIndicators || [])
+  .map((si) => si.indicator?.name)
+  .filter((v): v is string => Boolean(v && v.trim()));
 
       // Note
       const note = diag.note || "";
@@ -964,10 +962,7 @@ const PatientHistoryBook: React.FC<Props> = ({
                         verticalAlign: "top",
                       }}
                     >
-                      {row.indicators.map((ind, i) => (
-                        <div key={i}>{ind}</div>
-                      ))}
-                      {row.indicators.length === 0 && "-"}
+                      {row.indicators.length > 0 ? row.indicators.join(", ") : "-"}
                     </td>
                     <td
                       style={{
