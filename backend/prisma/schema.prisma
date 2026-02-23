@@ -1006,6 +1006,15 @@ model ServiceBranch {
   @@id([serviceId, branchId])
 }
 
+model ServiceCategoryConfig {
+  id              Int             @id @default(autoincrement())
+  category        ServiceCategory @unique
+  durationMinutes Int             @default(30)
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
 model EncounterService {
   id          Int @id @default(autoincrement())
   encounterId Int
