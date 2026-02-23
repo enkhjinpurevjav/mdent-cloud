@@ -56,6 +56,8 @@ type InvoiceResponse = {
   patientTotalBilled?: number;
   patientTotalPaid?: number;
   patientBalance?: number;
+  hasMarker?: boolean;
+  patientOldBalance?: number;
 };
 
 type EncounterService = {
@@ -150,6 +152,19 @@ function formatMoney(v: number | null | undefined) {
 
 // ----------------- Payment section -----------------
 
+// Rounding tolerance (₮) when validating split allocation totals
+const PAYMENT_ALLOCATION_TOLERANCE = 1;
+
+/** Returns true if an API error response indicates a sterilization mismatch */
+function isSterilizationError(data: any): boolean {
+  return (
+    data?.errorCode === "UNRESOLVED_STERILIZATION_MISMATCH" ||
+    data?.error?.includes("UNRESOLVED_STERILIZATION_MISMATCH") ||
+    data?.error?.includes("mismatch") ||
+    data?.error?.includes("sterilization")
+  );
+}
+
 // Dynamic payment settings types
 type PaymentProvider = {
   id: number;
@@ -206,6 +221,11 @@ function BillingPaymentSection({
   const [qpayGenerating, setQpayGenerating] = useState(false);
   const [qpayPolling, setQpayPolling] = useState(false);
   const [qpayError, setQpayError] = useState("");
+
+  // Split payment state (only active when marker service is present)
+  const [closeOldBalance, setCloseOldBalance] = useState(false);
+  const [splitPayment, setSplitPayment] = useState(false);
+  const [splitAllocations, setSplitAllocations] = useState<Record<number, string>>({});
   const [qpayPaidAmount, setQpayPaidAmount] = useState<number | null>(null);
 
 
@@ -282,6 +302,9 @@ function BillingPaymentSection({
     setVoucherMaxAmount(null);
     setAppRows([{ providerId: null, amount: "" }]);
     setTransferNote("");
+    setCloseOldBalance(false);
+    setSplitPayment(false);
+    setSplitAllocations({});
   }, [invoice.id]);
 
   const handleToggle = (methodKey: string, checked: boolean) => {
@@ -329,6 +352,20 @@ function BillingPaymentSection({
   }, 0);
 
   const remainingAfterEntered = Math.max(unpaid - totalEntered, 0);
+
+  // Split payment derived values (when marker present)
+  const hasMarker = !!invoice.hasMarker;
+  const oldBalance = invoice.patientOldBalance ?? 0;
+  // X = amount going to old invoices; Y = amount going to current invoice
+  const amountToOld = closeOldBalance ? Math.min(totalEntered, oldBalance) : 0;
+  const amountToCurrent = Math.max(totalEntered - amountToOld, 0);
+  // "Хувааж төлөх" is only meaningful when some amount will go to current invoice
+  const splitPaymentEnabled = amountToCurrent > 0;
+  // Sum of all entered split allocations
+  const splitAllocTotal = Object.values(splitAllocations).reduce(
+    (s, v) => s + (Number(v) || 0),
+    0
+  );
 
   // verify employee benefit code via backend
   const handleVerifyEmployeeCode = async () => {
@@ -684,36 +721,97 @@ function BillingPaymentSection({
       return;
     }
 
+    // Validate split allocations when "Хувааж төлөх" is enabled
+    if (hasMarker && splitPayment && splitPaymentEnabled) {
+      if (Math.abs(splitAllocTotal - amountToCurrent) > PAYMENT_ALLOCATION_TOLERANCE) {
+        setError(
+          `Хуваалтын нийлбэр (${formatMoney(splitAllocTotal)} ₮) нь өнөөдрийн үйлчилгээ рүү орох дүнтэй (${formatMoney(amountToCurrent)} ₮) тэнцэхгүй байна.`
+        );
+        return;
+      }
+      // Validate each allocation ≤ lineTotal
+      for (const item of invoice.items.filter((it) => it.itemType === "SERVICE")) {
+        if (!item.id) continue;
+        const allocAmt = Number(splitAllocations[item.id] || 0);
+        if (allocAmt > (item.lineTotal ?? item.unitPrice * item.quantity)) {
+          setError(`"${item.name}" үйлчилгээний хуваалт мөрийн дүнгээс хэтэрсэн байна.`);
+          return;
+        }
+      }
+    }
+
     try {
       setSubmitting(true);
       let latest: InvoiceResponse | null = null;
 
-      for (const entry of entries) {
-        const res = await fetch(`/api/invoices/${invoice.id}/settlement`, {
+      if (hasMarker && (closeOldBalance || (splitPayment && splitPaymentEnabled))) {
+        // Use batch-settlement endpoint for split-payment workflow
+        // Note: batch-settlement only supports single-entry payments; take first non-zero entry
+        if (entries.length > 1) {
+          setError("Хувааж төлөх горимд нэг төлбөрийн аргыг л сонгоно уу.");
+          setSubmitting(false);
+          return;
+        }
+        const entry = entries[0];
+
+        const allocPayload =
+          splitPayment && splitPaymentEnabled
+            ? invoice.items
+                .filter((it) => it.itemType === "SERVICE" && it.id)
+                .map((it) => ({
+                  invoiceItemId: it.id as number,
+                  amount: Number(splitAllocations[it.id as number] || 0),
+                }))
+                .filter((a) => a.amount > 0)
+            : undefined;
+
+        const res = await fetch(`/api/billing/encounters/${invoice.encounterId}/batch-settlement`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             amount: entry.amount,
             method: entry.method,
+            closeOldBalance,
+            splitAllocations: allocPayload,
             issueEBarimt,
             meta: entry.meta ?? null,
           }),
         });
 
         const data = await res.json().catch(() => null);
-
         if (!res.ok || !data) {
-          // Check for sterilization mismatch error code
-          if (data?.errorCode === "UNRESOLVED_STERILIZATION_MISMATCH" ||
-              data?.error?.includes("UNRESOLVED_STERILIZATION_MISMATCH") || 
-              data?.error?.includes("mismatch") ||
-              data?.error?.includes("sterilization")) {
+          if (isSterilizationError(data)) {
             throw new Error("Ариутгалын багажийн зөрүү шийдвэрлээгүй байна. Эхлээд зөрүүг шийдвэрлэнэ үү.");
           }
           throw new Error((data && data.error) || "Төлбөр бүртгэхэд алдаа гарлаа.");
         }
 
         latest = { ...invoice, ...data };
+      } else {
+        // Standard settlement (no marker or neither checkbox checked)
+        for (const entry of entries) {
+          const res = await fetch(`/api/invoices/${invoice.id}/settlement`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              amount: entry.amount,
+              method: entry.method,
+              issueEBarimt,
+              meta: entry.meta ?? null,
+            }),
+          });
+
+          const data = await res.json().catch(() => null);
+
+          if (!res.ok || !data) {
+            if (isSterilizationError(data)) {
+              throw new Error("Ариутгалын багажийн зөрүү шийдвэрлээгүй байна. Эхлээд зөрүүг шийдвэрлэнэ үү.");
+            }
+            throw new Error((data && data.error) || "Төлбөр бүртгэхэд алдаа гарлаа.");
+          }
+
+          latest = { ...invoice, ...data };
+        }
       }
 
       if (latest) {
@@ -732,6 +830,9 @@ function BillingPaymentSection({
       setVoucherType("");
       setVoucherMaxAmount(null);
       setAppRows([{ providerId: null, amount: "" }]);
+      setCloseOldBalance(false);
+      setSplitPayment(false);
+      setSplitAllocations({});
     } catch (err: any) {
       console.error("Failed to settle invoice:", err);
       setError(err.message || "Төлбөр бүртгэхэд алдаа гарлаа.");
@@ -764,6 +865,180 @@ function BillingPaymentSection({
         onSubmit={handleSubmit}
         style={{ display: "flex", flexDirection: "column", gap: 8 }}
       >
+        {/* ── Split payment controls (only when marker service present) ── */}
+        {hasMarker && hasRealInvoice && (
+          <div
+            style={{
+              padding: 12,
+              borderRadius: 8,
+              border: "1px solid #fbbf24",
+              background: "#fffbeb",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              marginBottom: 4,
+            }}
+          >
+            {/* Checkbox: close old balance */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input
+                id="closeOldBalance"
+                type="checkbox"
+                checked={closeOldBalance}
+                onChange={(e) => {
+                  setCloseOldBalance(e.target.checked);
+                  if (!e.target.checked) {
+                    setSplitPayment(false);
+                  }
+                }}
+              />
+              <label htmlFor="closeOldBalance" style={{ fontSize: 13, cursor: "pointer", fontWeight: 500 }}>
+                Төлбөрийн үлдэгдлийг дуусгах{" "}
+                <span style={{ color: "#b45309" }}>
+                  (өмнөх үлдэгдэл: {formatMoney(oldBalance)} ₮)
+                </span>
+              </label>
+            </div>
+
+            {/* Breakdown when closeOldBalance is checked */}
+            {closeOldBalance && (
+              <div
+                style={{
+                  marginLeft: 26,
+                  fontSize: 13,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2,
+                  color: "#374151",
+                }}
+              >
+                <div>
+                  Өмнөх үлдэгдэлд орох:{" "}
+                  <strong style={{ color: "#b45309" }}>{formatMoney(amountToOld)} ₮</strong>
+                </div>
+                <div>
+                  Өнөөдрийн үйлчилгээ рүү орох:{" "}
+                  <strong style={{ color: "#15803d" }}>{formatMoney(amountToCurrent)} ₮</strong>
+                </div>
+              </div>
+            )}
+
+            {/* Checkbox: split payment (only enabled when Y > 0) */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input
+                id="splitPayment"
+                type="checkbox"
+                checked={splitPayment}
+                disabled={!splitPaymentEnabled}
+                onChange={(e) => {
+                  setSplitPayment(e.target.checked);
+                  if (!e.target.checked) setSplitAllocations({});
+                }}
+              />
+              <label
+                htmlFor="splitPayment"
+                style={{
+                  fontSize: 13,
+                  cursor: splitPaymentEnabled ? "pointer" : "not-allowed",
+                  color: splitPaymentEnabled ? "#111827" : "#9ca3af",
+                  fontWeight: 500,
+                }}
+              >
+                Хувааж төлөх{" "}
+                {!splitPaymentEnabled && closeOldBalance && (
+                  <span style={{ fontWeight: 400 }}>(өнөөдрийн үйлчилгээ рүү орох дүн 0)</span>
+                )}
+              </label>
+            </div>
+
+            {/* Per-service allocation inputs */}
+            {splitPayment && splitPaymentEnabled && (
+              <div style={{ marginLeft: 26 }}>
+                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>
+                  Нийт {formatMoney(amountToCurrent)} ₮-г үйлчилгээнүүдэд хувааж оруулна уу:
+                </div>
+                {invoice.items.map((item) => {
+                  if (item.itemType !== "SERVICE") {
+                    return (
+                      <div
+                        key={item.id ?? `p-${item.productId}`}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          marginBottom: 4,
+                          fontSize: 13,
+                          color: "#9ca3af",
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>{item.name}</div>
+                        <div style={{ width: 90, textAlign: "right" }}>—</div>
+                        <span style={{ fontSize: 12 }}>₮</span>
+                      </div>
+                    );
+                  }
+                  const itemId = item.id;
+                  const lineTotal = item.lineTotal ?? item.unitPrice * item.quantity;
+                  return (
+                    <div
+                      key={itemId ?? `s-${item.serviceId}`}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        marginBottom: 4,
+                        fontSize: 13,
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        {item.name}{" "}
+                        <span style={{ color: "#6b7280", fontSize: 12 }}>
+                          (мөрийн дүн: {formatMoney(lineTotal)} ₮)
+                        </span>
+                      </div>
+                      <input
+                        type="number"
+                        min={0}
+                        max={lineTotal}
+                        value={itemId != null ? (splitAllocations[itemId] ?? "") : ""}
+                        onChange={(e) => {
+                          if (itemId == null) return;
+                          setSplitAllocations((prev) => ({
+                            ...prev,
+                            [itemId]: e.target.value,
+                          }));
+                        }}
+                        placeholder="0"
+                        style={{
+                          width: 90,
+                          borderRadius: 6,
+                          border: "1px solid #d1d5db",
+                          padding: "3px 6px",
+                          fontSize: 13,
+                          textAlign: "right",
+                        }}
+                      />
+                      <span style={{ fontSize: 12 }}>₮</span>
+                    </div>
+                  );
+                })}
+                <div
+                  style={{
+                    fontSize: 12,
+                    marginTop: 4,
+                    color:
+                      Math.abs(splitAllocTotal - amountToCurrent) <= PAYMENT_ALLOCATION_TOLERANCE
+                        ? "#15803d"
+                        : "#b91c1c",
+                  }}
+                >
+                  Нийлбэр: {formatMoney(splitAllocTotal)} ₮ / {formatMoney(amountToCurrent)} ₮
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {loadingMethods ? (
           <div style={{ fontSize: 13, color: "#6b7280" }}>
             Төлбөрийн аргууд ачаалж байна...

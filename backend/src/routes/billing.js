@@ -80,6 +80,47 @@ async function getPatientBalance(patientId) {
   return { totalBilled, totalPaid, balance };
 }
 
+/**
+ * Helper: compute outstanding balance on old invoices (excluding a given invoiceId).
+ * Returns the sum of (finalAmount - paidTotal) for invoices where unpaid > 0.
+ * Used for FIFO split payment allocation.
+ */
+async function getPatientOldBalance(patientId, excludeInvoiceId) {
+  const where = { patientId };
+  if (excludeInvoiceId) where.NOT = { id: excludeInvoiceId };
+
+  const invoices = await prisma.invoice.findMany({
+    where,
+    select: { id: true, finalAmount: true, totalAmount: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (invoices.length === 0) return 0;
+
+  const invoiceIds = invoices.map((inv) => inv.id);
+  const payments = await prisma.payment.groupBy({
+    by: ["invoiceId"],
+    where: { invoiceId: { in: invoiceIds } },
+    _sum: { amount: true },
+  });
+
+  const paidByInvoice = new Map();
+  for (const p of payments) {
+    paidByInvoice.set(p.invoiceId, Number(p._sum.amount || 0));
+  }
+
+  let oldBalance = 0;
+  for (const inv of invoices) {
+    const billed =
+      inv.finalAmount != null ? Number(inv.finalAmount) : Number(inv.totalAmount || 0);
+    const paid = paidByInvoice.get(inv.id) || 0;
+    const unpaid = billed - paid;
+    if (unpaid > 0) oldBalance += unpaid;
+  }
+
+  return Number(oldBalance.toFixed(2));
+}
+
 router.get("/encounters/:id/invoice", async (req, res) => {
   const encounterId = Number(req.params.id);
   if (!encounterId || Number.isNaN(encounterId)) {
@@ -109,6 +150,14 @@ router.get("/encounters/:id/invoice", async (req, res) => {
       const discountNum = discountPercentToNumber(existingInvoice.discountPercent);
       const balanceData = await getPatientBalance(patient.id);
 
+      // Detect marker: any encounter service whose service.category === "PREVIOUS"
+      const hasMarker = (encounter.encounterServices || []).some(
+        (es) => es.service?.category === "PREVIOUS"
+      );
+      const patientOldBalance = hasMarker
+        ? await getPatientOldBalance(patient.id, existingInvoice.id)
+        : 0;
+
       return res.json({
         id: existingInvoice.id,
         branchId: existingInvoice.branchId,
@@ -134,6 +183,8 @@ router.get("/encounters/:id/invoice", async (req, res) => {
         patientTotalBilled: balanceData.totalBilled,
         patientTotalPaid: balanceData.totalPaid,
         patientBalance: balanceData.balance,
+        hasMarker,
+        patientOldBalance,
       });
     }
 
@@ -162,6 +213,14 @@ router.get("/encounters/:id/invoice", async (req, res) => {
     const totalBeforeDiscount = provisionalItems.reduce((sum, it) => sum + it.lineTotal, 0);
     const balanceData = await getPatientBalance(patientId);
 
+    // Detect marker for provisional case too
+    const hasMarker = (encounter.encounterServices || []).some(
+      (es) => es.service?.category === "PREVIOUS"
+    );
+    const patientOldBalance = hasMarker
+      ? await getPatientOldBalance(patientId, null)
+      : 0;
+
     return res.json({
       id: null,
       branchId,
@@ -178,6 +237,8 @@ router.get("/encounters/:id/invoice", async (req, res) => {
       patientTotalBilled: balanceData.totalBilled,
       patientTotalPaid: balanceData.totalPaid,
       patientBalance: balanceData.balance,
+      hasMarker,
+      patientOldBalance,
     });
   } catch (err) {
     console.error("GET /encounters/:id/invoice failed:", err);
@@ -425,6 +486,319 @@ router.post("/encounters/:id/invoice", async (req, res) => {
       return res.status(400).json({ error: err.message });
     }
     return res.status(500).json({ error: "Failed to save invoice for encounter." });
+  }
+});
+
+/**
+ * POST /api/billing/encounters/:id/batch-settlement
+ *
+ * Split-payment endpoint: optionally pay previous invoices FIFO before current.
+ *
+ * Body:
+ * {
+ *   amount: number;              // total payment amount (> 0)
+ *   method: string;              // payment method key
+ *   closeOldBalance?: boolean;   // true = apply FIFO to previous unpaid invoices first
+ *   splitAllocations?: { invoiceItemId: number; amount: number }[];
+ *                                // per-service allocation for current invoice (SERVICE items only)
+ *   issueEBarimt?: boolean;
+ *   meta?: object;
+ * }
+ */
+router.post("/encounters/:id/batch-settlement", async (req, res) => {
+  const encounterId = Number(req.params.id);
+  if (!encounterId || Number.isNaN(encounterId)) {
+    return res.status(400).json({ error: "Invalid encounter id." });
+  }
+
+  const { amount, method, closeOldBalance, splitAllocations, issueEBarimt, meta } =
+    req.body || {};
+
+  const payAmount = Number(amount || 0);
+  if (!payAmount || payAmount <= 0) {
+    return res.status(400).json({ error: "amount must be a number greater than zero." });
+  }
+
+  if (!method || typeof method !== "string" || !method.trim()) {
+    return res.status(400).json({ error: "method is required for payment." });
+  }
+  const methodStr = method.trim().toUpperCase();
+
+  try {
+    // Load current encounter + invoice
+    const encounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      include: {
+        patientBook: { include: { patient: true } },
+        invoice: {
+          include: {
+            items: true,
+            payments: true,
+            eBarimtReceipt: true,
+            encounter: {
+              include: {
+                appointment: true,
+                patientBook: { include: { patient: true } },
+              },
+            },
+          },
+        },
+        appointment: true,
+      },
+    });
+
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found." });
+    }
+
+    const invoice = encounter.invoice;
+    if (!invoice) {
+      return res.status(409).json({ error: "No invoice found for this encounter. Save invoice structure first." });
+    }
+
+    const patient = encounter.patientBook?.patient;
+    if (!patient) {
+      return res.status(409).json({ error: "Encounter has no linked patient." });
+    }
+
+    // Sterilization mismatch gate (applies to current encounter)
+    const unresolvedMismatch = await prisma.sterilizationMismatch.findFirst({
+      where: { encounterId, status: "UNRESOLVED" },
+      select: { id: true },
+    });
+    if (unresolvedMismatch) {
+      return res.status(400).json({
+        error: "Төлбөр батлах боломжгүй: Ариутгалын тохиргоо дутуу байна. Эхлээд ариутгалын зөрүүг шийдвэрлэнэ үү.",
+        errorCode: "UNRESOLVED_STERILIZATION_MISMATCH",
+      });
+    }
+
+    // Compute current invoice base amount
+    const currentBaseAmount =
+      invoice.finalAmount != null
+        ? Number(invoice.finalAmount)
+        : Number(invoice.totalAmount || 0);
+
+    if (!currentBaseAmount || currentBaseAmount <= 0) {
+      return res.status(409).json({ error: "Invoice has no positive amount." });
+    }
+
+    const currentAlreadyPaid = (invoice.payments || []).reduce(
+      (s, p) => s + Number(p.amount || 0),
+      0
+    );
+
+    // Validate split allocations reference SERVICE items on this invoice
+    if (splitAllocations && Array.isArray(splitAllocations) && splitAllocations.length > 0) {
+      const serviceItemIds = new Set(
+        invoice.items.filter((it) => it.itemType === "SERVICE").map((it) => it.id)
+      );
+      for (const alloc of splitAllocations) {
+        if (!serviceItemIds.has(Number(alloc.invoiceItemId))) {
+          return res.status(400).json({
+            error: `invoiceItemId ${alloc.invoiceItemId} is not a SERVICE item of this invoice.`,
+          });
+        }
+        if (Number(alloc.amount) < 0) {
+          return res.status(400).json({ error: "Allocation amount cannot be negative." });
+        }
+      }
+    }
+
+    // ── FIFO computation ────────────────────────────────────────
+    let amountForOld = 0;
+    let amountForCurrent = payAmount;
+
+    if (closeOldBalance) {
+      // Find old unpaid invoices for this patient (excluding current), oldest first
+      const oldInvoices = await prisma.invoice.findMany({
+        where: { patientId: patient.id, NOT: { id: invoice.id } },
+        include: { payments: true, encounter: { include: { appointment: true } } },
+        orderBy: { createdAt: "asc" },
+      });
+
+      let totalOldBalance = 0;
+      for (const oi of oldInvoices) {
+        const billed =
+          oi.finalAmount != null ? Number(oi.finalAmount) : Number(oi.totalAmount || 0);
+        const paid = (oi.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+        const unpaid = Math.max(billed - paid, 0);
+        totalOldBalance += unpaid;
+      }
+
+      amountForOld = Math.min(payAmount, totalOldBalance);
+      amountForCurrent = Math.max(payAmount - amountForOld, 0);
+    }
+
+    // ── Execute in transaction ────────────────────────────────────
+    const result = await prisma.$transaction(async (trx) => {
+      // 1) Apply FIFO payments to old invoices
+      if (amountForOld > 0) {
+        const oldInvoices = await trx.invoice.findMany({
+          where: { patientId: patient.id, NOT: { id: invoice.id } },
+          include: { payments: true },
+          orderBy: { createdAt: "asc" },
+        });
+
+        let remaining = amountForOld;
+
+        for (const oi of oldInvoices) {
+          if (remaining <= 0) break;
+
+          const billed =
+            oi.finalAmount != null ? Number(oi.finalAmount) : Number(oi.totalAmount || 0);
+          const paid = (oi.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+          const unpaid = Math.max(billed - paid, 0);
+          if (unpaid <= 0) continue;
+
+          const chunk = Math.min(remaining, unpaid);
+          remaining -= chunk;
+
+          await trx.payment.create({
+            data: {
+              invoiceId: oi.id,
+              amount: chunk,
+              method: methodStr,
+              meta: meta || null,
+              timestamp: new Date(),
+            },
+          });
+
+          // Recompute status for old invoice
+          const newPaid = paid + chunk;
+          const newStatus =
+            newPaid >= billed ? "paid" : newPaid > 0 ? "partial" : "unpaid";
+          await trx.invoice.update({
+            where: { id: oi.id },
+            data: { statusLegacy: newStatus },
+          });
+        }
+      }
+
+      // 2) Apply payment to current invoice (if any)
+      let currentPaymentId = null;
+      if (amountForCurrent > 0) {
+        // Check if already fully paid
+        if (currentAlreadyPaid >= currentBaseAmount) {
+          throw new Error("Current invoice is already fully paid.");
+        }
+
+        const newPayment = await trx.payment.create({
+          data: {
+            invoiceId: invoice.id,
+            amount: amountForCurrent,
+            method: methodStr,
+            meta: meta || null,
+            timestamp: new Date(),
+          },
+        });
+        currentPaymentId = newPayment.id;
+
+        const newPaidTotal = currentAlreadyPaid + amountForCurrent;
+        const newStatus =
+          newPaidTotal >= currentBaseAmount
+            ? "paid"
+            : newPaidTotal > 0
+            ? "partial"
+            : "unpaid";
+
+        await trx.invoice.update({
+          where: { id: invoice.id },
+          data: { statusLegacy: newStatus },
+        });
+
+        // Update appointment status if present
+        if (encounter.appointment?.id) {
+          const appStatus =
+            newPaidTotal >= currentBaseAmount ? "completed" : "partial_paid";
+          await trx.appointment.update({
+            where: { id: encounter.appointment.id },
+            data: { status: appStatus },
+          });
+        }
+
+        // Issue e-Barimt if requested and invoice fully paid
+        if (
+          issueEBarimt === true &&
+          !invoice.eBarimtReceipt &&
+          newPaidTotal >= currentBaseAmount
+        ) {
+          const receiptNumber = `MDENT-${invoice.id}-${Date.now()}`;
+          await trx.eBarimtReceipt.create({
+            data: { invoiceId: invoice.id, receiptNumber, timestamp: new Date() },
+          });
+        }
+      }
+
+      // 3) Persist split allocations for current invoice payment
+      if (
+        currentPaymentId &&
+        splitAllocations &&
+        Array.isArray(splitAllocations) &&
+        splitAllocations.length > 0
+      ) {
+        await trx.paymentAllocation.createMany({
+          data: splitAllocations.map((a) => ({
+            paymentId: currentPaymentId,
+            invoiceItemId: Number(a.invoiceItemId),
+            amount: Number(a.amount),
+          })),
+        });
+      }
+
+      // 4) Reload updated current invoice
+      const updatedInvoice = await trx.invoice.findUnique({
+        where: { id: invoice.id },
+        include: { items: true, payments: true, eBarimtReceipt: true },
+      });
+
+      return { updatedInvoice };
+    });
+
+    const { updatedInvoice } = result;
+    const paidTotal = (updatedInvoice.payments || []).reduce(
+      (s, p) => s + Number(p.amount || 0),
+      0
+    );
+
+    return res.json({
+      id: updatedInvoice.id,
+      branchId: updatedInvoice.branchId,
+      encounterId: updatedInvoice.encounterId,
+      patientId: updatedInvoice.patientId,
+      status: updatedInvoice.statusLegacy,
+      totalBeforeDiscount: updatedInvoice.totalBeforeDiscount,
+      discountPercent: discountPercentToNumber(updatedInvoice.discountPercent),
+      collectionDiscountAmount: updatedInvoice.collectionDiscountAmount || 0,
+      finalAmount: updatedInvoice.finalAmount,
+      paidTotal,
+      unpaidAmount: Math.max(currentBaseAmount - paidTotal, 0),
+      hasEBarimt: !!updatedInvoice.eBarimtReceipt,
+      amountAppliedToOld: amountForOld,
+      amountAppliedToCurrent: amountForCurrent,
+      items: updatedInvoice.items.map((it) => ({
+        id: it.id,
+        itemType: it.itemType,
+        serviceId: it.serviceId,
+        productId: it.productId,
+        name: it.name,
+        unitPrice: it.unitPrice,
+        quantity: it.quantity,
+        lineTotal: it.lineTotal,
+        source: it.source,
+      })),
+      payments: updatedInvoice.payments.map((p) => ({
+        id: p.id,
+        amount: p.amount,
+        method: p.method,
+        timestamp: p.timestamp,
+      })),
+    });
+  } catch (err) {
+    console.error("POST /encounters/:id/batch-settlement error:", err);
+    return res
+      .status(500)
+      .json({ error: err.message || "Failed to process batch settlement." });
   }
 });
 

@@ -113,7 +113,9 @@ router.get("/doctors-income", async (req, res) => {
       const finalAmount = Number(inv.finalAmount || 0);
       const netMultiplier = totalBefore > 0 ? finalAmount / totalBefore : 0;
 
-      const serviceItems = (inv.items || []).filter((it) => it.itemType === "SERVICE");
+      const serviceItems = (inv.items || []).filter(
+        (it) => it.itemType === "SERVICE" && it.service?.category !== "PREVIOUS"
+      );
       
       // Separate IMAGING and NON-IMAGING services for doctor sales calculation
       const nonImagingServiceItems = serviceItems.filter(
@@ -365,7 +367,9 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
       const finalAmount = Number(inv.finalAmount || 0);
       const netMultiplier = totalBefore > 0 ? finalAmount / totalBefore : 0;
 
-      const serviceItems = (inv.items || []).filter((it) => it.itemType === "SERVICE");
+      const serviceItems = (inv.items || []).filter(
+        (it) => it.itemType === "SERVICE" && it.service?.category !== "PREVIOUS"
+      );
       if (!serviceItems.length) continue;
 
       const invoiceCategoryNet = {
