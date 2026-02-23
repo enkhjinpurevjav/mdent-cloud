@@ -1,67 +1,11 @@
 import express from "express";
 import prisma from "../db.js";
+import {
+  computePaidTotal,
+  applyPaymentToInvoice,
+} from "../services/settlementService.js";
 
 const router = express.Router();
-
-/**
- * Helper: compute paid total from a list of payments.
- */
-function computePaidTotal(payments) {
-  return (payments || []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
-}
-
-/**
- * Helper: get branchId/patientId for financial + stock ops from an invoice object
- * (Invoice.branchId and Invoice.patientId are nullable in schema).
- */
-function getInvoiceBranchAndPatient(invoice) {
-  const patient = invoice?.encounter?.patientBook?.patient;
-  const branchId = invoice.branchId ?? patient?.branchId ?? null;
-  const patientId = invoice.patientId ?? patient?.id ?? null;
-  return { branchId, patientId };
-}
-
-/**
- * Helper: create SALE stock movements once when invoice becomes fully paid.
- *
- * IMPORTANT:
- * - Your original desired approach was "on paid LedgerEntry".
- * - This settlement route currently creates Payment rows, not LedgerEntry rows.
- * - Therefore idempotency here is keyed by invoiceId (type=SALE).
- * - If you later create LedgerEntry in this route, you can key by ledgerEntryId instead.
- */
-async function ensureSaleStockMovementsOnce(trx, invoice, invoiceId, methodStr) {
-  // Only create SALE movements if there are PRODUCT invoice items
-  const productItems = (invoice?.items || []).filter(
-    (it) => it.itemType === "PRODUCT" && it.productId && it.quantity
-  );
-  if (productItems.length === 0) return;
-
-  const { branchId } = getInvoiceBranchAndPatient(invoice);
-  if (!branchId) {
-    // If branchId is missing, we cannot create valid movements
-    throw new Error("Cannot determine branchId for stock movement.");
-  }
-
-  // Idempotency: if we already created SALE movements for this invoice, do nothing
-  const already = await trx.productStockMovement.findFirst({
-    where: { invoiceId: invoiceId, type: "SALE" },
-    select: { id: true },
-  });
-  if (already) return;
-
-  await trx.productStockMovement.createMany({
-    data: productItems.map((it) => ({
-      branchId,
-      productId: it.productId,
-      type: "SALE",
-      quantityDelta: -Math.abs(Math.trunc(it.quantity)),
-      invoiceId: invoiceId,
-      ledgerEntryId: null,
-      note: `Auto SALE on invoice paid (method=${methodStr})`,
-    })),
-  });
-}
 
 /**
  * POST /api/invoices/:id/settlement
@@ -172,8 +116,6 @@ router.post("/:id/settlement", async (req, res) => {
       });
     }
 
-    const hadEBarimt = !!invoice.eBarimtReceipt;
-
     // ─────────────────────────────────────────────────────────────
     // SPECIAL CASE: EMPLOYEE_BENEFIT
     // ─────────────────────────────────────────────────────────────
@@ -231,73 +173,13 @@ router.post("/:id/settlement", async (req, res) => {
             },
           });
 
-          // 3) Create payment row (legacy Payment table)
-          await trx.payment.create({
-            data: {
-              invoiceId,
-              amount: payAmount,
-              method: methodStr,
-              meta: meta || null,
-              timestamp: new Date(),
-            },
-          });
-
-          // 4) Re-read all payments to compute new totals
-          const payments = await trx.payment.findMany({
-            where: { invoiceId },
-          });
-          const paidTotal = computePaidTotal(payments);
-
-          // 5) Decide new statusLegacy
-          let statusLegacy = invoice.statusLegacy || "unpaid";
-          if (paidTotal >= baseAmount) {
-            statusLegacy = "paid";
-          } else if (paidTotal > 0) {
-            statusLegacy = "partial";
-          } else {
-            statusLegacy = "unpaid";
-          }
-
-          // ✅ NEW: If fully paid, decrement stock once (SALE movements)
-          if (paidTotal >= baseAmount) {
-            await ensureSaleStockMovementsOnce(
-              trx,
-              invoice,
-              invoiceId,
-              methodStr
-            );
-          }
-
-          // 6) Optionally issue e-Barimt
-          let eBarimtReceipt = invoice.eBarimtReceipt;
-          if (
-            !hadEBarimt &&
-            !eBarimtReceipt &&
-            paidTotal >= baseAmount &&
-            issueEBarimt === true
-          ) {
-            const receiptNumber = `MDENT-${invoiceId}-${Date.now()}`;
-            const receipt = await trx.eBarimtReceipt.create({
-              data: {
-                invoiceId,
-                receiptNumber,
-                timestamp: new Date(),
-              },
-            });
-            eBarimtReceipt = receipt;
-          }
-
-          // 7) Update invoice with new statusLegacy
-          const updatedInvoice = await trx.invoice.update({
-            where: { id: invoiceId },
-            data: {
-              statusLegacy,
-            },
-            include: {
-              items: true,
-              payments: true,
-              eBarimtReceipt: true,
-            },
+          // 3) Apply payment using shared settlement logic
+          const { updatedInvoice, paidTotal } = await applyPaymentToInvoice(trx, {
+            invoice,
+            payAmount,
+            methodStr,
+            issueEBarimt,
+            meta,
           });
 
           return { updatedInvoice, paidTotal };
@@ -418,102 +300,20 @@ router.post("/:id/settlement", async (req, res) => {
       }
     }
 
+    const qpayTxnId =
+      methodStr === "QPAY" && meta && typeof meta.qpayPaymentId === "string"
+        ? meta.qpayPaymentId.trim() || null
+        : null;
+
     const updated = await prisma.$transaction(async (trx) => {
-      // 1) Create new payment row
-      const paymentData = {
-        invoiceId,
-        amount: payAmount,
-        method: methodStr,
-        meta: meta || null,
-        timestamp: new Date(),
-      };
-
-      // Add qpayTxnId if QPAY method (for backward compatibility)
-      if (methodStr === "QPAY") {
-        const qpayPaymentId =
-          meta && typeof meta.qpayPaymentId === "string"
-            ? meta.qpayPaymentId.trim()
-            : null;
-        paymentData.qpayTxnId = qpayPaymentId;
-      }
-
-      await trx.payment.create({
-        data: paymentData,
+      return applyPaymentToInvoice(trx, {
+        invoice,
+        payAmount,
+        methodStr,
+        issueEBarimt,
+        meta,
+        qpayTxnId,
       });
-
-      // 2) Re-read all payments to compute new totals
-      const payments = await trx.payment.findMany({
-        where: { invoiceId },
-      });
-      const paidTotal = computePaidTotal(payments);
-
-      // 3) Decide new statusLegacy
-      let statusLegacy = invoice.statusLegacy || "unpaid";
-      if (paidTotal >= baseAmount) {
-        statusLegacy = "paid";
-      } else if (paidTotal > 0) {
-        statusLegacy = "partial";
-      } else {
-        statusLegacy = "unpaid";
-      }
-
-      // ✅ NEW: If fully paid, decrement stock once (SALE movements)
-      if (paidTotal >= baseAmount) {
-        await ensureSaleStockMovementsOnce(trx, invoice, invoiceId, methodStr);
-      }
-
-      // 4) Optionally issue e-Barimt if fully paid and requested and not already issued
-      let eBarimtReceipt = invoice.eBarimtReceipt;
-      if (
-        !hadEBarimt &&
-        !eBarimtReceipt &&
-        paidTotal >= baseAmount &&
-        issueEBarimt === true
-      ) {
-        const receiptNumber = `MDENT-${invoiceId}-${Date.now()}`;
-        const receipt = await trx.eBarimtReceipt.create({
-          data: {
-            invoiceId,
-            receiptNumber,
-            timestamp: new Date(),
-          },
-        });
-        eBarimtReceipt = receipt;
-      }
-
-      // 5) Update invoice with new statusLegacy
-      const updatedInvoice = await trx.invoice.update({
-        where: { id: invoiceId },
-        data: {
-          statusLegacy,
-        },
-        include: {
-          items: true,
-          payments: true,
-          eBarimtReceipt: true,
-        },
-      });
-
-      // 6) Update appointment status based on payment totals
-      if (invoice.encounter?.appointmentId) {
-        let newAppointmentStatus;
-        
-        if (paidTotal === 0) {
-          newAppointmentStatus = "ready_to_pay";
-        } else if (paidTotal >= baseAmount) {
-          newAppointmentStatus = "completed";
-        } else {
-          // 0 < paidTotal < baseAmount
-          newAppointmentStatus = "partial_paid";
-        }
-
-        await trx.appointment.update({
-          where: { id: invoice.encounter.appointmentId },
-          data: { status: newAppointmentStatus },
-        });
-      }
-
-      return { updatedInvoice, paidTotal };
     });
 
     const { updatedInvoice, paidTotal } = updated;

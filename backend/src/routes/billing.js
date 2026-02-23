@@ -1,5 +1,6 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
+import { applyPaymentToInvoice, computePaidTotal } from "../services/settlementService.js";
 
 const prisma = new PrismaClient();
 const router = express.Router();
@@ -158,6 +159,24 @@ router.get("/encounters/:id/invoice", async (req, res) => {
         ? await getPatientOldBalance(patient.id, existingInvoice.id)
         : 0;
 
+      // Compute per-item already-allocated amounts for split payment display
+      const serviceItemIds = existingInvoice.items
+        .filter((it) => it.itemType === "SERVICE")
+        .map((it) => it.id);
+
+      const allocGroups =
+        serviceItemIds.length > 0
+          ? await prisma.paymentAllocation.groupBy({
+              by: ["invoiceItemId"],
+              where: { invoiceItemId: { in: serviceItemIds } },
+              _sum: { amount: true },
+            })
+          : [];
+
+      const allocByItemId = new Map(
+        allocGroups.map((a) => [a.invoiceItemId, Number(a._sum.amount || 0)])
+      );
+
       return res.json({
         id: existingInvoice.id,
         branchId: existingInvoice.branchId,
@@ -179,6 +198,7 @@ router.get("/encounters/:id/invoice", async (req, res) => {
           quantity: it.quantity,
           lineTotal: it.lineTotal,
           source: it.source,
+          alreadyAllocated: allocByItemId.get(it.id) ?? 0,
         })),
         patientTotalBilled: balanceData.totalBilled,
         patientTotalPaid: balanceData.totalPaid,
@@ -489,10 +509,14 @@ router.post("/encounters/:id/invoice", async (req, res) => {
   }
 });
 
+// Floating-point tolerance for split allocation comparisons (in ₮)
+const ALLOCATION_TOLERANCE = 0.01;
+
 /**
  * POST /api/billing/encounters/:id/batch-settlement
  *
  * Split-payment endpoint: optionally pay previous invoices FIFO before current.
+ * Only allowed when encounter contains a marker service (service.category === PREVIOUS).
  *
  * Body:
  * {
@@ -525,21 +549,19 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
   const methodStr = method.trim().toUpperCase();
 
   try {
-    // Load current encounter + invoice
+    // Load current encounter + invoice (including encounterServices for marker gating)
     const encounter = await prisma.encounter.findUnique({
       where: { id: encounterId },
       include: {
         patientBook: { include: { patient: true } },
+        encounterServices: { include: { service: true } },
         invoice: {
           include: {
             items: true,
             payments: true,
             eBarimtReceipt: true,
             encounter: {
-              include: {
-                appointment: true,
-                patientBook: { include: { patient: true } },
-              },
+              select: { appointmentId: true },
             },
           },
         },
@@ -561,6 +583,24 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
       return res.status(409).json({ error: "Encounter has no linked patient." });
     }
 
+    // ── Marker gating ────────────────────────────────────────────
+    // closeOldBalance and splitAllocations are only valid when the encounter
+    // contains a marker service (category === PREVIOUS).
+    const hasMarker = (encounter.encounterServices || []).some(
+      (es) => es.service?.category === "PREVIOUS"
+    );
+
+    const usesSpecialFlow =
+      closeOldBalance === true ||
+      (Array.isArray(splitAllocations) && splitAllocations.length > 0);
+
+    if (usesSpecialFlow && !hasMarker) {
+      return res.status(400).json({
+        error:
+          "closeOldBalance and splitAllocations require a marker service (PREVIOUS category) in this encounter.",
+      });
+    }
+
     // Sterilization mismatch gate (applies to current encounter)
     const unresolvedMismatch = await prisma.sterilizationMismatch.findFirst({
       where: { encounterId, status: "UNRESOLVED" },
@@ -573,34 +613,54 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
       });
     }
 
-    // Compute current invoice base amount
+    // Compute current invoice base amount and already-paid total
     const currentBaseAmount =
       invoice.finalAmount != null
         ? Number(invoice.finalAmount)
         : Number(invoice.totalAmount || 0);
 
-    if (!currentBaseAmount || currentBaseAmount <= 0) {
-      return res.status(409).json({ error: "Invoice has no positive amount." });
-    }
+    const currentAlreadyPaid = computePaidTotal(invoice.payments);
 
-    const currentAlreadyPaid = (invoice.payments || []).reduce(
-      (s, p) => s + Number(p.amount || 0),
-      0
-    );
+    // Validate split allocations: must reference SERVICE items, amounts must not
+    // exceed the remaining unpaid per line (lineTotal − alreadyAllocated).
+    if (Array.isArray(splitAllocations) && splitAllocations.length > 0) {
+      const serviceItems = invoice.items.filter((it) => it.itemType === "SERVICE");
+      const serviceItemMap = new Map(serviceItems.map((it) => [it.id, it]));
 
-    // Validate split allocations reference SERVICE items on this invoice
-    if (splitAllocations && Array.isArray(splitAllocations) && splitAllocations.length > 0) {
-      const serviceItemIds = new Set(
-        invoice.items.filter((it) => it.itemType === "SERVICE").map((it) => it.id)
+      // Query existing allocation totals for these items
+      const existingAllocGroups = serviceItems.length > 0
+        ? await prisma.paymentAllocation.groupBy({
+            by: ["invoiceItemId"],
+            where: { invoiceItemId: { in: serviceItems.map((it) => it.id) } },
+            _sum: { amount: true },
+          })
+        : [];
+      const existingAllocByItemId = new Map(
+        existingAllocGroups.map((a) => [a.invoiceItemId, Number(a._sum.amount || 0)])
       );
+
       for (const alloc of splitAllocations) {
-        if (!serviceItemIds.has(Number(alloc.invoiceItemId))) {
+        const itemId = Number(alloc.invoiceItemId);
+        const allocAmt = Number(alloc.amount);
+
+        if (!serviceItemMap.has(itemId)) {
           return res.status(400).json({
             error: `invoiceItemId ${alloc.invoiceItemId} is not a SERVICE item of this invoice.`,
           });
         }
-        if (Number(alloc.amount) < 0) {
+        if (allocAmt < 0) {
           return res.status(400).json({ error: "Allocation amount cannot be negative." });
+        }
+
+        const item = serviceItemMap.get(itemId);
+        const lineTotal = Number(item.lineTotal || 0);
+        const alreadyAllocated = existingAllocByItemId.get(itemId) || 0;
+        const remaining = lineTotal - alreadyAllocated;
+
+        if (allocAmt > remaining + ALLOCATION_TOLERANCE) {
+          return res.status(400).json({
+            error: `Allocation for item "${item.name}" (${itemId}) exceeds remaining unpaid amount (${remaining.toFixed(2)}).`,
+          });
         }
       }
     }
@@ -613,7 +673,7 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
       // Find old unpaid invoices for this patient (excluding current), oldest first
       const oldInvoices = await prisma.invoice.findMany({
         where: { patientId: patient.id, NOT: { id: invoice.id } },
-        include: { payments: true, encounter: { include: { appointment: true } } },
+        include: { payments: true },
         orderBy: { createdAt: "asc" },
       });
 
@@ -621,7 +681,7 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
       for (const oi of oldInvoices) {
         const billed =
           oi.finalAmount != null ? Number(oi.finalAmount) : Number(oi.totalAmount || 0);
-        const paid = (oi.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+        const paid = computePaidTotal(oi.payments);
         const unpaid = Math.max(billed - paid, 0);
         totalOldBalance += unpaid;
       }
@@ -630,13 +690,23 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
       amountForCurrent = Math.max(payAmount - amountForOld, 0);
     }
 
+    // Cap amountForCurrent to what the current invoice can still accept.
+    // This ensures a 0₮ marker-only invoice never receives an accidental payment.
+    const currentRemaining = Math.max(currentBaseAmount - currentAlreadyPaid, 0);
+    amountForCurrent = Math.min(amountForCurrent, currentRemaining);
+
     // ── Execute in transaction ────────────────────────────────────
     const result = await prisma.$transaction(async (trx) => {
-      // 1) Apply FIFO payments to old invoices
+      // 1) Apply FIFO payments to old invoices using shared settlement logic
       if (amountForOld > 0) {
         const oldInvoices = await trx.invoice.findMany({
           where: { patientId: patient.id, NOT: { id: invoice.id } },
-          include: { payments: true },
+          include: {
+            items: true,
+            payments: true,
+            eBarimtReceipt: true,
+            encounter: { select: { appointmentId: true } },
+          },
           orderBy: { createdAt: "asc" },
         });
 
@@ -647,35 +717,24 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
 
           const billed =
             oi.finalAmount != null ? Number(oi.finalAmount) : Number(oi.totalAmount || 0);
-          const paid = (oi.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+          const paid = computePaidTotal(oi.payments);
           const unpaid = Math.max(billed - paid, 0);
           if (unpaid <= 0) continue;
 
           const chunk = Math.min(remaining, unpaid);
           remaining -= chunk;
 
-          await trx.payment.create({
-            data: {
-              invoiceId: oi.id,
-              amount: chunk,
-              method: methodStr,
-              meta: meta || null,
-              timestamp: new Date(),
-            },
-          });
-
-          // Recompute status for old invoice
-          const newPaid = paid + chunk;
-          const newStatus =
-            newPaid >= billed ? "paid" : newPaid > 0 ? "partial" : "unpaid";
-          await trx.invoice.update({
-            where: { id: oi.id },
-            data: { statusLegacy: newStatus },
+          await applyPaymentToInvoice(trx, {
+            invoice: oi,
+            payAmount: chunk,
+            methodStr,
+            issueEBarimt: false, // no e-Barimt for old invoices
+            meta,
           });
         }
       }
 
-      // 2) Apply payment to current invoice (if any)
+      // 2) Apply payment to current invoice (if any amount remains for it)
       let currentPaymentId = null;
       if (amountForCurrent > 0) {
         // Check if already fully paid
@@ -683,57 +742,27 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
           throw new Error("Current invoice is already fully paid.");
         }
 
-        const newPayment = await trx.payment.create({
-          data: {
-            invoiceId: invoice.id,
-            amount: amountForCurrent,
-            method: methodStr,
-            meta: meta || null,
-            timestamp: new Date(),
-          },
+        // Build a minimal invoice object for applyPaymentToInvoice that includes
+        // the encounter appointmentId (needed for appointment status update).
+        const invoiceForSettlement = {
+          ...invoice,
+          encounter: { appointmentId: encounter.appointmentId ?? null },
+        };
+
+        const { newPayment } = await applyPaymentToInvoice(trx, {
+          invoice: invoiceForSettlement,
+          payAmount: amountForCurrent,
+          methodStr,
+          issueEBarimt,
+          meta,
         });
+
         currentPaymentId = newPayment.id;
-
-        const newPaidTotal = currentAlreadyPaid + amountForCurrent;
-        const newStatus =
-          newPaidTotal >= currentBaseAmount
-            ? "paid"
-            : newPaidTotal > 0
-            ? "partial"
-            : "unpaid";
-
-        await trx.invoice.update({
-          where: { id: invoice.id },
-          data: { statusLegacy: newStatus },
-        });
-
-        // Update appointment status if present
-        if (encounter.appointment?.id) {
-          const appStatus =
-            newPaidTotal >= currentBaseAmount ? "completed" : "partial_paid";
-          await trx.appointment.update({
-            where: { id: encounter.appointment.id },
-            data: { status: appStatus },
-          });
-        }
-
-        // Issue e-Barimt if requested and invoice fully paid
-        if (
-          issueEBarimt === true &&
-          !invoice.eBarimtReceipt &&
-          newPaidTotal >= currentBaseAmount
-        ) {
-          const receiptNumber = `MDENT-${invoice.id}-${Date.now()}`;
-          await trx.eBarimtReceipt.create({
-            data: { invoiceId: invoice.id, receiptNumber, timestamp: new Date() },
-          });
-        }
       }
 
       // 3) Persist split allocations for current invoice payment
       if (
         currentPaymentId &&
-        splitAllocations &&
         Array.isArray(splitAllocations) &&
         splitAllocations.length > 0
       ) {
@@ -756,10 +785,7 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
     });
 
     const { updatedInvoice } = result;
-    const paidTotal = (updatedInvoice.payments || []).reduce(
-      (s, p) => s + Number(p.amount || 0),
-      0
-    );
+    const paidTotal = computePaidTotal(updatedInvoice.payments);
 
     return res.json({
       id: updatedInvoice.id,

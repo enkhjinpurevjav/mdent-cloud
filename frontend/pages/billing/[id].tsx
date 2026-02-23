@@ -34,6 +34,7 @@ type InvoiceItem = {
   lineTotal?: number;
   teethNumbers?: string[];
   source?: "ENCOUNTER" | "MANUAL";
+  alreadyAllocated?: number;
 };
 
 type Payment = { id: number; amount: number; method: string; timestamp: string };
@@ -308,6 +309,30 @@ function BillingPaymentSection({
   }, [invoice.id]);
 
   const handleToggle = (methodKey: string, checked: boolean) => {
+    // In marker workflow, only one payment method is allowed at a time.
+    // When a new method is checked while hasMarker is true, deselect all others first.
+    if (hasMarker && checked) {
+      setEnabled({ [methodKey]: true });
+      setAmounts((prev) => ({ [methodKey]: prev[methodKey] ?? "" }));
+      // Reset all method-specific state that belongs to other methods
+      if (methodKey !== "INSURANCE") setInsuranceProviderId(null);
+      if (methodKey !== "TRANSFER") setTransferNote("");
+      if (methodKey !== "OTHER") setOtherNote("");
+      if (methodKey !== "BARTER") setBarterCode("");
+      if (methodKey !== "EMPLOYEE_BENEFIT") {
+        setEmployeeCode("");
+        setEmployeeRemaining(null);
+      }
+      if (methodKey !== "VOUCHER") {
+        setVoucherCode("");
+        setVoucherType("");
+        setVoucherMaxAmount(null);
+      }
+      if (methodKey !== "APPLICATION") {
+        setAppRows([{ providerId: null, amount: "" }]);
+      }
+      return;
+    }
     setEnabled((prev) => ({ ...prev, [methodKey]: checked }));
     if (!checked) {
       setAmounts((prev) => ({ ...prev, [methodKey]: "" }));
@@ -729,12 +754,15 @@ function BillingPaymentSection({
         );
         return;
       }
-      // Validate each allocation ≤ lineTotal
+      // Validate each allocation ≤ remaining (lineTotal − alreadyAllocated)
       for (const item of invoice.items.filter((it) => it.itemType === "SERVICE")) {
         if (!item.id) continue;
         const allocAmt = Number(splitAllocations[item.id] || 0);
-        if (allocAmt > (item.lineTotal ?? item.unitPrice * item.quantity)) {
-          setError(`"${item.name}" үйлчилгээний хуваалт мөрийн дүнгээс хэтэрсэн байна.`);
+        const lineTotal = item.lineTotal ?? item.unitPrice * item.quantity;
+        const alreadyAllocated = item.alreadyAllocated ?? 0;
+        const remainingForItem = Math.max(lineTotal - alreadyAllocated, 0);
+        if (allocAmt > remainingForItem + PAYMENT_ALLOCATION_TOLERANCE) {
+          setError(`"${item.name}" үйлчилгээний хуваалт үлдэгдэл дүнгээс хэтэрсэн байна (үлдэгдэл: ${formatMoney(remainingForItem)} ₮).`);
           return;
         }
       }
@@ -979,6 +1007,8 @@ function BillingPaymentSection({
                   }
                   const itemId = item.id;
                   const lineTotal = item.lineTotal ?? item.unitPrice * item.quantity;
+                  const alreadyAllocated = item.alreadyAllocated ?? 0;
+                  const remainingForItem = Math.max(lineTotal - alreadyAllocated, 0);
                   return (
                     <div
                       key={itemId ?? `s-${item.serviceId}`}
@@ -993,13 +1023,13 @@ function BillingPaymentSection({
                       <div style={{ flex: 1 }}>
                         {item.name}{" "}
                         <span style={{ color: "#6b7280", fontSize: 12 }}>
-                          (мөрийн дүн: {formatMoney(lineTotal)} ₮)
+                          (Үлдэгдэл: {formatMoney(remainingForItem)} ₮)
                         </span>
                       </div>
                       <input
                         type="number"
                         min={0}
-                        max={lineTotal}
+                        max={remainingForItem}
                         value={itemId != null ? (splitAllocations[itemId] ?? "") : ""}
                         onChange={(e) => {
                           if (itemId == null) return;
