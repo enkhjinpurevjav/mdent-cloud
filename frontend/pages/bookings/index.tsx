@@ -17,7 +17,10 @@ type BookingStatus =
   | "CONFIRMED"
   | "IN_PROGRESS"
   | "COMPLETED"
-  | "CANCELLED";
+  | "CANCELLED"
+  | "ONLINE_HELD"
+  | "ONLINE_CONFIRMED"
+  | "ONLINE_EXPIRED";
 
 type Booking = {
   id: number;
@@ -187,7 +190,7 @@ export default function BookingsPage() {
       setLoadingBookings(true);
       setBookingsError(null);
       try {
-        const url = `/api/bookings?branchId=${selectedBranchId}&date=${selectedDate}`;
+        const url = `/api/bookings?branchId=${selectedBranchId}&date=${selectedDate}&includeOnlineAll=true`;
         const res = await fetch(url);
         const data = await res.json().catch(() => []);
 
@@ -500,14 +503,23 @@ export default function BookingsPage() {
                         case "COMPLETED":
                           return "#fb6190";
                         case "CONFIRMED":
+                        case "ONLINE_CONFIRMED":
                           return "#bbf7d0";
                         case "IN_PROGRESS":
                           return "#f9d89b";
                         case "CANCELLED":
+                        case "ONLINE_EXPIRED":
                           return "#9d9d9d";
+                        case "ONLINE_HELD":
+                          return "#e0e7ff"; // light indigo – temporary block
                         default:
                           return "#67e8f9";
                       }
+                    };
+
+                    const displayLabel = (b: Booking): string => {
+                      if (b.status === "ONLINE_HELD") return "Онлайн (Төлбөр хүлээж буй)";
+                      return formatPatientLabel(b.patient);
                     };
 
                     // no booking
@@ -539,9 +551,7 @@ export default function BookingsPage() {
                             justifyContent: "center",
                             padding: "1px 3px",
                           }}
-                          title={`${formatPatientLabel(
-                            b.patient
-                          )} • ${b.startTime}–${b.endTime}`}
+                          title={`${displayLabel(b)} • ${b.startTime}–${b.endTime}`}
                         >
                           <span
                             style={{
@@ -562,7 +572,7 @@ export default function BookingsPage() {
                                   : "#111827",
                             }}
                           >
-                            {formatPatientLabel(b.patient)}
+                            {displayLabel(b)}
                           </span>
                         </div>
                       );
@@ -610,11 +620,9 @@ export default function BookingsPage() {
                                   ? "1px solid rgba(255,255,255,0.5)"
                                   : undefined,
                             }}
-                            title={`${formatPatientLabel(
-                              b.patient
-                            )} • ${b.startTime}–${b.endTime}`}
+                            title={`${displayLabel(b)} • ${b.startTime}–${b.endTime}`}
                           >
-                            {formatPatientLabel(b.patient)}
+                            {displayLabel(b)}
                           </div>
                         ))}
                       </div>

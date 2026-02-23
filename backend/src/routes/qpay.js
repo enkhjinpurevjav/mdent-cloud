@@ -1,8 +1,11 @@
 import express from "express";
 import prisma from "../db.js";
 import * as qpayService from "../services/qpayService.js";
+import { BookingStatus } from "@prisma/client";
 
 const router = express.Router();
+
+const DEPOSIT_AMOUNT = 30_000;
 
 /**
  * POST /api/qpay/invoice
@@ -152,9 +155,89 @@ router.post("/check", async (req, res) => {
 });
 
 /**
+ * GET/POST /api/qpay/booking/callback
+ * QPay booking deposit callback endpoint.
+ * Validates token, calls payment/check, updates booking status.
+ */
+async function handleBookingCallback(bookingId, token) {
+  if (!bookingId || !token) {
+    console.warn("QPay booking callback: missing bookingId or token");
+    return;
+  }
+
+  const bid = Number(bookingId);
+  if (Number.isNaN(bid)) {
+    console.warn("QPay booking callback: invalid bookingId", bookingId);
+    return;
+  }
+
+  try {
+    const deposit = await prisma.bookingDeposit.findUnique({
+      where: { bookingId: bid },
+    });
+
+    if (!deposit) {
+      console.warn("QPay booking callback: deposit not found for bookingId", bid);
+      return;
+    }
+
+    // Validate token
+    if (deposit.callbackToken !== String(token)) {
+      console.warn("QPay booking callback: invalid token for bookingId", bid);
+      return;
+    }
+
+    // Already settled
+    if (deposit.status === "PAID" || deposit.status === "EXPIRED" || deposit.status === "CANCELLED") {
+      return;
+    }
+
+    // Call payment/check as source of truth
+    const checkResult = await qpayService.checkInvoicePaid(deposit.qpayInvoiceId, deposit.branchId);
+
+    if (checkResult.paid && checkResult.paidAmount >= DEPOSIT_AMOUNT) {
+      await prisma.$transaction([
+        prisma.bookingDeposit.update({
+          where: { bookingId: bid },
+          data: {
+            status: "PAID",
+            paidAmount: checkResult.paidAmount,
+            qpayPaymentId: checkResult.paymentId,
+            paidAt: checkResult.paidAt ? new Date(checkResult.paidAt) : new Date(),
+            raw: checkResult.raw,
+          },
+        }),
+        prisma.booking.update({
+          where: { id: bid },
+          data: { status: BookingStatus.ONLINE_CONFIRMED },
+        }),
+      ]);
+      console.log(`QPay booking callback: bookingId=${bid} confirmed`);
+    }
+  } catch (err) {
+    console.error("QPay booking callback handler error:", err);
+  }
+}
+
+router.get("/booking/callback", async (req, res) => {
+  const { bookingId, token } = req.query || {};
+  // Respond 200 immediately
+  res.status(200).send("OK");
+  await handleBookingCallback(bookingId, token);
+});
+
+router.post("/booking/callback", async (req, res) => {
+  const bookingId = req.query.bookingId || req.body?.bookingId;
+  const token = req.query.token || req.body?.token;
+  // Respond 200 immediately
+  res.status(200).json({ success: true });
+  await handleBookingCallback(bookingId, token);
+});
+
+/**
  * GET/POST /api/qpay/callback
- * QPay callback endpoint (webhook)
- * Minimal implementation - log and return 200
+ * QPay callback endpoint (webhook) for invoice intents.
+ * Hardened: verifies via payment/check instead of blindly setting PAID.
  */
 router.get("/callback", async (req, res) => {
   try {
@@ -167,22 +250,31 @@ router.get("/callback", async (req, res) => {
       query: req.query,
     });
 
-    // Try to map to intent if possible
     if (invoice_id) {
       const intent = await prisma.qPayIntent.findUnique({
         where: { qpayInvoiceId: String(invoice_id) },
       });
 
       if (intent && intent.status !== "PAID") {
-        await prisma.qPayIntent.update({
-          where: { qpayInvoiceId: String(invoice_id) },
-          data: {
-            status: "PAID",
-            qpayPaymentId: payment_id ? String(payment_id) : intent.qpayPaymentId,
-            updatedAt: new Date(),
-          },
-        });
-        console.log(`QPay callback: Updated intent ${intent.id} to PAID`);
+        // Verify via payment/check
+        try {
+          const checkResult = await qpayService.checkInvoicePaid(String(invoice_id));
+          if (checkResult.paid) {
+            await prisma.qPayIntent.update({
+              where: { qpayInvoiceId: String(invoice_id) },
+              data: {
+                status: "PAID",
+                paidAmount: checkResult.paidAmount,
+                qpayPaymentId: checkResult.paymentId || intent.qpayPaymentId,
+                raw: checkResult.raw || intent.raw,
+                updatedAt: new Date(),
+              },
+            });
+            console.log(`QPay callback: Updated intent ${intent.id} to PAID`);
+          }
+        } catch (checkErr) {
+          console.error("QPay callback: payment/check failed:", checkErr);
+        }
       }
     }
 
@@ -204,22 +296,31 @@ router.post("/callback", async (req, res) => {
       body: req.body,
     });
 
-    // Try to map to intent if possible
     if (invoice_id) {
       const intent = await prisma.qPayIntent.findUnique({
         where: { qpayInvoiceId: String(invoice_id) },
       });
 
       if (intent && intent.status !== "PAID") {
-        await prisma.qPayIntent.update({
-          where: { qpayInvoiceId: String(invoice_id) },
-          data: {
-            status: "PAID",
-            qpayPaymentId: payment_id ? String(payment_id) : intent.qpayPaymentId,
-            updatedAt: new Date(),
-          },
-        });
-        console.log(`QPay callback: Updated intent ${intent.id} to PAID`);
+        // Verify via payment/check
+        try {
+          const checkResult = await qpayService.checkInvoicePaid(String(invoice_id));
+          if (checkResult.paid) {
+            await prisma.qPayIntent.update({
+              where: { qpayInvoiceId: String(invoice_id) },
+              data: {
+                status: "PAID",
+                paidAmount: checkResult.paidAmount,
+                qpayPaymentId: checkResult.paymentId || intent.qpayPaymentId,
+                raw: checkResult.raw || intent.raw,
+                updatedAt: new Date(),
+              },
+            });
+            console.log(`QPay callback: Updated intent ${intent.id} to PAID`);
+          }
+        } catch (checkErr) {
+          console.error("QPay callback: payment/check failed:", checkErr);
+        }
       }
     }
 
