@@ -597,7 +597,7 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
     if (usesSpecialFlow && !hasMarker) {
       return res.status(400).json({
         error:
-          "closeOldBalance and splitAllocations require a marker service (PREVIOUS category) in this encounter.",
+          "closeOldBalance болон splitAllocations нь PREVIOUS ангиллын маркер үйлчилгээтэй үзлэгт л боломжтой.",
       });
     }
 
@@ -645,11 +645,11 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
 
         if (!serviceItemMap.has(itemId)) {
           return res.status(400).json({
-            error: `invoiceItemId ${alloc.invoiceItemId} is not a SERVICE item of this invoice.`,
+            error: `invoiceItemId ${alloc.invoiceItemId} нь энэ нэхэмжлэлийн SERVICE мөр биш байна.`,
           });
         }
         if (allocAmt < 0) {
-          return res.status(400).json({ error: "Allocation amount cannot be negative." });
+          return res.status(400).json({ error: "Хуваарилалтын дүн сөрөг байж болохгүй." });
         }
 
         const item = serviceItemMap.get(itemId);
@@ -659,7 +659,7 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
 
         if (allocAmt > remaining + ALLOCATION_TOLERANCE) {
           return res.status(400).json({
-            error: `Allocation for item "${item.name}" (${itemId}) exceeds remaining unpaid amount (${remaining.toFixed(2)}).`,
+            error: `"${item.name}" үйлчилгээний хуваарилалт үлдэгдэл дүнгээс хэтэрсэн байна (үлдэгдэл: ${remaining.toFixed(2)}).`,
           });
         }
       }
@@ -694,6 +694,45 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
     // This ensures a 0₮ marker-only invoice never receives an accidental payment.
     const currentRemaining = Math.max(currentBaseAmount - currentAlreadyPaid, 0);
     amountForCurrent = Math.min(amountForCurrent, currentRemaining);
+
+    // ── Option A enforcement ─────────────────────────────────────
+    // If amountForCurrent > 0, check whether the invoice already has allocations.
+    // If it does (or if splitAllocations were provided), splitAllocations are required
+    // and their sum must equal amountForCurrent (within tolerance).
+    if (amountForCurrent > 0) {
+      const serviceItems = invoice.items.filter((it) => it.itemType === "SERVICE");
+      const existingAllocsCheck =
+        serviceItems.length > 0
+          ? await prisma.paymentAllocation.findFirst({
+              where: { invoiceItemId: { in: serviceItems.map((it) => it.id) } },
+              select: { id: true },
+            })
+          : null;
+
+      const invoiceHasAllocations = !!existingAllocsCheck;
+      const allocsProvided =
+        Array.isArray(splitAllocations) && splitAllocations.length > 0;
+
+      if (invoiceHasAllocations || allocsProvided) {
+        if (!allocsProvided) {
+          return res.status(400).json({
+            error:
+              'Энэ нэхэмжлэл дээр "Хувааж төлөх" ашигласан тул дараагийн төлбөрийг мөн үйлчилгээний мөрөөр хуваарилж бүртгэнэ үү.',
+            errorCode: "ALLOCATION_REQUIRED",
+          });
+        }
+
+        const allocSum = splitAllocations.reduce(
+          (s, a) => s + Number(a.amount || 0),
+          0
+        );
+        if (Math.abs(allocSum - amountForCurrent) > ALLOCATION_TOLERANCE) {
+          return res.status(400).json({
+            error: `Хуваарилалтын нийлбэр (${allocSum.toFixed(2)}) нь өнөөдрийн нэхэмжлэлд орох дүн (${amountForCurrent.toFixed(2)})-тэй тохирохгүй байна.`,
+          });
+        }
+      }
+    }
 
     // ── Execute in transaction ────────────────────────────────────
     const result = await prisma.$transaction(async (trx) => {

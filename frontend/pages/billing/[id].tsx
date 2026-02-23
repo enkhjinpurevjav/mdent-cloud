@@ -304,8 +304,12 @@ function BillingPaymentSection({
     setAppRows([{ providerId: null, amount: "" }]);
     setTransferNote("");
     setCloseOldBalance(false);
-    setSplitPayment(false);
     setSplitAllocations({});
+    // Auto-force split mode when any SERVICE item already has allocations
+    const hasExistingAllocations = (invoice.items || []).some(
+      (it) => it.itemType === "SERVICE" && (it.alreadyAllocated ?? 0) > 0
+    );
+    setSplitPayment(hasExistingAllocations);
   }, [invoice.id]);
 
   const handleToggle = (methodKey: string, checked: boolean) => {
