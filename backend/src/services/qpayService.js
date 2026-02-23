@@ -4,13 +4,11 @@
  * - Token management with caching
  * - Invoice creation
  * - Payment status checking
+ * - Branch-keyed credentials via QPAY_BRANCHES_JSON
  */
 
-// In-memory token cache
-let tokenCache = {
-  token: null,
-  expiresAt: null,
-};
+// In-memory token cache keyed by clientId
+const tokenCacheMap = {};
 
 // Token expiry configuration (in milliseconds)
 const DEFAULT_TOKEN_EXPIRY_MS = 50 * 60 * 1000; // 50 minutes
@@ -33,18 +31,48 @@ export function getBaseUrl() {
 }
 
 /**
- * Get cached access token or request a new one
+ * Get QPay credentials for a branch.
+ * Reads QPAY_BRANCHES_JSON which maps branchId (string) → { clientId, clientSecret, invoiceCode }
+ * Falls back to default env vars (QPAY_CLIENT_ID, QPAY_CLIENT_SECRET, QPAY_INVOICE_CODE).
+ * @param {number|string} [branchId]
+ * @returns {{ clientId: string, clientSecret: string, invoiceCode: string }}
  */
-export async function getAccessToken() {
-  // Check if we have a valid cached token
-  const now = Date.now();
-  if (tokenCache.token && tokenCache.expiresAt && tokenCache.expiresAt > now) {
-    return tokenCache.token;
+export function getBranchCredentials(branchId) {
+  const defaultCreds = {
+    clientId: process.env.QPAY_CLIENT_ID,
+    clientSecret: process.env.QPAY_CLIENT_SECRET,
+    invoiceCode: process.env.QPAY_INVOICE_CODE,
+  };
+
+  if (!branchId) return defaultCreds;
+
+  const json = process.env.QPAY_BRANCHES_JSON;
+  if (!json) return defaultCreds;
+
+  try {
+    const map = JSON.parse(json);
+    const key = String(branchId);
+    if (map[key]) {
+      return {
+        clientId: map[key].clientId || defaultCreds.clientId,
+        clientSecret: map[key].clientSecret || defaultCreds.clientSecret,
+        invoiceCode: map[key].invoiceCode || defaultCreds.invoiceCode,
+      };
+    }
+  } catch {
+    // ignore parse errors, fall through to default
   }
 
-  // Request new token
-  const clientId = process.env.QPAY_CLIENT_ID;
-  const clientSecret = process.env.QPAY_CLIENT_SECRET;
+  return defaultCreds;
+}
+
+/**
+ * Get cached access token or request a new one
+ * @param {number|string} [branchId] - optional branch ID for per-branch credentials
+ */
+export async function getAccessToken(branchId) {
+  const creds = getBranchCredentials(branchId);
+  const { clientId, clientSecret } = creds;
 
   if (!clientId || !clientSecret) {
     throw new Error(
@@ -52,6 +80,16 @@ export async function getAccessToken() {
     );
   }
 
+  const cacheKey = clientId;
+  const cache = tokenCacheMap[cacheKey] || { token: null, expiresAt: null };
+
+  // Check if we have a valid cached token
+  const now = Date.now();
+  if (cache.token && cache.expiresAt && cache.expiresAt > now) {
+    return cache.token;
+  }
+
+  // Request new token
   const baseUrl = getBaseUrl();
   const authUrl = `${baseUrl}/v2/auth/token`;
 
@@ -78,12 +116,12 @@ export async function getAccessToken() {
 
   // Cache token with expiry (default 50 minutes if not provided)
   const expiresIn = data.expires_in ? Number(data.expires_in) * 1000 : DEFAULT_TOKEN_EXPIRY_MS;
-  tokenCache = {
+  tokenCacheMap[cacheKey] = {
     token: data.access_token,
     expiresAt: now + expiresIn,
   };
 
-  return tokenCache.token;
+  return data.access_token;
 }
 
 /**
@@ -94,6 +132,7 @@ export async function getAccessToken() {
  * @param {string} params.description - Invoice description
  * @param {string} [params.receiver_code] - Optional receiver code (default: terminal)
  * @param {string} [params.callback_url] - Optional callback URL
+ * @param {number|string} [params.branchId] - Optional branch ID for per-branch credentials
  * @returns {Promise<Object>} Normalized invoice response
  */
 export async function createInvoice({
@@ -102,18 +141,19 @@ export async function createInvoice({
   description,
   receiver_code,
   callback_url,
+  branchId,
 }) {
-  const invoiceCode = process.env.QPAY_INVOICE_CODE;
-  if (!invoiceCode) {
+  const creds = getBranchCredentials(branchId);
+  if (!creds.invoiceCode) {
     throw new Error("Missing QPAY_INVOICE_CODE environment variable");
   }
 
-  const token = await getAccessToken();
+  const token = await getAccessToken(branchId);
   const baseUrl = getBaseUrl();
   const invoiceUrl = `${baseUrl}/v2/invoice`;
 
   const payload = {
-    invoice_code: invoiceCode,
+    invoice_code: creds.invoiceCode,
     sender_invoice_no,
     invoice_receiver_code: receiver_code || process.env.QPAY_RECEIVER_CODE || "terminal",
     invoice_description: description,
@@ -152,10 +192,11 @@ export async function createInvoice({
 /**
  * Check if invoice is paid
  * @param {string} qpayInvoiceId - QPay invoice ID
+ * @param {number|string} [branchId] - Optional branch ID for per-branch credentials
  * @returns {Promise<Object>} Normalized payment status
  */
-export async function checkInvoicePaid(qpayInvoiceId) {
-  const token = await getAccessToken();
+export async function checkInvoicePaid(qpayInvoiceId, branchId) {
+  const token = await getAccessToken(branchId);
   const baseUrl = getBaseUrl();
   const checkUrl = `${baseUrl}/v2/payment/check`;
 
@@ -210,4 +251,31 @@ export async function checkInvoicePaid(qpayInvoiceId) {
     })),
     raw: data,
   };
+}
+
+/**
+ * Cancel (delete) a QPay invoice
+ * @param {string} qpayInvoiceId - QPay invoice ID to cancel
+ * @param {number|string} [branchId] - Optional branch ID for per-branch credentials
+ */
+export async function cancelInvoice(qpayInvoiceId, branchId) {
+  const token = await getAccessToken(branchId);
+  const baseUrl = getBaseUrl();
+  const deleteUrl = `${baseUrl}/v2/invoice/${qpayInvoiceId}`;
+
+  const response = await fetch(deleteUrl, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `QPay invoice cancellation failed (${response.status}): ${errorText || response.statusText}`
+    );
+  }
+
+  return true;
 }

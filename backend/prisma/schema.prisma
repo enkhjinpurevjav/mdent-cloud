@@ -52,6 +52,9 @@ enum BookingStatus {
   IN_PROGRESS
   COMPLETED
   CANCELLED
+  ONLINE_HELD
+  ONLINE_CONFIRMED
+  ONLINE_EXPIRED
 }
 
 // NEW: discount levels explicitly constrained
@@ -799,8 +802,35 @@ model Booking {
   branch  Branch  @relation(fields: [branchId], references: [id])
   patient Patient @relation(fields: [patientId], references: [id])
 
+  deposit BookingDeposit?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model BookingDeposit {
+  id        Int      @id @default(autoincrement())
+  bookingId Int      @unique
+  booking   Booking  @relation(fields: [bookingId], references: [id])
+  branchId  Int
+
+  amount         Int
+  status         String   @default("NEW") // NEW | PAID | EXPIRED | CANCELLED
+  holdExpiresAt  DateTime
+
+  qpayInvoiceId  String   @unique
+  senderInvoiceNo String  @unique
+  callbackToken  String
+
+  paidAmount     Int?
+  qpayPaymentId  String?
+  paidAt         DateTime?
+  raw            Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([branchId])
 }
 
 // ==========================================================
