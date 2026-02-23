@@ -239,6 +239,19 @@ router.post("/online/hold", async (req, res) => {
       return res.status(409).json({ error: "Time slot is already taken" });
     }
 
+    // Online capacity rule: slot must be completely empty (0 bookings at exact startTime)
+    const exactStartConflict = await prisma.booking.findFirst({
+      where: {
+        doctorId: did,
+        date: day,
+        startTime,
+        status: { not: BookingStatus.ONLINE_EXPIRED },
+      },
+    });
+    if (exactStartConflict) {
+      return res.status(409).json({ error: "Time slot is already taken" });
+    }
+
     // Get or create placeholder patient
     const placeholder = await getOrCreatePlaceholderPatient(bid);
 

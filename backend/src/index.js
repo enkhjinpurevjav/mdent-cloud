@@ -42,6 +42,7 @@ import encounterDiagnosesRouter from "./routes/encounterDiagnoses.js";
 import encounterServicesRouter from "./routes/encounterServices.js";
 import encounterDiagnosisProblemTextsRouter from "./routes/encounterDiagnosisProblemTexts.js";
 import encounterServiceTextsRouter from "./routes/encounterServiceTexts.js";
+import publicRouter from "./routes/public.js";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const app = express();
@@ -122,6 +123,9 @@ app.use("/api/encounter-diagnoses", encounterDiagnosesRouter);
 app.use("/api/encounter-services", encounterServicesRouter);
 app.use("/api/encounter-diagnosis-problem-texts", encounterDiagnosisProblemTextsRouter);
 app.use("/api/encounter-service-texts", encounterServiceTextsRouter);
+
+// Public routes (no auth)
+app.use("/api/public", publicRouter);
 
 // Optional central error handler
 app.use((err, _req, res, _next) => {
