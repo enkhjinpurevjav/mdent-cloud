@@ -84,6 +84,22 @@ async function main() {
     users: roles.map(u => u.email),
     patient: patient.name,
   });
+
+  // Seed: PREVIOUS marker service for split payment workflow
+  // This service is attached by doctors to indicate "previous balance continuation".
+  // It is excluded from doctor income and clinic revenue calculations.
+  await prisma.service.upsert({
+    where: { code: "PREVIOUS_MARKER" },
+    update: {},
+    create: {
+      code: "PREVIOUS_MARKER",
+      category: "PREVIOUS",
+      name: "Бусад",
+      price: 0,
+      isActive: true,
+      description: "Өмнөх үлдэгдлийн тэмдэглэгч үйлчилгээ (хувааж төлөх горимыг идэвхжүүлнэ)",
+    },
+  });
 }
 
 main()

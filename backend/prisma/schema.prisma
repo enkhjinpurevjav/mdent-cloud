@@ -33,6 +33,7 @@ enum ServiceCategory {
   WHITENING // цайруулалт
   CHILD_TREATMENT // хүүхдийн эмчилгээ
   SURGERY // мэс засал
+  PREVIOUS // өмнөх үлдэгдэл тэмдэглэгч (marker only – excluded from income)
 }
 
 enum VisitCardType {
@@ -1178,6 +1179,8 @@ model InvoiceItem {
 
   source InvoiceItemSource @default(MANUAL)
 
+  allocations PaymentAllocation[]
+
   @@index([invoiceId])
 }
 
@@ -1193,8 +1196,25 @@ model Payment {
 
   invoice Invoice @relation(fields: [invoiceId], references: [id])
 
+  allocations PaymentAllocation[]
+
   @@index([invoiceId])
   @@index([qpayTxnId])
+}
+
+// Per-service allocation of a payment to an invoice line
+model PaymentAllocation {
+  id            Int      @id @default(autoincrement())
+  paymentId     Int
+  invoiceItemId Int
+  amount        Float
+  createdAt     DateTime @default(now())
+
+  payment     Payment     @relation(fields: [paymentId], references: [id])
+  invoiceItem InvoiceItem @relation(fields: [invoiceItemId], references: [id])
+
+  @@index([paymentId])
+  @@index([invoiceItemId])
 }
 
 model EBarimtReceipt {
