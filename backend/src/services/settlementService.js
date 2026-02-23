@@ -1,3 +1,5 @@
+import { issueEBarimt as issueEBarimtReceipt } from "./eBarimtService.js";
+
 /**
  * Helper: compute paid total from a list of payments.
  */
@@ -107,7 +109,7 @@ export async function applyPaymentToInvoice(
 
   // e-Barimt when invoice fully paid and requested
   if (!invoice.eBarimtReceipt && paidTotal >= baseAmount && issueEBarimt === true) {
-    const receiptNumber = `MDENT-${invoiceId}-${Date.now()}`;
+    const receiptNumber = await issueEBarimtReceipt({ invoiceId, amount: paidTotal });
     await trx.eBarimtReceipt.create({
       data: { invoiceId, receiptNumber, timestamp: new Date() },
     });

@@ -116,6 +116,20 @@ router.post("/:id/settlement", async (req, res) => {
       });
     }
 
+    // Option A enforcement: if invoice has any PaymentAllocation rows, reject
+    // standard (non-split) settlement — caller must use batch-settlement with splitAllocations.
+    const hasAllocations = await prisma.paymentAllocation.findFirst({
+      where: { invoiceItem: { invoiceId } },
+      select: { id: true },
+    });
+    if (hasAllocations) {
+      return res.status(400).json({
+        error:
+          'Энэ нэхэмжлэл дээр "Хувааж төлөх" ашигласан тул дараагийн төлбөрийг мөн үйлчилгээний мөрөөр хуваарилж бүртгэнэ үү.',
+        errorCode: "ALLOCATION_REQUIRED",
+      });
+    }
+
     // ─────────────────────────────────────────────────────────────
     // SPECIAL CASE: EMPLOYEE_BENEFIT
     // ─────────────────────────────────────────────────────────────

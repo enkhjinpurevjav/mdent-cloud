@@ -72,7 +72,10 @@ router.get("/doctors-income", async (req, res) => {
           },
         },
         items: {
-          include: { service: true },
+          include: {
+            service: true,
+            allocations: { select: { amount: true } },
+          },
         },
         payments: true,
       },
@@ -193,21 +196,33 @@ router.get("/doctors-income", async (req, res) => {
 
         const feeMultiplier = hasOverride ? 0.9 : 1;
 
-        for (const it of serviceItems) {
-          const lineGross = Number(it.lineTotal || it.unitPrice * it.quantity || 0);
-          const lineNet = lineGross * netMultiplier * feeMultiplier;
+        // Determine whether ANY service item on this invoice has allocations.
+        const invoiceHasAllocations = serviceItems.some(
+          (it) => it.allocations && it.allocations.length > 0
+        );
 
+        for (const it of serviceItems) {
           const service = it.service;
 
           // 1) IMAGING rule: exclude from doctor income (0%)
-          // Business requirement: IMAGING services are excluded from doctor sales and commission
-          // Previously contributed 5%, now 0% per finance policy update
           if (service?.category === "IMAGING") {
             continue;
           }
 
+          // Compute income base: use allocation sum when present, else proportional multiplier.
+          let lineNet;
+          if (invoiceHasAllocations) {
+            const allocatedTotal = (it.allocations || []).reduce(
+              (s, a) => s + Number(a.amount || 0),
+              0
+            );
+            lineNet = allocatedTotal * feeMultiplier;
+          } else {
+            const lineGross = Number(it.lineTotal || it.unitPrice * it.quantity || 0);
+            lineNet = lineGross * netMultiplier * feeMultiplier;
+          }
+
           // 2) Home bleaching rule: serviceId=110 (code 151)
-          // NOTE: this subtracts per line item.
           if (it.serviceId === HOME_BLEACHING_SERVICE_ID) {
             const base = Math.max(0, lineNet - homeBleachingDeductAmountMnt);
             acc.doctorIncomeMnt += base * (generalPct / 100);
@@ -345,7 +360,12 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
             },
           },
         },
-        items: { include: { service: true } },
+        items: {
+          include: {
+            service: true,
+            allocations: { select: { amount: true } },
+          },
+        },
         payments: true,
       },
     });
@@ -480,17 +500,30 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
         const feeMultiplier = hasOverride ? 0.9 : 1;
 
-        for (const it of serviceItems) {
-          const lineGross = Number(it.lineTotal || it.unitPrice * it.quantity || 0);
-          const lineNet = lineGross * netMultiplier * feeMultiplier;
+        // Use allocation amounts when any item has allocations.
+        const invoiceHasAllocations = serviceItems.some(
+          (it) => it.allocations && it.allocations.length > 0
+        );
 
+        for (const it of serviceItems) {
           const service = it.service;
 
           // IMAGING -> 0% (excluded from doctor income)
-          // Business requirement: IMAGING services are excluded from doctor sales and commission
-          // Previously contributed 5%, now 0% per finance policy update
           if (service?.category === "IMAGING") {
             continue;
+          }
+
+          // Compute income base: use allocation sum when present, else proportional multiplier.
+          let lineNet;
+          if (invoiceHasAllocations) {
+            const allocatedTotal = (it.allocations || []).reduce(
+              (s, a) => s + Number(a.amount || 0),
+              0
+            );
+            lineNet = allocatedTotal * feeMultiplier;
+          } else {
+            const lineGross = Number(it.lineTotal || it.unitPrice * it.quantity || 0);
+            lineNet = lineGross * netMultiplier * feeMultiplier;
           }
 
           // Home bleaching -> deduct then generalPct (income only)
