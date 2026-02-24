@@ -9,8 +9,12 @@ services:
       - RUN_SEED=false
       - DATABASE_URL=${DATABASE_URL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      # Optional: tell backend where POSAPI is on the docker network
+      # (your backend code must read this env to use it)
+      - POSAPI_BASE_URL=http://posapi-test:7080
     depends_on:
       - postgres
+      - posapi-test
     networks:
       - mdent-net
     restart: unless-stopped
@@ -75,6 +79,23 @@ services:
       - mdent-net
     restart: unless-stopped
 
+  # POSAPI 3.0 (TEST)
+  # Builds from ./posapi (PosAPI.deb + deb/ + Dockerfile + entrypoint.sh)
+  # Port is bound ONLY to VPS localhost for safe setup (not public):
+  #   127.0.0.1:7080 -> container:7080
+  posapi-test:
+    build:
+      context: ./posapi
+      dockerfile: Dockerfile
+    container_name: posapi-test
+    networks:
+      - mdent-net
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7080:7080"
+    volumes:
+      - posapi_data:/var/lib/posapi
+
 networks:
   mdent-net: {}
 
@@ -83,3 +104,4 @@ volumes:
   caddy_config:
   pg_data:
   media_data:
+  posapi_data:
