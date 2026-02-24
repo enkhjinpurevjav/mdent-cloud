@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
@@ -9,10 +9,11 @@ WORKDIR /tmp
 COPY PosAPI.deb /tmp/PosAPI.deb
 COPY deb/ /tmp/deb/
 
-# Install the .deb and resolve dependencies
-RUN apt-get update && apt-get install -y /tmp/PosAPI.deb || true && \
-    apt-get install -y -f && \
-    rm -rf /var/lib/apt/lists/* /tmp/*
+# Install .deb properly (dpkg first, then fix deps)
+RUN apt-get update \
+  && dpkg -i /tmp/PosAPI.deb || true \
+  && apt-get install -y -f \
+  && rm -rf /var/lib/apt/lists/* /tmp/*
 
 EXPOSE 7080
 
