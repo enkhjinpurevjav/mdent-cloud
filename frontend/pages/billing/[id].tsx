@@ -194,7 +194,6 @@ function BillingPaymentSection({
   const [transferNote, setTransferNote] = useState("");
   const [insuranceProviderId, setInsuranceProviderId] = useState<number | null>(null);
   const [otherNote, setOtherNote] = useState("");
-  const [issueEBarimt, setIssueEBarimt] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -575,7 +574,6 @@ function BillingPaymentSection({
             body: JSON.stringify({
               amount: data.paidAmount,
               method: "QPAY",
-              issueEBarimt,
               meta: {
                 qpayInvoiceId,
                 qpayPaymentId: data.paymentId,
@@ -622,7 +620,7 @@ function BillingPaymentSection({
         clearTimeout(timeoutId);
       }
     };
-  }, [qpayPolling, qpayInvoiceId, invoice, issueEBarimt, onUpdated]);
+  }, [qpayPolling, qpayInvoiceId, invoice, onUpdated]);
 
   const handleSubmit: React.FormEventHandler = async (e) => {
     e.preventDefault();
@@ -805,7 +803,6 @@ function BillingPaymentSection({
             method: entry.method,
             closeOldBalance,
             splitAllocations: allocPayload,
-            issueEBarimt,
             meta: entry.meta ?? null,
           }),
         });
@@ -828,7 +825,6 @@ function BillingPaymentSection({
             body: JSON.stringify({
               amount: entry.amount,
               method: entry.method,
-              issueEBarimt,
               meta: entry.meta ?? null,
             }),
           });
@@ -1541,26 +1537,6 @@ function BillingPaymentSection({
           })}
         </div>
         )}
-
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            alignItems: "center",
-            fontSize: 13,
-            marginTop: 8,
-          }}
-        >
-          <input
-            id="issueEBarimt"
-            type="checkbox"
-            checked={issueEBarimt}
-            onChange={(e) => setIssueEBarimt(e.target.checked)}
-          />
-          <label htmlFor="issueEBarimt">
-            Бүрэн төлөгдсөн үед e‑Barimt автоматаар гаргах
-          </label>
-        </div>
 
         <div
           style={{

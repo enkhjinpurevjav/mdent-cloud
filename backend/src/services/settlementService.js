@@ -58,14 +58,13 @@ export async function ensureSaleStockMovementsOnce(trx, invoice, invoiceId, meth
  *                                        encounter (with appointmentId)
  * @param {number} options.payAmount    - Amount to apply (> 0)
  * @param {string} options.methodStr    - Payment method (already uppercased)
- * @param {boolean} [options.issueEBarimt=false] - Issue e-Barimt if invoice becomes fully paid
  * @param {object|null} [options.meta=null]      - Optional payment metadata
  * @param {string|null} [options.qpayTxnId=null] - QPay transaction ID
  * @returns {{ updatedInvoice: object, paidTotal: number, newPayment: object }}
  */
 export async function applyPaymentToInvoice(
   trx,
-  { invoice, payAmount, methodStr, issueEBarimt = false, meta = null, qpayTxnId = null }
+  { invoice, payAmount, methodStr, meta = null, qpayTxnId = null }
 ) {
   const invoiceId = invoice.id;
 

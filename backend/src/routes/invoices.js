@@ -14,7 +14,7 @@ const router = express.Router();
  * {
  *   amount: number;        // required, >0
  *   method: "CASH" | "QPAY" | "POS" | "TRANSFER" | "INSURANCE" | "VOUCHER" | ...,
- *   issueEBarimt?: boolean; // optional; if true and fully paid, attempt e-Barimt
+ *   issueEBarimt?: boolean; // ignored; e-Barimt is always auto-issued on full payment
  *   meta?: { ... }          // optional extra info (employeeCode, voucherCode, etc.)
  * }
  */
@@ -25,7 +25,7 @@ router.post("/:id/settlement", async (req, res) => {
       return res.status(400).json({ error: "Invalid invoice id" });
     }
 
-    const { amount, method, issueEBarimt, meta } = req.body || {};
+    const { amount, method, meta } = req.body || {};
 
     const payAmount = Number(amount || 0);
     if (!payAmount || payAmount <= 0) {
@@ -201,7 +201,6 @@ router.post("/:id/settlement", async (req, res) => {
             invoice,
             payAmount,
             methodStr,
-            issueEBarimt,
             meta,
           });
 
@@ -333,7 +332,6 @@ router.post("/:id/settlement", async (req, res) => {
         invoice,
         payAmount,
         methodStr,
-        issueEBarimt,
         meta,
         qpayTxnId,
       });
