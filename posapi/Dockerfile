@@ -5,14 +5,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates curl tzdata \
   && rm -rf /var/lib/apt/lists/*
 
+# Stub systemctl so posapi.postinst doesn't fail in a container (no systemd)
+RUN printf '#!/bin/sh\nexit 0\n' > /bin/systemctl && chmod +x /bin/systemctl
+
 WORKDIR /tmp
 COPY PosAPI.deb /tmp/PosAPI.deb
 COPY deb/ /tmp/deb/
 
-# Install without running postinst (because it calls systemctl)
 RUN set -eux; \
   apt-get update; \
-  dpkg --unpack /tmp/PosAPI.deb; \
+  dpkg -i /tmp/PosAPI.deb || true; \
   apt-get install -y -f; \
-  dpkg --configure -a --force-confnew --force-confdef --force-not-root --force-bad-path || true; \
   rm -rf /var/lib/apt/lists/* /tmp/*
+
+EXPOSE 7080
+
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+CMD ["/entrypoint.sh"]
