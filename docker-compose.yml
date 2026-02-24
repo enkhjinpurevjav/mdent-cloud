@@ -9,6 +9,7 @@ services:
       - RUN_SEED=false
       - DATABASE_URL=${DATABASE_URL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - POSAPI_BASE_URL=${POSAPI_BASE_URL}
     depends_on:
       - postgres
     networks:
