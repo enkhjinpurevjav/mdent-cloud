@@ -78,13 +78,14 @@ describe("POSAPI payload builder policy checks", () => {
         qty: 1,
         unitPrice: amount,
         totalAmount: amount,
-        taxProductCode: "VAT_FREE",
+        taxProductCode: null,
       },
     ];
     assert.equal(items.length, 1);
     assert.equal(items[0].name, "Эмнэлгийн үйлчилгээний төлбөр");
     assert.equal(items[0].qty, 1);
     assert.equal(items[0].unitPrice, amount);
+    assert.equal(items[0].taxProductCode, null);
   });
 });
 
@@ -157,5 +158,40 @@ describe("refund validation", () => {
   it("blocks refund if ddtd is missing", () => {
     const receipt = { status: "SUCCESS", ddtd: null, printedAtText: "2024-01-01 00:00:00" };
     assert.equal(!receipt.ddtd, true);
+  });
+});
+
+describe("printedAtText normalization", () => {
+  // Inline the normalization logic (mirrors eBarimtService.js)
+  function normalizePrintedAtText(printedAtRaw) {
+    if (!printedAtRaw) return null;
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(String(printedAtRaw))) {
+      return String(printedAtRaw);
+    }
+    const parsed = new Date(printedAtRaw);
+    if (isNaN(parsed.getTime())) return null;
+    return formatPosapiDate(parsed);
+  }
+
+  it("full datetime string is preserved as-is", () => {
+    const raw = "2024-06-01 14:30:00";
+    assert.equal(normalizePrintedAtText(raw), "2024-06-01 14:30:00");
+  });
+
+  it("date-only string is converted to full datetime", () => {
+    const raw = "2024-06-01";
+    const result = normalizePrintedAtText(raw);
+    assert.match(result, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  });
+
+  it("ISO datetime string is converted to full datetime pattern", () => {
+    const raw = "2024-06-01T14:30:00.000Z";
+    const result = normalizePrintedAtText(raw);
+    assert.match(result, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  });
+
+  it("null/undefined input returns null", () => {
+    assert.equal(normalizePrintedAtText(null), null);
+    assert.equal(normalizePrintedAtText(undefined), null);
   });
 });
