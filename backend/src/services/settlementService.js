@@ -1,4 +1,4 @@
-import { issueEBarimt as issueEBarimtReceipt } from "./eBarimtService.js";
+import { issueEbarimtForInvoice } from "./eBarimtService.js";
 
 /**
  * Helper: compute paid total from a list of payments.
@@ -107,12 +107,19 @@ export async function applyPaymentToInvoice(
     await ensureSaleStockMovementsOnce(trx, invoice, invoiceId, methodStr);
   }
 
-  // e-Barimt when invoice fully paid and requested
-  if (!invoice.eBarimtReceipt && paidTotal >= baseAmount && issueEBarimt === true) {
-    const receiptNumber = await issueEBarimtReceipt({ invoiceId, amount: paidTotal });
-    await trx.eBarimtReceipt.create({
-      data: { invoiceId, receiptNumber, timestamp: new Date() },
-    });
+  // Auto-issue eBarimt when invoice becomes fully paid (failures do NOT rollback)
+  if (paidTotal >= baseAmount) {
+    const alreadyHasReceipt =
+      invoice.eBarimtReceipt &&
+      ["SUCCESS", "PENDING"].includes(invoice.eBarimtReceipt.status);
+    if (!alreadyHasReceipt) {
+      // Fire-and-forget after transaction; errors stored as FAILED
+      setImmediate(() => {
+        issueEbarimtForInvoice(invoiceId, null).catch(() => {
+          // swallow — status stored as FAILED in DB
+        });
+      });
+    }
   }
 
   // Update invoice status

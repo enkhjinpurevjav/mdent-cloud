@@ -104,6 +104,28 @@ enum EmployeeVoucherStatus {
   EXPIRED
 }
 
+// eBarimt receipt status
+enum EBarimtReceiptStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELED
+}
+
+// Buyer type for eBarimt
+enum BuyerType {
+  B2C
+  B2B
+}
+
+// Operator merchant request status
+enum OperatorMerchantRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  FAILED
+}
+
 // ==========================================================
 // BRANCHES (Multi-Branch Support)
 // ==========================================================
@@ -1178,6 +1200,10 @@ model Invoice {
 
   statusLegacy String? @map("status")
 
+  // eBarimt buyer info (B2C default; B2B requires buyerTin)
+  buyerType BuyerType @default(B2C)
+  buyerTin  String?
+
   eBarimtReceipt EBarimtReceipt?
 
   ledgerEntries LedgerEntry[]
@@ -1261,8 +1287,66 @@ model EBarimtReceipt {
   invoiceId Int     @unique
   invoice   Invoice @relation(fields: [invoiceId], references: [id])
 
-  receiptNumber String   @unique
-  timestamp     DateTime @default(now())
+  status EBarimtReceiptStatus @default(PENDING)
+
+  // POSAPI identifiers
+  ddtd         String?  // receipt ID returned by POSAPI
+  printedAt    DateTime? // receipt printed timestamp from POSAPI
+  printedAtText String?  // raw text form "yyyy-MM-dd HH:mm:ss"
+
+  // POSAPI config snapshot
+  posId        String?
+  posNo        String?
+  merchantTin  String?
+  branchNo     String?
+  districtCode String?
+
+  // Amounts
+  totalAmount Float?
+  vat         Float  @default(0)
+  cityTax     Float  @default(0)
+
+  // Timestamps
+  sentAt      DateTime?
+  confirmedAt DateTime?
+
+  // Raw request/response (scrubbed – no lottery/qrData/qrDate)
+  issueRawRequest  Json?
+  issueRawResponse Json?
+
+  // Cancel
+  cancelRawRequest  Json?
+  cancelRawResponse Json?
+
+  // Error tracking
+  errorMessage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+// Operator merchant request model
+model OperatorMerchantRequest {
+  id Int @id @default(autoincrement())
+
+  branchId   Int?
+  posNo      String
+  merchantTin String
+
+  status OperatorMerchantRequestStatus @default(PENDING)
+
+  rawRequest  Json?
+  rawResponse Json?
+  errorMessage String?
+
+  requestedAt DateTime  @default(now())
+  decidedAt   DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
+  @@index([merchantTin])
 }
 
 // ==========================================================

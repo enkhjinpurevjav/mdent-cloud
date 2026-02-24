@@ -1,94 +1,352 @@
 /**
- * E-Barimt (DDTD) Integration Service
+ * eBarimt POSAPI 3.0 Service
  *
- * Calls the Mongolian Tax Authority (DDTD) eBarimt REST API to issue
- * an electronic receipt (касс баримт) for a fully-paid invoice.
+ * Issues, retries, and refunds electronic receipts (касс баримт) via POSAPI 3.0.
+ *
+ * Policy:
+ * - Issue only when invoice is fully paid.
+ * - Single synthetic line item: "Эмнэлгийн үйлчилгээний төлбөр" qty=1 unitPrice=totalAmount.
+ * - Tax: always VAT_FREE; totalVAT=0, totalCityTax=0.
+ * - Payment: CASH PAID amount=totalAmount.
+ * - On failure: mark FAILED, do NOT rollback settlement.
+ * - Compliance: do NOT persist lottery, qrData, or qrDate in DB or logs.
  *
  * Environment variables:
- *   EBARIMT_API_URL   – Base URL for the DDTD eBarimt API endpoint
- *   EBARIMT_API_KEY   – API key / bearer token
- *   EBARIMT_POS_ID    – POS / terminal ID assigned by DDTD
- *   EBARIMT_BRANCH_REG_NO – Branch TIN (РД) registered with DDTD
- *   EBARIMT_SKIP      – Set to "true" to skip external call (dev / CI)
- *
- * In test / CI environments (NODE_ENV=test or EBARIMT_SKIP=true) the
- * function returns a deterministic stub receipt number so unit tests
- * never hit the external API.
+ *   POSAPI_BASE_URL      – Base URL for POSAPI
+ *   POSAPI_MERCHANT_TIN  – Merchant TIN
+ *   POSAPI_POS_NO        – POS number
+ *   POSAPI_BRANCH_NO     – Branch number
+ *   POSAPI_DISTRICT_CODE – District code (default: "34")
+ *   POSAPI_BILL_ID_SUFFIX – Bill ID suffix (optional)
+ *   EBARIMT_SKIP         – "true" to skip external call (dev/CI/test)
  */
+
+import prisma from "../db.js";
+import * as posapi from "./posapiClient.js";
 
 /**
- * Issue an e-Barimt receipt for a fully-paid invoice.
- *
- * @param {object} params
- * @param {number}  params.invoiceId      – Our internal invoice ID
- * @param {number}  params.amount         – Total amount paid (₮)
- * @param {string}  [params.customerTin]  – Customer TIN (РД); omit for B2C
- * @returns {Promise<string>}             – Receipt number (billId) from DDTD
- * @throws {Error}                        – On API / network failure
+ * Format a Date to "yyyy-MM-dd HH:mm:ss" (used in POSAPI cancel requests).
+ * @param {Date} date
+ * @returns {string}
  */
-export async function issueEBarimt({ invoiceId, amount, customerTin }) {
-  // Guard: skip external call in test / CI environments
-  const skip =
-    process.env.EBARIMT_SKIP === "true" ||
-    process.env.NODE_ENV === "test";
+export function formatPosapiDate(date) {
+  const pad = (n) => String(n).padStart(2, "0");
+  const y = date.getFullYear();
+  const mo = pad(date.getMonth() + 1);
+  const d = pad(date.getDate());
+  const h = pad(date.getHours());
+  const mi = pad(date.getMinutes());
+  const s = pad(date.getSeconds());
+  return `${y}-${mo}-${d} ${h}:${mi}:${s}`;
+}
 
-  if (skip) {
-    // Return a deterministic stub that is unique per invoice
-    return `TEST-EBARIMT-${invoiceId}`;
-  }
+/**
+ * Validate a DDTD (receipt ID): must be 33 digits.
+ * @param {string} ddtd
+ * @returns {boolean}
+ */
+export function isValidDdtd(ddtd) {
+  return typeof ddtd === "string" && /^\d{33}$/.test(ddtd);
+}
 
-  const apiUrl = process.env.EBARIMT_API_URL;
-  const apiKey = process.env.EBARIMT_API_KEY;
-  const posId = process.env.EBARIMT_POS_ID;
-  const branchRegNo = process.env.EBARIMT_BRANCH_REG_NO;
+/**
+ * Validate a TIN: must be 11 or 14 digits.
+ * @param {string} tin
+ * @returns {boolean}
+ */
+export function isValidTin(tin) {
+  return typeof tin === "string" && /^(\d{11}|\d{14})$/.test(tin);
+}
 
-  if (!apiUrl || !apiKey || !posId || !branchRegNo) {
-    throw new Error(
-      "E-Barimt тохиргоо дутуу байна (EBARIMT_API_URL, EBARIMT_API_KEY, EBARIMT_POS_ID, EBARIMT_BRANCH_REG_NO шаардлагатай)."
-    );
-  }
+/**
+ * Remove compliance-prohibited fields from a POSAPI response object before storing.
+ * Fields: lottery, qrData, qrDate.
+ * @param {object|null} obj
+ * @returns {object|null}
+ */
+function scrubResponse(obj) {
+  if (!obj || typeof obj !== "object") return obj;
+  const scrubbed = { ...obj };
+  delete scrubbed.lottery;
+  delete scrubbed.qrData;
+  delete scrubbed.qrDate;
+  return scrubbed;
+}
 
-  const payload = {
-    // Standard DDTD eBarimt API fields
-    billType: customerTin ? "3" : "1", // 1=B2C, 3=B2B
-    posId,
-    branchNo: branchRegNo,
-    districtCode: process.env.EBARIMT_DISTRICT_CODE || "34",
-    merchantTin: branchRegNo,
-    customerTin: customerTin || null,
-    invoiceId: String(invoiceId),
-    amount: Number(amount),
-    vat: Math.round(Number(amount) * 10 / 110), // 10% VAT (standard MN rate)
-    cityTax: 0,
-    taxType: "VAT_ABLE",
-    payments: [{ code: "CASH", status: "PAID", amount: Number(amount) }],
+function envConfig() {
+  return {
+    merchantTin: process.env.POSAPI_MERCHANT_TIN || "",
+    posNo: process.env.POSAPI_POS_NO || "",
+    branchNo: process.env.POSAPI_BRANCH_NO || "",
+    districtCode: process.env.POSAPI_DISTRICT_CODE || "34",
+    billIdSuffix: process.env.POSAPI_BILL_ID_SUFFIX || "",
   };
+}
 
-  const response = await fetch(`${apiUrl}/rest/receipt`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(payload),
+/**
+ * Build the POSAPI receipt payload for an invoice.
+ */
+function buildPayload(invoice, config) {
+  const amount = Number(invoice.finalAmount ?? invoice.totalAmount ?? 0);
+  const billId = `${invoice.id}${config.billIdSuffix}`;
+  const buyerType = invoice.buyerType || "B2C";
+  const customerTin = buyerType === "B2B" ? (invoice.buyerTin || null) : null;
+
+  return {
+    merchantTin: config.merchantTin,
+    posNo: config.posNo,
+    branchNo: config.branchNo,
+    districtCode: config.districtCode,
+    billId,
+    // B2C=1 B2B=3
+    billType: buyerType === "B2B" ? "3" : "1",
+    customerTin,
+    taxType: "VAT_FREE",
+    totalAmount: amount,
+    totalVAT: 0,
+    totalCityTax: 0,
+    items: [
+      {
+        name: "Эмнэлгийн үйлчилгээний төлбөр",
+        qty: 1,
+        unitPrice: amount,
+        totalAmount: amount,
+        taxProductCode: "VAT_FREE",
+      },
+    ],
+    payments: [
+      {
+        code: "CASH",
+        status: "PAID",
+        paidAmount: amount,
+      },
+    ],
+  };
+}
+
+/**
+ * Issue an eBarimt receipt for a fully-paid invoice.
+ * Creates/upserts EBarimtReceipt as PENDING, calls POSAPI, updates status.
+ * Failures do NOT throw — they are stored as FAILED so admin can retry.
+ *
+ * @param {number} invoiceId
+ * @param {number|null} [userId] — for audit (unused in DB currently)
+ * @returns {Promise<{ success: boolean, ddtd?: string, errorMessage?: string, receiptForDisplay?: object }>}
+ */
+export async function issueEbarimtForInvoice(invoiceId, userId) {
+  const skip =
+    process.env.EBARIMT_SKIP === "true" || process.env.NODE_ENV === "test";
+
+  const invoice = await prisma.invoice.findUnique({
+    where: { id: invoiceId },
+    include: { payments: true, eBarimtReceipt: true },
   });
 
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
+  if (!invoice) {
+    throw new Error(`Invoice ${invoiceId} not found`);
+  }
+
+  const baseAmount = Number(invoice.finalAmount ?? invoice.totalAmount ?? 0);
+  const paidTotal = (invoice.payments || []).reduce(
+    (s, p) => s + Number(p.amount || 0),
+    0
+  );
+
+  if (paidTotal < baseAmount) {
     throw new Error(
-      `E-Barimt гаргахад алдаа гарлаа (${response.status}): ${text || response.statusText}`
+      `Invoice ${invoiceId} is not fully paid (paid=${paidTotal}, base=${baseAmount})`
     );
   }
 
-  const data = await response.json();
-
-  // The DDTD API returns billId as the unique receipt number
-  const receiptNumber = data.billId || data.receiptNumber || data.id;
-  if (!receiptNumber) {
+  if (invoice.buyerType === "B2B" && !invoice.buyerTin) {
     throw new Error(
-      "E-Barimt хариунд тасалбарын дугаар байхгүй байна."
+      "B2B баримт гаргахын тулд худалдан авагчийн ТТД шаардлагатай."
     );
   }
 
-  return String(receiptNumber);
+  const config = envConfig();
+
+  // Upsert receipt record as PENDING
+  const receipt = await prisma.eBarimtReceipt.upsert({
+    where: { invoiceId },
+    create: {
+      invoiceId,
+      status: "PENDING",
+      totalAmount: baseAmount,
+      merchantTin: config.merchantTin || null,
+      posNo: config.posNo || null,
+      branchNo: config.branchNo || null,
+      districtCode: config.districtCode || null,
+      sentAt: new Date(),
+    },
+    update: {
+      status: "PENDING",
+      totalAmount: baseAmount,
+      merchantTin: config.merchantTin || null,
+      posNo: config.posNo || null,
+      branchNo: config.branchNo || null,
+      districtCode: config.districtCode || null,
+      sentAt: new Date(),
+      errorMessage: null,
+    },
+  });
+
+  if (skip) {
+    // Dev/CI: return a deterministic stub
+    const stubDdtd = String(invoiceId).padStart(33, "0");
+    const now = new Date();
+    await prisma.eBarimtReceipt.update({
+      where: { id: receipt.id },
+      data: {
+        status: "SUCCESS",
+        ddtd: stubDdtd,
+        printedAt: now,
+        printedAtText: formatPosapiDate(now),
+        confirmedAt: now,
+        issueRawResponse: { stub: true, ddtd: stubDdtd },
+      },
+    });
+    return { success: true, ddtd: stubDdtd };
+  }
+
+  const payload = buildPayload(invoice, config);
+
+  let rawResponse = null;
+  try {
+    rawResponse = await posapi.issueReceipt(payload);
+  } catch (err) {
+    // Store failure, do NOT rollback
+    await prisma.eBarimtReceipt.update({
+      where: { id: receipt.id },
+      data: {
+        status: "FAILED",
+        errorMessage: err.message,
+        issueRawRequest: payload,
+        issueRawResponse: err.responseData
+          ? scrubResponse(err.responseData)
+          : null,
+      },
+    });
+    return { success: false, errorMessage: err.message };
+  }
+
+  const ddtd = rawResponse?.id || rawResponse?.ddtd || rawResponse?.billId;
+  const printedAtRaw = rawResponse?.date || rawResponse?.printedAt;
+  let printedAt = null;
+  if (printedAtRaw) {
+    printedAt = new Date(printedAtRaw);
+    if (isNaN(printedAt.getTime())) printedAt = null;
+  }
+  const printedAtText = printedAtRaw
+    ? String(printedAtRaw)
+    : printedAt
+    ? formatPosapiDate(printedAt)
+    : null;
+
+  const scrubbedResponse = scrubResponse(rawResponse);
+
+  await prisma.eBarimtReceipt.update({
+    where: { id: receipt.id },
+    data: {
+      status: "SUCCESS",
+      ddtd: ddtd ? String(ddtd) : null,
+      printedAt,
+      printedAtText,
+      confirmedAt: new Date(),
+      issueRawRequest: payload,
+      issueRawResponse: scrubbedResponse,
+    },
+  });
+
+  // Return receipt data for immediate display/printing (qrData etc allowed in response, not in DB)
+  const receiptForDisplay = rawResponse;
+
+  return { success: true, ddtd: ddtd ? String(ddtd) : null, receiptForDisplay };
 }
+
+/**
+ * Refund/cancel an eBarimt receipt by invoice ID.
+ * Only allowed if receipt status is SUCCESS.
+ * Calls POSAPI DELETE /rest/receipt.
+ *
+ * @param {number} invoiceId
+ * @param {number|null} [userId]
+ */
+export async function refundEbarimtByInvoice(invoiceId, userId) {
+  const receipt = await prisma.eBarimtReceipt.findUnique({
+    where: { invoiceId },
+  });
+
+  if (!receipt) {
+    throw new Error(`eBarimt баримт олдсонгүй (invoiceId=${invoiceId})`);
+  }
+
+  if (receipt.status !== "SUCCESS") {
+    throw new Error(
+      `Зөвхөн SUCCESS төлөвтэй баримтыг цуцалж болно (одоогийн төлөв: ${receipt.status})`
+    );
+  }
+
+  if (!receipt.ddtd) {
+    throw new Error("Баримтын ddtd (ID) байхгүй тул цуцлах боломжгүй.");
+  }
+
+  if (!receipt.printedAtText) {
+    throw new Error(
+      "Баримтын printedAt огноо байхгүй тул цуцлах боломжгүй."
+    );
+  }
+
+  const skip =
+    process.env.EBARIMT_SKIP === "true" || process.env.NODE_ENV === "test";
+
+  const cancelRequest = { id: receipt.ddtd, date: receipt.printedAtText };
+
+  if (skip) {
+    await prisma.eBarimtReceipt.update({
+      where: { id: receipt.id },
+      data: {
+        status: "CANCELED",
+        cancelRawRequest: cancelRequest,
+        cancelRawResponse: { stub: true },
+      },
+    });
+    return { success: true };
+  }
+
+  let rawResponse = null;
+  try {
+    rawResponse = await posapi.refundReceipt(receipt.ddtd, receipt.printedAtText);
+  } catch (err) {
+    throw new Error(`POSAPI цуцлах алдаа: ${err.message}`);
+  }
+
+  await prisma.eBarimtReceipt.update({
+    where: { id: receipt.id },
+    data: {
+      status: "CANCELED",
+      cancelRawRequest: cancelRequest,
+      cancelRawResponse: scrubResponse(rawResponse),
+    },
+  });
+
+  return { success: true };
+}
+
+/**
+ * Legacy shim: kept for backward compatibility with settlementService.js.
+ * Issues eBarimt for a fully-paid invoice via the new service.
+ * In legacy usage, errors are swallowed (settlement is NOT rolled back).
+ *
+ * @deprecated Use issueEbarimtForInvoice directly.
+ */
+export async function issueEBarimt({ invoiceId, amount, customerTin }) {
+  const skip =
+    process.env.EBARIMT_SKIP === "true" || process.env.NODE_ENV === "test";
+  if (skip) {
+    return `TEST-EBARIMT-${invoiceId}`;
+  }
+  const result = await issueEbarimtForInvoice(invoiceId, null);
+  return result.ddtd || String(invoiceId);
+}
+

@@ -99,6 +99,15 @@ router.post("/:id/settlement", async (req, res) => {
         ? Number(invoice.finalAmount)
         : Number(invoice.totalAmount || 0);
 
+    // B2B validation: block settlement if buyerType=B2B and no buyerTin
+    if (invoice.buyerType === "B2B" && !invoice.buyerTin) {
+      return res.status(400).json({
+        error:
+          "B2B баримт гаргахын тулд худалдан авагчийн ТТД шаардлагатай. Нэхэмжлэлд buyerTin оруулна уу.",
+        errorCode: "B2B_BUYER_TIN_REQUIRED",
+      });
+    }
+
     if (!baseAmount || baseAmount <= 0) {
       return res.status(409).json({
         error:
