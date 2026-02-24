@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
-# Try common service names (we will refine after first run)
-service posapi start 2>/dev/null || true
-service PosAPI start 2>/dev/null || true
+# Run the service directly (recommended in containers)
+if [ -x /opt/posapi/PosService ]; then
+  exec /opt/posapi/PosService
+fi
 
-# Keep alive so we can inspect and adjust if needed
-tail -f /var/log/* 2>/dev/null || tail -f /dev/null
+echo "PosService not found at /opt/posapi/PosService"
+ls -la /opt || true
+ls -la /opt/posapi || true
+exec tail -f /dev/null
