@@ -525,7 +525,7 @@ const ALLOCATION_TOLERANCE = 0.01;
  *   closeOldBalance?: boolean;   // true = apply FIFO to previous unpaid invoices first
  *   splitAllocations?: { invoiceItemId: number; amount: number }[];
  *                                // per-service allocation for current invoice (SERVICE items only)
- *   issueEBarimt?: boolean;
+ *   issueEBarimt?: boolean;  // ignored; e-Barimt is always auto-issued on full payment
  *   meta?: object;
  * }
  */
@@ -535,7 +535,7 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
     return res.status(400).json({ error: "Invalid encounter id." });
   }
 
-  const { amount, method, closeOldBalance, splitAllocations, issueEBarimt, meta } =
+  const { amount, method, closeOldBalance, splitAllocations, meta } =
     req.body || {};
 
   const payAmount = Number(amount || 0);
@@ -767,7 +767,6 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
             invoice: oi,
             payAmount: chunk,
             methodStr,
-            issueEBarimt: false, // no e-Barimt for old invoices
             meta,
           });
         }
@@ -792,7 +791,6 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
           invoice: invoiceForSettlement,
           payAmount: amountForCurrent,
           methodStr,
-          issueEBarimt,
           meta,
         });
 
