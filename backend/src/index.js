@@ -43,6 +43,7 @@ import encounterServicesRouter from "./routes/encounterServices.js";
 import encounterDiagnosisProblemTextsRouter from "./routes/encounterDiagnosisProblemTexts.js";
 import encounterServiceTextsRouter from "./routes/encounterServiceTexts.js";
 import publicRouter from "./routes/public.js";
+import ebarimtRouter from "./routes/ebarimt.js";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const app = express();
@@ -126,6 +127,9 @@ app.use("/api/encounter-service-texts", encounterServiceTextsRouter);
 
 // Public routes (no auth)
 app.use("/api/public", publicRouter);
+
+// eBarimt POSAPI 3.0 routes
+app.use("/api/ebarimt", ebarimtRouter);
 
 // Optional central error handler
 app.use((err, _req, res, _next) => {
