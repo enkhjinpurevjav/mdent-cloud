@@ -111,7 +111,7 @@ function buildPayload(invoice, config) {
         qty: 1,
         unitPrice: amount,
         totalAmount: amount,
-        taxProductCode: "VAT_FREE",
+        taxProductCode: null,
       },
     ],
     payments: [
@@ -237,11 +237,14 @@ export async function issueEbarimtForInvoice(invoiceId, userId) {
     printedAt = new Date(printedAtRaw);
     if (isNaN(printedAt.getTime())) printedAt = null;
   }
-  const printedAtText = printedAtRaw
-    ? String(printedAtRaw)
-    : printedAt
-    ? formatPosapiDate(printedAt)
-    : null;
+  let printedAtText = null;
+  if (printedAtRaw) {
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(String(printedAtRaw))) {
+      printedAtText = String(printedAtRaw);
+    } else if (printedAt) {
+      printedAtText = formatPosapiDate(printedAt);
+    }
+  }
 
   const scrubbedResponse = scrubResponse(rawResponse);
 

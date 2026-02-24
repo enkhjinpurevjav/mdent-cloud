@@ -131,7 +131,7 @@ router.post("/operator/merchant-request", async (req, res) => {
       });
     }
 
-    const payload = { posNo, merchantTin };
+    const payload = { posNo, merchantTins: [merchantTin] };
 
     // Create request record (PENDING)
     const record = await prisma.operatorMerchantRequest.create({
