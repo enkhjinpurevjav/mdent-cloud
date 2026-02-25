@@ -59,6 +59,8 @@ type InvoiceResponse = {
   patientBalance?: number;
   hasMarker?: boolean;
   patientOldBalance?: number;
+  buyerType?: "B2C" | "B2B";
+  buyerTin?: string | null;
 };
 
 type EncounterService = {
@@ -1891,6 +1893,212 @@ function BillingPaymentSection({
   );
 }
 
+// ----------------- e-Barimt section -----------------
+
+function BillingEbarimtSection({
+  invoice,
+  onUpdated,
+}: {
+  invoice: InvoiceResponse;
+  onUpdated: (inv: InvoiceResponse) => void;
+}) {
+  const isPaid =
+    invoice.id != null &&
+    ((invoice.unpaidAmount != null && invoice.unpaidAmount <= 0) ||
+      (invoice.paidTotal != null &&
+        invoice.finalAmount != null &&
+        invoice.paidTotal >= invoice.finalAmount));
+
+  const isLocked = !!invoice.hasEBarimt;
+
+  const [buyerType, setBuyerType] = React.useState<"B2C" | "B2B">(
+    invoice.buyerType ?? "B2C"
+  );
+  const [buyerTin, setBuyerTin] = React.useState<string>(
+    invoice.buyerTin ?? ""
+  );
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [success, setSuccess] = React.useState("");
+
+  // Sync state when invoice changes (e.g. after payment)
+  React.useEffect(() => {
+    setBuyerType(invoice.buyerType ?? "B2C");
+    setBuyerTin(invoice.buyerTin ?? "");
+    setError("");
+    setSuccess("");
+  }, [invoice.id, invoice.buyerType, invoice.buyerTin]);
+
+  const disabled = !isPaid || isLocked;
+
+  const handleSave = async () => {
+    if (!invoice.id) return;
+    setError("");
+    setSuccess("");
+    setSaving(true);
+    try {
+      const body: { buyerType: string; buyerTin?: string | null } = { buyerType };
+      if (buyerType === "B2B") {
+        body.buyerTin = buyerTin.trim() || null;
+      } else {
+        body.buyerTin = null;
+      }
+      const res = await fetch(`/api/invoices/${invoice.id}/buyer`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error((data && data.error) || "Мэдээлэл хадгалахад алдаа гарлаа.");
+      }
+      setSuccess("Худалдан авагчийн мэдээлэл хадгалагдлаа.");
+      onUpdated({
+        ...invoice,
+        buyerType: data.buyerType,
+        buyerTin: data.buyerTin ?? null,
+      });
+    } catch (err: any) {
+      setError(err.message || "Мэдээлэл хадгалахад алдаа гарлаа.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section
+      style={{
+        marginTop: 16,
+        padding: 16,
+        borderRadius: 8,
+        border: "1px solid #e5e7eb",
+        background: "#ffffff",
+      }}
+    >
+      <h2 style={{ fontSize: 16, margin: 0, marginBottom: 8 }}>
+        e-Barimt
+      </h2>
+
+      {!isPaid && (
+        <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 8 }}>
+          Нэхэмжлэл бүрэн төлөгдсөний дараа e-Barimt мэдээлэл оруулах боломжтой.
+        </div>
+      )}
+
+      {isLocked && (
+        <div
+          style={{
+            fontSize: 13,
+            color: "#92400e",
+            background: "#fef3c7",
+            border: "1px solid #fcd34d",
+            borderRadius: 6,
+            padding: "6px 10px",
+            marginBottom: 8,
+          }}
+        >
+          e-Barimt баримт аль хэдийн гаргасан тул худалдан авагчийн мэдээллийг өөрчлөх боломжгүй.
+        </div>
+      )}
+
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+          opacity: disabled ? 0.6 : 1,
+          pointerEvents: disabled ? "none" : undefined,
+        }}
+      >
+        {/* Buyer type selector */}
+        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+          <label style={{ fontSize: 13, fontWeight: 500, minWidth: 120 }}>
+            Худалдан авагч:
+          </label>
+          <label style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="buyerType"
+              value="B2C"
+              checked={buyerType === "B2C"}
+              disabled={disabled}
+              onChange={() => {
+                setBuyerType("B2C");
+                setBuyerTin("");
+              }}
+            />
+            Хувь хүн
+          </label>
+          <label style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+            <input
+              type="radio"
+              name="buyerType"
+              value="B2B"
+              checked={buyerType === "B2B"}
+              disabled={disabled}
+              onChange={() => setBuyerType("B2B")}
+            />
+            Байгууллага
+          </label>
+        </div>
+
+        {/* TIN input (only for B2B) */}
+        {buyerType === "B2B" && (
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <label style={{ fontSize: 13, fontWeight: 500, minWidth: 120 }}>
+              ТТД (TIN):
+            </label>
+            <input
+              type="text"
+              value={buyerTin}
+              onChange={(e) => setBuyerTin(e.target.value.replace(/\D/g, ""))}
+              placeholder="11 эсвэл 14 оронтой тоо"
+              disabled={disabled}
+              maxLength={14}
+              style={{
+                padding: "5px 8px",
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                fontSize: 13,
+                width: 200,
+              }}
+            />
+          </div>
+        )}
+
+        {/* Save button */}
+        {invoice.id != null && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={disabled || saving}
+              style={{
+                padding: "6px 14px",
+                borderRadius: 6,
+                border: "none",
+                background: disabled || saving ? "#9ca3af" : "#2563eb",
+                color: "#ffffff",
+                cursor: disabled || saving ? "not-allowed" : "pointer",
+                fontSize: 13,
+              }}
+            >
+              {saving ? "Хадгалж байна..." : "Хадгалах"}
+            </button>
+            {success && (
+              <span style={{ fontSize: 13, color: "#15803d" }}>{success}</span>
+            )}
+          </div>
+        )}
+
+        {error && (
+          <div style={{ fontSize: 13, color: "#b91c1c" }}>{error}</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 // ----------------- Main page -----------------
 
 export default function BillingPage() {
@@ -3007,6 +3215,9 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
 
           {/* Payment section */}
           <BillingPaymentSection invoice={invoice} onUpdated={(updated) => setInvoice(updated)} />
+
+          {/* e-Barimt section */}
+          <BillingEbarimtSection invoice={invoice} onUpdated={(updated) => setInvoice(updated)} />
 
           {/* NEW: Printable / patient paper sections */}
           <section

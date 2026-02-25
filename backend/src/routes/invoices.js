@@ -377,4 +377,69 @@ router.post("/:id/settlement", async (req, res) => {
   }
 });
 
+/**
+ * PATCH /api/invoices/:id/buyer
+ *
+ * Update buyer type and TIN for e-Barimt on an invoice.
+ * Body: { buyerType: "B2C"|"B2B", buyerTin?: string|null }
+ */
+router.patch("/:id/buyer", async (req, res) => {
+  try {
+    const invoiceId = Number(req.params.id);
+    if (!invoiceId || Number.isNaN(invoiceId)) {
+      return res.status(400).json({ error: "Invalid invoice id." });
+    }
+
+    const { buyerType, buyerTin } = req.body || {};
+
+    if (!buyerType || (buyerType !== "B2C" && buyerType !== "B2B")) {
+      return res.status(400).json({ error: "buyerType must be 'B2C' or 'B2B'." });
+    }
+
+    if (buyerType === "B2B") {
+      const tin = typeof buyerTin === "string" ? buyerTin.trim() : "";
+      if (!tin) {
+        return res.status(400).json({ error: "buyerTin is required for B2B buyer type." });
+      }
+      if (!/^\d{11}$/.test(tin) && !/^\d{14}$/.test(tin)) {
+        return res
+          .status(400)
+          .json({ error: "buyerTin must be exactly 11 or 14 digits." });
+      }
+    }
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: { eBarimtReceipt: true },
+    });
+
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found." });
+    }
+
+    if (invoice.eBarimtReceipt) {
+      return res.status(409).json({
+        error: "e-Barimt баримт аль хэдийн гаргасан тул худалдан авагчийн мэдээллийг өөрчлөх боломжгүй.",
+      });
+    }
+
+    const updatedInvoice = await prisma.invoice.update({
+      where: { id: invoiceId },
+      data: {
+        buyerType,
+        buyerTin: buyerType === "B2B" ? (typeof buyerTin === "string" ? buyerTin.trim() : null) : null,
+      },
+    });
+
+    return res.json({
+      id: updatedInvoice.id,
+      buyerType: updatedInvoice.buyerType,
+      buyerTin: updatedInvoice.buyerTin,
+    });
+  } catch (err) {
+    console.error("PATCH /api/invoices/:id/buyer error:", err);
+    return res.status(500).json({ error: "Failed to update buyer info." });
+  }
+});
+
 export default router;
