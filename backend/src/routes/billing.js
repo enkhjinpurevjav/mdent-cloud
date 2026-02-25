@@ -199,6 +199,8 @@ router.get("/encounters/:id/invoice", async (req, res) => {
                 ? existingInvoice.eBarimtReceipt.printedAt.toISOString()
                 : null,
               totalAmount: existingInvoice.eBarimtReceipt.totalAmount ?? null,
+              qrData: existingInvoice.eBarimtReceipt.qrData ?? null,
+              lottery: existingInvoice.eBarimtReceipt.lottery ?? null,
             }
           : null,
         items: existingInvoice.items.map((it) => ({

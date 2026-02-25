@@ -68,6 +68,8 @@ type InvoiceResponse = {
     printedAtText: string | null;
     printedAt: string | null;
     totalAmount: number | null;
+    qrData?: string | null;
+    lottery?: string | null;
   } | null;
 };
 
@@ -1940,6 +1942,19 @@ function BillingEbarimtSection({
   const [issuedPrintedAtText, setIssuedPrintedAtText] = React.useState<string | null>(null);
   const [receiptForDisplay, setReceiptForDisplay] = React.useState<ReceiptForDisplay | null>(null);
 
+  // Unified receipt source: immediate issuance result (in-session) or persisted DB data (after refresh)
+  const receipt: ReceiptForDisplay | null =
+    receiptForDisplay ??
+    (invoice.ebarimtReceipt?.status === "SUCCESS"
+      ? {
+          id: invoice.ebarimtReceipt.ddtd ?? undefined,
+          date: invoice.ebarimtReceipt.printedAtText ?? undefined,
+          lottery: invoice.ebarimtReceipt.lottery ?? undefined,
+          totalAmount: invoice.ebarimtReceipt.totalAmount ?? undefined,
+          qrData: invoice.ebarimtReceipt.qrData ?? undefined,
+        }
+      : null);
+
   // Sync buyer info when invoice changes (e.g. after payment or navigation)
   React.useEffect(() => {
     setBuyerType(invoice.buyerType ?? "B2C");
@@ -2055,7 +2070,7 @@ function BillingEbarimtSection({
         </div>
       )}
 
-      {isLocked && invoice.ebarimtReceipt?.status === "SUCCESS" && !receiptForDisplay && (
+      {isLocked && invoice.ebarimtReceipt?.status === "SUCCESS" && !receipt && (
         <div
           style={{
             marginBottom: 8,
@@ -2173,7 +2188,7 @@ function BillingEbarimtSection({
           </div>
         )}
 
-        {(issuedDdtd || issuedPrintedAtText) && !receiptForDisplay && (
+        {(issuedDdtd || issuedPrintedAtText) && !receipt && (
           <div
             style={{
               fontSize: 13,
@@ -2202,7 +2217,7 @@ function BillingEbarimtSection({
         )}
       </div>
 
-      {receiptForDisplay && (
+      {receipt && (
         <>
           {/* @media print: only .ebarimt-receipt is visible */}
           <style>{`
@@ -2220,21 +2235,21 @@ function BillingEbarimtSection({
               </div>
               {/* TODO: clinic name / TIN / address */}
               <hr />
-              {receiptForDisplay.id && (
-                <div><strong>ДДТД:</strong> {receiptForDisplay.id}</div>
+              {receipt.id && (
+                <div><strong>ДДТД:</strong> {receipt.id}</div>
               )}
-              {receiptForDisplay.date && (
-                <div><strong>Огноо:</strong> {receiptForDisplay.date}</div>
+              {receipt.date && (
+                <div><strong>Огноо:</strong> {receipt.date}</div>
               )}
-              {receiptForDisplay.lottery && (
-                <div><strong>Сугалаа:</strong> {receiptForDisplay.lottery}</div>
+              {receipt.lottery && (
+                <div><strong>Сугалаа:</strong> {receipt.lottery}</div>
               )}
-              {receiptForDisplay.totalAmount != null && (
-                <div><strong>Нийт дүн:</strong> {formatMoney(receiptForDisplay.totalAmount)}₮</div>
+              {receipt.totalAmount != null && (
+                <div><strong>Нийт дүн:</strong> {formatMoney(receipt.totalAmount)}₮</div>
               )}
-              {receiptForDisplay.qrData && (
+              {receipt.qrData && (
                 <div style={{ marginTop: 12, textAlign: "center" }}>
-                  <QRCodeSVG value={receiptForDisplay.qrData} size={150} />
+                  <QRCodeSVG value={receipt.qrData} size={150} />
                 </div>
               )}
             </div>
@@ -2258,21 +2273,21 @@ function BillingEbarimtSection({
               e-БАРИМТ
             </div>
             {/* TODO: clinic name / TIN / address */}
-            {receiptForDisplay.id && (
-              <div><strong>ДДТД:</strong> {receiptForDisplay.id}</div>
+            {receipt.id && (
+              <div><strong>ДДТД:</strong> {receipt.id}</div>
             )}
-            {receiptForDisplay.date && (
-              <div><strong>Огноо:</strong> {receiptForDisplay.date}</div>
+            {receipt.date && (
+              <div><strong>Огноо:</strong> {receipt.date}</div>
             )}
-            {receiptForDisplay.lottery && (
-              <div><strong>Сугалаа:</strong> {receiptForDisplay.lottery}</div>
+            {receipt.lottery && (
+              <div><strong>Сугалаа:</strong> {receipt.lottery}</div>
             )}
-            {receiptForDisplay.totalAmount != null && (
-              <div><strong>Нийт дүн:</strong> {formatMoney(receiptForDisplay.totalAmount)}₮</div>
+            {receipt.totalAmount != null && (
+              <div><strong>Нийт дүн:</strong> {formatMoney(receipt.totalAmount)}₮</div>
             )}
-            {receiptForDisplay.qrData && (
+            {receipt.qrData && (
               <div style={{ marginTop: 8, textAlign: "center" }}>
-                <QRCodeSVG value={receiptForDisplay.qrData} size={120} />
+                <QRCodeSVG value={receipt.qrData} size={120} />
               </div>
             )}
             <div style={{ marginTop: 8 }}>
