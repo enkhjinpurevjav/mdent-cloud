@@ -130,26 +130,29 @@ function buildPayload(invoice, config) {
     totalVAT: 0,
     totalCityTax: 0,
     receipts: [
+  {
+    taxType: "VAT_FREE",
+    merchantTin: config.merchantTin,
+    totalAmount: amount,
+    totalVAT: 0,
+    totalCityTax: 0,
+    items: [
       {
-        taxType: "VAT_FREE",
-        merchantTin: config.merchantTin,
-        items: [
-          {
-            name: "Эмнэлгийн үйлчилгээний төлбөр",
-            barCode: "8654000102657",
-            barCodeType: "GS1",
-  classificationCode: "4813000",
-  taxProductCode: "320",
-  measureUnit: "ш",
-  qty: 1,
-  unitPrice: amount,
-  totalAmount: amount,
-  totalVAT: 0,
-  totalCityTax: 0,
-},
-        ],
+        name: "Эмнэлгийн үйлчилгээний төлбөр",
+        barCode: "8654000102657",
+        barCodeType: "GS1",
+        classificationCode: "4813000",
+        taxProductCode: "320",
+        measureUnit: "ш",
+        qty: 1,
+        unitPrice: amount,
+        totalAmount: amount,
+        totalVAT: 0,
+        totalCityTax: 0,
       },
     ],
+  },
+],
     payments: [
       {
         code: "CASH",
