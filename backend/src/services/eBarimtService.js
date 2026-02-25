@@ -22,6 +22,7 @@
  *   POSAPI_POS_NO        – POS number (required)
  *   POSAPI_BRANCH_NO     – Branch number, 3-digit string e.g. "001" (required)
  *   POSAPI_DISTRICT_CODE – District code, 4-digit string e.g. "2501" (required)
+ *   POSAPI_CONSUMER_NO   – Tenant/final-consumer TIN sent as consumerNo (default: "30000000000")
  *   EBARIMT_SKIP         – "true" to skip external call (dev/CI/test)
  */
 
@@ -104,6 +105,7 @@ function envConfig() {
     posNo: process.env.POSAPI_POS_NO || "",
     branchNo: process.env.POSAPI_BRANCH_NO || "",
     districtCode: process.env.POSAPI_DISTRICT_CODE || "2501",
+    consumerNo: process.env.POSAPI_CONSUMER_NO || "30000000000",
   };
 }
 
@@ -121,7 +123,7 @@ function buildPayload(invoice, config) {
     districtCode: config.districtCode,
     merchantTin: config.merchantTin,
     posNo: config.posNo,
-    consumerNo: "",
+    consumerNo: config.consumerNo,
     type,
     billIdSuffix,
     totalAmount: amount,
