@@ -2,7 +2,7 @@
  * eBarimt POSAPI 3.0 Routes
  *
  * Mounted at /api/ebarimt in index.js.
- * All routes require authentication (authenticateJWT).
+ * All routes require authentication (authenticateJWT) unless DISABLE_AUTH=true.
  */
 
 import express from "express";
@@ -17,8 +17,23 @@ import { sendOperatorMerchantRequest } from "../services/posapiClient.js";
 
 const router = express.Router();
 
-// All ebarimt routes require auth
-router.use(authenticateJWT);
+const DISABLE_AUTH = (process.env.DISABLE_AUTH || "").toLowerCase() === "true";
+
+if (DISABLE_AUTH) {
+  if (process.env.NODE_ENV === "production") {
+    console.error(
+      "ERROR: DISABLE_AUTH=true is not allowed in production. " +
+        "Unset DISABLE_AUTH or set NODE_ENV to a non-production value."
+    );
+    process.exit(1);
+  }
+  console.warn(
+    "WARNING: DISABLE_AUTH enabled; e-Barimt routes are not protected"
+  );
+} else {
+  // All ebarimt routes require auth
+  router.use(authenticateJWT);
+}
 
 // ---------------------------------------------------------------------------
 // POST /api/ebarimt/invoices/:invoiceId/issue  — manual issue / retry
