@@ -9,7 +9,7 @@
  * - Tax: always VAT_FREE; totalVAT=0, totalCityTax=0.
  * - Payment: CASH PAID amount=totalAmount.
  * - On failure: mark FAILED, do NOT rollback settlement.
- * - Compliance: do NOT persist lottery, qrData, or qrDate in DB or logs.
+ * - Persist qrData and lottery in dedicated EBarimtReceipt columns to support reprint at any time.
  *
  * POSAPI 3.0 payload uses:
  *   type          – "B2C_RECEIPT" or "B2B_RECEIPT"
@@ -85,16 +85,14 @@ export function isValidTin(tin) {
 }
 
 /**
- * Remove compliance-prohibited fields from a POSAPI response object before storing.
- * Fields: lottery, qrData, qrDate.
+ * Remove compliance-prohibited fields from a POSAPI response object before storing as raw JSON.
+ * Field: qrDate (date of QR generation — not needed separately since qrData/lottery are stored in columns).
  * @param {object|null} obj
  * @returns {object|null}
  */
 function scrubResponse(obj) {
   if (!obj || typeof obj !== "object") return obj;
   const scrubbed = { ...obj };
-  delete scrubbed.lottery;
-  delete scrubbed.qrData;
   delete scrubbed.qrDate;
   return scrubbed;
 }
@@ -329,6 +327,8 @@ export async function issueEbarimtForInvoice(invoiceId, userId) {
       printedAt,
       printedAtText,
       confirmedAt: new Date(),
+      qrData: rawResponse?.qrData ? String(rawResponse.qrData) : null,
+      lottery: rawResponse?.lottery ? String(rawResponse.lottery) : null,
       issueRawRequest: payload,
       issueRawResponse: scrubbedResponse,
     },

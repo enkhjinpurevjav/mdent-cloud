@@ -1310,7 +1310,11 @@ model EBarimtReceipt {
   sentAt      DateTime?
   confirmedAt DateTime?
 
-  // Raw request/response (scrubbed – no lottery/qrData/qrDate)
+  // Persisted receipt fields for reprint
+  qrData  String?
+  lottery String?
+
+  // Raw request/response (issueRawResponse scrubbed – no qrDate)
   issueRawRequest  Json?
   issueRawResponse Json?
 
