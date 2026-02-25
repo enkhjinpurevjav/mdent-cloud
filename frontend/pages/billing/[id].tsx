@@ -1920,6 +1920,8 @@ function BillingEbarimtSection({
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState("");
   const [success, setSuccess] = React.useState("");
+  const [issuedDdtd, setIssuedDdtd] = React.useState<string | null>(null);
+  const [issuedPrintedAtText, setIssuedPrintedAtText] = React.useState<string | null>(null);
 
   // Sync state when invoice changes (e.g. after payment)
   React.useEffect(() => {
@@ -1927,6 +1929,8 @@ function BillingEbarimtSection({
     setBuyerTin(invoice.buyerTin ?? "");
     setError("");
     setSuccess("");
+    setIssuedDdtd(null);
+    setIssuedPrintedAtText(null);
   }, [invoice.id, invoice.buyerType, invoice.buyerTin]);
 
   const disabled = !isPaid || isLocked;
@@ -1935,31 +1939,59 @@ function BillingEbarimtSection({
     if (!invoice.id) return;
     setError("");
     setSuccess("");
+    setIssuedDdtd(null);
+    setIssuedPrintedAtText(null);
     setSaving(true);
     try {
+      // Step 1: Save buyer info
       const body: { buyerType: string; buyerTin?: string | null } = { buyerType };
       if (buyerType === "B2B") {
         body.buyerTin = buyerTin.trim() || null;
       } else {
         body.buyerTin = null;
       }
-      const res = await fetch(`/api/invoices/${invoice.id}/buyer`, {
+      const patchRes = await fetch(`/api/invoices/${invoice.id}/buyer`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        throw new Error((data && data.error) || "Мэдээлэл хадгалахад алдаа гарлаа.");
+      const patchData = await patchRes.json().catch(() => null);
+      if (!patchRes.ok) {
+        throw new Error((patchData && patchData.error) || "Худалдан авагчийн мэдээлэл хадгалахад алдаа гарлаа.");
       }
-      setSuccess("Худалдан авагчийн мэдээлэл хадгалагдлаа.");
+
+      // Step 2: Issue e-Barimt
+      const issueRes = await fetch(`/api/ebarimt/invoices/${invoice.id}/issue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const issueData = await issueRes.json().catch(() => null);
+
+      if (issueRes.status === 409) {
+        // Already issued — treat as success, refresh invoice
+        onUpdated({ ...invoice, buyerType: patchData.buyerType, buyerTin: patchData.buyerTin ?? null, hasEBarimt: true });
+        return;
+      }
+
+      if (!issueRes.ok) {
+        // Buyer info saved, but issuance failed — show retryable error
+        onUpdated({ ...invoice, buyerType: patchData.buyerType, buyerTin: patchData.buyerTin ?? null });
+        throw new Error("e-Barimt гаргахад алдаа гарлаа. Дахин оролдоно уу.");
+      }
+
+      const ddtd = issueData?.ddtd ?? null;
+      const printedAtText = issueData?.receiptForDisplay?.printedAtText ?? issueData?.receiptForDisplay?.date ?? null;
+      setIssuedDdtd(ddtd);
+      setIssuedPrintedAtText(printedAtText);
+      setSuccess("e-Barimt амжилттай гаргалаа.");
       onUpdated({
         ...invoice,
-        buyerType: data.buyerType,
-        buyerTin: data.buyerTin ?? null,
+        buyerType: patchData.buyerType,
+        buyerTin: patchData.buyerTin ?? null,
+        hasEBarimt: true,
       });
     } catch (err: any) {
-      setError(err.message || "Мэдээлэл хадгалахад алдаа гарлаа.");
+      setError(err.message || "Алдаа гарлаа.");
     } finally {
       setSaving(false);
     }
@@ -2066,7 +2098,7 @@ function BillingEbarimtSection({
           </div>
         )}
 
-        {/* Save button */}
+        {/* Save & Issue button */}
         {invoice.id != null && (
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <button
@@ -2083,10 +2115,38 @@ function BillingEbarimtSection({
                 fontSize: 13,
               }}
             >
-              {saving ? "Хадгалж байна..." : "Хадгалах"}
+              {saving ? "e-Barimt гаргаж байна..." : "e-Barimt гаргах"}
             </button>
             {success && (
               <span style={{ fontSize: 13, color: "#15803d" }}>{success}</span>
+            )}
+          </div>
+        )}
+
+        {(issuedDdtd || issuedPrintedAtText) && (
+          <div
+            style={{
+              fontSize: 13,
+              background: "#f0fdf4",
+              border: "1px solid #86efac",
+              borderRadius: 6,
+              padding: "8px 12px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            {issuedDdtd && (
+              <div>
+                <span style={{ fontWeight: 500 }}>Баримтын дугаар (ДДТД): </span>
+                <span style={{ fontFamily: "monospace" }}>{issuedDdtd}</span>
+              </div>
+            )}
+            {issuedPrintedAtText && (
+              <div>
+                <span style={{ fontWeight: 500 }}>Огноо: </span>
+                {issuedPrintedAtText}
+              </div>
             )}
           </div>
         )}
