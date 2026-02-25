@@ -101,11 +101,11 @@ function scrubResponse(obj) {
 
 function envConfig() {
   return {
-    merchantTin: process.env.POSAPI_MERCHANT_TIN || "",
-    posNo: process.env.POSAPI_POS_NO || "",
-    branchNo: process.env.POSAPI_BRANCH_NO || "",
-    districtCode: process.env.POSAPI_DISTRICT_CODE || "2501",
-    consumerNo: process.env.POSAPI_CONSUMER_NO || "30000000000",
+    merchantTin: (process.env.POSAPI_MERCHANT_TIN || "").trim(),
+    posNo: (process.env.POSAPI_POS_NO || "").trim(),
+    branchNo: (process.env.POSAPI_BRANCH_NO || "").trim(),
+    districtCode: (process.env.POSAPI_DISTRICT_CODE || "2501").trim(),
+    consumerNo: (process.env.POSAPI_CONSUMER_NO || "30000000000").trim(),
   };
 }
 
@@ -132,6 +132,7 @@ function buildPayload(invoice, config) {
     receipts: [
       {
         taxType: "VAT_FREE",
+        merchantTin: config.merchantTin,
         items: [
           {
             name: "Эмнэлгийн үйлчилгээний төлбөр",

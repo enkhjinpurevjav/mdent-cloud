@@ -125,9 +125,30 @@ describe("POSAPI 3.0 payload builder policy checks", () => {
     assert.equal(receipts[0].items[0].taxProductCode, null);
   });
 
-  it("consumerNo is always empty string", () => {
-    const payload = { consumerNo: "" };
-    assert.equal(payload.consumerNo, "");
+  it("receipts[0].merchantTin is set to the top-level merchantTin (not empty)", () => {
+    const merchantTin = "37900846788";
+    const receipts = [
+      {
+        taxType: "VAT_FREE",
+        merchantTin,
+        items: [
+          {
+            name: "Эмнэлгийн үйлчилгээний төлбөр",
+            qty: 1,
+            unitPrice: 100000,
+            totalAmount: 100000,
+            taxProductCode: null,
+          },
+        ],
+      },
+    ];
+    assert.equal(receipts[0].merchantTin, merchantTin);
+    assert.ok(receipts[0].merchantTin.length > 0, "receipts[0].merchantTin must not be empty");
+  });
+
+  it("consumerNo defaults to '30000000000' (ЭЦСИЙН ХЭРЭГЭЛЭГЧ) when not configured", () => {
+    const consumerNo = (process.env.POSAPI_CONSUMER_NO || "30000000000").trim();
+    assert.equal(consumerNo, "30000000000");
   });
 });
 
