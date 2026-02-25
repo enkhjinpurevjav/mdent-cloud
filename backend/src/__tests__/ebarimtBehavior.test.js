@@ -110,7 +110,8 @@ describe("POSAPI 3.0 payload builder policy checks", () => {
         items: [
           {
             name: "Эмнэлгийн үйлчилгээний төлбөр",
-            barCode: "10000001",
+            barCode: "8654000102657",
+            barCodeType: "GS1",
             classificationCode: "4813000",
             measureUnit: "ш",
             qty: 1,
@@ -131,7 +132,8 @@ describe("POSAPI 3.0 payload builder policy checks", () => {
   it("synthetic item barCode is a non-empty numeric string", () => {
     const item = {
       name: "Эмнэлгийн үйлчилгээний төлбөр",
-      barCode: "10000001",
+      barCode: "8654000102657",
+      barCodeType: "GS1",
       classificationCode: "4813000",
       measureUnit: "ш",
       qty: 1,
@@ -141,7 +143,16 @@ describe("POSAPI 3.0 payload builder policy checks", () => {
     };
     assert.ok(item.barCode, "barCode must not be empty");
     assert.match(item.barCode, /^\d+$/, "barCode must be a numeric string");
-    assert.equal(item.barCode, "10000001");
+    assert.equal(item.barCode, "8654000102657");
+  });
+
+  it("synthetic item barCodeType is 'GS1' and never empty", () => {
+    const item = {
+      barCode: "8654000102657",
+      barCodeType: "GS1",
+    };
+    assert.equal(item.barCodeType, "GS1", "barCodeType must be 'GS1'");
+    assert.ok(item.barCodeType, "barCodeType must not be empty");
   });
 
   it("synthetic item classificationCode is '4813000'", () => {

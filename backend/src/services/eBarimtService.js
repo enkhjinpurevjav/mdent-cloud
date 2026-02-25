@@ -136,7 +136,8 @@ function buildPayload(invoice, config) {
         items: [
           {
             name: "Эмнэлгийн үйлчилгээний төлбөр",
-            barCode: "10000001",
+            barCode: "8654000102657",
+            barCodeType: "GS1",
             classificationCode: "4813000",
             measureUnit: "ш",
             qty: 1,
