@@ -105,7 +105,7 @@ function envConfig() {
     posNo: (process.env.POSAPI_POS_NO || "").trim(),
     branchNo: (process.env.POSAPI_BRANCH_NO || "").trim(),
     districtCode: (process.env.POSAPI_DISTRICT_CODE || "2501").trim(),
-    consumerNo: (process.env.POSAPI_CONSUMER_NO || "30000000000").trim(),
+    consumerNo: (process.env.POSAPI_CONSUMER_NO || "99119911").trim(),
   };
 }
 
