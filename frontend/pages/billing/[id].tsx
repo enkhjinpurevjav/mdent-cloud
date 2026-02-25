@@ -2165,63 +2165,26 @@ function BillingEbarimtSection({
             )}
           </div>
         )}
+      </div>
 
-        {receiptForDisplay && (
-          <>
-            {/* @media print: only .ebarimt-receipt is visible */}
-            <style>{`
-              @media print {
-                body > * { display: none !important; }
-                .ebarimt-receipt-print-root { display: block !important; position: fixed; inset: 0; z-index: 9999; background: #fff; }
-              }
-              .ebarimt-receipt-print-root { display: none; }
-            `}</style>
-            {/* Hidden full-page print container */}
-            <div className="ebarimt-receipt-print-root">
-              <div style={{ padding: 32, fontFamily: "monospace", fontSize: 14 }}>
-                <div style={{ textAlign: "center", fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
-                  e-БАРИМТ
-                </div>
-                {/* TODO: clinic name / TIN / address */}
-                <hr />
-                {receiptForDisplay.id && (
-                  <div><strong>ДДТД:</strong> {receiptForDisplay.id}</div>
-                )}
-                {receiptForDisplay.date && (
-                  <div><strong>Огноо:</strong> {receiptForDisplay.date}</div>
-                )}
-                {receiptForDisplay.lottery && (
-                  <div><strong>Сугалаа:</strong> {receiptForDisplay.lottery}</div>
-                )}
-                {receiptForDisplay.totalAmount != null && (
-                  <div><strong>Нийт дүн:</strong> {formatMoney(receiptForDisplay.totalAmount)}₮</div>
-                )}
-                {receiptForDisplay.qrData && (
-                  <div style={{ marginTop: 12, textAlign: "center" }}>
-                    <QRCodeSVG value={receiptForDisplay.qrData} size={150} />
-                  </div>
-                )}
-              </div>
-            </div>
-            {/* Inline receipt preview card */}
-            <div
-              style={{
-                marginTop: 8,
-                padding: "12px 16px",
-                background: "#f0fdf4",
-                border: "1px solid #86efac",
-                borderRadius: 8,
-                fontFamily: "monospace",
-                fontSize: 13,
-                display: "flex",
-                flexDirection: "column",
-                gap: 4,
-              }}
-            >
-              <div style={{ fontWeight: 700, fontSize: 15, textAlign: "center", marginBottom: 4 }}>
+      {receiptForDisplay && (
+        <>
+          {/* @media print: only .ebarimt-receipt is visible */}
+          <style>{`
+            @media print {
+              body > * { display: none !important; }
+              .ebarimt-receipt-print-root { display: block !important; position: fixed; inset: 0; z-index: 9999; background: #fff; }
+            }
+            .ebarimt-receipt-print-root { display: none; }
+          `}</style>
+          {/* Hidden full-page print container */}
+          <div className="ebarimt-receipt-print-root">
+            <div style={{ padding: 32, fontFamily: "monospace", fontSize: 14 }}>
+              <div style={{ textAlign: "center", fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
                 e-БАРИМТ
               </div>
               {/* TODO: clinic name / TIN / address */}
+              <hr />
               {receiptForDisplay.id && (
                 <div><strong>ДДТД:</strong> {receiptForDisplay.id}</div>
               )}
@@ -2235,35 +2198,72 @@ function BillingEbarimtSection({
                 <div><strong>Нийт дүн:</strong> {formatMoney(receiptForDisplay.totalAmount)}₮</div>
               )}
               {receiptForDisplay.qrData && (
-                <div style={{ marginTop: 8, textAlign: "center" }}>
-                  <QRCodeSVG value={receiptForDisplay.qrData} size={120} />
+                <div style={{ marginTop: 12, textAlign: "center" }}>
+                  <QRCodeSVG value={receiptForDisplay.qrData} size={150} />
                 </div>
               )}
-              <div style={{ marginTop: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  style={{
-                    padding: "5px 12px",
-                    borderRadius: 6,
-                    border: "none",
-                    background: "#2563eb",
-                    color: "#fff",
-                    cursor: "pointer",
-                    fontSize: 13,
-                  }}
-                >
-                  🖨️ e-Barimt хэвлэх
-                </button>
-              </div>
             </div>
-          </>
-        )}
+          </div>
+          {/* Inline receipt preview card */}
+          <div
+            style={{
+              marginTop: 8,
+              padding: "12px 16px",
+              background: "#f0fdf4",
+              border: "1px solid #86efac",
+              borderRadius: 8,
+              fontFamily: "monospace",
+              fontSize: 13,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: 15, textAlign: "center", marginBottom: 4 }}>
+              e-БАРИМТ
+            </div>
+            {/* TODO: clinic name / TIN / address */}
+            {receiptForDisplay.id && (
+              <div><strong>ДДТД:</strong> {receiptForDisplay.id}</div>
+            )}
+            {receiptForDisplay.date && (
+              <div><strong>Огноо:</strong> {receiptForDisplay.date}</div>
+            )}
+            {receiptForDisplay.lottery && (
+              <div><strong>Сугалаа:</strong> {receiptForDisplay.lottery}</div>
+            )}
+            {receiptForDisplay.totalAmount != null && (
+              <div><strong>Нийт дүн:</strong> {formatMoney(receiptForDisplay.totalAmount)}₮</div>
+            )}
+            {receiptForDisplay.qrData && (
+              <div style={{ marginTop: 8, textAlign: "center" }}>
+                <QRCodeSVG value={receiptForDisplay.qrData} size={120} />
+              </div>
+            )}
+            <div style={{ marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                style={{
+                  padding: "5px 12px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: "#2563eb",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontSize: 13,
+                }}
+              >
+                🖨️ e-Barimt хэвлэх
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
-        {error && (
-          <div style={{ fontSize: 13, color: "#b91c1c" }}>{error}</div>
-        )}
-      </div>
+      {error && (
+        <div style={{ fontSize: 13, color: "#b91c1c", marginTop: 8 }}>{error}</div>
+      )}
     </section>
   );
 }
