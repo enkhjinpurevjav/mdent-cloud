@@ -10,7 +10,7 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - POSAPI_BASE_URL=${POSAPI_BASE_URL}
-      - DISABLE_AUTH=${DISABLE_AUTH}
+      - DISABLE_AUTH=true
     depends_on:
       - postgres
     networks:
