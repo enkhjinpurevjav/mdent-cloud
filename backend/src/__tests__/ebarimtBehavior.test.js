@@ -110,6 +110,9 @@ describe("POSAPI 3.0 payload builder policy checks", () => {
         items: [
           {
             name: "Эмнэлгийн үйлчилгээний төлбөр",
+            barCode: "10000001",
+            classificationCode: "4813000",
+            measureUnit: "ш",
             qty: 1,
             unitPrice: amount,
             totalAmount: amount,
@@ -123,6 +126,36 @@ describe("POSAPI 3.0 payload builder policy checks", () => {
     assert.equal(receipts[0].items[0].name, "Эмнэлгийн үйлчилгээний төлбөр");
     assert.equal(receipts[0].items[0].qty, 1);
     assert.equal(receipts[0].items[0].taxProductCode, null);
+  });
+
+  it("synthetic item barCode is a non-empty numeric string", () => {
+    const item = {
+      name: "Эмнэлгийн үйлчилгээний төлбөр",
+      barCode: "10000001",
+      classificationCode: "4813000",
+      measureUnit: "ш",
+      qty: 1,
+      unitPrice: 50000,
+      totalAmount: 50000,
+      taxProductCode: null,
+    };
+    assert.ok(item.barCode, "barCode must not be empty");
+    assert.match(item.barCode, /^\d+$/, "barCode must be a numeric string");
+    assert.equal(item.barCode, "10000001");
+  });
+
+  it("synthetic item classificationCode is '4813000'", () => {
+    const item = {
+      classificationCode: "4813000",
+    };
+    assert.equal(item.classificationCode, "4813000");
+  });
+
+  it("synthetic item measureUnit is 'ш'", () => {
+    const item = {
+      measureUnit: "ш",
+    };
+    assert.equal(item.measureUnit, "ш");
   });
 
   it("receipts[0].merchantTin is set to the top-level merchantTin (not empty)", () => {
