@@ -62,6 +62,13 @@ type InvoiceResponse = {
   patientOldBalance?: number;
   buyerType?: "B2C" | "B2B";
   buyerTin?: string | null;
+  ebarimtReceipt?: {
+    status: string;
+    ddtd: string | null;
+    printedAtText: string | null;
+    printedAt: string | null;
+    totalAmount: number | null;
+  } | null;
 };
 
 type EncounterService = {
@@ -1933,7 +1940,7 @@ function BillingEbarimtSection({
   const [issuedPrintedAtText, setIssuedPrintedAtText] = React.useState<string | null>(null);
   const [receiptForDisplay, setReceiptForDisplay] = React.useState<ReceiptForDisplay | null>(null);
 
-  // Sync state when invoice changes (e.g. after payment)
+  // Sync buyer info when invoice changes (e.g. after payment or navigation)
   React.useEffect(() => {
     setBuyerType(invoice.buyerType ?? "B2C");
     setBuyerTin(invoice.buyerTin ?? "");
@@ -1942,7 +1949,7 @@ function BillingEbarimtSection({
     setIssuedDdtd(null);
     setIssuedPrintedAtText(null);
     setReceiptForDisplay(null);
-  }, [invoice.id, invoice.buyerType, invoice.buyerTin]);
+  }, [invoice.id]);
 
   const disabled = !isPaid || isLocked;
 
@@ -2045,6 +2052,34 @@ function BillingEbarimtSection({
           }}
         >
           e-Barimt баримт аль хэдийн гаргасан тул худалдан авагчийн мэдээллийг өөрчлөх боломжгүй.
+        </div>
+      )}
+
+      {isLocked && invoice.ebarimtReceipt?.status === "SUCCESS" && !receiptForDisplay && (
+        <div
+          style={{
+            marginBottom: 8,
+            padding: "10px 14px",
+            background: "#f0fdf4",
+            border: "1px solid #86efac",
+            borderRadius: 8,
+            fontFamily: "monospace",
+            fontSize: 13,
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 2 }}>✅ e-Barimt гаргасан</div>
+          {invoice.ebarimtReceipt.ddtd && (
+            <div><strong>ДДТД:</strong> {invoice.ebarimtReceipt.ddtd}</div>
+          )}
+          {invoice.ebarimtReceipt.printedAtText && (
+            <div><strong>Огноо:</strong> {invoice.ebarimtReceipt.printedAtText}</div>
+          )}
+          {invoice.ebarimtReceipt.totalAmount != null && (
+            <div><strong>Нийт дүн:</strong> {formatMoney(invoice.ebarimtReceipt.totalAmount)}₮</div>
+          )}
         </div>
       )}
 

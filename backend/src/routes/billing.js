@@ -190,6 +190,17 @@ router.get("/encounters/:id/invoice", async (req, res) => {
         hasEBarimt: !!existingInvoice.eBarimtReceipt,
         buyerType: existingInvoice.buyerType || "B2C",
         buyerTin: existingInvoice.buyerTin || null,
+        ebarimtReceipt: existingInvoice.eBarimtReceipt
+          ? {
+              status: existingInvoice.eBarimtReceipt.status,
+              ddtd: existingInvoice.eBarimtReceipt.ddtd ?? null,
+              printedAtText: existingInvoice.eBarimtReceipt.printedAtText ?? null,
+              printedAt: existingInvoice.eBarimtReceipt.printedAt
+                ? existingInvoice.eBarimtReceipt.printedAt.toISOString()
+                : null,
+              totalAmount: existingInvoice.eBarimtReceipt.totalAmount ?? null,
+            }
+          : null,
         items: existingInvoice.items.map((it) => ({
           id: it.id,
           itemType: it.itemType,
