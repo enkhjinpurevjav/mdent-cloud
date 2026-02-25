@@ -15,6 +15,7 @@ import {
   formatPosapiDate,
   isValidDdtd,
   isValidTin,
+  generateBillIdSuffix,
 } from "../services/eBarimtService.js";
 
 describe("scrubResponse behavior (compliance)", () => {
@@ -42,22 +43,53 @@ describe("scrubResponse behavior (compliance)", () => {
   });
 });
 
-describe("POSAPI payload builder policy checks", () => {
-  it("B2B buyer type maps to billType '3'", () => {
+describe("generateBillIdSuffix", () => {
+  it("returns an 8-digit string", () => {
+    const result = generateBillIdSuffix(new Date(2024, 0, 15), 42);
+    assert.match(result, /^\d{8}$/);
+  });
+
+  it("is deterministic for same date and invoiceId", () => {
+    const date = new Date(2024, 5, 1);
+    const a = generateBillIdSuffix(date, 123);
+    const b = generateBillIdSuffix(date, 123);
+    assert.equal(a, b);
+  });
+
+  it("differs for different invoiceIds on same date", () => {
+    const date = new Date(2024, 5, 1);
+    const a = generateBillIdSuffix(date, 1);
+    const b = generateBillIdSuffix(date, 2);
+    assert.notEqual(a, b);
+  });
+
+  it("differs for same invoiceId on different dates", () => {
+    const a = generateBillIdSuffix(new Date(2024, 5, 1), 1);
+    const b = generateBillIdSuffix(new Date(2024, 5, 2), 1);
+    assert.notEqual(a, b);
+  });
+});
+
+describe("POSAPI 3.0 payload builder policy checks", () => {
+  it("B2B buyer type maps to type 'B2B_RECEIPT'", () => {
     const buyerType = "B2B";
-    const billType = buyerType === "B2B" ? "3" : "1";
-    assert.equal(billType, "3");
+    const type = buyerType === "B2B" ? "B2B_RECEIPT" : "B2C_RECEIPT";
+    assert.equal(type, "B2B_RECEIPT");
   });
 
-  it("B2C buyer type maps to billType '1'", () => {
+  it("B2C buyer type maps to type 'B2C_RECEIPT'", () => {
     const buyerType = "B2C";
-    const billType = buyerType === "B2B" ? "3" : "1";
-    assert.equal(billType, "1");
+    const type = buyerType === "B2B" ? "B2B_RECEIPT" : "B2C_RECEIPT";
+    assert.equal(type, "B2C_RECEIPT");
   });
 
-  it("taxType is always VAT_FREE", () => {
-    const payload = { taxType: "VAT_FREE", totalVAT: 0, totalCityTax: 0 };
-    assert.equal(payload.taxType, "VAT_FREE");
+  it("taxType in receipts is always VAT_FREE", () => {
+    const receipts = [{ taxType: "VAT_FREE", items: [] }];
+    assert.equal(receipts[0].taxType, "VAT_FREE");
+  });
+
+  it("totalVAT and totalCityTax are always 0", () => {
+    const payload = { totalVAT: 0, totalCityTax: 0 };
     assert.equal(payload.totalVAT, 0);
     assert.equal(payload.totalCityTax, 0);
   });
@@ -70,22 +102,32 @@ describe("POSAPI payload builder policy checks", () => {
     assert.equal(payment.paidAmount, amount);
   });
 
-  it("single synthetic line item policy", () => {
+  it("single synthetic line item is inside receipts[0].items", () => {
     const amount = 75000;
-    const items = [
+    const receipts = [
       {
-        name: "Эмнэлгийн үйлчилгээний төлбөр",
-        qty: 1,
-        unitPrice: amount,
-        totalAmount: amount,
-        taxProductCode: null,
+        taxType: "VAT_FREE",
+        items: [
+          {
+            name: "Эмнэлгийн үйлчилгээний төлбөр",
+            qty: 1,
+            unitPrice: amount,
+            totalAmount: amount,
+            taxProductCode: null,
+          },
+        ],
       },
     ];
-    assert.equal(items.length, 1);
-    assert.equal(items[0].name, "Эмнэлгийн үйлчилгээний төлбөр");
-    assert.equal(items[0].qty, 1);
-    assert.equal(items[0].unitPrice, amount);
-    assert.equal(items[0].taxProductCode, null);
+    assert.equal(receipts.length, 1);
+    assert.equal(receipts[0].items.length, 1);
+    assert.equal(receipts[0].items[0].name, "Эмнэлгийн үйлчилгээний төлбөр");
+    assert.equal(receipts[0].items[0].qty, 1);
+    assert.equal(receipts[0].items[0].taxProductCode, null);
+  });
+
+  it("consumerNo is always empty string", () => {
+    const payload = { consumerNo: "" };
+    assert.equal(payload.consumerNo, "");
   });
 });
 
@@ -129,6 +171,36 @@ describe("scrubResponse: prohibited fields removed", () => {
 
   it("returns null for null input", () => {
     assert.equal(scrubResponse(null), null);
+  });
+});
+
+describe("POSAPI 3.0 response status handling", () => {
+  it("SUCCESS status is treated as success", () => {
+    const rawResponse = { status: "SUCCESS", id: "12345" };
+    const apiStatus = rawResponse?.status;
+    const isApiSuccess = apiStatus === "SUCCESS" || (!apiStatus && rawResponse !== null);
+    assert.equal(isApiSuccess, true);
+  });
+
+  it("ERROR status is treated as failure", () => {
+    const rawResponse = { status: "ERROR", message: "Invalid TIN" };
+    const apiStatus = rawResponse?.status;
+    const isApiSuccess = apiStatus === "SUCCESS" || (!apiStatus && rawResponse !== null);
+    assert.equal(isApiSuccess, false);
+  });
+
+  it("PAYMENT status is treated as failure", () => {
+    const rawResponse = { status: "PAYMENT", message: "Payment required" };
+    const apiStatus = rawResponse?.status;
+    const isApiSuccess = apiStatus === "SUCCESS" || (!apiStatus && rawResponse !== null);
+    assert.equal(isApiSuccess, false);
+  });
+
+  it("absent status with non-null response is treated as success (conservative)", () => {
+    const rawResponse = { id: "12345" };
+    const apiStatus = rawResponse?.status;
+    const isApiSuccess = apiStatus === "SUCCESS" || (!apiStatus && rawResponse !== null);
+    assert.equal(isApiSuccess, true);
   });
 });
 

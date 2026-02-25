@@ -11,16 +11,21 @@
  * - On failure: mark FAILED, do NOT rollback settlement.
  * - Compliance: do NOT persist lottery, qrData, or qrDate in DB or logs.
  *
+ * POSAPI 3.0 payload uses:
+ *   type          – "B2C_RECEIPT" or "B2B_RECEIPT"
+ *   billIdSuffix  – digits-only, deterministic per invoice per day (hash of YYYYMMDD-invoiceId)
+ *   receipts[]    – array with taxType and items[]
+ *
  * Environment variables:
- *   POSAPI_BASE_URL      – Base URL for POSAPI
- *   POSAPI_MERCHANT_TIN  – Merchant TIN
- *   POSAPI_POS_NO        – POS number
- *   POSAPI_BRANCH_NO     – Branch number
- *   POSAPI_DISTRICT_CODE – District code (default: "34")
- *   POSAPI_BILL_ID_SUFFIX – Bill ID suffix (optional)
+ *   POSAPI_BASE_URL      – Base URL for POSAPI (e.g. http://100.76.13.118:7080)
+ *   POSAPI_MERCHANT_TIN  – Merchant TIN (required)
+ *   POSAPI_POS_NO        – POS number (required)
+ *   POSAPI_BRANCH_NO     – Branch number, 3-digit string e.g. "001" (required)
+ *   POSAPI_DISTRICT_CODE – District code, 4-digit string e.g. "2501" (required)
  *   EBARIMT_SKIP         – "true" to skip external call (dev/CI/test)
  */
 
+import crypto from "node:crypto";
 import prisma from "../db.js";
 import * as posapi from "./posapiClient.js";
 
@@ -38,6 +43,26 @@ export function formatPosapiDate(date) {
   const mi = pad(date.getMinutes());
   const s = pad(date.getSeconds());
   return `${y}-${mo}-${d} ${h}:${mi}:${s}`;
+}
+
+/**
+ * Generate a digits-only billIdSuffix deterministic per invoice per day.
+ * Uses SHA-256 of "YYYYMMDD-{invoiceId}", takes first 8 hex chars as decimal, zero-padded to 8 digits.
+ * @param {Date} date
+ * @param {number|string} invoiceId
+ * @returns {string} 8-digit string
+ */
+export function generateBillIdSuffix(date, invoiceId) {
+  const y = date.getFullYear();
+  const mo = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const dateStr = `${y}${mo}${d}`;
+  const hash = crypto
+    .createHash("sha256")
+    .update(`${dateStr}-${invoiceId}`)
+    .digest("hex");
+  const num = parseInt(hash.slice(0, 8), 16) % 100000000;
+  return String(num).padStart(8, "0");
 }
 
 /**
@@ -78,40 +103,42 @@ function envConfig() {
     merchantTin: process.env.POSAPI_MERCHANT_TIN || "",
     posNo: process.env.POSAPI_POS_NO || "",
     branchNo: process.env.POSAPI_BRANCH_NO || "",
-    districtCode: process.env.POSAPI_DISTRICT_CODE || "34",
-    billIdSuffix: process.env.POSAPI_BILL_ID_SUFFIX || "",
+    districtCode: process.env.POSAPI_DISTRICT_CODE || "2501",
   };
 }
 
 /**
- * Build the POSAPI receipt payload for an invoice.
+ * Build the POSAPI 3.0 receipt payload for an invoice.
  */
 function buildPayload(invoice, config) {
   const amount = Number(invoice.finalAmount ?? invoice.totalAmount ?? 0);
-  const billId = `${invoice.id}${config.billIdSuffix}`;
   const buyerType = invoice.buyerType || "B2C";
-  const customerTin = buyerType === "B2B" ? (invoice.buyerTin || null) : null;
+  const type = buyerType === "B2B" ? "B2B_RECEIPT" : "B2C_RECEIPT";
+  const billIdSuffix = generateBillIdSuffix(new Date(), invoice.id);
 
-  return {
-    merchantTin: config.merchantTin,
-    posNo: config.posNo,
+  const payload = {
     branchNo: config.branchNo,
     districtCode: config.districtCode,
-    billId,
-    // B2C=1 B2B=3
-    billType: buyerType === "B2B" ? "3" : "1",
-    customerTin,
-    taxType: "VAT_FREE",
+    merchantTin: config.merchantTin,
+    posNo: config.posNo,
+    consumerNo: "",
+    type,
+    billIdSuffix,
     totalAmount: amount,
     totalVAT: 0,
     totalCityTax: 0,
-    items: [
+    receipts: [
       {
-        name: "Эмнэлгийн үйлчилгээний төлбөр",
-        qty: 1,
-        unitPrice: amount,
-        totalAmount: amount,
-        taxProductCode: null,
+        taxType: "VAT_FREE",
+        items: [
+          {
+            name: "Эмнэлгийн үйлчилгээний төлбөр",
+            qty: 1,
+            unitPrice: amount,
+            totalAmount: amount,
+            taxProductCode: null,
+          },
+        ],
       },
     ],
     payments: [
@@ -122,6 +149,12 @@ function buildPayload(invoice, config) {
       },
     ],
   };
+
+  if (buyerType === "B2B") {
+    payload.customerTin = invoice.buyerTin || null;
+  }
+
+  return payload;
 }
 
 /**
@@ -165,6 +198,16 @@ export async function issueEbarimtForInvoice(invoiceId, userId) {
   }
 
   const config = envConfig();
+
+  // Validate required env vars
+  const missingVars = [];
+  if (!config.merchantTin) missingVars.push("POSAPI_MERCHANT_TIN");
+  if (!config.posNo) missingVars.push("POSAPI_POS_NO");
+  if (!config.branchNo) missingVars.push("POSAPI_BRANCH_NO");
+  if (!config.districtCode) missingVars.push("POSAPI_DISTRICT_CODE");
+  if (missingVars.length > 0) {
+    throw new Error(`Missing required env vars: ${missingVars.join(", ")}`);
+  }
 
   // Upsert receipt record as PENDING
   const receipt = await prisma.eBarimtReceipt.upsert({
@@ -247,6 +290,24 @@ export async function issueEbarimtForInvoice(invoiceId, userId) {
   }
 
   const scrubbedResponse = scrubResponse(rawResponse);
+
+  // POSAPI 3.0 returns status: "SUCCESS" | "ERROR" | "PAYMENT"
+  const apiStatus = rawResponse?.status;
+  const isApiSuccess = apiStatus === "SUCCESS" || (!apiStatus && rawResponse !== null);
+
+  if (!isApiSuccess) {
+    const errMsg = rawResponse?.message || `POSAPI status: ${apiStatus}`;
+    await prisma.eBarimtReceipt.update({
+      where: { id: receipt.id },
+      data: {
+        status: "FAILED",
+        errorMessage: errMsg,
+        issueRawRequest: payload,
+        issueRawResponse: scrubbedResponse,
+      },
+    });
+    return { success: false, errorMessage: errMsg };
+  }
 
   await prisma.eBarimtReceipt.update({
     where: { id: receipt.id },
