@@ -188,6 +188,8 @@ router.get("/encounters/:id/invoice", async (req, res) => {
         collectionDiscountAmount: existingInvoice.collectionDiscountAmount || 0,
         finalAmount: existingInvoice.finalAmount,
         hasEBarimt: !!existingInvoice.eBarimtReceipt,
+        buyerType: existingInvoice.buyerType || "B2C",
+        buyerTin: existingInvoice.buyerTin || null,
         items: existingInvoice.items.map((it) => ({
           id: it.id,
           itemType: it.itemType,
@@ -252,6 +254,8 @@ router.get("/encounters/:id/invoice", async (req, res) => {
       collectionDiscountAmount: 0,
       finalAmount: totalBeforeDiscount,
       hasEBarimt: false,
+      buyerType: "B2C",
+      buyerTin: null,
       items: provisionalItems,
       isProvisional: true,
       patientTotalBilled: balanceData.totalBilled,
