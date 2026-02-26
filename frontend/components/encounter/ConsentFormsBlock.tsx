@@ -2599,58 +2599,7 @@ export default function ConsentFormsBlock({
                             </span>
                           </label>
 
-                          <div style={{ marginTop: 4, fontSize: 12 }}>
-                            Үйлчлүүлэгчийн гарын үсэг{" "}
-                            <input
-                              type="text"
-                              value={
-                                consentAnswersDraft
-                                  ?.orthoIntroPatientSignature1 || ""
-                              }
-                              onChange={(e) =>
-                                updateConsentAnswers({
-                                  orthoIntroPatientSignature1:
-                                    e.target.value,
-                                })
-                              }
-                              onBlur={async () => {
-                                await saveConsentApi(consentTypeDraft);
-                              }}
-                              style={{
-                                minWidth: 140,
-                                borderRadius: 4,
-                                border: "1px solid #d1d5db",
-                                padding: "0 6px",
-                                fontSize: 12,
-                              }}
-                            />
-                            <br />
-                            Үйлчлүүлэгчийн гарын үсэг{" "}
-                            <input
-                              type="text"
-                              value={
-                                consentAnswersDraft
-                                  ?.orthoIntroPatientSignature2 || ""
-                              }
-                              onChange={(e) =>
-                                updateConsentAnswers({
-                                  orthoIntroPatientSignature2:
-                                    e.target.value,
-                                })
-                              }
-                              onBlur={async () => {
-                                await saveConsentApi(consentTypeDraft);
-                              }}
-                              style={{
-                                minWidth: 140,
-                                borderRadius: 4,
-                                border: "1px solid #d1d5db",
-                                padding: "0 6px",
-                                fontSize: 12,
-                                marginTop: 2,
-                              }}
-                            />
-                          </div>
+
                         </div>
                       </div>
                     )}
