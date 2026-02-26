@@ -23,10 +23,18 @@ async function main() {
 
   // Seed one user for each role (admin, doctor, receptionist, accountant, nurse, manager)
   const roles = [
-    { email: "admin@mdent.local", role: "admin", password: adminPassword },           // admin password from ENV
+    { email: "admin@mdent.local", role: "admin", password: adminPassword }, // admin password from ENV
     { email: "doctor@mdent.local", role: "doctor", password: "doctor123" },
-    { email: "receptionist@mdent.local", role: "receptionist", password: "reception123" },
-    { email: "accountant@mdent.local", role: "accountant", password: "accountant123" },
+    {
+      email: "receptionist@mdent.local",
+      role: "receptionist",
+      password: "reception123",
+    },
+    {
+      email: "accountant@mdent.local",
+      role: "accountant",
+      password: "accountant123",
+    },
     { email: "nurse@mdent.local", role: "nurse", password: "nurse123" },
     { email: "manager@mdent.local", role: "manager", password: "manager123" },
   ];
@@ -60,7 +68,9 @@ async function main() {
         name: seedPatientName,
         phone: "70000000",
         branchId: branch.id,
-        book: { create: { bookNumber: `BOOK-${Date.now()}` } },
+
+        // ✅ fix: Patient relation field is `patientBook`, not `book`
+        patientBook: { create: { bookNumber: `BOOK-${Date.now()}` } },
       },
     });
   } else {
@@ -81,7 +91,7 @@ async function main() {
 
   console.log("Seed completed:", {
     branch: branch.name,
-    users: roles.map(u => u.email),
+    users: roles.map((u) => u.email),
     patient: patient.name,
   });
 
@@ -91,9 +101,12 @@ async function main() {
   const previousMarkerService = await prisma.service.upsert({
     where: { code: "PREVIOUS_MARKER" },
     update: {
+      category: "PREVIOUS",
       name: "Өмнөх үзлэгийн үргэлжлэл",
       price: 0,
       isActive: true,
+      description:
+        "Өмнөх үзлэгийн үргэлжлэлийн тэмдэглэгч үйлчилгээ (үнэ тооцохгүй)",
     },
     create: {
       code: "PREVIOUS_MARKER",
@@ -101,7 +114,8 @@ async function main() {
       name: "Өмнөх үзлэгийн үргэлжлэл",
       price: 0,
       isActive: true,
-      description: "Өмнөх үзлэгийн үргэлжлэлийн тэмдэглэгч үйлчилгээ (үнэ тооцохгүй)",
+      description:
+        "Өмнөх үзлэгийн үргэлжлэлийн тэмдэглэгч үйлчилгээ (үнэ тооцохгүй)",
     },
   });
 
@@ -125,7 +139,8 @@ async function main() {
     "CHILD_TREATMENT",
     "SURGERY",
     "PREVIOUS",
-  ];
+  ] as const;
+
   for (const category of serviceCategories) {
     await prisma.serviceCategoryConfig.upsert({
       where: { category },
