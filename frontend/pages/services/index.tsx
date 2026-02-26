@@ -12,7 +12,8 @@ type ServiceCategory =
   | "ADULT_TREATMENT"
   | "WHITENING"
   | "CHILD_TREATMENT"
-  | "SURGERY";
+  | "SURGERY"
+  | "PREVIOUS";
 
 type ServiceBranch = {
   branchId: number;
@@ -38,6 +39,7 @@ const SERVICE_CATEGORY_LABELS: Record<ServiceCategory, string> = {
   WHITENING: "Цайруулалт",
   CHILD_TREATMENT: "Хүүхдийн эмчилгээ",
   SURGERY: "Мэс засал",
+  PREVIOUS: "Өмнөх",
 };
 
 export default function ServicesPage() {
@@ -384,6 +386,7 @@ export default function ServicesPage() {
       WHITENING: [],
       CHILD_TREATMENT: [],
       SURGERY: [],
+      PREVIOUS: [],
     };
     pagedServices.forEach((s) => {
       groups[s.category].push(s);

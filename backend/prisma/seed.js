@@ -88,7 +88,7 @@ async function main() {
   // Seed: PREVIOUS marker service for indicating continuation of previous treatment.
   // Doctors add this service to mark an encounter as continuation of prior treatment.
   // Price is 0 so it does not affect totals. Excluded from income calculations.
-  await prisma.service.upsert({
+  const previousMarkerService = await prisma.service.upsert({
     where: { code: "PREVIOUS_MARKER" },
     update: {
       name: "Өмнөх үзлэгийн үргэлжлэл",
@@ -103,6 +103,16 @@ async function main() {
       isActive: true,
       description: "Өмнөх үзлэгийн үргэлжлэлийн тэмдэглэгч үйлчилгээ (үнэ тооцохгүй)",
     },
+  });
+
+  // Link PREVIOUS_MARKER to all branches
+  const allBranches = await prisma.branch.findMany({ select: { id: true } });
+  await prisma.serviceBranch.createMany({
+    data: allBranches.map((b) => ({
+      serviceId: previousMarkerService.id,
+      branchId: b.id,
+    })),
+    skipDuplicates: true,
   });
 
   // Seed: ServiceCategoryConfig defaults (durationMinutes=30) for all categories
@@ -133,15 +143,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
-// ...
-patient = await prisma.patient.create({
-  data: {
-    regNo: "0000000000",
-    name: seedPatientName,
-    phone: "70000000",
-    branchId: branch.id,
-    patientBook: { create: { bookNumber: `BOOK-${Date.now()}` } },
-  },
-});
-// ...

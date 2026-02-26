@@ -616,7 +616,7 @@ router.put("/:id/services", async (req, res) => {
 
         const svc = await trx.service.findUnique({
           where: { id: serviceId },
-          select: { price: true },
+          select: { price: true, category: true },
         });
         if (!svc) continue;
 
@@ -636,7 +636,7 @@ router.put("/:id/services", async (req, res) => {
             encounterId,
             serviceId,
             quantity: item.quantity ?? 1,
-            price: svc.price,
+            price: svc.category === "PREVIOUS" ? 0 : svc.price,
             meta,
           },
         });
@@ -1597,10 +1597,11 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
             // Service ID is provided - create or update
             const service = await trx.service.findUnique({
               where: { id: serviceIdValue },
-              select: { price: true },
+              select: { price: true, category: true },
             });
 
             if (service) {
+              const effectivePrice = service.category === "PREVIOUS" ? 0 : service.price;
               // Build meta object, preserving keys and adding toothScope for imaging
               const meta = {
                 assignedTo,
@@ -1619,7 +1620,7 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
                   data: {
                     serviceId: serviceIdValue,
                     quantity: 1,
-                    price: service.price,
+                    price: effectivePrice,
                     meta,
                   },
                 });
@@ -1630,7 +1631,7 @@ router.put("/:encounterId/diagnosis-rows", async (req, res) => {
                     encounterId,
                     serviceId: serviceIdValue,
                     quantity: 1,
-                    price: service.price,
+                    price: effectivePrice,
                     meta,
                   },
                 });
