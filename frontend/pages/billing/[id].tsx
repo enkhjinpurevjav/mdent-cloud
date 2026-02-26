@@ -2228,18 +2228,14 @@ function BillingEbarimtSection({
   .ebarimt-receipt-print-root { display: none; }
 
   @media print {
-    /* Hide everything */
+    /* Hide everything in the app */
     body * {
       display: none !important;
     }
 
-    /* Show the print root and everything inside it */
-    .ebarimt-receipt-print-root,
-    .ebarimt-receipt-print-root * {
-      display: block !important;
-    }
-
+    /* Show ONLY the print root (do not touch its children) */
     .ebarimt-receipt-print-root {
+      display: block !important;
       position: fixed !important;
       top: 0 !important;
       left: 0 !important;
@@ -2248,7 +2244,11 @@ function BillingEbarimtSection({
       background: #fff !important;
     }
 
-    /* Optional: prevent browser from adding margins */
+    /* Ensure its children are visible (visibility, not display) */
+    .ebarimt-receipt-print-root * {
+      visibility: visible !important;
+    }
+
     @page { margin: 0; }
   }
 `}</style>
