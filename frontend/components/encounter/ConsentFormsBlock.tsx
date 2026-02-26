@@ -2195,32 +2195,7 @@ export default function ConsentFormsBlock({
                             }}
                           >
                             Танилцуулсан зөвшөөрлийг уншиж зөвшөөрсөн
-                            өвчтөний гарын үсэг{" "}
-                            <input
-                              type="text"
-                              placeholder="гарын үсэг"
-                              value={
-                                consentAnswersDraft
-                                  ?.orthoPatientAgreeSignature || ""
-                              }
-                              onChange={(e) =>
-                                updateConsentAnswers({
-                                  orthoPatientAgreeSignature:
-                                    e.target.value,
-                                })
-                              }
-                              onBlur={async () => {
-                                await saveConsentApi(consentTypeDraft);
-                              }}
-                              style={{
-                                minWidth: 80,
-                                borderRadius: 4,
-                                border: "1px solid #d1d5db",
-                                padding: "0 4px",
-                                fontSize: 12,
-                              }}
-                            />{" "}
-                            /{" "}
+                            өвчтөн/асран хамгаалагчийн нэр{" "}
                             <input
                               type="text"
                               placeholder="нэр"
@@ -2245,82 +2220,7 @@ export default function ConsentFormsBlock({
                               }}
                             />
                             <br />
-                            Өвчтөний асран хамгаалагчийн гарын үсэг{" "}
-                            <input
-                              type="text"
-                              placeholder="гарын үсэг"
-                              value={
-                                consentAnswersDraft
-                                  ?.orthoGuardianAgreeSignature || ""
-                              }
-                              onChange={(e) =>
-                                updateConsentAnswers({
-                                  orthoGuardianAgreeSignature:
-                                    e.target.value,
-                                })
-                              }
-                              onBlur={async () => {
-                                await saveConsentApi(consentTypeDraft);
-                              }}
-                              style={{
-                                minWidth: 80,
-                                borderRadius: 4,
-                                border: "1px solid #d1d5db",
-                                padding: "0 4px",
-                                fontSize: 12,
-                              }}
-                            />{" "}
-                            /{" "}
-                            <input
-                              type="text"
-                              placeholder="нэр"
-                              value={
-                                consentAnswersDraft
-                                  ?.orthoGuardianAgreeName || ""
-                              }
-                              onChange={(e) =>
-                                updateConsentAnswers({
-                                  orthoGuardianAgreeName: e.target.value,
-                                })
-                              }
-                              onBlur={async () => {
-                                await saveConsentApi(consentTypeDraft);
-                              }}
-                              style={{
-                                minWidth: 80,
-                                borderRadius: 4,
-                                border: "1px solid #d1d5db",
-                                padding: "0 4px",
-                                fontSize: 12,
-                              }}
-                            />
-                            <br />
-                            Эмчилгээ хийж буй эмчийн гарын үсэг{" "}
-                            <input
-                              type="text"
-                              placeholder="гарын үсэг"
-                              value={
-                                consentAnswersDraft
-                                  ?.orthoDoctorAgreeSignature || ""
-                              }
-                              onChange={(e) =>
-                                updateConsentAnswers({
-                                  orthoDoctorAgreeSignature:
-                                    e.target.value,
-                                })
-                              }
-                              onBlur={async () => {
-                                await saveConsentApi(consentTypeDraft);
-                              }}
-                              style={{
-                                minWidth: 80,
-                                borderRadius: 4,
-                                border: "1px solid #d1d5db",
-                                padding: "0 4px",
-                                fontSize: 12,
-                              }}
-                            />{" "}
-                            /{" "}
+                            Эмчилгээ хийж буй эмчийн нэр{" "}
                             <strong>
                               {formatDoctorDisplayName(encounter.doctor)}
                             </strong>
@@ -2473,32 +2373,7 @@ export default function ConsentFormsBlock({
                                 {formatDoctorDisplayName(encounter.doctor)}
                               </strong>
                             </div>
-                            <div>
-                              Гарын үсэг:{" "}
-                              <input
-                                type="text"
-                                value={
-                                  consentAnswersDraft
-                                    ?.orthoIntroDoctorSignature || ""
-                                }
-                                onChange={(e) =>
-                                  updateConsentAnswers({
-                                    orthoIntroDoctorSignature:
-                                      e.target.value,
-                                  })
-                                }
-                                onBlur={async () => {
-                                  await saveConsentApi(consentTypeDraft);
-                                }}
-                                style={{
-                                  minWidth: 140,
-                                  borderRadius: 4,
-                                  border: "1px solid #d1d5db",
-                                  padding: "0 6px",
-                                  fontSize: 12,
-                                }}
-                              />
-                            </div>
+
                           </div>
 
                           <div style={{ marginBottom: 6 }}>
