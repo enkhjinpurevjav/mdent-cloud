@@ -2253,10 +2253,9 @@ function BillingEbarimtSection({
             <div style={{ width: 215, padding: "8px 6px", fontFamily: "monospace", fontSize: 11, lineHeight: 1.4 }}>
               <div style={{ textAlign: "center", marginBottom: 4 }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="https://mdent.cloud/clinic-logo.png" alt="Clinic logo" style={{ width: 60, height: "auto" }} />
+                <img src="https://mdent.cloud/clinic-logo.png" alt="Clinic logo" style={{ width: 90, height: "auto" }} />
               </div>
-              <div style={{ textAlign: "center", fontWeight: 700, fontSize: 12 }}>MON FAMILY</div>
-              <div style={{ textAlign: "center", fontWeight: 700, fontSize: 12, marginBottom: 4 }}>DENTAL CLINIC</div>
+            
               <div>Утас: 7715-1551</div>
               <div>И-мэйл: info@monfamily.mn</div>
               <hr style={{ margin: "4px 0" }} />
