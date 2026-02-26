@@ -1572,7 +1572,7 @@ export default function ConsentFormsBlock({
 
                               <input
                                 type="text"
-                                placeholder="Нэр, үйлчлүүлэгчтэй холбоотой эсэх"
+                                placeholder="Холбоо, хамаарал ( нөхөр, аав, ээж гэх мэт)"
                                 value={
                                   consentAnswersDraft
                                     ?.guardianRelationDescription ||
