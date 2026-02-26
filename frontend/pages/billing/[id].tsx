@@ -2228,23 +2228,19 @@ function BillingEbarimtSection({
   .ebarimt-receipt-print-root { display: none; }
 
   @media print {
-    /* Hide everything in the app */
-    body * {
-      display: none !important;
-    }
+    body * { visibility: hidden !important; }
 
-    /* Show ONLY the print root (do not touch its children) */
     .ebarimt-receipt-print-root {
       display: block !important;
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      width: 215px !important;
-      z-index: 9999 !important;
-      background: #fff !important;
+      visibility: visible !important;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 215px;
+      background: #fff;
+      z-index: 9999;
     }
 
-    /* Ensure its children are visible (visibility, not display) */
     .ebarimt-receipt-print-root * {
       visibility: visible !important;
     }
