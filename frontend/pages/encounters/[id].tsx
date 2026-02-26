@@ -2189,6 +2189,7 @@ const handleFinishEncounter = async () => {
               uploadingMedia={uploadingMedia}
               onUpload={handleMediaUpload}
               onDelete={handleMediaDelete}
+              onRefresh={reloadMedia}
             />
 
             <PrescriptionEditor

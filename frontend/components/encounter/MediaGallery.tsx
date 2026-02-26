@@ -66,6 +66,8 @@ export default function MediaGallery({
     setPendingImages([]);
   };
 
+  const isRefreshing = refreshing || mediaLoading;
+
   const handleDelete = async (mediaId: number) => {
     if (deletingIds.has(mediaId)) return;
 
@@ -152,48 +154,46 @@ export default function MediaGallery({
           />
         </label>
 
-        {onRefresh && (
-          <button
-            type="button"
-            onClick={handleRefresh}
-            disabled={refreshing || mediaLoading}
-            style={{
-              padding: "6px 12px",
-              borderRadius: 6,
-              border: "1px solid #6b7280",
-              background: refreshing || mediaLoading ? "#f3f4f6" : "#ffffff",
-              color: refreshing || mediaLoading ? "#9ca3af" : "#374151",
-              fontSize: 12,
-              fontWeight: 500,
-              cursor: refreshing || mediaLoading ? "default" : "pointer",
-            }}
-            title="Зургуудыг дахин ачаалах"
-          >
-            {refreshing ? "Ачаалж байна..." : "🔄 Сэргээх"}
-          </button>
-        )}
-
         <button
           type="button"
-          onClick={handleSave}
-          disabled={uploadingMedia || pendingImages.length === 0}
+          onClick={handleRefresh}
+          disabled={isRefreshing}
           style={{
             padding: "6px 12px",
             borderRadius: 6,
-            border: "none",
-            background: uploadingMedia || pendingImages.length === 0 ? "#9ca3af" : "#2563eb",
-            color: "white",
+            border: "1px solid #6b7280",
+            background: isRefreshing ? "#f3f4f6" : "#ffffff",
+            color: isRefreshing ? "#9ca3af" : "#374151",
             fontSize: 12,
-            fontWeight: 600,
-            cursor: uploadingMedia || pendingImages.length === 0 ? "default" : "pointer",
+            fontWeight: 500,
+            cursor: isRefreshing ? "default" : "pointer",
           }}
+          title="Зургуудыг дахин ачаалах"
         >
-          {uploadingMedia
-            ? "Хадгалж байна..."
-            : pendingImages.length > 0 
-            ? `Зураг хадгалах (${pendingImages.length})`
-            : "Зураг хадгалах"}
+          {isRefreshing ? "Ачаалж байна..." : "🔄 Зураг шинэчлэх"}
         </button>
+
+        {pendingImages.length > 0 && (
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={uploadingMedia}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: "none",
+              background: uploadingMedia ? "#9ca3af" : "#2563eb",
+              color: "white",
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: uploadingMedia ? "default" : "pointer",
+            }}
+          >
+            {uploadingMedia
+              ? "Хадгалж байна..."
+              : `Зураг хадгалах (${pendingImages.length})`}
+          </button>
+        )}
       </div>
 
       {mediaLoading && (
