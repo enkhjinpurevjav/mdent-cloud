@@ -161,6 +161,7 @@ export default function DiagnosesEditor({
                 background: isLocked ? "#fef3c7" : "#f9fafb",
               }}
             >
+              {/* Lock/Unlock UI */}
               <div
                 style={{
                   display: "flex",
@@ -230,205 +231,7 @@ export default function DiagnosesEditor({
                     </button>
                   </div>
                 )}
-                
-                {/* Diagnosis search */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    alignItems: "center",
-                  }}
-                >
-                  <div style={{ position: "relative", flex: 1 }}>
-                    <input
-                      placeholder="Онош бичиж хайх (ж: K04.1, пульпит...)"
-                      value={row.searchText ?? ""}
-                      onChange={(e) => {
-                        if (isLocked) return;
-                        const text = e.target.value;
-                        onSetOpenDxIndex(index);
-                        onUpdateRowField(index, "searchText", text);
-                        if (!text.trim()) {
-                          onUpdateRowField(index, "diagnosisId", null);
-                          onUpdateRowField(index, "diagnosis", undefined);
-                          onUpdateRowField(index, "selectedProblemIds", []);
-                        }
-                      }}
-                      onFocus={() => {
-                        if (!isLocked) onSetOpenDxIndex(index);
-                      }}
-                      onBlur={() => {
-                        setTimeout(() => onSetOpenDxIndex(null), 150);
-                      }}
-                      disabled={isLocked}
-                      style={{
-                        width: "100%",
-                        borderRadius: 6,
-                        border: "1px solid #d1d5db",
-                        padding: "6px 8px",
-                        fontSize: 13,
-                        background: isLocked ? "#f3f4f6" : "#ffffff",
-                        cursor: isLocked ? "not-allowed" : "text",
-                        opacity: isLocked ? 0.6 : 1,
-                      }}
-                    />
-
-                    {openDxIndex === index && diagnoses.length > 0 && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: "100%",
-                          left: 0,
-                          right: 0,
-                          maxHeight: 220,
-                          overflowY: "auto",
-                          marginTop: 4,
-                          background: "white",
-                          borderRadius: 6,
-                          boxShadow:
-                            "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
-                          zIndex: 20,
-                          fontSize: 13,
-                        }}
-                      >
-                        {diagnoses
-                          .filter((d) => {
-                            const q = (row.searchText || "").toLowerCase();
-                            if (!q.trim()) return true;
-                            const hay = `${d.code} ${d.name}`.toLowerCase();
-                            return hay.includes(q);
-                          })
-                          .slice(0, 50)
-                          .map((d) => (
-                            <div
-                              key={d.id}
-                              onMouseDown={async (e) => {
-                                e.preventDefault();
-                                await onDiagnosisChange(index, d.id);
-                                onSetOpenDxIndex(null);
-                              }}
-                              style={{
-                                padding: "6px 8px",
-                                cursor: "pointer",
-                                borderBottom: "1px solid #f3f4f6",
-                                background:
-                                  row.diagnosisId === d.id
-                                    ? "#eff6ff"
-                                    : "white",
-                              }}
-                            >
-                              <div style={{ fontWeight: 500 }}>
-                                {d.code} – {d.name}
-                              </div>
-                              {d.description && (
-                                <div
-                                  style={{
-                                    fontSize: 11,
-                                    color: "#6b7280",
-                                    marginTop: 2,
-                                  }}
-                                >
-                                  {d.description}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => onRemoveRow(index)}
-                    disabled={isLocked}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: 6,
-                      border: "1px solid #dc2626",
-                      background: isLocked ? "#f3f4f6" : "#fef2f2",
-                      color: isLocked ? "#9ca3af" : "#b91c1c",
-                      cursor: isLocked ? "not-allowed" : "pointer",
-                      fontSize: 12,
-                      height: 32,
-                      alignSelf: "flex-start",
-                      opacity: isLocked ? 0.5 : 1,
-                    }}
-                  >
-                    Устгах
-                  </button>
-                </div>
               </div>
-
-              {/* Problems selection */}
-              {row.diagnosisId ? (
-                <>
-                  {problems.length === 0 ? (
-                    <div
-                      style={{
-                        color: "#6b7280",
-                        fontSize: 12,
-                        marginBottom: 8,
-                      }}
-                    >
-                      Энэ оношид тохирсон зовиур бүртгээгүй байна
-                      (оношийн тохиргооноос нэмнэ).
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 8,
-                        marginBottom: 8,
-                      }}
-                    >
-                      {problems.map((p) => {
-                        const checked =
-                          row.selectedProblemIds?.includes(p.id);
-                        return (
-                          <label
-                            key={p.id}
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4,
-                              padding: "4px 8px",
-                              borderRadius: 999,
-                              border: checked
-                                ? "1px solid #16a34a"
-                                : "1px solid #d1d5db",
-                              background: checked ? "#dcfce7" : "#ffffff",
-                              fontSize: 12,
-                              cursor: isLocked ? "not-allowed" : "pointer",
-                              opacity: isLocked ? 0.6 : 1,
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => onToggleProblem(index, p.id)}
-                              disabled={isLocked}
-                              style={{
-                                cursor: isLocked ? "not-allowed" : "pointer",
-                              }}
-                            />
-                            {p.label}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </>
-              ) : null}
-
-              {/* Problem Texts Editor */}
-              {row.diagnosisId && (
-                <ProblemTextsEditor
-                  texts={row.draftProblemTexts ?? (row.problemTexts?.map(pt => pt.text) || [""])}
-                  onChange={(texts) => onUpdateRowField(index, "draftProblemTexts", texts)}
-                  isLocked={isLocked}
-                />
-              )}
 
               {/* Tooth code */}
               <div
@@ -600,28 +403,6 @@ export default function DiagnosesEditor({
                 </div>
               </div>
 
-              {/* Service Texts Editor */}
-              {row.serviceId && (() => {
-                // Find the encounterService that matches this diagnosis row to get existing texts
-                const matchingEncounterService = (encounterServices || []).find(
-                  (es) => {
-                    const meta = es.meta as { diagnosisId?: number | null } | null;
-                    return meta?.diagnosisId === row.id;
-                  }
-                );
-                // Initialize draft texts from existing or start with one empty field
-                const existingTexts = matchingEncounterService?.texts?.map(t => t.text) || [];
-                const drafts = row.draftServiceTexts ?? (existingTexts.length > 0 ? existingTexts : [""]);
-                
-                return (
-                  <ServiceTextsEditor
-                    texts={drafts}
-                    onChange={(texts) => onUpdateRowField(index, "draftServiceTexts", texts)}
-                    isLocked={isLocked}
-                  />
-                );
-              })()}
-
               {/* Imaging assignedTo selector */}
               {isImaging && (
                 <div
@@ -695,7 +476,7 @@ export default function DiagnosesEditor({
                 </div>
               )}
 
-              {/* NEW: Tool-line based sterilization selection */}
+              {/* Sterilization tool-line selection */}
               {onAddToolLineLocal && onRemoveToolLineLocal && toolLineMetadata ? (
                 branchId ? (
                   <SterilizationToolLineSelector
@@ -746,8 +527,227 @@ export default function DiagnosesEditor({
                 )
               ) : null}
 
-              {/* Service assignment section */}
-              
+              {/* Diagnosis search */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <div style={{ position: "relative", flex: 1 }}>
+                  <input
+                    placeholder="Онош бичиж хайх (ж: K04.1, пульпит...)"
+                    value={row.searchText ?? ""}
+                    onChange={(e) => {
+                      if (isLocked) return;
+                      const text = e.target.value;
+                      onSetOpenDxIndex(index);
+                      onUpdateRowField(index, "searchText", text);
+                      if (!text.trim()) {
+                        onUpdateRowField(index, "diagnosisId", null);
+                        onUpdateRowField(index, "diagnosis", undefined);
+                        onUpdateRowField(index, "selectedProblemIds", []);
+                      }
+                    }}
+                    onFocus={() => {
+                      if (!isLocked) onSetOpenDxIndex(index);
+                    }}
+                    onBlur={() => {
+                      setTimeout(() => onSetOpenDxIndex(null), 150);
+                    }}
+                    disabled={isLocked}
+                    style={{
+                      width: "100%",
+                      borderRadius: 6,
+                      border: "1px solid #d1d5db",
+                      padding: "6px 8px",
+                      fontSize: 13,
+                      background: isLocked ? "#f3f4f6" : "#ffffff",
+                      cursor: isLocked ? "not-allowed" : "text",
+                      opacity: isLocked ? 0.6 : 1,
+                    }}
+                  />
+
+                  {openDxIndex === index && diagnoses.length > 0 && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "100%",
+                        left: 0,
+                        right: 0,
+                        maxHeight: 220,
+                        overflowY: "auto",
+                        marginTop: 4,
+                        background: "white",
+                        borderRadius: 6,
+                        boxShadow:
+                          "0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)",
+                        zIndex: 20,
+                        fontSize: 13,
+                      }}
+                    >
+                      {diagnoses
+                        .filter((d) => {
+                          const q = (row.searchText || "").toLowerCase();
+                          if (!q.trim()) return true;
+                          const hay = `${d.code} ${d.name}`.toLowerCase();
+                          return hay.includes(q);
+                        })
+                        .slice(0, 50)
+                        .map((d) => (
+                          <div
+                            key={d.id}
+                            onMouseDown={async (e) => {
+                              e.preventDefault();
+                              await onDiagnosisChange(index, d.id);
+                              onSetOpenDxIndex(null);
+                            }}
+                            style={{
+                              padding: "6px 8px",
+                              cursor: "pointer",
+                              borderBottom: "1px solid #f3f4f6",
+                              background:
+                                row.diagnosisId === d.id
+                                  ? "#eff6ff"
+                                  : "white",
+                            }}
+                          >
+                            <div style={{ fontWeight: 500 }}>
+                              {d.code} – {d.name}
+                            </div>
+                            {d.description && (
+                              <div
+                                style={{
+                                  fontSize: 11,
+                                  color: "#6b7280",
+                                  marginTop: 2,
+                                }}
+                              >
+                                {d.description}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onRemoveRow(index)}
+                  disabled={isLocked}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: 6,
+                    border: "1px solid #dc2626",
+                    background: isLocked ? "#f3f4f6" : "#fef2f2",
+                    color: isLocked ? "#9ca3af" : "#b91c1c",
+                    cursor: isLocked ? "not-allowed" : "pointer",
+                    fontSize: 12,
+                    height: 32,
+                    alignSelf: "flex-start",
+                    opacity: isLocked ? 0.5 : 1,
+                  }}
+                >
+                  Устгах
+                </button>
+              </div>
+
+              {/* Problems selection */}
+              {row.diagnosisId ? (
+                <>
+                  {problems.length === 0 ? (
+                    <div
+                      style={{
+                        color: "#6b7280",
+                        fontSize: 12,
+                        marginBottom: 8,
+                      }}
+                    >
+                      Энэ оношид тохирсон зовиур бүртгээгүй байна
+                      (оношийн тохиргооноос нэмнэ).
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 8,
+                        marginBottom: 8,
+                      }}
+                    >
+                      {problems.map((p) => {
+                        const checked =
+                          row.selectedProblemIds?.includes(p.id);
+                        return (
+                          <label
+                            key={p.id}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              padding: "4px 8px",
+                              borderRadius: 999,
+                              border: checked
+                                ? "1px solid #16a34a"
+                                : "1px solid #d1d5db",
+                              background: checked ? "#dcfce7" : "#ffffff",
+                              fontSize: 12,
+                              cursor: isLocked ? "not-allowed" : "pointer",
+                              opacity: isLocked ? 0.6 : 1,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => onToggleProblem(index, p.id)}
+                              disabled={isLocked}
+                              style={{
+                                cursor: isLocked ? "not-allowed" : "pointer",
+                              }}
+                            />
+                            {p.label}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              ) : null}
+
+              {/* Problem Texts Editor */}
+              {row.diagnosisId && (
+                <ProblemTextsEditor
+                  texts={row.draftProblemTexts ?? (row.problemTexts?.map(pt => pt.text) || [""])}
+                  onChange={(texts) => onUpdateRowField(index, "draftProblemTexts", texts)}
+                  isLocked={isLocked}
+                />
+              )}
+
+              {/* Service Texts Editor */}
+              {row.serviceId && (() => {
+                // Find the encounterService that matches this diagnosis row to get existing texts
+                const matchingEncounterService = (encounterServices || []).find(
+                  (es) => {
+                    const meta = es.meta as { diagnosisId?: number | null } | null;
+                    return meta?.diagnosisId === row.id;
+                  }
+                );
+                // Initialize draft texts from existing or start with one empty field
+                const existingTexts = matchingEncounterService?.texts?.map(t => t.text) || [];
+                const drafts = row.draftServiceTexts ?? (existingTexts.length > 0 ? existingTexts : [""]);
+                
+                return (
+                  <ServiceTextsEditor
+                    texts={drafts}
+                    onChange={(texts) => onUpdateRowField(index, "draftServiceTexts", texts)}
+                    isLocked={isLocked}
+                  />
+                );
+              })()}
+
               {/* Note textarea */}
               <textarea
                 placeholder="Энэ оношид холбогдох тэмдэглэл (сонголттой)"
