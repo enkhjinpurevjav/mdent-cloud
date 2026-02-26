@@ -2225,12 +2225,33 @@ function BillingEbarimtSection({
         <>
           {/* @media print: only .ebarimt-receipt is visible */}
           <style>{`
-            @media print {
-              body > *:not(.ebarimt-receipt-print-root) { display: none !important; }
-              .ebarimt-receipt-print-root { display: block !important; position: fixed; top: 0; left: 0; width: 215px; z-index: 9999; background: #fff; }
-            }
-            .ebarimt-receipt-print-root { display: none; }
-          `}</style>
+  .ebarimt-receipt-print-root { display: none; }
+
+  @media print {
+    /* Hide everything */
+    body * {
+      display: none !important;
+    }
+
+    /* Show the print root and everything inside it */
+    .ebarimt-receipt-print-root,
+    .ebarimt-receipt-print-root * {
+      display: block !important;
+    }
+
+    .ebarimt-receipt-print-root {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 215px !important;
+      z-index: 9999 !important;
+      background: #fff !important;
+    }
+
+    /* Optional: prevent browser from adding margins */
+    @page { margin: 0; }
+  }
+`}</style>
           {/* Hidden full-page print container */}
           <div className="ebarimt-receipt-print-root">
             <div style={{ width: 215, padding: "8px 6px", fontFamily: "monospace", fontSize: 11, lineHeight: 1.4 }}>
