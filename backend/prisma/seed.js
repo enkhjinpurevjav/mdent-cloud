@@ -131,15 +131,15 @@ async function main() {
 
   // Seed: ServiceCategoryConfig defaults (durationMinutes=30) for all categories
   const serviceCategories = [
-    "ORTHODONTIC_TREATMENT",
-    "IMAGING",
-    "DEFECT_CORRECTION",
-    "ADULT_TREATMENT",
-    "WHITENING",
-    "CHILD_TREATMENT",
-    "SURGERY",
-    "PREVIOUS",
-  ] as const;
+  "ORTHODONTIC_TREATMENT",
+  "IMAGING",
+  "DEFECT_CORRECTION",
+  "ADULT_TREATMENT",
+  "WHITENING",
+  "CHILD_TREATMENT",
+  "SURGERY",
+  "PREVIOUS",
+];
 
   for (const category of serviceCategories) {
     await prisma.serviceCategoryConfig.upsert({
