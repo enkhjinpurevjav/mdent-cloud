@@ -60,9 +60,13 @@ type InvoiceResponse = {
   patientBalance?: number;
   hasMarker?: boolean;
   patientOldBalance?: number;
+  patientOvog?: string | null;
+  patientName?: string | null;
+  patientRegNo?: string | null;
   buyerType?: "B2C" | "B2B";
   buyerTin?: string | null;
   ebarimtReceipt?: {
+    id?: number | null;
     status: string;
     ddtd: string | null;
     printedAtText: string | null;
@@ -2222,36 +2226,61 @@ function BillingEbarimtSection({
           {/* @media print: only .ebarimt-receipt is visible */}
           <style>{`
             @media print {
-              body > * { display: none !important; }
-              .ebarimt-receipt-print-root { display: block !important; position: fixed; inset: 0; z-index: 9999; background: #fff; }
+              body > *:not(.ebarimt-receipt-print-root) { display: none !important; }
+              .ebarimt-receipt-print-root { display: block !important; position: fixed; top: 0; left: 0; width: 215px; z-index: 9999; background: #fff; }
             }
             .ebarimt-receipt-print-root { display: none; }
           `}</style>
           {/* Hidden full-page print container */}
           <div className="ebarimt-receipt-print-root">
-            <div style={{ padding: 32, fontFamily: "monospace", fontSize: 14 }}>
-              <div style={{ textAlign: "center", fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
-                e-БАРИМТ
+            <div style={{ width: 215, padding: "8px 6px", fontFamily: "monospace", fontSize: 11, lineHeight: 1.4 }}>
+              <div style={{ textAlign: "center", marginBottom: 4 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="https://mdent.cloud/clinic-logo.png" alt="Clinic logo" style={{ width: 60, height: "auto" }} />
               </div>
-              {/* TODO: clinic name / TIN / address */}
-              <hr />
-              {receipt.id && (
-                <div><strong>ДДТД:</strong> {receipt.id}</div>
-              )}
-              {receipt.date && (
-                <div><strong>Огноо:</strong> {receipt.date}</div>
-              )}
-              {receipt.lottery && (
-                <div><strong>Сугалаа:</strong> {receipt.lottery}</div>
-              )}
-              {receipt.totalAmount != null && (
-                <div><strong>Нийт дүн:</strong> {formatMoney(receipt.totalAmount)}₮</div>
-              )}
+              <div style={{ textAlign: "center", fontWeight: 700, fontSize: 12 }}>MON FAMILY</div>
+              <div style={{ textAlign: "center", fontWeight: 700, fontSize: 12, marginBottom: 4 }}>DENTAL CLINIC</div>
+              <div>Утас: 7715-1551</div>
+              <div>И-мэйл: info@monfamily.mn</div>
+              <hr style={{ margin: "4px 0" }} />
+              <div>ТТД: 6948472</div>
+              {receipt.id && <div>ДДТД: {receipt.id}</div>}
+              {(invoice.ebarimtReceipt?.ddtd) && !receipt.id && <div>ДДТД: {invoice.ebarimtReceipt.ddtd}</div>}
+              {receipt.date && <div>Огноо: {receipt.date}</div>}
+              {invoice.ebarimtReceipt?.id != null && <div>Дугаар: {invoice.ebarimtReceipt.id}</div>}
+              {invoice.patientOvog && <div>Овог: {invoice.patientOvog}</div>}
+              {invoice.patientName && <div>Нэр: {invoice.patientName}</div>}
+              {invoice.patientRegNo && <div>РД: {invoice.patientRegNo}</div>}
+              <hr style={{ margin: "4px 0" }} />
+              <div style={{ fontWeight: 700, marginBottom: 2 }}>НӨАТ-оос чөлөөлөгдөх бараа</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", paddingRight: 2 }}>ҮЙЛЧИЛГЭЭ</th>
+                    <th style={{ textAlign: "right", paddingRight: 2 }}>ТОО</th>
+                    <th style={{ textAlign: "right" }}>НИЙТ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoice.items.map((it, idx) => (
+                    <tr key={it.id ?? idx}>
+                      <td style={{ paddingRight: 2, wordBreak: "break-word" }}>{it.name}</td>
+                      <td style={{ textAlign: "right", paddingRight: 2 }}>{it.quantity}</td>
+                      <td style={{ textAlign: "right" }}>{formatMoney(it.lineTotal)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <hr style={{ margin: "4px 0" }} />
               {receipt.qrData && (
-                <div style={{ marginTop: 12, textAlign: "center" }}>
-                  <QRCodeSVG value={receipt.qrData} size={150} />
+                <div style={{ textAlign: "center", margin: "6px 0" }}>
+                  <QRCodeSVG value={receipt.qrData} size={140} />
                 </div>
               )}
+              {receipt.lottery && <div>Сугалаа: {receipt.lottery}</div>}
+              <div style={{ fontWeight: 700, marginTop: 2 }}>
+                Нийт дүн: {formatMoney(receipt.totalAmount ?? invoice.finalAmount)}₮
+              </div>
             </div>
           </div>
           {/* Inline receipt preview card */}
