@@ -88,7 +88,8 @@ export type ServiceCategory =
   | "ADULT_TREATMENT"
   | "WHITENING"
   | "CHILD_TREATMENT"
-  | "SURGERY";
+  | "SURGERY"
+  | "PREVIOUS";
 
 export type ServiceBranch = {
   branchId: number;
