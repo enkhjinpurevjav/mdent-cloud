@@ -192,6 +192,7 @@ router.get("/encounters/:id/invoice", async (req, res) => {
         buyerTin: existingInvoice.buyerTin || null,
         ebarimtReceipt: existingInvoice.eBarimtReceipt
           ? {
+              id: existingInvoice.eBarimtReceipt.id,
               status: existingInvoice.eBarimtReceipt.status,
               ddtd: existingInvoice.eBarimtReceipt.ddtd ?? null,
               printedAtText: existingInvoice.eBarimtReceipt.printedAtText ?? null,
@@ -220,6 +221,9 @@ router.get("/encounters/:id/invoice", async (req, res) => {
         patientBalance: balanceData.balance,
         hasMarker,
         patientOldBalance,
+        patientOvog: patient.ovog ?? null,
+        patientName: patient.name,
+        patientRegNo: patient.regNo ?? null,
       });
     }
 
