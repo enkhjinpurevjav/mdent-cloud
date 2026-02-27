@@ -2671,31 +2671,6 @@ export default function ConsentFormsBlock({
                         >
                           <div style={{ marginBottom: 6 }}>
                             Эмчлэгч эмч:{" "}
-                            <input
-                              type="text"
-                              placeholder="гарын үсэг"
-                              value={
-                                consentAnswersDraft?.prosthoDoctorSignature ||
-                                ""
-                              }
-                              onChange={(e) =>
-                                updateConsentAnswers({
-                                  prosthoDoctorSignature: e.target.value,
-                                })
-                              }
-                              onBlur={async () => {
-                                await saveConsentApi(consentTypeDraft);
-                              }}
-                              style={{
-                                minWidth: 120,
-                                borderRadius: 4,
-                                border: "1px solid #d1d5db",
-                                padding: "0 6px",
-                                fontSize: 12,
-                                marginRight: 6,
-                              }}
-                            />
-                            /{" "}
                             <strong>
                               {formatDoctorDisplayName(encounter.doctor)}
                             </strong>
