@@ -67,15 +67,6 @@ const SignaturePad = forwardRef<SignaturePadRef, Props>(({ disabled, onChange },
     if (!drawing.current) return;
     drawing.current = false;
     e.currentTarget.releasePointerCapture(e.pointerId);
-    
-    // If onChange is provided (backward compatibility), auto-upload
-    if (onChange && hasDrawn) {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      canvas.toBlob((blob) => {
-        if (blob) onChange(blob);
-      }, "image/png");
-    }
   };
 
   const handleClear = () => {
