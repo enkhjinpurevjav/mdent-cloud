@@ -3683,9 +3683,10 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
 
           <button
             type="button"
-            onClick={() =>
-              window.alert(`Зөвшөөрлийн маягт хэвлэх: ${c.type} (дараа нь template)`)
-            }
+            onClick={() => {
+              const url = `/print/consent?encounterId=${c.encounterId}&type=${encodeURIComponent(c.type)}`;
+              window.open(url, "_blank", "noopener,noreferrer");
+            }}
             style={{
               padding: "4px 8px",
               borderRadius: 6,
