@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import type {
   Encounter,
   EncounterConsent,
@@ -6,7 +6,7 @@ import type {
 } from "../../types/encounter-admin";
 import { formatDateTime, formatShortDate } from "../../utils/date-formatters";
 import { formatDoctorDisplayName } from "../../utils/name-formatters";
-import SignaturePad from "../SignaturePad";
+import SignaturePad, { type SignaturePadRef } from "../SignaturePad";
 
 type ConsentFormsBlockProps = {
   encounter: Encounter;
@@ -52,6 +52,9 @@ export default function ConsentFormsBlock({
   const saveCurrentConsent = onSaveConsent;
   const setConsentTypeDraft = onConsentTypeDraftChange;
   const setConsentAnswersDraft = onConsentAnswersDraftUpdate;
+
+  const patientSigRef = useRef<SignaturePadRef>(null);
+  const doctorSigRef = useRef<SignaturePadRef>(null);
 
   return (
     <>
@@ -2711,26 +2714,7 @@ export default function ConsentFormsBlock({
                     >
                       {consentSaving
                         ? "Хадгалж байна..."
-                        : "Зөвшөөрөл хадгалах"}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => void saveCurrentConsent()}
-                      disabled={consentSaving}
-                      style={{
-                        padding: "4px 10px",
-                        borderRadius: 6,
-                        border: "1px solid #2563eb",
-                        background: "#eff6ff",
-                        color: "#2563eb",
-                        fontSize: 12,
-                        cursor: consentSaving ? "default" : "pointer",
-                      }}
-                    >
-                      {consentSaving
-                        ? "Илгээж байна..."
-                        : "Зөвшөөрөл илгээх / засах"}
+                        : "Зөвшөөрлийн хуудас хадгалах"}
                     </button>
                   </div>
 
@@ -2812,22 +2796,33 @@ export default function ConsentFormsBlock({
                         ) : (
                           <div>
                             <SignaturePad
+                              ref={patientSigRef}
                               disabled={uploadingPatientSignature}
-                              onChange={(blob) =>
-                                void onPatientSignatureUpload(blob)
-                              }
                             />
-                            {uploadingPatientSignature && (
-                              <div
-                                style={{
-                                  fontSize: 11,
-                                  color: "#6b7280",
-                                  marginTop: 4,
-                                }}
-                              >
-                                Хадгалж байна...
-                              </div>
-                            )}
+                            <button
+                              type="button"
+                              disabled={uploadingPatientSignature}
+                              onClick={async () => {
+                                if (!patientSigRef.current?.hasDrawn()) {
+                                  alert("Гарын үсэг зураагүй байна.");
+                                  return;
+                                }
+                                const blob = await patientSigRef.current.getBlob();
+                                if (blob) void onPatientSignatureUpload(blob);
+                              }}
+                              style={{
+                                marginTop: 6,
+                                padding: "4px 10px",
+                                borderRadius: 6,
+                                border: "1px solid #16a34a",
+                                background: "#ecfdf3",
+                                color: "#166534",
+                                fontSize: 12,
+                                cursor: uploadingPatientSignature ? "default" : "pointer",
+                              }}
+                            >
+                              {uploadingPatientSignature ? "Хадгалж байна..." : "Гарын үсэг хадгалах"}
+                            </button>
                           </div>
                         )}
                       </div>
@@ -2873,22 +2868,33 @@ export default function ConsentFormsBlock({
                           <div>
                             <div style={{ marginBottom: 8 }}>
                               <SignaturePad
+                                ref={doctorSigRef}
                                 disabled={uploadingDoctorSignature}
-                                onChange={(blob) =>
-                                  void onDoctorSignatureUpload(blob)
-                                }
                               />
-                              {uploadingDoctorSignature && (
-                                <div
-                                  style={{
-                                    fontSize: 11,
-                                    color: "#6b7280",
-                                    marginTop: 4,
-                                  }}
-                                >
-                                  Хадгалж байна...
-                                </div>
-                              )}
+                              <button
+                                type="button"
+                                disabled={uploadingDoctorSignature}
+                                onClick={async () => {
+                                  if (!doctorSigRef.current?.hasDrawn()) {
+                                    alert("Гарын үсэг зураагүй байна.");
+                                    return;
+                                  }
+                                  const blob = await doctorSigRef.current.getBlob();
+                                  if (blob) void onDoctorSignatureUpload(blob);
+                                }}
+                                style={{
+                                  marginTop: 6,
+                                  padding: "4px 10px",
+                                  borderRadius: 6,
+                                  border: "1px solid #16a34a",
+                                  background: "#ecfdf3",
+                                  color: "#166534",
+                                  fontSize: 12,
+                                  cursor: uploadingDoctorSignature ? "default" : "pointer",
+                                }}
+                              >
+                                {uploadingDoctorSignature ? "Хадгалж байна..." : "Гарын үсэг хадгалах"}
+                              </button>
                             </div>
                             <div
                               style={{
