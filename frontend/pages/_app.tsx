@@ -4,7 +4,9 @@ import { useRouter } from "next/router";
 
 export default function MyApp({ Component, pageProps }: AppProps) {
   const router = useRouter();
-  const isPublicRoute = router.pathname.startsWith("/online");
+  const isPublicRoute =
+    router.pathname.startsWith("/online") ||
+    router.pathname.startsWith("/print");
 
   if (isPublicRoute) {
     return <Component {...pageProps} />;

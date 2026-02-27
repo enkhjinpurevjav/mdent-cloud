@@ -10,6 +10,8 @@ type Encounter = {
   visitDate: string;
   doctor: Doctor | null;
   patientBook: PatientBook;
+  patientSignaturePath?: string | null;
+  doctorSignaturePath?: string | null;
 };
 
 type EncounterConsent = {
@@ -41,8 +43,8 @@ function RootCanalTemplate({
   const answers = (consent.answers || {}) as Record<string, unknown>;
   const patientName = (answers.patientName as string) || "";
   const doctorName = formatDoctorDisplayName(encounter.doctor);
-  const patientSig = consent.patientSignaturePath || null;
-  const doctorSig = consent.doctorSignaturePath || null;
+  const patientSig = consent.patientSignaturePath || encounter.patientSignaturePath || null;
+  const doctorSig = consent.doctorSignaturePath || encounter.doctorSignaturePath || null;
 
   return (
     <div

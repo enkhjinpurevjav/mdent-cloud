@@ -3685,7 +3685,7 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
             type="button"
             onClick={() => {
               const url = `/print/consent?encounterId=${c.encounterId}&type=${encodeURIComponent(c.type)}`;
-              window.open(url, "_blank", "noopener,noreferrer");
+              window.open(url, "_blank", "width=900,height=700,noopener,noreferrer");
             }}
             style={{
               padding: "4px 8px",
