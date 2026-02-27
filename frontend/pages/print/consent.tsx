@@ -69,9 +69,7 @@ function RootCanalTemplate({
             (e.target as HTMLImageElement).style.display = "none";
           }}
         />
-        <div style={{ fontWeight: 700, fontSize: 13, marginTop: 4 }}>
-          "MON FAMILY" Шүдний эмнэлэг
-        </div>
+        
         <div style={{ fontSize: 11 }}>
           Утас: 7777-1234 | Хаяг: Улаанбаатар
         </div>
