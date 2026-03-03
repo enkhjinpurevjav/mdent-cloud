@@ -273,6 +273,314 @@ function PlainField({
   );
 }
 
+function OrthodonticTemplate({
+  encounter,
+  consent,
+}: {
+  encounter: Encounter;
+  consent: EncounterConsent;
+}) {
+  const answers = (consent.answers || {}) as Record<string, unknown>;
+  const doctorName = formatDoctorDisplayName(encounter.doctor);
+  const patientSig = encounter.patientSignaturePath || consent.patientSignaturePath || null;
+  const doctorSig = encounter.doctorSignaturePath || consent.doctorSignaturePath || null;
+
+  const orthoMonthlyFee = (answers.orthoMonthlyFee as string) || "";
+  const orthoBrokenFee = (answers.orthoBrokenFee as string) || "";
+  const orthoRetainerFee = (answers.orthoRetainerFee as string) || "";
+  const orthoAccessoryFee = (answers.orthoAccessoryFee as string) || "";
+  const orthoNoShowFee3m = (answers.orthoNoShowFee3m as string) || "";
+  const orthoNoShowFee6m = (answers.orthoNoShowFee6m as string) || "";
+  const orthoNoShowFee9mOrMore = (answers.orthoNoShowFee9mOrMore as string) || "";
+  const orthoXrayFee = (answers.orthoXrayFee as string) || "";
+  const orthoExtraNotes = (answers.orthoExtraNotes as string) || "";
+  const orthoPatientAgreeName = (answers.orthoPatientAgreeName as string) || "";
+  const orthoIntroOvog = (answers.orthoIntroOvog as string) || "";
+  const orthoIntroName = (answers.orthoIntroName as string) || "";
+  const orthoIntroPatientQuestions = (answers.orthoIntroPatientQuestions as string) || "";
+  const orthoIntroDoctorAnswer = (answers.orthoIntroDoctorAnswer as string) || "";
+  const orthoIntroDoctorExplained = !!(answers.orthoIntroDoctorExplained);
+  const orthoIntroPatientUnderstood = !!(answers.orthoIntroPatientUnderstood);
+
+  return (
+    <div
+      style={{
+        fontFamily: "'Times New Roman', Times, serif",
+        fontSize: 11,
+        lineHeight: 1.45,
+        color: "#000",
+        padding: "10mm 14mm",
+        maxWidth: "210mm",
+        margin: "0 auto",
+        boxSizing: "border-box",
+      }}
+    >
+      {/* Header — same as RootCanalTemplate */}
+      <div style={{ textAlign: "center", marginBottom: 8 }}>
+        <img
+          src="https://mdent.cloud/clinic-logo.png"
+          alt="Clinic logo"
+          style={{ maxHeight: 60, maxWidth: 180 }}
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = "none";
+          }}
+        />
+        <div style={{ fontSize: 11 }}>
+          Утас: 7777-1234 | Хаяг: Улаанбаатар
+        </div>
+      </div>
+
+      {/* Title */}
+      <div
+        style={{
+          textAlign: "center",
+          fontWeight: 700,
+          fontSize: 13,
+          textDecoration: "underline",
+          marginBottom: 10,
+        }}
+      >
+        Шүд эрүүний гажиг заслын эмчилгээ хийлгэх өвчтөний зөвшөөрлийн хуудас
+      </div>
+
+      {/* Intro benefits */}
+      <div style={{ marginBottom: 8 }}>
+        Нүүр амны гажиг заслын эмчилгээ хийлгэснээр таны:
+        <ul style={{ marginTop: 4, paddingLeft: 20 }}>
+          <li>Амыг хөндийд эрүүл ахуйн байдал (шүдний цоорол, тулгуур эдийн өвчлөлийг багасгана.)</li>
+          <li>Нүүрний гадаад төрх</li>
+          <li>Өөртөө итгэх үнэлэмж</li>
+          <li>Үйл зүйн тохирлын байдал сайжирна.</li>
+        </ul>
+      </div>
+
+      <div style={{ textAlign: "justify", marginBottom: 8 }}>
+        Нүүр амны гажиг заслын эмчилгээний үр дүн нь эмч өвчтөний хамтын үйл ажиллагаанаас шууд
+        хамаарадаг ба өвчтөн эмчийн заавар, зөвлөгөөг дагаж мөрдөх шаардлагатай. Учир нь өвчтөн
+        эмчийн заавар зөвлөгөөг мөрдөөгүй улмаас эмчилгээний явцад тодорхой хүндрэлүүд гарах
+        боломжтой. Гажиг заслын эмчилгээг нь олон улсын мөрдөдөг эмчилгээний стандартыг дагуу
+        төлөвлөгдөн эхэлдэг боловч нэр бүрийн хүчин зүйлээс шалтгаалж үйлчлүүлэгч болон
+        эмчилгээний үр дүн харилцан адилгүй, мөн хүссэн хэмжээнд хүрэхгүй байх ч тохиолдол
+        гардаг. Иймээс эмчилгээний үр дүнг тэр болгог урьдчилан мэдэх боломжгүй тул баталгааг
+        өгдөггүй. Гажиг заслын эмчилгээгээр шүдний механик хүч ашиглан шүдүүдийг хөдөлгөн
+        зуултыг засдаг бөгөөд зажлах, ярьж, залгих, үлээх үйлдлийн давтамжаас хамаарч тухайн
+        хүч нь яс, сурвалж, буйл, шүдний тулгуур эд болон эрүүл үенд ачаалал өгдөг юм.
+      </div>
+
+      <div style={{ textAlign: "justify", marginBottom: 8 }}>
+        Анагаах ухааны салбарт эмчилгээг болон өөрийн хэрэгсэл эрсдэл дагуулдаг бөгөөд зөвхөн
+        нэг шүд эрүүний гажиг заслын эмчилгээний явцад дараах хүндрэлүүд гарч болзошгүй.
+      </div>
+
+      {/* Complications list 1–4 */}
+      <ol style={{ paddingLeft: 20, marginBottom: 8 }}>
+        <li>
+          Өвчтөн шүдээ тогтмол угаахгүй байх, нүүрс-ус болон чихэрний агууламж өндөртэй
+          хүнсний бүтээгдэхүүнүүд хэрэглэхээс шүд эрдэсгүйтэн цоорох, буйл үрэвсэх.
+          Үүний улмаас шүдийг 1 удаа фтортуулах шаардлагатай байж болно.
+        </li>
+        <li>
+          Эмчилгээний явцад зарим өвчтөнүүдийн шүдний сурвалж богиносож, яс нь бага
+          хэмжээгээр шимэгдэж болно. Харин өвчтөний наснаас хамааран (25 наснаас дээш)
+          шүд суух, буйл шамарч, шүд хөдөлгөөнтэй болох хүндрэлүүд гарч болзошгүй.
+        </li>
+        <li>
+          Амны хөндийн эрүүл ахуй дутуу сахиснаар буйл болон шүдний холбоос эдээр
+          халдвар дамжиж, шүдийг тойрон хүрээлсэн тулгуур эд гэмтэх, улмаар шүд
+          хөдөлгөөнтэй болох эрсдэлтэй.
+        </li>
+        <li>
+          Эмчилгээний дараа бэхжүүлэх зэмсгийг тогтмол зүүхгүй байх, зажлах зуршил
+          буруу хэвээр байх, амьсгалаа амаар авах, зуршлын өөрчлөлт хийхгүй байх зэрэг
+          нь гажиг давтан үүсэх шалтгаан болдог.
+        </li>
+      </ol>
+
+      {/* Optional choice section */}
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>Сонгож хийх боломж</div>
+      <div style={{ textAlign: "justify", marginBottom: 8 }}>
+        Гажиг заслын эмчилгээ хийлгэх нь хувь хүний сонголт юм. Иймээс зарим өвчтөн
+        эмчилгээний явцад өөрийн шүдний байрлал, зуулт, бүтэц, нүүрний гадаад үзэмж зэрэгт
+        сэтгэл ханамжтай байх тохиолдолд эмчилгээг дуусгалгүй орхих боломжтой. Энэ нь
+        өвчтөний сонголт юм. Жишээ нь: шүд авахуулах/хийгээр засуулах, эрүү нүүрний мэс
+        засал хийлгэхгүй байх, хиймэл шүд хийлгэх зэргийг гажиг заслын эмчилгээ эхлэхээс
+        өмнө эмчтэй зөвлөж сонголтоо хийх хэрэгтэй.
+      </div>
+
+      {/* Fee section */}
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>Төлбөр тооцоо</div>
+      <ol style={{ paddingLeft: 20, marginBottom: 8 }}>
+        <li>Гажиг заслын эмчилгээний зэмсгийн төлбөр нь таны сонголтоос хамаарна.</li>
+        <li>
+          Өвчтөн сар бүр давтан үзүүлэхэд{" "}
+          <strong>{orthoMonthlyFee || "___"}</strong> төгрөгийн төлбөр төлнө.
+        </li>
+        <li>
+          Зэмсэг унасан, гэмтсэн тохиолдолд зэмсгээс хамааран{" "}
+          <strong>{orthoBrokenFee || "___"}</strong> төгрөг нэмж төлнө.
+        </li>
+        <li>
+          Гажиг заслын эмчилгээний үр дүнг бэхжүүлэх зэмсэг нь{" "}
+          <strong>{orthoRetainerFee || "___"}</strong> төгрөг байна.
+        </li>
+      </ol>
+
+      <ol start={5} style={{ paddingLeft: 20, marginBottom: 8 }}>
+        <li>
+          Гажиг заслын эмчилгээний явцад хэрэглэгдэх нэмэлт тоноглолууд (hook, open coil,
+          stopper, torque spring, button, band г.м) тус бүр{" "}
+          <strong>{orthoAccessoryFee || "___"}</strong> төгрөгийн төлбөртэй.
+        </li>
+        <li>
+          Эмчилгээний явцад ирэхгүй 3 сар тутамд нэмэлт төлбөр{" "}
+          <strong>{orthoNoShowFee3m || "___"}</strong> төгрөг бодогдоно.
+        </li>
+        <li>
+          6 сар болон түүнээс дээш хугацаагаар эмчилгээндээ ирэхгүй тохиолдолд рентген
+          зураг дахин авч оношлогоо дахин хийнэ. Эмчилгээний төлбөр нэмэлт{" "}
+          <strong>{orthoNoShowFee6m || "___"}</strong> төгрөг байна.
+        </li>
+        <li>
+          9 болон түүнээс дээш сараар эмчилгээндээ ирэхгүй бол нэмэлт төлбөр{" "}
+          <strong>{orthoNoShowFee9mOrMore || "___"}</strong> авч эмчилгээг дахин эхлүүлнэ.
+        </li>
+        <li>
+          1 жил буюу түүнээс дээш хугацаагаар эмчилгээндээ ирэхгүй тохиолдолд гажиг
+          заслын эмчилгээг зогсоож, ахин шинээр хийлгэх эмчилгээг дахин эхлүүлнэ.
+        </li>
+        <li>
+          Гажиг заслын авхдагтай зэмсэг зүүх хугацаанд 6 сар тутам, эмчилгээ дууссаны
+          дараа рентген зураг авах ба 1 рентген зургийн төлбөр{" "}
+          <strong>{orthoXrayFee || "___"}</strong> төгрөг байна.
+        </li>
+        {orthoExtraNotes && (
+          <li>
+            <span style={{ whiteSpace: "pre-wrap" }}>{orthoExtraNotes}</span>
+          </li>
+        )}
+      </ol>
+
+      {/* Patient agree name */}
+      <div style={{ marginBottom: 8 }}>
+        Танилцуулсан зөвшөөрлийг уншиж зөвшөөрсөн өвчтөн/асран хамгаалагчийн нэр{" "}
+        <strong>{orthoPatientAgreeName || "___"}</strong>
+        <br />
+        Эмчилгээ хийж буй эмчийн нэр <strong>{doctorName}</strong>
+      </div>
+
+      {/* Agreement section */}
+      <div style={{ borderTop: "1px dashed #000", paddingTop: 8, marginBottom: 8 }}>
+        <div
+          style={{
+            textAlign: "center",
+            fontWeight: 700,
+            fontSize: 12,
+            marginBottom: 8,
+          }}
+        >
+          Эмчилгээний танилцуулга гэрээ
+        </div>
+
+        <div style={{ marginBottom: 6 }}>
+          <span>Овог: </span><strong>{orthoIntroOvog || "___"}</strong>
+          {"  "}
+          <span>Нэр: </span><strong>{orthoIntroName || "___"}</strong>
+        </div>
+
+        <CheckboxField
+          label="Хийгдэхээр төлөвлөгдсөн эмчилгээ болон түүнээс гарч болох хүндрэлүүдийг эмч тайлбарлаж өгсөн болно."
+          checked={orthoIntroDoctorExplained}
+        />
+
+        <div style={{ textAlign: "justify", marginBottom: 6 }}>
+          НАС сургуулийн НАСЭ-т сургалт, эрдэм шинжилгээ, эмчилгээ, үйлчилгээ зэрэг явагддаг
+          тул нэгдсэн багээр (эмч, багш, резидент эмч, оюутнууд хамтран) үзлэг, эмчилгээ
+          хийхийг зөвшөөрч байна.
+        </div>
+
+        <div style={{ marginBottom: 6 }}>
+          Эмчийн нэр: <strong>{doctorName}</strong>
+        </div>
+
+        <PlainField label="Үйлчлүүлэгчийн асуусан асуулт:" value={orthoIntroPatientQuestions} />
+        <PlainField label="Эмчийн хариулт:" value={orthoIntroDoctorAnswer} />
+
+        <CheckboxField
+          label="Хийлгэх эмчилгээний талаар дэлгэрэнгүй тайлбар авсан бөгөөд энэхүү эмчилгээг хийлгэхийг зөвшөөрч байна."
+          checked={orthoIntroPatientUnderstood}
+        />
+      </div>
+
+      {/* Signature block */}
+      <div
+        style={{
+          display: "flex",
+          gap: 16,
+          marginTop: 12,
+          borderTop: "1px solid #000",
+          paddingTop: 10,
+        }}
+      >
+        {/* Patient column */}
+        <div style={{ flex: 1 }}>
+          <div style={{ marginBottom: 6, fontSize: 11 }}>
+            Үйлчлүүлэгч:{orthoPatientAgreeName ? <strong> {orthoPatientAgreeName}</strong> : null}
+          </div>
+          {patientSig ? (
+            <img
+              src={patientSig}
+              alt="Patient signature"
+              style={{
+                maxWidth: "100%",
+                maxHeight: 70,
+                border: "1px solid #ccc",
+                display: "block",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                height: 50,
+                borderBottom: "1px solid #000",
+                width: "80%",
+              }}
+            />
+          )}
+          <div style={{ fontSize: 10, marginTop: 2 }}>Гарын үсэг</div>
+        </div>
+
+        {/* Doctor column */}
+        <div style={{ flex: 1 }}>
+          <div style={{ marginBottom: 6, fontSize: 11 }}>
+            Эмчлэгч эмч: <strong>{doctorName}</strong>
+          </div>
+          {doctorSig ? (
+            <img
+              src={doctorSig}
+              alt="Doctor signature"
+              style={{
+                maxWidth: "100%",
+                maxHeight: 70,
+                border: "1px solid #ccc",
+                display: "block",
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                height: 50,
+                borderBottom: "1px solid #000",
+                width: "80%",
+              }}
+            />
+          )}
+          <div style={{ fontSize: 10, marginTop: 2 }}>Гарын үсэг</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SurgeryTemplate({
   encounter,
   consent,
@@ -649,7 +957,17 @@ export default function ConsentPrintPage() {
         </div>
       )}
 
-      {!loading && !error && encounter && type !== "root_canal" && type !== "surgery" && (
+      {!loading && !error && encounter && type === "orthodontic" && consent && (
+        <OrthodonticTemplate encounter={encounter} consent={consent} />
+      )}
+
+      {!loading && !error && encounter && type === "orthodontic" && !consent && (
+        <div style={{ padding: 32, fontFamily: "sans-serif" }}>
+          Энэ үзлэгт orthodontic зөвшөөрлийн маягт байхгүй байна.
+        </div>
+      )}
+
+      {!loading && !error && encounter && type !== "root_canal" && type !== "surgery" && type !== "orthodontic" && (
         <div style={{ padding: 32, fontFamily: "sans-serif" }}>
           <strong>Template not implemented</strong> — "{type}" төрлийн зөвшөөрлийн
           маягтын загвар одоогоор бэлэн болоогүй байна.
