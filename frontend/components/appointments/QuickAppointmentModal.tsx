@@ -911,23 +911,38 @@ export default function QuickAppointmentModal({
             </select>
           </div>
 
-          {/* Duration selector (create mode only) */}
+          {/* Duration pill buttons (create mode only) */}
           {!isEditMode && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label>Үргэлжлэх хугацаа</label>
-              <select
-                value={durationMinutes}
-                onChange={handleDurationChange}
-                style={{
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                  padding: "6px 8px",
-                }}
-              >
-                <option value={30}>30 мин</option>
-                <option value={60}>60 мин</option>
-                <option value={90}>90 мин</option>
-              </select>
+            <div role="group" aria-label="Үргэлжлэх хугацаа" style={{ display: "flex", gap: 8 }}>
+              {([60, 90] as const).map((mins) => (
+                <button
+                  key={mins}
+                  type="button"
+                  aria-pressed={durationMinutes === mins}
+                  onClick={() => {
+                    setDurationMinutes(mins);
+                    setEndTimeManuallySet(false);
+                    setForm((prev) => ({
+                      ...prev,
+                      endTime: prev.startTime
+                        ? addMinutesToTimeString(prev.startTime, mins)
+                        : prev.endTime,
+                    }));
+                  }}
+                  style={{
+                    borderRadius: 999,
+                    border: durationMinutes === mins ? "1px solid #2563eb" : "1px solid #d1d5db",
+                    background: durationMinutes === mins ? "#eff6ff" : "#fff",
+                    color: durationMinutes === mins ? "#2563eb" : "#374151",
+                    padding: "4px 14px",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: durationMinutes === mins ? 600 : 400,
+                  }}
+                >
+                  {mins} мин
+                </button>
+              ))}
             </div>
           )}
 
