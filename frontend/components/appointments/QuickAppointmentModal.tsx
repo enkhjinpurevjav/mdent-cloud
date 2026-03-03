@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { Branch, Doctor, ScheduledDoctor, Appointment, PatientLite, DoctorScheduleDay } from "./types";
 import { formatDoctorName, formatPatientSearchLabel } from "./formatters";
 import { SLOT_MINUTES, addMinutesToTimeString, generateTimeSlotsForDay, getSlotTimeString, isTimeWithinRange } from "./time";
+
+const PATIENT_RESULTS_LIMIT = 10;
 
 type QuickAppointmentModalProps = {
   open: boolean;
@@ -57,9 +59,12 @@ export default function QuickAppointmentModal({
   const workingDoctors = scheduledDoctors.length ? scheduledDoctors : doctors;
 
   const [patientResults, setPatientResults] = useState<PatientLite[]>([]);
+  const [hasMorePatientResults, setHasMorePatientResults] = useState(false);
   const [patientSearchLoading, setPatientSearchLoading] = useState(false);
   const [searchDebounceTimer, setSearchDebounceTimer] =
     useState<NodeJS.Timeout | null>(null);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const patientSearchRef = useRef<HTMLInputElement>(null);
 
   // time slot options
   const [popupStartSlots, setPopupStartSlots] = useState<
@@ -165,6 +170,21 @@ export default function QuickAppointmentModal({
     setError("");
     setPatientResults([]);
   }, [open, defaultDoctorId, defaultDate, defaultTime, selectedBranchId, editingAppointment]);
+
+  // Autofocus patient search input when modal opens in create mode
+  useEffect(() => {
+    if (open && !isEditMode) {
+      patientSearchRef.current?.focus();
+    }
+  }, [open, isEditMode]);
+
+  // Reset highlighted index whenever results change
+  useEffect(() => {
+    setHighlightedIndex(0);
+    if (patientResults.length === 0) {
+      setHasMorePatientResults(false);
+    }
+  }, [patientResults]);
 
   // slots calculation (same as your current, but in edit mode: filter by selected doctor schedule still ok)
   useEffect(() => {
@@ -282,7 +302,7 @@ export default function QuickAppointmentModal({
         });
 
         setPatientResults(
-          filtered.map((p: any) => ({
+          filtered.slice(0, PATIENT_RESULTS_LIMIT).map((p: any) => ({
             id: p.id,
             ovog: p.ovog ?? null,
             name: p.name,
@@ -291,6 +311,7 @@ export default function QuickAppointmentModal({
             patientBook: p.patientBook || null,
           }))
         );
+        setHasMorePatientResults(filtered.length > PATIENT_RESULTS_LIMIT);
       } catch (e) {
         console.error("patient search failed", e);
         setPatientResults([]);
@@ -310,6 +331,25 @@ export default function QuickAppointmentModal({
     }));
     setPatientResults([]);
     setError("");
+  };
+
+  const handlePatientKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (patientResults.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.min(i + 1, patientResults.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const selected = patientResults[highlightedIndex];
+      if (selected) handleSelectPatient(selected);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setPatientResults([]);
+    }
   };
 
   const handleChange = (
@@ -665,10 +705,12 @@ export default function QuickAppointmentModal({
             <label>Үйлчлүүлэгч</label>
             <div style={{ display: "flex", gap: 6 }}>
               <input
+                ref={patientSearchRef}
                 name="patientQuery"
                 placeholder="РД, овог, нэр утсаар хайх"
                 value={form.patientQuery}
                 onChange={handleChange}
+                onKeyDown={handlePatientKeyDown}
                 autoComplete="off"
                 disabled={isEditMode}
                 style={{
@@ -741,7 +783,7 @@ export default function QuickAppointmentModal({
                 overflowY: "auto",
               }}
             >
-              {patientResults.map((p) => (
+              {patientResults.map((p, idx) => (
                 <button
                   key={p.id}
                   type="button"
@@ -753,7 +795,7 @@ export default function QuickAppointmentModal({
                     padding: "6px 8px",
                     border: "none",
                     borderBottom: "1px solid #f3f4f6",
-                    background: "white",
+                    background: idx === highlightedIndex ? "#eff6ff" : "white",
                     cursor: "pointer",
                     fontSize: 12,
                   }}
@@ -761,6 +803,18 @@ export default function QuickAppointmentModal({
                   {formatPatientSearchLabel(p)}
                 </button>
               ))}
+              {hasMorePatientResults && (
+                <div
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: 11,
+                    color: "#6b7280",
+                    fontStyle: "italic",
+                  }}
+                >
+                  Илүү олон үр дүн байна…
+                </div>
+              )}
             </div>
           )}
 
