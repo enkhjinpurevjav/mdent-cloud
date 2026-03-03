@@ -290,7 +290,6 @@ function OrthodonticTemplate({
   const orthoRetainerFee = (answers.orthoRetainerFee as string) || "";
   const orthoAccessoryFee = (answers.orthoAccessoryFee as string) || "";
   const orthoNoShowFee3m = (answers.orthoNoShowFee3m as string) || "";
-  const orthoNoShowFee6m = (answers.orthoNoShowFee6m as string) || "";
   const orthoNoShowFee9mOrMore = (answers.orthoNoShowFee9mOrMore as string) || "";
   const orthoXrayFee = (answers.orthoXrayFee as string) || "";
   const orthoExtraNotes = (answers.orthoExtraNotes as string) || "";
@@ -432,20 +431,12 @@ function OrthodonticTemplate({
           <strong>{orthoAccessoryFee || "___"}</strong> төгрөгийн төлбөртэй.
         </li>
         <li>
-          Эмчилгээний явцад ирэхгүй 3 сар тутамд нэмэлт төлбөр{" "}
-          <span
-            style={{
-              display: "inline-block",
-              minWidth: 60,
-              borderBottom: "1px solid #000",
-              whiteSpace: "nowrap",
-              textAlign: "center",
-            }}
-          >
-            {orthoNoShowFee3m}
-          </span>{" "}
-          төгрөг бодогдоно.
-        </li>
+  Эмчилгээний явцад ирэхгүй 3 сар тутамд нэмэлт төлбөр{" "}
+  <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>
+    {(orthoNoShowFee3m || "").trim() || "___"}
+  </span>{" "}
+  төгрөг бодогдоно.
+</li>
         <li>
           6 сар болон түүнээс дээш хугацаагаар эмчилгээндээ ирэхгүй тохиолдолд рентген
           зураг дахин авч оношлогоо дахин хийнэ. Эмчилгээний төлбөр нэмэлт{" "}
