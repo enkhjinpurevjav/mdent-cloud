@@ -708,7 +708,7 @@ export default function AppointmentDetailsModal({
           cursor: saving ? "default" : "pointer",
         }}
       >
-        Хаах
+        Цуцлах
       </button>
     </div>
 
