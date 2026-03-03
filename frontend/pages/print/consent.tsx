@@ -290,6 +290,7 @@ function OrthodonticTemplate({
   const orthoRetainerFee = (answers.orthoRetainerFee as string) || "";
   const orthoAccessoryFee = (answers.orthoAccessoryFee as string) || "";
   const orthoNoShowFee3m = (answers.orthoNoShowFee3m as string) || "";
+  const orthoNoShowFee6m = (answers.orthoNoShowFee6m as string) || "";
   const orthoNoShowFee9mOrMore = (answers.orthoNoShowFee9mOrMore as string) || "";
   const orthoXrayFee = (answers.orthoXrayFee as string) || "";
   const orthoExtraNotes = (answers.orthoExtraNotes as string) || "";
@@ -595,6 +596,13 @@ function ProsthodonticTemplate({
   const patientSig = encounter.patientSignaturePath || consent.patientSignaturePath || null;
   const doctorSig = encounter.doctorSignaturePath || consent.doctorSignaturePath || null;
 
+  const prosthoIntroText = (answers.prosthoIntroText as string) || "";
+  const prosthoSecondVisit = (answers.prosthoSecondVisit as string) || "";
+  const prosthoWeakPoints = (answers.prosthoWeakPoints as string) || "";
+  const prosthoCourse = (answers.prosthoCourse as string) || "";
+  const prosthoCost = (answers.prosthoCost as string) || "";
+  const prosthoAcknowledgement = (answers.prosthoAcknowledgement as string) || "";
+
   return (
     <div
       style={{
@@ -637,20 +645,20 @@ function ProsthodonticTemplate({
       </div>
 
       {/* Intro text */}
-      {answers.prosthoIntroText && (
+      {prosthoIntroText && (
         <div style={{ marginBottom: 8, textAlign: "justify", whiteSpace: "pre-wrap" }}>
-          {answers.prosthoIntroText as string}
+          {prosthoIntroText}
         </div>
       )}
 
       {/* Content fields */}
-      <PlainField label="Хоёрдох удаагийн ирэлтээр:" value={answers.prosthoSecondVisit as string} />
-      <PlainField label="Эмчилгээний сул тал:" value={answers.prosthoWeakPoints as string} />
-      <PlainField label="Эмчилгээний явц:" value={answers.prosthoCourse as string} />
-      <PlainField label="Эмчилгээний үнэ өртөг:" value={answers.prosthoCost as string} />
+      <PlainField label="Хоёрдох удаагийн ирэлтээр:" value={prosthoSecondVisit} />
+      <PlainField label="Эмчилгээний сул тал:" value={prosthoWeakPoints} />
+      <PlainField label="Эмчилгээний явц:" value={prosthoCourse} />
+      <PlainField label="Эмчилгээний үнэ өртөг:" value={prosthoCost} />
       <PlainField
         label="Танилцах зөвшөөрлийг уншиж танилцсан:"
-        value={answers.prosthoAcknowledgement as string}
+        value={prosthoAcknowledgement}
       />
 
       {/* Doctor */}
