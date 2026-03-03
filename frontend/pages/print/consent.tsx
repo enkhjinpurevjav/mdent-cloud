@@ -256,6 +256,23 @@ function CheckboxField({
   );
 }
 
+function PlainField({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string | null;
+}) {
+  return (
+    <div style={{ marginBottom: 6 }}>
+      <span style={{ fontWeight: 600 }}>{label}</span>
+      {value ? (
+        <span style={{ marginLeft: 4, whiteSpace: "pre-wrap" }}>{value}</span>
+      ) : null}
+    </div>
+  );
+}
+
 function SurgeryTemplate({
   encounter,
   consent,
@@ -310,29 +327,50 @@ function SurgeryTemplate({
       }}
     >
       {/* Header */}
-      <div style={{ textAlign: "center", marginBottom: 8 }}>
-        <img
-          src="https://mdent.cloud/clinic-logo.png"
-          alt="Clinic logo"
-          style={{ maxHeight: 60, maxWidth: 180 }}
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = "none";
-          }}
-        />
-        <div style={{ fontSize: 11 }}>Утас: 7777-1234 | Хаяг: Улаанбаатар</div>
-      </div>
-
-      {/* Title */}
       <div
         style={{
-          textAlign: "center",
-          fontWeight: 700,
-          fontSize: 13,
-          textDecoration: "underline",
-          marginBottom: 12,
+          display: "flex",
+          alignItems: "flex-start",
+          marginBottom: 8,
         }}
       >
-        {title}
+        {/* Left: clinic logo */}
+        <div style={{ flex: "0 0 auto", marginRight: 8 }}>
+          <img
+            src="https://mdent.cloud/clinic-logo.png"
+            alt="Clinic logo"
+            style={{ maxHeight: 70, maxWidth: 120 }}
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+          />
+        </div>
+
+        {/* Center: title + subtitle */}
+        <div style={{ flex: 1, textAlign: "center", padding: "0 8px" }}>
+          <div
+            style={{
+              fontWeight: 700,
+              fontSize: 13,
+              textDecoration: "underline",
+              marginBottom: 4,
+            }}
+          >
+            {title}
+          </div>
+          <div style={{ fontSize: 10 }}>
+            (Өвчтөний түүх/ иргэний эрүүл Мэндийн дэвтэрт хавсаргана)
+          </div>
+        </div>
+
+        {/* Right: legal text */}
+        <div style={{ flex: "0 0 auto", fontSize: 10, textAlign: "right", marginLeft: 8 }}>
+          <div>Эрүүл мэндийн сайдын</div>
+          <div>2013 оны 11 сарын 25 өдрийн</div>
+          <div>446 дугаар тушаалын</div>
+          <div>3 дугаар хавсралт</div>
+          <div>Маягт 1</div>
+        </div>
       </div>
 
       {/* Section A */}
@@ -340,32 +378,32 @@ function SurgeryTemplate({
         А) МЭДЭЭЛЛИЙН ХУУДАС
       </div>
 
-      <DottedField label={nameLabel} value={answers.name as string} />
-      <DottedField label={outcomeLabel} value={answers.outcome as string} />
-      <DottedField
+      <PlainField label={nameLabel} value={answers.name as string} />
+      <PlainField label={outcomeLabel} value={answers.outcome as string} />
+      <PlainField
         label="Гарч болох эрсдлүүд (эрсдлүүдийг нэг бүрчлэн дурдана):"
         value={answers.risks as string}
       />
-      <DottedField
+      <PlainField
         label="Гарч болох хүндрэлүүд (хүндрэлүүдийг нэг бүрчлэн дурдана):"
         value={answers.complications as string}
       />
-      <DottedField label={additionalProceduresLabel} value={answers.additionalProcedures as string} />
-      <DottedField label={alternativeTreatmentsLabel} value={answers.alternativeTreatments as string} />
-      <DottedField label={advantagesLabel} value={answers.advantages as string} />
+      <PlainField label={additionalProceduresLabel} value={answers.additionalProcedures as string} />
+      <PlainField label={alternativeTreatmentsLabel} value={answers.alternativeTreatments as string} />
+      <PlainField label={advantagesLabel} value={answers.advantages as string} />
 
       <div style={{ marginBottom: 4, fontWeight: 600 }}>{anesthesiaHeader}</div>
       <CheckboxField label="Ерөнхий" checked={answers.anesthesiaGeneral as boolean} />
       <CheckboxField label="Нугасны мэдээ алдуулалт" checked={answers.anesthesiaSpinal as boolean} />
-      <CheckboxField label="Хэсгийн мэдээ алдуулалт" checked={answers.anesthesiaLocal as boolean} />
-      <CheckboxField label="Тайвшруулалт" checked={answers.anesthesiaSedation as boolean} />
+      <CheckboxField label="Хэсгийн мэдээ алдуулалт" checked={false} />{/* no stored key per spec */}
+      <CheckboxField label="Тайвшруулалт" checked={false} />{/* no stored key per spec */}
 
-      <DottedField
+      <PlainField
         label="Үйлчлүүлэгчээс тавьсан асуулт:"
         value={answers.patientQuestions as string}
       />
-      <DottedField label="Дээрх асуултын товч:" value={answers.questionSummary as string} />
-      <DottedField label="Эмчтэй холбоо барих утас:" value={answers.doctorPhone as string} />
+      <PlainField label="Дээрх асуултын товч:" value={answers.questionSummary as string} />
+      <PlainField label="Эмчтэй холбоо барих утас:" value={answers.doctorPhone as string} />
 
       <CheckboxField
         label="Би үйлчлүүлэгчдээ дээрх мэдээллүүдийг дэлгэрэнгүй, энгийн ойлгомжтой хэллэгээр тайлбарлаж өгсөн болно."
@@ -394,15 +432,15 @@ function SurgeryTemplate({
         checked={answers.patientConsentInfo as boolean}
       />
 
-      <DottedField
+      <PlainField
         label="Үйлчлүүлэгчийн нэр (гарын үсгийн талбарын оронд):"
         value={answers.patientSignatureName as string}
       />
-      <DottedField
+      <PlainField
         label="Асран хамгаалагч / харгалзан дэмжигчийн нэр (хэрэв үйлчлүүлэгч эрх зүйн чадамжгүй бол):"
         value={answers.guardianName as string}
       />
-      <DottedField
+      <PlainField
         label="Холбоо, хамаарал (нөхөр, аав, ээж гэх мэт):"
         value={answers.guardianRelationDescription as string}
       />
@@ -415,15 +453,7 @@ function SurgeryTemplate({
       <CheckboxField label="Сэтгэцийн эмгэгтэй" checked={!!incapacityReason.mentalDisorder} />
       <CheckboxField label="Бусад (тайлбарлана уу)" checked={!!incapacityReason.other} />
       {incapacityReason.otherText && (
-        <div
-          style={{
-            marginBottom: 6,
-            marginLeft: 20,
-            borderBottom: "1px solid #000",
-            minHeight: 18,
-            paddingBottom: 1,
-          }}
-        >
+        <div style={{ marginBottom: 6, marginLeft: 20 }}>
           {incapacityReason.otherText as string}
         </div>
       )}
@@ -435,8 +465,8 @@ function SurgeryTemplate({
         label="Миний эхнэрийн хийлгэхээр зөвшөөрсөн мэс ажилбар / мэс заслыг би зөвшөөрч байна."
         checked={answers.husbandConsent as boolean}
       />
-      <DottedField label="Нөхрийн нэр:" value={answers.husbandName as string} />
-      <DottedField
+      <PlainField label="Нөхрийн нэр:" value={answers.husbandName as string} />
+      <PlainField
         label="Хэрэв нөхөр / асран хамгаалагч / харгалзан дэмжигч нь зөвшөөрөөгүй бол тайлбарлана уу:"
         value={answers.husbandRefuseReason as string}
       />
