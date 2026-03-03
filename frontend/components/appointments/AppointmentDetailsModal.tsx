@@ -396,7 +396,7 @@ export default function AppointmentDetailsModal({
     cursor: "pointer",
   }}
 >
-  Дэлгэрэнгүй
+  Үйлчлүүлэгчийн дэлгэрэнгүй
 </button>
                 </div>
               </>
@@ -708,7 +708,7 @@ export default function AppointmentDetailsModal({
           cursor: saving ? "default" : "pointer",
         }}
       >
-        Цуцлах
+        Хаах
       </button>
     </div>
 
