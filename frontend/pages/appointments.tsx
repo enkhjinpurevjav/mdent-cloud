@@ -140,6 +140,8 @@ function AppointmentForm({
     notes: "",
   });
   const [error, setError] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState(0);
+  const endTimeOverriddenRef = useRef(false);
 
   const [patientResults, setPatientResults] = useState<PatientLite[]>([]);
   const [patientSearchLoading, setPatientSearchLoading] = useState(false);
@@ -295,7 +297,9 @@ function AppointmentForm({
         const newStart = value;
         let newEnd = prev.endTime;
 
-        if (!newEnd || newEnd <= newStart) {
+        if (durationMinutes > 0 && !endTimeOverriddenRef.current) {
+          newEnd = addMinutesToTimeString(newStart, durationMinutes);
+        } else if (!newEnd || newEnd <= newStart) {
           newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
         }
 
@@ -307,11 +311,24 @@ function AppointmentForm({
       }
 
       if (name === "endTime") {
+        endTimeOverriddenRef.current = true;
         return { ...prev, endTime: value };
       }
 
       return { ...prev, [name]: value };
     });
+  };
+
+  const handleDurationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const mins = Number(e.target.value);
+    setDurationMinutes(mins);
+    endTimeOverriddenRef.current = false;
+    setForm((prev) => ({
+      ...prev,
+      endTime: prev.startTime
+        ? addMinutesToTimeString(prev.startTime, mins > 0 ? mins : SLOT_MINUTES)
+        : prev.endTime,
+    }));
   };
 
   const triggerPatientSearch = (rawQuery: string) => {
@@ -669,6 +686,8 @@ if (quickPatientForm.regNo.trim()) {
         }));
         setSelectedPatientId(null);
         setPatientResults([]);
+        setDurationMinutes(0);
+        endTimeOverriddenRef.current = false;
       } else {
         setError((data as any).error || "Алдаа гарлаа");
       }
@@ -902,6 +921,28 @@ if (quickPatientForm.regNo.trim()) {
               {slot.label}
             </option>
           ))}
+        </select>
+      </div>
+
+      {/* Duration selector */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Үргэлжлэх хугацаа</label>
+        <select
+          value={durationMinutes}
+          onChange={(e) => {
+            handleDurationChange(e);
+            setError("");
+          }}
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value={0}>Сонгох</option>
+          <option value={30}>30 мин</option>
+          <option value={60}>60 мин</option>
+          <option value={90}>90 мин</option>
         </select>
       </div>
 

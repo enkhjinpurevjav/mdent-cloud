@@ -59,6 +59,8 @@ export default function QuickAppointmentModal({
   });
 
   const [error, setError] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState(0);
+  const endTimeOverriddenRef = useRef(false);
 
   const workingDoctors = scheduledDoctors.length ? scheduledDoctors : doctors;
 
@@ -155,6 +157,8 @@ export default function QuickAppointmentModal({
 
       setError("");
       setPatientResults([]);
+      setDurationMinutes(0);
+      endTimeOverriddenRef.current = false;
       return;
     }
 
@@ -173,6 +177,8 @@ export default function QuickAppointmentModal({
     }));
     setError("");
     setPatientResults([]);
+    setDurationMinutes(0);
+    endTimeOverriddenRef.current = false;
   }, [open, defaultDoctorId, defaultDate, defaultTime, selectedBranchId, editingAppointment]);
 
   // Autofocus patient search input when modal opens in create mode
@@ -381,13 +387,16 @@ export default function QuickAppointmentModal({
       if (name === "startTime") {
         const newStart = value;
         let newEnd = prev.endTime;
-        if (!newEnd || newEnd <= newStart) {
+        if (durationMinutes > 0 && !endTimeOverriddenRef.current) {
+          newEnd = addMinutesToTimeString(newStart, durationMinutes);
+        } else if (!newEnd || newEnd <= newStart) {
           newEnd = addMinutesToTimeString(newStart, SLOT_MINUTES);
         }
         return { ...prev, startTime: newStart, endTime: newEnd };
       }
 
       if (name === "endTime") {
+        endTimeOverriddenRef.current = true;
         return { ...prev, endTime: value };
       }
 
@@ -398,6 +407,18 @@ export default function QuickAppointmentModal({
 
       return { ...prev, [name]: value };
     });
+  };
+
+  const handleDurationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const mins = Number(e.target.value);
+    setDurationMinutes(mins);
+    endTimeOverriddenRef.current = false;
+    setForm((prev) => ({
+      ...prev,
+      endTime: prev.startTime
+        ? addMinutesToTimeString(prev.startTime, mins > 0 ? mins : SLOT_MINUTES)
+        : prev.endTime,
+    }));
   };
 
   const handleQuickPatientChange = (
@@ -885,6 +906,25 @@ export default function QuickAppointmentModal({
                   {slot.label}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Duration selector */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Үргэлжлэх хугацаа</label>
+            <select
+              value={durationMinutes}
+              onChange={handleDurationChange}
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+              }}
+            >
+              <option value={0}>Сонгох</option>
+              <option value={30}>30 мин</option>
+              <option value={60}>60 мин</option>
+              <option value={90}>90 мин</option>
             </select>
           </div>
 
