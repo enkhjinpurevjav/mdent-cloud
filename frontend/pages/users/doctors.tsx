@@ -250,6 +250,14 @@ function DoctorForm({
   );
 }
 
+// Stable comparator: null/undefined calendarOrder sorts to the bottom, then tie-break by name
+function doctorComparator(a: Doctor, b: Doctor): number {
+  const ao = a.calendarOrder != null ? a.calendarOrder : Number.MAX_SAFE_INTEGER;
+  const bo = b.calendarOrder != null ? b.calendarOrder : Number.MAX_SAFE_INTEGER;
+  if (ao !== bo) return ao - bo;
+  return (a.name || "").localeCompare(b.name || "", "mn");
+}
+
 export default function DoctorsPage() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -287,16 +295,7 @@ export default function DoctorsPage() {
       }
 
       if (res.ok && Array.isArray(data)) {
-        const sorted = [...data].sort((a, b) => {
-          const ao = (a.calendarOrder ?? 0) as number;
-          const bo = (b.calendarOrder ?? 0) as number;
-          if (ao !== bo) return ao - bo;
-
-          const aName = (a.name || "").toString();
-          const bName = (b.name || "").toString();
-          return aName.localeCompare(bName, "mn");
-        });
-
+        const sorted = [...data].sort(doctorComparator);
         setDoctors(sorted);
       } else {
         setError(
@@ -341,44 +340,34 @@ export default function DoctorsPage() {
     if (direction === "down" && idx === doctors.length - 1) return;
 
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    const curr = doctors[idx];
-    const swap = doctors[swapIdx];
-    // Use existing calendarOrder values; fall back to position-based values only if null
-    const currOrder = curr.calendarOrder ?? idx * 10;
-    const swapOrder = swap.calendarOrder ?? swapIdx * 10;
 
     // Snapshot previous state for rollback on failure
     const prevDoctors = doctors;
 
-    setDoctors((prev) => {
-      const updated = prev.map((d) => {
-        if (d.id === curr.id) return { ...d, calendarOrder: swapOrder };
-        if (d.id === swap.id) return { ...d, calendarOrder: currOrder };
-        return d;
-      });
-      return [...updated].sort((a, b) => {
-        const ao = (a.calendarOrder ?? 0) as number;
-        const bo = (b.calendarOrder ?? 0) as number;
-        if (ao !== bo) return ao - bo;
-        return (a.name || "").toString().localeCompare((b.name || "").toString(), "mn");
-      });
+    // Swap the two entries by index and renumber to eliminate duplicates
+    const reordered = [...doctors];
+    [reordered[idx], reordered[swapIdx]] = [reordered[swapIdx], reordered[idx]];
+    const renumbered = reordered.map((d, i) => ({ ...d, calendarOrder: i * 10 }));
+
+    // Only persist doctors whose calendarOrder actually changed
+    const changedDoctors = renumbered.filter((d) => {
+      const old = prevDoctors.find((p) => p.id === d.id);
+      return old?.calendarOrder !== d.calendarOrder;
     });
 
+    setDoctors(renumbered);
     setReorderSaving(true);
     try {
-      const [res1, res2] = await Promise.all([
-        fetch(`/api/users/${curr.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ calendarOrder: swapOrder }),
-        }),
-        fetch(`/api/users/${swap.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ calendarOrder: currOrder }),
-        }),
-      ]);
-      if (!res1.ok || !res2.ok) {
+      const results = await Promise.all(
+        changedDoctors.map((d) =>
+          fetch(`/api/users/${d.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ calendarOrder: d.calendarOrder }),
+          })
+        )
+      );
+      if (results.some((r) => !r.ok)) {
         throw new Error("Failed to update calendarOrder");
       }
     } catch (err) {
@@ -489,7 +478,15 @@ export default function DoctorsPage() {
       <DoctorForm
         branches={branches}
         onSuccess={(d) => {
-          setDoctors((prev) => [d, ...prev]);
+          setDoctors((prev) => {
+            // Assign calendarOrder after all explicitly-ordered doctors (ignore nulls)
+            const maxOrder = prev.reduce(
+              (max, doc) => (doc.calendarOrder != null ? Math.max(max, doc.calendarOrder) : max),
+              -10
+            );
+            const newDoctor = { ...d, calendarOrder: maxOrder + 10 };
+            return [...prev, newDoctor].sort(doctorComparator);
+          });
           loadSummary();
         }}
       />
