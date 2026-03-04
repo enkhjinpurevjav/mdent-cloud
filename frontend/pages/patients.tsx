@@ -143,8 +143,8 @@ function PatientRegisterForm({
           Шинэ үйлчлүүлэгч бүртгэх
         </h2>
         <p className="text-xs text-gray-500 mt-0.5">
-          Зөвхөн нэр, утас, бүртгэсэн салбар заавал. Бусад мэдээллийг дараа нь
-          профайлаас засварлаж болно.
+          (Яаралтай бүртгэл үүсгэх үед зөвхөн нэр, утасны дугаар болон үндсэн салбарыг заавал бөглөх шаардлагатай ба бусад мэдээллийг 
+          профайлаас нэмж оруулна)
         </p>
       </div>
 
@@ -157,7 +157,7 @@ function PatientRegisterForm({
             </label>
             <input
               name="ovog"
-              placeholder="Овог (сонголттой)"
+              placeholder="Овог"
               value={form.ovog}
               onChange={handleChange}
               className={inputCls}
@@ -186,7 +186,7 @@ function PatientRegisterForm({
             </label>
             <input
               name="regNo"
-              placeholder="Регистрийн дугаар (сонголттой)"
+              placeholder="Регистрийн дугаар"
               value={form.regNo}
               onChange={handleChange}
               className={inputCls}
@@ -244,8 +244,7 @@ function PatientRegisterForm({
               </label>
             </div>
             <span className="text-xs text-gray-400">
-              Хүйсийг дараа нь профайлаас өөрчилж болно. Хоосон орхиж бас
-              болно.
+              Хүйсийг профайлаас өөрчилж болно. 
             </span>
           </div>
 
@@ -262,8 +261,8 @@ function PatientRegisterForm({
               className={inputCls}
             />
             <span className="text-xs text-gray-400">
-              Анхдагч утга нь &quot;Монгол&quot;. Шаардлагатай бол өөр улсын
-              нэрийг оруулж болно.
+              Гадаад улсын иргэн бол улсын
+              нэрийг оруулна уу
             </span>
           </div>
 
@@ -274,7 +273,7 @@ function PatientRegisterForm({
             </label>
             <input
               name="emergencyPhone"
-              placeholder="Ж: 99112233"
+              placeholder="Утас"
               value={form.emergencyPhone}
               onChange={handleChange}
               className={inputCls}
@@ -284,7 +283,7 @@ function PatientRegisterForm({
           {/* Branch selection */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-700">
-              Бүртгэсэн салбар<RequiredMark />
+              Үндсэн салбар<RequiredMark />
             </label>
             <select
               name="branchId"
@@ -305,7 +304,7 @@ function PatientRegisterForm({
           {/* Optional manual book number */}
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-gray-700">
-              Картын дугаар (сонголттой)
+              Картын дугаар
             </label>
             <input
               name="bookNumber"
@@ -314,10 +313,6 @@ function PatientRegisterForm({
               onChange={handleChange}
               className={inputCls}
             />
-            <span className="text-xs text-gray-400">
-              Хоосон орхивол систем хамгийн сүүлийн дугаараас +1 автоматаар
-              үүсгэнэ. 1-6 оронтой зөвхөн тоо байх ёстой.
-            </span>
           </div>
         </div>
 
