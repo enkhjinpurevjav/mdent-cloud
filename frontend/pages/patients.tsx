@@ -550,7 +550,7 @@ export default function PatientsPage() {
       <section className="mb-4 p-4 rounded-lg border border-gray-200 bg-white shadow-sm">
         <h2 className="text-base font-semibold mb-2">Хайлт</h2>
         <input
-          placeholder="Нэр, РД, утасгаар хайх"
+          placeholder="Овог, Нэр, РД, утас болон картын дугаараар хайх"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full p-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
