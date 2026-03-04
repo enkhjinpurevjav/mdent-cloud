@@ -268,22 +268,17 @@ export default function AdminLayout({ children }: Props) {
             gap: 12,
           }}
         >
-          <div
+          <img
+            src="/clinic-logo.png"
+            alt="Clinic logo"
             style={{
               width: 40,
               height: 40,
-              borderRadius: "50%",
-              background: "#f97316",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "white",
-              fontWeight: 700,
-              fontSize: 20,
+              objectFit: "contain",
+              display: "block",
+              borderRadius: 8,
             }}
-          >
-            M
-          </div>
+          />
 
           <div style={{ lineHeight: 1.3 }}>
             <div style={{ fontSize: 14, fontWeight: 600 }}>Admin</div>
@@ -693,22 +688,17 @@ export default function AdminLayout({ children }: Props) {
               gap: 12,
             }}
           >
-            <div
+            <img
+              src="/clinic-logo.png"
+              alt="Clinic logo"
               style={{
                 width: 40,
                 height: 40,
-                borderRadius: "50%",
-                background: "#f97316",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "white",
-                fontWeight: 700,
-                fontSize: 20,
+                objectFit: "contain",
+                display: "block",
+                borderRadius: 8,
               }}
-            >
-              M
-            </div>
+            />
             <div style={{ lineHeight: 1.3 }}>
               <div style={{ fontSize: 14, fontWeight: 600 }}>Admin</div>
               <div style={{ fontSize: 12, color: "#6b7280" }}>Mon Family Dental</div>
