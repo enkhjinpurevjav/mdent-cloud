@@ -137,25 +137,32 @@ function PatientRegisterForm({
   };
 
   return (
-    <section className="mt-2 mb-4 p-4 rounded-lg border border-gray-200 bg-white">
-      <h2 className="text-base font-semibold mb-2">
-        Шинэ үйлчлүүлэгч бүртгэх
-      </h2>
-      <p className="text-xs text-gray-500 mb-3">
-        Зөвхөн нэр, утас, бүртгэсэн салбар заавал. Бусад мэдээллийг дараа нь
-        профайлаас засварлаж болно.
-      </p>
+    <section className="mt-2 mb-4 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div className="bg-gray-50 border-b border-gray-200 px-4 py-3">
+        <h2 className="text-sm font-semibold text-gray-800">
+          Шинэ үйлчлүүлэгч бүртгэх
+        </h2>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Зөвхөн нэр, утас, бүртгэсэн салбар заавал. Бусад мэдээллийг дараа нь
+          профайлаас засварлаж болно.
+        </p>
+      </div>
 
-      <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 mt-1 mb-2.5">
+      <form className="p-4" onSubmit={handleSubmit}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
           {/* Овог */}
-          <input
-            name="ovog"
-            placeholder="Овог (сонголттой)"
-            value={form.ovog}
-            onChange={handleChange}
-            className={inputCls}
-          />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-700">
+              Овог
+            </label>
+            <input
+              name="ovog"
+              placeholder="Овог (сонголттой)"
+              value={form.ovog}
+              onChange={handleChange}
+              className={inputCls}
+            />
+          </div>
 
           {/* Нэр */}
           <div className="flex flex-col gap-1">
@@ -173,13 +180,18 @@ function PatientRegisterForm({
           </div>
 
           {/* РД */}
-          <input
-            name="regNo"
-            placeholder="Регистрийн дугаар (сонголттой)"
-            value={form.regNo}
-            onChange={handleChange}
-            className={inputCls}
-          />
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-gray-700">
+              Регистрийн дугаар
+            </label>
+            <input
+              name="regNo"
+              placeholder="Регистрийн дугаар (сонголттой)"
+              value={form.regNo}
+              onChange={handleChange}
+              className={inputCls}
+            />
+          </div>
 
           {/* Утас */}
           <div className="flex flex-col gap-1">
@@ -316,7 +328,7 @@ function PatientRegisterForm({
           <button
             type="submit"
             disabled={submitting}
-            className="px-3 py-1.5 rounded-md bg-blue-600 text-white text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
           >
             {submitting ? "Бүртгэж байна..." : "Бүртгэх"}
           </button>
@@ -454,8 +466,8 @@ export default function PatientsPage() {
   }).length;
 
   return (
-    <main className="max-w-5xl mx-auto my-4 px-6 font-sans">
-      <h1 className="text-xl font-semibold mt-1 mb-2">
+    <main className="max-w-7xl px-4 lg:px-8 my-4 font-sans">
+      <h1 className="text-2xl font-bold mt-1 mb-2">
         Үйлчлүүлэгчийн бүртгэл
       </h1>
       <p className="text-gray-600 mb-1">
@@ -540,7 +552,7 @@ export default function PatientsPage() {
       />
 
       {/* Search section */}
-      <section className="mb-4 p-3 rounded-lg border border-gray-200 bg-gray-50">
+      <section className="mb-4 p-4 rounded-lg border border-gray-200 bg-white shadow-sm">
         <h2 className="text-base font-semibold mb-2">Хайлт</h2>
         <input
           placeholder="Нэр, РД, утасгаар хайх"
@@ -558,9 +570,9 @@ export default function PatientsPage() {
       )}
 
       {!loading && !error && (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse mt-2 text-sm">
-            <thead>
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full border-collapse text-sm">
+            <thead className="bg-gray-50">
               <tr>
                 {[
                   "#",
@@ -574,7 +586,7 @@ export default function PatientsPage() {
                 ].map((label) => (
                   <th
                     key={label}
-                    className="text-left border-b border-gray-300 py-2 px-2 font-semibold text-gray-700 whitespace-nowrap"
+                    className="sticky top-0 z-10 text-left border-b border-gray-200 py-2 px-3 font-semibold text-gray-700 whitespace-nowrap bg-gray-50"
                   >
                     {label}
                   </th>
@@ -583,29 +595,29 @@ export default function PatientsPage() {
             </thead>
             <tbody>
               {filteredPatients.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50">
-                  <td className="border-b border-gray-100 py-2 px-2">
+                <tr key={p.id} className="odd:bg-white even:bg-gray-50 hover:bg-gray-100">
+                  <td className="border-b border-gray-100 py-2 px-3">
                     {p.patientBook?.bookNumber || "-"}
                   </td>
-                  <td className="border-b border-gray-100 py-2 px-2">
+                  <td className="border-b border-gray-100 py-2 px-3">
                     {p.ovog || "-"}
                   </td>
-                  <td className="border-b border-gray-100 py-2 px-2">
+                  <td className="border-b border-gray-100 py-2 px-3">
                     {p.name || "-"}
                   </td>
-                  <td className="border-b border-gray-100 py-2 px-2">
+                  <td className="border-b border-gray-100 py-2 px-3">
                     {p.regNo || "-"}
                   </td>
-                  <td className="border-b border-gray-100 py-2 px-2">
+                  <td className="border-b border-gray-100 py-2 px-3">
                     {p.phone || "-"}
                   </td>
-                  <td className="border-b border-gray-100 py-2 px-2 whitespace-nowrap">
+                  <td className="border-b border-gray-100 py-2 px-3 whitespace-nowrap">
                     {formatDate(p.createdAt)}
                   </td>
-                  <td className="border-b border-gray-100 py-2 px-2">
+                  <td className="border-b border-gray-100 py-2 px-3">
                     {getBranchName(p.branchId)}
                   </td>
-                  <td className="border-b border-gray-100 py-2 px-2">
+                  <td className="border-b border-gray-100 py-2 px-3">
                     {p.patientBook?.bookNumber ? (
                       <a
                         href={`/patients/${encodeURIComponent(
