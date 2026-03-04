@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/router";
 
 type Branch = {
   id: number;
@@ -347,6 +348,7 @@ function getPageNumbers(page: number, totalPages: number): (number | "...")[] {
 }
 
 export default function PatientsPage() {
+  const router = useRouter();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -596,14 +598,17 @@ export default function PatientsPage() {
                     </td>
                     <td className="border-b border-gray-100 py-2 px-3">
                       {p.patientBook?.bookNumber ? (
-                        <a
-                          href={`/patients/${encodeURIComponent(
-                            p.patientBook.bookNumber
-                          )}`}
-                          className="text-xs px-2 py-1 rounded border border-gray-300 no-underline text-gray-900 bg-gray-50 hover:bg-gray-100 transition-colors"
+                        <button
+                          type="button"
+                          onClick={() =>
+                            router.push(
+                              `/patients/${encodeURIComponent(p.patientBook?.bookNumber ?? "")}`
+                            )
+                          }
+                          className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-900 bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
                         >
                           Дэлгэрэнгүй
-                        </a>
+                        </button>
                       ) : (
                         "-"
                       )}
