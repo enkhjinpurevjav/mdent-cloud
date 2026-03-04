@@ -410,13 +410,21 @@ export default function PatientsPage() {
   }, []);
 
   const filteredPatients = patients.filter((p) => {
-    const q = debouncedSearch.trim().toLowerCase();
-    if (!q) return true;
-    const name = `${p.ovog || ""} ${p.name || ""}`.toLowerCase();
-    const regNo = (p.regNo || "").toLowerCase();
-    const phone = (p.phone || "").toLowerCase();
-    return name.includes(q) || regNo.includes(q) || phone.includes(q);
-  });
+  const q = debouncedSearch.trim().toLowerCase();
+  if (!q) return true;
+
+  const name = `${p.ovog || ""} ${p.name || ""}`.toLowerCase();
+  const regNo = (p.regNo || "").toLowerCase();
+  const phone = (p.phone || "").toLowerCase();
+  const bookNumber = (p.patientBook?.bookNumber || "").toLowerCase();
+
+  return (
+    name.includes(q) ||
+    regNo.includes(q) ||
+    phone.includes(q) ||
+    bookNumber.includes(q)
+  );
+});
 
   const getBranchName = (branchId: number) => {
     const b = branches.find((br) => br.id === branchId);
