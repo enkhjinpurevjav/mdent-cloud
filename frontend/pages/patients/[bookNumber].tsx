@@ -43,6 +43,7 @@ export default function PatientProfilePage() {
     updateVisitCardAnswer,
     updateNested,
     handleSaveVisitCard,
+    handleClearVisitCard,
     handleUploadSignature,
     handleUploadSharedSignature,
     setVisitCardTypeDraft,
@@ -61,6 +62,15 @@ export default function PatientProfilePage() {
   // Encounter report modal state
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportAppointmentId, setReportAppointmentId] = useState<number | null>(null);
+
+  // Ortho card local reset key – incrementing remounts OrthoCardView
+  const [orthoResetKey, setOrthoResetKey] = useState(0);
+
+  // Appointments tab filter/pagination state
+  const [apptDateFrom, setApptDateFrom] = useState("");
+  const [apptDateTo, setApptDateTo] = useState("");
+  const [apptPage, setApptPage] = useState(1);
+  const APPT_PAGE_SIZE = 20;
 
   // Handle tab query parameter for deep-linking
   // Accepts both "ortho" (short form) and "ortho_card" (internal tab ID) for flexibility
@@ -266,6 +276,25 @@ export default function PatientProfilePage() {
     b.scheduledAt.localeCompare(a.scheduledAt)
   );
 
+  // Filtered appointments for the Цагууд tab
+  const filteredAppointments = sortedAppointments.filter((a) => {
+    const d = new Date(a.scheduledAt);
+    if (apptDateFrom) {
+      const from = new Date(`${apptDateFrom}T00:00:00`);
+      if (d < from) return false;
+    }
+    if (apptDateTo) {
+      const to = new Date(`${apptDateTo}T23:59:59.999`);
+      if (d > to) return false;
+    }
+    return true;
+  });
+  const apptTotalPages = Math.max(1, Math.ceil(filteredAppointments.length / APPT_PAGE_SIZE));
+  const pagedAppointments = filteredAppointments.slice(
+    (apptPage - 1) * APPT_PAGE_SIZE,
+    apptPage * APPT_PAGE_SIZE
+  );
+
   const tabBtnClass = (tab: ActiveTab) =>
     activeTab === tab
       ? "w-full text-left px-2.5 py-1.5 rounded-md border-0 bg-blue-50 text-blue-700 font-medium cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -401,13 +430,6 @@ export default function PatientProfilePage() {
                     Гажиг заслын карт
                   </button>
 
-                  {/* Future placeholders */}
-                  <div className="px-2.5 py-1.5 rounded-md text-gray-500">
-                    Үзлэгийн түүх
-                  </div>
-                  <div className="px-2.5 py-1.5 rounded-md text-gray-500">
-                    Нэхэмжлэх
-                  </div>
                 </div>
               </div>
             </div>
@@ -783,69 +805,128 @@ export default function PatientProfilePage() {
                   <h2 className="text-base font-semibold mt-0 mb-3">
                     Цагууд (бүх бүртгэлтэй цагууд)
                   </h2>
-                  {sortedAppointments.length === 0 ? (
+                  {/* Date range filters */}
+                  <div className="flex flex-wrap gap-3 mb-3 items-end">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-500">Эхлэх огноо</label>
+                      <input
+                        type="date"
+                        value={apptDateFrom}
+                        onChange={(e) => { setApptDateFrom(e.target.value); setApptPage(1); }}
+                        className="rounded-md border border-gray-300 px-1.5 py-1 text-sm"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-gray-500">Дуусах огноо</label>
+                      <input
+                        type="date"
+                        value={apptDateTo}
+                        onChange={(e) => { setApptDateTo(e.target.value); setApptPage(1); }}
+                        className="rounded-md border border-gray-300 px-1.5 py-1 text-sm"
+                      />
+                    </div>
+                    {(apptDateFrom || apptDateTo) && (
+                      <button
+                        type="button"
+                        onClick={() => { setApptDateFrom(""); setApptDateTo(""); setApptPage(1); }}
+                        className="px-2 py-1 text-sm rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer"
+                      >
+                        Цэвэрлэх
+                      </button>
+                    )}
+                  </div>
+                  {filteredAppointments.length === 0 ? (
                     <div className="text-sm text-gray-500">
                       Цаг захиалгын бүртгэл алга.
                     </div>
                   ) : (
-                    <table className="w-full border-collapse text-sm">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
-                            Огноо / цаг
-                          </th>
-                          <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
-                            Салбар
-                          </th>
-                          <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
-                            Эмч
-                          </th>
-                          <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
-                            Төлөв
-                          </th>
-                          <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
-                            Тэмдэглэл
-                          </th>
-                          <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
-                            Үйлдэл
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sortedAppointments.map((a) => (
-                          <tr key={a.id} className="odd:bg-white even:bg-gray-50">
-                            <td className="border-b border-gray-100 py-1.5 px-2">
-                              {formatDateTime(a.scheduledAt)}
-                            </td>
-                            <td className="border-b border-gray-100 py-1.5 px-2">
-                              {a.branch?.name || "-"}
-                            </td>
-                            <td className="border-b border-gray-100 py-1.5 px-2">
-                              {formatDoctorName(a.doctor)}
-                            </td>
-                            <td className="border-b border-gray-100 py-1.5 px-2">
-                              {formatStatus(a.status)}
-                            </td>
-                            <td className="border-b border-gray-100 py-1.5 px-2">
-                              {displayOrDash(a.notes ?? null)}
-                            </td>
-                            <td className="border-b border-gray-100 py-1.5 px-2">
-                              {a.status === "completed" && (
-                                <button
-                                  onClick={() => {
-                                    setReportAppointmentId(a.id);
-                                    setReportModalOpen(true);
-                                  }}
-                                  className="px-2 py-1 text-xs bg-blue-500 text-white rounded cursor-pointer hover:bg-blue-600 border-0"
-                                >
-                                  Харах
-                                </button>
-                              )}
-                            </td>
+                    <>
+                      <table className="w-full border-collapse text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
+                              Огноо / цаг
+                            </th>
+                            <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
+                              Салбар
+                            </th>
+                            <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
+                              Эмч
+                            </th>
+                            <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
+                              Төлөв
+                            </th>
+                            <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
+                              Тэмдэглэл
+                            </th>
+                            <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
+                              Үйлдэл
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {pagedAppointments.map((a) => (
+                            <tr key={a.id} className="odd:bg-white even:bg-gray-50">
+                              <td className="border-b border-gray-100 py-1.5 px-2">
+                                {formatDateTime(a.scheduledAt)}
+                              </td>
+                              <td className="border-b border-gray-100 py-1.5 px-2">
+                                {a.branch?.name || "-"}
+                              </td>
+                              <td className="border-b border-gray-100 py-1.5 px-2">
+                                {formatDoctorName(a.doctor)}
+                              </td>
+                              <td className="border-b border-gray-100 py-1.5 px-2">
+                                {formatStatus(a.status)}
+                              </td>
+                              <td className="border-b border-gray-100 py-1.5 px-2">
+                                {displayOrDash(a.notes ?? null)}
+                              </td>
+                              <td className="border-b border-gray-100 py-1.5 px-2">
+                                {a.status === "completed" && (
+                                  <button
+                                    onClick={() => {
+                                      setReportAppointmentId(a.id);
+                                      setReportModalOpen(true);
+                                    }}
+                                    className="px-2 py-1 text-xs bg-blue-500 text-white rounded cursor-pointer hover:bg-blue-600 border-0"
+                                  >
+                                    Харах
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {/* Pagination */}
+                      <div className="flex items-center justify-between mt-3 text-sm text-gray-600">
+                        <span>
+                          Нийт {filteredAppointments.length} бүртгэл
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setApptPage((p) => Math.max(1, p - 1))}
+                            disabled={apptPage === 1}
+                            className="px-2 py-1 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer disabled:opacity-40 disabled:cursor-default"
+                          >
+                            ‹ Өмнөх
+                          </button>
+                          <span>
+                            {apptPage} / {apptTotalPages}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setApptPage((p) => Math.min(apptTotalPages, p + 1))}
+                            disabled={apptPage === apptTotalPages}
+                            className="px-2 py-1 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer disabled:opacity-40 disabled:cursor-default"
+                          >
+                            Дараах ›
+                          </button>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -863,8 +944,21 @@ export default function PatientProfilePage() {
                 <>
                   {/* Type selector for adult vs child */}
                   <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-3">
-                    <div className="text-sm font-semibold mb-2">
-                      Үзлэгийн картын төрөл
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-semibold">
+                        Үзлэгийн картын төрөл
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!window.confirm("Одоогийн картыг устгах уу? Энэ үйлдлийг буцаах боломжгүй.")) return;
+                          void handleClearVisitCard();
+                        }}
+                        disabled={visitCardSaving}
+                        className={`px-3 py-1 text-sm rounded border ${visitCardSaving ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed" : "border-red-300 bg-red-50 text-red-600 hover:bg-red-100 cursor-pointer"}`}
+                      >
+                        Цэвэрлэх
+                      </button>
                     </div>
                     <div className="flex gap-5 items-center text-sm">
                       <label className="flex items-center gap-1">
@@ -1460,10 +1554,22 @@ export default function PatientProfilePage() {
 
               {activeTab === "ortho_card" && (
                 <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-4">
-                  <h2 className="text-base font-semibold mt-0 mb-3">
-                    Гажиг заслын карт
-                  </h2>
-                  <OrthoCardView />
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-base font-semibold m-0">
+                      Гажиг заслын карт
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!window.confirm("Гажиг заслын картын өгөгдлийг цэвэрлэх үү? Зөвхөн дэлгэцийн мэдээлэл цэвэрлэгдэх болно.")) return;
+                        setOrthoResetKey((k) => k + 1);
+                      }}
+                      className="px-3 py-1 text-sm rounded border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 cursor-pointer"
+                    >
+                      Цэвэрлэх
+                    </button>
+                  </div>
+                  <OrthoCardView resetKey={orthoResetKey} />
                 </div>
               )}
             </div>
