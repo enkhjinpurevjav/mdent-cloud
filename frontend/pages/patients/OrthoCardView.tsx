@@ -12,7 +12,10 @@ import OrthoCardPage from "../../pages/ortho/[bookNumber]";
  * - This assumes OrthoCardPage uses router param bookNumber.
  * - The patient profile route is /patients/[bookNumber], so the router param
  *   will already be present and OrthoCardPage will load correctly.
+ *
+ * @param resetKey - Incrementing this value remounts the inner component,
+ *   resetting all local form state without touching server data.
  */
-export default function OrthoCardView() {
-  return <OrthoCardPage embedded={true} />;
+export default function OrthoCardView({ resetKey }: { resetKey?: number }) {
+  return <OrthoCardPage key={resetKey} embedded={true} />;
 }

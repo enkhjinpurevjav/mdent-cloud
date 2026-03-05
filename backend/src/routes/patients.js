@@ -820,6 +820,34 @@ router.post(
   }
 );
 
+// DELETE /api/patients/visit-card/:patientBookId
+// Query param: type=ADULT|CHILD (required)
+router.delete("/visit-card/:patientBookId", async (req, res) => {
+  try {
+    const patientBookId = Number(req.params.patientBookId);
+    if (!patientBookId || Number.isNaN(patientBookId)) {
+      return res.status(400).json({ error: "Invalid patientBookId" });
+    }
+
+    const { type } = req.query;
+    if (type !== "ADULT" && type !== "CHILD") {
+      return res.status(400).json({ error: "type must be 'ADULT' or 'CHILD'" });
+    }
+
+    await prisma.visitCard.deleteMany({
+      where: {
+        patientBookId,
+        type,
+      },
+    });
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("DELETE /api/patients/visit-card/:patientBookId error:", err);
+    return res.status(500).json({ error: "failed to delete visit card" });
+  }
+});
+
 // GET /api/patients/ortho-card/by-book/:bookNumber
 router.get("/ortho-card/by-book/:bookNumber", async (req, res) => {
   try {

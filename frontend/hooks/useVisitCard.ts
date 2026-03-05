@@ -151,6 +151,47 @@ export function useVisitCard({ bookNumber, activeTab, patientBookId }: UseVisitC
     return normalized;
   };
 
+  const handleClearVisitCard = async () => {
+    if (!patientBookId) {
+      setVisitCardError("PatientBook ID олдсонгүй.");
+      return;
+    }
+
+    const type = visitCardTypeDraft;
+    if (!type) {
+      setVisitCardError("Картын төрлийг сонгоно уу.");
+      return;
+    }
+
+    setVisitCardSaving(true);
+    setVisitCardError("");
+    try {
+      const res = await fetch(
+        `/api/patients/visit-card/${patientBookId}?type=${encodeURIComponent(type)}`,
+        { method: "DELETE" }
+      );
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          (json && json.error) || "Үзлэгийн карт устгахад алдаа гарлаа."
+        );
+      }
+
+      // Remove the deleted card from local state and reset answers
+      setVisitCards((prev) => prev.filter((c) => c.type !== type));
+      setVisitCard(null);
+      setVisitCardAnswers({});
+    } catch (err: any) {
+      console.error("clear visit card failed", err);
+      setVisitCardError(
+        err?.message || "Үзлэгийн карт устгахад алдаа гарлаа."
+      );
+    } finally {
+      setVisitCardSaving(false);
+    }
+  };
+
   const handleSaveVisitCard = async () => {
     if (!patientBookId) {
       setVisitCardError("PatientBook ID олдсонгүй.");
@@ -321,6 +362,7 @@ export function useVisitCard({ bookNumber, activeTab, patientBookId }: UseVisitC
     updateVisitCardAnswer,
     updateNested,
     handleSaveVisitCard,
+    handleClearVisitCard,
     handleUploadSignature,
     handleUploadSharedSignature,
     setVisitCardTypeDraft,
