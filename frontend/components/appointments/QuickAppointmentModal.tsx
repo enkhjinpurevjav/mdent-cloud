@@ -1,24 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import type { Branch, Doctor, ScheduledDoctor, Appointment, PatientLite, DoctorScheduleDay } from "./types";
-import { formatDoctorName, formatPatientSearchLabel } from "./formatters";
+import type { Branch, Doctor, ScheduledDoctor, Appointment, PatientLite, DoctorScheduleDay, CompletedHistoryItem } from "./types";
+import { formatDoctorName, formatPatientSearchLabel, formatHistoryDate } from "./formatters";
 import { SLOT_MINUTES, addMinutesToTimeString, generateTimeSlotsForDay, getSlotTimeString, isTimeWithinRange } from "./time";
 
 const PATIENT_RESULTS_LIMIT = 10;
-
-type CompletedHistoryItem = {
-  id: number;
-  scheduledAt: string;
-  doctor: { id: number; ovog: string | null; name: string | null } | null;
-};
-
-function formatHistoryDate(scheduledAt: string): string {
-  const d = new Date(scheduledAt);
-  if (Number.isNaN(d.getTime())) return "-";
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}/${m}/${day}`;
-}
 
 type QuickAppointmentModalProps = {
   open: boolean;

@@ -68,3 +68,9 @@ export type TimeSlot = {
   end: Date;
   label: string;
 };
+
+export type CompletedHistoryItem = {
+  id: number;
+  scheduledAt: string;
+  doctor: { id: number; ovog: string | null; name: string | null } | null;
+};

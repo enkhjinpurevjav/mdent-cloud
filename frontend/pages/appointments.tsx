@@ -7,9 +7,9 @@ import React, {
 } from "react";
 import { useRouter } from "next/router";
 import { useBranchLock } from "../components/appointments/useBranchLock";
-import type { Branch, Doctor, ScheduledDoctor, PatientLite, Appointment, DoctorScheduleDay, TimeSlot } from "../components/appointments/types";
+import type { Branch, Doctor, ScheduledDoctor, PatientLite, Appointment, DoctorScheduleDay, TimeSlot, CompletedHistoryItem } from "../components/appointments/types";
 import { SLOT_MINUTES, floorToSlotStart, addMinutes, getSlotKey, enumerateSlotStartsOverlappingRange, generateTimeSlotsForDay, getSlotTimeString, addMinutesToTimeString, isTimeWithinRange, getDateFromYMD, pad2 } from "../components/appointments/time";
-import { formatDoctorName, formatPatientLabel, formatGridShortLabel, formatPatientSearchLabel, formatDateYmdDots, formatStatus, formatDetailedTimeRange } from "../components/appointments/formatters";
+import { formatDoctorName, formatPatientLabel, formatGridShortLabel, formatPatientSearchLabel, formatDateYmdDots, formatStatus, formatDetailedTimeRange, formatHistoryDate } from "../components/appointments/formatters";
 import AppointmentDetailsModal from "../components/appointments/AppointmentDetailsModal";
 import QuickAppointmentModal from "../components/appointments/QuickAppointmentModal";
 import PendingSaveBar from "../components/appointments/PendingSaveBar";
@@ -1350,12 +1350,6 @@ const [pendingSaveError, setPendingSaveError] = useState<string | null>(null);
 const [pendingSaving, setPendingSaving] = useState(false);
 
   // ---- Booking intent (speed booking) ----
-  type CompletedHistoryItem = {
-    id: number;
-    scheduledAt: string;
-    doctor: { id: number; ovog: string | null; name: string | null } | null;
-  };
-
   type BookingIntent = {
     patientId: number;
     patientLabel: string;
@@ -1390,16 +1384,6 @@ const [pendingSaving, setPendingSaving] = useState(false);
   const [prefHistory, setPrefHistory] = useState<CompletedHistoryItem[]>([]);
   const [prefHistoryLoading, setPrefHistoryLoading] = useState(false);
 
-  // Helper: format scheduledAt as YYYY/MM/DD
-  const formatHistoryDate = (scheduledAt: string): string => {
-    const d = new Date(scheduledAt);
-    if (Number.isNaN(d.getTime())) return "-";
-    const y = d.getFullYear();
-    const mo = String(d.getMonth() + 1).padStart(2, "0");
-    const dy = String(d.getDate()).padStart(2, "0");
-    return `${y}/${mo}/${dy}`;
-  };
-
   const loadFilterPatientHistory = async (patientId: number) => {
     try {
       setFilterPatientHistoryLoading(true);
@@ -1407,7 +1391,8 @@ const [pendingSaving, setPendingSaving] = useState(false);
       if (!res.ok) { setFilterPatientHistory([]); return; }
       const data = await res.json().catch(() => []);
       setFilterPatientHistory(Array.isArray(data) ? data : []);
-    } catch {
+    } catch (e) {
+      console.error("Failed to load patient history", e);
       setFilterPatientHistory([]);
     } finally {
       setFilterPatientHistoryLoading(false);
@@ -2706,7 +2691,7 @@ const handleCancelDraft = (appointmentId: number) => {
                     fetch(`/api/patients/${selectedFilterPatient.id}/completed-appointments?limit=3`)
                       .then((r) => r.ok ? r.json() : [])
                       .then((data) => setPrefHistory(Array.isArray(data) ? data : []))
-                      .catch(() => setPrefHistory([]))
+                      .catch((e) => { console.error("Failed to load completed history for popup", e); setPrefHistory([]); })
                       .finally(() => setPrefHistoryLoading(false));
                     setPrefPopupOpen(true);
                   }}

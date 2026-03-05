@@ -91,6 +91,16 @@ export function formatDateYmdDots(date: Date): string {
   return `${y}.${m}.${d}`;
 }
 
+/** Format an ISO scheduledAt string as YYYY/MM/DD for completed visit history display. */
+export function formatHistoryDate(scheduledAt: string): string {
+  const d = new Date(scheduledAt);
+  if (Number.isNaN(d.getTime())) return "-";
+  const y = d.getFullYear();
+  const m = pad2(d.getMonth() + 1);
+  const day = pad2(d.getDate());
+  return `${y}/${m}/${day}`;
+}
+
 export function formatStatus(status: string): string {
   switch (status) {
     case "booked":
