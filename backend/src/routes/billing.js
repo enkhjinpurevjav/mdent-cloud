@@ -1,6 +1,7 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { applyPaymentToInvoice, computePaidTotal } from "../services/settlementService.js";
+import { getPatientBalance } from "../services/patientBalanceService.js";
 
 const prisma = new PrismaClient();
 const router = express.Router();
@@ -30,55 +31,6 @@ function toDiscountEnum(percent) {
   if (percent === 5) return "FIVE";
   if (percent === 10) return "TEN";
   throw new Error("Invalid discount percent. Allowed: 0, 5, 10.");
-}
-
-/**
- * Helper: compute patient balance from all invoices + payments.
- * Returns { totalBilled, totalPaid, balance }.
- */
-async function getPatientBalance(patientId) {
-  const invoices = await prisma.invoice.findMany({
-    where: { patientId },
-    select: {
-      id: true,
-      finalAmount: true,
-      totalAmount: true,
-    },
-  });
-
-  if (invoices.length === 0) {
-    return { totalBilled: 0, totalPaid: 0, balance: 0 };
-  }
-
-  const invoiceIds = invoices.map((inv) => inv.id);
-
-  const payments = await prisma.payment.groupBy({
-    by: ["invoiceId"],
-    where: { invoiceId: { in: invoiceIds } },
-    _sum: { amount: true },
-  });
-
-  const paidByInvoice = new Map();
-  for (const p of payments) {
-    paidByInvoice.set(p.invoiceId, Number(p._sum.amount || 0));
-  }
-
-  let totalBilled = 0;
-  let totalPaid = 0;
-
-  for (const inv of invoices) {
-    const billed =
-      inv.finalAmount != null ? Number(inv.finalAmount) : Number(inv.totalAmount || 0);
-    const paid = paidByInvoice.get(inv.id) || 0;
-    totalBilled += billed;
-    totalPaid += paid;
-  }
-
-  totalBilled = Number(totalBilled.toFixed(2));
-  totalPaid = Number(totalPaid.toFixed(2));
-  const balance = Number((totalBilled - totalPaid).toFixed(2));
-
-  return { totalBilled, totalPaid, balance };
 }
 
 /**

@@ -314,6 +314,19 @@ export default function PatientProfilePage() {
                   Бүртгэсэн: {formatDate(patient.createdAt)}
                 </div>
               )}
+              <div className="text-xs text-gray-400 mt-1">
+                Хэтэвч:{" "}
+                {(() => {
+                  const balance = data?.patientBalance;
+                  if (balance == null) return "-";
+                  const walletDisplay = -balance;
+                  const abs = Math.abs(walletDisplay)
+                    .toLocaleString("mn-MN");
+                  if (walletDisplay > 0) return `+${abs} ₮`;
+                  if (walletDisplay < 0) return `-${abs} ₮`;
+                  return `0 ₮`;
+                })()}
+              </div>
 
               {/* Side menu */}
               <div className="mt-4">
