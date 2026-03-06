@@ -3359,10 +3359,18 @@ const handleCancelDraft = (appointmentId: number) => {
   defaultPatientId={bookingIntent?.patientId ?? null}
   defaultPatientQuery={bookingIntent?.patientLabel ?? ""}
   onCreated={(a) => {
-    setAppointments((prev) => [a, ...prev]);
-    // close create mode
-    setQuickModalState((prev) => ({ ...prev, open: false }));
-  }}
+  setAppointments((prev) => [a, ...prev]);
+
+  // close create mode
+  setQuickModalState((prev) => ({ ...prev, open: false }));
+
+  // NEW: clear intent after creating an appointment
+  setBookingIntent(null);
+  setSelectedFilterPatient(null);
+  setFilterPatientQuery("");
+  setFilterPatientResults([]);
+  setFilterPatientHistory([]);
+}}
   editingAppointment={editingAppointment}
   onUpdated={(updated) => {
     // update list in place
