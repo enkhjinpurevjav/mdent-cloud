@@ -6,6 +6,7 @@ import SharedConsentAndSignature from "../../components/SharedConsentAndSignatur
 import PreventativeQuestionnaire from "../../components/PreventativeQuestionnaire";
 import OrthoCardView from "./OrthoCardView";
 import EncounterReportModal from "../../components/patients/EncounterReportModal";
+import EncounterMaterialsModal from "../../components/patients/EncounterMaterialsModal";
 import PatientHistoryBook from "../../components/patients/PatientHistoryBook";
 import type { ActiveTab, Patient, PatientBook } from "../../types/patients";
 import type { VisitCardType, VisitCardAnswers } from "../../types/visitCard";
@@ -62,6 +63,10 @@ export default function PatientProfilePage() {
   // Encounter report modal state
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportAppointmentId, setReportAppointmentId] = useState<number | null>(null);
+
+  // Encounter materials modal state
+  const [materialsModalOpen, setMaterialsModalOpen] = useState(false);
+  const [materialsEncounterId, setMaterialsEncounterId] = useState<number | null>(null);
 
   // Ortho card local reset key – incrementing remounts OrthoCardView
   const [orthoResetKey, setOrthoResetKey] = useState(0);
@@ -884,15 +889,36 @@ export default function PatientProfilePage() {
                               </td>
                               <td className="border-b border-gray-100 py-1.5 px-2">
                                 {a.status === "completed" && (
-                                  <button
-                                    onClick={() => {
-                                      setReportAppointmentId(a.id);
-                                      setReportModalOpen(true);
-                                    }}
-                                    className="px-2 py-1 text-xs bg-blue-500 text-white rounded cursor-pointer hover:bg-blue-600 border-0"
-                                  >
-                                    Харах
-                                  </button>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      title="Дэлгэрэнгүй"
+                                      onClick={() => {
+                                        setReportAppointmentId(a.id);
+                                        setReportModalOpen(true);
+                                      }}
+                                      className="inline-flex items-center justify-center w-7 h-7 rounded border border-blue-300 bg-blue-50 text-blue-600 hover:bg-blue-100 cursor-pointer"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                        <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+                                        <path fillRule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      title="Хавсралтууд"
+                                      disabled={(a.materialsCount ?? 0) < 1}
+                                      onClick={() => {
+                                        if (a.encounterId) {
+                                          setMaterialsEncounterId(a.encounterId);
+                                          setMaterialsModalOpen(true);
+                                        }
+                                      }}
+                                      className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-300 bg-gray-50 text-gray-500 hover:bg-gray-100 cursor-pointer disabled:opacity-40 disabled:cursor-default"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                        <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                                      </svg>
+                                    </button>
+                                  </div>
                                 )}
                               </td>
                             </tr>
@@ -1589,6 +1615,16 @@ export default function PatientProfilePage() {
           setReportAppointmentId(null);
         }}
         appointmentId={reportAppointmentId}
+      />
+
+      {/* Encounter Materials Modal */}
+      <EncounterMaterialsModal
+        open={materialsModalOpen}
+        onClose={() => {
+          setMaterialsModalOpen(false);
+          setMaterialsEncounterId(null);
+        }}
+        encounterId={materialsEncounterId}
       />
     </main>
   );
