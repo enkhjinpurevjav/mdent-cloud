@@ -510,13 +510,54 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
     const media = encounters.flatMap((e) => e.media || []);
 
     // Load all appointments for this patient (across branches)
-    const appointments = await prisma.appointment.findMany({
+    const rawAppointments = await prisma.appointment.findMany({
       where: { patientId: patient.id },
       orderBy: { scheduledAt: "desc" },
       include: {
         branch: true,
         doctor: true,
+        encounters: {
+          orderBy: { id: "desc" },
+          take: 1,
+          select: {
+            id: true,
+            _count: {
+              select: {
+                media: { where: { type: "XRAY" } },
+                consents: true,
+              },
+            },
+            prescription: {
+              select: {
+                id: true,
+                _count: { select: { items: true } },
+              },
+            },
+            invoice: {
+              select: {
+                eBarimtReceipt: { select: { id: true } },
+              },
+            },
+          },
+        },
       },
+    });
+
+    // Enrich each appointment with encounterId and materialsCount
+    const appointments = rawAppointments.map((a) => {
+      const enc = a.encounters?.[0] ?? null;
+      let materialsCount = 0;
+      let encounterId = null;
+      if (enc) {
+        encounterId = enc.id;
+        const xrayCount = enc._count?.media ?? 0;
+        const consentCount = enc._count?.consents ?? 0;
+        const prescriptionHasItems = (enc.prescription?._count?.items ?? 0) > 0 ? 1 : 0;
+        const ebarimtPresent = enc.invoice?.eBarimtReceipt ? 1 : 0;
+        materialsCount = xrayCount + consentCount + prescriptionHasItems + ebarimtPresent;
+      }
+      const { encounters, ...apptWithoutEncounters } = a;
+      return { ...apptWithoutEncounters, encounterId, materialsCount };
     });
 
     // Find the active visit card (latest savedAt)
