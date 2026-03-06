@@ -146,6 +146,51 @@ export default function BillingMaterialsView({ encounterId }: Props) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Print-only styles: hide everything except the e-Barimt receipt */}
+      <style>{`
+  .ebarimt-receipt-print-root { display: none; }
+
+  @media print {
+    body * { visibility: hidden !important; }
+
+    .ebarimt-receipt-print-root {
+      display: block !important;
+      visibility: visible !important;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 215px;
+      background: #fff;
+      z-index: 9999;
+    }
+
+    .ebarimt-receipt-print-root * {
+      visibility: visible !important;
+    }
+
+    @page { margin: 0; }
+  }
+`}</style>
+      {/* Hidden print container for e-Barimt receipt */}
+      {hasEbarimt && (
+        <div className="ebarimt-receipt-print-root">
+          <div style={{ width: 215, padding: "8px 6px", fontFamily: "monospace", fontSize: 11, lineHeight: 1.4 }}>
+            <hr style={{ margin: "4px 0" }} />
+            {receipt!.ddtd && <div>ДДТД: {receipt!.ddtd}</div>}
+            {receipt!.printedAtText && <div>Огноо: {receipt!.printedAtText}</div>}
+            {receipt!.lottery && <div>Сугалаа: {receipt!.lottery}</div>}
+            {receipt!.qrData && (
+              <div style={{ textAlign: "center", margin: "6px 0" }}>
+                <QRCodeSVG value={receipt!.qrData} size={140} />
+              </div>
+            )}
+            <div style={{ fontWeight: 700, marginTop: 2 }}>
+              Нийт дүн: {formatMoney(receipt!.totalAmount)}₮
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* e-Barimt */}
       <section
         style={{
@@ -187,6 +232,23 @@ export default function BillingMaterialsView({ encounterId }: Props) {
                 <QRCodeSVG value={receipt!.qrData} size={120} />
               </div>
             )}
+            <div style={{ marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                style={{
+                  padding: "5px 12px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: "#2563eb",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontSize: 13,
+                }}
+              >
+                🖨️ e-Barimt хэвлэх
+              </button>
+            </div>
           </div>
         )}
       </section>
