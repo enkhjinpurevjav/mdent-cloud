@@ -2699,11 +2699,11 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
 
       {/* 4 - Teeth Numbers */}
       {isAllTeeth ? (
-        <div className="text-sm font-medium text-center py-1 px-2 bg-amber-100 rounded text-amber-800">
+        <div className="text-[13px] font-medium text-center py-1 px-2 bg-amber-100 rounded text-amber-800">
           Бүх шүд
         </div>
       ) : locked && toothCodeFromDiagnosis ? (
-        <div className="text-sm text-center py-1 px-2 bg-gray-50 rounded border border-gray-200 text-gray-700">
+        <div className="text-[13px] text-center py-1 px-2 bg-gray-50 rounded border border-gray-200 text-gray-700">
           {toothCodeFromDiagnosis}
         </div>
       ) : (
