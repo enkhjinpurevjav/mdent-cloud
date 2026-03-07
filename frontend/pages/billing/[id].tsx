@@ -1929,7 +1929,7 @@ const [svcActiveIndex, setSvcActiveIndex] = useState(0);
 const searchServices = useCallback(
   async (q: string) => {
     const query = q.trim();
-    if (query.length < 2) {
+    if (query.length < 1) {
       setSvcOptions([]);
       return;
     }
@@ -2537,13 +2537,15 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
       <div className="relative">
         {(() => {
           const q = (svcQueryByRow[index] ?? "").trim().toLowerCase();
+          // When q is empty show nothing; when non-empty filter the API results (svcOptions)
+          // by the current input for instant feedback while debounce is pending.
           const visibleOptions = q
             ? svcOptions.filter((s) => {
                 const name = (s.name || "").toLowerCase();
                 const code = (s.code || "").toLowerCase();
                 return name.includes(q) || code.includes(q);
               })
-            : svcOptions;
+            : [];
 
           return (
             <>
