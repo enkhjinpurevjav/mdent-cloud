@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import type { Encounter, Branch, WarningLine } from "../../types/encounter-admin";
 import { formatPatientName, formatDoctorDisplayName, formatStaffName } from "../../utils/name-formatters";
 import { formatShortDate } from "../../utils/date-formatters";
@@ -24,10 +25,6 @@ type PatientHeaderProps = {
   }[];
   changingNurse: boolean;
   onChangeNurse: (nurseIdStr: string) => void;
-  onNavigateToPatient: () => void;
-  onNavigateToVisitCard: () => void;
-  onNavigateToOrtho: () => void;
-  onNavigateToPreviousEncounters: () => void;
 };
 
 export default function PatientHeader({
@@ -36,11 +33,16 @@ export default function PatientHeader({
   nursesForEncounter,
   changingNurse,
   onChangeNurse,
-  onNavigateToPatient,
-  onNavigateToVisitCard,
-  onNavigateToOrtho,
-  onNavigateToPreviousEncounters,
 }: PatientHeaderProps) {
+  const bookNumber = encodeURIComponent(encounter.patientBook.bookNumber);
+
+  const navItems = [
+    { label: "Профайл", href: `/patients/${bookNumber}?tab=profile` },
+    { label: "Үйлчлүүлэгчийн карт", href: `/patients/${bookNumber}?tab=patient_history` },
+    { label: "Цагууд", href: `/patients/${bookNumber}?tab=appointments` },
+    { label: "Карт бөглөх", href: `/patients/${bookNumber}?tab=visit_card` },
+    { label: "Гажиг заслын карт", href: `/patients/${bookNumber}?tab=ortho_card` },
+  ];
   return (
     <section
       style={{
@@ -86,74 +88,44 @@ export default function PatientHeader({
             encounter.patientBook.patient.branchId}
         </div>
 
-        <div
+        <nav
           style={{
             display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
+            flexDirection: "column",
+            gap: 2,
             marginTop: 4,
           }}
         >
-          <button
-            type="button"
-            onClick={onNavigateToPatient}
-            style={{
-              padding: "4px 8px",
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              background: "#f9fafb",
-              fontSize: 12,
-              cursor: "pointer",
-            }}
-          >
-            Үйлчлүүлэгчийн дэлгэрэнгүй
-          </button>
-
-          <button
-            type="button"
-            onClick={onNavigateToVisitCard}
-            style={{
-              padding: "4px 8px",
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              background: "#f0f9ff",
-              fontSize: 12,
-              cursor: "pointer",
-            }}
-          >
-            Үйлчлүүлэгчийн карт
-          </button>
-
-          <button
-            type="button"
-            onClick={onNavigateToOrtho}
-            style={{
-              padding: "4px 8px",
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              background: "#fef3c7",
-              fontSize: 12,
-              cursor: "pointer",
-            }}
-          >
-            Гажиг заслын карт
-          </button>
-
-          <button
-            type="button"
-            onClick={onNavigateToPreviousEncounters}
-            style={{
-              padding: "4px 8px",
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              background: "#f3e8ff",
-              fontSize: 12,
-              cursor: "pointer",
-            }}
-          >
-            Өмнөх үзлэгүүд
-          </button>
-        </div>
+          {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              style={{
+                display: "block",
+                padding: "5px 10px",
+                borderRadius: 6,
+                border: "1px solid #e5e7eb",
+                background: "#f9fafb",
+                fontSize: 12,
+                color: "#374151",
+                textDecoration: "none",
+                cursor: "pointer",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLAnchorElement).style.background = "#eff6ff";
+                (e.currentTarget as HTMLAnchorElement).style.color = "#1d4ed8";
+                (e.currentTarget as HTMLAnchorElement).style.borderColor = "#bfdbfe";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLAnchorElement).style.background = "#f9fafb";
+                (e.currentTarget as HTMLAnchorElement).style.color = "#374151";
+                (e.currentTarget as HTMLAnchorElement).style.borderColor = "#e5e7eb";
+              }}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
       </div>
 
       <div

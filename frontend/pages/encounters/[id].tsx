@@ -2010,34 +2010,6 @@ const handleFinishEncounter = async () => {
             nursesForEncounter={nursesForEncounter}
             changingNurse={changingNurse}
             onChangeNurse={handleChangeNurse}
-            onNavigateToPatient={() =>
-              router.push(
-                `/patients/${encodeURIComponent(
-                  encounter.patientBook.bookNumber
-                )}`
-              )
-            }
-            onNavigateToVisitCard={() =>
-              router.push(
-                `/patients/${encodeURIComponent(
-                  encounter.patientBook.bookNumber
-                )}?tab=visit-card`
-              )
-            }
-            onNavigateToOrtho={() =>
-              router.push(
-                `/ortho/${encodeURIComponent(
-                  encounter.patientBook.bookNumber
-                )}`
-              )
-            }
-            onNavigateToPreviousEncounters={() =>
-              router.push(
-                `/patients/${encodeURIComponent(
-                  encounter.patientBook.bookNumber
-                )}?tab=encounters`
-              )
-            }
           />
 
           <section className="mb-4">
