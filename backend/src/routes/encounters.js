@@ -2032,7 +2032,7 @@ const slotTimeString = `${String(slotHourLocal).padStart(2, "0")}:${String(
         scheduledAt: slotStart,
         endAt: slotEnd,
         status: "booked",
-        notes: note ? `Давтан үзлэг — Encounter #${encounterId}\n${note}` : `Давтан үзлэг — Encounter #${encounterId}`,
+        notes: note ? `Давтан үзлэг(${encounterId}) — ${note}` : `Давтан үзлэг(${encounterId})`,
         // Provenance fields for deletion permission tracking
         createdByUserId: req.user?.id || null,
         source: "FOLLOW_UP_ENCOUNTER",
