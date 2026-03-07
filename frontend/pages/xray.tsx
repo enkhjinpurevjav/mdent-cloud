@@ -456,18 +456,23 @@ export default function XrayPage() {
   };
 
   /** Format a scheduled time string for display. */
-  const formatTime = (appt: XrayAppointment) => {
-    const iso = appt.scheduledAt ?? appt.startTime ?? null;
-    if (!iso) return "—";
-    try {
-      return new Date(iso).toLocaleTimeString("mn-MN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } catch {
-      return "—";
-    }
-  };
+  /** Format a scheduled date+time string for display: YYYY.MM.DD HH:MM */
+const formatDateTime = (appt: XrayAppointment) => {
+  const iso = appt.scheduledAt ?? appt.startTime ?? null;
+  if (!iso) return "—";
+
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+
+  return `${y}.${m}.${day} ${hh}:${mm}`;
+};
 
   /** Return the patient registration number from either API field. */
   const getRegNo = (appt: XrayAppointment) => appt.patientRegNo ?? appt.regNo ?? "—";
@@ -570,8 +575,8 @@ export default function XrayPage() {
                     Эмч: {appt.doctorName || "—"}
                   </div>
                   <div style={{ fontSize: 12, color: "#6b7280" }}>
-                    Цаг: {formatTime(appt)}
-                  </div>
+  Огноо: {formatDateTime(appt)}
+</div>
                 </div>
               ))
             )}
