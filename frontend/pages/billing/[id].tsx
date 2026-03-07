@@ -2338,6 +2338,19 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
     return products.filter((p) => (p.name || "").toLowerCase().includes(q));
   }, [products, productQuery]);
 
+  // Pre-compute a Map of diagnosisId -> diagnosis row for O(1) lookup in items.map()
+  const diagnosisById = useMemo(() => {
+    const map = new Map<number, EncounterDiagnosisRow>();
+    if (encounter?.encounterDiagnoses) {
+      for (const dx of encounter.encounterDiagnoses) {
+        if (dx.id != null) {
+          map.set(dx.id, dx);
+        }
+      }
+    }
+    return map;
+  }, [encounter?.encounterDiagnoses]);
+
   if (!encounterId || Number.isNaN(encounterId)) {
     return (
       <main className="max-w-[900px] my-[40px] mx-auto p-6 font-sans">
@@ -2516,10 +2529,9 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
   const isAllTeeth = matchingEncounterService?.meta?.toothScope === "ALL";
 
   const diagnosisId = matchingEncounterService?.meta?.diagnosisId;
-  const matchingDiagnosis = diagnosisId != null
-    ? encounter?.encounterDiagnoses?.find((dx) => dx.id === diagnosisId)
+  const toothCodeFromDiagnosis = diagnosisId != null
+    ? (diagnosisById.get(diagnosisId)?.toothCode ?? null)
     : null;
-  const toothCodeFromDiagnosis = matchingDiagnosis?.toothCode ?? null;
 
   return (
     <div
