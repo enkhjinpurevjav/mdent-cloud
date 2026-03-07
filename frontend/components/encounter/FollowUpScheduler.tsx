@@ -118,6 +118,7 @@ export default function FollowUpScheduler({
   const [slotModalOpen, setSlotModalOpen] = useState<boolean>(false);
   const [selectedSlot, setSelectedSlot] = useState<string>("");
   const [slotNote, setSlotNote] = useState<string>("");
+  const [selectedDuration, setSelectedDuration] = useState<number>(followUpSlotMinutes || 30);
 
   const handleDeleteAppointment = async (appointmentId: number) => {
     if (!onDeleteAppointment) return;
@@ -731,6 +732,8 @@ useEffect(() => {
               setDetailsOpen(false);
               setSlotModalOpen(true);
               setSelectedSlot(detailsSlotStart);
+              setSelectedDuration(followUpSlotMinutes || 30);
+              setSlotNote("");
             }}
             className={`px-4 py-2.5 rounded-md bg-green-600 border border-green-600 text-white font-medium text-sm ${followUpBooking ? "cursor-not-allowed" : "cursor-pointer"}`}
           >
@@ -756,6 +759,7 @@ useEffect(() => {
       setSlotModalOpen(false);
       setSelectedSlot("");
       setSlotNote("");
+      setSelectedDuration(followUpSlotMinutes || 30);
     }}
   >
     <div
@@ -770,9 +774,13 @@ useEffect(() => {
         {[30, 60, 90, 120].map((duration) => (
           <button
             key={duration}
-            onClick={() => handleDurationSelect(duration)}
+            onClick={() => setSelectedDuration(duration)}
             disabled={followUpBooking}
-            className={`p-3 rounded-md bg-green-50 border border-green-600 text-green-700 font-medium text-sm ${followUpBooking ? "cursor-not-allowed" : "cursor-pointer"}`}
+            className={`p-3 rounded-md border font-medium text-sm ${
+              selectedDuration === duration
+                ? "bg-green-600 border-green-600 text-white"
+                : "bg-green-50 border-green-600 text-green-700"
+            } ${followUpBooking ? "cursor-not-allowed" : "cursor-pointer"}`}
           >
             {duration} минут
           </button>
@@ -790,16 +798,26 @@ useEffect(() => {
           className="w-full px-3 py-2 rounded-md border border-gray-300 text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
         />
       </div>
-      <button
-        className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 border border-gray-300 cursor-pointer font-medium"
-        onClick={() => {
-          setSlotModalOpen(false);
-          setSelectedSlot("");
-          setSlotNote("");
-        }}
-      >
-        Болих
-      </button>
+      <div className="flex gap-2 justify-end">
+        <button
+          className={`px-4 py-2 rounded-md bg-green-600 border border-green-600 text-white font-medium ${followUpBooking ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+          disabled={followUpBooking}
+          onClick={() => handleDurationSelect(selectedDuration)}
+        >
+          Хадгалах
+        </button>
+        <button
+          className="px-4 py-2 rounded-md bg-gray-200 text-gray-700 border border-gray-300 cursor-pointer font-medium"
+          onClick={() => {
+            setSlotModalOpen(false);
+            setSelectedSlot("");
+            setSlotNote("");
+            setSelectedDuration(followUpSlotMinutes || 30);
+          }}
+        >
+          Болих
+        </button>
+      </div>
     </div>
   </div>
 )}
