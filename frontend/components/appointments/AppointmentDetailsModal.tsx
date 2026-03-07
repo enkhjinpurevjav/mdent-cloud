@@ -180,8 +180,8 @@ export default function AppointmentDetailsModal({
   const handleViewEncounterForPayment = async (a: Appointment) => {
     try {
       setError("");
-      const res = await fetch(`/api/appointments/${a.id}/encounter`, {
-        method: "GET",
+      const res = await fetch(`/api/appointments/${a.id}/ensure-encounter`, {
+        method: "POST",
       });
 
       let data: any = null;
@@ -192,7 +192,7 @@ export default function AppointmentDetailsModal({
       }
 
       if (!res.ok || !data || typeof data.encounterId !== "number") {
-        console.error("get encounter for payment failed", res.status, data);
+        console.error("ensure-encounter for payment failed", res.status, data);
         setError(
           (data && data.error) ||
             "Үзлэгийн мэдээлэл авах үед алдаа гарлаа."
@@ -558,6 +558,10 @@ export default function AppointmentDetailsModal({
   <div>
                           <strong>Салбар:</strong>{" "}
                           {a.branch?.name ?? a.branchId}
+                        </div>
+                        <div>
+                          <strong>Огноо:</strong>{" "}
+                          {formatDateYmdDots(start)}
                         </div>
                       </div>
 
