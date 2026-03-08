@@ -33,6 +33,7 @@ type InvoiceItem = {
   unitPrice: number;
   quantity: number;
   lineTotal: number;
+  teethNumbers?: string[] | null;
   service?: {
     name: string;
   } | null;
@@ -175,6 +176,12 @@ function getDiscountLabel(discountPercent: string): string {
     TWENTY: "20%",
   };
   return map[discountPercent] || discountPercent;
+}
+
+function formatTeethNumbers(teethNumbers?: string[] | null): string {
+  return teethNumbers && teethNumbers.length > 0
+    ? teethNumbers.join(", ")
+    : "-";
 }
 
 export default function EncounterReportModal({
@@ -361,28 +368,17 @@ export default function EncounterReportModal({
                       </tr>
                     </thead>
                     <tbody>
-                      {data.diagnoses.length === 0 ? (
-                        <tr>
-                          <td
-                            colSpan={9}
-                            style={{
-                              ...tableCellStyle,
-                              textAlign: "center",
-                              color: "#6b7280",
-                            }}
-                          >
-                            Оношилгоо бүртгээгүй байна.
-                          </td>
-                        </tr>
-                      ) : (
-                        data.diagnoses.map((diag, idx) => {
-                          // Strategy 2: Sequential mapping between diagnosis rows (createdAt asc) 
-                          // and SERVICE items (id asc) as confirmed in the spec.
-                          // This approach assumes the items were added in the same order as diagnoses.
-                          const serviceItems =
-                            data.invoice?.items.filter(
-                              (item) => item.itemType === "SERVICE"
-                            ) || [];
+                      {(() => {
+                        const serviceItems =
+                          data.invoice?.items.filter(
+                            (item) => item.itemType === "SERVICE"
+                          ) || [];
+                        const productItems =
+                          data.invoice?.items.filter(
+                            (item) => item.itemType === "PRODUCT"
+                          ) || [];
+
+                        const diagnosisRows = data.diagnoses.map((diag, idx) => {
                           const matchedService = serviceItems[idx] || null;
 
                           // Sterilization indicator codes
@@ -392,7 +388,7 @@ export default function EncounterReportModal({
                               .join(", ") || "-";
 
                           return (
-                            <tr key={diag.id}>
+                            <tr key={`diag-${diag.id}`}>
                               <td style={tableCellStyle}>{idx + 1}</td>
                               <td style={tableCellStyle}>
                                 {diag.toothCode || "-"}
@@ -405,9 +401,7 @@ export default function EncounterReportModal({
                               </td>
                               <td style={tableCellStyle}>{indicatorCodes}</td>
                               <td style={tableCellStyle}>
-                                {matchedService
-                                  ? matchedService.name
-                                  : "-"}
+                                {matchedService ? matchedService.name : "-"}
                               </td>
                               <td style={tableCellStyle}>
                                 {matchedService
@@ -421,8 +415,74 @@ export default function EncounterReportModal({
                               <td style={tableCellStyle}>-</td>
                             </tr>
                           );
-                        })
-                      )}
+                        });
+
+                        // Remaining SERVICE items not consumed by diagnosis rows
+                        const extraServiceRows = serviceItems
+                          .slice(data.diagnoses.length)
+                          .map((item, i) => {
+                            const rowNum = data.diagnoses.length + i + 1;
+                            return (
+                              <tr key={`svc-${item.id}`}>
+                                <td style={tableCellStyle}>{rowNum}</td>
+                                <td style={tableCellStyle}>{formatTeethNumbers(item.teethNumbers)}</td>
+                                <td style={tableCellStyle}>-</td>
+                                <td style={tableCellStyle}>-</td>
+                                <td style={tableCellStyle}>-</td>
+                                <td style={tableCellStyle}>{item.name}</td>
+                                <td style={tableCellStyle}>
+                                  {formatNumber(item.lineTotal)}
+                                </td>
+                                <td style={tableCellStyle}>-</td>
+                                <td style={tableCellStyle}>-</td>
+                              </tr>
+                            );
+                          });
+
+                        // ALL PRODUCT items appended after service rows
+                        const baseProductRow =
+                          data.diagnoses.length + extraServiceRows.length;
+                        const extraProductRows = productItems.map((item, i) => (
+                          <tr key={`prod-${item.id}`}>
+                            <td style={tableCellStyle}>{baseProductRow + i + 1}</td>
+                            <td style={tableCellStyle}>{formatTeethNumbers(item.teethNumbers)}</td>
+                            <td style={tableCellStyle}>-</td>
+                            <td style={tableCellStyle}>-</td>
+                            <td style={tableCellStyle}>-</td>
+                            <td style={tableCellStyle}>{item.name}</td>
+                            <td style={tableCellStyle}>
+                              {formatNumber(item.lineTotal)}
+                            </td>
+                            <td style={tableCellStyle}>-</td>
+                            <td style={tableCellStyle}>-</td>
+                          </tr>
+                        ));
+
+                        const allRows = [
+                          ...diagnosisRows,
+                          ...extraServiceRows,
+                          ...extraProductRows,
+                        ];
+
+                        if (allRows.length === 0) {
+                          return (
+                            <tr>
+                              <td
+                                colSpan={9}
+                                style={{
+                                  ...tableCellStyle,
+                                  textAlign: "center",
+                                  color: "#6b7280",
+                                }}
+                              >
+                                Оношилгоо бүртгээгүй байна.
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        return allRows;
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -644,9 +704,10 @@ export default function EncounterReportModal({
                     }}
                   >
                     {data.media.map((m) => {
+                      const t = (m.type || "").toLowerCase();
                       const isImage =
-                        m.type === "photo" ||
-                        m.type === "xray" ||
+                        t === "photo" ||
+                        t === "xray" ||
                         /\.(jpg|jpeg|png|gif|webp)$/i.test(m.filePath);
 
                       return (
@@ -698,7 +759,7 @@ export default function EncounterReportModal({
                               marginTop: 4,
                             }}
                           >
-                            {m.type === "xray" && "(X-ray) "}
+                            {t === "xray" && "(X-ray) "}
                             {m.toothCode && `Шүд: ${m.toothCode}`}
                           </div>
                         </div>
