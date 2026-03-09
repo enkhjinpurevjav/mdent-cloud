@@ -267,6 +267,15 @@ export default function DoctorProfilePage() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [historyItems, setHistoryItems] = useState<DoctorScheduleDay[]>([]);
 
+  // Bulk schedule (mode 2) state
+  const [bulkDateFrom, setBulkDateFrom] = useState("");
+  const [bulkDateTo, setBulkDateTo] = useState("");
+  const [bulkBranchId, setBulkBranchId] = useState("");
+  const [bulkShiftByDate, setBulkShiftByDate] = useState<Record<string, ShiftType>>({});
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkSuccess, setBulkSuccess] = useState<string | null>(null);
+
   // Sales summary state
   const [salesSummary, setSalesSummary] = useState<{
     todayTotal: number;
@@ -946,6 +955,88 @@ export default function DoctorProfilePage() {
       setHistoryItems([]);
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  /** Returns an array of "YYYY-MM-DD" strings for every day in [from, to]. */
+  function getDatesInRange(from: string, to: string): string[] {
+    if (!from || !to) return [];
+    const result: string[] = [];
+    const [fy, fm, fd] = from.split("-").map(Number);
+    const [ty, tm, td] = to.split("-").map(Number);
+    const start = new Date(fy, fm - 1, fd);
+    const end = new Date(ty, tm - 1, td);
+    if (start > end) return [];
+    const cur = new Date(start);
+    while (cur <= end) {
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, "0");
+      const d = String(cur.getDate()).padStart(2, "0");
+      result.push(`${y}-${m}-${d}`);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return result;
+  }
+
+  /** Format a "YYYY-MM-DD" string as "YYYY/MM/DD" with short weekday. */
+  function formatScheduleDate(ymd: string): string {
+    if (!ymd) return "";
+    const [y, m, d] = ymd.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    const weekday = dt.toLocaleDateString("mn-MN", { weekday: "short" });
+    return `${y}/${String(m).padStart(2, "0")}/${String(d).padStart(2, "0")} ${weekday}`;
+  }
+
+  const handleBulkSaveSchedule = async () => {
+    if (!id) return;
+    if (!bulkBranchId) {
+      setBulkError("Салбар сонгоно уу.");
+      return;
+    }
+    if (!bulkDateFrom || !bulkDateTo) {
+      setBulkError("Эхлэх болон дуусах огноог сонгоно уу.");
+      return;
+    }
+    if (Object.keys(bulkShiftByDate).length === 0) {
+      setBulkError("Дор хаяа нэг өдрийн ээлж сонгоно уу.");
+      return;
+    }
+
+    setBulkSaving(true);
+    setBulkError(null);
+    setBulkSuccess(null);
+
+    try {
+      const res = await fetch(`/api/users/${id}/schedule/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branchId: Number(bulkBranchId),
+          dateFrom: bulkDateFrom,
+          dateTo: bulkDateTo,
+          shiftTypeByDate: bulkShiftByDate,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setBulkError(data?.error || "Олон өдрийн хуваарь хадгалах үед алдаа гарлаа.");
+        return;
+      }
+
+      setBulkSuccess(`Амжилттай: ${data.created} шинэ, ${data.updated} шинэчлэгдсэн.`);
+      setBulkShiftByDate({});
+      setBulkDateFrom("");
+      setBulkDateTo("");
+      setBulkBranchId("");
+      await reloadSchedule();
+      setTimeout(() => setBulkSuccess(null), 4000);
+    } catch (err) {
+      console.error(err);
+      setBulkError("Сүлжээгээ шалгана уу");
+    } finally {
+      setBulkSaving(false);
     }
   };
 
@@ -1988,12 +2079,7 @@ export default function DoctorProfilePage() {
                                   className="text-xs p-1"
                                 />
                               ) : (
-                                new Date(s.date).toLocaleDateString("mn-MN", {
-                                  year: "numeric",
-                                  month: "2-digit",
-                                  day: "2-digit",
-                                  weekday: "short",
-                                })
+                                formatScheduleDate(s.date)
                               )}
                             </td>
 
@@ -2130,6 +2216,119 @@ export default function DoctorProfilePage() {
                 )}
               </Card>
 
+              <Card title="Олон өдрийн хуваарь оруулах (Mode 2)">
+                <div className="text-gray-500 text-[13px] mb-2.5">
+                  Огнооны мужид дахь өдөр бүрт ээлж сонгож нэг удаад хуваарилна.
+                  Амралтын өдөр зөвхөн «Амралтын өдөр» ээлж боломжтой.
+                </div>
+
+                <div className="flex flex-wrap gap-3 items-end mb-3">
+                  <label className="flex flex-col gap-1 text-[13px]">
+                    Эхлэх огноо
+                    <input
+                      type="date"
+                      value={bulkDateFrom}
+                      onChange={(e) => {
+                        setBulkDateFrom(e.target.value);
+                        setBulkShiftByDate({});
+                      }}
+                      className="rounded-md border border-gray-300 px-1.5 py-1 text-[13px] bg-white"
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1 text-[13px]">
+                    Дуусах огноо
+                    <input
+                      type="date"
+                      value={bulkDateTo}
+                      onChange={(e) => {
+                        setBulkDateTo(e.target.value);
+                        setBulkShiftByDate({});
+                      }}
+                      className="rounded-md border border-gray-300 px-1.5 py-1 text-[13px] bg-white"
+                    />
+                  </label>
+
+                  <label className="flex flex-col gap-1 text-[13px]">
+                    Салбар
+                    <select
+                      value={bulkBranchId}
+                      onChange={(e) => setBulkBranchId(e.target.value)}
+                      className="rounded-md border border-gray-300 px-1.5 py-1 text-[13px] bg-white"
+                    >
+                      <option value="">Сонгох</option>
+                      {doctorAssignedBranches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                {bulkDateFrom && bulkDateTo && getDatesInRange(bulkDateFrom, bulkDateTo).length > 0 && (
+                  <div className="flex flex-col gap-1.5 mb-3 max-h-[320px] overflow-y-auto border border-gray-200 rounded-lg p-2">
+                    {getDatesInRange(bulkDateFrom, bulkDateTo).map((ymd) => {
+                      const [y, m, d] = ymd.split("-").map(Number);
+                      const dow = new Date(y, m - 1, d).getDay();
+                      const isWeekend = dow === 0 || dow === 6;
+                      const selectedShift = bulkShiftByDate[ymd] ?? "";
+
+                      return (
+                        <div key={ymd} className="flex items-center gap-3 text-[13px]">
+                          <span className={`w-40 shrink-0 ${isWeekend ? "text-blue-600 font-medium" : ""}`}>
+                            {formatScheduleDate(ymd)}
+                          </span>
+                          <select
+                            value={selectedShift}
+                            onChange={(e) => {
+                              const val = e.target.value as ShiftType | "";
+                              setBulkShiftByDate((prev) => {
+                                const next = { ...prev };
+                                if (val === "") {
+                                  delete next[ymd];
+                                } else {
+                                  next[ymd] = val as ShiftType;
+                                }
+                                return next;
+                              });
+                            }}
+                            className="rounded border border-gray-300 px-1.5 py-0.5 text-[13px] bg-white"
+                          >
+                            <option value="">— Алгасах —</option>
+                            {isWeekend ? (
+                              <option value="WEEKEND_FULL">Амралтын өдөр (10:00–19:00)</option>
+                            ) : (
+                              <>
+                                <option value="AM">Өглөө ээлж (09:00–15:00)</option>
+                                <option value="PM">Орой ээлж (15:00–21:00)</option>
+                                <option value="WEEKEND_FULL">Бүтэн ажлын өдөр (09:00–21:00)</option>
+                              </>
+                            )}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {bulkError && (
+                  <div className="text-red-500 text-[13px] mb-2">{bulkError}</div>
+                )}
+                {bulkSuccess && (
+                  <div className="text-green-600 text-[13px] mb-2">{bulkSuccess}</div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleBulkSaveSchedule}
+                  disabled={bulkSaving || Object.keys(bulkShiftByDate).length === 0}
+                  className="px-4 py-2 rounded-lg border-0 bg-violet-600 text-white cursor-pointer font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {bulkSaving ? "Хадгалж байна..." : `${Object.keys(bulkShiftByDate).length} өдрийн хуваарь хадгалах`}
+                </button>
+              </Card>
+
               <Card title="Хуваарийн түүх">
                 <div className="text-gray-500 text-[13px] mb-2.5">
                   Өнгөрсөн (эсвэл ирээдүйн) тодорхой хугацааны ажлын хуваарийг харах.
@@ -2200,12 +2399,7 @@ export default function DoctorProfilePage() {
                       {historyItems.map((s) => (
                         <tr key={s.id}>
                           <td className="border-b border-gray-100 p-2">
-                            {new Date(s.date).toLocaleDateString("mn-MN", {
-                              year: "numeric",
-                              month: "2-digit",
-                              day: "2-digit",
-                              weekday: "short",
-                            })}
+                            {formatScheduleDate(s.date)}
                           </td>
                           <td className="border-b border-gray-100 p-2">
                             {s.branch?.name || "-"}
