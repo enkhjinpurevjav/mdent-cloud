@@ -1,9 +1,19 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import rateLimit from "express-rate-limit";
 import prisma from "../db.js";
 
 const router = Router();
+
+// Rate limit: max 10 login attempts per 15 minutes per IP
+const loginRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Please try again later." },
+});
 
 const COOKIE_NAME = "access_token";
 const COOKIE_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8 hours
@@ -21,7 +31,7 @@ function cookieOptions() {
 }
 
 // POST /api/auth/login
-router.post("/login", async (req, res) => {
+router.post("/login", loginRateLimit, async (req, res) => {
   const { email, username, password } = req.body;
   const loginEmail = email || username;
 
@@ -44,7 +54,7 @@ router.post("/login", async (req, res) => {
   // Support both bcrypt-hashed and legacy plaintext passwords
   let valid = false;
   try {
-    if (user.password.startsWith("$2")) {
+    if (user.password.startsWith("$2a$") || user.password.startsWith("$2b$") || user.password.startsWith("$2y$")) {
       valid = await bcrypt.compare(password, user.password);
     } else {
       valid = password === user.password;

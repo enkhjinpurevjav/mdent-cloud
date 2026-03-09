@@ -10,7 +10,7 @@ const PUBLIC_ROUTES = ["/login", "/online", "/print"];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_ROUTES.some(
-    (p) => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p)
+    (p) => pathname === p || pathname.startsWith(p + "/")
   );
 }
 
@@ -18,10 +18,7 @@ export default function MyApp({ Component, pageProps }: AppProps) {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
 
-  const isPublicRoute =
-    router.pathname === "/login" ||
-    router.pathname.startsWith("/online") ||
-    router.pathname.startsWith("/print");
+  const isPublicRoute = isPublicPath(router.pathname);
 
   useEffect(() => {
     if (isPublicPath(router.pathname)) {

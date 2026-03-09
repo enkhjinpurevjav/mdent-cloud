@@ -49,10 +49,14 @@ import ebarimtRouter from "./routes/ebarimt.js";
 import uploadsRouter from "./routes/uploads.js";
 import authRouter from "./routes/auth.js";
 import { authenticateJWT } from "./middleware/auth.js";
+import rateLimit from "express-rate-limit";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
+
+// Cookie name used for JWT — must match the value in routes/auth.js
+const COOKIE_NAME_FOR_CSRF = "access_token";
 
 app.use(helmet());
 app.use(express.json());
@@ -70,6 +74,34 @@ app.use(
   })
 );
 app.use(cookieParser());
+
+// CSRF protection: for state-changing methods, validate Origin or Referer header
+// against the allowed CORS origins. sameSite=lax already prevents most CSRF,
+// but this provides defense-in-depth for cookie-authenticated requests.
+const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+app.use("/api", (req, res, next) => {
+  if (!STATE_CHANGING_METHODS.has(req.method)) return next();
+  // Only enforce when a cookie is present (i.e., cookie-authenticated request)
+  if (!req.cookies?.[COOKIE_NAME_FOR_CSRF]) return next();
+
+  const origin = req.headers.origin || req.headers.referer || "";
+  const allowed = corsOrigins;
+  const valid = allowed.some((o) => origin === o || origin.startsWith(o + "/"));
+  if (!valid) {
+    return res.status(403).json({ error: "CSRF validation failed." });
+  }
+  next();
+});
+
+// General API rate limiter — applied to all /api routes
+const apiRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 500,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please try again later." },
+});
+app.use("/api", apiRateLimit);
 
 // NEW: serve uploaded media files
 const mediaDir = process.env.MEDIA_UPLOAD_DIR || "/data/media";
@@ -105,9 +137,9 @@ app.use("/api/public", publicRouter);
 
 // Global auth middleware: protects all /api/* routes except /api/auth/* and /api/public/*
 app.use("/api", (req, res, next) => {
-  // Skip already-handled /api/auth and /api/public prefixes
-  if (req.path.startsWith("/auth/") || req.path === "/auth") return next();
-  if (req.path.startsWith("/public/") || req.path === "/public") return next();
+  // Skip /api/auth and /api/public (already handled by their routers above)
+  if (req.path.startsWith("/auth")) return next();
+  if (req.path.startsWith("/public")) return next();
   return authenticateJWT(req, res, next);
 });
 
