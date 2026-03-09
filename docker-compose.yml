@@ -9,7 +9,7 @@ services:
       - RUN_SEED=false
       - DATABASE_URL=${DATABASE_URL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      - DISABLE_AUTH=true
+      - DISABLE_AUTH=false
 
       # ✅ required for /api/auth/login cookie signing + /api/auth/me
       - JWT_SECRET=${JWT_SECRET}
