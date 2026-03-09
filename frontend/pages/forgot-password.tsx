@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Link from "next/link";
+import PublicHeader from "../components/PublicHeader";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -23,9 +24,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-100">
-      <header className="bg-gray-900 text-white px-6 py-3 flex items-center shadow">
-        <span className="text-lg font-semibold tracking-wide">M DENT</span>
-      </header>
+      <PublicHeader />
 
       <main className="flex flex-1 items-center justify-center px-4">
         <div className="bg-white rounded-2xl shadow-md w-full max-w-sm p-8">

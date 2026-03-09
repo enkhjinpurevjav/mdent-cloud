@@ -25,28 +25,44 @@ export default function LoginForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <input
-        name="email"
-        type="email"
-        value={email}
-        onChange={e => setEmail(e.target.value)}
-        placeholder="Email"
-        autoFocus
-        required
-      />
-      <input
-        name="password"
-        value={password}
-        onChange={e => setPassword(e.target.value)}
-        placeholder="Password"
-        type="password"
-        required
-      />
-      <button type="submit" disabled={loading}>
-        {loading ? "Logging in…" : "Login"}
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          И-мэйл
+        </label>
+        <input
+          name="email"
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          autoFocus
+          required
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="example@mdent.cloud"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Нууц үг
+        </label>
+        <input
+          name="password"
+          type="password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          required
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="••••••••"
+        />
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition"
+      >
+        {loading ? "Нэвтэрч байна..." : "Нэвтрэх"}
       </button>
-      {error && <div style={{ color: "red" }}>{error}</div>}
     </form>
   );
 }
