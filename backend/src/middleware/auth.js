@@ -3,18 +3,20 @@ import jwt from "jsonwebtoken";
 const COOKIE_NAME = "access_token";
 
 /**
- * Reads the JWT from either the httpOnly cookie or the Authorization header.
+ * Reads the JWT from either the cookie or the Authorization header.
  * Returns the raw token string, or null if not present.
  */
 function extractToken(req) {
-  if (req.cookies?.[COOKIE_NAME]) {
-    return req.cookies[COOKIE_NAME];
-  }
+  if (req.cookies?.[COOKIE_NAME]) return req.cookies[COOKIE_NAME];
+
   const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    return authHeader.slice(7).trim();
-  }
+  if (authHeader?.startsWith("Bearer ")) return authHeader.slice(7).trim();
+
   return null;
+}
+
+function getJwtSecret() {
+  return process.env.JWT_SECRET || "";
 }
 
 // JWT Authentication Middleware
@@ -30,15 +32,10 @@ export function authenticateJWT(req, res, next) {
     return res.status(401).json({ error: "Missing or invalid token." });
   }
 
-  const secret = process.env.JWT_SECRET;
+  const secret = getJwtSecret();
   if (!secret) {
     console.error("JWT_SECRET is not configured");
     return res.status(500).json({ error: "Internal server error." });
-  }
-
-  if (process.env.NODE_ENV === "development") {
-    console.log("JWT_SECRET:", secret);
-    console.log("Token received:", token);
   }
 
   jwt.verify(token, secret, (err, user) => {
@@ -49,20 +46,29 @@ export function authenticateJWT(req, res, next) {
       console.error("JWT error:", err.message);
       return res.status(401).json({ error: "Invalid token." });
     }
+
     req.user = user;
-    next();
+    return next();
   });
 }
 
-// Optional JWT Authentication Middleware - does not require auth but populates req.user if present
-export function optionalAuthenticateJWT(req, res, next) {
+// Optional JWT Authentication Middleware:
+// does not require auth but populates req.user if token is valid.
+// If JWT_SECRET is missing, it will NOT attempt verification.
+export function optionalAuthenticateJWT(req, _res, next) {
   const token = extractToken(req);
   if (!token) {
     req.user = null;
     return next();
   }
 
-  const secret = process.env.JWT_SECRET || "testsecret";
+  const secret = getJwtSecret();
+  if (!secret) {
+    console.warn("JWT_SECRET is not configured; skipping optional auth.");
+    req.user = null;
+    return next();
+  }
+
   jwt.verify(token, secret, (err, user) => {
     if (err) {
       console.warn("Invalid JWT token:", err.message);
@@ -70,6 +76,6 @@ export function optionalAuthenticateJWT(req, res, next) {
     } else {
       req.user = user;
     }
-    next();
+    return next();
   });
 }
