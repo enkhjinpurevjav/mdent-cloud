@@ -1336,14 +1336,10 @@ export default function DoctorProfilePage() {
                       setUploading(true);
                       setIdPhotoPathError(null);
                       try {
-                        const token = typeof window !== "undefined"
-                          ? localStorage.getItem("token") ?? sessionStorage.getItem("token")
-                          : null;
                         const fd = new FormData();
                         fd.append("file", file);
-                        const res = await fetch("/api/uploads/staff-photo", {
+                        const res = await fetch(`/api/uploads/staff-photo?userId=${id}`, {
                           method: "POST",
-                          headers: token ? { Authorization: `Bearer ${token}` } : {},
                           body: fd,
                         });
                         const data = await res.json();
