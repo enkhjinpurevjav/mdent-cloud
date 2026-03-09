@@ -117,9 +117,15 @@ const navItems: NavItem[] = [
       },
       
       {
-        label: "Ажилчдын хувийн тохиргоо",
+        label: "Эмчийн хувийн тохиргоо",
         href: "/admin/staff-income-settings",
         icon: "⚙️",
+      },
+
+      {
+        label: "Сувилагчийн орлогын тайлан",
+        href: "/admin/nurse/income",
+        icon: "📊",
       },
     
       {
