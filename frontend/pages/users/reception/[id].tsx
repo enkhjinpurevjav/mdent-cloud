@@ -667,7 +667,7 @@ export default function ReceptionProfilePage() {
     return (
       <div className="p-6">
         <h1>Ресепшний мэдээлэл</h1>
-        <div className="text-red-500 mt-2">{error}</div>
+        <div className="text-red-600 mt-2">{error}</div>
       </div>
     );
   }

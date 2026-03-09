@@ -1370,7 +1370,7 @@ export default function DoctorProfilePage() {
           type="button"
           onClick={handleSaveBranches}
           disabled={savingBranches}
-          className={`px-3 py-1.5 rounded-md border-0 ${savingBranches ? "bg-gray-400" : "bg-[#059669]"} text-white text-[13px] ${savingBranches ? "cursor-default" : "cursor-pointer"}`}
+          className={`px-3 py-1.5 rounded-md border-0 ${savingBranches ? "bg-gray-400" : "bg-emerald-600"} text-white text-[13px] ${savingBranches ? "cursor-default" : "cursor-pointer"}`}
         >
           {savingBranches ? "Салбар хадгалж байна..." : "Салбар хадгалах"}
         </button>
@@ -1384,7 +1384,7 @@ export default function DoctorProfilePage() {
         {branches.map((b) => (
           <label
             key={b.id}
-            className="inline-flex items-center gap-[6px] border border-gray-300 rounded px-2 py-1 text-[13px]"
+            className="inline-flex items-center gap-1.5 border border-gray-300 rounded px-2 py-1 text-[13px]"
           >
             <input
               type="checkbox"
@@ -1489,7 +1489,7 @@ export default function DoctorProfilePage() {
                   <button
                     type="submit"
                     disabled={scheduleSaving || !isCreatingSchedule}
-                    className="mt-1 px-4 py-2 rounded-lg border-0 bg-[#7c3aed] text-white cursor-pointer self-start font-bold"
+                    className="mt-1 px-4 py-2 rounded-lg border-0 bg-violet-600 text-white cursor-pointer self-start font-bold"
                   >
                     {scheduleSaving ? "Хуваарь хадгалж байна..." : "Хуваарь хадгалах"}
                   </button>
@@ -1706,7 +1706,7 @@ export default function DoctorProfilePage() {
                     type="button"
                     onClick={loadHistory}
                     disabled={historyLoading}
-                    className="px-4 py-2 rounded-lg border-0 bg-[#0f766e] text-white cursor-pointer h-[38px] font-bold"
+                    className="px-4 py-2 rounded-lg border-0 bg-teal-700 text-white cursor-pointer h-[38px] font-bold"
                   >
                     {historyLoading ? "Ачааллаж байна..." : "Харах"}
                   </button>

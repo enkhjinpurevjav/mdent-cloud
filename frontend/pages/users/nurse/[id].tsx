@@ -696,7 +696,7 @@ export default function NurseProfilePage() {
           </div>
 
           {/* Portrait placeholder */}
-          <div className="w-full h-[190px] rounded-[10px] border-2 border-dashed border-gray-400 bg-gray-50 text-gray-500 text-xs overflow-hidden flex items-center justify-center mb-2.5">
+          <div className="w-full h-[190px] rounded-xl border-2 border-dashed border-gray-400 bg-gray-50 text-gray-500 text-xs overflow-hidden flex items-center justify-center mb-2.5">
             <span>Зураг байрлах хэсэг</span>
           </div>
 
