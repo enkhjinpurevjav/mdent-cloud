@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/router";
 import StaffAvatar from "../../../components/StaffAvatar";
 import SignaturePad, { SignaturePadRef } from "../../../components/SignaturePad";
+import { toAbsoluteFileUrl } from "../../../utils/toAbsoluteFileUrl";
 
 type Branch = {
   id: number;
@@ -1014,7 +1015,7 @@ export default function DoctorProfilePage() {
               name={doctor.name}
               ovog={doctor.ovog}
               email={doctor.email}
-              idPhotoPath={doctor.idPhotoPath}
+              idPhotoPath={toAbsoluteFileUrl(doctor.idPhotoPath)}
               variant="sidebar"
               className="w-full h-full"
             />
@@ -1292,7 +1293,7 @@ export default function DoctorProfilePage() {
               name={form.name}
               ovog={form.ovog}
               email={form.email}
-              idPhotoPath={form.idPhotoPath}
+              idPhotoPath={toAbsoluteFileUrl(form.idPhotoPath)}
               variant="compact"
               sizeClassName="w-16 h-16"
             />
@@ -1582,6 +1583,16 @@ export default function DoctorProfilePage() {
                   {signatureError && (
                     <div className="text-red-600 text-xs mt-1">{signatureError}</div>
                   )}
+                  {form.signatureImagePath && (
+                    <div className="mt-2">
+                      <img
+                        src={toAbsoluteFileUrl(form.signatureImagePath)}
+                        alt="Гарын үсэг"
+                        className="max-h-16 max-w-[200px] border border-gray-200 rounded bg-white object-contain"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -1717,6 +1728,16 @@ export default function DoctorProfilePage() {
               </div>
               {stampError && (
                 <div className="text-red-600 text-xs mt-1">{stampError}</div>
+              )}
+              {form.stampImagePath && (
+                <div className="mt-2">
+                  <img
+                    src={toAbsoluteFileUrl(form.stampImagePath)}
+                    alt="Тамга"
+                    className="max-h-16 max-w-[200px] border border-gray-200 rounded bg-white object-contain"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                </div>
               )}
             </div>
           </div>
