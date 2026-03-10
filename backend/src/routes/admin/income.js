@@ -19,6 +19,19 @@ const INCLUDED_METHODS = new Set([
   "OTHER", // when active -> treated as CASH
 ]);
 
+const METHOD_LABELS = {
+  CASH: "Бэлэн",
+  POS: "POS",
+  TRANSFER: "Шилжүүлэг",
+  QPAY: "QPay",
+  WALLET: "Хэтэвч",
+  VOUCHER: "Купон",
+  OTHER: "Бусад",
+  BARTER: "Бартер",
+  INSURANCE: "Даатгал",
+  APPLICATION: "Апп",
+};
+
 const EXCLUDED_METHODS = new Set(["EMPLOYEE_BENEFIT"]);
 
 const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION"]);
@@ -356,6 +369,12 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
   }
 
   try {
+    // Fetch doctor info for response header
+    const doctorUser = await prisma.user.findUnique({
+      where: { id: DOCTOR_ID },
+      select: { id: true, name: true, ovog: true },
+    });
+
     // Settings: home bleaching deduction amount
     const homeBleachingDeductSetting = await prisma.settings.findUnique({
       where: { key: "finance.homeBleachingDeductAmountMnt" },
@@ -578,6 +597,8 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
     return res.json({
       doctorId: DOCTOR_ID,
+      doctorName: doctorUser?.name ?? null,
+      doctorOvog: doctorUser?.ovog ?? null,
       startDate: String(startDate),
       endDate: String(endDate),
       categories,
@@ -589,6 +610,261 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
   } catch (error) {
     console.error("Error in fetching category income breakdown:", error);
     return res.status(500).json({ error: "Failed to fetch detailed income breakdown." });
+  }
+});
+
+// ==========================================================
+// DOCTOR INCOME LINE-ITEMS DRILL-DOWN
+// ==========================================================
+
+/**
+ * GET /api/admin/doctors-income/:doctorId/details/lines
+ * Drill-down line items for a specific category of a doctor's income.
+ *
+ * Query params:
+ *   startDate=YYYY-MM-DD, endDate=YYYY-MM-DD
+ *   category=IMAGING|ORTHODONTIC_TREATMENT|DEFECT_CORRECTION|SURGERY|GENERAL|BARTER_EXCESS
+ *
+ * Returns each invoice line item (or pseudo-row for BARTER_EXCESS) that contributed
+ * to the doctor's income in the given category, using the same allocation logic as the
+ * details endpoint. Rows sorted by date descending (appointment.scheduledAt > visitDate).
+ */
+router.get("/doctors-income/:doctorId/details/lines", async (req, res) => {
+  const { doctorId } = req.params;
+  const { startDate, endDate, category } = req.query;
+
+  if (!doctorId || !startDate || !endDate || !category) {
+    return res.status(400).json({
+      error: "doctorId, startDate, endDate, and category are required.",
+    });
+  }
+
+  const DOCTOR_ID = Number(doctorId);
+  const start = new Date(`${String(startDate)}T00:00:00.000Z`);
+  const endExclusive = new Date(`${String(endDate)}T00:00:00.000Z`);
+  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+
+  const categoryKey = String(category).toUpperCase();
+  const VALID_CATEGORIES = [
+    "IMAGING",
+    "ORTHODONTIC_TREATMENT",
+    "DEFECT_CORRECTION",
+    "SURGERY",
+    "GENERAL",
+    "BARTER_EXCESS",
+  ];
+  if (!VALID_CATEGORIES.includes(categoryKey)) {
+    return res.status(400).json({ error: "Invalid category." });
+  }
+
+  try {
+    const homeBleachingDeductSetting = await prisma.settings.findUnique({
+      where: { key: "finance.homeBleachingDeductAmountMnt" },
+    });
+    const homeBleachingDeductAmountMnt = Number(homeBleachingDeductSetting?.value || 0) || 0;
+
+    const invoices = await prisma.invoice.findMany({
+      where: {
+        encounter: { doctorId: DOCTOR_ID },
+        OR: [
+          { createdAt: { gte: start, lt: endExclusive } },
+          { payments: { some: { timestamp: { gte: start, lt: endExclusive } } } },
+        ],
+      },
+      include: {
+        encounter: {
+          include: {
+            doctor: { include: { commissionConfig: true } },
+            appointment: { select: { id: true, scheduledAt: true } },
+            patientBook: {
+              include: {
+                patient: { select: { id: true, ovog: true, name: true } },
+              },
+            },
+          },
+        },
+        items: { include: { service: true } },
+        payments: {
+          include: {
+            allocations: { select: { invoiceItemId: true, amount: true } },
+          },
+        },
+      },
+    });
+
+    const lines = [];
+
+    for (const inv of invoices) {
+      const encounter = inv.encounter;
+      const payments = inv.payments || [];
+      const hasOverride = payments.some((p) =>
+        OVERRIDE_METHODS.has(String(p.method).toUpperCase())
+      );
+      const feeMultiplier = hasOverride ? 0.9 : 1;
+
+      const discountPct = discountPercentEnumToNumber(inv.discountPercent);
+      const serviceItems = (inv.items || []).filter(
+        (it) => it.itemType === "SERVICE" && it.service?.category !== "PREVIOUS"
+      );
+      if (!serviceItems.length) continue;
+
+      const lineNets = computeServiceNetProportionalDiscount(serviceItems, discountPct);
+      const serviceLineIds = serviceItems.map((it) => it.id);
+      const itemById = new Map(serviceItems.map((it) => [it.id, it]));
+
+      const remainingDue = new Map(serviceItems.map((it) => [it.id, lineNets.get(it.id) || 0]));
+      const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
+
+      let barterSum = 0;
+      const methodsInRange = new Set();
+
+      const sortedPayments = [...payments].sort(
+        (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+      );
+
+      for (const p of sortedPayments) {
+        const method = String(p.method || "").toUpperCase();
+        const ts = new Date(p.timestamp);
+        if (!inRange(ts, start, endExclusive)) continue;
+        if (EXCLUDED_METHODS.has(method)) continue;
+
+        if (method === "BARTER") {
+          barterSum += Number(p.amount || 0);
+          continue;
+        }
+
+        if (!INCLUDED_METHODS.has(method) && !OVERRIDE_METHODS.has(method)) continue;
+
+        methodsInRange.add(method);
+
+        const payAmt = Number(p.amount || 0);
+        const payAllocs = p.allocations || [];
+
+        if (payAllocs.length > 0) {
+          for (const alloc of payAllocs) {
+            const item = itemById.get(alloc.invoiceItemId);
+            if (!item) continue;
+            const allocAmt = Number(alloc.amount || 0);
+            itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
+            remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
+          }
+        } else {
+          const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
+          for (const [id, amt] of allocs) {
+            itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+          }
+        }
+      }
+
+      // Determine paymentMethodLabel for non-BARTER_EXCESS categories
+      const methodArr = [...methodsInRange];
+      let paymentMethodLabel;
+      if (methodArr.length === 0) paymentMethodLabel = null;
+      else if (methodArr.length === 1) paymentMethodLabel = METHOD_LABELS[methodArr[0]] || methodArr[0];
+      else paymentMethodLabel = "Mixed";
+
+      const appointment = encounter?.appointment;
+      const patient = encounter?.patientBook?.patient;
+      const encounterId = inv.encounterId ?? null;
+      const appointmentId = encounter?.appointmentId ?? null;
+      const visitDateStr = encounter?.visitDate ? encounter.visitDate.toISOString() : null;
+      const appointmentScheduledAtStr = appointment?.scheduledAt
+        ? appointment.scheduledAt.toISOString()
+        : null;
+
+      const rowBase = {
+        invoiceId: inv.id,
+        encounterId,
+        appointmentId,
+        appointmentScheduledAt: appointmentScheduledAtStr,
+        visitDate: visitDateStr,
+        patientId: patient?.id ?? null,
+        patientOvog: patient?.ovog ?? null,
+        patientName: patient?.name ?? null,
+      };
+
+      // ---- BARTER_EXCESS: one row per invoice with barter excess ----
+      if (categoryKey === "BARTER_EXCESS") {
+        const nonImagingServiceItems = serviceItems.filter(
+          (it) => it.service?.category !== "IMAGING"
+        );
+        const totalAllServiceNet = serviceItems.reduce(
+          (sum, it) => sum + (lineNets.get(it.id) || 0),
+          0
+        );
+        const totalNonImagingNet = nonImagingServiceItems.reduce(
+          (sum, it) => sum + (lineNets.get(it.id) || 0),
+          0
+        );
+        const nonImagingRatio =
+          totalAllServiceNet > 0 ? totalNonImagingNet / totalAllServiceNet : 0;
+        const barterExcess = Math.max(0, barterSum - 800000);
+        if (barterExcess <= 0) continue;
+
+        const allocatedBarterExcess = barterExcess * nonImagingRatio;
+        lines.push({
+          ...rowBase,
+          serviceName: "Бартер илүүдэл",
+          serviceCategory: "BARTER_EXCESS",
+          priceMnt: Math.round(barterSum),
+          discountMnt: 0,
+          netAfterDiscountMnt: Math.round(allocatedBarterExcess),
+          allocatedPaidMnt: Math.round(allocatedBarterExcess),
+          paymentMethodLabel: "Бартер",
+        });
+        continue;
+      }
+
+      // ---- Per-item lines for non-BARTER_EXCESS categories ----
+      for (const it of serviceItems) {
+        // Determine which bucket this item belongs to
+        let itemBucketKey;
+        if (it.service?.category === "IMAGING") {
+          if (categoryKey !== "IMAGING") continue;
+          if (it.meta?.assignedTo !== "DOCTOR") continue;
+          itemBucketKey = "IMAGING";
+        } else {
+          itemBucketKey = bucketKeyForService(it.service);
+          if (itemBucketKey !== categoryKey) continue;
+        }
+
+        const allocBase = itemAllocationBase.get(it.id) || 0;
+        const allocatedPaid = Math.round(allocBase * feeMultiplier);
+
+        // Skip lines that have no allocation (not paid in range)
+        if (allocatedPaid <= 0) continue;
+
+        const grossAmount = Number(it.lineTotal || 0);
+        const netAfterDiscount = lineNets.get(it.id) || 0;
+        const discountAmount = Math.max(0, grossAmount - netAfterDiscount);
+
+        lines.push({
+          ...rowBase,
+          serviceName: it.service?.name || it.name,
+          serviceCategory: it.service?.category || "GENERAL",
+          priceMnt: Math.round(grossAmount),
+          discountMnt: Math.round(discountAmount),
+          netAfterDiscountMnt: Math.round(netAfterDiscount),
+          allocatedPaidMnt: allocatedPaid,
+          paymentMethodLabel,
+        });
+      }
+    }
+
+    // Sort by date descending: appointmentScheduledAt > visitDate
+    lines.sort((a, b) => {
+      const dateA = a.appointmentScheduledAt || a.visitDate;
+      const dateB = b.appointmentScheduledAt || b.visitDate;
+      if (!dateA && !dateB) return 0;
+      if (!dateA) return 1;
+      if (!dateB) return -1;
+      return new Date(dateB).getTime() - new Date(dateA).getTime();
+    });
+
+    return res.json(lines);
+  } catch (error) {
+    console.error("Error fetching doctor income lines:", error);
+    return res.status(500).json({ error: "Failed to fetch doctor income lines." });
   }
 });
 
