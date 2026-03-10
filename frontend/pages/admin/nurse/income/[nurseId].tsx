@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 
-type IncomeLine = {
+type ImagingLine = {
   invoiceId: number;
   invoiceItemId: number;
   serviceName: string;
@@ -10,14 +10,27 @@ type IncomeLine = {
   incomeMnt: number;
 };
 
+type AssistLine = {
+  encounterId: number;
+  invoiceId: number;
+  doctorId: number | null;
+  doctorName: string | null;
+  salesBaseMnt: number;
+  pct: number;
+  incomeMnt: number;
+};
+
 type NurseIncomeDetails = {
   nurseId: number;
   startDate: string;
   endDate: string;
-  imagingPct: number;
-  lines: IncomeLine[];
+  nurseImagingPct: number;
+  imagingLines: ImagingLine[];
+  assistLines: AssistLine[];
   totals: {
-    totalImagingIncomeMnt: number;
+    imagingIncomeMnt: number;
+    assistIncomeMnt: number;
+    totalIncomeMnt: number;
   };
 };
 
@@ -59,7 +72,7 @@ export default function NurseIncomeDetailsPage() {
   }, [router.isReady, nurseId, startDate, endDate]);
 
   return (
-    <main style={{ padding: "24px", fontFamily: "sans-serif", maxWidth: 900, margin: "0 auto" }}>
+    <main style={{ padding: "24px", fontFamily: "sans-serif", maxWidth: 960, margin: "0 auto" }}>
       <div style={{ marginBottom: 16 }}>
         <button
           type="button"
@@ -78,11 +91,11 @@ export default function NurseIncomeDetailsPage() {
       </div>
 
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
-        Сувилагч — Зурагны Орлого (Дэлгэрэнгүй)
+        Сувилагч — Орлогын Дэлгэрэнгүй
       </h1>
       {details && (
         <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>
-          {details.startDate} — {details.endDate} · Зураг %: {details.imagingPct}%
+          {details.startDate} — {details.endDate} · Зураг %: {details.nurseImagingPct}%
         </div>
       )}
 
@@ -115,19 +128,26 @@ export default function NurseIncomeDetailsPage() {
               border: "1px solid #86efac",
             }}
           >
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#15803d" }}>
-              Нийт зурагны орлого:{" "}
-              {details.totals.totalImagingIncomeMnt.toLocaleString("mn-MN")} ₮
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#15803d", marginBottom: 6 }}>
+              Нийт орлого:{" "}
+              {details.totals.totalIncomeMnt.toLocaleString("mn-MN")} ₮
+            </div>
+            <div style={{ fontSize: 13, color: "#374151", display: "flex", gap: 24, flexWrap: "wrap" }}>
+              <span>Зурагны орлого: {details.totals.imagingIncomeMnt.toLocaleString("mn-MN")} ₮</span>
+              <span>Туслах орлого: {details.totals.assistIncomeMnt.toLocaleString("mn-MN")} ₮</span>
             </div>
           </section>
 
-          {/* Lines table */}
-          {details.lines.length === 0 ? (
-            <p style={{ color: "#6b7280", fontSize: 14 }}>
+          {/* Imaging lines table */}
+          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
+            Зурагны орлого ({details.nurseImagingPct}%)
+          </h2>
+          {details.imagingLines.length === 0 ? (
+            <p style={{ color: "#6b7280", fontSize: 14, marginBottom: 24 }}>
               Тухайн хугацаанд зурагны мөр олдсонгүй.
             </p>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginBottom: 24 }}>
               <thead>
                 <tr style={{ backgroundColor: "#f9fafb", textAlign: "left" }}>
                   <th style={{ padding: "8px 12px" }}>Нэхэмжлэл #</th>
@@ -138,7 +158,7 @@ export default function NurseIncomeDetailsPage() {
                 </tr>
               </thead>
               <tbody>
-                {details.lines.map((line) => (
+                {details.imagingLines.map((line) => (
                   <tr key={line.invoiceItemId} style={{ borderBottom: "1px solid #e5e7eb" }}>
                     <td style={{ padding: "8px 12px" }}>{line.invoiceId}</td>
                     <td style={{ padding: "8px 12px" }}>{line.serviceName}</td>
@@ -158,7 +178,54 @@ export default function NurseIncomeDetailsPage() {
                     Нийт:
                   </td>
                   <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                    {details.totals.totalImagingIncomeMnt.toLocaleString("mn-MN")} ₮
+                    {details.totals.imagingIncomeMnt.toLocaleString("mn-MN")} ₮
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
+
+          {/* Assist lines table */}
+          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
+            Туслах орлого (1%)
+          </h2>
+          {details.assistLines.length === 0 ? (
+            <p style={{ color: "#6b7280", fontSize: 14 }}>
+              Тухайн хугацаанд туслах орлого олдсонгүй.
+            </p>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f9fafb", textAlign: "left" }}>
+                  <th style={{ padding: "8px 12px" }}>Нэхэмжлэл #</th>
+                  <th style={{ padding: "8px 12px" }}>Эмч</th>
+                  <th style={{ padding: "8px 12px", textAlign: "right" }}>Эмчийн борлуулалт (₮)</th>
+                  <th style={{ padding: "8px 12px", textAlign: "right" }}>%</th>
+                  <th style={{ padding: "8px 12px", textAlign: "right" }}>Орлого (₮)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {details.assistLines.map((line) => (
+                  <tr key={`${line.encounterId}-${line.invoiceId}`} style={{ borderBottom: "1px solid #e5e7eb" }}>
+                    <td style={{ padding: "8px 12px" }}>{line.invoiceId}</td>
+                    <td style={{ padding: "8px 12px" }}>{line.doctorName || "-"}</td>
+                    <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                      {line.salesBaseMnt.toLocaleString("mn-MN")} ₮
+                    </td>
+                    <td style={{ padding: "8px 12px", textAlign: "right" }}>{line.pct}%</td>
+                    <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                      {line.incomeMnt.toLocaleString("mn-MN")} ₮
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ backgroundColor: "#f9fafb", fontWeight: 700 }}>
+                  <td colSpan={4} style={{ padding: "8px 12px", textAlign: "right" }}>
+                    Нийт:
+                  </td>
+                  <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                    {details.totals.assistIncomeMnt.toLocaleString("mn-MN")} ₮
                   </td>
                 </tr>
               </tfoot>
