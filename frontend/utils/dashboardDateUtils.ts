@@ -55,11 +55,14 @@ export function formatDayLabelMn(d: Date): string {
 
 // ── Year / Month / Week option generators ─────────────────────────────────────
 
-/** Returns an array of year numbers available in the dropdowns (past 5 years + current). */
+/** Number of years back (inclusive of current year) shown in the year dropdown. */
+const YEARS_BACK = 4;
+
+/** Returns an array of year numbers available in the dropdowns (past YEARS_BACK years + current). */
 export function getYearOptions(): number[] {
   const currentYear = new Date().getFullYear();
   const years: number[] = [];
-  for (let y = currentYear - 4; y <= currentYear; y++) {
+  for (let y = currentYear - YEARS_BACK; y <= currentYear; y++) {
     years.push(y);
   }
   return years;
@@ -157,6 +160,13 @@ function parseWeekKey(weekKey: string): Date | null {
 }
 
 // ── Bucket label formatting for chart X-axis ──────────────────────────────────
+
+/** Format a monetary amount in ₮ for chart Y-axis ticks. */
+export function formatMntTick(v: number): string {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
+  return String(v);
+}
 
 /**
  * Given a bucket type and a series item key, produce a human-readable x-axis label.

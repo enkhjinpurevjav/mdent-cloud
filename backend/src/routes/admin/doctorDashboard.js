@@ -41,6 +41,9 @@ const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION"]);
 
 const HOME_BLEACHING_SERVICE_CODE = 151;
 
+/** Minimum BARTER payment amount before the excess contributes to doctor sales. */
+const BARTER_THRESHOLD_MNT = 800_000;
+
 function inRange(ts, start, end) {
   return ts >= start && ts < end;
 }
@@ -166,7 +169,7 @@ function calcInvoiceContribution(inv, bucketStart, bucketEnd, homeBleachingDeduc
     }
 
     // BARTER excess
-    const barterExcess = Math.max(0, barterSum - 800000);
+    const barterExcess = Math.max(0, barterSum - BARTER_THRESHOLD_MNT);
     if (barterExcess > 0) {
       const allocatedBarterExcess = barterExcess * nonImagingRatio;
       sales += allocatedBarterExcess;
@@ -219,6 +222,19 @@ function ageAt(birthDate, refDate) {
     age--;
   }
   return age;
+}
+
+/**
+ * Map a raw gender value from the Patient record to a canonical bucket key.
+ * Accepts Mongolian ("ЭР"/"ЭМ"), English ("M"/"MALE"/"F"/"FEMALE"), or null/empty.
+ * @param {string|null|undefined} rawGender
+ * @returns {"male"|"female"|"unknown"}
+ */
+function normalizeGender(rawGender) {
+  const g = String(rawGender || "").toUpperCase().trim();
+  if (g === "M" || g === "MALE" || g === "ЭР") return "male";
+  if (g === "F" || g === "FEMALE" || g === "ЭМ") return "female";
+  return "unknown";
 }
 
 // ── Dashboard endpoint ────────────────────────────────────────────────────────
@@ -347,14 +363,8 @@ router.get("/doctors/:doctorId/dashboard", async (req, res) => {
 
     for (const appt of completedAppointments) {
       // Gender
-      const g = String(appt.patient?.gender || "").toUpperCase();
-      if (g === "M" || g === "MALE" || g === "ЭР") {
-        genderCounts.male++;
-      } else if (g === "F" || g === "FEMALE" || g === "ЭМ") {
-        genderCounts.female++;
-      } else {
-        genderCounts.unknown++;
-      }
+      const genderKey = normalizeGender(appt.patient?.gender);
+      genderCounts[genderKey]++;
 
       // Age at visit date (scheduledAt)
       const age = ageAt(appt.patient?.birthDate, appt.scheduledAt);

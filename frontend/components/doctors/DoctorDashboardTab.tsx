@@ -17,6 +17,7 @@ import {
   type BucketType,
   computeDateRange,
   formatBucketLabel,
+  formatMntTick,
   getYearOptions,
   getWeekOptionsForYear,
 } from "../../utils/dashboardDateUtils";
@@ -252,13 +253,7 @@ export default function DoctorDashboardTab({ doctorId }: Props) {
                 />
                 <YAxis
                   tick={{ fontSize: 11, fill: "#6b7280" }}
-                  tickFormatter={(v: number) =>
-                    v >= 1_000_000
-                      ? `${(v / 1_000_000).toFixed(1)}M`
-                      : v >= 1000
-                      ? `${(v / 1000).toFixed(0)}K`
-                      : String(v)
-                  }
+                  tickFormatter={formatMntTick}
                   width={56}
                 />
                 <Tooltip
