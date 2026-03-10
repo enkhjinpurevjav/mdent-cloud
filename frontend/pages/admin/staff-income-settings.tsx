@@ -26,19 +26,6 @@ type DoctorDraft = {
   monthlyGoalAmountMnt: string;
 };
 
-type NurseRow = {
-  nurseId: number;
-  ovog?: string | null;
-  name?: string | null;
-  email?: string | null;
-  imagingPct: number;
-  configUpdatedAt?: string | null;
-};
-
-type NurseDraft = {
-  imagingPct: string;
-};
-
 function formatDateOnly(iso?: string | null) {
   if (!iso) return "-";
   const d = new Date(iso);
@@ -77,7 +64,6 @@ export default function StaffIncomeSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [savingGlobal, setSavingGlobal] = useState(false);
   const [savingDoctorId, setSavingDoctorId] = useState<number | null>(null);
-  const [savingNurseId, setSavingNurseId] = useState<number | null>(null);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -87,15 +73,16 @@ export default function StaffIncomeSettingsPage() {
   const [whiteningDraft, setWhiteningDraft] = useState<string>("0"); // editing
   const [whiteningEditing, setWhiteningEditing] = useState(false);
 
+  // Global nurse imaging percent
+  const [nurseImagingPctValue, setNurseImagingPctValue] = useState<string>("0");
+  const [nurseImagingPctDraft, setNurseImagingPctDraft] = useState<string>("0");
+  const [nurseImagingPctEditing, setNurseImagingPctEditing] = useState(false);
+  const [nurseImagingPctUpdatedAt, setNurseImagingPctUpdatedAt] = useState<string | null>(null);
+
   // Doctors + row editing
   const [doctors, setDoctors] = useState<DoctorRow[]>([]);
   const [editDoctorId, setEditDoctorId] = useState<number | null>(null);
   const [doctorDraftById, setDoctorDraftById] = useState<Record<number, DoctorDraft>>({});
-
-  // Nurses + row editing
-  const [nurses, setNurses] = useState<NurseRow[]>([]);
-  const [editNurseId, setEditNurseId] = useState<number | null>(null);
-  const [nurseDraftById, setNurseDraftById] = useState<Record<number, NurseDraft>>({});
 
   const clearMessagesSoon = () => {
     setTimeout(() => {
@@ -121,16 +108,17 @@ export default function StaffIncomeSettingsPage() {
       setWhiteningDraft(String(wd));
       setWhiteningEditing(false);
 
+      const nipct = data.nurseImagingPct ?? 0;
+      setNurseImagingPctValue(String(nipct));
+      setNurseImagingPctDraft(String(nipct));
+      setNurseImagingPctEditing(false);
+      setNurseImagingPctUpdatedAt(data.nurseImagingPctUpdatedAt ?? null);
+
       const list: DoctorRow[] = Array.isArray(data.doctors) ? data.doctors : [];
       setDoctors(list);
 
-      const nurseList: NurseRow[] = Array.isArray(data.nurses) ? data.nurses : [];
-      setNurses(nurseList);
-
       setEditDoctorId(null);
       setDoctorDraftById({});
-      setEditNurseId(null);
-      setNurseDraftById({});
     } catch (e: any) {
       console.error(e);
       setError(e?.message || "Failed to load staff income settings");
@@ -154,7 +142,7 @@ export default function StaffIncomeSettingsPage() {
     return copy;
   }, [doctors]);
 
-  // ----- Global edit/save/cancel -----
+  // ----- Global whitening edit/save/cancel -----
   const handleGlobalEdit = () => {
     setError("");
     setSuccess("");
@@ -188,7 +176,6 @@ export default function StaffIncomeSettingsPage() {
         body: JSON.stringify({
           whiteningDeductAmountMnt: n,
           doctors: [],
-          nurses: [],
         }),
       });
 
@@ -204,6 +191,62 @@ export default function StaffIncomeSettingsPage() {
     } catch (e: any) {
       console.error(e);
       setError(e?.message || "Нийтлэг тохиргоо хадгалахад алдаа гарлаа.");
+    } finally {
+      setSavingGlobal(false);
+    }
+  };
+
+  // ----- Nurse imaging pct edit/save/cancel -----
+  const handleNurseImagingPctEdit = () => {
+    setError("");
+    setSuccess("");
+    setNurseImagingPctDraft(nurseImagingPctValue);
+    setNurseImagingPctEditing(true);
+  };
+
+  const handleNurseImagingPctCancel = () => {
+    setError("");
+    setSuccess("");
+    setNurseImagingPctDraft(nurseImagingPctValue);
+    setNurseImagingPctEditing(false);
+  };
+
+  const handleNurseImagingPctSave = async () => {
+    setError("");
+    setSuccess("");
+
+    const nipct = nonNegativeOrNaN(toNumberOrNaN(nurseImagingPctDraft));
+    if (Number.isNaN(nipct)) {
+      setError("Сувилагчийн зурагны урамшуулал нь 0 эсвэл түүнээс их тоо байна.");
+      return;
+    }
+
+    try {
+      setSavingGlobal(true);
+
+      const res = await fetch("/api/admin/staff-income-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          whiteningDeductAmountMnt: Number(whiteningValue || 0),
+          nurseImagingPct: nipct,
+          doctors: [],
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error((data && data.error) || "Failed to save nurse imaging pct");
+
+      setNurseImagingPctValue(String(nipct));
+      setNurseImagingPctDraft(String(nipct));
+      setNurseImagingPctEditing(false);
+
+      await loadData();
+      setSuccess("Сувилагчийн зурагны урамшууллыг хадгаллаа.");
+      clearMessagesSoon();
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message || "Хадгалахад алдаа гарлаа.");
     } finally {
       setSavingGlobal(false);
     }
@@ -300,7 +343,6 @@ export default function StaffIncomeSettingsPage() {
               monthlyGoalAmountMnt: goal,
             },
           ],
-          nurses: [],
         }),
       });
 
@@ -336,94 +378,9 @@ export default function StaffIncomeSettingsPage() {
     }
   };
 
-  const anyRowEditing = editDoctorId !== null || editNurseId !== null;
+  const anyRowEditing = editDoctorId !== null;
 
-  // ----- Nurse row edit/save/cancel -----
-  const startEditNurse = (n: NurseRow) => {
-    setError("");
-    setSuccess("");
-    setEditNurseId(n.nurseId);
-    setNurseDraftById((prev) => ({
-      ...prev,
-      [n.nurseId]: { imagingPct: String(n.imagingPct ?? 0) },
-    }));
-  };
-
-  const cancelEditNurse = (nurseId: number) => {
-    setError("");
-    setSuccess("");
-    setEditNurseId(null);
-    setNurseDraftById((prev) => {
-      const copy = { ...prev };
-      delete copy[nurseId];
-      return copy;
-    });
-  };
-
-  const handleNurseDraftChange = (nurseId: number, field: keyof NurseDraft, value: string) => {
-    setNurseDraftById((prev) => ({
-      ...prev,
-      [nurseId]: { ...(prev[nurseId] || { imagingPct: "0" }), [field]: value },
-    }));
-  };
-
-  const saveNurseRow = async (nurseId: number) => {
-    setError("");
-    setSuccess("");
-
-    const draft = nurseDraftById[nurseId];
-    if (!draft) {
-      setError("Хадгалах өгөгдөл олдсонгүй.");
-      return;
-    }
-
-    const imaging = nonNegativeOrNaN(toNumberOrNaN(draft.imagingPct));
-    if (Number.isNaN(imaging)) {
-      setError("imagingPct нь 0 эсвэл түүнээс их тоо байна.");
-      return;
-    }
-
-    try {
-      setSavingNurseId(nurseId);
-
-      const res = await fetch("/api/admin/staff-income-settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          whiteningDeductAmountMnt: Number(whiteningValue || 0),
-          doctors: [],
-          nurses: [{ nurseId, imagingPct: imaging }],
-        }),
-      });
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error((data && data.error) || "Failed to save nurse config");
-
-      setNurses((prev) =>
-        prev.map((n) => (n.nurseId === nurseId ? { ...n, imagingPct: imaging } : n))
-      );
-
-      await loadData();
-      setEditNurseId(null);
-      setSuccess("Сувилагчийн тохиргоог хадгаллаа.");
-      clearMessagesSoon();
-    } catch (e: any) {
-      console.error(e);
-      setError(e?.message || "Сувилагчийн тохиргоо хадгалахад алдаа гарлаа.");
-    } finally {
-      setSavingNurseId(null);
-    }
-  };
-
-  const nurseRowsSorted = useMemo(() => {
-    const copy = nurses.slice();
-    copy.sort((a, b) => {
-      const an = formatDoctorName(a as any);
-      const bn = formatDoctorName(b as any);
-      return an.localeCompare(bn, "mn");
-    });
-    return copy;
-  }, [nurses]);
+  // ----- Nurse row edit/save/cancel (removed; replaced by global nurseImagingPct) -----
 
   // Doctor columns: name, goal, ortho, defect, surgery, general, imaging, updated, actions
   const headerAndRowColumns = "200px 160px 80px 80px 80px 80px 80px 110px 200px";
@@ -870,7 +827,7 @@ export default function StaffIncomeSettingsPage() {
         </div>
       </section>
 
-      {/* Nurses table */}
+      {/* Nurses section: global imaging percent */}
       <section
         style={{
           marginTop: 20,
@@ -883,159 +840,95 @@ export default function StaffIncomeSettingsPage() {
       >
         <div style={{ fontWeight: 800, marginBottom: 10 }}>Сувилагчийн зурагны урамшуулал</div>
 
-        <div style={{ overflowX: "auto" }}>
-          <div style={{ minWidth: 700 }}>
-            {/* Header */}
-            <div
+        <label style={{ display: "block", fontSize: 13, color: "#374151", marginBottom: 6 }}>
+          Зурагны урамшуулал (%) — бүх сувилагчид нэгдсэн тохиргоо
+        </label>
+
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={nurseImagingPctDraft}
+            disabled={!nurseImagingPctEditing}
+            onChange={(e) => setNurseImagingPctDraft(e.target.value)}
+            style={{
+              width: 160,
+              borderRadius: 10,
+              border: "1px solid #d1d5db",
+              padding: "9px 11px",
+              fontSize: 14,
+              background: nurseImagingPctEditing ? "#ffffff" : "#f9fafb",
+            }}
+            placeholder="0"
+          />
+          <span style={{ fontSize: 14, color: "#374151" }}>%</span>
+
+          {!nurseImagingPctEditing ? (
+            <button
+              type="button"
+              onClick={handleNurseImagingPctEdit}
+              disabled={anyRowEditing}
               style={{
-                display: "grid",
-                gridTemplateColumns: "200px 80px 110px 200px",
-                gap: 10,
-                padding: "10px 12px",
+                padding: "9px 12px",
                 borderRadius: 10,
-                background: "#f9fafb",
-                border: "1px solid #e5e7eb",
-                fontSize: 12,
-                color: "#6b7280",
-                fontWeight: 800,
-                alignItems: "center",
+                border: "1px solid #d1d5db",
+                background: "#ffffff",
+                cursor: anyRowEditing ? "not-allowed" : "pointer",
+                fontSize: 13,
+                fontWeight: 700,
               }}
             >
-              <div>Сувилагч</div>
-              <div style={{ textAlign: "right" }}>Зураг (%)</div>
-              <div style={{ textAlign: "center" }}>Шинэчилсэн</div>
-              <div style={{ textAlign: "right" }} />
-            </div>
+              Засах
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => void handleNurseImagingPctSave()}
+                disabled={savingGlobal}
+                style={{
+                  padding: "9px 12px",
+                  borderRadius: 10,
+                  border: "1px solid #16a34a",
+                  background: "#f0fdf4",
+                  color: "#15803d",
+                  cursor: savingGlobal ? "not-allowed" : "pointer",
+                  fontSize: 13,
+                  fontWeight: 800,
+                }}
+              >
+                {savingGlobal ? "Хадгалж байна..." : "Хадгалах"}
+              </button>
 
-            {/* Rows */}
-            <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 10 }}>
-              {nurseRowsSorted.map((n) => {
-                const editing = editNurseId === n.nurseId;
-                const draft = nurseDraftById[n.nurseId];
-
-                const pctInputStyle: React.CSSProperties = {
+              <button
+                type="button"
+                onClick={handleNurseImagingPctCancel}
+                disabled={savingGlobal}
+                style={{
+                  padding: "9px 12px",
                   borderRadius: 10,
                   border: "1px solid #d1d5db",
+                  background: "#ffffff",
+                  cursor: savingGlobal ? "not-allowed" : "pointer",
                   fontSize: 13,
-                  textAlign: "right",
-                  background: editing ? "#ffffff" : "#f9fafb",
-                  height: 34,
-                  padding: "0 8px",
-                  width: 72,
-                  justifySelf: "end",
-                };
-
-                return (
-                  <div
-                    key={n.nurseId}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "200px 80px 110px 200px",
-                      gap: 10,
-                      padding: "12px 12px",
-                      borderRadius: 12,
-                      border: "1px solid #e5e7eb",
-                      background: "#ffffff",
-                      alignItems: "center",
-                    }}
-                  >
-                    <div style={{ fontSize: 13, fontWeight: 800, color: "#111827" }}>
-                      {formatDoctorName(n as any)}
-                    </div>
-
-                    <input
-                      type="number"
-                      step="0.01"
-                      min={0}
-                      disabled={!editing}
-                      value={editing ? draft?.imagingPct ?? "" : String(n.imagingPct ?? 0)}
-                      onChange={(e) => handleNurseDraftChange(n.nurseId, "imagingPct", e.target.value)}
-                      style={pctInputStyle}
-                      title="Зурагны урамшуулал %"
-                    />
-
-                    <div style={{ fontSize: 12, color: "#374151", textAlign: "center" }}>
-                      {formatDateOnly(n.configUpdatedAt)}
-                    </div>
-
-                    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                      {!editing ? (
-                        <button
-                          type="button"
-                          onClick={() => startEditNurse(n)}
-                          disabled={editNurseId !== null && editNurseId !== n.nurseId}
-                          style={{
-                            padding: "8px 12px",
-                            borderRadius: 10,
-                            border: "1px solid #d1d5db",
-                            background: "#ffffff",
-                            cursor:
-                              editNurseId !== null && editNurseId !== n.nurseId
-                                ? "not-allowed"
-                                : "pointer",
-                            fontSize: 13,
-                            fontWeight: 800,
-                            minWidth: 88,
-                          }}
-                        >
-                          Засах
-                        </button>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => void saveNurseRow(n.nurseId)}
-                            disabled={savingNurseId === n.nurseId}
-                            style={{
-                              padding: "8px 12px",
-                              borderRadius: 10,
-                              border: "1px solid #16a34a",
-                              background: "#f0fdf4",
-                              color: "#15803d",
-                              cursor: savingNurseId === n.nurseId ? "not-allowed" : "pointer",
-                              fontSize: 13,
-                              fontWeight: 900,
-                              minWidth: 96,
-                            }}
-                          >
-                            {savingNurseId === n.nurseId ? "..." : "Хадгалах"}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => cancelEditNurse(n.nurseId)}
-                            disabled={savingNurseId === n.nurseId}
-                            style={{
-                              padding: "8px 12px",
-                              borderRadius: 10,
-                              border: "1px solid #d1d5db",
-                              background: "#ffffff",
-                              cursor: savingNurseId === n.nurseId ? "not-allowed" : "pointer",
-                              fontSize: 13,
-                              fontWeight: 800,
-                              minWidth: 80,
-                            }}
-                          >
-                            Болих
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {nurseRowsSorted.length === 0 ? (
-                <div style={{ marginTop: 10, fontSize: 13, color: "#6b7280" }}>
-                  Сувилагчийн жагсаалт олдсонгүй.
-                </div>
-              ) : null}
-            </div>
-          </div>
+                  fontWeight: 700,
+                }}
+              >
+                Болих
+              </button>
+            </>
+          )}
         </div>
 
-        <div style={{ marginTop: 14, fontSize: 12, color: "#6b7280" }}>
-          Тайлбар: Зурагны урамшуулал — meta.assignedTo=NURSE байх зурагны мөрөнд тооцно.
+        {nurseImagingPctUpdatedAt && (
+          <div style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
+            Сүүлд шинэчилсэн: {formatDateOnly(nurseImagingPctUpdatedAt)}
+          </div>
+        )}
+
+        <div style={{ marginTop: 12, fontSize: 12, color: "#6b7280" }}>
+          Тайлбар: meta.assignedTo=NURSE байх зурагны мөрд бүх сувилагчид нэгдсэн хувь тооцно.
         </div>
       </section>
     </main>

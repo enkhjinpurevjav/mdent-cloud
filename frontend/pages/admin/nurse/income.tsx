@@ -8,7 +8,9 @@ type NurseSummary = {
   startDate: string;
   endDate: string;
   imagingIncomeMnt: number;
-  imagingPct: number;
+  assistIncomeMnt: number;
+  totalIncomeMnt: number;
+  nurseImagingPct: number;
 };
 
 function formatNurseName(n: { nurseName?: string | null; nurseOvog?: string | null }) {
@@ -152,8 +154,9 @@ export default function NursesIncomePage() {
             <thead>
               <tr style={{ backgroundColor: "#f9fafb", textAlign: "left" }}>
                 <th style={{ padding: "8px 12px" }}>Сувилагч</th>
-                <th style={{ padding: "8px 12px", textAlign: "right" }}>Зураг % (тохиргоо)</th>
                 <th style={{ padding: "8px 12px", textAlign: "right" }}>Зурагны орлого (₮)</th>
+                <th style={{ padding: "8px 12px", textAlign: "right" }}>Туслах орлого (₮)</th>
+                <th style={{ padding: "8px 12px", textAlign: "right" }}>Нийт орлого (₮)</th>
                 <th style={{ padding: "8px 12px" }}></th>
               </tr>
             </thead>
@@ -161,9 +164,14 @@ export default function NursesIncomePage() {
               {nurses.map((n) => (
                 <tr key={n.nurseId} style={{ borderBottom: "1px solid #e5e7eb" }}>
                   <td style={{ padding: "8px 12px" }}>{formatNurseName(n)}</td>
-                  <td style={{ padding: "8px 12px", textAlign: "right" }}>{n.imagingPct}%</td>
                   <td style={{ padding: "8px 12px", textAlign: "right" }}>
                     {n.imagingIncomeMnt.toLocaleString("mn-MN")} ₮
+                  </td>
+                  <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                    {n.assistIncomeMnt.toLocaleString("mn-MN")} ₮
+                  </td>
+                  <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700 }}>
+                    {n.totalIncomeMnt.toLocaleString("mn-MN")} ₮
                   </td>
                   <td style={{ padding: "8px 12px" }}>
                     <button

@@ -596,7 +596,17 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
 /**
  * GET /api/admin/nurses-income
- * Summary of imaging commission per nurse for date range.
+ * Summary of nurse income (imaging commission + assist income) per nurse for date range.
+ *
+ * NurseIncome = ImagingIncomeMnt + AssistIncomeMnt
+ *
+ * ImagingIncomeMnt: IMAGING service lines with meta.assignedTo==="NURSE" for this nurse,
+ *   allocated using the same proportional-by-remaining-due helpers as doctor income,
+ *   multiplied by global nurseImagingPct (Settings key "finance.nurseImagingPct").
+ *
+ * AssistIncomeMnt: For each invoice where encounter.nurseId === nurse,
+ *   compute doctorSalesMnt (non-IMAGING paid allocations in range, same rules as doctors),
+ *   then assistIncome = doctorSalesMnt × 1%.
  */
 router.get("/nurses-income", async (req, res) => {
   const { startDate, endDate, branchId } = req.query;
@@ -610,9 +620,11 @@ router.get("/nurses-income", async (req, res) => {
   endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
 
   try {
-    // Load nurse commission configs
-    const nurseConfigs = await prisma.nurseCommissionConfig.findMany();
-    const nurseConfigByNurseId = new Map(nurseConfigs.map((c) => [c.nurseId, c]));
+    // Load global nurse imaging percent from settings
+    const nurseImagingPctSetting = await prisma.settings.findFirst({
+      where: { key: "finance.nurseImagingPct" },
+    });
+    const nurseImagingPct = Number(nurseImagingPctSetting?.value ?? 0) || 0;
 
     // Load all nurses for name lookup
     const nurses = await prisma.user.findMany({
@@ -621,13 +633,16 @@ router.get("/nurses-income", async (req, res) => {
     });
     const nurseById = new Map(nurses.map((n) => [n.id, n]));
 
-    // Query invoices with payments in date range
+    // Query invoices with payments in date range; include encounter for nurseId
     const invoices = await prisma.invoice.findMany({
       where: {
         ...(branchId ? { branchId: Number(branchId) } : {}),
         payments: { some: { timestamp: { gte: start, lt: endExclusive } } },
       },
       include: {
+        encounter: {
+          select: { nurseId: true },
+        },
         items: { include: { service: true } },
         payments: {
           include: {
@@ -639,6 +654,22 @@ router.get("/nurses-income", async (req, res) => {
 
     const byNurse = new Map();
 
+    function ensureNurse(nurseId) {
+      if (!byNurse.has(nurseId)) {
+        const nurse = nurseById.get(nurseId);
+        byNurse.set(nurseId, {
+          nurseId,
+          nurseName: nurse?.name ?? null,
+          nurseOvog: nurse?.ovog ?? null,
+          startDate: String(startDate),
+          endDate: String(endDate),
+          imagingIncomeMnt: 0,
+          assistIncomeMnt: 0,
+        });
+      }
+      return byNurse.get(nurseId);
+    }
+
     for (const inv of invoices) {
       const payments = inv.payments || [];
       const hasOverride = payments.some((p) =>
@@ -646,97 +677,128 @@ router.get("/nurses-income", async (req, res) => {
       );
       const feeMultiplier = hasOverride ? 0.9 : 1;
 
-      const totalBefore = Number(inv.totalBeforeDiscount || 0);
-      const finalAmount = Number(inv.finalAmount || 0);
-      const netMultiplier = totalBefore > 0 ? finalAmount / totalBefore : 0;
-
-      // All non-PREVIOUS service items (for proportional denominator)
-      const allServiceItems = (inv.items || []).filter(
+      const discountPct = discountPercentEnumToNumber(inv.discountPercent);
+      const serviceItems = (inv.items || []).filter(
         (it) => it.itemType === "SERVICE" && it.service?.category !== "PREVIOUS"
       );
 
-      // IMAGING items assigned to nurses
-      const nurseImagingItems = allServiceItems.filter(
-        (it) =>
-          it.service?.category === "IMAGING" &&
-          it.meta?.assignedTo === "NURSE" &&
-          it.meta?.nurseId != null
+      if (!serviceItems.length) continue;
+
+      const lineNets = computeServiceNetProportionalDiscount(serviceItems, discountPct);
+      const serviceLineIds = serviceItems.map((it) => it.id);
+      const itemById = new Map(serviceItems.map((it) => [it.id, it]));
+
+      // remainingDue is mutated by allocatePaymentProportionalByRemaining
+      const remainingDue = new Map(serviceItems.map((it) => [it.id, lineNets.get(it.id) || 0]));
+      const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
+
+      let barterSum = 0;
+
+      // Process payments in timestamp order for deterministic remaining-due tracking
+      const sortedPayments = [...payments].sort(
+        (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
       );
 
-      if (!nurseImagingItems.length) continue;
-
-      const itemById = new Map(nurseImagingItems.map((it) => [it.id, it]));
-
-      const totalServiceNet = allServiceItems.reduce(
-        (sum, it) =>
-          sum + Number(it.lineTotal || it.unitPrice * it.quantity || 0) * netMultiplier,
-        0
-      );
-
-      // Accumulate per-item income base from in-range payments
-      const itemIncomeBase = new Map();
-      nurseImagingItems.forEach((it) => itemIncomeBase.set(it.id, 0));
-
-      for (const p of payments) {
+      for (const p of sortedPayments) {
         const method = String(p.method || "").toUpperCase();
         const ts = new Date(p.timestamp);
         if (!inRange(ts, start, endExclusive)) continue;
-        if (EXCLUDED_METHODS.has(method) || method === "BARTER") continue;
+        if (EXCLUDED_METHODS.has(method)) continue;
+
+        if (method === "BARTER") {
+          barterSum += Number(p.amount || 0);
+          continue;
+        }
+
         if (!INCLUDED_METHODS.has(method) && !OVERRIDE_METHODS.has(method)) continue;
 
         const payAmt = Number(p.amount || 0);
         const payAllocs = p.allocations || [];
 
         if (payAllocs.length > 0) {
-          // Allocations-only for this payment; ignore remainder
           for (const alloc of payAllocs) {
             const item = itemById.get(alloc.invoiceItemId);
             if (!item) continue;
-            const contribution = Number(alloc.amount || 0) * feeMultiplier;
-            itemIncomeBase.set(item.id, (itemIncomeBase.get(item.id) || 0) + contribution);
+            const allocAmt = Number(alloc.amount || 0);
+            itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
+            remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
           }
         } else {
-          // Proportional split across ALL service items
-          if (totalServiceNet <= 0) continue;
-          for (const it of nurseImagingItems) {
-            const itemNet =
-              Number(it.lineTotal || it.unitPrice * it.quantity || 0) * netMultiplier;
-            const share = itemNet / totalServiceNet;
-            const contribution = payAmt * share * feeMultiplier;
-            itemIncomeBase.set(it.id, (itemIncomeBase.get(it.id) || 0) + contribution);
+          const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
+          for (const [id, amt] of allocs) {
+            itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
           }
         }
       }
 
-      // Apply nurse imagingPct
+      // --- IMAGING income for nurses ---
+      const nurseImagingItems = serviceItems.filter(
+        (it) =>
+          it.service?.category === "IMAGING" &&
+          it.meta?.assignedTo === "NURSE" &&
+          it.meta?.nurseId != null
+      );
+
       for (const it of nurseImagingItems) {
         const nurseId = Number(it.meta.nurseId);
-        const nurseConfig = nurseConfigByNurseId.get(nurseId);
-        const imagingPct = Number(nurseConfig?.imagingPct || 0);
-        const lineNet = itemIncomeBase.get(it.id) || 0;
-        if (lineNet <= 0) continue;
+        const lineBase = (itemAllocationBase.get(it.id) || 0) * feeMultiplier;
+        if (lineBase <= 0) continue;
+        const income = lineBase * (nurseImagingPct / 100);
+        ensureNurse(nurseId).imagingIncomeMnt += income;
+      }
 
-        const income = lineNet * (imagingPct / 100);
+      // --- ASSIST income for nurse assigned to encounter ---
+      const assistNurseId = inv.encounter?.nurseId;
+      if (assistNurseId) {
+        const nonImagingItems = serviceItems.filter(
+          (it) => it.service?.category !== "IMAGING"
+        );
 
-        if (!byNurse.has(nurseId)) {
-          const nurse = nurseById.get(nurseId);
-          byNurse.set(nurseId, {
-            nurseId,
-            nurseName: nurse?.name ?? null,
-            nurseOvog: nurse?.ovog ?? null,
-            startDate: String(startDate),
-            endDate: String(endDate),
-            imagingIncomeMnt: 0,
-            imagingPct,
-          });
+        let invDoctorSalesMnt = 0;
+
+        if (hasOverride) {
+          // Override invoices: only count when fully paid
+          const status = String(inv.statusLegacy || "").toLowerCase();
+          if (status === "paid") {
+            const totalNonImagingNet = nonImagingItems.reduce(
+              (sum, it) => sum + (lineNets.get(it.id) || 0),
+              0
+            );
+            invDoctorSalesMnt = totalNonImagingNet * 0.9;
+          }
+        } else {
+          // Sum paid allocations for non-IMAGING lines
+          let salesFromPaid = 0;
+          for (const it of nonImagingItems) {
+            salesFromPaid += itemAllocationBase.get(it.id) || 0;
+          }
+          // BARTER excess (same rule as doctor income)
+          const totalAllServiceNet = serviceItems.reduce(
+            (sum, it) => sum + (lineNets.get(it.id) || 0),
+            0
+          );
+          const totalNonImagingNet = nonImagingItems.reduce(
+            (sum, it) => sum + (lineNets.get(it.id) || 0),
+            0
+          );
+          const nonImagingRatio =
+            totalAllServiceNet > 0 ? totalNonImagingNet / totalAllServiceNet : 0;
+          const barterExcess = Math.max(0, barterSum - 800000);
+          invDoctorSalesMnt = salesFromPaid + barterExcess * nonImagingRatio;
         }
-        byNurse.get(nurseId).imagingIncomeMnt += income;
+
+        if (invDoctorSalesMnt > 0) {
+          ensureNurse(assistNurseId).assistIncomeMnt += invDoctorSalesMnt * 0.01;
+        }
       }
     }
 
     const result = Array.from(byNurse.values()).map((n) => ({
       ...n,
       imagingIncomeMnt: Math.round(n.imagingIncomeMnt),
+      assistIncomeMnt: Math.round(n.assistIncomeMnt),
+      totalIncomeMnt: Math.round(n.imagingIncomeMnt + n.assistIncomeMnt),
+      nurseImagingPct,
     }));
 
     return res.json(result);
@@ -748,7 +810,7 @@ router.get("/nurses-income", async (req, res) => {
 
 /**
  * GET /api/admin/nurses-income/:nurseId/details
- * IMAGING commission breakdown for a specific nurse.
+ * Detailed breakdown for a specific nurse: imaging lines + assist lines.
  */
 router.get("/nurses-income/:nurseId/details", async (req, res) => {
   const { nurseId } = req.params;
@@ -766,22 +828,36 @@ router.get("/nurses-income/:nurseId/details", async (req, res) => {
   endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
 
   try {
-    const nurseConfig = await prisma.nurseCommissionConfig.findUnique({
-      where: { nurseId: NURSE_ID },
+    // Load global nurse imaging percent from settings
+    const nurseImagingPctSetting = await prisma.settings.findFirst({
+      where: { key: "finance.nurseImagingPct" },
     });
-    const imagingPct = Number(nurseConfig?.imagingPct || 0);
+    const nurseImagingPct = Number(nurseImagingPctSetting?.value ?? 0) || 0;
 
+    // Query invoices that either have imaging items OR belong to this nurse's encounters
     const invoices = await prisma.invoice.findMany({
       where: {
         payments: { some: { timestamp: { gte: start, lt: endExclusive } } },
-        items: {
-          some: {
-            itemType: "SERVICE",
-            service: { category: "IMAGING" },
+        OR: [
+          {
+            items: {
+              some: {
+                itemType: "SERVICE",
+                service: { category: "IMAGING" },
+              },
+            },
           },
-        },
+          {
+            encounter: { nurseId: NURSE_ID },
+          },
+        ],
       },
       include: {
+        encounter: {
+          include: {
+            doctor: { select: { id: true, name: true, ovog: true } },
+          },
+        },
         items: { include: { service: true } },
         payments: {
           include: {
@@ -792,7 +868,9 @@ router.get("/nurses-income/:nurseId/details", async (req, res) => {
     });
 
     let totalImagingIncomeMnt = 0;
-    const lines = [];
+    let totalAssistIncomeMnt = 0;
+    const imagingLines = [];
+    const assistLines = [];
 
     for (const inv of invoices) {
       const payments = inv.payments || [];
@@ -801,40 +879,37 @@ router.get("/nurses-income/:nurseId/details", async (req, res) => {
       );
       const feeMultiplier = hasOverride ? 0.9 : 1;
 
-      const totalBefore = Number(inv.totalBeforeDiscount || 0);
-      const finalAmount = Number(inv.finalAmount || 0);
-      const netMultiplier = totalBefore > 0 ? finalAmount / totalBefore : 0;
-
-      const allServiceItems = (inv.items || []).filter(
+      const discountPct = discountPercentEnumToNumber(inv.discountPercent);
+      const serviceItems = (inv.items || []).filter(
         (it) => it.itemType === "SERVICE" && it.service?.category !== "PREVIOUS"
       );
 
-      // This nurse's IMAGING items on this invoice
-      const myImagingItems = allServiceItems.filter(
-        (it) =>
-          it.service?.category === "IMAGING" &&
-          it.meta?.assignedTo === "NURSE" &&
-          Number(it.meta?.nurseId) === NURSE_ID
+      if (!serviceItems.length) continue;
+
+      const lineNets = computeServiceNetProportionalDiscount(serviceItems, discountPct);
+      const serviceLineIds = serviceItems.map((it) => it.id);
+      const itemById = new Map(serviceItems.map((it) => [it.id, it]));
+
+      const remainingDue = new Map(serviceItems.map((it) => [it.id, lineNets.get(it.id) || 0]));
+      const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
+
+      let barterSum = 0;
+
+      const sortedPayments = [...payments].sort(
+        (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
       );
 
-      if (!myImagingItems.length) continue;
-
-      const itemById = new Map(myImagingItems.map((it) => [it.id, it]));
-
-      const totalServiceNet = allServiceItems.reduce(
-        (sum, it) =>
-          sum + Number(it.lineTotal || it.unitPrice * it.quantity || 0) * netMultiplier,
-        0
-      );
-
-      const itemIncomeBase = new Map();
-      myImagingItems.forEach((it) => itemIncomeBase.set(it.id, 0));
-
-      for (const p of payments) {
+      for (const p of sortedPayments) {
         const method = String(p.method || "").toUpperCase();
         const ts = new Date(p.timestamp);
         if (!inRange(ts, start, endExclusive)) continue;
-        if (EXCLUDED_METHODS.has(method) || method === "BARTER") continue;
+        if (EXCLUDED_METHODS.has(method)) continue;
+
+        if (method === "BARTER") {
+          barterSum += Number(p.amount || 0);
+          continue;
+        }
+
         if (!INCLUDED_METHODS.has(method) && !OVERRIDE_METHODS.has(method)) continue;
 
         const payAmt = Number(p.amount || 0);
@@ -844,36 +919,99 @@ router.get("/nurses-income/:nurseId/details", async (req, res) => {
           for (const alloc of payAllocs) {
             const item = itemById.get(alloc.invoiceItemId);
             if (!item) continue;
-            const contribution = Number(alloc.amount || 0) * feeMultiplier;
-            itemIncomeBase.set(item.id, (itemIncomeBase.get(item.id) || 0) + contribution);
+            const allocAmt = Number(alloc.amount || 0);
+            itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
+            remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
           }
         } else {
-          if (totalServiceNet <= 0) continue;
-          for (const it of myImagingItems) {
-            const itemNet =
-              Number(it.lineTotal || it.unitPrice * it.quantity || 0) * netMultiplier;
-            const share = itemNet / totalServiceNet;
-            const contribution = payAmt * share * feeMultiplier;
-            itemIncomeBase.set(it.id, (itemIncomeBase.get(it.id) || 0) + contribution);
+          const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
+          for (const [id, amt] of allocs) {
+            itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
           }
         }
       }
 
+      // --- IMAGING lines for this nurse ---
+      const myImagingItems = serviceItems.filter(
+        (it) =>
+          it.service?.category === "IMAGING" &&
+          it.meta?.assignedTo === "NURSE" &&
+          Number(it.meta?.nurseId) === NURSE_ID
+      );
+
       for (const it of myImagingItems) {
-        const lineNet = itemIncomeBase.get(it.id) || 0;
-        if (lineNet <= 0) continue;
-
-        const income = lineNet * (imagingPct / 100);
+        const lineBase = (itemAllocationBase.get(it.id) || 0) * feeMultiplier;
+        if (lineBase <= 0) continue;
+        const income = lineBase * (nurseImagingPct / 100);
         totalImagingIncomeMnt += income;
-
-        lines.push({
+        imagingLines.push({
           invoiceId: inv.id,
           invoiceItemId: it.id,
           serviceName: it.service?.name || it.name,
-          lineNet: Math.round(lineNet),
-          imagingPct,
+          lineNet: Math.round(lineBase),
+          imagingPct: nurseImagingPct,
           incomeMnt: Math.round(income),
         });
+      }
+
+      // --- ASSIST line for this nurse (if encounter.nurseId === NURSE_ID) ---
+      if (inv.encounter?.nurseId === NURSE_ID) {
+        const nonImagingItems = serviceItems.filter(
+          (it) => it.service?.category !== "IMAGING"
+        );
+
+        let invDoctorSalesMnt = 0;
+
+        if (hasOverride) {
+          const status = String(inv.statusLegacy || "").toLowerCase();
+          if (status === "paid") {
+            const totalNonImagingNet = nonImagingItems.reduce(
+              (sum, it) => sum + (lineNets.get(it.id) || 0),
+              0
+            );
+            invDoctorSalesMnt = totalNonImagingNet * 0.9;
+          }
+        } else {
+          let salesFromPaid = 0;
+          for (const it of nonImagingItems) {
+            salesFromPaid += itemAllocationBase.get(it.id) || 0;
+          }
+          const totalAllServiceNet = serviceItems.reduce(
+            (sum, it) => sum + (lineNets.get(it.id) || 0),
+            0
+          );
+          const totalNonImagingNet = nonImagingItems.reduce(
+            (sum, it) => sum + (lineNets.get(it.id) || 0),
+            0
+          );
+          const nonImagingRatio =
+            totalAllServiceNet > 0 ? totalNonImagingNet / totalAllServiceNet : 0;
+          const barterExcess = Math.max(0, barterSum - 800000);
+          invDoctorSalesMnt = salesFromPaid + barterExcess * nonImagingRatio;
+        }
+
+        if (invDoctorSalesMnt > 0) {
+          const assistIncome = invDoctorSalesMnt * 0.01;
+          totalAssistIncomeMnt += assistIncome;
+
+          const doctor = inv.encounter?.doctor;
+          const doctorName = doctor
+            ? (
+                (doctor.ovog ? doctor.ovog.charAt(0) + ". " : "") +
+                (doctor.name || "")
+              ).trim() || null
+            : null;
+
+          assistLines.push({
+            encounterId: inv.encounterId,
+            invoiceId: inv.id,
+            doctorId: doctor?.id ?? null,
+            doctorName,
+            salesBaseMnt: Math.round(invDoctorSalesMnt),
+            pct: 1,
+            incomeMnt: Math.round(assistIncome),
+          });
+        }
       }
     }
 
@@ -881,10 +1019,13 @@ router.get("/nurses-income/:nurseId/details", async (req, res) => {
       nurseId: NURSE_ID,
       startDate: String(startDate),
       endDate: String(endDate),
-      imagingPct,
-      lines,
+      nurseImagingPct,
+      imagingLines,
+      assistLines,
       totals: {
-        totalImagingIncomeMnt: Math.round(totalImagingIncomeMnt),
+        imagingIncomeMnt: Math.round(totalImagingIncomeMnt),
+        assistIncomeMnt: Math.round(totalAssistIncomeMnt),
+        totalIncomeMnt: Math.round(totalImagingIncomeMnt + totalAssistIncomeMnt),
       },
     });
   } catch (error) {
