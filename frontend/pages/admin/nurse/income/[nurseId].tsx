@@ -72,112 +72,88 @@ export default function NurseIncomeDetailsPage() {
   }, [router.isReady, nurseId, startDate, endDate]);
 
   return (
-    <main style={{ padding: "24px", fontFamily: "sans-serif", maxWidth: 960, margin: "0 auto" }}>
-      <div style={{ marginBottom: 16 }}>
+    <main className="p-6 font-sans">
+      <div className="mb-4">
         <button
           type="button"
           onClick={() => router.back()}
-          style={{
-            padding: "7px 14px",
-            fontSize: 13,
-            borderRadius: 8,
-            border: "1px solid #d1d5db",
-            background: "#ffffff",
-            cursor: "pointer",
-          }}
+          className="py-1.5 px-3.5 text-sm rounded-lg border border-gray-300 bg-white cursor-pointer hover:bg-gray-50"
         >
           ← Буцах
         </button>
       </div>
 
-      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
+      <h1 className="text-2xl font-bold mb-1">
         Сувилагч — Орлогын Дэлгэрэнгүй
       </h1>
       {details && (
-        <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 20 }}>
+        <div className="text-sm text-gray-500 mb-5">
           {details.startDate} — {details.endDate} · Зураг %: {details.nurseImagingPct}%
         </div>
       )}
 
       {error && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: 12,
-            color: "#b91c1c",
-            backgroundColor: "#fef2f2",
-            border: "1px solid #fca5a5",
-            borderRadius: 8,
-          }}
-        >
+        <div className="mb-4 p-3 text-red-700 bg-red-50 border border-red-300 rounded-lg">
           {error}
         </div>
       )}
 
       {loading ? (
-        <p style={{ color: "#6b7280" }}>Ачаалж байна...</p>
+        <p className="text-gray-500">Ачаалж байна...</p>
       ) : !details ? null : (
         <>
           {/* Summary */}
-          <section
-            style={{
-              marginBottom: 20,
-              padding: "14px 18px",
-              borderRadius: 10,
-              background: "#f0fdf4",
-              border: "1px solid #86efac",
-            }}
-          >
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#15803d", marginBottom: 6 }}>
+          <section className="mb-5 px-4 py-3 rounded-xl bg-green-50 border border-green-300">
+            <div className="text-sm font-bold text-green-700 mb-1.5">
               Нийт орлого:{" "}
               {details.totals.totalIncomeMnt.toLocaleString("mn-MN")} ₮
             </div>
-            <div style={{ fontSize: 13, color: "#374151", display: "flex", gap: 24, flexWrap: "wrap" }}>
+            <div className="text-sm text-gray-700 flex gap-6 flex-wrap">
               <span>Зурагны орлого: {details.totals.imagingIncomeMnt.toLocaleString("mn-MN")} ₮</span>
               <span>Туслах орлого: {details.totals.assistIncomeMnt.toLocaleString("mn-MN")} ₮</span>
             </div>
           </section>
 
           {/* Imaging lines table */}
-          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
+          <h2 className="text-base font-bold mb-2">
             Зурагны орлого ({details.nurseImagingPct}%)
           </h2>
           {details.imagingLines.length === 0 ? (
-            <p style={{ color: "#6b7280", fontSize: 14, marginBottom: 24 }}>
+            <p className="text-gray-500 text-sm mb-6">
               Тухайн хугацаанд зурагны мөр олдсонгүй.
             </p>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, marginBottom: 24 }}>
+            <table className="w-full border-collapse text-sm mb-6">
               <thead>
-                <tr style={{ backgroundColor: "#f9fafb", textAlign: "left" }}>
-                  <th style={{ padding: "8px 12px" }}>Нэхэмжлэл #</th>
-                  <th style={{ padding: "8px 12px" }}>Үйлчилгээ</th>
-                  <th style={{ padding: "8px 12px", textAlign: "right" }}>Суурь дүн (₮)</th>
-                  <th style={{ padding: "8px 12px", textAlign: "right" }}>% тохиргоо</th>
-                  <th style={{ padding: "8px 12px", textAlign: "right" }}>Орлого (₮)</th>
+                <tr className="bg-gray-50 text-left">
+                  <th className="px-3 py-2">Нэхэмжлэл #</th>
+                  <th className="px-3 py-2">Үйлчилгээ</th>
+                  <th className="px-3 py-2 text-right">Суурь дүн (₮)</th>
+                  <th className="px-3 py-2 text-right">% тохиргоо</th>
+                  <th className="px-3 py-2 text-right">Орлого (₮)</th>
                 </tr>
               </thead>
               <tbody>
                 {details.imagingLines.map((line) => (
-                  <tr key={line.invoiceItemId} style={{ borderBottom: "1px solid #e5e7eb" }}>
-                    <td style={{ padding: "8px 12px" }}>{line.invoiceId}</td>
-                    <td style={{ padding: "8px 12px" }}>{line.serviceName}</td>
-                    <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                  <tr key={line.invoiceItemId} className="border-b border-gray-200">
+                    <td className="px-3 py-2">{line.invoiceId}</td>
+                    <td className="px-3 py-2">{line.serviceName}</td>
+                    <td className="px-3 py-2 text-right">
                       {line.lineNet.toLocaleString("mn-MN")} ₮
                     </td>
-                    <td style={{ padding: "8px 12px", textAlign: "right" }}>{line.imagingPct}%</td>
-                    <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                    <td className="px-3 py-2 text-right">{line.imagingPct}%</td>
+                    <td className="px-3 py-2 text-right">
                       {line.incomeMnt.toLocaleString("mn-MN")} ₮
                     </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr style={{ backgroundColor: "#f9fafb", fontWeight: 700 }}>
-                  <td colSpan={4} style={{ padding: "8px 12px", textAlign: "right" }}>
+                <tr className="bg-gray-50 font-bold">
+                  <td colSpan={4} className="px-3 py-2 text-right">
                     Нийт:
                   </td>
-                  <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                  <td className="px-3 py-2 text-right">
                     {details.totals.imagingIncomeMnt.toLocaleString("mn-MN")} ₮
                   </td>
                 </tr>
@@ -186,45 +162,45 @@ export default function NurseIncomeDetailsPage() {
           )}
 
           {/* Assist lines table */}
-          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
+          <h2 className="text-base font-bold mb-2">
             Туслах орлого (1%)
           </h2>
           {details.assistLines.length === 0 ? (
-            <p style={{ color: "#6b7280", fontSize: 14 }}>
+            <p className="text-gray-500 text-sm">
               Тухайн хугацаанд туслах орлого олдсонгүй.
             </p>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <table className="w-full border-collapse text-sm">
               <thead>
-                <tr style={{ backgroundColor: "#f9fafb", textAlign: "left" }}>
-                  <th style={{ padding: "8px 12px" }}>Нэхэмжлэл #</th>
-                  <th style={{ padding: "8px 12px" }}>Эмч</th>
-                  <th style={{ padding: "8px 12px", textAlign: "right" }}>Эмчийн борлуулалт (₮)</th>
-                  <th style={{ padding: "8px 12px", textAlign: "right" }}>%</th>
-                  <th style={{ padding: "8px 12px", textAlign: "right" }}>Орлого (₮)</th>
+                <tr className="bg-gray-50 text-left">
+                  <th className="px-3 py-2">Нэхэмжлэл #</th>
+                  <th className="px-3 py-2">Эмч</th>
+                  <th className="px-3 py-2 text-right">Эмчийн борлуулалт (₮)</th>
+                  <th className="px-3 py-2 text-right">%</th>
+                  <th className="px-3 py-2 text-right">Орлого (₮)</th>
                 </tr>
               </thead>
               <tbody>
                 {details.assistLines.map((line) => (
-                  <tr key={`${line.encounterId}-${line.invoiceId}`} style={{ borderBottom: "1px solid #e5e7eb" }}>
-                    <td style={{ padding: "8px 12px" }}>{line.invoiceId}</td>
-                    <td style={{ padding: "8px 12px" }}>{line.doctorName || "-"}</td>
-                    <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                  <tr key={`${line.encounterId}-${line.invoiceId}`} className="border-b border-gray-200">
+                    <td className="px-3 py-2">{line.invoiceId}</td>
+                    <td className="px-3 py-2">{line.doctorName || "-"}</td>
+                    <td className="px-3 py-2 text-right">
                       {line.salesBaseMnt.toLocaleString("mn-MN")} ₮
                     </td>
-                    <td style={{ padding: "8px 12px", textAlign: "right" }}>{line.pct}%</td>
-                    <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                    <td className="px-3 py-2 text-right">{line.pct}%</td>
+                    <td className="px-3 py-2 text-right">
                       {line.incomeMnt.toLocaleString("mn-MN")} ₮
                     </td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr style={{ backgroundColor: "#f9fafb", fontWeight: 700 }}>
-                  <td colSpan={4} style={{ padding: "8px 12px", textAlign: "right" }}>
+                <tr className="bg-gray-50 font-bold">
+                  <td colSpan={4} className="px-3 py-2 text-right">
                     Нийт:
                   </td>
-                  <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                  <td className="px-3 py-2 text-right">
                     {details.totals.assistIncomeMnt.toLocaleString("mn-MN")} ₮
                   </td>
                 </tr>
