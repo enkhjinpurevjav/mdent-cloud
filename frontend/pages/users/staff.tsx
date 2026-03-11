@@ -205,17 +205,21 @@ function OtherStaffForm({
     }
   };
 
+  const inputCls =
+    "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+
   return (
     <form onSubmit={handleSubmit} className="mb-6">
-      <h2>Шинэ ажилтан бүртгэх</h2>
+      <h2 className="text-lg font-semibold mb-3">Шинэ ажилтан бүртгэх</h2>
 
-      <div className="grid [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))] gap-2 mb-2">
+      <div className="grid [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))] gap-2 mb-3">
         <input
           name="ovog"
           placeholder="Овог"
           value={form.ovog}
           onChange={handleChange}
           required
+          className={inputCls}
         />
         <input
           name="name"
@@ -223,18 +227,21 @@ function OtherStaffForm({
           value={form.name}
           onChange={handleChange}
           required
+          className={inputCls}
         />
         <input
           name="regNo"
           placeholder="РД"
           value={form.regNo}
           onChange={handleChange}
+          className={inputCls}
         />
         <input
           name="phone"
           placeholder="Утас"
           value={form.phone}
           onChange={handleChange}
+          className={inputCls}
         />
         <input
           name="email"
@@ -243,6 +250,7 @@ function OtherStaffForm({
           value={form.email}
           onChange={handleChange}
           required
+          className={inputCls}
         />
         <input
           name="password"
@@ -251,13 +259,14 @@ function OtherStaffForm({
           value={form.password}
           onChange={handleChange}
           required
+          className={inputCls}
         />
         <select
           name="role"
           value={form.role}
           onChange={handleChange}
-          className="min-h-[32px]"
           required
+          className={inputCls}
         >
           <option value="">Үүрэг сонгох</option>
           {ROLE_OPTIONS.map((r) => (
@@ -268,16 +277,17 @@ function OtherStaffForm({
         </select>
       </div>
 
-      <div className="mb-2">
-        <div className="mb-1 font-medium">Салбар сонгох</div>
+      <div className="mb-3">
+        <div className="mb-1.5 text-sm font-medium text-gray-700">Салбар сонгох</div>
         <div className="flex flex-wrap gap-2">
           {branches.map((b) => (
             <label
               key={b.id}
-              className="inline-flex items-center gap-1 border border-gray-200 rounded px-2 py-1 text-[13px]"
+              className="cursor-pointer select-none inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700"
             >
               <input
                 type="checkbox"
+                className="sr-only"
                 checked={form.branchIds.includes(b.id)}
                 onChange={() => handleBranchToggle(b.id)}
               />
@@ -287,11 +297,15 @@ function OtherStaffForm({
         </div>
       </div>
 
-      <button type="submit" disabled={submitting}>
+      <button
+        type="submit"
+        disabled={submitting}
+        className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition"
+      >
         {submitting ? "Бүртгэж байна..." : "Бүртгэх"}
       </button>
 
-      {error && <div className="text-red-600 mt-2">{error}</div>}
+      {error && <div className="text-red-600 mt-2 text-sm">{error}</div>}
     </form>
   );
 }
@@ -540,10 +554,17 @@ export default function OtherStaffPage() {
     }
   };
 
+  const actionBtnCls =
+    "inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 bg-gray-50 text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors";
+  const tooltipCls =
+    "pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100";
+  const editInputCls =
+    "w-full border border-gray-300 rounded-lg px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500";
+
   return (
     <main className="max-w-[900px] mx-auto my-10 p-6 font-sans">
-      <h1>Бусад ажилтан</h1>
-      <p className="text-gray-500 mb-4">
+      <h1 className="text-2xl font-bold mb-1">Бусад ажилтан</h1>
+      <p className="text-sm text-gray-500 mb-4">
         Нягтлан, менежер, админ зэрэг бусад ажилчдыг бүртгэх, салбарт
         хуваарьлах, жагсаалтаар харах.
       </p>
@@ -557,154 +578,183 @@ export default function OtherStaffPage() {
         }}
       />
 
-      {loading && <div>Ачааллаж байна...</div>}
-      {!loading && error && <div className="text-red-600">{error}</div>}
+      {loading && <p className="text-gray-500 text-sm">Ачааллаж байна...</p>}
+      {!loading && error && <p className="text-red-600 text-sm">{error}</p>}
 
       {!loading && !error && (
-        <table className="w-full border-collapse mt-2 text-sm">
-          <thead>
-            <tr>
-              {/* # constant number column */}
-              <th className="text-left border-b border-gray-200 p-2">#</th>
-              <th className="text-left border-b border-gray-200 p-2">Овог</th>
-              <th className="text-left border-b border-gray-200 p-2">Нэр</th>
-              <th className="text-left border-b border-gray-200 p-2">И-мэйл</th>
-              <th className="text-left border-b border-gray-200 p-2">РД</th>
-              <th className="text-left border-b border-gray-200 p-2">Утас</th>
-              {/* New: Үүрэг column between Утас and Салбар */}
-              <th className="text-left border-b border-gray-200 p-2">Үүрэг</th>
-              <th className="text-left border-b border-gray-200 p-2">Салбар</th>
-              <th className="text-left border-b border-gray-200 p-2">Үйлдэл</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u, index) => {
-              const isEditing = editingId === u.id;
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full border-collapse text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                {["#", "Овог", "Нэр", "И-мэйл", "РД", "Утас", "Үүрэг", "Салбар", "Үйлдэл"].map((label) => (
+                  <th
+                    key={label}
+                    className="sticky top-0 z-10 text-left border-b border-gray-200 py-2 px-3 font-semibold text-gray-700 whitespace-nowrap bg-gray-50"
+                  >
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u, index) => {
+                const isEditing = editingId === u.id;
 
-              if (isEditing) {
+                if (isEditing) {
+                  return (
+                    <tr key={u.id} className="odd:bg-white even:bg-gray-50">
+                      <td className="border-b border-gray-100 py-2 px-3">{index + 1}</td>
+                      <td className="border-b border-gray-100 py-2 px-3">
+                        <input
+                          name="ovog"
+                          value={editForm.ovog}
+                          onChange={handleEditChange}
+                          className={editInputCls}
+                        />
+                      </td>
+                      <td className="border-b border-gray-100 py-2 px-3">
+                        <input
+                          name="name"
+                          value={editForm.name}
+                          onChange={handleEditChange}
+                          className={editInputCls}
+                        />
+                      </td>
+                      <td className="border-b border-gray-100 py-2 px-3">{u.email}</td>
+                      <td className="border-b border-gray-100 py-2 px-3">
+                        <input
+                          name="regNo"
+                          value={editForm.regNo}
+                          onChange={handleEditChange}
+                          className={editInputCls}
+                        />
+                      </td>
+                      <td className="border-b border-gray-100 py-2 px-3">
+                        <input
+                          name="phone"
+                          value={editForm.phone}
+                          onChange={handleEditChange}
+                          className={editInputCls}
+                        />
+                      </td>
+                      <td className="border-b border-gray-100 py-2 px-3">{getRoleLabel(u.role)}</td>
+                      <td className="border-b border-gray-100 py-2 px-3">
+                        <div className="flex flex-wrap gap-1">
+                          {branches.map((b) => (
+                            <label
+                              key={b.id}
+                              className="cursor-pointer select-none inline-flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2 py-0.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700"
+                            >
+                              <input
+                                type="checkbox"
+                                className="sr-only"
+                                checked={editForm.editBranchIds.includes(b.id)}
+                                onChange={() => handleEditBranchToggle(b.id)}
+                              />
+                              {b.name}
+                            </label>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="border-b border-gray-100 py-2 px-3 whitespace-nowrap">
+                        <div className="flex items-center gap-1">
+                          {/* Хадгалах */}
+                          <div className="group relative inline-block">
+                            <button
+                              type="button"
+                              onClick={() => saveEdit(u.id)}
+                              aria-label="Хадгалах"
+                              className={actionBtnCls}
+                            >
+                              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z" />
+                              </svg>
+                            </button>
+                            <span className={tooltipCls}>Хадгалах</span>
+                          </div>
+                          {/* Цуцлах */}
+                          <div className="group relative inline-block">
+                            <button
+                              type="button"
+                              onClick={cancelEdit}
+                              aria-label="Цуцлах"
+                              className={actionBtnCls}
+                            >
+                              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                            <span className={tooltipCls}>Цуцлах</span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
                 return (
-                  <tr key={u.id}>
-                    {/* # */}
-                    <td className="border-b border-gray-100 p-2">{index + 1}</td>
-                    <td className="border-b border-gray-100 p-2">
-                      <input
-                        name="ovog"
-                        value={editForm.ovog}
-                        onChange={handleEditChange}
-                        className="w-full"
-                      />
+                  <tr key={u.id} className="odd:bg-white even:bg-gray-50 hover:bg-gray-100">
+                    <td className="border-b border-gray-100 py-2 px-3">{index + 1}</td>
+                    <td className="border-b border-gray-100 py-2 px-3">{u.ovog || "-"}</td>
+                    <td className="border-b border-gray-100 py-2 px-3">{u.name || "-"}</td>
+                    <td className="border-b border-gray-100 py-2 px-3">{u.email}</td>
+                    <td className="border-b border-gray-100 py-2 px-3">{u.regNo || "-"}</td>
+                    <td className="border-b border-gray-100 py-2 px-3">{u.phone || "-"}</td>
+                    <td className="border-b border-gray-100 py-2 px-3">{getRoleLabel(u.role)}</td>
+                    <td className="border-b border-gray-100 py-2 px-3">
+                      {Array.isArray(u.branches) && u.branches.length > 0
+                        ? u.branches.map((b) => b.name).join(", ")
+                        : u.branch
+                        ? u.branch.name
+                        : "-"}
                     </td>
-                    <td className="border-b border-gray-100 p-2">
-                      <input
-                        name="name"
-                        value={editForm.name}
-                        onChange={handleEditChange}
-                        className="w-full"
-                      />
-                    </td>
-                    <td className="border-b border-gray-100 p-2">{u.email}</td>
-                    <td className="border-b border-gray-100 p-2">
-                      <input
-                        name="regNo"
-                        value={editForm.regNo}
-                        onChange={handleEditChange}
-                        className="w-full"
-                      />
-                    </td>
-                    <td className="border-b border-gray-100 p-2">
-                      <input
-                        name="phone"
-                        value={editForm.phone}
-                        onChange={handleEditChange}
-                        className="w-full"
-                      />
-                    </td>
-                    {/* Үүрэг: not editable here, shown as label */}
-                    <td className="border-b border-gray-100 p-2">{getRoleLabel(u.role)}</td>
-                    <td className="border-b border-gray-100 p-2">
-                      <div className="flex flex-wrap gap-1">
-                        {branches.map((b) => (
-                          <label
-                            key={b.id}
-                            className="inline-flex items-center gap-1 border border-gray-200 rounded px-1.5 py-0.5 text-xs"
+                    <td className="border-b border-gray-100 py-2 px-3 whitespace-nowrap">
+                      <div className="flex items-center gap-1">
+                        {/* Засах */}
+                        <div className="group relative inline-block">
+                          <button
+                            type="button"
+                            onClick={() => startEdit(u)}
+                            aria-label="Засах"
+                            className={actionBtnCls}
                           >
-                            <input
-                              type="checkbox"
-                              checked={editForm.editBranchIds.includes(b.id)}
-                              onChange={() => handleEditBranchToggle(b.id)}
-                            />
-                            {b.name}
-                          </label>
-                        ))}
+                            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                            </svg>
+                          </button>
+                          <span className={tooltipCls}>Засах</span>
+                        </div>
+                        {/* Устгах */}
+                        <div className="group relative inline-block">
+                          <button
+                            type="button"
+                            onClick={() => deleteUser(u.id)}
+                            aria-label="Устгах"
+                            className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 bg-gray-50 text-red-500 hover:bg-red-50 hover:border-red-200 transition-colors"
+                          >
+                            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                          <span className={tooltipCls}>Устгах</span>
+                        </div>
+                        {/* Нууц үг сэргээх */}
+                        <SendResetLinkButton email={u.email} />
                       </div>
-                    </td>
-                    <td className="border-b border-gray-100 p-2 whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => saveEdit(u.id)}
-                        className="mr-2 px-1.5 py-0.5 text-xs"
-                      >
-                        Хадгалах
-                      </button>
-                      <button
-                        type="button"
-                        onClick={cancelEdit}
-                        className="px-1.5 py-0.5 text-xs"
-                      >
-                        Цуцлах
-                      </button>
                     </td>
                   </tr>
                 );
-              }
-
-              return (
-                <tr key={u.id}>
-                  {/* # */}
-                  <td className="border-b border-gray-100 p-2">{index + 1}</td>
-                  <td className="border-b border-gray-100 p-2">{u.ovog || "-"}</td>
-                  <td className="border-b border-gray-100 p-2">{u.name || "-"}</td>
-                  <td className="border-b border-gray-100 p-2">{u.email}</td>
-                  <td className="border-b border-gray-100 p-2">{u.regNo || "-"}</td>
-                  <td className="border-b border-gray-100 p-2">{u.phone || "-"}</td>
-                  <td className="border-b border-gray-100 p-2">{getRoleLabel(u.role)}</td>
-                  <td className="border-b border-gray-100 p-2">
-                    {Array.isArray(u.branches) && u.branches.length > 0
-                      ? u.branches.map((b) => b.name).join(", ")
-                      : u.branch
-                      ? u.branch.name
-                      : "-"}
-                  </td>
-                  <td className="border-b border-gray-100 p-2 whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => startEdit(u)}
-                      className="mr-2 px-1.5 py-0.5 text-xs"
-                    >
-                      Засах
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => deleteUser(u.id)}
-                      className="px-1.5 py-0.5 text-xs text-red-700 border-red-700"
-                    >
-                      Устгах
-                    </button>
-                    {/* Нууц үг сэргээх */}
-                    <SendResetLinkButton email={u.email} className="ml-1" />
+              })}
+              {users.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="text-center text-gray-400 py-6 text-sm">
+                    Өгөгдөл алга
                   </td>
                 </tr>
-              );
-            })}
-            {users.length === 0 && (
-              <tr>
-                <td colSpan={9} className="text-center text-gray-400 p-3">
-                  Өгөгдөл алга
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
       )}
     </main>
   );
