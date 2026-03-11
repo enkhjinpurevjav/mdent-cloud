@@ -58,6 +58,17 @@ export default function ReceptionProfilePage() {
   const [activeTab, setActiveTab] = useState<ReceptionTabKey>("profile");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
+  useEffect(() => {
+    const tabParam = router.query.tab as string | undefined;
+    if (!tabParam) return;
+    const allowed: ReceptionTabKey[] = ["profile", "schedule"];
+    if (allowed.includes(tabParam as ReceptionTabKey)) {
+      setActiveTab(tabParam as ReceptionTabKey);
+      setIsEditingProfile(false);
+      setError(null);
+    }
+  }, [router.query.tab]);
+
   const [form, setForm] = useState({
     name: "",
     ovog: "",
