@@ -415,87 +415,89 @@ export default function DoctorAppointmentsPage() {
         </div>
 
         {/* timeline body */}
+<div
+  style={{
+    marginTop: 6,
+    borderRadius: 12,
+    background: "#f8fafc",
+    overflowX: "auto",
+    overflowY: "hidden",
+    WebkitOverflowScrolling: "touch",
+  }}
+>
+  {/* Make a scrollable "canvas" that DOES NOT force page width */}
+  <div
+    style={{
+      position: "relative",
+      display: "inline-block",
+      height: 110,
+      width: Math.max(360, timeline.slots.length * 70),
+      verticalAlign: "top",
+    }}
+  >
+    {/* vertical grid lines */}
+    {timeline.slots.map((t, idx) => (
+      <div
+        key={t}
+        style={{
+          position: "absolute",
+          left: `${(idx / (timeline.slots.length - 1)) * 100}%`,
+          top: 0,
+          bottom: 0,
+          width: 1,
+          background: "#e5e7eb",
+        }}
+      />
+    ))}
+
+    {/* blocks */}
+    {todayAppointments.map((a) => (
+      <div
+        key={a.id}
+        style={blockStyle(a)}
+        title={`${formatPatient(a)} ${isoToLocalHHMM(a.scheduledAt)}-${isoToLocalHHMM(
+          a.endAt || null
+        )}`}
+      >
         <div
           style={{
-            position: "relative",
-            height: 110,
-            marginTop: 6,
-            borderRadius: 12,
-            background: "#f8fafc",
-            overflowX: "auto",
+            fontWeight: 800,
+            fontSize: 13,
+            marginBottom: 2,
+            whiteSpace: "nowrap",
+            textOverflow: "ellipsis",
+            overflow: "hidden",
           }}
         >
-          <div
-            style={{
-              position: "relative",
-              minWidth: Math.max(600, timeline.slots.length * 70),
-              height: "100%",
-            }}
-          >
-            {/* vertical grid lines */}
-            {timeline.slots.map((t, idx) => (
-              <div
-                key={t}
-                style={{
-                  position: "absolute",
-                  left: `${(idx / (timeline.slots.length - 1)) * 100}%`,
-                  top: 0,
-                  bottom: 0,
-                  width: 1,
-                  background: "#e5e7eb",
-                }}
-              />
-            ))}
-
-            {/* blocks */}
-            {todayAppointments.map((a) => (
-              <div
-                key={a.id}
-                style={blockStyle(a)}
-                title={`${formatPatient(a)} ${isoToLocalHHMM(
-                  a.scheduledAt
-                )}-${isoToLocalHHMM(a.endAt || null)}`}
-              >
-                <div
-                  style={{
-                    fontWeight: 800,
-                    fontSize: 13,
-                    marginBottom: 2,
-                    whiteSpace: "nowrap",
-                    textOverflow: "ellipsis",
-                    overflow: "hidden",
-                  }}
-                >
-                  {formatPatient(a)} #{a.id}
-                </div>
-                <div style={{ fontSize: 12, opacity: 0.9 }}>
-                  {isoToLocalHHMM(a.scheduledAt)} –{" "}
-                  {isoToLocalHHMM(a.endAt || null)}
-                </div>
-                <div style={{ fontSize: 12, marginTop: 2, opacity: 0.9 }}>
-                  {formatStatus(a.status)}
-                  {a.branchName ? ` · ${a.branchName}` : ""}
-                </div>
-              </div>
-            ))}
-
-            {todayAppointments.length === 0 && !loading && !error && (
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#94a3b8",
-                  fontSize: 13,
-                }}
-              >
-                Өнөөдрийн цаг алга
-              </div>
-            )}
-          </div>
+          {formatPatient(a)} #{a.id}
         </div>
+        <div style={{ fontSize: 12, opacity: 0.9 }}>
+          {isoToLocalHHMM(a.scheduledAt)} – {isoToLocalHHMM(a.endAt || null)}
+        </div>
+        <div style={{ fontSize: 12, marginTop: 2, opacity: 0.9 }}>
+          {formatStatus(a.status)}
+          {a.branchName ? ` · ${a.branchName}` : ""}
+        </div>
+      </div>
+    ))}
+
+    {todayAppointments.length === 0 && !loading && !error && (
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#94a3b8",
+          fontSize: 13,
+        }}
+      >
+        Өнөөдрийн цаг алга
+      </div>
+    )}
+  </div>
+</div>
       </div>
 
       {/* Filters (range) */}
