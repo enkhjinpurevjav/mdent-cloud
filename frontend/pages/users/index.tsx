@@ -19,10 +19,13 @@ type User = {
   branches?: Branch[]; // NEW: multi-branch support
 };
 
+const PAGE_SIZE = 30;
+
 export default function UsersIndexPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const load = async () => {
@@ -61,6 +64,15 @@ setUsers(
     load();
   }, []);
 
+  // Reset to page 1 whenever the users list is refreshed
+  useEffect(() => {
+    setPage(1);
+  }, [users.length]);
+
+  const totalPages = Math.max(1, Math.ceil(users.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedUsers = users.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
   const getRoleLabel = (role: string) => {
     switch (role) {
       case "doctor":
@@ -81,58 +93,92 @@ setUsers(
   };
 
   return (
-    <main className="p-6 font-sans">
-      <h1>Ажилтнууд</h1>
-      <p className="text-gray-500 mb-4">
+    <main className="max-w-[900px] mx-auto my-10 p-6 font-sans">
+      <h1 className="text-2xl font-bold mb-1">Ажилтнууд</h1>
+      <p className="text-sm text-gray-500 mb-4">
         Эмч, ресепшн, сувилагч болон бусад ажилтнуудын мэдээллийг нэг жагсаалтаар
         харах.
       </p>
 
       <UsersTabs />
 
-      {loading && <div>Ачааллаж байна...</div>}
-      {!loading && error && <div className="text-red-600">{error}</div>}
+      {loading && <p className="text-gray-500 text-sm">Ачааллаж байна...</p>}
+      {!loading && error && <p className="text-red-600 text-sm">{error}</p>}
 
       {!loading && !error && (
-        <table className="w-full border-collapse mt-2 text-sm">
-          <thead>
-            <tr>
-              <th className="text-left border-b border-gray-200 p-2">#</th>
-              <th className="text-left border-b border-gray-200 p-2">Овог</th>
-              <th className="text-left border-b border-gray-200 p-2">Нэр</th>
-              <th className="text-left border-b border-gray-200 p-2">Үүрэг</th>
-              <th className="text-left border-b border-gray-200 p-2">РД</th>
-              <th className="text-left border-b border-gray-200 p-2">Утас</th>
-              <th className="text-left border-b border-gray-200 p-2">Салбар</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u, index) => (
-              <tr key={u.id}>
-                <td className="border-b border-gray-100 p-2">{index + 1}</td>
-                <td className="border-b border-gray-100 p-2">{u.ovog || "-"}</td>
-                <td className="border-b border-gray-100 p-2">{u.name || "-"}</td>
-                <td className="border-b border-gray-100 p-2">{getRoleLabel(u.role)}</td>
-                <td className="border-b border-gray-100 p-2">{u.regNo || "-"}</td>
-                <td className="border-b border-gray-100 p-2">{u.phone || "-"}</td>
-                <td className="border-b border-gray-100 p-2">
-                  {Array.isArray(u.branches) && u.branches.length > 0
-                    ? u.branches.map((b) => b.name).join(", ")
-                    : u.branch
-                    ? u.branch.name
-                    : "-"}
-                </td>
-              </tr>
-            ))}
-            {users.length === 0 && (
-              <tr>
-                <td colSpan={7} className="text-center text-gray-400 p-3">
-                  Өгөгдөл алга
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        <>
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="w-full border-collapse text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  {["#", "Овог", "Нэр", "Үүрэг", "РД", "Утас", "Салбар"].map((label) => (
+                    <th
+                      key={label}
+                      className="sticky top-0 z-10 text-left border-b border-gray-200 py-2 px-3 font-semibold text-gray-700 whitespace-nowrap bg-gray-50"
+                    >
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {pagedUsers.map((u, index) => {
+                  const rowNumber = (safePage - 1) * PAGE_SIZE + index + 1;
+                  return (
+                    <tr key={u.id} className="odd:bg-white even:bg-gray-50 hover:bg-gray-100">
+                      <td className="border-b border-gray-100 py-2 px-3">{rowNumber}</td>
+                      <td className="border-b border-gray-100 py-2 px-3">{u.ovog || "-"}</td>
+                      <td className="border-b border-gray-100 py-2 px-3">{u.name || "-"}</td>
+                      <td className="border-b border-gray-100 py-2 px-3">{getRoleLabel(u.role)}</td>
+                      <td className="border-b border-gray-100 py-2 px-3">{u.regNo || "-"}</td>
+                      <td className="border-b border-gray-100 py-2 px-3">{u.phone || "-"}</td>
+                      <td className="border-b border-gray-100 py-2 px-3">
+                        {Array.isArray(u.branches) && u.branches.length > 0
+                          ? u.branches.map((b) => b.name).join(", ")
+                          : u.branch
+                          ? u.branch.name
+                          : "-"}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {users.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="text-center text-gray-400 py-6 text-sm">
+                      Өгөгдөл алга
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="mt-3 flex items-center justify-between text-sm">
+              <span className="text-gray-500">
+                Нийт {users.length} бичлэг — {safePage} / {totalPages} хуудас
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 disabled:opacity-50"
+                  disabled={safePage <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Өмнөх
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 disabled:opacity-50"
+                  disabled={safePage >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Дараах
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </main>
   );
