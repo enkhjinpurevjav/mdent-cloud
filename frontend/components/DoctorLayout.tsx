@@ -14,6 +14,9 @@ const BOTTOM_NAV = [
   { label: "Профайл", href: "/doctor/profile", icon: "👤" },
 ];
 
+const TOP_H = 56;
+const BOTTOM_H = 60;
+
 export default function DoctorLayout({ children }: Props) {
   const router = useRouter();
 
@@ -25,154 +28,98 @@ export default function DoctorLayout({ children }: Props) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#f3f4f6" }}>
-      {/* Top Bar */}
-      <header
-        style={{
-          background: "#0f2044",
-          color: "white",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 16px",
-          height: 56,
-          flexShrink: 0,
-          position: "sticky",
-          top: 0,
-          zIndex: 100,
-        }}
-      >
-        {/* Logo */}
-        <Link href="/doctor/appointments" style={{ color: "white", fontWeight: 700, fontSize: 18, textDecoration: "none", letterSpacing: 1 }}>
-          mDent
-        </Link>
-
-        {/* Right icon buttons */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          {/* Notifications (UI only, disabled) */}
-          <button
-            title="Мэдэгдэл"
-            disabled
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "rgba(255,255,255,0.5)",
-              cursor: "default",
-              padding: "8px",
-              borderRadius: 8,
-              fontSize: 20,
-              lineHeight: 1,
-            }}
-          >
-            🔔
-          </button>
-
-          {/* Гүйцэтгэл */}
+    <div className="min-h-[100dvh] bg-gray-100 overflow-x-hidden">
+      {/* Top Bar (fixed to viewport) */}
+      <header className="fixed top-0 left-0 right-0 h-14 bg-[#0f2044] text-white z-[100]">
+        <div className="h-full max-w-[720px] mx-auto px-4 flex items-center justify-between">
+          {/* Logo */}
           <Link
-            href="/doctor/performance"
-            title="Гүйцэтгэл"
-            style={{
-              color: isActive("/doctor/performance") ? "#60a5fa" : "rgba(255,255,255,0.85)",
-              padding: "8px",
-              borderRadius: 8,
-              fontSize: 20,
-              lineHeight: 1,
-              textDecoration: "none",
-              display: "inline-flex",
-              alignItems: "center",
-            }}
+            href="/doctor/appointments"
+            className="text-white font-extrabold text-[18px] no-underline tracking-wide"
           >
-            📊
+            mDent
           </Link>
 
-          {/* Үзлэгийн түүх */}
-          <Link
-            href="/doctor/history"
-            title="Үзлэгийн түүх"
-            style={{
-              color: isActive("/doctor/history") ? "#60a5fa" : "rgba(255,255,255,0.85)",
-              padding: "8px",
-              borderRadius: 8,
-              fontSize: 20,
-              lineHeight: 1,
-              textDecoration: "none",
-              display: "inline-flex",
-              alignItems: "center",
-            }}
-          >
-            📋
-          </Link>
+          {/* Right icon buttons */}
+          <div className="flex items-center gap-1">
+            {/* Notifications (UI only, disabled) */}
+            <button
+              title="Мэдэгдэл"
+              disabled
+              className="p-2 rounded-lg text-[20px] leading-none text-white/50 cursor-default"
+            >
+              🔔
+            </button>
 
-          {/* Logout */}
-          <button
-            onClick={handleLogout}
-            title="Гарах"
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "rgba(255,255,255,0.7)",
-              cursor: "pointer",
-              padding: "8px",
-              borderRadius: 8,
-              fontSize: 18,
-              lineHeight: 1,
-            }}
-          >
-            ⎋
-          </button>
+            {/* Гүйцэтгэл */}
+            <Link
+              href="/doctor/performance"
+              title="Гүйцэтгэл"
+              className={[
+                "p-2 rounded-lg text-[20px] leading-none inline-flex items-center no-underline",
+                isActive("/doctor/performance")
+                  ? "text-blue-300"
+                  : "text-white/85",
+              ].join(" ")}
+            >
+              📊
+            </Link>
+
+            {/* Үзлэгийн түүх */}
+            <Link
+              href="/doctor/history"
+              title="Үзлэгийн түүх"
+              className={[
+                "p-2 rounded-lg text-[20px] leading-none inline-flex items-center no-underline",
+                isActive("/doctor/history") ? "text-blue-300" : "text-white/85",
+              ].join(" ")}
+            >
+              📋
+            </Link>
+
+            {/* Logout */}
+            <button
+              onClick={handleLogout}
+              title="Гарах"
+              className="p-2 rounded-lg text-[18px] leading-none text-white/70 hover:text-white"
+            >
+              ⎋
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Scrollable content */}
+      {/* Content (padded for fixed bars) */}
       <main
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          paddingBottom: 64,
-        }}
+        className="pt-14 pb-[60px] max-w-[720px] mx-auto overflow-x-hidden"
+        // keep exact heights aligned with header/nav
+        style={{ paddingTop: TOP_H, paddingBottom: BOTTOM_H }}
       >
         {children}
       </main>
 
-      {/* Bottom Navigation */}
-      <nav
-        style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: 60,
-          background: "white",
-          borderTop: "1px solid #e5e7eb",
-          display: "flex",
-          zIndex: 100,
-        }}
-      >
-        {BOTTOM_NAV.map((item) => {
-          const active = isActive(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 2,
-                textDecoration: "none",
-                color: active ? "#0f2044" : "#9ca3af",
-                fontSize: 10,
-                fontWeight: active ? 700 : 400,
-                borderTop: active ? "2px solid #0f2044" : "2px solid transparent",
-              }}
-            >
-              <span style={{ fontSize: 22 }}>{item.icon}</span>
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+      {/* Bottom Navigation (fixed to viewport) */}
+      <nav className="fixed bottom-0 left-0 right-0 h-[60px] bg-white border-t border-gray-200 z-[100]">
+        <div className="h-full max-w-[720px] mx-auto flex">
+          {BOTTOM_NAV.map((item) => {
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={[
+                  "flex-1 flex flex-col items-center justify-center gap-0.5 no-underline text-[10px]",
+                  active
+                    ? "text-[#0f2044] font-bold border-t-2 border-[#0f2044]"
+                    : "text-gray-400 font-normal border-t-2 border-transparent",
+                ].join(" ")}
+              >
+                <span className="text-[22px] leading-none">{item.icon}</span>
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
       </nav>
     </div>
   );
