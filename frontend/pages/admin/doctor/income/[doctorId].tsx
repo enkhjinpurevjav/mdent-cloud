@@ -76,6 +76,19 @@ function formatDate(isoStr: string | null | undefined) {
   return d.toLocaleDateString("mn-MN", { year: "numeric", month: "2-digit", day: "2-digit" });
 }
 
+// ✅ Add this right here (after helpers, before Icons / components)
+const SERVICE_CATEGORY_LABELS: Record<string, string> = {
+  ORTHODONTIC_TREATMENT: "Гажиг заслын эмчилгээ",
+  IMAGING: "Зураг авах",
+  DEFECT_CORRECTION: "Согог засал",
+  ADULT_TREATMENT: "Том хүний эмчилгээ",
+  WHITENING: "Цайруулалт",
+  CHILD_TREATMENT: "Хүүхдийн эмчилгээ",
+  SURGERY: "Мэс засал",
+  PREVIOUS: "Өмнөх",
+  GENERAL: "Ерөнхий", // optional safety
+};
+
 // ── Icons ─────────────────────────────────────────────────────────────────────
 
 function ChevronIcon({ open }: { open: boolean }) {
