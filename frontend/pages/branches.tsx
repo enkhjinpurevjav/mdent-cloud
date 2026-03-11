@@ -4,6 +4,8 @@ type Branch = {
   id: number;
   name: string;
   address: string | null;
+  geoLat?: number | null;
+  geoLng?: number | null;
   createdAt?: string;
 };
 
@@ -17,10 +19,14 @@ function formatDateYmdDots(value?: string): string {
   return `${y}.${m}.${day}`;
 }
 
+const GEO_HELPER_TEXT = "Ирцийн байршлын шалгалтад ашиглана";
+
 function BranchForm({ onSuccess }: { onSuccess: (b: Branch) => void }) {
   const [form, setForm] = useState({
     name: "",
     address: "",
+    geoLat: "",
+    geoLng: "",
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -31,13 +37,37 @@ function BranchForm({ onSuccess }: { onSuccess: (b: Branch) => void }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    // Client-side geo validation
+    if (form.geoLat !== "") {
+      const v = Number(form.geoLat);
+      if (!Number.isFinite(v) || v < -90 || v > 90) {
+        setError("Өргөрөг (Lat) -90 аас 90 хооронд байх ёстой.");
+        return;
+      }
+    }
+    if (form.geoLng !== "") {
+      const v = Number(form.geoLng);
+      if (!Number.isFinite(v) || v < -180 || v > 180) {
+        setError("Уртраг (Lng) -180 аас 180 хооронд байх ёстой.");
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     try {
+      const body: Record<string, unknown> = {
+        name: form.name,
+        address: form.address || null,
+      };
+      if (form.geoLat !== "") body.geoLat = Number(form.geoLat);
+      if (form.geoLng !== "") body.geoLng = Number(form.geoLng);
+
       const res = await fetch("/api/branches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(body),
       });
 
       let data: any = null;
@@ -49,7 +79,7 @@ function BranchForm({ onSuccess }: { onSuccess: (b: Branch) => void }) {
 
       if (res.ok) {
         onSuccess(data as Branch);
-        setForm({ name: "", address: "" });
+        setForm({ name: "", address: "", geoLat: "", geoLng: "" });
       } else {
         setError((data && data.error) || "Алдаа гарлаа");
       }
@@ -120,6 +150,46 @@ function BranchForm({ onSuccess }: { onSuccess: (b: Branch) => void }) {
             }}
           />
         </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label>Өргөрөг (Lat)</label>
+          <input
+            name="geoLat"
+            type="number"
+            step="any"
+            placeholder="Ж: 47.9184"
+            value={form.geoLat}
+            onChange={handleChange}
+            style={{
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
+          <span style={{ fontSize: 11, color: "#6b7280" }}>
+            {GEO_HELPER_TEXT}
+          </span>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label>Уртраг (Lng)</label>
+          <input
+            name="geoLng"
+            type="number"
+            step="any"
+            placeholder="Ж: 106.9176"
+            value={form.geoLng}
+            onChange={handleChange}
+            style={{
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
+          <span style={{ fontSize: 11, color: "#6b7280" }}>
+            {GEO_HELPER_TEXT}
+          </span>
+        </div>
       </div>
 
       <div
@@ -162,9 +232,11 @@ export default function BranchesPage() {
 
   // inline edit state
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editValues, setEditValues] = useState<{ name: string; address: string }>({
+  const [editValues, setEditValues] = useState<{ name: string; address: string; geoLat: string; geoLng: string }>({
     name: "",
     address: "",
+    geoLat: "",
+    geoLng: "",
   });
   const [savingId, setSavingId] = useState<number | null>(null);
   const [editError, setEditError] = useState("");
@@ -203,20 +275,22 @@ export default function BranchesPage() {
     setEditValues({
       name: b.name,
       address: b.address || "",
+      geoLat: b.geoLat != null ? String(b.geoLat) : "",
+      geoLng: b.geoLng != null ? String(b.geoLng) : "",
     });
     setEditError("");
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditValues({ name: "", address: "" });
+    setEditValues({ name: "", address: "", geoLat: "", geoLng: "" });
     setSavingId(null);
     setEditError("");
   };
 
   const handleEditChange = (
     e: React.ChangeEvent<HTMLInputElement>,
-    field: "name" | "address"
+    field: "name" | "address" | "geoLat" | "geoLng"
   ) => {
     const value = e.target.value;
     setEditValues((prev) => ({ ...prev, [field]: value }));
@@ -227,17 +301,35 @@ export default function BranchesPage() {
       setEditError("Нэр талбарыг хоосон байлгаж болохгүй.");
       return;
     }
+    if (editValues.geoLat !== "") {
+      const v = Number(editValues.geoLat);
+      if (!Number.isFinite(v) || v < -90 || v > 90) {
+        setEditError("Өргөрөг (Lat) -90 аас 90 хооронд байх ёстой.");
+        return;
+      }
+    }
+    if (editValues.geoLng !== "") {
+      const v = Number(editValues.geoLng);
+      if (!Number.isFinite(v) || v < -180 || v > 180) {
+        setEditError("Уртраг (Lng) -180 аас 180 хооронд байх ёстой.");
+        return;
+      }
+    }
     setSavingId(b.id);
     setEditError("");
 
     try {
+      const body: Record<string, unknown> = {
+        name: editValues.name.trim(),
+        address: editValues.address.trim() || null,
+        geoLat: editValues.geoLat !== "" ? Number(editValues.geoLat) : null,
+        geoLng: editValues.geoLng !== "" ? Number(editValues.geoLng) : null,
+      };
+
       const res = await fetch(`/api/branches/${b.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: editValues.name.trim(),
-          address: editValues.address.trim() || null,
-        }),
+        body: JSON.stringify(body),
       });
 
       let data: any = null;
@@ -344,6 +436,8 @@ export default function BranchesPage() {
                   </th>
                   <th style={{ ...thStyle }}>Нэр</th>
                   <th style={{ ...thStyle }}>Хаяг</th>
+                  <th style={{ ...thStyle }}>Өргөрөг (Lat)</th>
+                  <th style={{ ...thStyle }}>Уртраг (Lng)</th>
                   <th style={{ ...thStyle }}>Үүсгэсэн огноо</th>
                   <th
                     style={{
@@ -403,6 +497,48 @@ export default function BranchesPage() {
                           />
                         ) : (
                           b.address || ""
+                        )}
+                      </td>
+
+                      {/* GeoLat cell */}
+                      <td style={tdStyle}>
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="any"
+                            value={editValues.geoLat}
+                            onChange={(e) => handleEditChange(e, "geoLat")}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                              fontSize: 12,
+                            }}
+                          />
+                        ) : (
+                          b.geoLat != null ? b.geoLat : ""
+                        )}
+                      </td>
+
+                      {/* GeoLng cell */}
+                      <td style={tdStyle}>
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            step="any"
+                            value={editValues.geoLng}
+                            onChange={(e) => handleEditChange(e, "geoLng")}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                              fontSize: 12,
+                            }}
+                          />
+                        ) : (
+                          b.geoLng != null ? b.geoLng : ""
                         )}
                       </td>
 
@@ -481,7 +617,7 @@ export default function BranchesPage() {
                 {branches.length === 0 && (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={7}
                       style={{
                         textAlign: "center",
                         color: "#9ca3af",
