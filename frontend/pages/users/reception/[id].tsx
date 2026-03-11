@@ -841,48 +841,80 @@ export default function ReceptionProfilePage() {
                 ) : (
                   <form
                     onSubmit={handleSave}
-                    className="flex flex-col gap-3 max-w-[600px]"
                   >
-                    {(
-                      [
-                        { label: "Овог", name: "ovog", type: "text" },
-                        { label: "Нэр", name: "name", type: "text" },
-                        { label: "И-мэйл", name: "email", type: "email" },
-                        { label: "РД", name: "regNo", type: "text" },
-                        { label: "Утас", name: "phone", type: "text" },
-                      ] as const
-                    ).map((f) => (
-                      <div key={f.name}>
-                        <div className="text-gray-500 mb-0.5 text-[13px]">
-                          {f.label}
-                        </div>
+                    {/* Fields grid */}
+                    <div className="grid [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))] gap-3 text-[13px]">
+                      <div>
+                        <div className="text-gray-500 mb-0.5">Овог</div>
                         <input
-                          name={f.name}
-                          type={f.type}
-                          value={(form as any)[f.name]}
+                          name="ovog"
+                          type="text"
+                          value={form.ovog}
                           onChange={handleChange}
                           className="w-full rounded-md border border-gray-300 px-1.5 py-1"
                         />
                       </div>
-                    ))}
 
-                    <div>
-                      <div className="text-gray-500 mb-0.5 text-[13px]">
-                        Үндсэн салбар
+                      <div>
+                        <div className="text-gray-500 mb-0.5">Нэр</div>
+                        <input
+                          name="name"
+                          type="text"
+                          value={form.name}
+                          onChange={handleChange}
+                          className="w-full rounded-md border border-gray-300 px-1.5 py-1"
+                        />
                       </div>
-                      <select
-                        name="branchId"
-                        value={form.branchId}
-                        onChange={handleChange}
-                        className="w-full rounded-md border border-gray-300 px-1.5 py-1 bg-white"
-                      >
-                        <option value="">Сонгохгүй</option>
-                        {branches.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.name}
-                          </option>
-                        ))}
-                      </select>
+
+                      <div>
+                        <div className="text-gray-500 mb-0.5">И-мэйл</div>
+                        <input
+                          name="email"
+                          type="email"
+                          value={form.email}
+                          onChange={handleChange}
+                          className="w-full rounded-md border border-gray-300 px-1.5 py-1"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="text-gray-500 mb-0.5">РД</div>
+                        <input
+                          name="regNo"
+                          type="text"
+                          value={form.regNo}
+                          onChange={handleChange}
+                          className="w-full rounded-md border border-gray-300 px-1.5 py-1"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="text-gray-500 mb-0.5">Утас</div>
+                        <input
+                          name="phone"
+                          type="text"
+                          value={form.phone}
+                          onChange={handleChange}
+                          className="w-full rounded-md border border-gray-300 px-1.5 py-1"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="text-gray-500 mb-0.5">Үндсэн салбар</div>
+                        <select
+                          name="branchId"
+                          value={form.branchId}
+                          onChange={handleChange}
+                          className="w-full rounded-md border border-gray-300 px-1.5 py-1 bg-white"
+                        >
+                          <option value="">Сонгохгүй</option>
+                          {branches.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
 
                     <div className="mt-4 flex gap-2 justify-end">
