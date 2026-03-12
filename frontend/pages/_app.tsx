@@ -6,14 +6,11 @@ import { useEffect, useState } from "react";
 import { getMe } from "../utils/auth";
 import "../styles/globals.css";
 
-
 // Routes that do not require authentication
 const PUBLIC_ROUTES = ["/login", "/online", "/print", "/forgot-password", "/reset-password"];
 
 function isPublicPath(pathname: string) {
-  return PUBLIC_ROUTES.some(
-    (p) => pathname === p || pathname.startsWith(p + "/")
-  );
+  return PUBLIC_ROUTES.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
 function isDoctorPath(pathname: string) {
@@ -31,16 +28,25 @@ export default function MyApp({ Component, pageProps }: AppProps) {
       setAuthChecked(true);
       return;
     }
+
     getMe().then((user) => {
       if (!user) {
         router.replace(`/login?redirect=${encodeURIComponent(router.asPath)}`);
         return;
       }
-      // Doctor portal: only doctors allowed
+
+      // Non-doctors cannot access /doctor/*
       if (isDoctorPath(router.pathname) && user.role !== "doctor") {
         router.replace("/");
         return;
       }
+
+      // Doctors cannot access anything outside /doctor/*
+      if (!isDoctorPath(router.pathname) && user.role === "doctor") {
+        router.replace("/doctor/appointments");
+        return;
+      }
+
       setAuthChecked(true);
     });
   }, [router]);
