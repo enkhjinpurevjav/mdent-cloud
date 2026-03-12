@@ -315,7 +315,14 @@ export default function PatientProfilePage() {
     <main className="max-w-7xl px-4 lg:px-8 py-8 font-sans">
       <button
         type="button"
-        onClick={() => router.back()}
+        onClick={() => {
+          const returnTo = router.query.returnTo as string | undefined;
+          if (returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")) {
+            router.push(returnTo);
+          } else {
+            router.back();
+          }
+        }}
         className="mb-4 px-2 py-1 text-sm rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer"
       >
         ← Буцах

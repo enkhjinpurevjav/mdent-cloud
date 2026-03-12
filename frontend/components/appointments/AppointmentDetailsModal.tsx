@@ -398,8 +398,13 @@ export default function AppointmentDetailsModal({
         : "";
 
     if (bookNumber) {
-      const url = `/patients/${encodeURIComponent(bookNumber)}?tab=patient_history`;
-      window.open(url, "_blank", "noopener,noreferrer");
+      if (doctorMode) {
+        const returnTo = encodeURIComponent(router.asPath);
+        router.push(`/patients/${encodeURIComponent(bookNumber)}?tab=patient_history&returnTo=${returnTo}`);
+      } else {
+        const url = `/patients/${encodeURIComponent(bookNumber)}?tab=patient_history`;
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
     }
   }}
   style={{
