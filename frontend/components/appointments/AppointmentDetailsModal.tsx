@@ -120,10 +120,11 @@ export default function AppointmentDetailsModal({
     }
 
     const res = await fetch(`/api/appointments/${a.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+  method: "PATCH",
+  headers: { "Content-Type": "application/json" },
+  credentials: "include",
+  body: JSON.stringify(payload),
+});
 
     const text = await res.text().catch(() => "");
     const data = text ? JSON.parse(text) : null;
