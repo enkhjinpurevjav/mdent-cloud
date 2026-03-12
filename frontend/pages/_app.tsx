@@ -42,10 +42,15 @@ export default function MyApp({ Component, pageProps }: AppProps) {
       }
 
       // Doctors cannot access anything outside /doctor/*
-      if (!isDoctorPath(router.pathname) && user.role === "doctor") {
-        router.replace("/doctor/appointments");
-        return;
-      }
+      // Doctors cannot access anything outside /doctor/* EXCEPT /patients/*
+if (
+  user.role === "doctor" &&
+  !isDoctorPath(router.pathname) &&
+  !router.pathname.startsWith("/patients")
+) {
+  router.replace("/doctor/appointments");
+  return;
+}
 
       setAuthChecked(true);
     });
