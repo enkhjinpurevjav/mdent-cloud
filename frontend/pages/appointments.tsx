@@ -587,6 +587,11 @@ if (quickPatientForm.regNo.trim()) {
       return;
     }
 
+    if (!form.doctorId) {
+      setError("Эмч сонгоно уу.");
+      return;
+    }
+
     const [year, month, day] = form.date.split("-").map(Number);
     const [startHour, startMinute] = form.startTime.split(":").map(Number);
     const [endHour, endMinute] = form.endTime.split(":").map(Number);
@@ -651,7 +656,7 @@ if (quickPatientForm.regNo.trim()) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           patientId,
-          doctorId: form.doctorId ? Number(form.doctorId) : null,
+          doctorId: Number(form.doctorId),
           branchId: Number(form.branchId),
           scheduledAt: scheduledAtStr,
           endAt: endAtStr,
@@ -840,7 +845,31 @@ if (quickPatientForm.regNo.trim()) {
         </div>
       )}
 
-      {/* Doctor field hidden - doctor is optional */}
+      {/* Doctor */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <label>Эмч</label>
+        <select
+          name="doctorId"
+          value={form.doctorId}
+          onChange={(e) => {
+            handleChange(e);
+            setError("");
+          }}
+          required
+          style={{
+            borderRadius: 6,
+            border: "1px solid #d1d5db",
+            padding: "6px 8px",
+          }}
+        >
+          <option value="">Эмч сонгох</option>
+          {workingDoctors.map((d) => (
+            <option key={d.id} value={d.id}>
+              {formatDoctorName(d)}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* Date */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
