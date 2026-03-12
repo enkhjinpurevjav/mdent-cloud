@@ -696,27 +696,35 @@ if (quickPatientForm.regNo.trim()) {
 
   // BRANCH + DATE AWARE DOCTOR LIST
   const workingDoctors = useMemo(() => {
+    if (!form.date) return [];
+
     if (scheduledDoctors.length > 0) {
       const branchIdForFilter = form.branchId || selectedBranchId || "";
-      const dateForFilter = form.date;
+      const branchNum = branchIdForFilter ? Number(branchIdForFilter) : null;
 
-      if (!branchIdForFilter || !dateForFilter) return scheduledDoctors;
-
-      const branchNum = Number(branchIdForFilter);
-      if (Number.isNaN(branchNum)) return scheduledDoctors;
-
-      const filtered = scheduledDoctors.filter((sd) =>
-        (sd.schedules || []).some(
-          (s) => s.branchId === branchNum && s.date === dateForFilter
-        )
+      return scheduledDoctors.filter((sd) =>
+        (sd.schedules || []).some((s) => {
+          if (s.date !== form.date) return false;
+          if (branchNum !== null && !Number.isNaN(branchNum)) {
+            return s.branchId === branchNum;
+          }
+          return true;
+        })
       );
-
-      return filtered.length ? filtered : scheduledDoctors;
     }
 
     // fallback – no schedule data
     return doctors;
   }, [scheduledDoctors, doctors, form.branchId, form.date, selectedBranchId]);
+
+  // Clear selected doctor when it's no longer in the working list
+  useEffect(() => {
+    if (!form.doctorId) return;
+    const docId = Number(form.doctorId);
+    if (!workingDoctors.some((d) => d.id === docId)) {
+      setForm((prev) => ({ ...prev, doctorId: "" }));
+    }
+  }, [workingDoctors, form.doctorId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <form
@@ -856,18 +864,28 @@ if (quickPatientForm.regNo.trim()) {
             setError("");
           }}
           required
+          disabled={!form.date || workingDoctors.length === 0}
           style={{
             borderRadius: 6,
             border: "1px solid #d1d5db",
             padding: "6px 8px",
+            background: (!form.date || workingDoctors.length === 0) ? "#f3f4f6" : undefined,
           }}
         >
-          <option value="">Эмч сонгох</option>
-          {workingDoctors.map((d) => (
-            <option key={d.id} value={d.id}>
-              {formatDoctorName(d)}
-            </option>
-          ))}
+          {!form.date ? (
+            <option value="">Эхлээд огноо сонгоно уу.</option>
+          ) : workingDoctors.length === 0 ? (
+            <option value="">Ажиллах эмч олдсонгүй</option>
+          ) : (
+            <>
+              <option value="">Эмч сонгох</option>
+              {workingDoctors.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {formatDoctorName(d)}
+                </option>
+              ))}
+            </>
+          )}
         </select>
       </div>
 
@@ -1372,6 +1390,21 @@ const [pendingSaving, setPendingSaving] = useState(false);
   const [filterPatientHistory, setFilterPatientHistory] = useState<CompletedHistoryItem[]>([]);
   const [filterPatientHistoryLoading, setFilterPatientHistoryLoading] = useState(false);
 
+  // ---- Exceptional appointment modal state ----
+  const [showExceptional, setShowExceptional] = useState(false);
+  const [exceptionalPatientQuery, setExceptionalPatientQuery] = useState("");
+  const [exceptionalPatientResults, setExceptionalPatientResults] = useState<FilterPatient[]>([]);
+  const [exceptionalPatientLoading, setExceptionalPatientLoading] = useState(false);
+  const exceptionalPatientTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [exceptionalPatientId, setExceptionalPatientId] = useState<number | null>(null);
+  const [exceptionalBranchId, setExceptionalBranchId] = useState("");
+  const [exceptionalDoctorId, setExceptionalDoctorId] = useState("");
+  const [exceptionalDate, setExceptionalDate] = useState("");
+  const [exceptionalStartTime, setExceptionalStartTime] = useState("");
+  const [exceptionalNotes, setExceptionalNotes] = useState("");
+  const [exceptionalError, setExceptionalError] = useState("");
+  const [exceptionalSaving, setExceptionalSaving] = useState(false);
+
   // ---- Preference popup (before slot picking) ----
 
 
@@ -1437,7 +1470,135 @@ const [pendingSaving, setPendingSaving] = useState(false);
     setBookingIntent({ patientId: p.id, patientLabel: label, doctorId: undefined });
   };
 
-  // filters
+  const triggerExceptionalPatientSearch = useCallback((query: string) => {
+    if (exceptionalPatientTimerRef.current) clearTimeout(exceptionalPatientTimerRef.current);
+    if (!query.trim()) {
+      setExceptionalPatientResults([]);
+      return;
+    }
+    exceptionalPatientTimerRef.current = setTimeout(async () => {
+      try {
+        setExceptionalPatientLoading(true);
+        const res = await fetch(`/api/patients?q=${encodeURIComponent(query.trim())}&limit=10`);
+        if (!res.ok) { setExceptionalPatientResults([]); return; }
+        const data = await res.json().catch(() => []);
+        const list = Array.isArray(data) ? data
+          : Array.isArray((data as any).data) ? (data as any).data
+          : Array.isArray((data as any).patients) ? (data as any).patients
+          : [];
+        setExceptionalPatientResults(list.slice(0, 10).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          ovog: p.ovog ?? null,
+          regNo: p.regNo ?? "",
+          phone: p.phone ?? null,
+          patientBook: p.patientBook || null,
+        })));
+      } catch {
+        setExceptionalPatientResults([]);
+      } finally {
+        setExceptionalPatientLoading(false);
+      }
+    }, 300);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleExceptionalSubmit = useCallback(async () => {
+    setExceptionalError("");
+
+    if (!exceptionalPatientId) {
+      setExceptionalError("Үйлчлүүлэгч сонгоно уу.");
+      return;
+    }
+    if (!exceptionalBranchId) {
+      setExceptionalError("Салбар сонгоно уу.");
+      return;
+    }
+    if (!exceptionalDoctorId) {
+      setExceptionalError("Эмч сонгоно уу.");
+      return;
+    }
+    if (!exceptionalDate) {
+      setExceptionalError("Огноо сонгоно уу.");
+      return;
+    }
+    if (!exceptionalStartTime) {
+      setExceptionalError("Эхлэх цаг сонгоно уу.");
+      return;
+    }
+
+    const dateParts = exceptionalDate.split("-").map(Number);
+    const timeParts = exceptionalStartTime.split(":").map(Number);
+
+    const start = new Date(dateParts[0], (dateParts[1] ?? 1) - 1, dateParts[2] ?? 1, timeParts[0] ?? 0, timeParts[1] ?? 0, 0, 0);
+    const end = new Date(start.getTime() + 60 * 60_000); // +1 hour
+
+    if (Number.isNaN(start.getTime())) {
+      setExceptionalError("Огноо/цаг буруу байна.");
+      return;
+    }
+
+    // Capacity check: each 30-min block in the 1-hour range
+    const docIdNum = Number(exceptionalDoctorId);
+    let blockStart = new Date(start);
+    while (blockStart < end) {
+      const slotEnd = new Date(blockStart.getTime() + SLOT_MINUTES * 60_000);
+      const count = appointments.filter((a) => {
+        if (a.doctorId !== docIdNum) return false;
+        if (exceptionalBranchId && String(a.branchId) !== exceptionalBranchId) return false;
+        if (a.status === "cancelled") return false;
+        const aStart = new Date(a.scheduledAt);
+        if (Number.isNaN(aStart.getTime())) return false;
+        const aEnd = a.endAt && !Number.isNaN(new Date(a.endAt).getTime())
+          ? new Date(a.endAt)
+          : new Date(aStart.getTime() + SLOT_MINUTES * 60_000);
+        const dayStr = aStart.toISOString().slice(0, 10);
+        if (dayStr !== exceptionalDate) return false;
+        return aStart < slotEnd && aEnd > blockStart;
+      }).length;
+      if (count >= 2) {
+        setExceptionalError("Сонгосон хугацааны зарим 30 минутын блок дээр аль хэдийн 2 захиалга байна.");
+        return;
+      }
+      blockStart = new Date(blockStart.getTime() + SLOT_MINUTES * 60_000);
+    }
+
+    setExceptionalSaving(true);
+    try {
+      const res = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientId: exceptionalPatientId,
+          doctorId: docIdNum,
+          branchId: Number(exceptionalBranchId),
+          scheduledAt: start.toISOString(),
+          endAt: end.toISOString(),
+          status: "booked",
+          notes: exceptionalNotes.trim() || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setAppointments((prev) => [data as Appointment, ...prev]);
+        setShowExceptional(false);
+        setExceptionalPatientQuery("");
+        setExceptionalPatientId(null);
+        setExceptionalPatientResults([]);
+        setExceptionalBranchId("");
+        setExceptionalDoctorId("");
+        setExceptionalDate("");
+        setExceptionalStartTime("");
+        setExceptionalNotes("");
+        setExceptionalError("");
+      } else {
+        setExceptionalError((data as any).error || "Алдаа гарлаа");
+      }
+    } catch {
+      setExceptionalError("Сүлжээгээ шалгана уу");
+    } finally {
+      setExceptionalSaving(false);
+    }
+  }, [exceptionalPatientId, exceptionalBranchId, exceptionalDoctorId, exceptionalDate, exceptionalStartTime, exceptionalNotes, appointments]); // eslint-disable-line react-hooks/exhaustive-deps
 const workingDoctorsForFilter = scheduledDoctors.length
   ? scheduledDoctors
   : doctors;
@@ -1688,26 +1849,35 @@ useEffect(() => {
     return (a.name || "").localeCompare((b.name || ""), "mn");
   };
 
-  if (scheduledDoctors.length > 0) {
-    // Preserve backend ordering (AM-first / PM-second on weekdays; calendarOrder on weekends)
-    return [...scheduledDoctors];
+  const dayKey = filterDate;
+
+  // Start with scheduled doctors (preserves backend ordering)
+  const byDoctor: Record<number, ScheduledDoctor> = {};
+  for (const sd of scheduledDoctors) {
+    byDoctor[sd.id] = sd;
   }
 
-  const dayKey = filterDate;
-  const byDoctor: Record<number, ScheduledDoctor> = {};
-
+  // Add doctors who have appointments that day but are not in scheduledDoctors
   for (const a of appointments) {
     if (!a.doctorId) continue;
     if (getAppointmentDayKey(a) !== dayKey) continue;
-
-    if (!byDoctor[a.doctorId]) {
-      const baseDoc = doctors.find((d) => d.id === a.doctorId);
-      if (!baseDoc) continue;
-      byDoctor[a.doctorId] = { ...baseDoc, schedules: [] };
-    }
+    if (byDoctor[a.doctorId]) continue;
+    const baseDoc = doctors.find((d) => d.id === a.doctorId);
+    if (!baseDoc) continue;
+    byDoctor[a.doctorId] = { ...baseDoc, schedules: [] };
   }
 
-  return Object.values(byDoctor).sort(sortFn);
+  const scheduledIds = scheduledDoctors.map((d) => d.id);
+  return Object.values(byDoctor).sort((a, b) => {
+    const ai = scheduledIds.indexOf(a.id);
+    const bi = scheduledIds.indexOf(b.id);
+    // Scheduled doctors first (in their original order)
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    // Both unscheduled: sort by calendarOrder/name
+    return sortFn(a, b);
+  });
 }, [gridDoctorsOverride, scheduledDoctors, appointments, doctors, filterDate]);
 
   const moveDocInGrid = useCallback(async (doctorId: number, direction: "left" | "right") => {
@@ -3282,8 +3452,24 @@ const handleCancelDraft = (appointmentId: number) => {
           background: "white",
         }}
       >
-        <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: 16 }}>
-          Шинэ цаг захиалах
+        <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span>Шинэ цаг захиалах</span>
+          <button
+            type="button"
+            onClick={() => setShowExceptional(true)}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 6,
+              border: "none",
+              background: "#1e293b",
+              color: "white",
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Онцгой захиалга
+          </button>
         </h2>
         <AppointmentForm
           branches={branches}
@@ -3485,6 +3671,223 @@ const handleCancelDraft = (appointmentId: number) => {
       >
         Цуцлах
       </button>
+    </div>
+  </div>
+)}
+{/* Exceptional appointment modal */}
+{showExceptional && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.4)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 200,
+    }}
+    onClick={(e) => { if (e.target === e.currentTarget) setShowExceptional(false); }}
+  >
+    <div
+      style={{
+        background: "white",
+        borderRadius: 10,
+        padding: 24,
+        width: 480,
+        maxWidth: "95vw",
+        maxHeight: "90vh",
+        overflowY: "auto",
+        boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+        fontSize: 13,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "#1e293b" }}>
+          Онцгой захиалга
+        </h3>
+        <button
+          type="button"
+          onClick={() => setShowExceptional(false)}
+          style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#6b7280", lineHeight: 1 }}
+        >
+          ×
+        </button>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* Patient search */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontWeight: 600 }}>Үйлчлүүлэгч</label>
+          <input
+            type="text"
+            placeholder="РД, овог, нэр, утсаар хайх"
+            value={exceptionalPatientQuery}
+            onChange={(e) => {
+              const v = e.target.value;
+              setExceptionalPatientQuery(v);
+              if (!v.trim()) {
+                setExceptionalPatientId(null);
+                setExceptionalPatientResults([]);
+              } else {
+                triggerExceptionalPatientSearch(v);
+              }
+            }}
+            autoComplete="off"
+            style={{ borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px" }}
+          />
+          {exceptionalPatientLoading && (
+            <span style={{ fontSize: 11, color: "#6b7280" }}>Хайж байна...</span>
+          )}
+          {exceptionalPatientResults.length > 0 && exceptionalPatientId === null && (
+            <div style={{ border: "1px solid #e5e7eb", borderRadius: 6, background: "#fff", maxHeight: 180, overflowY: "auto" }}>
+              {exceptionalPatientResults.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    setExceptionalPatientId(p.id);
+                    setExceptionalPatientQuery(formatPatientSearchLabel(p));
+                    setExceptionalPatientResults([]);
+                  }}
+                  style={{
+                    display: "block", width: "100%", textAlign: "left",
+                    padding: "6px 8px", border: "none", borderBottom: "1px solid #f3f4f6",
+                    background: "white", cursor: "pointer", fontSize: 12,
+                  }}
+                >
+                  {formatPatientSearchLabel(p)}
+                </button>
+              ))}
+            </div>
+          )}
+          {exceptionalPatientId !== null && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 12, color: "#16a34a", fontWeight: 600 }}>✓ Сонгогдсон</span>
+              <button
+                type="button"
+                onClick={() => { setExceptionalPatientId(null); setExceptionalPatientQuery(""); setExceptionalPatientResults([]); }}
+                style={{ fontSize: 11, color: "#6b7280", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+              >
+                Өөрчлөх
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Branch */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontWeight: 600 }}>Салбар</label>
+          <select
+            value={exceptionalBranchId}
+            onChange={(e) => setExceptionalBranchId(e.target.value)}
+            style={{ borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px" }}
+          >
+            <option value="">Салбар сонгох</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Doctor (full list) */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontWeight: 600 }}>Эмч</label>
+          <select
+            value={exceptionalDoctorId}
+            onChange={(e) => setExceptionalDoctorId(e.target.value)}
+            style={{ borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px" }}
+          >
+            <option value="">Эмч сонгох</option>
+            {doctors.map((d) => (
+              <option key={d.id} value={d.id}>{formatDoctorName(d)}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Date */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontWeight: 600 }}>Огноо</label>
+          <input
+            type="date"
+            value={exceptionalDate}
+            onChange={(e) => { setExceptionalDate(e.target.value); setExceptionalStartTime(""); }}
+            style={{ borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px" }}
+          />
+        </div>
+
+        {/* Start time */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontWeight: 600 }}>Эхлэх цаг</label>
+          <select
+            value={exceptionalStartTime}
+            onChange={(e) => setExceptionalStartTime(e.target.value)}
+            disabled={!exceptionalDate}
+            style={{
+              borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px",
+              background: !exceptionalDate ? "#f3f4f6" : undefined,
+            }}
+          >
+            <option value="">Цаг сонгох</option>
+            {exceptionalDate &&
+              generateTimeSlotsForDay(getDateFromYMD(exceptionalDate)).map((s) => (
+                <option key={getSlotTimeString(s.start)} value={getSlotTimeString(s.start)}>
+                  {getSlotTimeString(s.start)}
+                </option>
+              ))
+            }
+          </select>
+        </div>
+
+        {/* Duration info */}
+        <div style={{ fontSize: 12, color: "#6b7280" }}>
+          Үргэлжлэх хугацаа: <strong>1 цаг</strong> (автоматаар)
+          {exceptionalStartTime && (
+            <> — Дуусах цаг: <strong>{addMinutesToTimeString(exceptionalStartTime, 60)}</strong></>
+          )}
+        </div>
+
+        {/* Notes */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label style={{ fontWeight: 600 }}>Тэмдэглэл</label>
+          <input
+            type="text"
+            placeholder="Захиалгын тэмдэглэл"
+            value={exceptionalNotes}
+            onChange={(e) => setExceptionalNotes(e.target.value)}
+            style={{ borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px" }}
+          />
+        </div>
+
+        {exceptionalError && (
+          <div style={{ color: "#b91c1c", fontSize: 12 }}>{exceptionalError}</div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={() => setShowExceptional(false)}
+            disabled={exceptionalSaving}
+            style={{
+              padding: "8px 16px", borderRadius: 6, border: "1px solid #d1d5db",
+              background: "#f9fafb", cursor: exceptionalSaving ? "default" : "pointer", fontSize: 13,
+            }}
+          >
+            Цуцлах
+          </button>
+          <button
+            type="button"
+            onClick={handleExceptionalSubmit}
+            disabled={exceptionalSaving}
+            style={{
+              padding: "8px 16px", borderRadius: 6, border: "none",
+              background: "#1e293b", color: "white",
+              cursor: exceptionalSaving ? "default" : "pointer",
+              fontSize: 13, fontWeight: 600, opacity: exceptionalSaving ? 0.7 : 1,
+            }}
+          >
+            {exceptionalSaving ? "Хадгалж байна..." : "Захиалах"}
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 )}
