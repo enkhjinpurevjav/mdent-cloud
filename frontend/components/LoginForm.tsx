@@ -17,14 +17,21 @@ export default function LoginForm() {
     try {
       const user = await login(email, password);
 
-      // Honor explicit redirect first (when user was forced to login)
       const redirectParam =
         typeof router.query.redirect === "string" ? router.query.redirect : "";
 
-      // Otherwise, role-based default landing page
-      const fallback = user?.role === "doctor" ? "/doctor" : "/";
+      const isDoctor = user?.role === "doctor";
 
-      router.replace(redirectParam || fallback);
+      // Doctors should always land inside /doctor/*
+      // Only honor redirect if it already targets /doctor
+      const safeRedirect =
+        redirectParam && (!isDoctor || redirectParam.startsWith("/doctor"))
+          ? redirectParam
+          : "";
+
+      const fallback = isDoctor ? "/doctor/appointments" : "/";
+
+      router.replace(safeRedirect || fallback);
     } catch (err: any) {
       setError(err?.message || "Login failed.");
     } finally {
@@ -34,6 +41,7 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* ...unchanged form... */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           И-мэйл
