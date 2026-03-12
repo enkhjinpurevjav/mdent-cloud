@@ -34,6 +34,12 @@ type DoctorAppointment = {
 
   // some endpoints might also include encounterId
   encounterId?: number | null;
+
+  // audit fields
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  createdByUser?: { id: number; name: string | null; ovog: string | null } | null;
+  updatedByUser?: { id: number; name: string | null; ovog: string | null } | null;
 };
 
 type Grouped = { date: string; items: DoctorAppointment[] };
@@ -213,6 +219,10 @@ function doctorApptToModalAppt(a: DoctorAppointment): Appointment {
     patientOvog: a.patientOvog ?? null,
     patientPhone: null,
     patientRegNo: null,
+    createdAt: a.createdAt ?? null,
+    updatedAt: a.updatedAt ?? null,
+    createdByUser: a.createdByUser ?? null,
+    updatedByUser: a.updatedByUser ?? null,
   } as unknown as Appointment;
 }
 

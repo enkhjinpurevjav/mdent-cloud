@@ -204,6 +204,8 @@ router.get("/appointments", async (req, res) => {
     const includeClause = {
       patient: { select: patientSelect },
       branch: { select: { id: true, name: true } },
+      createdBy: { select: { id: true, name: true, ovog: true } },
+      updatedBy: { select: { id: true, name: true, ovog: true } },
     };
 
     if (withEncounterData) {
@@ -253,6 +255,10 @@ router.get("/appointments", async (req, res) => {
         patientOvog: a.patient?.ovog || null,
         patientBookNumber: a.patient?.patientBook?.bookNumber || null,
         branchName: a.branch?.name || null,
+        createdAt: a.createdAt ? a.createdAt.toISOString() : null,
+        updatedAt: a.updatedAt ? a.updatedAt.toISOString() : null,
+        createdByUser: a.createdBy ? { id: a.createdBy.id, name: a.createdBy.name || null, ovog: a.createdBy.ovog || null } : null,
+        updatedByUser: a.updatedBy ? { id: a.updatedBy.id, name: a.updatedBy.name || null, ovog: a.updatedBy.ovog || null } : null,
       };
 
       if (withEncounterData) {

@@ -647,7 +647,8 @@ export default function AppointmentDetailsModal({
                           </button>
                         )}
 
-                        {!canStartEncounter &&
+                        {!doctorMode &&
+                          !canStartEncounter &&
                           a.status !== "ready_to_pay" &&
                           a.status !== "partial_paid" && (
                             <span
