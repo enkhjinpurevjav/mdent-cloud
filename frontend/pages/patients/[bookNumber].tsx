@@ -311,8 +311,24 @@ export default function PatientProfilePage() {
 
   const inputClass = "w-full rounded-md border border-gray-300 px-1.5 py-1 text-sm";
 
+  // Reusable button class constants
+  const ghostBtnClass =
+    "px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-gray-50 cursor-pointer hover:bg-gray-100 disabled:cursor-default disabled:opacity-40";
+  const smGhostBtnClass =
+    "px-2 py-1 text-sm rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer disabled:opacity-40 disabled:cursor-default";
+  const primaryBtnClass = (disabled: boolean) =>
+    `px-3 py-1.5 text-sm rounded-md border-0 text-white ${disabled ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 cursor-pointer"}`;
+  const dangerBtnClass =
+    "px-3 py-1 text-sm rounded border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 cursor-pointer";
+  const dangerBtnDisabledClass =
+    "px-3 py-1 text-sm rounded border border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed";
+  const iconBtnBlueClass =
+    "inline-flex items-center justify-center w-7 h-7 rounded border border-blue-300 bg-blue-50 text-blue-600 hover:bg-blue-100 cursor-pointer";
+  const iconBtnGhostClass =
+    "inline-flex items-center justify-center w-7 h-7 rounded border border-gray-300 bg-gray-50 text-gray-500 hover:bg-gray-100 cursor-pointer disabled:opacity-40 disabled:cursor-default";
+
   return (
-    <main className="max-w-7xl px-4 lg:px-8 py-8 font-sans">
+    <main className="max-w-7xl mx-auto px-4 lg:px-8 py-8 font-sans">
       <button
         type="button"
         onClick={() => {
@@ -323,7 +339,7 @@ export default function PatientProfilePage() {
             router.back();
           }
         }}
-        className="mb-4 px-2 py-1 text-sm rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer"
+        className={smGhostBtnClass}
       >
         ← Буцах
       </button>
@@ -334,7 +350,7 @@ export default function PatientProfilePage() {
       {!loading && !error && patient && pb && (
         <>
           {/* Top layout: left profile panel + right content */}
-          <section className="grid grid-cols-[260px_1fr] gap-4 mb-6 items-stretch">
+          <section className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 mb-6 items-start lg:items-stretch">
             {/* Left: profile card + side menu */}
             <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-4">
               <div className="mb-1 text-lg font-semibold">
@@ -511,7 +527,7 @@ export default function PatientProfilePage() {
                         <button
                           type="button"
                           onClick={startEdit}
-                          className="text-xs px-2 py-1 rounded-md border border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer"
+                          className={smGhostBtnClass}
                         >
                           Засах
                         </button>
@@ -798,7 +814,7 @@ export default function PatientProfilePage() {
                           type="button"
                           onClick={cancelEdit}
                           disabled={saving}
-                          className="px-3 py-1.5 text-sm rounded-md border border-gray-300 bg-gray-50 cursor-pointer hover:bg-gray-100 disabled:cursor-default"
+                          className={ghostBtnClass}
                         >
                           Болих
                         </button>
@@ -806,7 +822,7 @@ export default function PatientProfilePage() {
                           type="button"
                           onClick={handleSave}
                           disabled={saving}
-                          className={`px-3 py-1.5 text-sm rounded-md border-0 text-white ${saving ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 cursor-pointer"}`}
+                          className={primaryBtnClass(saving)}
                         >
                           {saving ? "Хадгалж байна..." : "Хадгалах"}
                         </button>
@@ -845,7 +861,7 @@ export default function PatientProfilePage() {
                       <button
                         type="button"
                         onClick={() => { setApptDateFrom(""); setApptDateTo(""); setApptPage(1); }}
-                        className="px-2 py-1 text-sm rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer"
+                        className={smGhostBtnClass}
                       >
                         Цэвэрлэх
                       </button>
@@ -907,7 +923,7 @@ export default function PatientProfilePage() {
                                         setReportAppointmentId(a.id);
                                         setReportModalOpen(true);
                                       }}
-                                      className="inline-flex items-center justify-center w-7 h-7 rounded border border-blue-300 bg-blue-50 text-blue-600 hover:bg-blue-100 cursor-pointer"
+                                      className={iconBtnBlueClass}
                                     >
                                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                                         <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
@@ -923,7 +939,7 @@ export default function PatientProfilePage() {
                                           setMaterialsModalOpen(true);
                                         }
                                       }}
-                                      className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-300 bg-gray-50 text-gray-500 hover:bg-gray-100 cursor-pointer disabled:opacity-40 disabled:cursor-default"
+                                      className={iconBtnGhostClass}
                                     >
                                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                                         <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
@@ -946,7 +962,7 @@ export default function PatientProfilePage() {
                             type="button"
                             onClick={() => setApptPage((p) => Math.max(1, p - 1))}
                             disabled={apptPage === 1}
-                            className="px-2 py-1 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer disabled:opacity-40 disabled:cursor-default"
+                            className={smGhostBtnClass}
                           >
                             ‹ Өмнөх
                           </button>
@@ -957,7 +973,7 @@ export default function PatientProfilePage() {
                             type="button"
                             onClick={() => setApptPage((p) => Math.min(apptTotalPages, p + 1))}
                             disabled={apptPage === apptTotalPages}
-                            className="px-2 py-1 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer disabled:opacity-40 disabled:cursor-default"
+                            className={smGhostBtnClass}
                           >
                             Дараах ›
                           </button>
@@ -992,7 +1008,7 @@ export default function PatientProfilePage() {
                           void handleClearVisitCard();
                         }}
                         disabled={visitCardSaving}
-                        className={`px-3 py-1 text-sm rounded border ${visitCardSaving ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed" : "border-red-300 bg-red-50 text-red-600 hover:bg-red-100 cursor-pointer"}`}
+                        className={visitCardSaving ? dangerBtnDisabledClass : dangerBtnClass}
                       >
                         Цэвэрлэх
                       </button>
@@ -1581,7 +1597,7 @@ export default function PatientProfilePage() {
                       type="button"
                       onClick={handleSaveVisitCard}
                       disabled={visitCardSaving}
-                      className={`px-3 py-1.5 text-sm rounded-md border-0 text-white ${visitCardSaving ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 cursor-pointer"}`}
+                      className={primaryBtnClass(visitCardSaving)}
                     >
                       {visitCardSaving ? "Хадгалж байна..." : "Хадгалах"}
                     </button>
@@ -1601,7 +1617,7 @@ export default function PatientProfilePage() {
                         if (!window.confirm("Гажиг заслын картын өгөгдлийг цэвэрлэх үү? Зөвхөн дэлгэцийн мэдээлэл цэвэрлэгдэх болно.")) return;
                         setOrthoResetKey((k) => k + 1);
                       }}
-                      className="px-3 py-1 text-sm rounded border border-red-300 bg-red-50 text-red-600 hover:bg-red-100 cursor-pointer"
+                      className={dangerBtnClass}
                     >
                       Цэвэрлэх
                     </button>
