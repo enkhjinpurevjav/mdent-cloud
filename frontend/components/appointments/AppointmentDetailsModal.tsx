@@ -392,18 +392,27 @@ export default function AppointmentDetailsModal({
   type="button"
   onClick={() => {
     const p = a.patient as any;
-    const bookNumber =
-      p?.patientBook?.bookNumber != null
-        ? String(p.patientBook.bookNumber).trim()
-        : "";
 
-    if (bookNumber) {
-      if (doctorMode) {
-        const returnTo = encodeURIComponent(router.asPath);
-        router.push(`/patients/${encodeURIComponent(bookNumber)}?tab=patient_history&returnTo=${returnTo}`);
-      } else {
-        const url = `/patients/${encodeURIComponent(bookNumber)}?tab=patient_history`;
-        window.open(url, "_blank", "noopener,noreferrer");
+// Prefer flattened field (doctor API style), then fallback to nested patientBook (admin style)
+const bookNumber =
+  (typeof (a as any).patientBookNumber === "string" && (a as any).patientBookNumber.trim()
+    ? (a as any).patientBookNumber.trim()
+    : "") ||
+  (p?.patientBook?.bookNumber != null ? String(p.patientBook.bookNumber).trim() : "");
+
+if (!bookNumber) return;
+
+if (doctorMode) {
+  const returnTo = encodeURIComponent(router.asPath);
+  router.push(
+    `/patients/${encodeURIComponent(bookNumber)}?tab=patient_history&returnTo=${returnTo}`
+  );
+  return;
+}
+
+// non-doctor mode keeps opening new tab (your existing behavior)
+const url = `/patients/${encodeURIComponent(bookNumber)}?tab=patient_history`;
+window.open(url, "_blank", "noopener,noreferrer");
       }
     }
   }}
