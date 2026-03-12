@@ -118,6 +118,21 @@ function formatPatient(a: DoctorAppointment): string {
 const SLOT_PX = 60;
 const MINUTES_PER_SLOT = 30;
 
+function formatMnt(amount: number): string {
+  return new Intl.NumberFormat("en-US").format(amount) + " ₮";
+}
+
+function formatSalesValue(
+  salesLoading: boolean,
+  salesError: boolean,
+  salesSummary: { todayTotal: number; monthTotal: number } | null,
+  field: "todayTotal" | "monthTotal"
+): string {
+  if (salesLoading) return "...";
+  if (salesError || !salesSummary) return "—";
+  return formatMnt(salesSummary[field]);
+}
+
 function formatStatusShort(status: string): string {
   switch (status) {
     case "booked": return "Зах.";
@@ -188,6 +203,11 @@ export default function DoctorAppointmentsPage() {
   // manual refresh button behavior like admin
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // sales summary state
+  const [salesSummary, setSalesSummary] = useState<{ todayTotal: number; monthTotal: number } | null>(null);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [salesError, setSalesError] = useState(false);
+
   // ---- load me once ----
   useEffect(() => {
     let cancelled = false;
@@ -208,6 +228,27 @@ export default function DoctorAppointmentsPage() {
       cancelled = true;
     };
   }, []);
+
+  // ---- load sales summary once doctorId is known ----
+  useEffect(() => {
+    if (!doctorId) return;
+    let cancelled = false;
+    setSalesLoading(true);
+    setSalesError(false);
+    (async () => {
+      try {
+        const res = await fetch("/api/doctor/sales-summary", { credentials: "include" });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data) throw new Error("Failed to fetch sales summary");
+        if (!cancelled) setSalesSummary({ todayTotal: data.todayTotal || 0, monthTotal: data.monthTotal || 0 });
+      } catch {
+        if (!cancelled) setSalesError(true);
+      } finally {
+        if (!cancelled) setSalesLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [doctorId]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -430,7 +471,32 @@ export default function DoctorAppointmentsPage() {
   }
 
   return (
-    <div style={{ maxWidth: 820, margin: "0 auto", padding: "16px 12px 40px" }}>
+    <div className="font-sans antialiased" style={{ maxWidth: 820, margin: "0 auto", padding: "16px 12px 40px" }}>
+      {/* KPI Summary Row */}
+      <div className="flex gap-2 overflow-x-auto sm:grid sm:grid-cols-3 sm:gap-3 mb-3" style={{ WebkitOverflowScrolling: "touch" }}>
+        {/* Card 1: Өнөөдрийн цаг */}
+        <div className="min-w-[140px] shrink-0 sm:min-w-0 bg-gray-100 rounded-xl p-3" style={{ border: "1px solid rgba(19,26,41,0.18)" }}>
+          <div className="text-[11px] font-bold text-gray-600">Өнөөдрийн цаг</div>
+          <div className="text-[22px] font-extrabold text-gray-900 leading-tight">
+            {loading ? "..." : todayAppointments.length}
+          </div>
+        </div>
+        {/* Card 2: Өнөөдрийн ₮ */}
+        <div className="min-w-[140px] shrink-0 sm:min-w-0 bg-gray-100 rounded-xl p-3" style={{ border: "1px solid rgba(19,26,41,0.18)" }}>
+          <div className="text-[11px] font-bold text-gray-600">Өнөөдрийн ₮</div>
+          <div className="text-[22px] font-extrabold text-gray-900 leading-tight">
+            {formatSalesValue(salesLoading, salesError, salesSummary, "todayTotal")}
+          </div>
+        </div>
+        {/* Card 3: Сарын ₮ */}
+        <div className="min-w-[140px] shrink-0 sm:min-w-0 bg-gray-100 rounded-xl p-3" style={{ border: "1px solid rgba(19,26,41,0.18)" }}>
+          <div className="text-[11px] font-bold text-gray-600">Сарын ₮</div>
+          <div className="text-[22px] font-extrabold text-gray-900 leading-tight">
+            {formatSalesValue(salesLoading, salesError, salesSummary, "monthTotal")}
+          </div>
+        </div>
+      </div>
+
       {/* Today timeline */}
       <div
         style={{
