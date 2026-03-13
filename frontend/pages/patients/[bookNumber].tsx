@@ -348,18 +348,20 @@ export default function PatientProfilePage() {
       {/*   sticky threshold with the container border so the bar stays flush under the header on scroll */}
       {/* In DoctorLayout: sticky top-11 clears the fixed 44px header; no negative margins needed */}
       {patient && pb && (
-        <div
-          className={`${isDoctor ? "sticky top-11" : "sticky"} z-50 border-b border-white/10`}
-          style={isDoctor
-            ? { background: "#061325" }
-            : { background: "#061325", margin: "-20px -20px 0 -20px", top: -20 }}
-        >
+  <div
+    className={[
+      "sticky z-50 border-b border-white/10 bg-[#061325]",
+      isDoctor ? "top-11" : "top-0",
+      // AdminLayout full-bleed (20px container padding)
+      isDoctor ? "" : "-mx-5",
+    ].join(" ")}
+  >
           {/* In AdminLayout, re-add the 20px padding that was removed by the negative margins above */}
-          <div style={isDoctor ? {} : { padding: "0 20px" }}>
-            <div className="flex items-center">
-              {/* Horizontally scrollable tab pills */}
-              <div className="flex-1 overflow-x-auto">
-                <div className="flex items-center gap-1 py-2 min-w-max">
+<div className={isDoctor ? "" : "px-5"}>
+  <div className="flex items-center">
+    {/* Horizontally scrollable tab pills */}
+    <div className="flex-1 overflow-x-auto">
+      <div className="flex items-center gap-1 py-2 min-w-max">
                   <button
                     type="button"
                     onClick={() => { setActiveTab("profile"); setEditMode(false); setSaveError(""); setSaveSuccess(""); }}
@@ -406,7 +408,7 @@ export default function PatientProfilePage() {
         </div>
       )}
 
-      <main className="py-6 font-sans">
+      <main className="pb-6 font-sans">
       {loading && <div>Ачааллаж байна...</div>}
       {!loading && error && <div className="text-red-600">{error}</div>}
 
