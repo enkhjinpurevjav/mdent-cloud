@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from "react";
+import EncounterReportModal from "../../components/patients/EncounterReportModal";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -47,7 +48,10 @@ function fmtMnt(v: number) {
   return `${Number(v || 0).toLocaleString("mn-MN")} ₮`;
 }
 
-function salesFormatPatient(ovog: string | null | undefined, name: string | null | undefined) {
+function salesFormatPatient(
+  ovog: string | null | undefined,
+  name: string | null | undefined
+) {
   const n = (name || "").trim();
   const o = (ovog || "").trim();
   if (o && n) return `${o[0]}. ${n}`;
@@ -58,18 +62,28 @@ function salesFormatDate(isoStr: string | null | undefined) {
   if (!isoStr) return "-";
   const d = new Date(isoStr);
   if (isNaN(d.getTime())) return "-";
-  return d.toLocaleDateString("mn-MN", { year: "numeric", month: "2-digit", day: "2-digit" });
+  return d.toLocaleDateString("mn-MN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 }
 
 function currentMonthStart() {
   const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-01`;
 }
 
 function currentMonthEnd() {
   const now = new Date();
   const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`;
+  return `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(last.getDate()).padStart(2, "0")}`;
 }
 
 // ── Icon components ───────────────────────────────────────────────────────────
@@ -78,7 +92,9 @@ function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      className={`h-4 w-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+      className={`h-4 w-4 transition-transform duration-200 ${
+        open ? "rotate-180" : ""
+      }`}
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -99,19 +115,32 @@ function EyeIcon() {
       stroke="currentColor"
       strokeWidth={2}
     >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+      />
     </svg>
   );
 }
 
 // ── DrillDown rows ─────────────────────────────────────────────────────────────
 
-function DrillDownRows({ lines }: { lines: SalesLineItem[] }) {
+function DrillDownRows({
+  lines,
+  onOpenReport,
+}: {
+  lines: SalesLineItem[];
+  onOpenReport: (appointmentId: number) => void;
+}) {
   if (lines.length === 0) {
     return (
       <tr>
-        {/* ✅ updated: expanded table now includes Үйлдэл column */}
         <td colSpan={9} className="px-8 py-4 text-center text-xs text-gray-500">
           Энэ ангилалд мэдээлэл олдсонгүй.
         </td>
@@ -122,20 +151,35 @@ function DrillDownRows({ lines }: { lines: SalesLineItem[] }) {
   return (
     <>
       {lines.map((line, idx) => {
-        const dateStr = salesFormatDate(line.appointmentScheduledAt || line.visitDate);
+        const dateStr = salesFormatDate(
+          line.appointmentScheduledAt || line.visitDate
+        );
         const patientStr = salesFormatPatient(line.patientOvog, line.patientName);
 
+        const canOpen =
+          line.appointmentId !== null && line.appointmentId !== undefined;
+        const tooltip = canOpen ? "Дэлгэрэнгүй" : "Цаг захиалга байхгүй";
+
         return (
-          <tr key={`${line.invoiceId}-${idx}`} className="border-t border-blue-100 bg-blue-50/30">
-            <td className="hidden xl:table-cell py-2 pl-8 pr-3 text-xs text-gray-700">#{line.invoiceId}</td>
+          <tr
+            key={`${line.invoiceId}-${idx}`}
+            className="border-t border-blue-100 bg-blue-50/30"
+          >
+            <td className="hidden xl:table-cell py-2 pl-8 pr-3 text-xs text-gray-700">
+              #{line.invoiceId}
+            </td>
 
             <td className="px-3 py-2 text-xs text-gray-700">{dateStr}</td>
 
             <td className="px-3 py-2 text-xs text-gray-700">{patientStr}</td>
 
-            <td className="hidden sm:table-cell px-3 py-2 text-xs text-gray-700">{line.serviceName}</td>
+            <td className="hidden sm:table-cell px-3 py-2 text-xs text-gray-700">
+              {line.serviceName}
+            </td>
 
-            <td className="hidden lg:table-cell px-3 py-2 text-right text-xs text-gray-700">{fmtMnt(line.priceMnt)}</td>
+            <td className="hidden lg:table-cell px-3 py-2 text-right text-xs text-gray-700">
+              {fmtMnt(line.priceMnt)}
+            </td>
 
             <td className="hidden lg:table-cell px-3 py-2 text-right text-xs text-gray-700">
               {line.discountMnt > 0 ? fmtMnt(line.discountMnt) : "-"}
@@ -145,21 +189,35 @@ function DrillDownRows({ lines }: { lines: SalesLineItem[] }) {
               {fmtMnt(line.allocatedPaidMnt)}
             </td>
 
-            <td className="hidden md:table-cell px-3 py-2 text-xs text-gray-700">{line.paymentMethodLabel || "-"}</td>
+            <td className="hidden md:table-cell px-3 py-2 text-xs text-gray-700">
+              {line.paymentMethodLabel || "-"}
+            </td>
 
-            {/* ✅ NEW: Үйлдэл (always visible) */}
-            <td className="px-3 py-2 text-center text-xs">
-              <button
-                type="button"
-                aria-label="Дэлгэрэнгүй харах"
-                onClick={() => {
-                  // TODO: wire to a modal or route later
-                  console.log("View sales line:", line);
-                }}
-                className="inline-flex items-center justify-center rounded border border-blue-200 bg-white p-1.5 text-blue-600 hover:bg-blue-50"
-              >
-                <EyeIcon />
-              </button>
+            {/* Үйлдэл (always visible) */}
+            <td className="px-3 py-2 text-center">
+              <div className="group relative inline-block">
+                <button
+                  type="button"
+                  disabled={!canOpen}
+                  aria-label={tooltip}
+                  onClick={() => {
+                    if (canOpen && line.appointmentId != null) {
+                      onOpenReport(line.appointmentId);
+                    }
+                  }}
+                  className={`rounded border p-1 transition-colors ${
+                    canOpen
+                      ? "border-blue-400 bg-white text-blue-600 hover:bg-blue-50"
+                      : "cursor-not-allowed border-gray-200 bg-gray-50 text-gray-300"
+                  }`}
+                >
+                  <EyeIcon />
+                </button>
+
+                <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                  {tooltip}
+                </span>
+              </div>
             </td>
           </tr>
         );
@@ -178,9 +236,18 @@ export default function DoctorSalesPage() {
   const [salesLoading, setSalesLoading] = useState(false);
   const [salesError, setSalesError] = useState("");
 
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const [categoryLines, setCategoryLines] = useState<Record<string, SalesLineItem[] | null | undefined>>({});
-  const [categoryErrors, setCategoryErrors] = useState<Record<string, string>>({});
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
+    new Set()
+  );
+  const [categoryLines, setCategoryLines] = useState<
+    Record<string, SalesLineItem[] | null | undefined>
+  >({});
+  const [categoryErrors, setCategoryErrors] = useState<Record<string, string>>(
+    {}
+  );
+
+  const [salesReportModalAppointmentId, setSalesReportModalAppointmentId] =
+    useState<number | null>(null);
 
   const fetchSalesData = useCallback(async () => {
     if (!startDate || !endDate) return;
@@ -192,13 +259,18 @@ export default function DoctorSalesPage() {
         { credentials: "include" }
       );
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Борлуулалтын мэдээлэл ачаалахад алдаа гарлаа.");
+      if (!res.ok)
+        throw new Error(
+          json?.error || "Борлуулалтын мэдээлэл ачаалахад алдаа гарлаа."
+        );
       setSalesData(json);
       setExpandedCategories(new Set());
       setCategoryLines({});
       setCategoryErrors({});
     } catch (e: any) {
-      setSalesError(e?.message || "Борлуулалтын мэдээлэ�� ачаалахад алдаа гарлаа.");
+      setSalesError(
+        e?.message || "Борлуулалтын мэдээлэл ачаалахад алдаа гарлаа."
+      );
       setSalesData(null);
     } finally {
       setSalesLoading(false);
@@ -222,10 +294,16 @@ export default function DoctorSalesPage() {
           { credentials: "include" }
         );
         const json = await res.json();
-        if (!res.ok) throw new Error(json?.error || "Дэлгэрэнгүй мэдээлэл ачаалахад алдаа гарлаа.");
+        if (!res.ok)
+          throw new Error(
+            json?.error || "Дэлгэрэнгүй мэдээлэл ачаалахад алдаа гарлаа."
+          );
         setCategoryLines((prev) => ({ ...prev, [categoryKey]: json }));
       } catch (e: any) {
-        setCategoryErrors((prev) => ({ ...prev, [categoryKey]: e?.message || "Алдаа гарлаа" }));
+        setCategoryErrors((prev) => ({
+          ...prev,
+          [categoryKey]: e?.message || "Алдаа гарлаа",
+        }));
         setCategoryLines((prev) => ({ ...prev, [categoryKey]: [] }));
       }
     },
@@ -250,7 +328,14 @@ export default function DoctorSalesPage() {
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "16px 12px 0" }}>
-      <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16, color: "#0f2044" }}>
+      <h1
+        style={{
+          fontSize: 20,
+          fontWeight: 700,
+          marginBottom: 16,
+          color: "#0f2044",
+        }}
+      >
         Борлуулалт
       </h1>
 
@@ -342,7 +427,9 @@ export default function DoctorSalesPage() {
                 boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
               }}
             >
-              <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Нийт борлуулалт</div>
+              <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>
+                Нийт борлуулалт
+              </div>
               <div style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>
                 {fmtMnt(salesData.totals.totalSalesMnt)}
               </div>
@@ -356,7 +443,9 @@ export default function DoctorSalesPage() {
                 boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
               }}
             >
-              <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>Нийт эмчийн хувь</div>
+              <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>
+                Нийт эмчийн хувь
+              </div>
               <div style={{ fontSize: 18, fontWeight: 700, color: "#111827" }}>
                 {fmtMnt(salesData.totals.totalIncomeMnt)}
               </div>
@@ -408,8 +497,12 @@ export default function DoctorSalesPage() {
                           <td className="hidden sm:table-cell" style={{ padding: "10px 14px", textAlign: "right" }}>
                             {Number(row.pctUsed || 0)}%
                           </td>
-                          <td style={{ padding: "10px 14px", textAlign: "right" }}>{fmtMnt(row.salesMnt)}</td>
-                          <td style={{ padding: "10px 14px", textAlign: "right" }}>{fmtMnt(row.incomeMnt)}</td>
+                          <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                            {fmtMnt(row.salesMnt)}
+                          </td>
+                          <td style={{ padding: "10px 14px", textAlign: "right" }}>
+                            {fmtMnt(row.incomeMnt)}
+                          </td>
                           <td style={{ padding: "10px 14px", textAlign: "center" }}>
                             <button
                               type="button"
@@ -441,7 +534,9 @@ export default function DoctorSalesPage() {
                                     Ачаалж байна...
                                   </p>
                                 ) : lineError ? (
-                                  <p style={{ padding: "10px 32px", fontSize: 12, color: "#dc2626" }}>{lineError}</p>
+                                  <p style={{ padding: "10px 32px", fontSize: 12, color: "#dc2626" }}>
+                                    {lineError}
+                                  </p>
                                 ) : (
                                   <div style={{ overflowX: "auto" }}>
                                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -471,14 +566,18 @@ export default function DoctorSalesPage() {
                                           <th className="hidden md:table-cell" style={{ textAlign: "left", padding: "7px 10px", fontWeight: 600, color: "#374151" }}>
                                             Төлбөрийн хэрэгсэл
                                           </th>
-                                          {/* ✅ NEW header */}
                                           <th style={{ textAlign: "center", padding: "7px 10px", fontWeight: 600, color: "#374151" }}>
                                             Үйлдэл
                                           </th>
                                         </tr>
                                       </thead>
                                       <tbody>
-                                        <DrillDownRows lines={lines ?? []} />
+                                        <DrillDownRows
+                                          lines={lines ?? []}
+                                          onOpenReport={(apptId) =>
+                                            setSalesReportModalAppointmentId(apptId)
+                                          }
+                                        />
                                       </tbody>
                                     </table>
                                   </div>
@@ -510,6 +609,13 @@ export default function DoctorSalesPage() {
           </div>
         </>
       )}
+
+      {/* ✅ Modal opened by the eye button */}
+      <EncounterReportModal
+        open={salesReportModalAppointmentId != null}
+        onClose={() => setSalesReportModalAppointmentId(null)}
+        appointmentId={salesReportModalAppointmentId}
+      />
     </div>
   );
 }
