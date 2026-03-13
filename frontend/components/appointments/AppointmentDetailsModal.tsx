@@ -626,25 +626,24 @@ export default function AppointmentDetailsModal({
                           </button>
                         )}
 
-                        {(a.status === "ready_to_pay" || a.status === "partial_paid") && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleViewEncounterForPayment(a)
-                            }
-                            style={{
-                              padding: "4px 10px",
-                              borderRadius: 6,
-                              border: "1px solid #f59e0b",
-                              background: "#fef3c7",
-                              color: "#92400e",
-                              fontSize: 12,
-                              cursor: "pointer",
-                            }}
-                          >
-                            Төлбөр авах / Үзлэг харах
-                          </button>
-                        )}
+                        {!doctorMode &&
+  (a.status === "ready_to_pay" || a.status === "partial_paid") && (
+    <button
+      type="button"
+      onClick={() => handleViewEncounterForPayment(a)}
+      style={{
+        padding: "4px 10px",
+        borderRadius: 6,
+        border: "1px solid #f59e0b",
+        background: "#fef3c7",
+        color: "#92400e",
+        fontSize: 12,
+        cursor: "pointer",
+      }}
+    >
+      Төлбөр авах / Үзлэг харах
+    </button>
+  )}
 
                         {a.status === "imaging" && (
                           <button
