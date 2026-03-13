@@ -522,18 +522,7 @@ export default function DiagnosesEditor({
                       )}
                     </div>
                   )}
-                  <div
-                    style={{
-                      padding: "4px 10px",
-                      background: "#fef3c7",
-                      borderRadius: 6,
-                      fontSize: 12,
-                      fontWeight: 500,
-                      color: "#92400e",
-                    }}
-                  >
-                    🦷 Бүх шүд
-                  </div>
+                 
                 </div>
               )}
 
