@@ -382,7 +382,7 @@ export default function DoctorAppointmentsPage() {
       alert(data?.error || "Үзлэг эхлүүлэхэд алдаа гарлаа.");
       return;
     }
-    router.push(`/doctor/encounters/${data.encounterId}?appointmentId=${a.id}`);
+    router.push(`/encounters/${data.encounterId}?appointmentId=${a.id}`);
   }, [router]);
 
   const todayAppointments = useMemo(() => {
