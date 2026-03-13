@@ -3388,7 +3388,7 @@ const handleCancelDraft = (appointmentId: number) => {
                               a.status === "completed" ||
                               a.status === "cancelled"
                                 ? "#ffffff"
-                                : "#111827",
+                                : "#1F2937",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
