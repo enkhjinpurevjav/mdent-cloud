@@ -127,41 +127,52 @@ export default function DoctorProfilePage() {
         {/* Avatar */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 20 }}>
           {photoUrl ? (
-            <img
-              src={photoUrl}
-              alt="Doctor portrait"
-              style={{
-                width: 72,
-                height: 72,
-                borderRadius: "50%",
-                objectFit: "cover",
-                marginBottom: 10,
-                border: "1px solid #e5e7eb",
-                background: "#f3f4f6",
-              }}
-              onError={(e) => {
-                // fallback to letter avatar if image fails
-                (e.currentTarget as HTMLImageElement).style.display = "none";
-              }}
-            />
-          ) : (
+  <div
+    style={{
+      width: 110,
+      height: 110,
+      borderRadius: 12,           // not circle
+      overflow: "hidden",
+      marginBottom: 10,
+      border: "1px solid #e5e7eb",
+      background: "#f3f4f6",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    }}
+  >
+    <img
+      src={photoUrl}
+      alt="Doctor portrait"
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "contain",     // show full image
+      }}
+      onError={(e) => {
+        // fallback to letter avatar if image fails
+        (e.currentTarget as HTMLImageElement).style.display = "none";
+      }}
+    />
+  </div>
+) : (
             <div
-              style={{
-                width: 72,
-                height: 72,
-                borderRadius: "50%",
-                background: "#0f2044",
-                color: "white",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 28,
-                fontWeight: 700,
-                marginBottom: 10,
-              }}
-            >
-              {avatarLetter}
-            </div>
+  style={{
+    width: 110,
+    height: 110,
+    borderRadius: 12,
+    background: "#0f2044",
+    color: "white",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 36,
+    fontWeight: 700,
+    marginBottom: 10,
+  }}
+>
+  {avatarLetter}
+</div>
           )}
 
           <div style={{ fontWeight: 700, fontSize: 18, color: "#111827" }}>
