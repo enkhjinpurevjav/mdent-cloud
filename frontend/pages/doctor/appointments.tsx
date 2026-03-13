@@ -96,27 +96,31 @@ function buildSlots(startMin: number, endMin: number): string[] {
 function getStatusColor(status: string): string {
   switch (status) {
     case "ongoing":
-      return "#6b7280"; // gray (admin screenshot style)
+      return "#16a34a"; // green
     case "completed":
-      return "#fb6190"; // pink
+      return "#22c55e";
     case "confirmed":
-      return "#bbf7d0"; // light green
+      return "#3b82f6";
     case "online":
-      return "#a78bfa"; // purple
+      return "#6366f1"; // indigo
     case "imaging":
-      return "#8b5cf6";
+      return "#8b5cf6"; // purple
     case "ready_to_pay":
-      return "#facc15";
+      return "#fbbf24"; // amber
     case "partial_paid":
-      return "#fbbf24";
+      return "#eab308"; // yellow
     case "no_show":
-      return "#ef4444";
+      return "#ef4444"; // red
     case "cancelled":
-      return "#1889fc";
+      return "#dc2626"; // dark red
+    case "other":
+      return "#94a3b8"; // gray
     default:
-      return "#77f9fe"; // booked (admin uses cyan-ish default)
+      return "#cbd5f5"; // booked
   }
 }
+
+
 
 function formatPatient(a: DoctorAppointment): string {
   const n = (a.patientName || "").trim();
