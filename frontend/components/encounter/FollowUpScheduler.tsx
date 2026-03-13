@@ -65,6 +65,7 @@ type FollowUpSchedulerProps = {
 
   onQuickCreate?: (params: { date: string; time: string; durationMinutes: number }) => void;
   onReloadAvailability?: () => void; // Callback to reload availability after creating appointment
+  hideTopCheckbox?: boolean;
 };
 
 function getHmFromIso(iso: string): string {
@@ -102,6 +103,7 @@ export default function FollowUpScheduler({
   onDeleteAppointment,
   onQuickCreate,
   onReloadAvailability,
+  hideTopCheckbox = false,
 }: FollowUpSchedulerProps) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsDate, setDetailsDate] = useState<string>("");
@@ -542,7 +544,9 @@ useEffect(() => {
 
   return (
     <div className="mt-4 p-3 rounded-lg border border-gray-200 bg-gray-50">
+      {(!hideTopCheckbox || followUpLoading || followUpError || followUpSuccess) && (
       <div className="flex items-center gap-2 mb-1.5">
+        {!hideTopCheckbox && (
         <label className="flex items-center gap-2 text-sm font-medium text-gray-900">
           <input
             type="checkbox"
@@ -553,6 +557,7 @@ useEffect(() => {
           />
           <span>Давтан үзлэгийн цаг авах</span>
         </label>
+        )}
 
         {followUpLoading && (
           <span className="text-xs text-gray-500">
@@ -572,6 +577,7 @@ useEffect(() => {
           </span>
         )}
       </div>
+      )}
 
       {showFollowUpScheduler && (
         <>
