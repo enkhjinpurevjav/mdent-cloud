@@ -349,13 +349,12 @@ export default function PatientProfilePage() {
       {/* In DoctorLayout: sticky top-11 clears the fixed 44px header; no negative margins needed */}
       {patient && pb && (
   <div
-    className={[
-      "sticky z-50 border-b border-white/10 bg-[#061325]",
-      isDoctor ? "top-11" : "top-0",
-      // AdminLayout full-bleed (20px container padding)
-      isDoctor ? "" : "-mx-5",
-    ].join(" ")}
-  >
+  className={[
+    "sticky top-11 z-50 border-b border-white/10 bg-[#061325]",
+    // AdminLayout full-bleed (20px container padding)
+    isDoctor ? "" : "-mx-5",
+  ].join(" ")}
+>
           {/* In AdminLayout, re-add the 20px padding that was removed by the negative margins above */}
 <div className={isDoctor ? "" : "px-5"}>
   <div className="flex items-center">
