@@ -26,6 +26,7 @@ type ConsentFormsBlockProps = {
   onPatientSignatureUpload: (blob: Blob) => Promise<void>;
   onDoctorSignatureUpload: (blob: Blob) => Promise<void>;
   onAttachDoctorSignature: () => Promise<void>;
+  hideTopCheckbox?: boolean;
 };
 
 export default function ConsentFormsBlock({
@@ -46,6 +47,7 @@ export default function ConsentFormsBlock({
   onPatientSignatureUpload,
   onDoctorSignatureUpload,
   onAttachDoctorSignature,
+  hideTopCheckbox = false,
 }: ConsentFormsBlockProps) {
   const updateConsentAnswers = onConsentAnswersDraftUpdate;
   const saveConsentApi = onSaveConsentApi;
@@ -68,6 +70,7 @@ export default function ConsentFormsBlock({
                 background: "#f9fafb",
               }}
             >
+              {!hideTopCheckbox && (
               <div
                 style={{
                   display: "flex",
@@ -111,6 +114,7 @@ export default function ConsentFormsBlock({
                   </span>
                 )}
               </div>
+              )}
 
               {consents.length > 0 && (
                 <>

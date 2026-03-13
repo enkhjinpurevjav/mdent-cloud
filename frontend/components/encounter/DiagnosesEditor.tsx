@@ -883,7 +883,7 @@ export default function DiagnosesEditor({
           >
             {saving || prescriptionSaving
               ? "Хадгалж байна..."
-              : "Зөвхөн онош хадгалах"}
+              : "Онош хадгалах"}
           </button>
 
           <button

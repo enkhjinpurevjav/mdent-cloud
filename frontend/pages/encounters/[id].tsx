@@ -2018,24 +2018,41 @@ const handleFinishEncounter = async () => {
     );
   }
 
-  // Collapsible section header shared by doctor mode
+  // Collapsible section header shared by all modes
   const SectionHeader = ({
     title,
     open,
     onToggle,
+    checked,
+    onCheckedChange,
+    loading,
   }: {
     title: string;
     open: boolean;
     onToggle: () => void;
+    checked?: boolean;
+    onCheckedChange?: (v: boolean) => void;
+    loading?: boolean;
   }) => (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="w-full flex items-center justify-between px-4 py-3 bg-white rounded-t-lg border border-gray-200 text-left"
-    >
-      <span className="font-semibold text-sm text-gray-800">{title}</span>
-      <span className="text-gray-400 text-lg leading-none">{open ? "▲" : "▼"}</span>
-    </button>
+    <div className="w-full flex items-center px-4 py-3 bg-white rounded-t-lg border border-gray-200">
+      {onCheckedChange !== undefined && (
+        <input
+          type="checkbox"
+          checked={checked ?? false}
+          disabled={loading}
+          onChange={(e) => onCheckedChange(e.target.checked)}
+          className="mr-2 h-4 w-4 shrink-0 cursor-pointer"
+        />
+      )}
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex-1 flex items-center justify-between text-left"
+      >
+        <span className="font-semibold text-sm text-gray-800">{title}</span>
+        <span className="text-gray-400 text-lg leading-none">{open ? "▲" : "▼"}</span>
+      </button>
+    </div>
   );
 
   return (
@@ -2067,140 +2084,100 @@ const handleFinishEncounter = async () => {
 
           {/* Consent Forms */}
           <section className="mb-3">
-            {isDoctor ? (
-              <>
-                <SectionHeader
-                  title="Зөвшөөрлийн хуудас"
-                  open={consentOpen}
-                  onToggle={() => setConsentOpen((v) => !v)}
-                />
-                {consentOpen && (
-                  <div className="border border-t-0 border-gray-200 rounded-b-lg bg-white">
-                    <ConsentFormsBlock
-                      encounter={encounter}
-                      consents={consents}
-                      consentTypeDraft={consentTypeDraft}
-                      consentAnswersDraft={consentAnswersDraft}
-                      consentSaving={consentSaving}
-                      consentLoading={consentLoading}
-                      consentError={consentError}
-                      uploadingPatientSignature={uploadingPatientSignature}
-                      uploadingDoctorSignature={uploadingDoctorSignature}
-                      attachingDoctorSignature={attachingDoctorSignature}
-                      onConsentTypeDraftChange={setConsentTypeDraft}
-                      onConsentAnswersDraftUpdate={updateConsentAnswers}
-                      onSaveConsent={saveCurrentConsent}
-                      onSaveConsentApi={saveConsentApi}
-                      onPatientSignatureUpload={handlePatientSignatureUpload}
-                      onDoctorSignatureUpload={handleDoctorSignatureUpload}
-                      onAttachDoctorSignature={handleAttachDoctorSignature}
-                    />
-                  </div>
-                )}
-              </>
-            ) : (
-              <ConsentFormsBlock
-                encounter={encounter}
-                consents={consents}
-                consentTypeDraft={consentTypeDraft}
-                consentAnswersDraft={consentAnswersDraft}
-                consentSaving={consentSaving}
-                consentLoading={consentLoading}
-                consentError={consentError}
-                uploadingPatientSignature={uploadingPatientSignature}
-                uploadingDoctorSignature={uploadingDoctorSignature}
-                attachingDoctorSignature={attachingDoctorSignature}
-                onConsentTypeDraftChange={setConsentTypeDraft}
-                onConsentAnswersDraftUpdate={updateConsentAnswers}
-                onSaveConsent={saveCurrentConsent}
-                onSaveConsentApi={saveConsentApi}
-                onPatientSignatureUpload={handlePatientSignatureUpload}
-                onDoctorSignatureUpload={handleDoctorSignatureUpload}
-                onAttachDoctorSignature={handleAttachDoctorSignature}
+            <>
+              <SectionHeader
+                title="Зөвшөөрлийн хуудас"
+                open={consentOpen}
+                onToggle={() => setConsentOpen((v) => !v)}
+                checked={consents.length > 0}
+                onCheckedChange={async (v) => {
+                  if (v) {
+                    await saveConsentApi("root_canal");
+                    setConsentOpen(true);
+                  } else {
+                    await saveConsentApi(null);
+                    setConsentOpen(false);
+                  }
+                }}
+                loading={consentLoading || consentSaving}
               />
-            )}
+              {consentOpen && (
+                <div className="border border-t-0 border-gray-200 rounded-b-lg bg-white">
+                  <ConsentFormsBlock
+                    encounter={encounter}
+                    consents={consents}
+                    consentTypeDraft={consentTypeDraft}
+                    consentAnswersDraft={consentAnswersDraft}
+                    consentSaving={consentSaving}
+                    consentLoading={consentLoading}
+                    consentError={consentError}
+                    uploadingPatientSignature={uploadingPatientSignature}
+                    uploadingDoctorSignature={uploadingDoctorSignature}
+                    attachingDoctorSignature={attachingDoctorSignature}
+                    onConsentTypeDraftChange={setConsentTypeDraft}
+                    onConsentAnswersDraftUpdate={updateConsentAnswers}
+                    onSaveConsent={saveCurrentConsent}
+                    onSaveConsentApi={saveConsentApi}
+                    onPatientSignatureUpload={handlePatientSignatureUpload}
+                    onDoctorSignatureUpload={handleDoctorSignatureUpload}
+                    onAttachDoctorSignature={handleAttachDoctorSignature}
+                    hideTopCheckbox
+                  />
+                </div>
+              )}
+            </>
           </section>
 
           {/* Follow-up Scheduler */}
           <section className="mb-3">
-            {isDoctor ? (
-              <>
-                <SectionHeader
-                  title="Давтан үзлэгийн цаг авах"
-                  open={followUpOpen}
-                  onToggle={() => setFollowUpOpen((v) => !v)}
-                />
-                {followUpOpen && (
-                  <div className="border border-t-0 border-gray-200 rounded-b-lg bg-white">
-                    <FollowUpScheduler
-                      showFollowUpScheduler={showFollowUpScheduler}
-                      followUpDateFrom={followUpDateFrom}
-                      followUpDateTo={followUpDateTo}
-                      followUpSlotMinutes={followUpSlotMinutes}
-                      followUpAvailability={followUpAvailability}
-                      followUpLoading={followUpLoading}
-                      followUpError={followUpError}
-                      followUpSuccess={followUpSuccess}
-                      followUpBooking={followUpBooking}
-                      followUpAppointments={followUpAppointments}
-                      followUpNoSchedule={followUpNoSchedule}
-                      onToggleScheduler={(checked) => {
-                        setShowFollowUpScheduler(checked);
-                        if (!checked) {
-                          setFollowUpError("");
-                          setFollowUpSuccess("");
-                          setFollowUpAvailability(null);
-                          setFollowUpAppointments([]);
-                          setFollowUpNoSchedule(false);
-                        }
-                      }}
-                      onDateFromChange={setFollowUpDateFrom}
-                      onDateToChange={setFollowUpDateTo}
-                      onSlotMinutesChange={setFollowUpSlotMinutes}
-                      onBookAppointment={createFollowUpAppointment}
-                      onDeleteAppointment={deleteFollowUpAppointment}
-                      onQuickCreate={handleQuickCreateAppointment}
-                      doctorId={encounter?.doctorId || undefined}
-                      encounterId={encounter?.id || undefined}
-                      onReloadAvailability={loadFollowUpAvailability}
-                    />
-                  </div>
-                )}
-              </>
-            ) : (
-              <FollowUpScheduler
-                showFollowUpScheduler={showFollowUpScheduler}
-                followUpDateFrom={followUpDateFrom}
-                followUpDateTo={followUpDateTo}
-                followUpSlotMinutes={followUpSlotMinutes}
-                followUpAvailability={followUpAvailability}
-                followUpLoading={followUpLoading}
-                followUpError={followUpError}
-                followUpSuccess={followUpSuccess}
-                followUpBooking={followUpBooking}
-                followUpAppointments={followUpAppointments}
-                followUpNoSchedule={followUpNoSchedule}
-                onToggleScheduler={(checked) => {
-                  setShowFollowUpScheduler(checked);
-                  if (!checked) {
+            <>
+              <SectionHeader
+                title="Давтан үзлэгийн цаг авах"
+                open={followUpOpen}
+                onToggle={() => setFollowUpOpen((v) => !v)}
+                checked={showFollowUpScheduler}
+                onCheckedChange={(v) => {
+                  setShowFollowUpScheduler(v);
+                  if (!v) {
                     setFollowUpError("");
                     setFollowUpSuccess("");
                     setFollowUpAvailability(null);
                     setFollowUpAppointments([]);
                     setFollowUpNoSchedule(false);
                   }
+                  setFollowUpOpen(v);
                 }}
-                onDateFromChange={setFollowUpDateFrom}
-                onDateToChange={setFollowUpDateTo}
-                onSlotMinutesChange={setFollowUpSlotMinutes}
-                onBookAppointment={createFollowUpAppointment}
-                onDeleteAppointment={deleteFollowUpAppointment}
-                onQuickCreate={handleQuickCreateAppointment}
-                doctorId={encounter?.doctorId || undefined}
-                encounterId={encounter?.id || undefined}
-                onReloadAvailability={loadFollowUpAvailability}
+                loading={followUpLoading}
               />
-            )}
+              {followUpOpen && (
+                <div className="border border-t-0 border-gray-200 rounded-b-lg bg-white">
+                  <FollowUpScheduler
+                    showFollowUpScheduler={showFollowUpScheduler}
+                    followUpDateFrom={followUpDateFrom}
+                    followUpDateTo={followUpDateTo}
+                    followUpSlotMinutes={followUpSlotMinutes}
+                    followUpAvailability={followUpAvailability}
+                    followUpLoading={followUpLoading}
+                    followUpError={followUpError}
+                    followUpSuccess={followUpSuccess}
+                    followUpBooking={followUpBooking}
+                    followUpAppointments={followUpAppointments}
+                    followUpNoSchedule={followUpNoSchedule}
+                    onToggleScheduler={setShowFollowUpScheduler}
+                    onDateFromChange={setFollowUpDateFrom}
+                    onDateToChange={setFollowUpDateTo}
+                    onSlotMinutesChange={setFollowUpSlotMinutes}
+                    onBookAppointment={createFollowUpAppointment}
+                    onDeleteAppointment={deleteFollowUpAppointment}
+                    onQuickCreate={handleQuickCreateAppointment}
+                    doctorId={encounter?.doctorId || undefined}
+                    encounterId={encounter?.id || undefined}
+                    onReloadAvailability={loadFollowUpAvailability}
+                    hideTopCheckbox
+                  />
+                </div>
+              )}
+            </>
           </section>
 
           {/* Tooth Chart */}
