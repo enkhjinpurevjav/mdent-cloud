@@ -251,6 +251,9 @@ export default function DoctorAppointmentsPage() {
   // manual refresh button behavior like admin
   const [refreshKey, setRefreshKey] = useState(0);
 
+  // mobile filter panel toggle (< lg)
+  const [showMobileFilter, setShowMobileFilter] = useState(false);
+
   // modal state for appointment details
   const [detailsModal, setDetailsModal] = useState<{
     open: boolean;
@@ -430,8 +433,6 @@ export default function DoctorAppointmentsPage() {
 
   // ---- today timeline bounds (schedule -> clinic hours fallback) ----
   const timeline = useMemo(() => {
-    const fallback = defaultClinicHours(today);
-
     // A) Prefer schedule if present
     if (scheduleToday?.startTime && scheduleToday?.endTime) {
       const startTime = scheduleToday.startTime;
@@ -446,10 +447,23 @@ export default function DoctorAppointmentsPage() {
         startMin,
         endMin: safeEndMin,
         slots: buildSlots(startMin, safeEndMin),
+        noSchedule: false,
       };
     }
 
-    // B) No schedule: fall back to default clinic hours
+    // B) Weekend with no schedule — do NOT show misleading default hours
+    if (isWeekendYmd(today)) {
+      return {
+        title: "Өнөөдрийн цаг захиалга",
+        startMin: 0,
+        endMin: 30,
+        slots: [],
+        noSchedule: true,
+      };
+    }
+
+    // C) Weekday with no schedule: fall back to default clinic hours
+    const fallback = defaultClinicHours(today);
     const startMin = minutesFromHHMM(fallback.startTime);
     const endMin = minutesFromHHMM(fallback.endTime);
     const safeEndMin = Math.max(endMin, startMin + 30);
@@ -459,6 +473,7 @@ export default function DoctorAppointmentsPage() {
       startMin,
       endMin: safeEndMin,
       slots: buildSlots(startMin, safeEndMin),
+      noSchedule: false,
     };
   }, [scheduleToday, today]);
 
@@ -534,116 +549,130 @@ export default function DoctorAppointmentsPage() {
           {timeline.title}
         </div>
 
-        {/* single horizontal scroll container: header + body scroll together */}
-        <div
-          style={{
-            marginTop: 6,
-            overflowX: "auto",
-            overflowY: "hidden",
-            WebkitOverflowScrolling: "touch",
-          }}
-        >
-          {/* fixed-width inner canvas */}
+        {timeline.noSchedule ? (
+          /* Weekend with no schedule configured */
           <div
             style={{
-              width: Math.max(360, timeline.slots.length * SLOT_PX),
+              textAlign: "center",
+              padding: "20px 0 8px",
+              color: "#94a3b8",
+              fontSize: 14,
             }}
           >
-            {/* time labels row */}
-            <div style={{ display: "flex" }}>
-              {timeline.slots.map((t, idx) => (
-                <div
-                  key={t}
-                  style={{
-                    width: SLOT_PX,
-                    flexShrink: 0,
-                    fontSize: 11,
-                    color: "#94a3b8",
-                    borderLeft: idx > 0 ? "1px solid #eef2f7" : "none",
-                    paddingLeft: 4,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {t}
-                </div>
-              ))}
-            </div>
-
-            {/* blocks canvas */}
+            Өнөөдрийн хуваарь тохируулаагүй байна
+          </div>
+        ) : (
+          /* single horizontal scroll container: header + body scroll together */
+          <div
+            style={{
+              marginTop: 6,
+              overflowX: "auto",
+              overflowY: "hidden",
+              WebkitOverflowScrolling: "touch",
+            }}
+          >
+            {/* fixed-width inner canvas */}
             <div
               style={{
-                position: "relative",
-                height: 88,
-                marginTop: 4,
-                background: "#f8fafc",
-                borderRadius: 12,
+                width: Math.max(360, timeline.slots.length * SLOT_PX),
               }}
             >
-              {/* vertical grid lines */}
-              {timeline.slots.map((t, idx) => (
-                <div
-                  key={t}
-                  style={{
-                    position: "absolute",
-                    left: idx * SLOT_PX,
-                    top: 0,
-                    bottom: 0,
-                    width: 1,
-                    background: "#e5e7eb",
-                  }}
-                />
-              ))}
-
-              {/* blocks */}
-              {todayAppointments.map((a) => (
-                <div
-                  key={a.id}
-                  style={{ ...blockStyle(a), cursor: "pointer" }}
-                  title={`${formatPatient(a)} ${isoToLocalHHMM(a.scheduledAt)}-${isoToLocalHHMM(
-                    a.endAt || null
-                  )}`}
-                  onClick={() => setDetailsModal({ open: true, appointment: a })}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetailsModal({ open: true, appointment: a }); }
-                  }}
-                >
+              {/* time labels row */}
+              <div style={{ display: "flex" }}>
+                {timeline.slots.map((t, idx) => (
                   <div
+                    key={t}
                     style={{
-                      fontWeight: 700,
+                      width: SLOT_PX,
+                      flexShrink: 0,
                       fontSize: 11,
+                      color: "#94a3b8",
+                      borderLeft: idx > 0 ? "1px solid #eef2f7" : "none",
+                      paddingLeft: 4,
                       whiteSpace: "nowrap",
-                      textOverflow: "ellipsis",
-                      overflow: "hidden",
                     }}
                   >
-                    {formatPatient(a)}
+                    {t}
                   </div>
-                  <div style={{ fontSize: 10, lineHeight: 1.2, opacity: 0.9 }}>
-                    {formatStatusShort(a.status)}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
 
-              {todayAppointments.length === 0 && !loading && !error && (
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#94a3b8",
-                    fontSize: 13,
-                  }}
-                >
-                  Өнөөдрийн цаг алга
-                </div>
-              )}
+              {/* blocks canvas */}
+              <div
+                style={{
+                  position: "relative",
+                  height: 88,
+                  marginTop: 4,
+                  background: "#f8fafc",
+                  borderRadius: 12,
+                }}
+              >
+                {/* vertical grid lines */}
+                {timeline.slots.map((t, idx) => (
+                  <div
+                    key={t}
+                    style={{
+                      position: "absolute",
+                      left: idx * SLOT_PX,
+                      top: 0,
+                      bottom: 0,
+                      width: 1,
+                      background: "#e5e7eb",
+                    }}
+                  />
+                ))}
+
+                {/* blocks */}
+                {todayAppointments.map((a) => (
+                  <div
+                    key={a.id}
+                    style={{ ...blockStyle(a), cursor: "pointer" }}
+                    title={`${formatPatient(a)} ${isoToLocalHHMM(a.scheduledAt)}-${isoToLocalHHMM(
+                      a.endAt || null
+                    )}`}
+                    onClick={() => setDetailsModal({ open: true, appointment: a })}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setDetailsModal({ open: true, appointment: a }); }
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 11,
+                        whiteSpace: "nowrap",
+                        textOverflow: "ellipsis",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {formatPatient(a)}
+                    </div>
+                    <div style={{ fontSize: 10, lineHeight: 1.2, opacity: 0.9 }}>
+                      {formatStatusShort(a.status)}
+                    </div>
+                  </div>
+                ))}
+
+                {todayAppointments.length === 0 && !loading && !error && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#94a3b8",
+                      fontSize: 13,
+                    }}
+                  >
+                    Өнөөдрийн цаг алга
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Filters (range) */}
@@ -656,9 +685,98 @@ export default function DoctorAppointmentsPage() {
           marginBottom: 12,
         }}
       >
+        {/* ── Mobile compact button row (< lg) ── */}
+        <div className="flex gap-2 lg:hidden">
+          {[
+            { label: "7 хоног", days: 7 },
+            { label: "14 хоног", days: 14 },
+            { label: "1 сар", days: 30 },
+          ].map(({ label, days }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                setFrom(today);
+                setTo(addDaysYmd(today, days));
+                setRefreshKey((k) => k + 1);
+                setShowMobileFilter(false);
+              }}
+              style={{
+                flex: 1,
+                border: "1px solid #d1d5db",
+                background: "#f9fafb",
+                borderRadius: 8,
+                padding: "7px 4px",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setShowMobileFilter((v) => !v)}
+            style={{
+              flex: 1,
+              border: "1px solid #2563eb",
+              background: showMobileFilter ? "#2563eb" : "#eff6ff",
+              color: showMobileFilter ? "#fff" : "#2563eb",
+              borderRadius: 8,
+              padding: "7px 4px",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Шүүлт
+          </button>
+        </div>
+
+        {/* ── Mobile detailed filter (shown when showMobileFilter is true) ── */}
+        {showMobileFilter && (
+          <div className="mt-3 flex gap-2 items-end flex-wrap lg:hidden">
+            {(["Эхлэх өдөр:", "Дуусах өдөр:"] as const).map((labelText) => {
+              const isStart = labelText === "Эхлэх өдөр:";
+              return (
+                <label key={labelText} style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, flex: 1, minWidth: 130 }}>
+                  {labelText}
+                  <input
+                    type="date"
+                    value={isStart ? from : to}
+                    onChange={(e) => isStart ? setFrom(e.target.value) : setTo(e.target.value)}
+                    style={{ border: "1px solid #d1d5db", borderRadius: 8, padding: "6px 8px", fontSize: 13 }}
+                  />
+                </label>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => setRefreshKey((k) => k + 1)}
+              disabled={loading}
+              style={{
+                border: "none",
+                background: "#2563eb",
+                color: "white",
+                borderRadius: 8,
+                padding: "7px 12px",
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.6 : 1,
+                height: 36,
+              }}
+            >
+              {loading ? "..." : "Харах"}
+            </button>
+          </div>
+        )}
+
+        {/* ── Desktop filter row (lg+) ── */}
         <div
+          className="hidden lg:flex"
           style={{
-            display: "flex",
             gap: 10,
             alignItems: "end",
             flexWrap: "wrap",
