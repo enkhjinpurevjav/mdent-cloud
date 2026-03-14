@@ -799,140 +799,82 @@ const PatientHistoryBook: React.FC<Props> = ({
               ЭМЧИЛГЭЭНИЙ БҮРТГЭЛ
             </div>
             <div className="overflow-x-auto max-w-full" style={{ WebkitOverflowScrolling: "touch" }}>
-  <table
-    className={`border-collapse text-[10px] border border-black w-full ${
-      isDoctor
-        ? "table-fixed min-w-[560px] md:min-w-[900px]"
-        : "min-w-[640px] md:min-w-[900px]"
-    }`}
-  >
-    <thead>
-      <tr className="bg-gray-100">
-        <th
-          className={`border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap ${
-            isDoctor ? "w-[88px]" : "min-w-[80px]"
-          }`}
-        >
-          Огноо
-        </th>
-
-        <th
-          className={`border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap ${
-            isDoctor ? "w-[78px]" : "min-w-[72px]"
-          }`}
-        >
-          Шүдний дугаар
-        </th>
-
-        <th
-          className={`border border-black p-[4px_6px] text-left font-semibold ${
-            isDoctor ? "w-[190px]" : "min-w-[110px]"
-          }`}
-        >
-          Бодит үзлэг, зовиур
-        </th>
-
-        <th
-          className={`border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap ${
-            isDoctor ? "w-[60px]" : "min-w-[60px]"
-          }`}
-        >
-          Онош
-        </th>
-
-        <th
-          className={`border border-black p-[4px_6px] text-left font-semibold ${
-            isDoctor ? "w-[200px]" : "min-w-[110px]"
-          }`}
-        >
-          Эмчилгээ
-        </th>
-
-        <th
-          className={`border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap min-w-[80px] ${
-            isDoctor ? "hidden md:table-cell" : ""
-          }`}
-        >
-          Индикатор
-        </th>
-
-        <th
-          className={`border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap min-w-[80px] ${
-            isDoctor ? "hidden md:table-cell" : ""
-          }`}
-        >
-          Тэмдэглэл
-        </th>
-
-        <th
-          className={`border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap ${
-            isDoctor ? "w-[120px]" : "min-w-[100px]"
-          }`}
-        >
-          Эмч болон сувилагч
-        </th>
-      </tr>
-    </thead>
-
-    <tbody>
-      {diagnosisRows.map((row, idx) => (
-        <tr key={idx}>
-          <td className="border border-black p-[4px_6px] align-top whitespace-nowrap">
-            {row.date}
-          </td>
-
-          <td className="border border-black p-[4px_6px] align-top whitespace-nowrap">
-            {row.toothCode}
-          </td>
-
-          <td className="border border-black p-[4px_6px] align-top break-words">
-            {row.complaints.map((c, i) => (
-              <div key={i}>{c}</div>
-            ))}
-            {row.complaints.length === 0 && "-"}
-          </td>
-
-          <td className="border border-black p-[4px_6px] align-top whitespace-nowrap">
-            {row.diagnosis}
-          </td>
-
-          <td className="border border-black p-[4px_6px] align-top break-words">
-            {row.treatment.map((t, i) => (
-              <div key={i}>{t}</div>
-            ))}
-            {row.treatment.length === 0 && "-"}
-          </td>
-
-          <td
-            className={`border border-black p-[4px_6px] align-top whitespace-nowrap ${
-              isDoctor ? "hidden md:table-cell" : ""
-            }`}
-          >
-            {row.indicators.length > 0 ? row.indicators.join(", ") : "-"}
-          </td>
-
-          <td
-            className={`border border-black p-[4px_6px] align-top whitespace-nowrap ${
-              isDoctor ? "hidden md:table-cell" : ""
-            }`}
-          >
-            {row.note || "-"}
-          </td>
-
-          <td
-            className={`border border-black p-[4px_6px] align-top whitespace-nowrap ${
-              isDoctor ? "overflow-hidden text-ellipsis truncate" : ""
-            }`}
-            title={isDoctor ? row.doctorNurse : undefined}
-          >
-            {row.doctorNurse}
-          </td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
-</div>
+            <table className="border-collapse text-[10px] border border-black min-w-[640px] md:min-w-[900px]">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap min-w-[80px]">
+                    Огноо
+                  </th>
+                  <th className="border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap min-w-[72px]">
+                    Шүдний #
+                  </th>
+                  <th className="border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap min-w-[110px]">
+                    Бодит үзлэг, зовиур
+                  </th>
+                  <th className="border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap min-w-[60px]">
+                    Онош
+                  </th>
+                  <th className="border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap min-w-[110px]">
+                    Эмчилгээ
+                  </th>
+                  <th
+                    className={`border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap min-w-[80px] ${isDoctor ? "hidden md:table-cell" : ""}`}
+                  >
+                    Индикатор
+                  </th>
+                  <th
+                    className={`border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap min-w-[80px] ${isDoctor ? "hidden md:table-cell" : ""}`}
+                  >
+                    Тэмдэглэл
+                  </th>
+                  <th className="border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap min-w-[100px]">
+                    Эмч болон сувилагч
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {diagnosisRows.map((row, idx) => (
+                  <tr key={idx}>
+                    <td className="border border-black p-[4px_6px] align-top whitespace-nowrap">
+                      {row.date}
+                    </td>
+                    <td className="border border-black p-[4px_6px] align-top whitespace-nowrap">
+                      {row.toothCode}
+                    </td>
+                    <td className="border border-black p-[4px_6px] align-top break-words">
+                      {row.complaints.map((c, i) => (
+                        <div key={i}>{c}</div>
+                      ))}
+                      {row.complaints.length === 0 && "-"}
+                    </td>
+                    <td className="border border-black p-[4px_6px] align-top whitespace-nowrap">
+                      {row.diagnosis}
+                    </td>
+                    <td className="border border-black p-[4px_6px] align-top break-words">
+                      {row.treatment.map((t, i) => (
+                        <div key={i}>{t}</div>
+                      ))}
+                      {row.treatment.length === 0 && "-"}
+                    </td>
+                    <td
+                      className={`border border-black p-[4px_6px] align-top whitespace-nowrap ${isDoctor ? "hidden md:table-cell" : ""}`}
+                    >
+                      {row.indicators.length > 0 ? row.indicators.join(", ") : "-"}
+                    </td>
+                    <td
+                      className={`border border-black p-[4px_6px] align-top whitespace-nowrap ${isDoctor ? "hidden md:table-cell" : ""}`}
+                    >
+                      {row.note || "-"}
+                    </td>
+                    <td className="border border-black p-[4px_6px] align-top whitespace-nowrap">
+                      {row.doctorNurse}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
             </div>
+          </div>
         )}
 
         {showTable && diagnosisRows.length === 0 && (
