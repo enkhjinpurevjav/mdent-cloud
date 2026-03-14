@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import { getMe } from "../../../utils/auth";
+import NurseIncomeDetails from "../../../components/nurses/NurseIncomeDetails";
 
 type Branch = {
   id: number;
@@ -30,7 +32,18 @@ type NurseScheduleDay = {
 };
 
 type ShiftType = "AM" | "PM" | "WEEKEND_FULL";
-type NurseTabKey = "profile" | "schedule";
+type NurseTabKey = "profile" | "schedule" | "income";
+
+function getDefaultIncomeDates() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const mm = String(month + 1).padStart(2, "0");
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const start = `${year}-${mm}-01`;
+  const end = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
+  return { start, end };
+}
 
 function formatIsoDateOnly(iso?: string | null) {
   if (!iso) return "";
@@ -63,10 +76,26 @@ export default function NurseProfilePage() {
   const [activeTab, setActiveTab] = useState<NurseTabKey>("profile");
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
+  // Current viewer role (for admin-only tabs)
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+
+  // Income tab state
+  const [incomeInputStart, setIncomeInputStart] = useState(() => getDefaultIncomeDates().start);
+  const [incomeInputEnd, setIncomeInputEnd] = useState(() => getDefaultIncomeDates().end);
+  const [incomeStart, setIncomeStart] = useState(() => getDefaultIncomeDates().start);
+  const [incomeEnd, setIncomeEnd] = useState(() => getDefaultIncomeDates().end);
+
+  useEffect(() => {
+    getMe().then((u) => setCurrentUserRole(u?.role ?? null));
+  }, []);
+
+  const isAdminRole =
+    currentUserRole === "admin" || currentUserRole === "super_admin";
+
   useEffect(() => {
     const tabParam = router.query.tab as string | undefined;
     if (!tabParam) return;
-    const allowed: NurseTabKey[] = ["profile", "schedule"];
+    const allowed: NurseTabKey[] = ["profile", "schedule", "income"];
     if (allowed.includes(tabParam as NurseTabKey)) {
       setActiveTab(tabParam as NurseTabKey);
       setIsEditingProfile(false);
@@ -881,6 +910,20 @@ export default function NurseProfilePage() {
               >
                 Ажлын хуваарь
               </button>
+
+              {isAdminRole && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("income");
+                    setIsEditingProfile(false);
+                    setError(null);
+                  }}
+                  className={`text-left px-2.5 py-1.5 rounded-md border-0 cursor-pointer ${activeTab === "income" ? "bg-blue-50 text-blue-700 font-medium" : "bg-transparent text-gray-500 font-normal"}`}
+                >
+                  Орлого
+                </button>
+              )}
             </div>
           </div>
 
@@ -1647,6 +1690,60 @@ export default function NurseProfilePage() {
                   </>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* INCOME TAB */}
+          {activeTab === "income" && (
+            <div className="rounded-xl border border-gray-200 p-4 bg-white">
+              {!isAdminRole ? (
+                <p className="text-gray-600">Хандах эрхгүй.</p>
+              ) : (
+                <>
+                  <h2 className="text-base font-bold mb-3">
+                    Сувилагчийн орлогын дэлгэрэнгүй
+                  </h2>
+                  <div className="flex items-end gap-3 mb-5 flex-wrap">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">
+                        Эхлэх огноо
+                      </label>
+                      <input
+                        type="date"
+                        value={incomeInputStart}
+                        onChange={(e) => setIncomeInputStart(e.target.value)}
+                        className="border border-gray-300 rounded-md px-2 py-1.5 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">
+                        Дуусах огноо
+                      </label>
+                      <input
+                        type="date"
+                        value={incomeInputEnd}
+                        onChange={(e) => setIncomeInputEnd(e.target.value)}
+                        className="border border-gray-300 rounded-md px-2 py-1.5 text-sm"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIncomeStart(incomeInputStart);
+                        setIncomeEnd(incomeInputEnd);
+                      }}
+                      className="px-4 py-1.5 rounded-lg bg-blue-600 text-white text-sm cursor-pointer hover:bg-blue-700"
+                    >
+                      Харах
+                    </button>
+                  </div>
+                  <NurseIncomeDetails
+                    nurseId={Number(id)}
+                    startDate={incomeStart}
+                    endDate={incomeEnd}
+                  />
+                </>
+              )}
             </div>
           )}
         </div>
