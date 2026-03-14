@@ -817,12 +817,12 @@ const PatientHistoryBook: React.FC<Props> = ({
                     Эмчилгээ
                   </th>
                   <th
-                    className={`border border-black p-[4px_6px] text-left font-semibold w-[12%]${isDoctor ? " hidden md:table-cell" : ""}`}
+                    className={`border border-black p-[4px_6px] text-left font-semibold w-[12%] ${isDoctor ? "hidden md:table-cell" : ""}`}
                   >
                     Индикатор
                   </th>
                   <th
-                    className={`border border-black p-[4px_6px] text-left font-semibold w-[14%]${isDoctor ? " hidden md:table-cell" : ""}`}
+                    className={`border border-black p-[4px_6px] text-left font-semibold w-[14%] ${isDoctor ? "hidden md:table-cell" : ""}`}
                   >
                     Тэмдэглэл
                   </th>
@@ -856,12 +856,12 @@ const PatientHistoryBook: React.FC<Props> = ({
                       {row.treatment.length === 0 && "-"}
                     </td>
                     <td
-                      className={`border border-black p-[4px_6px] align-top${isDoctor ? " hidden md:table-cell" : ""}`}
+                      className={`border border-black p-[4px_6px] align-top ${isDoctor ? "hidden md:table-cell" : ""}`}
                     >
                       {row.indicators.length > 0 ? row.indicators.join(", ") : "-"}
                     </td>
                     <td
-                      className={`border border-black p-[4px_6px] align-top${isDoctor ? " hidden md:table-cell" : ""}`}
+                      className={`border border-black p-[4px_6px] align-top ${isDoctor ? "hidden md:table-cell" : ""}`}
                     >
                       {row.note || "-"}
                     </td>
