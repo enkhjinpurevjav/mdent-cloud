@@ -806,7 +806,7 @@ const PatientHistoryBook: React.FC<Props> = ({
                     Огноо
                   </th>
                   <th className="border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap min-w-[72px]">
-                    Шүдний дугаар
+                    Шүдний #
                   </th>
                   <th className="border border-black p-[4px_6px] text-left font-semibold whitespace-nowrap min-w-[110px]">
                     Бодит үзлэг, зовиур
