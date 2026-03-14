@@ -115,12 +115,11 @@ export default function NurseIncomeDetailsPage() {
       </div>
 
       <h1 className="text-2xl font-bold mb-1">
-        Сувилагч — Орлогын Дэлгэрэнгүй
+        Сувилагчийн орлогын дэлгэрэнгүй
       </h1>
       {details && (
         <div className="text-sm text-gray-500 mb-5">
-          {details.startDate} — {details.endDate} · Зураг %: {details.nurseImagingPct}%
-        </div>
+          {details.startDate} — {details.endDate} </div>
       )}
 
       {error && (
@@ -140,14 +139,14 @@ export default function NurseIncomeDetailsPage() {
               {details.totals.totalIncomeMnt.toLocaleString("mn-MN")} ₮
             </div>
             <div className="text-sm text-gray-700 flex gap-6 flex-wrap">
-              <span>Зурагны орлого: {details.totals.imagingIncomeMnt.toLocaleString("mn-MN")} ₮</span>
+              <span>Зургийн орлого: {details.totals.imagingIncomeMnt.toLocaleString("mn-MN")} ₮</span>
               <span>Туслах орлого: {details.totals.assistIncomeMnt.toLocaleString("mn-MN")} ₮</span>
             </div>
           </section>
 
           {/* Imaging lines table */}
           <h2 className="text-base font-bold mb-2">
-            Зурагны орлого ({details.nurseImagingPct}%)
+            Зургийн орлого ({details.nurseImagingPct}%)
           </h2>
           {details.imagingLines.length === 0 ? (
             <p className="text-gray-500 text-sm mb-6">
@@ -217,7 +216,7 @@ export default function NurseIncomeDetailsPage() {
 
           {/* Assist lines table */}
           <h2 className="text-base font-bold mb-2">
-            Туслах орлого (1%)
+            Туслах орлого
           </h2>
           {details.assistLines.length === 0 ? (
             <p className="text-gray-500 text-sm">
