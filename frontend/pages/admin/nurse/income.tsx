@@ -93,7 +93,7 @@ export default function NursesIncomePage() {
   return (
     <main className="w-full px-6 py-6 font-sans">
       <h1 className="text-2xl font-bold mb-4">
-        Сувилагчийн Зурагны Орлогын Тайлан
+        Сувилагчийн орлогын тайлан
       </h1>
 
       {/* Filters */}
