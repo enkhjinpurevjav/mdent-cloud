@@ -959,7 +959,7 @@ export default function PatientProfilePage() {
         </tbody>
       </table>
     </div>
-    </div>
+
                       {/* Pagination */}
                       <div className="flex items-center justify-between mt-3 text-sm text-gray-600">
                         <span>
