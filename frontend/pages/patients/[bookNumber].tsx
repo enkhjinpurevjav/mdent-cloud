@@ -814,7 +814,7 @@ export default function PatientProfilePage() {
                       </button>
                     )}
                   </div>
-                  {filteredAppointments.length === 0 ? (
+                   ? (
   <div className="text-sm text-gray-500">Цаг захиалгын бүртгэл алга.</div>
 ) : (
   <>
@@ -823,19 +823,31 @@ export default function PatientProfilePage() {
       style={{ WebkitOverflowScrolling: "touch" }}
     >
       <table
-        className={`w-full border-collapse text-sm ${
-          // Doctor portal: force horizontal scroll so "Үйлдэл" is a real next column (no overlap)
-          isDoctor ? "min-w-[720px]" : "min-w-[600px]"
+        className={`border-collapse text-sm ${
+          // Key: on doctor view we DO NOT use w-full (that creates leftover "empty" space).
+          // Instead we use w-max + table-fixed + explicit col widths, so columns sit tightly.
+          isDoctor ? "table-fixed w-max min-w-[520px]" : "w-full min-w-[600px]"
         }`}
       >
+        {isDoctor ? (
+          <colgroup>
+            <col style={{ width: "132px" }} /> {/* Огноо / цаг */}
+            <col style={{ width: "110px" }} /> {/* Салбар */}
+            <col style={{ width: "140px" }} /> {/* Эмч */}
+            <col style={{ width: "84px" }} />  {/* Үйлдэл */}
+          </colgroup>
+        ) : null}
+
         <thead className="bg-gray-50">
           <tr>
             <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700 whitespace-nowrap">
               Огноо / цаг
             </th>
+
             <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700 whitespace-nowrap">
               Салбар
             </th>
+
             <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700 whitespace-nowrap">
               Эмч
             </th>
@@ -865,27 +877,15 @@ export default function PatientProfilePage() {
         <tbody>
           {pagedAppointments.map((a) => (
             <tr key={a.id} className="odd:bg-white even:bg-gray-50">
-              <td
-                className={`border-b border-gray-100 py-1.5 px-2 ${
-                  isDoctor ? "whitespace-nowrap" : ""
-                }`}
-              >
+              <td className="border-b border-gray-100 py-1.5 px-2 whitespace-nowrap">
                 {formatDateTime(a.scheduledAt)}
               </td>
 
-              <td
-                className={`border-b border-gray-100 py-1.5 px-2 ${
-                  isDoctor ? "whitespace-nowrap" : ""
-                }`}
-              >
+              <td className="border-b border-gray-100 py-1.5 px-2 whitespace-nowrap">
                 {a.branch?.name || "-"}
               </td>
 
-              <td
-                className={`border-b border-gray-100 py-1.5 px-2 ${
-                  isDoctor ? "whitespace-nowrap" : ""
-                }`}
-              >
+              <td className="border-b border-gray-100 py-1.5 px-2 whitespace-nowrap">
                 {formatDoctorName(a.doctor)}
               </td>
 
@@ -905,17 +905,9 @@ export default function PatientProfilePage() {
                 {displayOrDash(a.notes ?? null)}
               </td>
 
-              <td
-                className={`border-b border-gray-100 py-1.5 px-2 ${
-                  isDoctor ? "whitespace-nowrap" : ""
-                }`}
-              >
+              <td className="border-b border-gray-100 py-1.5 px-2 whitespace-nowrap">
                 {a.status === "completed" && (
-                  <div
-                    className={`flex items-center gap-1 ${
-                      isDoctor ? "flex-nowrap" : ""
-                    }`}
-                  >
+                  <div className="flex items-center gap-1 flex-nowrap">
                     <button
                       title="Дэлгэрэнгүй"
                       onClick={() => {
