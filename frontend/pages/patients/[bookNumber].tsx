@@ -821,27 +821,30 @@ export default function PatientProfilePage() {
                   ) : (
                     <>
                       <div className="overflow-x-auto max-w-full" style={{ WebkitOverflowScrolling: "touch" }}>
-                      <table className="w-full border-collapse text-sm min-w-[600px]">
+                      <table className={`w-full border-collapse text-sm ${isDoctor ? "table-fixed" : ""} ${isDoctor ? "min-w-0" : "min-w-[600px]"}`}>
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
-                              Огноо / цаг
-                            </th>
-                            <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
-                              Салбар
-                            </th>
-                            <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
-                              Эмч
-                            </th>
-                            <th className={`text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700${isDoctor ? " hidden md:table-cell" : ""}`}>
-                              Төлөв
-                            </th>
-                            <th className={`text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700${isDoctor ? " hidden md:table-cell" : ""}`}>
-                              Тэмдэглэл
-                            </th>
-                            <th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700">
-                              Үйлдэл
-                            </th>
+                            <th className={`text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700 whitespace-nowrap ${isDoctor ? "w-[140px]" : ""}`}>
+  Огноо / цаг
+</th>
+<th className={`text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700 whitespace-nowrap ${isDoctor ? "w-[120px]" : ""}`}>
+  Салбар
+</th>
+<th className="text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700 whitespace-nowrap">
+  Эмч
+</th>
+
+{/* keep these hidden on doctor mobile */}
+<th className={`text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700 whitespace-nowrap${isDoctor ? " hidden md:table-cell w-[110px]" : ""}`}>
+  Төлөв
+</th>
+<th className={`text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700 whitespace-nowrap${isDoctor ? " hidden md:table-cell w-[160px]" : ""}`}>
+  Тэмдэглэл
+</th>
+
+<th className={`text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700 whitespace-nowrap ${isDoctor ? "w-[90px]" : ""}`}>
+  Үйлдэл
+</th>
                           </tr>
                         </thead>
                         <tbody>
