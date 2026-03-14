@@ -842,7 +842,7 @@ export default function PatientProfilePage() {
   Тэмдэглэл
 </th>
 
-<th className={`text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700 whitespace-nowrap ${isDoctor ? "w-[90px]" : ""}`}>
+<th className={`text-left border-b border-gray-200 py-2 px-2 font-semibold text-gray-700 whitespace-nowrap ${isDoctor ? "w-[84px]" : ""}`}>
   Үйлдэл
 </th>
                           </tr>
@@ -850,15 +850,15 @@ export default function PatientProfilePage() {
                         <tbody>
                           {pagedAppointments.map((a) => (
                             <tr key={a.id} className="odd:bg-white even:bg-gray-50">
-                              <td className="border-b border-gray-100 py-1.5 px-2">
-                                {formatDateTime(a.scheduledAt)}
-                              </td>
-                              <td className="border-b border-gray-100 py-1.5 px-2">
-                                {a.branch?.name || "-"}
-                              </td>
-                              <td className="border-b border-gray-100 py-1.5 px-2">
-                                {formatDoctorName(a.doctor)}
-                              </td>
+                              <td className={`border-b border-gray-100 py-1.5 px-2 ${isDoctor ? "whitespace-nowrap" : ""}`}>
+  {formatDateTime(a.scheduledAt)}
+</td>
+                              <td className={`border-b border-gray-100 py-1.5 px-2 ${isDoctor ? "whitespace-nowrap overflow-hidden text-ellipsis truncate" : ""}`}>
+  {a.branch?.name || "-"}
+</td>
+                              <td className={`border-b border-gray-100 py-1.5 px-2 ${isDoctor ? "whitespace-nowrap overflow-hidden text-ellipsis truncate" : ""}`}>
+  {formatDoctorName(a.doctor)}
+</td>
                               <td className={`border-b border-gray-100 py-1.5 px-2${isDoctor ? " hidden md:table-cell" : ""}`}>
                                 {formatStatus(a.status)}
                               </td>
