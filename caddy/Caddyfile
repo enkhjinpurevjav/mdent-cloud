@@ -6,6 +6,10 @@
 mdent.cloud, www.mdent.cloud, app.mdent.cloud {
   encode gzip
 
+  # SSE MUST NOT be gzipped (otherwise events get buffered and never flush)
+  @appointments_stream path /api/appointments/stream
+  encode @appointments_stream off
+
   route {
     # API must be handled BEFORE frontend fallback
     @api path /api/*
@@ -35,6 +39,10 @@ book.mdent.cloud {
 # Public API (direct API subdomain)
 api.mdent.cloud {
   encode gzip
+
+  # SSE MUST NOT be gzipped here either
+  @appointments_stream path /api/appointments/stream
+  encode @appointments_stream off
 
   @cors_preflight {
     method OPTIONS
