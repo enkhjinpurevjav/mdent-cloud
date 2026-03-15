@@ -155,42 +155,45 @@ export default function NurseIncomeDetails({ nurseId, startDate, endDate, apiBas
         </p>
       ) : (
         <>
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="bg-gray-50 text-left">
-                <th className="px-3 py-2">Нэхэмжлэл #</th>
-                <th className="px-3 py-2">Үйлчилгээ</th>
-                <th className="px-3 py-2 text-right">Суурь дүн (₮)</th>
-                <th className="px-3 py-2 text-right">% тохиргоо</th>
-                <th className="px-3 py-2 text-right">Орлого (₮)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {imagingPageRows.map((line) => (
-                <tr key={line.invoiceItemId} className="border-b border-gray-200">
-                  <td className="px-3 py-2">{line.invoiceId}</td>
-                  <td className="px-3 py-2">{line.serviceName}</td>
+          <div className="overflow-x-auto overflow-y-auto max-h-[360px] rounded-lg border border-gray-200">
+            <table className="w-full border-collapse text-sm">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-gray-50 text-left">
+                  <th className="px-3 py-2">Нэхэмжлэл #</th>
+                  <th className="px-3 py-2">Үйлчилгээ</th>
+                  <th className="px-3 py-2 text-right hidden sm:table-cell">Суурь дүн (₮)</th>
+                  <th className="px-3 py-2 text-right">% тохиргоо</th>
+                  <th className="px-3 py-2 text-right">Орлого (₮)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {imagingPageRows.map((line) => (
+                  <tr key={line.invoiceItemId} className="border-b border-gray-200">
+                    <td className="px-3 py-2">{line.invoiceId}</td>
+                    <td className="px-3 py-2">{line.serviceName}</td>
+                    <td className="px-3 py-2 text-right hidden sm:table-cell">
+                      {line.lineNet.toLocaleString("mn-MN")} ₮
+                    </td>
+                    <td className="px-3 py-2 text-right">{line.imagingPct}%</td>
+                    <td className="px-3 py-2 text-right">
+                      {line.incomeMnt.toLocaleString("mn-MN")} ₮
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-gray-50 font-bold">
+                  <td className="px-3 py-2" />
+                  <td className="px-3 py-2" />
+                  <td className="px-3 py-2 hidden sm:table-cell" />
+                  <td className="px-3 py-2 text-right">Нийт:</td>
                   <td className="px-3 py-2 text-right">
-                    {line.lineNet.toLocaleString("mn-MN")} ₮
-                  </td>
-                  <td className="px-3 py-2 text-right">{line.imagingPct}%</td>
-                  <td className="px-3 py-2 text-right">
-                    {line.incomeMnt.toLocaleString("mn-MN")} ₮
+                    {details.totals.imagingIncomeMnt.toLocaleString("mn-MN")} ₮
                   </td>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-gray-50 font-bold">
-                <td colSpan={4} className="px-3 py-2 text-right">
-                  Нийт:
-                </td>
-                <td className="px-3 py-2 text-right">
-                  {details.totals.imagingIncomeMnt.toLocaleString("mn-MN")} ₮
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+              </tfoot>
+            </table>
+          </div>
           <div className="mt-2 mb-6 flex items-center justify-end gap-2 text-sm">
             <button
               type="button"
@@ -225,42 +228,45 @@ export default function NurseIncomeDetails({ nurseId, startDate, endDate, apiBas
         </p>
       ) : (
         <>
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="bg-gray-50 text-left">
-                <th className="px-3 py-2">Нэхэмжлэл #</th>
-                <th className="px-3 py-2">Эмч</th>
-                <th className="px-3 py-2 text-right">Эмчийн борлуулалт (₮)</th>
-                <th className="px-3 py-2 text-right">%</th>
-                <th className="px-3 py-2 text-right">Орлого (₮)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assistPageRows.map((line) => (
-                <tr key={`${line.encounterId}-${line.invoiceId}`} className="border-b border-gray-200">
-                  <td className="px-3 py-2">{line.invoiceId}</td>
-                  <td className="px-3 py-2">{line.doctorName || "-"}</td>
+          <div className="overflow-x-auto overflow-y-auto max-h-[360px] rounded-lg border border-gray-200">
+            <table className="w-full border-collapse text-sm">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-gray-50 text-left">
+                  <th className="px-3 py-2">Нэхэмжлэл #</th>
+                  <th className="px-3 py-2">Эмч</th>
+                  <th className="px-3 py-2 text-right hidden sm:table-cell">Эмчийн борлуулалт (₮)</th>
+                  <th className="px-3 py-2 text-right">%</th>
+                  <th className="px-3 py-2 text-right">Орлого (₮)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {assistPageRows.map((line) => (
+                  <tr key={`${line.encounterId}-${line.invoiceId}`} className="border-b border-gray-200">
+                    <td className="px-3 py-2">{line.invoiceId}</td>
+                    <td className="px-3 py-2">{line.doctorName || "-"}</td>
+                    <td className="px-3 py-2 text-right hidden sm:table-cell">
+                      {line.salesBaseMnt.toLocaleString("mn-MN")} ₮
+                    </td>
+                    <td className="px-3 py-2 text-right">{line.pct}%</td>
+                    <td className="px-3 py-2 text-right">
+                      {line.incomeMnt.toLocaleString("mn-MN")} ₮
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-gray-50 font-bold">
+                  <td className="px-3 py-2" />
+                  <td className="px-3 py-2" />
+                  <td className="px-3 py-2 hidden sm:table-cell" />
+                  <td className="px-3 py-2 text-right">Нийт:</td>
                   <td className="px-3 py-2 text-right">
-                    {line.salesBaseMnt.toLocaleString("mn-MN")} ₮
-                  </td>
-                  <td className="px-3 py-2 text-right">{line.pct}%</td>
-                  <td className="px-3 py-2 text-right">
-                    {line.incomeMnt.toLocaleString("mn-MN")} ₮
+                    {details.totals.assistIncomeMnt.toLocaleString("mn-MN")} ₮
                   </td>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="bg-gray-50 font-bold">
-                <td colSpan={4} className="px-3 py-2 text-right">
-                  Нийт:
-                </td>
-                <td className="px-3 py-2 text-right">
-                  {details.totals.assistIncomeMnt.toLocaleString("mn-MN")} ₮
-                </td>
-              </tr>
-            </tfoot>
-          </table>
+              </tfoot>
+            </table>
+          </div>
           <div className="mt-2 flex items-center justify-end gap-2 text-sm">
             <button
               type="button"

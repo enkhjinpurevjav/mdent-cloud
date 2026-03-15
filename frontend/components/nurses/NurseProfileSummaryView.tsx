@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { logout } from "../../utils/auth";
 import { useRouter } from "next/router";
-import { toAbsoluteFileUrl } from "../../utils/toAbsoluteFileUrl";
 
 type NurseDetails = {
   id: number;
@@ -49,6 +48,12 @@ export default function NurseProfileSummaryView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
 
+  // Change password form state
+  const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwError, setPwError] = useState("");
+  const [pwSuccess, setPwSuccess] = useState(false);
+
   useEffect(() => {
     let mounted = true;
     setLoading(true);
@@ -81,6 +86,45 @@ export default function NurseProfileSummaryView({
     router.replace("/login");
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwError("");
+    setPwSuccess(false);
+
+    if (pwForm.newPassword.length < 6) {
+      setPwError("Шинэ нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой.");
+      return;
+    }
+    if (pwForm.newPassword !== pwForm.confirmPassword) {
+      setPwError("Шинэ нууц үг тохирохгүй байна.");
+      return;
+    }
+
+    setPwLoading(true);
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          currentPassword: pwForm.currentPassword,
+          newPassword: pwForm.newPassword,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPwError((data as any)?.error || "Алдаа гарлаа. Дахин оролдоно уу.");
+      } else {
+        setPwSuccess(true);
+        setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      }
+    } catch {
+      setPwError("Сервертэй холбогдоход алдаа гарлаа.");
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
   const displayName = useMemo(
     () => formatNurseDisplayName(nurse, nurse?.email ?? null),
     [nurse]
@@ -90,12 +134,6 @@ export default function NurseProfileSummaryView({
     const n = (nurse?.name || "").toString().trim();
     return n ? n[0].toUpperCase() : "?";
   }, [nurse?.name]);
-
-  const photoUrl = useMemo(() => {
-    const p = (nurse?.idPhotoPath || "").toString().trim();
-    if (!p) return "";
-    return toAbsoluteFileUrl(p);
-  }, [nurse?.idPhotoPath]);
 
   if (loading) {
     return (
@@ -136,49 +174,23 @@ export default function NurseProfileSummaryView({
             marginBottom: 20,
           }}
         >
-          {photoUrl ? (
-            <div
-              style={{
-                width: 110,
-                height: 110,
-                borderRadius: 12,
-                overflow: "hidden",
-                marginBottom: 10,
-                border: "1px solid #e5e7eb",
-                background: "#f3f4f6",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <img
-                src={photoUrl}
-                alt="Nurse portrait"
-                style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
-              />
-            </div>
-          ) : (
-            <div
-              style={{
-                width: 110,
-                height: 110,
-                borderRadius: 12,
-                background: "#0f2044",
-                color: "white",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 36,
-                fontWeight: 700,
-                marginBottom: 10,
-              }}
-            >
-              {avatarLetter}
-            </div>
-          )}
+          <div
+            style={{
+              width: 110,
+              height: 110,
+              borderRadius: 12,
+              background: "#0f2044",
+              color: "white",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 36,
+              fontWeight: 700,
+              marginBottom: 10,
+            }}
+          >
+            {avatarLetter}
+          </div>
 
           <div style={{ fontWeight: 700, fontSize: 18, color: "#111827" }}>
             {displayName}
@@ -279,6 +291,108 @@ export default function NurseProfileSummaryView({
             </div>
           ) : null}
         </div>
+      </div>
+
+      {/* Change password section */}
+      <div
+        style={{
+          background: "white",
+          borderRadius: 14,
+          padding: 24,
+          marginTop: 16,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
+        }}
+      >
+        <h2 style={{ fontSize: 15, fontWeight: 700, color: "#0f2044", marginBottom: 16 }}>
+          Нууц үг солих
+        </h2>
+        {pwSuccess ? (
+          <p style={{ fontSize: 14, color: "#16a34a" }}>
+            Нууц үг амжилттай солигдлоо.
+          </p>
+        ) : (
+          <form onSubmit={handleChangePassword} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div>
+              <label style={{ display: "block", fontSize: 13, color: "#6b7280", marginBottom: 4 }}>
+                Одоогийн нууц үг
+              </label>
+              <input
+                type="password"
+                value={pwForm.currentPassword}
+                onChange={(e) => setPwForm((f) => ({ ...f, currentPassword: e.target.value }))}
+                required
+                style={{
+                  width: "100%",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 14,
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 13, color: "#6b7280", marginBottom: 4 }}>
+                Шинэ нууц үг
+              </label>
+              <input
+                type="password"
+                value={pwForm.newPassword}
+                onChange={(e) => setPwForm((f) => ({ ...f, newPassword: e.target.value }))}
+                required
+                minLength={6}
+                style={{
+                  width: "100%",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 14,
+                  boxSizing: "border-box",
+                }}
+                placeholder="Дор хаяж 6 тэмдэгт"
+              />
+            </div>
+            <div>
+              <label style={{ display: "block", fontSize: 13, color: "#6b7280", marginBottom: 4 }}>
+                Шинэ нууц үг давтах
+              </label>
+              <input
+                type="password"
+                value={pwForm.confirmPassword}
+                onChange={(e) => setPwForm((f) => ({ ...f, confirmPassword: e.target.value }))}
+                required
+                style={{
+                  width: "100%",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 14,
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+            {pwError && (
+              <p style={{ fontSize: 13, color: "#dc2626" }}>{pwError}</p>
+            )}
+            <button
+              type="submit"
+              disabled={pwLoading}
+              style={{
+                padding: "10px",
+                background: "#2563eb",
+                color: "white",
+                border: "none",
+                borderRadius: 8,
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: pwLoading ? "not-allowed" : "pointer",
+                opacity: pwLoading ? 0.6 : 1,
+              }}
+            >
+              {pwLoading ? "Хадгалж байна…" : "Нууц үг солих"}
+            </button>
+          </form>
+        )}
       </div>
 
       {showLogout && (
