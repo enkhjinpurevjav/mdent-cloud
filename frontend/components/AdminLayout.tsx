@@ -30,7 +30,7 @@ const navItems: NavItem[] = [
 
   // 2. Цаг захиалах
     {
-    label: "Цаг захиалах",
+    label: "Цаг захиалга",
     icon: "📅",
     children: [
       {
@@ -66,8 +66,8 @@ const navItems: NavItem[] = [
     icon: "🧑‍💼",
     children: [
       { label: "Эмч", href: "/users/doctors", icon: "🩺" },
-      { label: "Ресепшн", href: "/users/reception", icon: "📞" },
       { label: "Сувилагч", href: "/users/nurses", icon: "💉" },
+      { label: "Ресепшн", href: "/users/reception", icon: "📞" },
       { label: "Ажилтан", href: "/users/staff", icon: "🏢" },
       {
         label: "Ажлын анкет мэдээллийн сан",
