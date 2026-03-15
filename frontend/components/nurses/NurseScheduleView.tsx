@@ -127,9 +127,7 @@ export default function NurseScheduleView({ scheduleUrl, historyUrl }: Props) {
 
   return (
     <div style={{ maxWidth: 600, margin: "0 auto", padding: "16px 12px 0" }}>
-      <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, color: "#0f2044" }}>
-        Хуваарь
-      </h1>
+      
 
       <div
         style={{
