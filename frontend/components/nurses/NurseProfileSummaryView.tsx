@@ -166,7 +166,31 @@ export default function NurseProfileSummaryView({
         }}
       >
         {/* Avatar */}
-        
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            marginBottom: 20,
+          }}
+        >
+          <div
+            style={{
+              width: 110,
+              height: 110,
+              borderRadius: 12,
+              background: "#0f2044",
+              color: "white",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 36,
+              fontWeight: 700,
+              marginBottom: 10,
+            }}
+          >
+            {avatarLetter}
+          </div>
 
           <div style={{ fontWeight: 700, fontSize: 18, color: "#111827" }}>
             {displayName}
@@ -325,7 +349,7 @@ export default function NurseProfileSummaryView({
                   fontSize: 14,
                   boxSizing: "border-box",
                 }}
-                placeholder="Доод тал нь 6 тэмдэгт"
+                placeholder="Дор хаяж 6 тэмдэгт"
               />
             </div>
             <div>
