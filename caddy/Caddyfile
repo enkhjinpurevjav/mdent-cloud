@@ -4,27 +4,22 @@
 
 # Main web app (frontend) + API + media
 mdent.cloud, www.mdent.cloud, app.mdent.cloud {
-  encode gzip
-
-  # SSE MUST NOT be gzipped (otherwise events get buffered and never flush)
-  @appointments_stream path /api/appointments/stream
-  encode @appointments_stream off
-
   route {
-    # API must be handled BEFORE frontend fallback
+    # API must be handled BEFORE frontend fallback (NO gzip -> SSE safe)
     @api path /api/*
     handle @api {
-      reverse_proxy mdent-cloud-backend-1:8080
+      reverse_proxy backend:8080
     }
 
     # Media must be handled
     @media path /media/*
     handle @media {
-      reverse_proxy mdent-cloud-backend-1:8080
+      reverse_proxy backend:8080
     }
 
-    # Fallback: everything else to frontend
+    # Fallback: everything else to frontend (gzip OK)
     handle {
+      encode gzip
       reverse_proxy frontend:3000
     }
   }
@@ -38,37 +33,41 @@ book.mdent.cloud {
 
 # Public API (direct API subdomain)
 api.mdent.cloud {
-  encode gzip
-
-  # SSE MUST NOT be gzipped here either
-  @appointments_stream path /api/appointments/stream
-  encode @appointments_stream off
-
-  @cors_preflight {
-    method OPTIONS
-    path /api/*
-  }
-
-  handle @cors_preflight {
-    header {
-      Access-Control-Allow-Origin https://mdent.cloud
-      Access-Control-Allow-Methods GET,POST,PUT,PATCH,DELETE,OPTIONS
-      Access-Control-Allow-Headers Authorization,Content-Type
-      Access-Control-Allow-Credentials true
-      Access-Control-Max-Age 86400
+  route {
+    # CORS preflight for /api/* (OPTIONS)
+    @cors_preflight {
+      method OPTIONS
+      path /api/*
     }
-    respond "" 204
-  }
 
-  handle {
-    reverse_proxy mdent-cloud-backend-1:8080
+    handle @cors_preflight {
+      header {
+        Access-Control-Allow-Origin https://mdent.cloud
+        Access-Control-Allow-Methods GET,POST,PUT,PATCH,DELETE,OPTIONS
+        Access-Control-Allow-Headers Authorization,Content-Type
+        Access-Control-Allow-Credentials true
+        Access-Control-Max-Age 86400
+      }
+      respond "" 204
+    }
 
-    header {
-      Access-Control-Allow-Origin https://mdent.cloud
-      Access-Control-Allow-Methods GET,POST,PUT,PATCH,DELETE,OPTIONS
-      Access-Control-Allow-Headers Authorization,Content-Type
-      Access-Control-Allow-Credentials true
-      Access-Control-Max-Age 86400
+    # All other /api/* requests → backend API (NO gzip -> SSE safe)
+    @api path /api/*
+    handle @api {
+      reverse_proxy backend:8080
+
+      # CORS headers for normal API responses
+      header {
+        Access-Control-Allow-Origin https://mdent.cloud
+        Access-Control-Allow-Methods GET,POST,PUT,PATCH,DELETE,OPTIONS
+        Access-Control-Allow-Headers Authorization,Content-Type
+        Access-Control-Allow-Credentials true
+        Access-Control-Max-Age 86400
+      }
+    }
+
+    handle {
+      respond "Not found" 404
     }
   }
 }
