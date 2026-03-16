@@ -599,11 +599,8 @@ router.post("/", async (req, res) => {
 
     // Receptionist cross-branch rule: can only create with status "booked" in other branches
     if (req.user?.role === "receptionist" && req.user.branchId !== parsedBranchId) {
-      if (normalizedStatus !== "booked") {
-        return res.status(403).json({
-          error: "Receptionist can only create appointments with status 'booked' in other branches.",
-        });
-      }
+      // Force status to "booked" for cross-branch receptionist creates
+      normalizedStatus = "booked";
     }
 
     // ===== CAPACITY ENFORCEMENT: Max 2 overlapping appointments =====
