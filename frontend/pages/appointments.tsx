@@ -2995,7 +2995,7 @@ const handleCancelDraft = (appointmentId: number) => {
                       ovog: "",
                       name: "",
                       phone: "",
-                      branchId: effectiveBranchId || "",
+                      branchId: String(effectiveBranchId || ""),
                       regNo: "",
                     });
                     setFilterQuickPatientError("");
