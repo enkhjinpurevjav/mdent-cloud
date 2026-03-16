@@ -90,11 +90,12 @@ services:
 
   caddy:
     image: caddy:2
+    command: ["caddy","run","--config","/etc/caddy/Caddyfile.conf","--adapter","caddyfile"]
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy:/etc/caddy:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:
