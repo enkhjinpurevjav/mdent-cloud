@@ -1399,6 +1399,18 @@ const [pendingSaving, setPendingSaving] = useState(false);
   const [filterPatientHistory, setFilterPatientHistory] = useState<CompletedHistoryItem[]>([]);
   const [filterPatientHistoryLoading, setFilterPatientHistoryLoading] = useState(false);
 
+  // ---- Filter section quick patient registration modal ----
+  const [filterQuickPatientOpen, setFilterQuickPatientOpen] = useState(false);
+  const [filterQuickPatientForm, setFilterQuickPatientForm] = useState<{
+    ovog: string;
+    name: string;
+    phone: string;
+    branchId: string;
+    regNo: string;
+  }>({ ovog: "", name: "", phone: "", branchId: "", regNo: "" });
+  const [filterQuickPatientError, setFilterQuickPatientError] = useState("");
+  const [filterQuickPatientSaving, setFilterQuickPatientSaving] = useState(false);
+
   // ---- Exceptional appointment modal state ----
   const [showExceptional, setShowExceptional] = useState(false);
   const [exceptionalPatientQuery, setExceptionalPatientQuery] = useState("");
@@ -1477,6 +1489,63 @@ const [pendingSaving, setPendingSaving] = useState(false);
     setFilterPatientHistory([]);
     loadFilterPatientHistory(p.id);
     setBookingIntent({ patientId: p.id, patientLabel: label, doctorId: undefined });
+  };
+
+  const handleFilterQuickPatientSave = async () => {
+    if (!filterQuickPatientForm.name.trim()) {
+      setFilterQuickPatientError("Нэр оруулна уу.");
+      return;
+    }
+    if (!filterQuickPatientForm.phone.trim()) {
+      setFilterQuickPatientError("Утас оруулна уу.");
+      return;
+    }
+    const branchIdNum = Number(filterQuickPatientForm.branchId);
+    if (!filterQuickPatientForm.branchId || Number.isNaN(branchIdNum)) {
+      setFilterQuickPatientError("Салбар сонгоно уу.");
+      return;
+    }
+    setFilterQuickPatientSaving(true);
+    try {
+      const payload: Record<string, unknown> = {
+        name: filterQuickPatientForm.name.trim(),
+        phone: filterQuickPatientForm.phone.trim(),
+        branchId: branchIdNum,
+        bookNumber: "",
+      };
+      if (filterQuickPatientForm.ovog.trim()) payload.ovog = filterQuickPatientForm.ovog.trim();
+      if (filterQuickPatientForm.regNo.trim()) payload.regNo = filterQuickPatientForm.regNo.trim();
+      const res = await fetch("/api/patients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || typeof data.id !== "number") {
+        setFilterQuickPatientError(
+          (data && (data as { error?: string }).error) ||
+            "Шинэ үйлчлүүлэгч бүртгэх үед алдаа гарлаа."
+        );
+        setFilterQuickPatientSaving(false);
+        return;
+      }
+      const created: FilterPatient = {
+        id: data.id,
+        name: data.name,
+        ovog: data.ovog ?? null,
+        regNo: data.regNo ?? "",
+        phone: data.phone ?? null,
+        patientBook: data.patientBook || null,
+      };
+      handleSelectFilterPatient(created);
+      setFilterQuickPatientOpen(false);
+      setFilterQuickPatientForm({ ovog: "", name: "", phone: "", branchId: "", regNo: "" });
+      setFilterQuickPatientError("");
+    } catch {
+      setFilterQuickPatientError("Шинэ үйлчлүүлэгч бүртгэх үед алдаа гарлаа.");
+    } finally {
+      setFilterQuickPatientSaving(false);
+    }
   };
 
   const triggerExceptionalPatientSearch = useCallback((query: string) => {
@@ -2899,6 +2968,61 @@ const handleCancelDraft = (appointmentId: number) => {
             </div>
           )}
 
+          {/* No results row – offer quick patient registration */}
+          {filterPatientQuery.trim() &&
+            !filterPatientSearchLoading &&
+            filterPatientResults.length === 0 &&
+            selectedFilterPatient === null && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginTop: 4,
+                  padding: "5px 8px",
+                  borderRadius: 6,
+                  border: "1px solid #e5e7eb",
+                  background: "#f9fafb",
+                  fontSize: 12,
+                  color: "#6b7280",
+                }}
+              >
+                <span>Илэрц олдсонгүй. Шинээр бүртгэх</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFilterQuickPatientForm({
+                      ovog: "",
+                      name: "",
+                      phone: "",
+                      branchId: String(effectiveBranchId || ""),
+                      regNo: "",
+                    });
+                    setFilterQuickPatientError("");
+                    setFilterQuickPatientOpen(true);
+                  }}
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    border: "none",
+                    background: "#16a34a",
+                    color: "white",
+                    fontSize: 16,
+                    lineHeight: "22px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                  title="Шинэ үйлчлүүлэгч бүртгэх"
+                >
+                  +
+                </button>
+              </div>
+            )}
+
           {/* Patient mini-card */}
           {selectedFilterPatient && (
             <div
@@ -3998,6 +4122,151 @@ const handleCancelDraft = (appointmentId: number) => {
             }}
           >
             {exceptionalSaving ? "Хадгалж байна..." : "Захиалах"}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+{/* Filter section – quick patient registration modal */}
+{filterQuickPatientOpen && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(0,0,0,0.3)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 50,
+    }}
+    onClick={(e) => {
+      if (e.target === e.currentTarget && !filterQuickPatientSaving) {
+        setFilterQuickPatientOpen(false);
+        setFilterQuickPatientError("");
+      }
+    }}
+  >
+    <div
+      style={{
+        background: "white",
+        borderRadius: 8,
+        padding: 16,
+        width: 340,
+        boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+        fontSize: 13,
+      }}
+    >
+      <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 15 }}>
+        Шинэ үйлчлүүлэгчийн бүртгэл
+      </h3>
+      <p style={{ marginTop: 0, marginBottom: 12, color: "#6b7280" }}>
+        Доорхи мэдээллийг заавал бөглөнө үү
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          Овог
+          <input
+            name="ovog"
+            value={filterQuickPatientForm.ovog}
+            onChange={(e) =>
+              setFilterQuickPatientForm((f) => ({ ...f, ovog: e.target.value }))
+            }
+            placeholder="Овог оруулна уу"
+            style={{ borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px" }}
+          />
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          Нэр
+          <input
+            name="name"
+            value={filterQuickPatientForm.name}
+            onChange={(e) =>
+              setFilterQuickPatientForm((f) => ({ ...f, name: e.target.value }))
+            }
+            placeholder="Нэр оруулна уу"
+            style={{ borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px" }}
+          />
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          Утас
+          <input
+            name="phone"
+            value={filterQuickPatientForm.phone}
+            onChange={(e) =>
+              setFilterQuickPatientForm((f) => ({ ...f, phone: e.target.value }))
+            }
+            placeholder="Утас оруулна уу"
+            style={{ borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px" }}
+          />
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          РД
+          <input
+            name="regNo"
+            value={filterQuickPatientForm.regNo}
+            onChange={(e) =>
+              setFilterQuickPatientForm((f) => ({ ...f, regNo: e.target.value }))
+            }
+            placeholder="РД оруулна уу"
+            style={{ borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px" }}
+          />
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          Салбар
+          <select
+            name="branchId"
+            value={filterQuickPatientForm.branchId}
+            onChange={(e) =>
+              setFilterQuickPatientForm((f) => ({ ...f, branchId: e.target.value }))
+            }
+            style={{ borderRadius: 6, border: "1px solid #d1d5db", padding: "6px 8px" }}
+          >
+            <option value="">Сонгох</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        {filterQuickPatientError && (
+          <div style={{ color: "#b91c1c", fontSize: 12 }}>{filterQuickPatientError}</div>
+        )}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (!filterQuickPatientSaving) {
+                setFilterQuickPatientOpen(false);
+                setFilterQuickPatientError("");
+              }
+            }}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              background: "#f9fafb",
+              cursor: filterQuickPatientSaving ? "default" : "pointer",
+            }}
+          >
+            Цуцлах
+          </button>
+          <button
+            type="button"
+            onClick={handleFilterQuickPatientSave}
+            disabled={filterQuickPatientSaving}
+            style={{
+              padding: "6px 12px",
+              borderRadius: 6,
+              border: "none",
+              background: "#16a34a",
+              color: "white",
+              cursor: filterQuickPatientSaving ? "default" : "pointer",
+            }}
+          >
+            {filterQuickPatientSaving ? "Хадгалж байна..." : "Хадгалах"}
           </button>
         </div>
       </div>
