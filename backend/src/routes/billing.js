@@ -135,10 +135,19 @@ router.get("/encounters/:id/invoice", async (req, res) => {
         patientBook: { include: { patient: { include: { branch: true } } } },
         encounterServices: { include: { service: true } },
         invoice: { include: { items: { include: { service: true } }, eBarimtReceipt: true } },
+        appointment: { select: { branchId: true } },
       },
     });
 
     if (!encounter) return res.status(404).json({ error: "Encounter not found." });
+
+    // Receptionist can only access billing for their own branch
+    if (req.user?.role === "receptionist") {
+      const encBranchId = encounter.appointment?.branchId ?? encounter.patientBook?.patient?.branchId;
+      if (encBranchId !== req.user.branchId) {
+        return res.status(403).json({ error: "Receptionist can only access billing for their own branch." });
+      }
+    }
 
     const patient = encounter.patientBook?.patient;
     if (!patient) {
@@ -318,10 +327,19 @@ router.post("/encounters/:id/invoice", async (req, res) => {
         patientBook: { include: { patient: true } },
         encounterServices: true,
         invoice: { include: { items: true, eBarimtReceipt: true } },
+        appointment: { select: { branchId: true } },
       },
     });
 
     if (!encounter) return res.status(404).json({ error: "Encounter not found." });
+
+    // Receptionist can only access billing for their own branch
+    if (req.user?.role === "receptionist") {
+      const encBranchId = encounter.appointment?.branchId ?? encounter.patientBook?.patient?.branchId;
+      if (encBranchId !== req.user.branchId) {
+        return res.status(403).json({ error: "Receptionist can only access billing for their own branch." });
+      }
+    }
 
     const patient = encounter.patientBook?.patient;
     if (!patient) {
@@ -628,6 +646,14 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
 
     if (!encounter) {
       return res.status(404).json({ error: "Encounter not found." });
+    }
+
+    // Receptionist can only access billing for their own branch
+    if (req.user?.role === "receptionist") {
+      const encBranchId = encounter.appointment?.branchId ?? encounter.patientBook?.patient?.branchId;
+      if (encBranchId !== req.user.branchId) {
+        return res.status(403).json({ error: "Receptionist can only access billing for their own branch." });
+      }
     }
 
     const invoice = encounter.invoice;

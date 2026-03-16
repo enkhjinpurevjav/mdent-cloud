@@ -597,6 +597,12 @@ router.post("/", async (req, res) => {
       normalizedStatus = maybe;
     }
 
+    // Receptionist cross-branch rule: can only create with status "booked" in other branches
+    if (req.user?.role === "receptionist" && req.user.branchId !== parsedBranchId) {
+      // Force status to "booked" for cross-branch receptionist creates
+      normalizedStatus = "booked";
+    }
+
     // ===== CAPACITY ENFORCEMENT: Max 2 overlapping appointments =====
     // Only enforce capacity when doctorId is set
     if (parsedDoctorId !== null) {
@@ -759,13 +765,18 @@ router.patch("/:id", async (req, res) => {
     // Guard: completed appointments cannot be modified except by super_admin
     const existing = await prisma.appointment.findUnique({
       where: { id },
-      select: { status: true },
+      select: { status: true, branchId: true },
     });
     if (!existing) {
       return res.status(404).json({ error: "appointment not found" });
     }
     if (existing.status === "completed" && req.user?.role !== "super_admin") {
       return res.status(403).json({ error: "Дууссан цагийн захиалгыг засах эрхгүй." });
+    }
+
+    // Receptionist cross-branch guard: cannot edit appointments in other branches
+    if (req.user?.role === "receptionist" && existing.branchId !== req.user.branchId) {
+      return res.status(403).json({ error: "Receptionist cannot edit appointments in other branches." });
     }
 
     const data = {};
@@ -778,6 +789,10 @@ router.patch("/:id", async (req, res) => {
       const normalizedStatus = normalizeStatusForDb(status);
       if (!normalizedStatus) {
         return res.status(400).json({ error: "invalid status" });
+      }
+      // Receptionist cannot set status to "ongoing" (that would start an encounter)
+      if (req.user?.role === "receptionist" && normalizedStatus === "ongoing") {
+        return res.status(403).json({ error: "Receptionist cannot set appointment status to 'ongoing'." });
       }
       data.status = normalizedStatus;
     }
@@ -940,6 +955,11 @@ router.post("/:id/start-encounter", async (req, res) => {
       return res.status(400).json({ error: "Invalid appointment id" });
     }
 
+    // Receptionist cannot start encounters
+    if (req.user?.role === "receptionist") {
+      return res.status(403).json({ error: "Receptionist cannot start encounters." });
+    }
+
     // 1) Load appointment with patient + patientBook
     const appt = await prisma.appointment.findUnique({
       where: { id: apptId },
@@ -1033,6 +1053,11 @@ router.post("/:id/ensure-encounter", async (req, res) => {
     const apptId = Number(req.params.id);
     if (!apptId || Number.isNaN(apptId)) {
       return res.status(400).json({ error: "Invalid appointment id" });
+    }
+
+    // Receptionist cannot create/ensure encounters
+    if (req.user?.role === "receptionist") {
+      return res.status(403).json({ error: "Receptionist cannot start encounters." });
     }
 
     const encounter = await ensureEncounterForAppointment(apptId);
