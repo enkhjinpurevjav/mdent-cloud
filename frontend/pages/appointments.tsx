@@ -2251,6 +2251,29 @@ const dayAppointments = useMemo(
   [appointments, dayKey, effectiveBranchId]
 );
 
+// ---- Checked-in patient queue (for reception) ----
+// Shows patients who have checked in, ordered by checkedInAt, excluding ongoing/completed
+const checkedInQueue = useMemo(
+  () =>
+    appointments
+      .filter((a) => {
+        if (!a.checkedInAt) return false;
+        const scheduled = a.scheduledAt;
+        if (!scheduled) return false;
+        if (scheduled.slice(0, 10) !== dayKey) return false;
+        if (effectiveBranchId && String(a.branchId) !== effectiveBranchId) return false;
+        const s = String(a.status || "").toLowerCase();
+        if (s === "ongoing" || s === "completed") return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const ta = a.checkedInAt ? new Date(a.checkedInAt).getTime() : 0;
+        const tb = b.checkedInAt ? new Date(b.checkedInAt).getTime() : 0;
+        return ta - tb;
+      }),
+  [appointments, dayKey, effectiveBranchId]
+);
+
 // 1) Нийт цаг захиалга – all appointments for the day
 const totalAppointmentsForDay = dayAppointments.length;
 
@@ -2555,6 +2578,103 @@ const handleCancelDraft = (appointmentId: number) => {
 </p>
 
 {/* NEW: Daily stats cards (colored) */}
+{/* Checked-in patient queue */}
+{checkedInQueue.length > 0 && (
+  <section style={{ marginBottom: 16 }}>
+    <div
+      style={{
+        fontSize: 13,
+        fontWeight: 700,
+        color: "#1d4ed8",
+        textTransform: "uppercase",
+        letterSpacing: 0.5,
+        marginBottom: 8,
+      }}
+    >
+      🚪 Ирсэн үйлчлүүлэгчид ({checkedInQueue.length})
+    </div>
+    <div
+      style={{
+        display: "flex",
+        gap: 10,
+        overflowX: "auto",
+        paddingBottom: 4,
+      }}
+    >
+      {checkedInQueue.map((a) => {
+        const patientDisplay = [a.patientOvog ? a.patientOvog.charAt(0) + "." : null, a.patientName]
+          .filter(Boolean)
+          .join("");
+        const doctorDisplay = a.doctorOvog || a.doctorName
+          ? [a.doctorOvog ? a.doctorOvog.charAt(0) + "." : null, a.doctorName]
+              .filter(Boolean)
+              .join("")
+          : null;
+        const timeStr = a.scheduledAt
+          ? (() => {
+              const d = new Date(a.scheduledAt);
+              return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+            })()
+          : null;
+        return (
+          <div
+            key={a.id}
+            style={{
+              flexShrink: 0,
+              minWidth: 160,
+              maxWidth: 200,
+              background: "linear-gradient(135deg,#eff6ff,#fff)",
+              border: "1px solid #bfdbfe",
+              borderRadius: 12,
+              padding: "10px 14px",
+              boxShadow: "0 2px 8px rgba(30,58,138,0.07)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 700,
+                color: "#1e3a8a",
+                marginBottom: 4,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {patientDisplay || "—"}
+            </div>
+            {doctorDisplay && (
+              <div style={{ fontSize: 12, color: "#475569", marginBottom: 2 }}>
+                👨‍⚕️ {doctorDisplay}
+              </div>
+            )}
+            {timeStr && (
+              <div style={{ fontSize: 12, color: "#475569", marginBottom: 2 }}>
+                🕐 {timeStr}
+              </div>
+            )}
+            {a.branch?.name && !effectiveBranchId && (
+              <div
+                style={{
+                  display: "inline-block",
+                  fontSize: 10,
+                  background: "#dbeafe",
+                  color: "#1d4ed8",
+                  borderRadius: 6,
+                  padding: "1px 6px",
+                  marginTop: 2,
+                }}
+              >
+                {a.branch.name}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  </section>
+)}
+
 <section
   style={{
     display: "grid",
