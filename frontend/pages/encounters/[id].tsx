@@ -325,6 +325,11 @@ export default function EncounterAdminPage() {
   useEffect(() => {
     getMe().then((user) => {
       setCurrentUser(user);
+      // Receptionist cannot access encounter pages — redirect away
+      if (user?.role === "receptionist") {
+        router.replace("/reception/appointments");
+        return;
+      }
       // Collapse secondary sections by default for doctor
       if (user?.role === "doctor") {
         setConsentOpen(false);
@@ -335,7 +340,7 @@ export default function EncounterAdminPage() {
     }).catch(() => {
       // If auth check fails, keep currentUser null (isDoctor = false, use admin layout)
     });
-  }, []);
+  }, [router]);
   
   const encounterId = useMemo(
     () => (typeof id === "string" ? Number(id) : NaN),

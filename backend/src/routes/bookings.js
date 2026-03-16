@@ -86,12 +86,16 @@ router.get("/", async (req, res) => {
     date: day,
   };
 
-  if (branchId) {
-    const bid = Number(branchId);
-    if (Number.isNaN(bid)) {
+  // Receptionist: always scope to their own branch
+  const effectiveBranchId = req.user?.role === "receptionist"
+    ? req.user.branchId
+    : (branchId ? Number(branchId) : null);
+
+  if (effectiveBranchId) {
+    if (Number.isNaN(effectiveBranchId)) {
       return res.status(400).json({ error: "Invalid branchId" });
     }
-    where.branchId = bid;
+    where.branchId = effectiveBranchId;
   }
 
   if (doctorId) {
