@@ -93,11 +93,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
-    volumes:
-      - /opt/mdent-caddy:/etc/caddy
-      - caddy_data:/data
-      - caddy_config:/config
-      - /opt/mdent-caddy/Caddyfile:/etc/caddy/Caddyfile
+  volumes:
+    - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+    - caddy_data:/data
+    - caddy_config:/config
     networks:
       - mdent-net
     restart: unless-stopped
