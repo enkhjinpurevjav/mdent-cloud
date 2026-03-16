@@ -51,6 +51,8 @@ export type Appointment = {
   updatedByUserId?: number | null;
   createdByUser?: { id: number; name: string | null; ovog: string | null } | null;
   updatedByUser?: { id: number; name: string | null; ovog: string | null } | null;
+  // Self check-in
+  checkedInAt?: string | null;
   patient?: {
     id: number;
     name: string;

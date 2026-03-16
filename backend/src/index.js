@@ -51,6 +51,7 @@ import doctorPortalRouter from "./routes/doctor.js";
 import nursePortalRouter from "./routes/nurse.js";
 import attendanceReportRouter from "./routes/admin/attendanceReport.js";
 import adminPasswordResetRouter from "./routes/admin/passwordReset.js";
+import checkInRouter from "./routes/check-in.js";
 import { authenticateJWT, requireRole } from "./middleware/auth.js";
 import rateLimit from "express-rate-limit";
 
@@ -157,6 +158,8 @@ app.use("/api", (req, res, next) => {
   // Skip /api/auth and /api/public (already handled by their routers above)
   if (req.path.startsWith("/auth")) return next();
   if (req.path.startsWith("/public")) return next();
+  // Skip /api/check-in — public tablet endpoints, no login required
+  if (req.path.startsWith("/check-in")) return next();
   return authenticateJWT(req, res, next);
 });
 
@@ -164,6 +167,9 @@ app.use("/api", (req, res, next) => {
 const requireAdminRole = requireRole("admin", "super_admin");
 app.use("/api/users", requireAdminRole);
 app.use("/api/admin", requireAdminRole);
+
+// Check-in tablet routes (public — no auth required)
+app.use("/api/check-in", checkInRouter);
 
 // Existing routers
 app.use("/api/login", loginRouter);

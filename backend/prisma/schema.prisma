@@ -815,6 +815,9 @@ model Appointment {
   source            String? // e.g., 'FOLLOW_UP_ENCOUNTER', 'CALENDAR'
   sourceEncounterId Int?
 
+  // Self check-in via tablet
+  checkedInAt       DateTime?
+
   // Cancellation audit fields
   cancelledAt       DateTime?
   cancelledByUserId Int?

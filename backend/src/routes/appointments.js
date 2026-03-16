@@ -466,6 +466,9 @@ const rows = appointments.map((a) => {
     source: a.source || null,
     sourceEncounterId: a.sourceEncounterId || null,
 
+    // Self check-in
+    checkedInAt: a.checkedInAt ? a.checkedInAt.toISOString() : null,
+
     // Audit metadata
     createdAt: a.createdAt ? a.createdAt.toISOString() : null,
     updatedAt: a.updatedAt ? a.updatedAt.toISOString() : null,
@@ -2052,3 +2055,4 @@ router.post("/:id/imaging/transition-to-ready", async (req, res) => {
 });
 
 export default router;
+export { sseBroadcast };
