@@ -22,16 +22,20 @@ export default function LoginForm() {
 
       const isDoctor = user?.role === "doctor";
       const isNurse = user?.role === "nurse";
+      const isReceptionist = user?.role === "receptionist";
 
       // Role-scoped redirect safety:
-      // Doctors stay in /doctor/*, nurses stay in /nurse/*, others go to /
+      // Doctors stay in /doctor/*, nurses stay in /nurse/*, receptionists stay in /reception/*,
+      // others can use any redirect (or go to /).
       let safeRedirect = "";
       if (redirectParam) {
         if (isDoctor && redirectParam.startsWith("/doctor")) {
           safeRedirect = redirectParam;
         } else if (isNurse && redirectParam.startsWith("/nurse")) {
           safeRedirect = redirectParam;
-        } else if (!isDoctor && !isNurse) {
+        } else if (isReceptionist && redirectParam.startsWith("/reception")) {
+          safeRedirect = redirectParam;
+        } else if (!isDoctor && !isNurse && !isReceptionist) {
           safeRedirect = redirectParam;
         }
       }
@@ -40,6 +44,8 @@ export default function LoginForm() {
         ? "/doctor/appointments"
         : isNurse
         ? "/nurse/schedule"
+        : isReceptionist
+        ? "/reception/appointments"
         : "/";
 
       router.replace(safeRedirect || fallback);
@@ -52,7 +58,6 @@ export default function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* ...unchanged form... */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
           И-мэйл
