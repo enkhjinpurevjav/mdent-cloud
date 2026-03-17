@@ -1903,8 +1903,11 @@ const workingDoctorsForFilter = scheduledDoctors.length
       setSseStatus("connecting");
       es = new EventSource(`/api/appointments/stream?${params.toString()}`);
 
-      const markEvent = () => {
+      es.onopen = () => {
         setSseStatus("connected");
+      };
+
+      const markEvent = () => {
         setLastSseEventAt(new Date());
       };
 
@@ -1928,12 +1931,25 @@ const workingDoctorsForFilter = scheduledDoctors.length
         markEvent();
         try {
           const appt = JSON.parse(e.data) as Appointment;
+          const apptDate = appt.scheduledAt ? appt.scheduledAt.slice(0, 10) : "";
+          const matchesView =
+            apptDate === filterDate &&
+            (!effectiveBranchId || String(appt.branchId) === effectiveBranchId);
           setAppointments((prev) => {
             const idx = prev.findIndex((a) => a.id === appt.id);
-            if (idx === -1) return prev; // not in current view, ignore
-            const next = [...prev];
-            next[idx] = { ...next[idx], ...appt };
-            return next;
+            if (matchesView) {
+              if (idx === -1) {
+                // Appointment moved into the current view — add it
+                return [appt, ...prev];
+              }
+              const next = [...prev];
+              next[idx] = { ...next[idx], ...appt };
+              return next;
+            } else {
+              // Appointment moved out of the current view — remove it
+              if (idx !== -1) return prev.filter((a) => a.id !== appt.id);
+              return prev;
+            }
           });
         } catch { /* ignore parse errors */ }
       });
@@ -2714,7 +2730,7 @@ const handleCancelDraft = (appointmentId: number) => {
     {sseStatus === "connected" ? "Live: Connected" : sseStatus === "disconnected" ? "Live: Disconnected" : "Reconnecting…"}
     {sseStatus === "connected" && lastSseEventAt && (
       <span style={{ opacity: 0.75 }}>
-        · Last update: {lastSseEventAt.toLocaleTimeString("mn-MN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+        · Last update: {lastSseEventAt.toLocaleTimeString("mn-MN", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" })}
       </span>
     )}
   </span>
