@@ -421,6 +421,10 @@ export default function DoctorAppointmentsPage() {
         return;
       }
 
+      es.onopen = () => {
+        setSseStatus("connected");
+      };
+
       es.addEventListener("appointment_created", requestRefresh);
       es.addEventListener("appointment_updated", requestRefresh);
       es.addEventListener("appointment_deleted", requestRefresh);
@@ -958,7 +962,7 @@ export default function DoctorAppointmentsPage() {
             {sseStatus === "connected" ? "Live: Connected" : sseStatus === "disconnected" ? "Live: Disconnected" : "Reconnecting…"}
             {sseStatus === "connected" && lastSseEventAt && (
               <span style={{ opacity: 0.75 }}>
-                · Last update: {lastSseEventAt.toLocaleTimeString("mn-MN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                · Last update: {lastSseEventAt.toLocaleTimeString("mn-MN", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" })}
               </span>
             )}
           </span>
