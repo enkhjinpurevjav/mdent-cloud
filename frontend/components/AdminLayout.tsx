@@ -7,6 +7,7 @@ import { getMe, logout } from "../utils/auth";
 
 type Props = {
   children: React.ReactNode;
+  wide?: boolean;
 };
 
 type NavItem = {
@@ -174,7 +175,7 @@ const navItems: NavItem[] = [
   },
 ];
 
-export default function AdminLayout({ children }: Props) {
+export default function AdminLayout({ children, wide }: Props) {
   const router = useRouter();
   const currentPath = router.pathname;
 

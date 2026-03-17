@@ -28,6 +28,15 @@ function isReceptionPath(pathname: string) {
   return pathname === "/reception" || pathname.startsWith("/reception/");
 }
 
+function isAppointmentsPath(pathname: string) {
+  return (
+    pathname === "/appointments" ||
+    pathname.startsWith("/appointments/") ||
+    pathname === "/reception/appointments" ||
+    pathname.startsWith("/reception/appointments/")
+  );
+}
+
 export default function MyApp({ Component, pageProps }: AppProps) {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
@@ -105,6 +114,9 @@ export default function MyApp({ Component, pageProps }: AppProps) {
   // ✅ ADD: reception layout selection
   const useReceptionLayout = isReceptionPath(router.pathname);
 
+  // Wide layout for appointments pages (admin + reception) to support many doctor columns
+  const wide = isAppointmentsPath(router.pathname);
+
   if (useDoctorLayout) {
     const showDashboardSummary = router.pathname === "/doctor/appointments";
     return (
@@ -125,14 +137,14 @@ export default function MyApp({ Component, pageProps }: AppProps) {
   // ✅ ADD: reception routes should not be wrapped in AdminLayout
   if (useReceptionLayout) {
     return (
-      <ReceptionLayout>
+      <ReceptionLayout wide={wide}>
         <Component {...pageProps} />
       </ReceptionLayout>
     );
   }
 
   return (
-    <AdminLayout>
+    <AdminLayout wide={wide}>
       <Component {...pageProps} />
     </AdminLayout>
   );
