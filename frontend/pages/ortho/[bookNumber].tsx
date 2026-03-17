@@ -873,9 +873,18 @@ const updateBoltonLower12 = (index: number, value: string) => {
   // Redirect to patient profile with ortho tab for backwards compatibility
   // Only redirect if we're on the standalone /ortho/[bookNumber] page
   useEffect(() => {
-    if (!bn) return;
-    if (router.pathname.startsWith("/patients")) return; // Already on patient profile
-    router.push(`/patients/${encodeURIComponent(bn)}?tab=ortho`);
+    if (!bn || typeof bn !== "string") return;
+    // Already on the correct patient profile page — avoid redirect loop
+    if (
+      router.pathname === "/patients/[bookNumber]" ||
+      router.pathname === "/reception/patients/[bookNumber]"
+    )
+      return;
+    // Preserve reception layout when navigating from a /reception/* route
+    const basePath = router.asPath.startsWith("/reception/")
+      ? `/reception/patients/${encodeURIComponent(bn)}`
+      : `/patients/${encodeURIComponent(bn)}`;
+    router.replace(`${basePath}?tab=ortho_card`);
   }, [bn, router]);
 
   useEffect(() => {
