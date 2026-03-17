@@ -124,6 +124,7 @@ router.post("/login", ipBackstopRateLimit, ipEmailRateLimit, async (req, res) =>
       email: user.email,
       role: user.role,
       branchId: user.branchId,
+      ovog: user.ovog ?? null,
     },
     secret,
     { expiresIn: "8h" }
@@ -138,6 +139,7 @@ router.post("/login", ipBackstopRateLimit, ipEmailRateLimit, async (req, res) =>
       email: user.email,
       role: user.role,
       branchId: user.branchId,
+      ovog: user.ovog ?? null,
     },
   });
 });
@@ -153,6 +155,10 @@ router.post("/logout", (_req, res) => {
 
 // GET /api/auth/me
 router.get("/me", (req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+
   const token = req.cookies?.[COOKIE_NAME];
   if (!token) {
     return res.status(401).json({ error: "Not authenticated." });
@@ -172,6 +178,7 @@ router.get("/me", (req, res) => {
         email: user.email,
         role: user.role,
         branchId: user.branchId,
+        ovog: user.ovog ?? null,
       },
     });
   } catch (err) {

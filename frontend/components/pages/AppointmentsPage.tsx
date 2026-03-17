@@ -2630,9 +2630,11 @@ const handleCancelDraft = (appointmentId: number) => {
 {/* Calendar view with doctor-columns time grid (all screen sizes) */}
 <div>
 <h1 style={{ fontSize: 20, margin: "4px 0 8px" }}>Цаг захиалга</h1>
+{!isReceptionRoute && (
 <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 12 }}>
   Эмч, үйлчлүүлэгч, салбарын цаг захиалгыг харах болон удирдах хэсэг
 </p>
+)}
 
 {/* Small branch switcher — only for receptionist, no "Бүх салбар" option */}
 {currentUserRole === "receptionist" && branches.length > 0 && (
@@ -3040,9 +3042,11 @@ const handleCancelDraft = (appointmentId: number) => {
           width: "100%",
         }}
       >
-        <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: 16 }}>
-          Шүүлт
-        </h2>
+        {!isReceptionRoute && (
+          <h2 style={{ marginTop: 0, marginBottom: 8, fontSize: 16 }}>
+            Шүүлт
+          </h2>
+        )}
         <div
           style={{
             display: "flex",
@@ -3366,20 +3370,20 @@ const handleCancelDraft = (appointmentId: number) => {
         <div
           style={{
             marginBottom: 12,
-            background: "#ffffff",
+            background: "#eff6ff",
             borderRadius: 8,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
-            padding: 16,
-            display: "flex",
+            border: "1px solid #bfdbfe",
+            padding: "12px 16px",
+            display: "inline-flex",
             flexDirection: "column",
-            gap: 12,
-            border: "2px solid #f59e0b",
+            gap: 10,
+            maxWidth: 400,
           }}
         >
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#111827" }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: "#1d4ed8" }}>
             Цаг захиалга өөрчлөгдлөө
           </div>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>
+          <div style={{ fontSize: 12, color: "#3b82f6" }}>
             Та өөрчлөлтийг хадгалах уу эсвэл цуцлах уу?
           </div>
           {pendingSaveError && (
@@ -3393,16 +3397,16 @@ const handleCancelDraft = (appointmentId: number) => {
               onClick={() => handleSaveDraft(pendingSaveId)}
               disabled={pendingSaving}
               style={{
-                flex: 1,
-                padding: "8px 16px",
+                padding: "7px 16px",
                 borderRadius: 6,
                 border: "none",
-                background: "#16a34a",
+                background: "#2563eb",
                 color: "white",
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: pendingSaving ? "default" : "pointer",
                 opacity: pendingSaving ? 0.6 : 1,
+                whiteSpace: "nowrap",
               }}
             >
               {pendingSaving ? "Хадгалж байна..." : "Хадгалах"}
@@ -3412,16 +3416,16 @@ const handleCancelDraft = (appointmentId: number) => {
               onClick={() => handleCancelDraft(pendingSaveId)}
               disabled={pendingSaving}
               style={{
-                flex: 1,
-                padding: "8px 16px",
+                padding: "7px 16px",
                 borderRadius: 6,
                 border: "1px solid #d1d5db",
-                background: "#f9fafb",
-                color: "#111827",
+                background: "#ffffff",
+                color: "#374151",
                 fontSize: 13,
                 fontWeight: 600,
                 cursor: pendingSaving ? "default" : "pointer",
                 opacity: pendingSaving ? 0.6 : 1,
+                whiteSpace: "nowrap",
               }}
             >
               Цуцлах
@@ -3432,9 +3436,11 @@ const handleCancelDraft = (appointmentId: number) => {
 
 
      <section style={{ marginBottom: 24 }}>
-  <h2 style={{ fontSize: 16, marginBottom: 4 }}>
-    Өдрийн цагийн хүснэгт
-  </h2>
+  {!isReceptionRoute && (
+    <h2 style={{ fontSize: 16, marginBottom: 4 }}>
+      Өдрийн цагийн хүснэгт
+    </h2>
+  )}
   <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
     {formatDateYmdDots(selectedDay)}
   </div>

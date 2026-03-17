@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { logout } from "../utils/auth";
+import { useAuth } from "../contexts/AuthContext";
 import { Bell, CalendarDays, CalendarRange, LogOut, User } from "lucide-react";
 
 type Props = {
@@ -60,12 +61,21 @@ function BottomIcon({
 
 export default function ReceptionLayout({ children, wide }: Props) {
   const router = useRouter();
+  const { me } = useAuth();
   const isActive = (href: string) => router.pathname.startsWith(href);
 
   const handleLogout = async () => {
     await logout();
     router.replace("/login");
   };
+
+  /** Format: Овгийн эхний үсэг.Нэр (e.g. П.Энхжин). Falls back to name or "Рецепшн". */
+  const displayName = (() => {
+    if (!me) return "Рецепшн";
+    const ovog = me.ovog?.trim();
+    if (ovog) return `${ovog.charAt(0).toUpperCase()}.${me.name}`;
+    return me.name || "Рецепшн";
+  })();
 
   return (
     <div className={`min-h-[100dvh] bg-gray-100${wide ? "" : " overflow-x-hidden"}`}>
@@ -91,7 +101,7 @@ export default function ReceptionLayout({ children, wide }: Props) {
                 <span className="text-orange-400">M</span> Dent
               </span>
               <span className="hidden sm:inline">
-                <span className="text-orange-400">M</span> Dent • Рецепшн
+                <span className="text-orange-400">M</span> Dent • {displayName}
               </span>
             </span>
           </Link>
