@@ -509,7 +509,7 @@ export default function PatientProfilePage() {
 
             <button
               type="button"
-              onClick={() => { setActiveTab("ortho_card"); setEditMode(false); setSaveError(""); setSaveSuccess(""); }}
+              onClick={() => { setActiveTab("ortho_card"); setEditMode(false); setSaveError(""); setSaveSuccess(""); router.push({ pathname: router.pathname, query: { ...router.query, tab: "ortho_card" } }, undefined, { shallow: true }); }}
               className={tabBtnClass("ortho_card")}
             >
               Гажиг заслын карт
