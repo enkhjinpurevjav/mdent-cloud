@@ -26,6 +26,11 @@ const STATUS_OPTIONS: StatusOption[] = [
   { value: "other", label: "Бусад" },
 ];
 
+// Exclude "completed" from status editing UI
+const STATUS_EDIT_OPTIONS: StatusOption[] = STATUS_OPTIONS.filter(
+  (o) => o.value !== "completed"
+);
+
 const EDITABLE_STATUSES = ["booked", "confirmed", "online", "other"];
 
 function formatHm(iso: string | null | undefined): string {
@@ -77,7 +82,9 @@ export default function AppointmentsListPage() {
   const [page, setPage] = useState(1);
 
   const [reportOpen, setReportOpen] = useState(false);
-  const [reportAppointmentId, setReportAppointmentId] = useState<number | null>(null);
+  const [reportAppointmentId, setReportAppointmentId] = useState<number | null>(
+    null
+  );
 
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [payLoading, setPayLoading] = useState<number | null>(null);
@@ -157,7 +164,7 @@ export default function AppointmentsListPage() {
       .then((data) => setRows(Array.isArray(data) ? (data as AppointmentRow[]) : []))
       .catch(() => setRows([]))
       .finally(() => setLoading(false));
-  }, [queryString, userLoading, noBranch, user]);
+  }, [queryString, userLoading, noBranch, user, branchId]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -220,12 +227,27 @@ export default function AppointmentsListPage() {
       });
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        showToast((json as { error?: string } | null)?.error || "Төлөв шинэчлэхэд алдаа гарлаа.");
+        showToast(
+          (json as { error?: string } | null)?.error ||
+            "Төлөв шинэчлэхэд алдаа гарлаа."
+        );
         return;
       }
-      setRows((prev) =>
-        prev.map((r) => (r.id === row.id ? { ...r, status: editingStatus as AppointmentStatus } : r))
-      );
+
+      const next = String(editingStatus).toLowerCase();
+      const currentFilter = String(status).toLowerCase();
+
+      setRows((prev) => {
+        // Move away immediately if it no longer matches current filter
+        if (next !== currentFilter) {
+          return prev.filter((r) => r.id !== row.id);
+        }
+        // Otherwise update in place
+        return prev.map((r) =>
+          r.id === row.id ? { ...r, status: next as AppointmentStatus } : r
+        );
+      });
+
       setEditingRowId(null);
       setEditingStatus("");
     } catch {
@@ -235,8 +257,7 @@ export default function AppointmentsListPage() {
     }
   };
 
-  const getScheduledAt = (row: AppointmentRow) =>
-    row.scheduledAt ?? row.startTime ?? null;
+  const getScheduledAt = (row: AppointmentRow) => row.scheduledAt ?? row.startTime ?? null;
 
   if (userLoading) {
     return (
@@ -256,6 +277,9 @@ export default function AppointmentsListPage() {
       </div>
     );
   }
+
+  const filterStatusLow = String(status).toLowerCase();
+  const canEditOnThisPage = EDITABLE_STATUSES.includes(filterStatusLow);
 
   return (
     <div className="space-y-4">
@@ -344,6 +368,8 @@ export default function AppointmentsListPage() {
               {pageRows.map((row) => {
                 const scheduledAt = getScheduledAt(row);
                 const statusLow = String(row.status || "").toLowerCase();
+                const rowEditable = EDITABLE_STATUSES.includes(statusLow);
+
                 return (
                   <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
@@ -369,6 +395,7 @@ export default function AppointmentsListPage() {
                           {payLoading === row.id ? "…" : "Төлбөр төлөх"}
                         </button>
                       )}
+
                       {statusLow === "completed" && (
                         <button
                           type="button"
@@ -378,15 +405,17 @@ export default function AppointmentsListPage() {
                           Дууссан
                         </button>
                       )}
-                      {EDITABLE_STATUSES.includes(statusLow) && (
+
+                      {canEditOnThisPage && rowEditable && (
                         editingRowId === row.id ? (
                           <div className="flex items-center gap-2">
                             <select
                               value={editingStatus}
                               onChange={(e) => setEditingStatus(e.target.value)}
-                              className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+                              disabled={statusSaveLoading}
+                              className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-60"
                             >
-                              {STATUS_OPTIONS.map((opt) => (
+                              {STATUS_EDIT_OPTIONS.map((opt) => (
                                 <option key={opt.value} value={opt.value}>
                                   {opt.label}
                                 </option>
