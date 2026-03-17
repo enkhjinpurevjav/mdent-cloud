@@ -6,6 +6,7 @@ import { Bell, CalendarDays, CalendarRange, LogOut, User } from "lucide-react";
 
 type Props = {
   children: React.ReactNode;
+  wide?: boolean;
 };
 
 const NAVY = "#131a29";
@@ -57,7 +58,7 @@ function BottomIcon({
   }
 }
 
-export default function ReceptionLayout({ children }: Props) {
+export default function ReceptionLayout({ children, wide }: Props) {
   const router = useRouter();
   const isActive = (href: string) => router.pathname.startsWith(href);
 
@@ -67,7 +68,7 @@ export default function ReceptionLayout({ children }: Props) {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-gray-100 overflow-x-hidden">
+    <div className={`min-h-[100dvh] bg-gray-100${wide ? "" : " overflow-x-hidden"}`}>
       {/* Top Bar */}
       <header
         className="fixed top-0 left-0 right-0 h-11 text-white z-[100] overflow-x-hidden"
@@ -117,7 +118,7 @@ export default function ReceptionLayout({ children }: Props) {
       </header>
 
       {/* Content */}
-      <main className="pt-11 pb-[60px] w-full px-3 sm:px-4 md:max-w-[1024px] md:mx-auto overflow-x-hidden">
+      <main className={`pt-11 pb-[60px] w-full${wide ? " px-2 sm:px-4" : " px-3 sm:px-4 md:max-w-[1024px] md:mx-auto overflow-x-hidden"}`}>
         {children}
       </main>
 
