@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/router";
 import type { Appointment, Doctor } from "./types";
-import { formatStatus, formatDateYmdDots, formatAuditDateTime, formatAuditUserName, formatDetailedTimeRange } from "./formatters";
+import { formatStatus, formatAuditDateTime, formatAuditUserName, formatDetailedTimeRange } from "./formatters";
 import ImagingCheckoutModal from "./ImagingCheckoutModal";
 import { naiveTimestampToHm, naiveTimestampToYmd } from "../../utils/businessTime";
 
@@ -610,7 +610,7 @@ export default function AppointmentDetailsModal({
                         </div>
                         <div>
                           <strong>Огноо:</strong>{" "}
-                          {start ? start.slice(0, 10).replace(/-/g, ".") : "-"}
+                          {start ? naiveTimestampToYmd(start) : "-"}
                         </div>
                       </div>
 
