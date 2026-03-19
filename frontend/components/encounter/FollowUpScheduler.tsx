@@ -1,5 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { formatGridShortLabel, parseNaiveOrIso } from "../../utils/scheduling";
+import { formatGridShortLabel } from "../../utils/scheduling";
+import {
+  naiveToFakeUtcDate,
+  naiveTimestampToYmd,
+  formatNaiveHm,
+  getBusinessYmd,
+  getBusinessHm,
+  toNaiveTimestamp,
+} from "../../utils/businessTime";
 
 type FollowUpAvailability = {
   days: Array<{
@@ -68,11 +76,6 @@ type FollowUpSchedulerProps = {
   hideTopCheckbox?: boolean;
 };
 
-function getHmFromIso(iso: string): string {
-  const date = parseNaiveOrIso(iso);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
 const nameOnly = (label: string) =>
   (label || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
 // Constants for grid layout
@@ -152,8 +155,9 @@ export default function FollowUpScheduler({
     // Must belong to the current encounter
     const isCurrentEncounter = appointment.sourceEncounterId === encounterId;
     
-    // Must be scheduled in the future
-    const isFutureAppointment = parseNaiveOrIso(appointment.scheduledAt) > new Date();
+    // Must be scheduled in the future (compare using Mongolia wall-clock time)
+    const nowNaive = toNaiveTimestamp(getBusinessYmd(), getBusinessHm());
+    const isFutureAppointment = naiveToFakeUtcDate(appointment.scheduledAt) > naiveToFakeUtcDate(nowNaive);
     
     return isFutureAppointment && isFollowUpSource && isCurrentEncounter;
   };
@@ -174,7 +178,7 @@ export default function FollowUpScheduler({
   const calculateOverlapCount = (slotStart: string, durationMinutes: number): number => {
     if (!slotStart) return 0;
     
-    const newStart = new Date(slotStart);
+    const newStart = naiveToFakeUtcDate(slotStart);
     const newEnd = new Date(newStart.getTime() + durationMinutes * 60_000);
     
     // Count appointments that would overlap with the new appointment
@@ -184,8 +188,8 @@ export default function FollowUpScheduler({
         continue; // Don't count cancelled/no-show/completed
       }
       
-      const aptStart = parseNaiveOrIso(apt.scheduledAt);
-      const aptEnd = apt.endAt ? parseNaiveOrIso(apt.endAt) : new Date(aptStart.getTime() + followUpSlotMinutes * 60_000);
+      const aptStart = naiveToFakeUtcDate(apt.scheduledAt);
+      const aptEnd = apt.endAt ? naiveToFakeUtcDate(apt.endAt) : new Date(aptStart.getTime() + followUpSlotMinutes * 60_000);
       
       // Check if they overlap: aptStart < newEnd && aptEnd > newStart
       if (aptStart < newEnd && aptEnd > newStart) {
@@ -204,18 +208,18 @@ export default function FollowUpScheduler({
   }, [detailsSlotStart, followUpSlotMinutes, followUpAppointments]);
 
   const handleSlotSelection = (slotStart: string) => {
-    // Extract date and time from ISO string
-    const dt = new Date(slotStart);
-    const date = dt.toISOString().split('T')[0];
-    const hm = getHmFromIso(slotStart);
+    // Extract date and time from naive timestamp string
+    const date = naiveTimestampToYmd(slotStart);
+    const hm = formatNaiveHm(slotStart);
     
     // Open details modal to show occupancy and allow adding appointment
     setDetailsSlotStart(slotStart);
     setDetailsDate(date);
     setDetailsTime(hm);
     
-    // Find appointments that overlap with this slot
-    const slotEnd = new Date(dt.getTime() + followUpSlotMinutes * 60_000);
+    // Find appointments that overlap with this slot using fake-UTC arithmetic
+    const slotStartFake = naiveToFakeUtcDate(slotStart);
+    const slotEndFake = new Date(slotStartFake.getTime() + followUpSlotMinutes * 60_000);
     const overlappingIds: number[] = [];
     
     for (const apt of followUpAppointments) {
@@ -223,10 +227,10 @@ export default function FollowUpScheduler({
         continue;
       }
       
-      const aptStart = parseNaiveOrIso(apt.scheduledAt);
-      const aptEnd = apt.endAt ? parseNaiveOrIso(apt.endAt) : new Date(aptStart.getTime() + followUpSlotMinutes * 60_000);
+      const aptStart = naiveToFakeUtcDate(apt.scheduledAt);
+      const aptEnd = apt.endAt ? naiveToFakeUtcDate(apt.endAt) : new Date(aptStart.getTime() + followUpSlotMinutes * 60_000);
       
-      if (aptStart < slotEnd && aptEnd > dt) {
+      if (aptStart < slotEndFake && aptEnd > slotStartFake) {
         overlappingIds.push(apt.id);
       }
     }
@@ -286,12 +290,12 @@ useEffect(() => {
     
     // Sort by start time, then by duration (longer first), then by id
     const sorted = [...appointments].sort((a, b) => {
-      const startA = parseNaiveOrIso(a.scheduledAt).getTime();
-      const startB = parseNaiveOrIso(b.scheduledAt).getTime();
+      const startA = naiveToFakeUtcDate(a.scheduledAt).getTime();
+      const startB = naiveToFakeUtcDate(b.scheduledAt).getTime();
       if (startA !== startB) return startA - startB;
       
-      const endA = a.endAt ? parseNaiveOrIso(a.endAt).getTime() : startA + DEFAULT_SLOT_DURATION_MS;
-      const endB = b.endAt ? parseNaiveOrIso(b.endAt).getTime() : startB + DEFAULT_SLOT_DURATION_MS;
+      const endA = a.endAt ? naiveToFakeUtcDate(a.endAt).getTime() : startA + DEFAULT_SLOT_DURATION_MS;
+      const endB = b.endAt ? naiveToFakeUtcDate(b.endAt).getTime() : startB + DEFAULT_SLOT_DURATION_MS;
       const durA = endA - startA;
       const durB = endB - startB;
       
@@ -303,9 +307,9 @@ useEffect(() => {
     const laneEndTime: { lane0: number | null; lane1: number | null } = { lane0: null, lane1: null };
     
     for (const apt of sorted) {
-      const start = parseNaiveOrIso(apt.scheduledAt).getTime();
+      const start = naiveToFakeUtcDate(apt.scheduledAt).getTime();
       const end = apt.endAt 
-        ? parseNaiveOrIso(apt.endAt).getTime() 
+        ? naiveToFakeUtcDate(apt.endAt).getTime() 
         : start + DEFAULT_SLOT_DURATION_MS;
       
       // Try to assign to first available lane
@@ -373,14 +377,14 @@ useEffect(() => {
               
               // Calculate column spans for appointments
               const getColSpan = (apt: AppointmentLiteForDetails): number => {
-                const start = parseNaiveOrIso(apt.scheduledAt);
-                const end = apt.endAt ? parseNaiveOrIso(apt.endAt) : new Date(start.getTime() + DEFAULT_SLOT_DURATION_MS);
+                const start = naiveToFakeUtcDate(apt.scheduledAt);
+                const end = apt.endAt ? naiveToFakeUtcDate(apt.endAt) : new Date(start.getTime() + DEFAULT_SLOT_DURATION_MS);
                 const durationMs = end.getTime() - start.getTime();
                 return Math.max(1, Math.ceil(durationMs / DEFAULT_SLOT_DURATION_MS));
               };
 
               const getStartCol = (apt: AppointmentLiteForDetails): number => {
-                const startTime = getHmFromIso(apt.scheduledAt);
+                const startTime = formatNaiveHm(apt.scheduledAt);
                 return timeLabels.indexOf(startTime);
               };
 
@@ -416,7 +420,7 @@ useEffect(() => {
                       }}
                     >
                       {timeLabels.map((timeLabel, colIndex) => {
-                        const slot = day.slots.find((s) => getHmFromIso(s.start) === timeLabel);
+                        const slot = day.slots.find((s) => formatNaiveHm(s.start) === timeLabel);
                         
                         if (!slot) {
                           return (
@@ -521,10 +525,10 @@ useEffect(() => {
                               border: "1px solid #fca5a5",
                               borderRadius: BLOCK_BORDER_RADIUS,
                             }}
-                            title={`${nameOnly(formatGridShortLabel(apt)) || "Захиалга"} (${getHmFromIso(apt.scheduledAt)} - ${apt.endAt ? getHmFromIso(apt.endAt) : "—"})`}
+                            title={`${nameOnly(formatGridShortLabel(apt)) || "Захиалга"} (${formatNaiveHm(apt.scheduledAt)} - ${apt.endAt ? formatNaiveHm(apt.endAt) : "—"})`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleBookedSlotClick([apt.id], day.date, getHmFromIso(apt.scheduledAt), apt.scheduledAt);
+                              handleBookedSlotClick([apt.id], day.date, formatNaiveHm(apt.scheduledAt), apt.scheduledAt);
                             }}
                           >
                             <span className="truncate">{nameOnly(formatGridShortLabel(apt)) || "Захиалга"}</span>
@@ -718,7 +722,7 @@ useEffect(() => {
                 Салбар: <strong>{a.branch?.name || "-"}</strong>
               </p>
               <p className="my-1 text-sm text-gray-500">
-                Хугацаа: {getHmFromIso(a.scheduledAt)} - {a.endAt ? getHmFromIso(a.endAt) : "—"}
+                Хугацаа: {formatNaiveHm(a.scheduledAt)} - {a.endAt ? formatNaiveHm(a.endAt) : "—"}
               </p>
               <p className="my-1 text-sm text-gray-500">
                 Тэмдэглэл: <strong>{a.notes || "-"}</strong>
@@ -775,7 +779,7 @@ useEffect(() => {
       <h3 className="mt-0 mb-4 text-lg font-semibold">
         Цагийн үргэлжлэх хугацаа сонгох
       </h3>
-      <p className="text-sm">Цаг: {selectedSlot ? getHmFromIso(selectedSlot) : ""}</p>
+      <p className="text-sm">Цаг: {selectedSlot ? formatNaiveHm(selectedSlot) : ""}</p>
       <div className="grid grid-cols-2 gap-2 my-4">
         {[30, 60, 90, 120].map((duration) => (
           <button

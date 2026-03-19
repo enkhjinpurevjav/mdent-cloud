@@ -1,4 +1,5 @@
-import { addMinutesLocal, getDayLabelMn, parseNaiveOrIso, toLocalDateTime, ymdRangeInclusive } from "./localDate";
+import { naiveToFakeUtcDate, fakeUtcDateToNaive, toNaiveTimestamp } from "../../utils/businessTime";
+import { getDayLabelMn, ymdRangeInclusive } from "./localDate";
 import { buildFixedHeaderTimeLabels, getClinicWindowForDay, isTimeWithinRange } from "./timeLabels";
 
 export type FollowUpSlotStatus = "available" | "booked" | "off";
@@ -63,15 +64,16 @@ export function buildFollowUpAvailability(opts: {
     schedulesByDate.set(s.date, list);
   }
 
-  // Pre-parse appointments once
+  // Pre-parse appointments once using fake-UTC dates so overlap arithmetic is
+  // timezone-independent (browser TZ does not affect the result).
   const parsedAppointments = (opts.appointments || [])
     .filter((a) => a && a.status !== "cancelled")
     .map((a) => {
-      const start = parseNaiveOrIso(a.scheduledAt);
+      const start = naiveToFakeUtcDate(a.scheduledAt);
       const end =
-        a.endAt && !Number.isNaN(parseNaiveOrIso(a.endAt).getTime())
-          ? parseNaiveOrIso(a.endAt)
-          : addMinutesLocal(start, slotMinutes);
+        a.endAt && !Number.isNaN(naiveToFakeUtcDate(a.endAt).getTime())
+          ? naiveToFakeUtcDate(a.endAt)
+          : new Date(start.getTime() + slotMinutes * 60_000);
 
       return {
         id: a.id,
@@ -92,11 +94,15 @@ export function buildFollowUpAvailability(opts: {
       // Use "hm" as slot start label.
       // Note: last header label is 21:00; treat that as a display label but it should not be bookable as a start.
       // We'll still generate a slot for it; UI can render it and it will naturally be OFF because end goes beyond window.
-      const slotStart = toLocalDateTime(ymd, hm);
-      const slotEnd = addMinutesLocal(slotStart, slotMinutes);
+      // Build naive timestamp strings for this slot so the UI and backend agree
+      // on wall-clock time without any timezone shift.
+      const slotStart = toNaiveTimestamp(ymd, hm);
+      const slotStartFake = naiveToFakeUtcDate(slotStart);
+      const slotEndFake   = new Date(slotStartFake.getTime() + slotMinutes * 60_000);
+      const slotEnd = fakeUtcDateToNaive(slotEndFake);
 
-      const slotStartStr = slotStart.toISOString();
-      const slotEndStr = slotEnd.toISOString();
+      const slotStartStr = slotStart;
+      const slotEndStr   = slotEnd;
 
       // If no schedules for that day => whole day OFF (Option 3A behavior)
       if (daySchedules.length === 0) {
@@ -119,10 +125,10 @@ export function buildFollowUpAvailability(opts: {
 
     
 
-      // Count overlaps
+      // Count overlaps using fake-UTC dates (timezone-independent arithmetic)
       const ids: number[] = [];
       for (const a of parsedAppointments) {
-        if (overlaps(a.start, a.end, slotStart, slotEnd)) {
+        if (overlaps(a.start, a.end, slotStartFake, slotEndFake)) {
           ids.push(a.id);
         }
       }
