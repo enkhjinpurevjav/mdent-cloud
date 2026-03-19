@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import type { Appointment, Branch } from "../appointments/types";
 import { formatStatus } from "../appointments/formatters";
-import { formatDateYmdDots } from "../appointments/formatters";
+import { formatDateYmdDash } from "../appointments/formatters";
 import { Button } from "../ui/Button";
 import { Drawer } from "../ui/Drawer";
 import { Field } from "../ui/Field";
@@ -117,7 +117,7 @@ export default function AgendaView({
       <div className="sticky top-0 z-20 flex items-center justify-between bg-white px-4 py-3 shadow-sm border-b border-gray-200">
         <div>
           <div className="text-sm font-semibold text-gray-800">
-            {formatDateYmdDots(selectedDay)}
+            {formatDateYmdDash(selectedDay)}
           </div>
           <div className="text-xs text-gray-500">
             {sorted.length} захиалга

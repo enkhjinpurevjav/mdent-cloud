@@ -14,7 +14,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useBranchLock } from "../appointments/useBranchLock";
 import type { Branch, Doctor, ScheduledDoctor, PatientLite, Appointment, DoctorScheduleDay, TimeSlot, CompletedHistoryItem } from "../appointments/types";
 import { SLOT_MINUTES, floorToSlotStart, addMinutes, getSlotKey, enumerateSlotStartsOverlappingRange, generateTimeSlotsForDay, getSlotTimeString, addMinutesToTimeString, isTimeWithinRange, getDateFromYMD, pad2 } from "../appointments/time";
-import { formatDoctorName, historyDoctorToDoctor, formatPatientLabel, formatGridShortLabel, formatPatientSearchLabel, formatDateYmdDots, formatStatus, formatDetailedTimeRange, formatHistoryDate } from "../appointments/formatters";
+import { formatDoctorName, historyDoctorToDoctor, formatPatientLabel, formatGridShortLabel, formatPatientSearchLabel, formatDateYmdDash, formatStatus, formatDetailedTimeRange, formatHistoryDate } from "../appointments/formatters";
 import AppointmentDetailsModal from "../appointments/AppointmentDetailsModal";
 import QuickAppointmentModal from "../appointments/QuickAppointmentModal";
 import PendingSaveBar from "../appointments/PendingSaveBar";
@@ -3041,7 +3041,7 @@ const handleCancelDraft = (appointmentId: number) => {
       {fillingStats.percent}%
     </div>
     <div style={{ fontSize: 11, color: "#6b7280" }}>
-      {formatDateYmdDots(selectedDay)} өдрийн нийт цаг дүүргэлт
+      {formatDateYmdDash(selectedDay)} өдрийн нийт цаг дүүргэлт
     </div>
   </div>
 
@@ -3153,7 +3153,7 @@ const handleCancelDraft = (appointmentId: number) => {
       {totalCompletedPatientsForDay}
     </div>
     <div style={{ fontSize: 11, color: "#6b7280" }}>
-      {formatDateYmdDots(selectedDay)} өдөр &quot;Дууссан&quot; төлөвтэй
+      {formatDateYmdDash(selectedDay)} өдөр &quot;Дууссан&quot; төлөвтэй
       үйлчлүүлэгч
     </div>
   </div>
@@ -3658,7 +3658,7 @@ const handleCancelDraft = (appointmentId: number) => {
     </h2>
   )}
   <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 8 }}>
-    {formatDateYmdDots(selectedDay)}
+    {formatDateYmdDash(selectedDay)}
   </div>
   {/* Compact date selector for other-branch reception view (Шүүлт is hidden) */}
   {isOtherBranchReceptionView && (

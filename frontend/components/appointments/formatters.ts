@@ -95,13 +95,16 @@ export function formatPatientSearchLabel(p: PatientLite): string {
   return parts.join(" ");
 }
 
-/** Format a fake-UTC Date as YYYY.MM.DD using UTC components. */
-export function formatDateYmdDots(date: Date): string {
+/** Format a fake-UTC Date as YYYY-MM-DD using UTC components. */
+export function formatDateYmdDash(date: Date): string {
   const y = date.getUTCFullYear();
   const m = pad2(date.getUTCMonth() + 1);
   const d = pad2(date.getUTCDate());
-  return `${y}.${m}.${d}`;
+  return `${y}-${m}-${d}`;
 }
+
+/** @deprecated Use formatDateYmdDash instead. Output is now YYYY-MM-DD (dash-separated). */
+export const formatDateYmdDots = formatDateYmdDash;
 
 /**
  * Format an ISO audit timestamp (createdAt/updatedAt) as YYYY/MM/DD HH:MM.
@@ -125,7 +128,7 @@ export function formatAuditDateTime(iso: string | null | undefined): string {
   const day = parts.find((p) => p.type === "day")?.value ?? "";
   const hour = parts.find((p) => p.type === "hour")?.value ?? "";
   const minute = parts.find((p) => p.type === "minute")?.value ?? "";
-  return `${year}/${month}/${day} ${hour}:${minute}`;
+  return `${year}-${month}-${day} ${hour}:${minute}`;
 }
 
 /** Format an audit user object as О.Нэр, or "-" if missing. */
@@ -141,16 +144,14 @@ export function formatAuditUserName(
 }
 
 /**
- * Format a naive scheduledAt string ("YYYY-MM-DD HH:mm:ss") as YYYY/MM/DD
+ * Format a naive scheduledAt string ("YYYY-MM-DD HH:mm:ss") as YYYY-MM-DD
  * for completed visit history display.
  * Timezone-safe: reads the date portion directly from the naive string.
  */
 export function formatHistoryDate(scheduledAt: string): string {
   const ymd = naiveTimestampToYmd(scheduledAt);
   if (!ymd || ymd.length < 10) return "-";
-  const [y, m, d] = ymd.split("-");
-  if (!y || !m || !d) return "-";
-  return `${y}/${m}/${d}`;
+  return ymd;
 }
 
 export function formatStatus(status: string): string {
@@ -184,7 +185,7 @@ export function formatStatus(status: string): string {
 
 /**
  * Format naive scheduledAt/endAt strings as a detailed time range
- * "YYYY.MM.DD HH:MM [– HH:MM]".
+ * "YYYY-MM-DD HH:MM [– HH:MM]".
  * Timezone-safe: reads components from the naive strings directly.
  */
 export function formatDetailedTimeRange(
@@ -194,8 +195,7 @@ export function formatDetailedTimeRange(
   const startParsed = parseNaiveTimestamp(startNaive);
   if (!startParsed) return "-";
 
-  const [sy, sm, sd] = startParsed.ymd.split("-");
-  const datePart = `${sy}.${sm}.${sd}`;
+  const datePart = startParsed.ymd;
   const startTime = startParsed.hm;
 
   if (!endNaive) return `${datePart} ${startTime}`;
@@ -204,4 +204,16 @@ export function formatDetailedTimeRange(
   if (!endParsed) return `${datePart} ${startTime}`;
 
   return `${datePart} ${startTime} – ${endParsed.hm}`;
+}
+
+/** Format a naive timestamp as HH:MM. */
+export function formatNaiveHm(naive: string): string {
+  return naiveTimestampToHm(naive);
+}
+
+/** Format a naive timestamp as YYYY-MM-DD HH:MM. */
+export function formatNaiveDateTime(naive: string): string {
+  const parsed = parseNaiveTimestamp(naive);
+  if (!parsed) return "-";
+  return `${parsed.ymd} ${parsed.hm}`;
 }
