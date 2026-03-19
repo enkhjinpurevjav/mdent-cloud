@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import { authenticateJWT, optionalAuthenticateJWT } from "../middleware/auth.js";
 import { finalizeSterilizationForEncounter } from "../services/sterilizationFinalize.js";
-import { sseBroadcast, naiveTsToYmd, formatApptForResponse } from "./appointments.js";
+import { sseBroadcast, naiveTsToYmd, formatApptForResponse, parseNaiveTs } from "./appointments.js";
 
 const router = express.Router();
 
@@ -1895,17 +1895,31 @@ router.post("/:id/follow-up-appointments", optionalAuthenticateJWT, async (req, 
       return res.status(400).json({ error: "Invalid encounter id" });
     }
 
-    const { slotStartIso, durationMinutes, note } = req.body || {};
+    // Accept slotStartNaive (preferred, "YYYY-MM-DD HH:mm:ss") or legacy slotStartIso (ISO UTC string).
+    // slotStartNaive is the deterministic wall-clock value; slotStartIso is kept for backward compat.
+    const { slotStartNaive, slotStartIso, durationMinutes, note } = req.body || {};
 
-    // Validate required fields
-    if (!slotStartIso) {
-      return res.status(400).json({ error: "slotStartIso is required" });
+    // Validate that at least one slot start field is provided
+    if (!slotStartNaive && !slotStartIso) {
+      return res.status(400).json({ error: "slotStartNaive (or legacy slotStartIso) is required" });
     }
 
-    // Parse and validate slot start time
-    const slotStart = new Date(slotStartIso);
-    if (Number.isNaN(slotStart.getTime())) {
-      return res.status(400).json({ error: "slotStartIso is invalid date" });
+    // Parse slot start time using deterministic naive parsing (server local = Asia/Ulaanbaatar).
+    // Prefer slotStartNaive; fall back to slotStartIso treated as a naive wall-clock string
+    // (strip any trailing Z/offset so it is always interpreted as local time).
+    let slotStart;
+    if (slotStartNaive) {
+      slotStart = parseNaiveTs(slotStartNaive);
+      if (!slotStart || Number.isNaN(slotStart.getTime())) {
+        return res.status(400).json({ error: "slotStartNaive is not a valid timestamp (expected YYYY-MM-DD HH:mm:ss)" });
+      }
+    } else {
+      // Legacy path: strip timezone designator so parseNaiveTs treats it as local wall-clock time
+      const naiveFallback = String(slotStartIso).replace(/Z$/, "").replace(/[+-]\d{1,2}:?\d{2}$/, "");
+      slotStart = parseNaiveTs(naiveFallback);
+      if (!slotStart || Number.isNaN(slotStart.getTime())) {
+        return res.status(400).json({ error: "slotStartIso is not a valid date" });
+      }
     }
 
     // Validate and set duration
@@ -1948,41 +1962,21 @@ router.post("/:id/follow-up-appointments", optionalAuthenticateJWT, async (req, 
     const patientId = encounter.patientBook.patient.id;
     const doctorId = encounter.doctorId;
 
-    // NOTE: Timezone handling - Server operates in local timezone (Asia/Ulaanbaatar)
-    // The slotStart date comes from the client as ISO string, but we use local time methods
-    // (getHours, getMinutes) for comparison with DoctorSchedule times which are also in local time.
-    // This is consistent with the rest of the application's timezone handling.
+    // slotStart is a local Date (server = Asia/Ulaanbaatar), so getFullYear/Month/Date/Hours/Minutes
+    // return the correct Mongolia wall-clock components directly — no manual offset math needed.
+    const y = slotStart.getFullYear();
+    const m = slotStart.getMonth();
+    const d = slotStart.getDate();
 
-    // Get the date portion for schedule lookup (in local timezone)
-    // --- Timezone-safe local day range for Asia/Ulaanbaatar (UTC+8) ---
-const TZ_OFFSET_MINUTES = 8 * 60;
+    const dayStart = new Date(y, m, d, 0, 0, 0, 0);       // local midnight of appointment day
+    const dayEnd   = new Date(y, m, d + 1, 0, 0, 0, 0);   // local midnight of next day
 
-// slotStart is already: const slotStart = new Date(slotStartIso);
-const slotUtcMs = slotStart.getTime();
+    // Slot time in minutes from midnight for schedule window comparison
+    const slotHourLocal   = slotStart.getHours();
+    const slotMinuteLocal = slotStart.getMinutes();
+    const slotMinutes     = slotHourLocal * 60 + slotMinuteLocal;
 
-// Convert the UTC instant into "local wall time" ms by adding +8h,
-// then read its Y/M/D using UTC getters.
-const localMs = slotUtcMs + TZ_OFFSET_MINUTES * 60_000;
-const local = new Date(localMs);
-
-const y = local.getUTCFullYear();
-const m = local.getUTCMonth();
-const d = local.getUTCDate();
-
-// Compute the UTC instant that corresponds to local midnight
-const localMidnightUtcMs = Date.UTC(y, m, d) - TZ_OFFSET_MINUTES * 60_000;
-
-const dayStart = new Date(localMidnightUtcMs);
-const dayEnd = new Date(localMidnightUtcMs + 24 * 60 * 60_000);
-
-// Also compute slot time in local minutes for schedule window comparison
-const slotHourLocal = local.getUTCHours();
-const slotMinuteLocal = local.getUTCMinutes();
-const slotMinutes = slotHourLocal * 60 + slotMinuteLocal;
-
-const slotTimeString = `${String(slotHourLocal).padStart(2, "0")}:${String(
-  slotMinuteLocal
-).padStart(2, "0")}`;
+    const slotTimeString = `${String(slotHourLocal).padStart(2, "0")}:${String(slotMinuteLocal).padStart(2, "0")}`;
 
     // Find all schedules for this doctor on this date
     const schedules = await prisma.doctorSchedule.findMany({

@@ -22,6 +22,7 @@ import type {
   Branch,
 } from "../../types/encounter-admin";
 import { formatDateTime, formatShortDate, ymdLocal, addDays, getTimeHHMM, isTimeWithinRangeStr } from "../../utils/date-formatters";
+import { toNaiveTimestamp } from "../../utils/businessTime";
 import { formatPatientName, formatDoctorDisplayName, formatStaffName } from "../../utils/name-formatters";
 import { extractWarningLinesFromVisitCard } from "../../utils/visit-card-helpers";
 import { displayOrDash } from "../../utils/display-helpers";
@@ -1184,7 +1185,7 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     }
   };
 
-  const createFollowUpAppointment = async (slotStartIso: string, durationMinutes: number = 30, note?: string) => {
+  const createFollowUpAppointment = async (slotStartNaive: string, durationMinutes: number = 30, note?: string) => {
   if (!encounter) return;
 
   setFollowUpBooking(true);
@@ -1197,7 +1198,7 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        slotStartIso: slotStartIso,
+        slotStartNaive: slotStartNaive,
         durationMinutes: durationMinutes,
         ...(note ? { note } : {}),
       }),
@@ -1208,7 +1209,8 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     if (!res.ok) throw new Error(json.error || "Цаг авахад алдаа гарлаа");
 
     setFollowUpSuccess(
-      `Цаг амжилттай авлаа: ${formatDateTime(slotStartIso)}`
+      // slotStartNaive is "YYYY-MM-DD HH:mm:ss"; display as "YYYY-MM-DD HH:mm"
+      `Цаг амжилттай авлаа: ${slotStartNaive.slice(0, 16)}`
     );
 
     // Refresh the grid state by calling the grid loader
@@ -1234,17 +1236,15 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
     setFollowUpSuccess("");
 
     try {
-      // Build ISO datetime from local date + time
-      const [hh, mm] = params.time.split(":").map(Number);
-      const [y, m, d] = params.date.split("-").map(Number);
-      const startDate = new Date(y, m - 1, d, hh, mm, 0, 0);
+      // Build naive timestamp directly from date + time (no TZ shift)
+      const slotStartNaive = toNaiveTimestamp(params.date, params.time);
 
       // Use the new dedicated endpoint that derives branchId from doctor's schedule
       const res = await fetch(`/api/encounters/${encounter.id}/follow-up-appointments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          slotStartIso: startDate.toISOString(),
+          slotStartNaive: slotStartNaive,
           durationMinutes: params.durationMinutes,
         }),
       });
