@@ -884,40 +884,6 @@ router.patch("/:id", async (req, res) => {
           return res.status(403).json({ error: "Үзлэг эхэлсэн байна" });
         }
       }
-
-      // Visit card completion guard: block receptionists from moving to "ongoing"
-      // unless the patient has a completed visit card.
-      // "Completed" means:
-      //   1) the latest visit card has sharedConsentAccepted === true, AND
-      //   2) a signature exists — either the shared signature (VisitCardSharedSignature)
-      //      or the per-card patientSignaturePath.
-      // Admin / super_admin / doctor / nurse are NOT blocked by this guard.
-      if (normalizedStatus === "ongoing" && req.user?.role === "receptionist") {
-        const VISIT_CARD_ERROR = "Эмчилгээ эхлэхээс өмнө заавал карт бөглөсөн байх шаардлагатай.";
-        const apptWithPatient = await prisma.appointment.findUnique({
-          where: { id },
-          include: { patient: { include: { patientBook: true } } },
-        });
-        const patientBookId = apptWithPatient?.patient?.patientBook?.id;
-        if (!patientBookId) {
-          return res.status(403).json({ error: VISIT_CARD_ERROR });
-        }
-        // Find the latest visit card (by savedAt) for consent check
-        const latestVisitCard = await prisma.visitCard.findFirst({
-          where: { patientBookId },
-          orderBy: { savedAt: "desc" },
-        });
-        const consentOk = latestVisitCard?.answers?.sharedConsentAccepted === true;
-        // Shared signature takes priority; fall back to per-card signature
-        const sharedSig = await prisma.visitCardSharedSignature.findUnique({
-          where: { patientBookId },
-        });
-        const signatureOk = !!(sharedSig?.filePath || latestVisitCard?.patientSignaturePath);
-        if (!consentOk || !signatureOk) {
-          return res.status(403).json({ error: VISIT_CARD_ERROR });
-        }
-      }
-
       data.status = normalizedStatus;
     }
 
