@@ -14,28 +14,41 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-
       - name: Pin npm version
         run: npm i -g npm@10.9.2
-
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
-
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+  docker-build-frontend:
+    name: Docker Build Frontend (debug)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build frontend Docker image
+        run: |
+          docker build \
+            --progress=plain \
+            --build-arg NEXT_PUBLIC_API_URL="https://example.com" \
+            --build-arg NEXT_PUBLIC_PORTAL_URL="https://example.com" \
+            --build-arg NEXT_PUBLIC_CAPTCHA_KEY="dummy" \
+            --build-arg NEXT_PUBLIC_BOOKING_FLOW_VERSION="v1" \
+            -t mdent-frontend:ci \
+            ./frontend
 
   build-backend:
     name: Build Backend
