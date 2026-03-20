@@ -132,7 +132,6 @@ export default function AppointmentDetailsModal({
     setEditingId(null);
     setEditingStatus("");
     setEditingNote("");
-    setEditingVisitCardType("ADULT");
   } catch (e) {
     console.error("Update status network error", e);
     setError("Сүлжээгээ шалгана уу.");
