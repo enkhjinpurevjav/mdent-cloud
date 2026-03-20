@@ -10,6 +10,13 @@
  *   - Receptionist CAN change status away from "ongoing" when NO encounter
  *     exists yet (e.g. doctor portal opened the encounter tab but hasn't saved).
  *   - Non-receptionist roles are not subject to this restriction.
+ *
+ * Visit card completion guard (receptionist → ongoing):
+ *   - Receptionist CANNOT set status to "ongoing" if the patient's visit card
+ *     is incomplete (missing consent or signature).
+ *   - "Complete" means: latest visitCard.answers.sharedConsentAccepted === true
+ *     AND either sharedSignature.filePath OR visitCard.patientSignaturePath exists.
+ *   - Admin / super_admin / doctor / nurse are NOT blocked by this guard.
  */
 
 import { describe, it } from "node:test";
@@ -153,4 +160,119 @@ describe("non-receptionist roles — not subject to this guard", () => {
       assert.equal(result.blocked, false);
     });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Visit card completion guard logic (mirrors routes/appointments.js)
+// ---------------------------------------------------------------------------
+
+/**
+ * Simulates the visit card completion guard for receptionist → ongoing.
+ *
+ * @param {object} params
+ * @param {string}      params.requesterRole    - role of the user making the request
+ * @param {string}      params.normalizedStatus - requested new status
+ * @param {object|null} params.latestVisitCard  - latest VisitCard record (or null)
+ * @param {object|null} params.sharedSig        - VisitCardSharedSignature record (or null)
+ * @returns {{ blocked: boolean, error?: string }}
+ */
+function applyVisitCardCompletionGuard({ requesterRole, normalizedStatus, latestVisitCard, sharedSig }) {
+  const VISIT_CARD_ERROR = "Эмчилгээ эхлэхээс өмнө заавал карт бөглөсөн байх шаардлагатай.";
+  if (normalizedStatus === "ongoing" && requesterRole === "receptionist") {
+    const consentOk = latestVisitCard?.answers?.sharedConsentAccepted === true;
+    const signatureOk = !!(sharedSig?.filePath || latestVisitCard?.patientSignaturePath);
+    if (!consentOk || !signatureOk) {
+      return { blocked: true, error: VISIT_CARD_ERROR };
+    }
+  }
+  return { blocked: false };
+}
+
+describe("visit card completion guard — receptionist setting ongoing", () => {
+  it("blocks when no visit card exists", () => {
+    const result = applyVisitCardCompletionGuard({
+      requesterRole: "receptionist",
+      normalizedStatus: "ongoing",
+      latestVisitCard: null,
+      sharedSig: null,
+    });
+    assert.equal(result.blocked, true);
+    assert.equal(result.error, "Эмчилгээ эхлэхээс өмнө заавал карт бөглөсөн байх шаардлагатай.");
+  });
+
+  it("blocks when consent is not accepted", () => {
+    const result = applyVisitCardCompletionGuard({
+      requesterRole: "receptionist",
+      normalizedStatus: "ongoing",
+      latestVisitCard: { answers: { sharedConsentAccepted: false }, patientSignaturePath: "/sig.png" },
+      sharedSig: { filePath: "/shared-sig.png" },
+    });
+    assert.equal(result.blocked, true);
+  });
+
+  it("blocks when consent accepted but no signature of any kind", () => {
+    const result = applyVisitCardCompletionGuard({
+      requesterRole: "receptionist",
+      normalizedStatus: "ongoing",
+      latestVisitCard: { answers: { sharedConsentAccepted: true }, patientSignaturePath: null },
+      sharedSig: null,
+    });
+    assert.equal(result.blocked, true);
+  });
+
+  it("allows when consent accepted and shared signature exists", () => {
+    const result = applyVisitCardCompletionGuard({
+      requesterRole: "receptionist",
+      normalizedStatus: "ongoing",
+      latestVisitCard: { answers: { sharedConsentAccepted: true }, patientSignaturePath: null },
+      sharedSig: { filePath: "/shared-sig.png" },
+    });
+    assert.equal(result.blocked, false);
+  });
+
+  it("allows when consent accepted and per-card signature exists (no shared sig)", () => {
+    const result = applyVisitCardCompletionGuard({
+      requesterRole: "receptionist",
+      normalizedStatus: "ongoing",
+      latestVisitCard: { answers: { sharedConsentAccepted: true }, patientSignaturePath: "/sig.png" },
+      sharedSig: null,
+    });
+    assert.equal(result.blocked, false);
+  });
+
+  it("allows when both per-card and shared signatures exist", () => {
+    const result = applyVisitCardCompletionGuard({
+      requesterRole: "receptionist",
+      normalizedStatus: "ongoing",
+      latestVisitCard: { answers: { sharedConsentAccepted: true }, patientSignaturePath: "/sig.png" },
+      sharedSig: { filePath: "/shared-sig.png" },
+    });
+    assert.equal(result.blocked, false);
+  });
+});
+
+describe("visit card completion guard — non-receptionist roles not blocked", () => {
+  for (const role of ["admin", "super_admin", "doctor", "nurse"]) {
+    it(`${role} can set ongoing even without a completed visit card`, () => {
+      const result = applyVisitCardCompletionGuard({
+        requesterRole: role,
+        normalizedStatus: "ongoing",
+        latestVisitCard: null,
+        sharedSig: null,
+      });
+      assert.equal(result.blocked, false);
+    });
+  }
+});
+
+describe("visit card completion guard — non-ongoing statuses not affected", () => {
+  it("receptionist setting status to 'confirmed' is not blocked by visit card guard", () => {
+    const result = applyVisitCardCompletionGuard({
+      requesterRole: "receptionist",
+      normalizedStatus: "confirmed",
+      latestVisitCard: null,
+      sharedSig: null,
+    });
+    assert.equal(result.blocked, false);
+  });
 });

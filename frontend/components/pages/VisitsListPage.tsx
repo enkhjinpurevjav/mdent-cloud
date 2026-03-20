@@ -100,7 +100,6 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
 
   const [editingRowId, setEditingRowId] = useState<number | null>(null);
   const [editingStatus, setEditingStatus] = useState<string>("");
-  const [editingVisitCardType, setEditingVisitCardType] = useState<"ADULT" | "CHILD">("ADULT");
   const [statusSaveLoading, setStatusSaveLoading] = useState(false);
 
   const isAdminRole = (role: string) => role === "admin" || role === "super_admin";
@@ -221,7 +220,6 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
   const handleStatusEditCancel = () => {
     setEditingRowId(null);
     setEditingStatus("");
-    setEditingVisitCardType("ADULT");
   };
 
   const handleStatusSave = async (row: AppointmentRow) => {
@@ -232,9 +230,6 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
     setStatusSaveLoading(true);
     try {
       const payload: Record<string, string> = { status: editingStatus };
-      if (editingStatus.toLowerCase() === "ongoing") {
-        payload.visitCardType = editingVisitCardType;
-      }
       const res = await fetch(`/api/appointments/${row.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -442,17 +437,6 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
                                 </option>
                               ))}
                             </select>
-                            {editingStatus === "ongoing" && (
-                              <select
-                                value={editingVisitCardType}
-                                onChange={(e) => setEditingVisitCardType(e.target.value as "ADULT" | "CHILD")}
-                                disabled={statusSaveLoading}
-                                className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-60"
-                              >
-                                <option value="ADULT">Том хүн</option>
-                                <option value="CHILD">Хүүхэд</option>
-                              </select>
-                            )}
                             <button
                               type="button"
                               disabled={statusSaveLoading}

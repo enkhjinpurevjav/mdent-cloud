@@ -55,7 +55,6 @@ export default function AppointmentDetailsModal({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingStatus, setEditingStatus] = useState<string>("");
   const [editingNote, setEditingNote] = useState<string>("");
-  const [editingVisitCardType, setEditingVisitCardType] = useState<"ADULT" | "CHILD">("ADULT");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [imagingModalOpen, setImagingModalOpen] = useState(false);
@@ -80,7 +79,6 @@ export default function AppointmentDetailsModal({
   setEditingId(null);
   setEditingStatus("");
   setEditingNote("");
-  setEditingVisitCardType("ADULT");
   setError("");
 };
 
@@ -111,11 +109,6 @@ export default function AppointmentDetailsModal({
     // only send notes for these statuses
     if (needsExplanation) {
       payload.notes = editingNote; // backend should trim/convert "" -> null
-    }
-
-    // include visitCardType when setting status to ongoing
-    if (editingStatus && editingStatus.toLowerCase() === "ongoing") {
-      payload.visitCardType = editingVisitCardType;
     }
 
     const res = await fetch(`/api/appointments/${a.id}`, {
@@ -739,26 +732,6 @@ export default function AppointmentDetailsModal({
           <option value="other">Бусад</option>
         </select>
       </label>
-
-      {editingStatus === "ongoing" && (
-        <label style={{ fontSize: 12 }}>
-          Картын төрөл:
-          <select
-            value={editingVisitCardType}
-            onChange={(e) => setEditingVisitCardType(e.target.value as "ADULT" | "CHILD")}
-            style={{
-              marginLeft: 4,
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              padding: "2px 6px",
-              fontSize: 12,
-            }}
-          >
-            <option value="ADULT">Том хүн</option>
-            <option value="CHILD">Хүүхэд</option>
-          </select>
-        </label>
-      )}
 
       <button
         type="button"
