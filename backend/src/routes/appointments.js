@@ -824,7 +824,6 @@ router.patch("/:id", async (req, res) => {
       scheduledAt,
       endAt,
       doctorId,
-      visitCardType,
 
       // explicitly forbid these in this endpoint for safety
       patientId,
@@ -886,13 +885,15 @@ router.patch("/:id", async (req, res) => {
         }
       }
 
-      // Visit card completion guard: block moving to "ongoing" unless patient
-      // has a completed visit card (sharedConsentAccepted + patientSignaturePath).
-      if (normalizedStatus === "ongoing") {
+      // Visit card completion guard: block receptionists from moving to "ongoing"
+      // unless the patient has a completed visit card.
+      // "Completed" means:
+      //   1) the latest visit card has sharedConsentAccepted === true, AND
+      //   2) a signature exists — either the shared signature (VisitCardSharedSignature)
+      //      or the per-card patientSignaturePath.
+      // Admin / super_admin / doctor / nurse are NOT blocked by this guard.
+      if (normalizedStatus === "ongoing" && req.user?.role === "receptionist") {
         const VISIT_CARD_ERROR = "Эмчилгээ эхлэхээс өмнө заавал карт бөглөсөн байх шаардлагатай.";
-        if (visitCardType !== "ADULT" && visitCardType !== "CHILD") {
-          return res.status(403).json({ error: VISIT_CARD_ERROR });
-        }
         const apptWithPatient = await prisma.appointment.findUnique({
           where: { id },
           include: { patient: { include: { patientBook: true } } },
@@ -901,14 +902,18 @@ router.patch("/:id", async (req, res) => {
         if (!patientBookId) {
           return res.status(403).json({ error: VISIT_CARD_ERROR });
         }
-        const visitCard = await prisma.visitCard.findFirst({
-          where: { patientBookId, type: visitCardType },
+        // Find the latest visit card (by savedAt) for consent check
+        const latestVisitCard = await prisma.visitCard.findFirst({
+          where: { patientBookId },
+          orderBy: { savedAt: "desc" },
         });
-        if (
-          !visitCard ||
-          visitCard.answers?.sharedConsentAccepted !== true ||
-          !visitCard.patientSignaturePath
-        ) {
+        const consentOk = latestVisitCard?.answers?.sharedConsentAccepted === true;
+        // Shared signature takes priority; fall back to per-card signature
+        const sharedSig = await prisma.visitCardSharedSignature.findUnique({
+          where: { patientBookId },
+        });
+        const signatureOk = !!(sharedSig?.filePath || latestVisitCard?.patientSignaturePath);
+        if (!consentOk || !signatureOk) {
           return res.status(403).json({ error: VISIT_CARD_ERROR });
         }
       }

@@ -125,6 +125,19 @@ export default function PatientProfilePage() {
   // Ortho card local reset key – incrementing remounts OrthoCardView
   const [orthoResetKey, setOrthoResetKey] = useState(0);
 
+  // Visit card section collapsible state:
+  // Open by default; auto-collapse once the card is complete (consent + signature).
+  const [visitCardOpen, setVisitCardOpen] = useState(true);
+  const visitCardComplete =
+    visitCardAnswers.sharedConsentAccepted === true &&
+    !!sharedSignature?.filePath;
+  // Auto-collapse when card becomes complete and data has finished loading
+  useEffect(() => {
+    if (!visitCardLoading && !sharedSignatureLoading && visitCardComplete) {
+      setVisitCardOpen(false);
+    }
+  }, [visitCardLoading, sharedSignatureLoading, visitCardComplete]);
+
   // Appointments tab filter/pagination state
   const [apptDateFrom, setApptDateFrom] = useState("");
   const [apptDateTo, setApptDateTo] = useState("");
@@ -1218,15 +1231,26 @@ export default function PatientProfilePage() {
 
               {activeTab === "visit_card" && (
                 <>
-                  {/* Type selector for adult vs child */}
+                  {/* Type selector for adult vs child — collapsible */}
                   <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-sm font-semibold">
-                        Үзлэгийн картын төрөл
+                    <div
+                      className="flex items-center justify-between mb-2 cursor-pointer select-none"
+                      onClick={() => setVisitCardOpen((o) => !o)}
+                      role="button"
+                      aria-expanded={visitCardOpen}
+                      aria-label={visitCardOpen ? "Үзлэгийн картын төрөл хаах" : "Үзлэгийн картын төрөл нээх"}
+                    >
+                      <div className="flex items-center gap-2 text-sm font-semibold">
+                        <span>{visitCardOpen ? "▾" : "▸"}</span>
+                        <span>Үзлэгийн картын төрөл</span>
+                        {visitCardComplete && (
+                          <span className="text-xs font-normal text-green-600">✓ Бөглөгдсөн</span>
+                        )}
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           if (!window.confirm("Одоогийн картыг устгах уу? Энэ үйлдлийг буцаах боломжгүй.")) return;
                           void handleClearVisitCard();
                         }}
@@ -1236,42 +1260,50 @@ export default function PatientProfilePage() {
                         Цэвэрлэх
                       </button>
                     </div>
-                    <div className="flex gap-5 items-center text-sm">
-                      <label className="flex items-center gap-1">
-                        <input
-                          type="radio"
-                          name="visitCardType"
-                          value="ADULT"
-                          checked={visitCardTypeDraft === "ADULT"}
-                          onChange={() => handleTypeChange("ADULT")}
-                        />
-                        <span>Үзлэгийн карт (Том хүн)</span>
-                      </label>
-                      <label className="flex items-center gap-1">
-                        <input
-                          type="radio"
-                          name="visitCardType"
-                          value="CHILD"
-                          checked={visitCardTypeDraft === "CHILD"}
-                          onChange={() => handleTypeChange("CHILD")}
-                        />
-                        <span>Үзлэгийн карт (Хүүхэд)</span>
-                      </label>
-                    </div>
 
-                    {visitCardLoading && (
-                      <div className="text-sm mt-2">
-                        Үзлэгийн карт ачааллаж байна...
-                      </div>
-                    )}
+                    {visitCardOpen && (
+                      <>
+                        <div className="flex gap-5 items-center text-sm">
+                          <label className="flex items-center gap-1">
+                            <input
+                              type="radio"
+                              name="visitCardType"
+                              value="ADULT"
+                              checked={visitCardTypeDraft === "ADULT"}
+                              onChange={() => handleTypeChange("ADULT")}
+                            />
+                            <span>Үзлэгийн карт (Том хүн)</span>
+                          </label>
+                          <label className="flex items-center gap-1">
+                            <input
+                              type="radio"
+                              name="visitCardType"
+                              value="CHILD"
+                              checked={visitCardTypeDraft === "CHILD"}
+                              onChange={() => handleTypeChange("CHILD")}
+                            />
+                            <span>Үзлэгийн карт (Хүүхэд)</span>
+                          </label>
+                        </div>
 
-                    {!visitCardLoading && visitCardError && (
-                      <div className="text-xs text-red-700 mt-2">
-                        {visitCardError}
-                      </div>
+                        {visitCardLoading && (
+                          <div className="text-sm mt-2">
+                            Үзлэгийн карт ачааллаж байна...
+                          </div>
+                        )}
+
+                        {!visitCardLoading && visitCardError && (
+                          <div className="text-xs text-red-700 mt-2">
+                            {visitCardError}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
 
+                  {/* Form content and signature — shown only when section is expanded */}
+                  {visitCardOpen && (
+                  <>
                   {/* Render only one form depending on visitCardTypeDraft */}
                   {(visitCardTypeDraft ?? "ADULT") === "ADULT" ? (
                     <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-4 mt-4 mb-4">
@@ -1825,6 +1857,9 @@ export default function PatientProfilePage() {
                       {visitCardSaving ? "Хадгалж байна..." : "Хадгалах"}
                     </button>
                   </div>
+                  {/* End: collapsible visit card form content */}
+                  </>
+                  )}
                 </>
               )}
 
