@@ -58,7 +58,7 @@ type BalanceDetailResponse = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtMnt(v: number) {
-  return `${Number(v || 0).toLocaleString("mn-MN")} ₮`;
+  return `${Math.abs(Number(v || 0)).toLocaleString("mn-MN")} ₮`;
 }
 
 function fmtName(ovog: string | null | undefined, name: string | null | undefined) {
@@ -331,7 +331,7 @@ function EditBalanceModal({
               Засварын дүн (₮)
             </label>
             <p className="text-xs text-gray-500 mb-1">
-              Эерэг тоо = өрийг бууруулна (кредит). Сөрөг тоо = өрийг нэмнэ.
+              Эерэг тоо = үйлчлүүлэгчийн данснд кредит нэмнэ (өр буурна). Сөрөг тоо = дебит (өр нэмнэ).
             </p>
             <input
               type="number"

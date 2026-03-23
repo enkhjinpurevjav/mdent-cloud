@@ -69,7 +69,10 @@ export async function getPatientBalance(patientId) {
  *
  * Response: { total, page, pageSize, items: [...] }
  */
-router.get("/patient-balances", async (req, res) => {
+router.get(
+  "/patient-balances",
+  requireRole("admin", "super_admin", "accountant", "manager"),
+  async (req, res) => {
   try {
     const { type, branchId: branchIdParam, search, page: pageParam, pageSize: pageSizeParam } = req.query;
 
@@ -203,7 +206,8 @@ router.get("/patient-balances", async (req, res) => {
     console.error("GET /api/reports/patient-balances error:", err);
     return res.status(500).json({ error: "Failed to compute patient balances." });
   }
-});
+}
+);
 
 /**
  * GET /api/reports/patient-balance-detail/:patientId
@@ -211,7 +215,10 @@ router.get("/patient-balances", async (req, res) => {
  * Returns per-appointment breakdown for a patient's current balance.
  * Shows each invoice with appointment info, billed, paid, and remaining.
  */
-router.get("/patient-balance-detail/:patientId", async (req, res) => {
+router.get(
+  "/patient-balance-detail/:patientId",
+  requireRole("admin", "super_admin", "accountant", "manager"),
+  async (req, res) => {
   try {
     const patientId = Number(req.params.patientId);
     if (!patientId || patientId <= 0) {
@@ -272,7 +279,8 @@ router.get("/patient-balance-detail/:patientId", async (req, res) => {
     console.error("GET /api/reports/patient-balance-detail error:", err);
     return res.status(500).json({ error: "Failed to load balance detail." });
   }
-});
+}
+);
 
 /**
  * POST /api/reports/patient-balance-adjustment
