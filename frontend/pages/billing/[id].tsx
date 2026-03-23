@@ -477,7 +477,11 @@ function BillingPaymentSection({
 
       const data = await res.json().catch(() => null);
       if (!res.ok || !data) {
-        throw new Error((data && data.error) || "Код шалгахад алдаа гарлаа.");
+        const errMsg = data && data.error;
+        if (errMsg === "Хэрэглэх лимит хэтэрсэн байна.") {
+          throw new Error(errMsg);
+        }
+        throw new Error("Код шалгахад алдаа гарлаа.");
       }
 
       const remaining = data.remainingAmount ?? 0;
@@ -1309,21 +1313,7 @@ function BillingPaymentSection({
                       </div>
                     )}
 
-                    {/* QPAY: Generate QR button */}
-                    {m.key === "QPAY" && (
-                      <div className="flex items-center gap-[6px]">
-                        <button
-                          type="button"
-                          onClick={handleGenerateQPayQR}
-                          disabled={qpayGenerating}
-                          className={`py-1 px-2 rounded border border-blue-600 bg-blue-50 text-blue-600 text-[11px] ${qpayGenerating ? "cursor-not-allowed" : "cursor-pointer"}`}
-                        >
-                          {qpayGenerating ? "Үүсгэж байна..." : "QR үүсгэх"}
-                        </button>
-                      </div>
-                    )}
-
-                                        {m.key !== "APPLICATION" && (
+                    {m.key !== "APPLICATION" && (
                       <div className="flex items-center gap-1 flex-1">
                         <input
                           type="number"

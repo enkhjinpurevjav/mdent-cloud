@@ -276,19 +276,14 @@ router.post("/employee-benefit/verify", async (req, res) => {
   const code = body.code;
 
   if (!code || typeof code !== "string") {
-    return res.status(400).json({ error: "code is required" });
+    return res.status(400).json({ error: "Код шалгахад алдаа гарлаа." });
   }
 
   try {
-    // Fix: do not use duplicate OR keys; use AND of ORs.
     const benefit = await prisma.employeeBenefit.findFirst({
       where: {
         code: code.trim(),
         isActive: true,
-        AND: [
-          { OR: [{ fromDate: null }, { fromDate: { lte: new Date() } }] },
-          { OR: [{ toDate: null }, { toDate: { gte: new Date() } }] },
-        ],
       },
       include: {
         employee: true,
@@ -298,7 +293,13 @@ router.post("/employee-benefit/verify", async (req, res) => {
     if (!benefit) {
       return res
         .status(404)
-        .json({ error: "Ажилтны код олдсонгүй эсвэл хүчингүй байна." });
+        .json({ error: "Код шалгахад алдаа гарлаа." });
+    }
+
+    if (benefit.remainingAmount <= 0) {
+      return res
+        .status(400)
+        .json({ error: "Хэрэглэх лимит хэтэрсэн байна." });
     }
 
     return res.json({
@@ -308,7 +309,7 @@ router.post("/employee-benefit/verify", async (req, res) => {
     });
   } catch (e) {
     console.error("Failed to verify employee benefit code", e);
-    return res.status(500).json({ error: "Серверийн алдаа." });
+    return res.status(500).json({ error: "Код шалгахад алдаа гарлаа." });
   }
 });
 
