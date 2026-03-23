@@ -609,20 +609,28 @@ export default function PatientProfilePage() {
               {activeTab === "profile" && (
                 <>
                   {/* Summary cards row — hidden for doctors on all screen sizes */}
-                  {!isDoctor && (
-                  <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
-                    {/* Encounters summary */}
-                    <div className="rounded-xl border border-gray-200 p-3 bg-gray-50">
-                      <div className="text-xs uppercase text-gray-500 mb-1">
-                        Үзлэгүүд
-                      </div>
-                      <div className="text-2xl font-semibold mb-1">
-                        {totalEncounters}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Нийт бүртгэлтэй үзлэг
-                      </div>
-                    </div>
+                {!isDoctor && (
+  <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
+    {/* Wallet balance card */}
+    <div className="rounded-xl border border-gray-200 p-3 bg-gray-50">
+      <div className="text-xs uppercase text-gray-500 mb-1">
+        Хэтэвчийн үлдэгдэл
+      </div>
+      <div className={`text-2xl font-semibold mb-1 ${
+        patientBalance > 0 ? "text-red-700" : patientBalance < 0 ? "text-green-700" : ""
+      }`}>
+        {typeof patientBalance === "number"
+          ? `${patientBalance.toLocaleString("mn-MN")} ₮`
+          : "-"}
+      </div>
+      <div className="text-xs text-gray-500">
+        {patientBalance > 0
+          ? "Төлөх үлдэгдэл"
+          : patientBalance < 0
+            ? "Урьдчилгаа төлөлт"
+            : "Үлдэгдэл алга"}
+      </div>
+    </div>
 
                     {/* Last encounter */}
                     <div className="rounded-xl border border-gray-200 p-3 bg-gray-50">
