@@ -178,6 +178,7 @@ export default function PatientProfilePage() {
   const pb = data?.patientBook;
   const encounters = data?.encounters || [];
   const appointments = data?.appointments || [];
+  const patientBalance = data?.patientBalance;
 
   const totalEncounters = encounters.length;
   const lastEncounter = encounters[0];
