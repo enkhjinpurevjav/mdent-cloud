@@ -81,6 +81,13 @@ export default function EmployeeVouchersPage() {
   const [code, setCode] = useState("");
   const [initialAmount, setInitialAmount] = useState("");
 
+  // user search for add modal
+  type UserOption = { id: number; name?: string; ovog?: string; email: string; role: string };
+  const [users, setUsers] = useState<UserOption[]>([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [selectedUser, setSelectedUser] = useState<UserOption | null>(null);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+
   // edit modal
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState<EmployeeBenefitRow | null>(null);
@@ -107,6 +114,29 @@ export default function EmployeeVouchersPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadUsers = async () => {
+    try {
+      const res = await fetch("/api/users");
+      const data = await res.json().catch(() => null);
+      if (res.ok && Array.isArray(data)) {
+        setUsers(data);
+      }
+    } catch {
+      // silently fail; user search will just show no results
+    }
+  };
+
+  const openAdd = () => {
+    setSelectedUser(null);
+    setUserSearch("");
+    setEmployeeId("");
+    setCode("");
+    setInitialAmount("");
+    setShowUserDropdown(false);
+    setAddOpen(true);
+    void loadUsers();
   };
 
   useEffect(() => {
@@ -185,11 +215,11 @@ export default function EmployeeVouchersPage() {
   };
 
   const handleAdd = async () => {
-    const idNum = Number(employeeId);
+    const idNum = selectedUser ? selectedUser.id : Number(employeeId);
     const amtNum = Number(initialAmount);
 
     if (!idNum || Number.isNaN(idNum)) {
-      alert("Employee ID зөв оруулна уу.");
+      alert("Ажилтан сонгоно уу.");
       return;
     }
     if (!code.trim()) {
@@ -211,6 +241,8 @@ export default function EmployeeVouchersPage() {
       if (!res.ok) throw new Error(data?.error || "Failed to add benefit");
 
       setAddOpen(false);
+      setSelectedUser(null);
+      setUserSearch("");
       setEmployeeId("");
       setCode("");
       setInitialAmount("");
@@ -237,7 +269,7 @@ export default function EmployeeVouchersPage() {
 
         <button
           type="button"
-          onClick={() => setAddOpen(true)}
+          onClick={openAdd}
           style={{
             padding: "8px 12px",
             borderRadius: 6,
@@ -398,18 +430,90 @@ export default function EmployeeVouchersPage() {
             <h3 style={{ marginTop: 0, marginBottom: 10 }}>Ажилтанд ваучер эрх олгох</h3>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 12, color: "#374151" }}>Employee ID</div>
-                <input
-                  value={employeeId}
-                  onChange={(e) => setEmployeeId(e.target.value)}
-                  placeholder="Жишээ: 6"
-                  style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
-                />
-              </label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 12, color: "#374151" }}>Ажилтан хайх</div>
+                <div style={{ position: "relative" }}>
+                  <input
+                    value={selectedUser
+                      ? `${selectedUser.ovog ? selectedUser.ovog.charAt(0) + ". " : ""}${selectedUser.name || selectedUser.email} (${roleLabel(selectedUser.role)})`
+                      : userSearch}
+                    onChange={(e) => {
+                      setUserSearch(e.target.value);
+                      setSelectedUser(null);
+                      setShowUserDropdown(true);
+                    }}
+                    onFocus={() => setShowUserDropdown(true)}
+                    placeholder="Нэрээр хайх..."
+                    autoComplete="off"
+                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db", boxSizing: "border-box" }}
+                  />
+                  {showUserDropdown && !selectedUser && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "100%",
+                        left: 0,
+                        right: 0,
+                        background: "#fff",
+                        border: "1px solid #d1d5db",
+                        borderRadius: 8,
+                        boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                        zIndex: 200,
+                        maxHeight: 220,
+                        overflowY: "auto",
+                      }}
+                    >
+                      {(() => {
+                        const q = userSearch.toLowerCase();
+                        const filtered = users.filter((u) => {
+                          if (!q) return true;
+                          const fullName = `${u.ovog || ""} ${u.name || ""}`.toLowerCase();
+                          return fullName.includes(q) || (u.email || "").toLowerCase().includes(q);
+                        });
+                        if (filtered.length === 0) {
+                          return <div style={{ padding: "8px 12px", color: "#6b7280", fontSize: 12 }}>Олдсонгүй</div>;
+                        }
+                        return filtered.map((u) => (
+                          <div
+                            key={u.id}
+                            onClick={() => {
+                              setSelectedUser(u);
+                              setUserSearch("");
+                              setShowUserDropdown(false);
+                            }}
+                            style={{
+                              padding: "8px 12px",
+                              cursor: "pointer",
+                              borderBottom: "1px solid #f3f4f6",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                            }}
+                          >
+                            <div>
+                              <span style={{ fontWeight: 500 }}>
+                                {u.ovog ? `${u.ovog.charAt(0)}. ` : ""}{u.name || u.email}
+                              </span>
+                              <span style={{ marginLeft: 6, fontSize: 11, color: "#6b7280" }}>{u.email}</span>
+                            </div>
+                            <span style={{ fontSize: 11, color: "#2563eb", background: "#eff6ff", padding: "2px 6px", borderRadius: 4 }}>
+                              {roleLabel(u.role)}
+                            </span>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  )}
+                </div>
+                {selectedUser && (
+                  <div style={{ fontSize: 11, color: "#16a34a" }}>
+                    Сонгогдсон: ID {selectedUser.id} — {selectedUser.email}
+                  </div>
+                )}
+              </div>
 
               <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 12, color: "#374151" }}>Код (EmployeeBenefit.code)</div>
+                <div style={{ fontSize: 12, color: "#374151" }}>Код</div>
                 <input
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
@@ -453,10 +557,6 @@ export default function EmployeeVouchersPage() {
                   Хадгалах
                 </button>
               </div>
-            </div>
-
-            <div style={{ marginTop: 10, fontSize: 12, color: "#6b7280" }}>
-              Түр хугацаанд Employee ID-г гараар оруулж байна. Дараа нь хайлтын dropdown болгоно.
             </div>
           </div>
         </div>
