@@ -326,10 +326,10 @@ router.post("/voucher/verify", async (req, res) => {
     });
   }
 
-  if (!code || typeof code !== "string") {
+  if (type === "GIFT" && (!code || typeof code !== "string")) {
     return res
       .status(400)
-      .json({ error: "Купон / Ваучер кодыг оруулах шаардлагатай." });
+      .json({ error: "Бэлгийн картын кодыг оруулах шаардлагатай." });
   }
 
   try {
@@ -344,8 +344,34 @@ router.post("/voucher/verify", async (req, res) => {
     }
 
     if (type === "GIFT") {
-      return res.status(400).json({
-        error: "GIFT төрлийн бэлгийн картын backend логик хараахан хийгдээгүй байна.",
+      // Verify gift card by code
+      const trimmedCode = code.trim();
+      if (!trimmedCode) {
+        return res.status(400).json({ error: "Бэлгийн картын кодыг оруулна уу." });
+      }
+
+      const card = await prisma.giftCard.findUnique({
+        where: { code: trimmedCode },
+      });
+
+      if (!card) {
+        return res.status(404).json({ error: "Бэлгийн картын код олдсонгүй." });
+      }
+      if (!card.isActive) {
+        return res.status(400).json({ error: "Энэ бэлгийн карт идэвхгүй байна." });
+      }
+      if (card.remainingBalance <= 0) {
+        return res.status(400).json({ error: "Бэлгийн картын үлдэгдэл дууссан байна." });
+      }
+
+      return res.json({
+        type,
+        code: card.code,
+        note: card.note,
+        value: card.value,
+        remainingBalance: card.remainingBalance,
+        createdAt: card.createdAt,
+        maxAmount: card.remainingBalance,
       });
     }
 

@@ -104,6 +104,7 @@ const navItems: NavItem[] = [
       { label: "Авлага", href: "/finance/debts", icon: "📄" },
       { label: "Илүү төлөлт", href: "/finance/overpayments", icon: "➕" },
       { label: "Бартер", href: "/finance/barter", icon: "🔄" },
+      { label: "Бэлгийн карт", href: "/finance/giftcards", icon: "🎁" },
       {
         label: "Ажилчдын ваучер",
         href: "/admin/finance/employee-vouchers",
