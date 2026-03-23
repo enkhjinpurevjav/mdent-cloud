@@ -268,6 +268,8 @@ function BillingPaymentSection({
 
   const [voucherType, setVoucherType] = useState<"MARKETING" | "GIFT" | "">("");
   const [voucherMaxAmount, setVoucherMaxAmount] = useState<number | null>(null);
+  const [giftCardNote, setGiftCardNote] = useState<string | null>(null);
+  const [giftCardCreatedAt, setGiftCardCreatedAt] = useState<string | null>(null);
 
   // Sterilization mismatch state
   const [unresolvedMismatches, setUnresolvedMismatches] = useState<any[]>([]);
@@ -352,6 +354,8 @@ function BillingPaymentSection({
     setSuccess("");
     setVoucherType("");
     setVoucherMaxAmount(null);
+    setGiftCardNote(null);
+    setGiftCardCreatedAt(null);
     setAppRows([{ providerId: null, amount: "" }]);
     setTransferNote("");
     setCloseOldBalance(false);
@@ -386,6 +390,8 @@ function BillingPaymentSection({
         setVoucherCode("");
         setVoucherType("");
         setVoucherMaxAmount(null);
+        setGiftCardNote(null);
+        setGiftCardCreatedAt(null);
       }
       if (methodKey !== "APPLICATION") {
         setAppRows([{ providerId: null, amount: "" }]);
@@ -411,6 +417,8 @@ function BillingPaymentSection({
         setVoucherCode("");
         setVoucherType("");
         setVoucherMaxAmount(null);
+        setGiftCardNote(null);
+        setGiftCardCreatedAt(null);
       }
       if (methodKey === "APPLICATION") {
         setAppRows([{ providerId: null, amount: "" }]);
@@ -537,8 +545,8 @@ function BillingPaymentSection({
       setError("Купоны төрлийг сонгоно уу.");
       return;
     }
-    if (!voucherCode.trim()) {
-      setError("Купон / Ваучер кодыг оруулна уу.");
+    if (voucherType === "GIFT" && !voucherCode.trim()) {
+      setError("Бэлгийн картын кодыг оруулна уу.");
       return;
     }
 
@@ -548,7 +556,7 @@ function BillingPaymentSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type: voucherType, // "MARKETING" | "GIFT"
-          code: voucherCode.trim(),
+          code: voucherType === "GIFT" ? voucherCode.trim() : "",
           invoiceId: invoice.id,
           encounterId: invoice.encounterId,
           patientId: invoice.patientId,
@@ -562,10 +570,21 @@ function BillingPaymentSection({
 
       const maxAmount = data.maxAmount ?? 0;
       setVoucherMaxAmount(maxAmount);
-      setSuccess(`Купон баталгаажлаа. Ашиглах дээд дүн: ${formatMoney(maxAmount)} ₮`);
+
+      if (voucherType === "GIFT") {
+        setGiftCardNote(data.note ?? "");
+        setGiftCardCreatedAt(data.createdAt ?? null);
+        setSuccess(
+          `Бэлгийн карт баталгаажлаа. Үлдэгдэл: ${formatMoney(maxAmount)} ₮`
+        );
+      } else {
+        setSuccess(`Купон баталгаажлаа. Ашиглах дээд дүн: ${formatMoney(maxAmount)} ₮`);
+      }
     } catch (e: any) {
       console.error("verify voucher code failed:", e);
       setVoucherMaxAmount(null);
+      setGiftCardNote(null);
+      setGiftCardCreatedAt(null);
       setError(e.message || "Купон шалгахад алдаа гарлаа.");
     }
   };
@@ -642,19 +661,29 @@ function BillingPaymentSection({
           setError("Купоны төрлийг сонгоно уу.");
           return;
         }
-        if (!voucherCode.trim()) {
-          setError("Купон / Ваучер кодыг оруулна уу.");
+        if (voucherType === "GIFT" && !voucherCode.trim()) {
+          setError("Бэлгийн картын кодыг оруулна уу.");
           return;
         }
         if (voucherMaxAmount == null) {
-          setError("Купоныг эхлээд 'Шалгах' товчоор баталгаажуулна уу.");
+          if (voucherType === "MARKETING") {
+            setError("Маркетинг купоны дүн тохируулагдаагүй байна.");
+          } else {
+            setError("Бэлгийн картыг эхлээд 'Шалгах' товчоор баталгаажуулна уу.");
+          }
           return;
         }
         if (amt > voucherMaxAmount) {
           setError("Оруулсан дүн нь купоны боломжит дүнгээс их байна.");
           return;
         }
-        entry.meta = { ...(entry.meta || {}), type: voucherType, code: voucherCode.trim() };
+        if (voucherType === "GIFT") {
+          // Use GIFT_CARD method for gift card payments so backend can deduct balance
+          entry.method = "GIFT_CARD";
+          entry.meta = { ...(entry.meta || {}), type: voucherType, code: voucherCode.trim() };
+        } else {
+          entry.meta = { ...(entry.meta || {}), type: voucherType, code: voucherCode.trim() };
+        }
       }
 
       if (m.key === "BARTER") {
@@ -815,6 +844,8 @@ function BillingPaymentSection({
       setEmployeeRemaining(null);
       setVoucherType("");
       setVoucherMaxAmount(null);
+      setGiftCardNote(null);
+      setGiftCardCreatedAt(null);
       setAppRows([{ providerId: null, amount: "" }]);
       setCloseOldBalance(false);
       setSplitPayment(false);
@@ -1102,14 +1133,22 @@ function BillingPaymentSection({
 )}
 
                     {m.key === "VOUCHER" && (
-  <div className="flex items-center gap-[6px]">
+  <div className="flex flex-col gap-[6px]">
+    <div className="flex items-center gap-[6px]">
     <select
       value={voucherType}
-      onChange={(e) =>
-        setVoucherType(
-          e.target.value as "MARKETING" | "GIFT" | ""
-        )
-      }
+      onChange={(e) => {
+        const t = e.target.value as "MARKETING" | "GIFT" | "";
+        setVoucherType(t);
+        setVoucherCode("");
+        setVoucherMaxAmount(null);
+        setGiftCardNote(null);
+        setGiftCardCreatedAt(null);
+        if (t === "MARKETING") {
+          setVoucherMaxAmount(15000);
+          setAmounts((prev) => ({ ...prev, VOUCHER: "15000" }));
+        }
+      }}
       className="rounded-md border border-gray-300 py-1 px-[6px] text-xs"
     >
       <option value="">Төрөл сонгох...</option>
@@ -1119,26 +1158,52 @@ function BillingPaymentSection({
       <option value="GIFT">Бэлгийн карт</option>
     </select>
 
-    <input
-      type="text"
-      value={voucherCode}
-      onChange={(e) => setVoucherCode(e.target.value)}
-      placeholder="Код"
-      className="w-[120px] rounded-md border border-gray-300 py-1 px-[6px] text-xs"
-    />
+    {voucherType === "GIFT" && (
+      <>
+        <input
+          type="text"
+          value={voucherCode}
+          onChange={(e) => {
+            setVoucherCode(e.target.value);
+            setVoucherMaxAmount(null);
+            setGiftCardNote(null);
+            setGiftCardCreatedAt(null);
+          }}
+          placeholder="8 оронтой код"
+          className="w-[120px] rounded-md border border-gray-300 py-1 px-[6px] text-xs"
+        />
 
-    <button
-      type="button"
-      onClick={handleVerifyVoucherCode}
-      className="py-1 px-2 rounded border border-blue-600 bg-blue-50 text-blue-600 text-[11px] cursor-pointer"
-    >
-      Шалгах
-    </button>
+        <button
+          type="button"
+          onClick={handleVerifyVoucherCode}
+          className="py-1 px-2 rounded border border-blue-600 bg-blue-50 text-blue-600 text-[11px] cursor-pointer"
+        >
+          Шалгах
+        </button>
+      </>
+    )}
 
-    {voucherMaxAmount != null && (
+    {voucherType === "MARKETING" && voucherMaxAmount != null && (
       <span className="text-xs text-green-600 ml-1">
-        Дээд дүн: {formatMoney(voucherMaxAmount)} ₮
+        Дүн: {formatMoney(voucherMaxAmount)} ₮
       </span>
+    )}
+
+    {voucherType === "GIFT" && voucherMaxAmount != null && (
+      <span className="text-xs text-green-600 ml-1">
+        Үлдэгдэл: {formatMoney(voucherMaxAmount)} ₮
+      </span>
+    )}
+    </div>
+    {voucherType === "GIFT" && giftCardNote != null && (
+      <div className="text-xs text-gray-600 flex flex-col gap-[2px]">
+        {giftCardNote && (
+          <span>📝 {giftCardNote}</span>
+        )}
+        {giftCardCreatedAt && (
+          <span>📅 Үүссэн: {new Date(giftCardCreatedAt).toLocaleDateString("mn-MN")}</span>
+        )}
+      </div>
     )}
   </div>
 )}

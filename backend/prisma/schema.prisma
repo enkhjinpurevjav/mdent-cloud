@@ -265,6 +265,43 @@ model BarterUsage {
   @@index([patientId])
 }
 
+// ==========================================================
+// GIFT CARDS (Бэлгийн карт)
+// ==========================================================
+model GiftCard {
+  id               Int      @id @default(autoincrement())
+  code             String   @unique // 8-digit random code
+  note             String   @default("") // recipient/use/purchase info
+  value            Int      // initial balance (₮)
+  remainingBalance Int      // current remaining balance (₮)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  usages GiftCardUsage[]
+}
+
+model GiftCardUsage {
+  id             Int      @id @default(autoincrement())
+  giftCardId     Int
+  invoiceId      Int
+  encounterId    Int
+  amountUsed     Int
+  patientId      Int
+  usedByUserId   Int?     // who recorded the payment
+  createdAt      DateTime @default(now())
+
+  giftCard  GiftCard  @relation(fields: [giftCardId], references: [id])
+  invoice   Invoice   @relation(fields: [invoiceId], references: [id])
+  encounter Encounter @relation(fields: [encounterId], references: [id])
+  patient   Patient   @relation(fields: [patientId], references: [id])
+
+  @@index([giftCardId])
+  @@index([invoiceId])
+  @@index([encounterId])
+  @@index([patientId])
+}
+
 model SterilizationItem {
   id             Int      @id @default(autoincrement())
   branchId       Int      // Branch-scoped tool master
@@ -784,6 +821,7 @@ model Patient {
   ledgerEntries         LedgerEntry[]
   employeeBenefitUsages EmployeeBenefitUsage[]
   barterUsages          BarterUsage[]
+  giftCardUsages        GiftCardUsage[]
 }
 
 // ==========================================================
@@ -972,6 +1010,7 @@ model Encounter {
   sterilizationPackageUses EncounterSterilizationPackageUse[] @relation("EncounterSterilizationUses")
   employeeBenefitUsages    EmployeeBenefitUsage[]
   barterUsages             BarterUsage[]
+  giftCardUsages           GiftCardUsage[]
   sourceAppointments       Appointment[]                      @relation("SourceEncounter")
   
   // NEW: v1 sterilization relations
@@ -1295,6 +1334,7 @@ model Invoice {
 
   employeeBenefitUsages EmployeeBenefitUsage[] 
   barterUsages          BarterUsage[]
+  giftCardUsages        GiftCardUsage[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt

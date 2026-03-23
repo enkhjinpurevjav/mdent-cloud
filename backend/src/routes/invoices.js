@@ -407,6 +407,140 @@ router.post("/:id/settlement", async (req, res) => {
     }
 
     // ─────────────────────────────────────────────────────────────
+    // SPECIAL CASE: GIFT_CARD (Бэлгийн карт)
+    // ─────────────────────────────────────────────────────────────
+    if (methodStr === "GIFT_CARD") {
+      const giftCardCode =
+        meta && typeof meta.code === "string" ? meta.code.trim() : null;
+
+      if (!giftCardCode) {
+        return res.status(400).json({
+          error: "giftCardCode is required for GIFT_CARD.",
+        });
+      }
+
+      try {
+        const result = await prisma.$transaction(async (trx) => {
+          const card = await trx.giftCard.findUnique({
+            where: { code: giftCardCode },
+          });
+
+          if (!card) {
+            throw new Error("Бэлгийн картын код хүчингүй байна.");
+          }
+
+          if (!card.isActive) {
+            throw new Error("Энэ бэлгийн карт идэвхгүй байна.");
+          }
+
+          if (card.remainingBalance < payAmount) {
+            throw new Error("Бэлгийн картын үлдэгдэл хүрэлцэхгүй байна.");
+          }
+
+          const newBalance = card.remainingBalance - payAmount;
+
+          // 1) Deduct gift card balance and mark inactive when depleted
+          await trx.giftCard.update({
+            where: { id: card.id },
+            data: {
+              remainingBalance: newBalance,
+              isActive: newBalance > 0,
+            },
+          });
+
+          // 2) Record usage
+          await trx.giftCardUsage.create({
+            data: {
+              giftCardId: card.id,
+              invoiceId: invoice.id,
+              encounterId: invoice.encounterId,
+              amountUsed: payAmount,
+              patientId: invoice.patientId,
+              usedByUserId: req.user?.id ?? null,
+            },
+          });
+
+          // 3) Apply payment using shared settlement logic
+          const { updatedInvoice, paidTotal } = await applyPaymentToInvoice(trx, {
+            invoice,
+            payAmount,
+            methodStr,
+            meta,
+            createdByUserId: req.user?.id || null,
+          });
+
+          return { updatedInvoice, paidTotal };
+        });
+
+        const { updatedInvoice, paidTotal } = result;
+
+        // Broadcast SSE
+        const appointmentIdForSse = invoice.encounter?.appointmentId ?? null;
+        if (appointmentIdForSse) {
+          try {
+            const apptForBroadcast = await prisma.appointment.findUnique({
+              where: { id: appointmentIdForSse },
+              include: {
+                patient: { select: { id: true, name: true, ovog: true, phone: true, patientBook: true } },
+                doctor: { select: { id: true, name: true, ovog: true } },
+                branch: { select: { id: true, name: true } },
+              },
+            });
+            if (apptForBroadcast?.scheduledAt) {
+              const apptDate = apptForBroadcast.scheduledAt.toISOString().slice(0, 10);
+              sseBroadcast(
+                "appointment_updated",
+                { ...apptForBroadcast, encounterId: invoice.encounterId },
+                apptDate,
+                apptForBroadcast.branchId
+              );
+            }
+          } catch (sseErr) {
+            console.error("SSE broadcast error after gift card settlement (non-fatal):", sseErr);
+          }
+        }
+
+        return res.json({
+          id: updatedInvoice.id,
+          branchId: updatedInvoice.branchId,
+          encounterId: updatedInvoice.encounterId,
+          patientId: updatedInvoice.patientId,
+          status: updatedInvoice.statusLegacy,
+          totalBeforeDiscount: updatedInvoice.totalBeforeDiscount,
+          discountPercent: updatedInvoice.discountPercent,
+          collectionDiscountAmount: updatedInvoice.collectionDiscountAmount || 0,
+          finalAmount: updatedInvoice.finalAmount,
+          totalAmountLegacy: updatedInvoice.totalAmount,
+          paidTotal,
+          unpaidAmount: Math.max(baseAmount - paidTotal, 0),
+          hasEBarimt: !!updatedInvoice.eBarimtReceipt,
+          items: updatedInvoice.items.map((it) => ({
+            id: it.id,
+            itemType: it.itemType,
+            serviceId: it.serviceId,
+            productId: it.productId,
+            name: it.name,
+            unitPrice: it.unitPrice,
+            quantity: it.quantity,
+            lineTotal: it.lineTotal,
+          })),
+          payments: updatedInvoice.payments.map((p) => ({
+            id: p.id,
+            amount: p.amount,
+            method: p.method,
+            timestamp: p.timestamp,
+            createdByUser: p.createdBy ? { id: p.createdBy.id, name: p.createdBy.name || null, ovog: p.createdBy.ovog || null } : null,
+          })),
+        });
+      } catch (err) {
+        console.error("GIFT_CARD settlement transaction error:", err);
+        return res
+          .status(400)
+          .json({ error: err.message || "Төлбөр бүртгэхэд алдаа гарлаа." });
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // DEFAULT: other methods (CASH, QPAY, POS, TRANSFER, etc.)
     // ─────────────────────────────────────────────────────────────
 

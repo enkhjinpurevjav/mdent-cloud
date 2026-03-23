@@ -162,6 +162,7 @@ function formatPaymentMethod(method: string): string {
     INSURANCE: "Даатгал",
     VOUCHER: "Ваучер",
     BARTER: "Бартер",
+    GIFT_CARD: "Бэлгийн карт",
     APPLICATION: "Апп",
     OTHER: "Бусад",
     WALLET: "Хэтэвч",
