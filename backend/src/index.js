@@ -168,22 +168,15 @@ const requireAdminRole = requireRole("admin", "super_admin");
 app.use("/api/admin", requireAdminRole);
 
 // RBAC: /api/users gate
-// - admin/super_admin: full access (required for user-management UI)
+// - admin/super_admin: full access
 // - receptionist: read-only GET /api/users?role=doctor only
-//   (needed by billing/appointments UI to populate doctor dropdowns;
-//    sensitive fields are stripped by the route handler — see routes/users.js)
-// - all other roles or methods: 403
 app.use("/api/users", (req, res, next) => {
   if (process.env.DISABLE_AUTH === "true") return next();
   if (!req.user) {
     return res.status(401).json({ error: "Authentication required." });
   }
   const { role } = req.user;
-
-  // Admin and super_admin retain full access
   if (role === "admin" || role === "super_admin") return next();
-
-  // Receptionist may only read the doctor list (GET /api/users?role=doctor)
   if (
     role === "receptionist" &&
     req.method === "GET" &&
@@ -192,7 +185,6 @@ app.use("/api/users", (req, res, next) => {
   ) {
     return next();
   }
-
   return res.status(403).json({ error: "Forbidden. Insufficient role." });
 });
 
@@ -207,6 +199,7 @@ app.use("/api/users", usersRouter);
 app.use("/api/employees", employeesRouter);
 app.use("/api/encounters", encountersRouter);
 app.use("/api/billing", billingRouter);
+app.use("/api/billing", employeeBenefitsRouter); // <-- ADD THIS LINE TO FIX! 
 app.use("/api/invoices", invoicesRouter);
 app.use("/api/appointments", appointmentsRouter);
 app.use("/api/services", servicesRouter);
@@ -219,7 +212,7 @@ app.use("/api/inventory", inventoryRouter);
 app.use("/api/admin", staffIncomeSettingsRouter);
 
 // Admin routes
-app.use("/api/admin", employeeBenefitsRouter);
+app.use("/api/admin", employeeBenefitsRouter); // This line can remain for admin UI if you want both.
 app.use("/api/admin", incomeRoutes);
 app.use("/api/admin", doctorDashboardRouter);
 
@@ -240,10 +233,7 @@ app.use("/api/qpay", qpayRouter);
 // Encounter-related routes
 app.use("/api/encounter-diagnoses", encounterDiagnosesRouter);
 app.use("/api/encounter-services", encounterServicesRouter);
-app.use(
-  "/api/encounter-diagnosis-problem-texts",
-  encounterDiagnosisProblemTextsRouter
-);
+app.use("/api/encounter-diagnosis-problem-texts", encounterDiagnosisProblemTextsRouter);
 app.use("/api/encounter-service-texts", encounterServiceTextsRouter);
 
 // eBarimt POSAPI 3.0 routes
@@ -255,10 +245,10 @@ app.use("/api/uploads", uploadsRouter);
 // Attendance routes (all authenticated staff)
 app.use("/api/attendance", attendanceRouter);
 
-// Doctor portal routes (authenticateJWT + requireRole("doctor") enforced inside the router)
+// Doctor portal routes (authenticateJWT + requireRole(\"doctor\") enforced inside the router)
 app.use("/api/doctor", doctorPortalRouter);
 
-// Nurse portal routes (authenticateJWT + requireRole("nurse") enforced inside the router)
+// Nurse portal routes (authenticateJWT + requireRole(\"nurse\") enforced inside the router)
 app.use("/api/nurse", nursePortalRouter);
 
 // Admin attendance report
