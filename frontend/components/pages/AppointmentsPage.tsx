@@ -2401,6 +2401,28 @@ const getStatusColor = (status: string): string => {
   }
 };
 
+// Returns white for dark backgrounds, dark text for light backgrounds (WCAG contrast).
+const getStatusTextColor = (status: string): string => {
+  switch (status) {
+    case "confirmed":
+    case "online":
+    case "ongoing":
+    case "imaging":
+    case "no_show":
+    case "cancelled":
+      return "#ffffff";
+    case "completed":
+      return "#14532d"; // dark green on light-green bg
+    case "ready_to_pay":
+    case "partial_paid":
+      return "#78350f"; // dark amber on yellow bg
+    case "other":
+      return "#1e293b"; // dark slate on gray bg
+    default:
+      return "#1e3a5f"; // dark blue on light-blue bg
+  }
+};
+
 // ---- Drag/Resize handlers ----
 useEffect(() => {
   if (!activeDrag) return;
@@ -3497,7 +3519,7 @@ const handleCancelDraft = (appointmentId: number) => {
                               ? "2px solid #2563eb"
                               : hasPendingSave
                                 ? "2px solid #f59e0b"
-                                : "1.5px solid rgba(0,0,0,0.12)", color: "#ffffff", textShadow: "0 1px 2px rgba(0,0,0,0.3)", boxShadow: isDragging
+                                : "1.5px solid rgba(0,0,0,0.12)", color: getStatusTextColor(a.status), boxShadow: isDragging
                               ? "0 4px 12px rgba(37,99,235,0.5)"
                               : "0 1px 4px rgba(0,0,0,0.18)", cursor: canEdit ? "move" : "pointer", opacity: isDragging ? 0.8 : 1, zIndex: isDragging || hasPendingSave ? 10 : 1, animation: a.status === "ready_to_pay" && !isDragging
                               ? "readyToPayPulse 1.4s ease-in-out infinite, readyToPayBlink 1.4s ease-in-out infinite"
@@ -3508,7 +3530,7 @@ const handleCancelDraft = (appointmentId: number) => {
                           )} (${formatStatus(a.status)})`}
                         >
                           <span className="font-semibold truncate">{formatGridShortLabel(a)}</span>
-                          <span className="opacity-90 truncate">{formatStatus(a.status)}</span>
+                          <span className="opacity-80 truncate">{formatStatus(a.status)}</span>
 
                           {/* Resize handle at bottom */}
                           {canEdit && !isDragging && (
