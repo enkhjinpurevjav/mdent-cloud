@@ -726,26 +726,13 @@ if (quickPatientForm.regNo.trim()) {
   return (
     <form
       onSubmit={handleSubmit}
-      style={{
-        marginBottom: 24,
-        display: "grid",
-        gap: 12,
-        gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-        fontSize: 13,
-      }}
+      style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}
+      className="mb-6 grid gap-3 text-sm"
     >
       {/* Branch + Patient — same row */}
-      <div
-        style={{
-          gridColumn: "1 / -1",
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 8,
-          alignItems: "flex-end",
-        }}
-      >
+      <div className="col-span-full flex flex-wrap gap-2 items-end">
         {/* Branch */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div className="flex flex-col gap-1">
           <label>Салбар</label>
           <select
             name="branchId"
@@ -756,11 +743,7 @@ if (quickPatientForm.regNo.trim()) {
               onBranchChange(e.target.value);
             }}
             required
-            style={{
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              padding: "6px 8px",
-            }}
+            className="rounded border border-gray-300 px-2 py-1.5"
           >
             <option value="">Салбар сонгох</option>
             {branches.map((b) => (
@@ -782,22 +765,14 @@ if (quickPatientForm.regNo.trim()) {
               branchId: prev.branchId || form.branchId || selectedBranchId,
             }));
           }}
-          style={{
-            padding: "6px 10px",
-            borderRadius: 6,
-            border: "1px solid #16a34a",
-            background: "#dcfce7",
-            color: "#166534",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
+          className="px-2.5 py-1.5 rounded border border-green-600 bg-green-100 text-green-800 font-semibold cursor-pointer"
           title="Шинэ үйлчлүүлэгчийн бүртгэл"
         >
           +
         </button>
 
         {/* Patient search */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 200 }}>
+        <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
           <label>Үйлчлүүлэгч</label>
           <input
             name="patientQuery"
@@ -805,14 +780,10 @@ if (quickPatientForm.regNo.trim()) {
             value={form.patientQuery}
             onChange={handleChange}
             autoComplete="off"
-            style={{
-              borderRadius: 6,
-              border: "1px solid #d1d5db",
-              padding: "6px 8px",
-            }}
+            className="rounded border border-gray-300 px-2 py-1.5"
           />
           {patientSearchLoading && (
-            <span style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
+            <span className="text-[11px] text-gray-500 mt-0.5">
               Үйлчлүүлэгч хайж байна...
             </span>
           )}
@@ -820,32 +791,13 @@ if (quickPatientForm.regNo.trim()) {
       </div>
 
       {patientResults.length > 0 && (
-        <div
-          style={{
-            gridColumn: "1 / -1",
-            borderRadius: 6,
-            border: "1px solid #e5e7eb",
-            background: "#ffffff",
-            maxHeight: 220,
-            overflowY: "auto",
-          }}
-        >
+        <div className="col-span-full rounded border border-gray-200 bg-white max-h-[220px] overflow-y-auto">
           {patientResults.map((p) => (
             <button
               key={p.id}
               type="button"
               onClick={() => handleSelectPatient(p)}
-              style={{
-                display: "block",
-                width: "100%",
-                textAlign: "left",
-                padding: "6px 8px",
-                border: "none",
-                borderBottom: "1px solid #f3f4f6",
-                background: "white",
-                cursor: "pointer",
-                fontSize: 12,
-              }}
+              className="block w-full text-left px-2 py-1.5 border-none border-b border-gray-100 bg-white cursor-pointer text-xs"
             >
               {formatPatientSearchLabel(p)}
             </button>
@@ -854,7 +806,7 @@ if (quickPatientForm.regNo.trim()) {
       )}
 
       {/* Doctor */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div className="flex flex-col gap-1">
         <label>Эмч</label>
         <select
           name="doctorId"
@@ -865,12 +817,7 @@ if (quickPatientForm.regNo.trim()) {
           }}
           required
           disabled={!form.date || workingDoctors.length === 0}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-            background: (!form.date || workingDoctors.length === 0) ? "#f3f4f6" : undefined,
-          }}
+          className={`rounded border border-gray-300 px-2 py-1.5 ${(!form.date || workingDoctors.length === 0) ? "bg-gray-100" : "bg-white"}`}
         >
           {!form.date ? (
             <option value="">Эхлээд огноо сонгоно уу.</option>
@@ -890,7 +837,7 @@ if (quickPatientForm.regNo.trim()) {
       </div>
 
       {/* Date */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div className="flex flex-col gap-1">
         <label>Огноо</label>
         <input
           type="date"
@@ -901,16 +848,12 @@ if (quickPatientForm.regNo.trim()) {
             setError("");
           }}
           required
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
+          className="rounded border border-gray-300 px-2 py-1.5"
         />
       </div>
 
       {/* Start time */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div className="flex flex-col gap-1">
         <label>Эхлэх цаг</label>
         <select
           name="startTime"
@@ -920,11 +863,7 @@ if (quickPatientForm.regNo.trim()) {
             setError("");
           }}
           required
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
+          className="rounded border border-gray-300 px-2 py-1.5"
         >
           <option value="">Эхлэх цаг</option>
           {dayStartSlots.map((slot) => (
@@ -936,7 +875,7 @@ if (quickPatientForm.regNo.trim()) {
       </div>
 
       {/* Duration pill buttons */}
-      <div role="group" aria-label="Үргэлжлэх хугацаа" style={{ display: "flex", gap: 8 }}>
+      <div role="group" aria-label="Үргэлжлэх хугацаа" className="flex gap-2">
         {([60, 90] as const).map((mins) => (
           <button
             key={mins}
@@ -954,16 +893,11 @@ if (quickPatientForm.regNo.trim()) {
               }));
               setError("");
             }}
-            style={{
-              borderRadius: 999,
-              border: durationMinutes === mins ? "1px solid #2563eb" : "1px solid #d1d5db",
-              background: durationMinutes === mins ? "#eff6ff" : "#fff",
-              color: durationMinutes === mins ? "#2563eb" : "#374151",
-              padding: "4px 14px",
-              cursor: "pointer",
-              fontSize: 13,
-              fontWeight: durationMinutes === mins ? 600 : 400,
-            }}
+            className={`rounded-full px-3.5 py-1 cursor-pointer text-sm ${
+              durationMinutes === mins
+                ? "border border-blue-600 bg-blue-50 text-blue-600 font-semibold"
+                : "border border-gray-300 bg-white text-gray-700 font-normal"
+            }`}
           >
             {mins} мин
           </button>
@@ -971,7 +905,7 @@ if (quickPatientForm.regNo.trim()) {
       </div>
 
       {/* End time */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div className="flex flex-col gap-1">
         <label>Дуусах цаг</label>
         <select
           name="endTime"
@@ -981,11 +915,7 @@ if (quickPatientForm.regNo.trim()) {
             setError("");
           }}
           required
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
+          className="rounded border border-gray-300 px-2 py-1.5"
         >
           <option value="">Дуусах цаг</option>
           {dayEndSlots.map((slot) => (
@@ -997,17 +927,13 @@ if (quickPatientForm.regNo.trim()) {
       </div>
 
       {/* Status */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div className="flex flex-col gap-1">
         <label>Төлөв</label>
         <select
           name="status"
           value={form.status}
           onChange={handleChange}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
+          className="rounded border border-gray-300 px-2 py-1.5"
         >
          <option value="booked">Захиалсан</option>
 <option value="confirmed">Баталгаажсан</option>
@@ -1023,46 +949,27 @@ if (quickPatientForm.regNo.trim()) {
       </div>
 
       {/* Notes */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-          gridColumn: "1 / -1",
-        }}
-      >
+      <div className="flex flex-col gap-1 col-span-full">
         <label>Тэмдэглэл</label>
         <input
           name="notes"
           placeholder="Захиалгын товч тэмдэглэл"
           value={form.notes}
           onChange={handleChange}
-          style={{
-            borderRadius: 6,
-            border: "1px solid #d1d5db",
-            padding: "6px 8px",
-          }}
+          className="rounded border border-gray-300 px-2 py-1.5"
         />
       </div>
 
       {/* Submit + error */}
-      <div style={{ gridColumn: "1 / -1", display: "flex", gap: 8 }}>
+      <div className="col-span-full flex gap-2">
         <button
           type="submit"
-          style={{
-            padding: "8px 16px",
-            borderRadius: 6,
-            border: "none",
-            background: "#2563eb",
-            color: "white",
-            fontSize: 14,
-            cursor: "pointer",
-          }}
+          className="px-4 py-2 rounded border-none bg-blue-600 text-white text-sm cursor-pointer"
         >
           Цаг захиалах
         </button>
         {error && (
-          <div style={{ color: "#b91c1c", fontSize: 12, alignSelf: "center" }}>
+          <div className="text-red-700 text-xs self-center">
             {error}
           </div>
         )}
@@ -1070,155 +977,75 @@ if (quickPatientForm.regNo.trim()) {
 
       {/* Quick new patient modal */}
       {showQuickPatientModal && (
-        /* ... keep your existing quick patient modal as-is ... */
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.3)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 50,
-          }}
-        >
-          
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
           <div
-            style={{
-              background: "white",
-              borderRadius: 8,
-              padding: 16,
-              width: 340,
-              boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
-              fontSize: 13,
-            }}
+            style={{ boxShadow: "0 10px 25px rgba(0,0,0,0.15)" }}
+            className="bg-white rounded-lg p-4 w-[340px] text-sm"
           >
-            <h3 style={{ marginTop: 0, marginBottom: 8, fontSize: 15 }}>
+            <h3 className="mt-0 mb-2 text-[15px]">
               Шинэ үйлчлүүлэгчийн бүртгэл
             </h3>
-            <p
-              style={{
-                marginTop: 0,
-                marginBottom: 12,
-                color: "#6b7280",
-              }}
-            >
+            <p className="mt-0 mb-3 text-gray-500">
               Доорхи мэдээллийг заавал бөглөнө үү
               
             </p>
-            <div
-  style={{
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-  }}
->
+            <div className="flex flex-col gap-2">
   {/* Овог (optional) */}
-  <label
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: 4,
-    }}
-  >
+  <label className="flex flex-col gap-1">
     Овог
     <input
       name="ovog"
       value={quickPatientForm.ovog}
       onChange={handleQuickPatientChange}
       placeholder="Овог оруулна уу"
-      style={{
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        padding: "6px 8px",
-      }}
+      className="rounded border border-gray-300 px-2 py-1.5"
     />
   </label>
 
   {/* Нэр (required) */}
-  <label
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: 4,
-    }}
-  >
+  <label className="flex flex-col gap-1">
     Нэр
     <input
       name="name"
       value={quickPatientForm.name}
       onChange={handleQuickPatientChange}
       placeholder="Нэр оруулна уу"
-      style={{
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        padding: "6px 8px",
-      }}
+      className="rounded border border-gray-300 px-2 py-1.5"
     />
   </label>
 
   {/* Утас (required) */}
-  <label
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: 4,
-    }}
-  >
+  <label className="flex flex-col gap-1">
     Утас
     <input
       name="phone"
       value={quickPatientForm.phone}
       onChange={handleQuickPatientChange}
       placeholder="Утас оруулна уу"
-      style={{
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        padding: "6px 8px",
-      }}
+      className="rounded border border-gray-300 px-2 py-1.5"
     />
   </label>
 
   {/* РД (optional) */}
-  <label
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: 4,
-    }}
-  >
+  <label className="flex flex-col gap-1">
     РД
     <input
       name="regNo"
       value={quickPatientForm.regNo}
       onChange={handleQuickPatientChange}
       placeholder="РД оруулна уу"
-      style={{
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        padding: "6px 8px",
-      }}
+      className="rounded border border-gray-300 px-2 py-1.5"
     />
   </label>
 
   {/* Салбар (required – already enforced in logic) */}
-  <label
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      gap: 4,
-    }}
-  >
+  <label className="flex flex-col gap-1">
     Салбар
     <select
       name="branchId"
       value={quickPatientForm.branchId}
       onChange={handleQuickPatientChange}
-      style={{
-        borderRadius: 6,
-        border: "1px solid #d1d5db",
-        padding: "6px 8px",
-      }}
+      className="rounded border border-gray-300 px-2 py-1.5"
     >
       <option value="">Сонгох</option>
       {branches.map((b) => (
@@ -1232,25 +1059,12 @@ if (quickPatientForm.regNo.trim()) {
   
 
   {quickPatientError && (
-    <div
-      style={{
-        color: "#b91c1c",
-        fontSize: 12,
-      }}
-    >
+    <div className="text-red-700 text-xs">
       {quickPatientError}
     </div>
   )}
 
-       
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: 8,
-                  marginTop: 8,
-                }}
-              >
+              <div className="flex justify-end gap-2 mt-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -1259,13 +1073,8 @@ if (quickPatientForm.regNo.trim()) {
                       setQuickPatientError("");
                     }
                   }}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    background: "#f9fafb",
-                    cursor: quickPatientSaving ? "default" : "pointer",
-                  }}
+                  style={{ cursor: quickPatientSaving ? "default" : "pointer" }}
+                  className="px-3 py-1.5 rounded border border-gray-300 bg-gray-50"
                 >
                   Цуцлах
                 </button>
@@ -1273,14 +1082,8 @@ if (quickPatientForm.regNo.trim()) {
                   type="button"
                   onClick={handleQuickPatientSave}
                   disabled={quickPatientSaving}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 6,
-                    border: "none",
-                    background: "#16a34a",
-                    color: "white",
-                    cursor: quickPatientSaving ? "default" : "pointer",
-                  }}
+                  style={{ cursor: quickPatientSaving ? "default" : "pointer" }}
+                  className="px-3 py-1.5 rounded border-none bg-green-600 text-white"
                 >
                   {quickPatientSaving ? "Хадгалж байна..." : "Хадгалах"}
                 </button>
@@ -2534,7 +2337,7 @@ const totalScheduledDoctorsForDay = useMemo(() => {
 }, [scheduledDoctors, dayAppointments]);
 
 // 3) Үйлчлүүлэгчдийн тоо – unique patients with completed appointments that day
-const totalCompletedPatientsForDay = useMemo(() => {
+const totalCompletedAppointmentsForDay = useMemo(() => {
   return dayAppointments.filter((a) => a.status === "completed").length;
 }, [dayAppointments]);
   
@@ -3051,7 +2854,7 @@ const handleCancelDraft = (appointmentId: number) => {
       </div>
     </div>
     <div className="text-[26px] font-bold text-gray-900">
-      {totalCompletedPatientsForDay}
+      {totalCompletedAppointmentsForDay}
     </div>
     <div className="text-[11px] text-gray-500">
       {formatDateYmdDash(selectedDay)} өдөр &quot;Дууссан&quot; төлөвтэй
