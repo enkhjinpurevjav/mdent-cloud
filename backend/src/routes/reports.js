@@ -901,10 +901,18 @@ router.get("/clinic", async (req, res) => {
       paymentWhere.invoice = { branchId: branchFilter };
     }
 
+    // Also fetch all active payment method configs for the response
+    const paymentMethodConfigs = await prisma.paymentMethodConfig.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+      select: { key: true, label: true },
+    });
+
     const payments = await prisma.payment.findMany({
       where: paymentWhere,
       select: {
         amount: true,
+        method: true,
         timestamp: true,
         invoice: {
           select: {
@@ -948,18 +956,23 @@ router.get("/clinic", async (req, res) => {
       },
     });
 
-    // ---------- pre-group revenue by date/branch/doctor ----------
+    // ---------- pre-group revenue by date/branch/doctor/method ----------
     const revenueByDate = {};
     const revenueByBranch = {};
     const revenueByDoctor = {};
     // per-branch-per-date revenue for stacked bar charts
     const revenueByBranchDate = {}; // { [branchId]: { [date]: number } }
+    // per-payment-method breakdowns
+    const revenueByMethod = {}; // { [methodKey]: number }
+    const revenueByMethodDate = {}; // { [methodKey]: { [date]: number } }
+    const revenueByMethodBranchDate = {}; // { [methodKey]: { [branchId]: { [date]: number } } }
 
     for (const p of payments) {
       const date = p.timestamp.toISOString().slice(0, 10);
       const bId = p.invoice?.branchId;
       const dId = p.invoice?.encounter?.doctorId;
       const amt = Number(p.amount || 0);
+      const mKey = p.method || "OTHER";
 
       revenueByDate[date] = (revenueByDate[date] || 0) + amt;
       if (bId) {
@@ -968,6 +981,17 @@ router.get("/clinic", async (req, res) => {
         revenueByBranchDate[bId][date] = (revenueByBranchDate[bId][date] || 0) + amt;
       }
       if (dId) revenueByDoctor[dId] = (revenueByDoctor[dId] || 0) + amt;
+
+      // Payment method breakdowns
+      revenueByMethod[mKey] = (revenueByMethod[mKey] || 0) + amt;
+      if (!revenueByMethodDate[mKey]) revenueByMethodDate[mKey] = {};
+      revenueByMethodDate[mKey][date] = (revenueByMethodDate[mKey][date] || 0) + amt;
+      if (bId) {
+        if (!revenueByMethodBranchDate[mKey]) revenueByMethodBranchDate[mKey] = {};
+        if (!revenueByMethodBranchDate[mKey][bId]) revenueByMethodBranchDate[mKey][bId] = {};
+        revenueByMethodBranchDate[mKey][bId][date] =
+          (revenueByMethodBranchDate[mKey][bId][date] || 0) + amt;
+      }
     }
 
     // ---------- completed appointments by date/branch/doctor ----------
@@ -1061,7 +1085,12 @@ router.get("/clinic", async (req, res) => {
       const occupancyPct = availMins > 0 ? Math.round((bookedMins / availMins) * 100) : 0;
       const doctorCount = schedByDate[date]?.doctorSet?.size || 0;
       const completedAppointments = completedByDate[date] || 0;
-      return { date, revenue, occupancyPct, doctorCount, completedAppointments };
+      // Per-method revenue for this date
+      const revenueByMethodForDate = {};
+      for (const mKey of Object.keys(revenueByMethodDate)) {
+        revenueByMethodForDate[mKey] = revenueByMethodDate[mKey][date] || 0;
+      }
+      return { date, revenue, occupancyPct, doctorCount, completedAppointments, revenueByMethod: revenueByMethodForDate };
     });
 
     // ---------- per-branch daily data (for stacked bar charts) ----------
@@ -1075,7 +1104,12 @@ router.get("/clinic", async (req, res) => {
         const occupancyPct = availMins > 0 ? Math.round((bookedMins / availMins) * 100) : 0;
         const doctorCount = schedByBranchDate[b.id]?.[date]?.doctorSet?.size || 0;
         const completedAppointments = completedByBranchDate[b.id]?.[date] || 0;
-        return { date, revenue, occupancyPct, doctorCount, completedAppointments };
+        // Per-method revenue for this branch+date
+        const revenueByMethodForDate = {};
+        for (const mKey of Object.keys(revenueByMethodBranchDate)) {
+          revenueByMethodForDate[mKey] = revenueByMethodBranchDate[mKey][b.id]?.[date] || 0;
+        }
+        return { date, revenue, occupancyPct, doctorCount, completedAppointments, revenueByMethod: revenueByMethodForDate };
       }),
     }));
 
@@ -1198,6 +1232,8 @@ router.get("/clinic", async (req, res) => {
       branchDailyData,
       branchBreakdown,
       doctorBreakdown,
+      paymentTypes: paymentMethodConfigs,
+      revenueByMethod,
     });
   } catch (err) {
     console.error("GET /api/reports/clinic error:", err);

@@ -25,12 +25,15 @@ type TopCards = {
   monthlyAvgRevenue: number;
 };
 
+type PaymentType = { key: string; label: string };
+
 type DailyRow = {
   date: string;
   revenue: number;
   occupancyPct: number;
   doctorCount: number;
   completedAppointments: number;
+  revenueByMethod?: Record<string, number>;
 };
 
 type BranchDailyEntry = {
@@ -61,6 +64,8 @@ type ClinicReportData = {
   branchDailyData: BranchDailyEntry[];
   branchBreakdown: BreakdownGroup;
   doctorBreakdown: BreakdownGroup | null;
+  paymentTypes?: PaymentType[];
+  revenueByMethod?: Record<string, number>;
 };
 
 // ─────────────────────────────────────────────
@@ -77,6 +82,19 @@ const BRANCH_COLORS = [
   "#f97316",
   "#6366f1",
   "#14b8a6",
+];
+
+const PAYMENT_TYPE_COLORS = [
+  "#10b981",
+  "#3b82f6",
+  "#f59e0b",
+  "#ef4444",
+  "#8b5cf6",
+  "#ec4899",
+  "#06b6d4",
+  "#84cc16",
+  "#f97316",
+  "#6366f1",
 ];
 
 const MONTH_LABELS = [
@@ -268,6 +286,511 @@ function CollapseButton({ open, onClick }: { open: boolean; onClick: () => void 
         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
       </svg>
     </button>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Revenue (Орлого) Block – specialized component with payment type filters
+// ─────────────────────────────────────────────
+function buildFilteredDailyData(
+  dailyData: DailyRow[],
+  checkedMethods: Set<string>
+): DailyRow[] {
+  return dailyData.map((row) => {
+    if (!row.revenueByMethod) return row;
+    const filteredRevenue = Object.entries(row.revenueByMethod)
+      .filter(([k]) => checkedMethods.has(k))
+      .reduce((s, [, v]) => s + v, 0);
+    return { ...row, revenue: filteredRevenue };
+  });
+}
+
+function buildFilteredBranchDailyData(
+  branchDailyData: BranchDailyEntry[],
+  checkedMethods: Set<string>
+): BranchDailyEntry[] {
+  return branchDailyData.map((b) => ({
+    ...b,
+    daily: b.daily.map((row) => {
+      if (!row.revenueByMethod) return row;
+      const filteredRevenue = Object.entries(row.revenueByMethod)
+        .filter(([k]) => checkedMethods.has(k))
+        .reduce((s, [, v]) => s + v, 0);
+      return { ...row, revenue: filteredRevenue };
+    }),
+  }));
+}
+
+function RevenueBlock({
+  dailyData,
+  branchDailyData,
+  paymentTypes,
+  revenueByMethod,
+  isYearView,
+  branchNames,
+}: {
+  dailyData: DailyRow[];
+  branchDailyData: BranchDailyEntry[];
+  paymentTypes: PaymentType[];
+  revenueByMethod: Record<string, number>;
+  isYearView: boolean;
+  branchNames: string[];
+}) {
+  const [tableOpen, setTableOpen] = useState(false);
+  const [checkedMethods, setCheckedMethods] = useState<Set<string>>(
+    () => new Set(paymentTypes.map((p) => p.key))
+  );
+  // hoveredLabel: the period label (month or date) the user is hovering on the chart
+  const [hoveredLabel, setHoveredLabel] = useState<string | null>(null);
+
+  // Keep checkedMethods in sync when paymentTypes changes (e.g. data reload adds new methods)
+  const currentKeys = paymentTypes.map((p) => p.key).join(",");
+  const prevKeysRef = React.useRef<string>("");
+  useEffect(() => {
+    if (prevKeysRef.current === currentKeys) return;
+    prevKeysRef.current = currentKeys;
+    setCheckedMethods((prev) => {
+      const allKeys = paymentTypes.map((p) => p.key);
+      // Add any new keys; keep existing checked state for keys that were already there
+      const next = new Set(prev);
+      for (const k of allKeys) {
+        next.add(k); // adds if missing (new method), no-op if already present
+      }
+      // Remove keys no longer in paymentTypes
+      for (const k of Array.from(next)) {
+        if (!allKeys.includes(k)) next.delete(k);
+      }
+      return next;
+    });
+  }, [currentKeys, paymentTypes]);
+
+  const toggleMethod = (key: string) => {
+    setCheckedMethods((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  };
+
+  // Filtered daily data by checked payment types
+  const filteredDailyData = useMemo(
+    () => buildFilteredDailyData(dailyData, checkedMethods),
+    [dailyData, checkedMethods]
+  );
+  const filteredBranchDailyData = useMemo(
+    () => buildFilteredBranchDailyData(branchDailyData, checkedMethods),
+    [branchDailyData, checkedMethods]
+  );
+
+  // Chart data (monthly or daily)
+  const chartData = useMemo(
+    () =>
+      isYearView
+        ? buildYearChartData(filteredDailyData, filteredBranchDailyData, "revenue")
+        : buildDailyChartData(filteredDailyData, filteredBranchDailyData, "revenue"),
+    [filteredDailyData, filteredBranchDailyData, isYearView]
+  );
+
+  // Branch breakdown for legend – for hovered period or full period
+  const branchBreakdown = useMemo<{ name: string; value: number; color: string }[]>(() => {
+    let rows: { name: string; value: number }[];
+    if (hoveredLabel) {
+      // Filter chartData to the hovered row
+      const row = chartData.find((r) => r.label === hoveredLabel);
+      rows = branchNames.map((bName) => ({
+        name: bName,
+        value: row ? ((row as Record<string, unknown>)[bName] as number) || 0 : 0,
+      }));
+    } else {
+      rows = filteredBranchDailyData.map((b) => ({
+        name: b.branchName,
+        value: aggregatePeriodValue(b.daily, "revenue"),
+      }));
+    }
+    const totalValue = hoveredLabel
+      ? chartData.find((r) => r.label === hoveredLabel)?.total || 0
+      : aggregatePeriodValue(filteredDailyData, "revenue");
+
+    const sorted = [...rows].sort((a, b) => b.value - a.value);
+    return [
+      { name: "Нийт", value: totalValue, color: "#10b981" },
+      ...sorted.map((r, i) => ({
+        ...r,
+        color: BRANCH_COLORS[
+          branchNames.findIndex((n) => n === r.name) % BRANCH_COLORS.length
+        ] || BRANCH_COLORS[i % BRANCH_COLORS.length],
+      })),
+    ];
+  }, [hoveredLabel, chartData, branchNames, filteredBranchDailyData, filteredDailyData]);
+
+  // Pie data: payment type contribution – for hovered period or full period
+  const paymentPieData = useMemo(() => {
+    const result: { key: string; name: string; value: number }[] = [];
+    for (const pt of paymentTypes) {
+      if (!checkedMethods.has(pt.key)) continue;
+      let value = 0;
+      if (hoveredLabel) {
+        // Sum revenueByMethod[pt.key] for the hovered period
+        if (isYearView) {
+          // hoveredLabel is a month name like "3-р сар"
+          const monthIdx = MONTH_LABELS.indexOf(hoveredLabel);
+          if (monthIdx >= 0) {
+            const mm = String(monthIdx + 1).padStart(2, "0");
+            for (const row of dailyData) {
+              if (row.date.slice(5, 7) === mm) {
+                value += row.revenueByMethod?.[pt.key] || 0;
+              }
+            }
+          }
+        } else {
+          // hoveredLabel is "MM-DD"
+          for (const row of dailyData) {
+            if (row.date.slice(5) === hoveredLabel) {
+              value += row.revenueByMethod?.[pt.key] || 0;
+              break;
+            }
+          }
+        }
+      } else {
+        value = revenueByMethod[pt.key] || 0;
+      }
+      if (value > 0) result.push({ key: pt.key, name: pt.label, value });
+    }
+    return result;
+  }, [paymentTypes, checkedMethods, hoveredLabel, isYearView, dailyData, revenueByMethod]);
+
+  // Pre-compute branch sort order by total revenue (highest first) – used in table + CSV
+  const sortedBranchNames = useMemo(
+    () =>
+      [...branchNames].sort((a, b) => {
+        const aBranchData = filteredBranchDailyData.find((bd) => bd.branchName === a);
+        const bBranchData = filteredBranchDailyData.find((bd) => bd.branchName === b);
+        return (
+          aggregatePeriodValue(bBranchData?.daily || [], "revenue") -
+          aggregatePeriodValue(aBranchData?.daily || [], "revenue")
+        );
+      }),
+    [branchNames, filteredBranchDailyData]
+  );
+
+  // Table rows matching chartData
+  const tableRows: Record<string, unknown>[] = chartData.map((r) => {
+    const row: Record<string, unknown> = {
+      Огноо: r.label,
+      Нийт: r.total,
+    };
+    for (const bName of branchNames) {
+      row[bName] = (r as Record<string, unknown>)[bName] ?? 0;
+    }
+    return row;
+  });
+
+  const csvRows = tableRows.map((r) => {
+    const row: Record<string, unknown> = {
+      Огноо: r["Огноо"],
+      "Нийт (₮)": r["Нийт"],
+    };
+    for (const bName of sortedBranchNames) {
+      row[`${bName} (₮)`] = r[bName] ?? 0;
+    }
+    return row;
+  });
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4">
+      <h3 className="text-lg font-bold text-gray-800">Орлого</h3>
+
+      {/* ── Payment type filter checkboxes ── */}
+      {paymentTypes.length > 0 && (
+        <div className="flex flex-wrap gap-3 pb-1 border-b border-gray-100">
+          {paymentTypes.map((pt, idx) => (
+            <label
+              key={pt.key}
+              className="flex items-center gap-1.5 cursor-pointer select-none text-sm text-gray-700"
+            >
+              <input
+                type="checkbox"
+                className="w-3.5 h-3.5 accent-blue-600"
+                checked={checkedMethods.has(pt.key)}
+                onChange={() => toggleMethod(pt.key)}
+              />
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+                style={{ backgroundColor: PAYMENT_TYPE_COLORS[idx % PAYMENT_TYPE_COLORS.length] }}
+              />
+              {pt.label}
+            </label>
+          ))}
+        </div>
+      )}
+
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* ── Main chart ── */}
+        <div className="flex-1 min-w-0 flex flex-col gap-3">
+          <ResponsiveContainer width="100%" height={260}>
+            <ComposedChart
+              data={chartData}
+              margin={{ top: 4, right: 8, left: 8, bottom: 4 }}
+              onMouseMove={(state) => {
+                if (state?.activeLabel) {
+                  setHoveredLabel(state.activeLabel as string);
+                }
+              }}
+              onMouseLeave={() => setHoveredLabel(null)}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip
+                formatter={(v: number, name: string) => [
+                  v.toLocaleString("mn-MN") + " ₮",
+                  name,
+                ]}
+              />
+              <Line
+                type="monotone"
+                dataKey="total"
+                name="Нийт"
+                stroke="#10b981"
+                strokeWidth={2.5}
+                dot={false}
+              />
+              {branchNames.map((bName, idx) => (
+                <Bar
+                  key={bName}
+                  dataKey={bName}
+                  stackId="branches"
+                  fill={BRANCH_COLORS[idx % BRANCH_COLORS.length]}
+                  radius={idx === branchNames.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                />
+              ))}
+            </ComposedChart>
+          </ResponsiveContainer>
+
+          {/* ── Legend: Нийт first, then branches sorted by revenue ── */}
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5 px-1">
+            {branchBreakdown.map((item) => (
+              <div key={item.name} className="flex items-center gap-1.5 text-sm">
+                <span
+                  className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: item.color }}
+                />
+                <span className={item.name === "Нийт" ? "font-semibold text-gray-900" : "text-gray-700"}>
+                  {item.name}:
+                </span>
+                <span className={item.name === "Нийт" ? "font-bold text-gray-900" : "text-gray-800"}>
+                  {item.value.toLocaleString("mn-MN")} ₮
+                </span>
+              </div>
+            ))}
+            {hoveredLabel && (
+              <span className="text-xs text-gray-400 self-center">({hoveredLabel})</span>
+            )}
+          </div>
+
+          {/* ── Collapsible table ── */}
+          <div className="border border-gray-100 rounded-xl overflow-hidden">
+            <div className="flex items-center px-4 py-2 bg-gray-50 border-b border-gray-100">
+              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                Хүснэгт
+              </span>
+              <CollapseButton open={tableOpen} onClick={() => setTableOpen((v) => !v)} />
+            </div>
+            {tableOpen && (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="px-3 py-2 text-left font-semibold text-gray-600 whitespace-nowrap">
+                          {isYearView ? "Сар" : "Огноо"}
+                        </th>
+                        <th className="px-3 py-2 text-right font-semibold text-gray-600 whitespace-nowrap">
+                          Нийт
+                        </th>
+                        {sortedBranchNames.map((bName) => (
+                            <th
+                              key={bName}
+                              className="px-3 py-2 text-right font-semibold text-gray-600 whitespace-nowrap"
+                            >
+                              {bName}
+                            </th>
+                          ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chartData.map((r, i) => (
+                        <tr key={i} className="border-t border-gray-100 hover:bg-gray-50">
+                          <td className="px-3 py-1.5 text-gray-700">{r.label}</td>
+                          <td className="px-3 py-1.5 text-right text-gray-800 font-semibold">
+                            {r.total.toLocaleString("mn-MN")} ₮
+                          </td>
+                          {sortedBranchNames.map((bName) => (
+                              <td key={bName} className="px-3 py-1.5 text-right text-gray-700">
+                                {(
+                                  ((r as Record<string, unknown>)[bName] as number | undefined) ?? 0
+                                ).toLocaleString("mn-MN")}{" "}
+                                ₮
+                              </td>
+                            ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-4 py-2 border-t border-gray-100">
+                  <button
+                    onClick={() => downloadCSV("Орлого_chart.csv", csvRows)}
+                    className="text-xs text-blue-600 hover:text-blue-800 underline"
+                  >
+                    CSV татах
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* ── Right: Pie (payment types) + Branch breakdown ── */}
+        <div className="w-full lg:w-72 flex flex-col gap-3">
+          <p className="text-sm font-semibold text-gray-600">
+            Төлбөрийн хэлбэр
+            {hoveredLabel && <span className="text-gray-400 font-normal ml-1">({hoveredLabel})</span>}
+          </p>
+          {paymentPieData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={paymentPieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={46}
+                  outerRadius={82}
+                  paddingAngle={2}
+                  dataKey="value"
+                  labelLine={false}
+                >
+                  {paymentPieData.map((entry, index) => {
+                    const ptIdx = paymentTypes.findIndex((p) => p.key === entry.key);
+                    return (
+                      <Cell
+                        key={entry.key}
+                        fill={PAYMENT_TYPE_COLORS[(ptIdx >= 0 ? ptIdx : index) % PAYMENT_TYPE_COLORS.length]}
+                      />
+                    );
+                  })}
+                </Pie>
+                <Tooltip
+                  formatter={(v: number) => [v.toLocaleString("mn-MN") + " ₮", ""]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-32 text-gray-400 text-sm">
+              Өгөгдөл байхгүй
+            </div>
+          )}
+
+          {/* Payment type breakdown table */}
+          <div className="overflow-x-auto rounded-xl border border-gray-100">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="px-3 py-2 text-left font-semibold text-gray-600">
+                    Төлбөрийн хэлбэр
+                  </th>
+                  <th className="px-3 py-2 text-right font-semibold text-gray-600">
+                    Дүн (₮)
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {paymentTypes
+                  .filter((pt) => checkedMethods.has(pt.key))
+                  .map((pt, idx) => {
+                    const entry = paymentPieData.find((e) => e.key === pt.key);
+                    const ptIdx = paymentTypes.findIndex((p) => p.key === pt.key);
+                    return (
+                      <tr key={pt.key} className="border-t border-gray-100 hover:bg-gray-50">
+                        <td className="px-3 py-1.5 flex items-center gap-2">
+                          <span
+                            className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+                            style={{
+                              backgroundColor:
+                                PAYMENT_TYPE_COLORS[
+                                  (ptIdx >= 0 ? ptIdx : idx) % PAYMENT_TYPE_COLORS.length
+                                ],
+                            }}
+                          />
+                          <span className="text-gray-700">{pt.label}</span>
+                        </td>
+                        <td className="px-3 py-1.5 text-right text-gray-800 font-medium">
+                          {(entry?.value || 0).toLocaleString("mn-MN")} ₮
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Branch breakdown: Нийт first, then branches sorted by revenue */}
+          <p className="text-sm font-semibold text-gray-600 mt-1">Салбар</p>
+          <div className="overflow-x-auto rounded-xl border border-gray-100">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="px-3 py-2 text-left font-semibold text-gray-600">Салбар</th>
+                  <th className="px-3 py-2 text-right font-semibold text-gray-600">Дүн (₮)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {branchBreakdown.map((item, i) => (
+                  <tr key={item.name} className="border-t border-gray-100 hover:bg-gray-50">
+                    <td className="px-3 py-1.5 flex items-center gap-2">
+                      <span
+                        className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: item.color }}
+                      />
+                      <span className={i === 0 ? "font-semibold text-gray-900" : "text-gray-700"}>
+                        {item.name}
+                      </span>
+                    </td>
+                    <td className={`px-3 py-1.5 text-right ${i === 0 ? "font-bold text-gray-900" : "font-medium text-gray-800"}`}>
+                      {item.value.toLocaleString("mn-MN")} ₮
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button
+            onClick={() => {
+              const rows = [
+                ...paymentPieData.map((e) => ({
+                  Ангилал: "Төлбөрийн хэлбэр",
+                  Нэр: e.name,
+                  "Дүн (₮)": e.value,
+                })),
+                ...branchBreakdown.map((b) => ({
+                  Ангилал: "Салбар",
+                  Нэр: b.name,
+                  "Дүн (₮)": b.value,
+                })),
+              ];
+              downloadCSV("Орлого_задаргаа.csv", rows);
+            }}
+            className="text-xs text-blue-600 hover:text-blue-800 underline"
+          >
+            CSV татах (задаргаа)
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -761,14 +1284,11 @@ export default function ClinicReportPage() {
         {/* ── Metric blocks ── */}
         {!loading && data && (
           <>
-            <MetricBlock
-              title="Орлого"
+            <RevenueBlock
               dailyData={data.dailyData}
               branchDailyData={branchDailyData}
-              dataKey="revenue"
-              unit="₮"
-              breakdownItems={pieBreakdown("revenue")}
-              breakdownLabel={pieLabel}
+              paymentTypes={data.paymentTypes || []}
+              revenueByMethod={data.revenueByMethod || {}}
               isYearView={isYearView}
               branchNames={branchNamesForChart}
             />
