@@ -216,6 +216,73 @@ function formatConsentTypeLabel(type: string): string {
   return CONSENT_TYPE_LABELS[type] ?? type;
 }
 
+function printImage(filePath: string) {
+  // Open a new window
+  const win = window.open('', '_blank', 'width=900,height=1200');
+  if (!win) return;
+
+  // Basic HTML structure for print, with A4 CSS
+  win.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>XRAY зураг хэвлэх</title>
+        <style>
+          @media print {
+            html, body {
+              margin: 0; padding: 0; background: #fff;
+              width: 210mm; height: 297mm;
+            }
+            .print-container {
+              width: 100vw;
+              max-width: 210mm;
+              margin: 0 auto;
+              height: 290mm;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              page-break-after: always;
+            }
+            img {
+              max-width: 200mm;
+              max-height: 280mm;
+              display: block;
+              margin: 0 auto;
+              box-shadow: none;
+              border: none;
+              background: none;
+            }
+          }
+          body, html {
+            background: #fff;
+            width: 100vw; height: 100vh; margin: 0; padding: 0;
+          }
+          .print-container {
+            min-height: 100vh;
+            display: flex; align-items: center; justify-content: center;
+            background: #fff;
+          }
+          img {
+            max-width: 95vw;
+            max-height: 95vh;
+            border: none;
+            display: block;
+            margin: 0 auto;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="print-container">
+          <img src="${filePath}" alt="XRAY зураг" onload="window.print();window.close();" />
+        </div>
+      </body>
+    </html>
+  `);
+
+  // Some browsers require document.close()
+  win.document.close();
+}
+
 // ----------------- Payment section -----------------
 
 // Rounding tolerance (₮) when validating split allocation totals
@@ -2810,9 +2877,7 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
             <h2 className="text-base m-0 mb-2">
               Хэвлэх боломжтой материалууд
             </h2>
-            <div className="text-xs text-gray-500">
-              Үйлчлүүлэгчид цаасаар өгөх шаардлагатай мэдээллүүд.
-            </div>
+          
 
            {/* Prescription */}
 <div className="mt-3 pt-3 border-t border-gray-200">
