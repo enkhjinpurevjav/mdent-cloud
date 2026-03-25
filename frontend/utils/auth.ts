@@ -35,18 +35,47 @@ export async function login(email: string, password: string): Promise<AuthUser> 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  const data = await res.json();
+
+  const data = await res.json().catch(() => null);
+
   if (!res.ok) {
-    throw new Error(data.error || `Login failed (HTTP ${res.status})`);
+    throw new Error((data as any)?.error || `Login failed (HTTP ${res.status})`);
   }
-  return data.user as AuthUser;
+
+  return (data as any)?.user as AuthUser;
 }
 
-/** Logout — clears the httpOnly cookie. */
+/**
+ * Logout — clears the httpOnly cookie (best-effort).
+ *
+ * Even if the request fails (network / server), we still want the UI to proceed
+ * with a local logout flow (clear client state + redirect).
+ */
 export async function logout(): Promise<void> {
-  await fetch("/api/auth/logout", {
-    method: "POST",
-    credentials: "include",
-  });
+  try {
+    const res = await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      // Don't throw: allow UI to continue logging out locally.
+      console.warn("Logout failed:", data || `HTTP ${res.status}`);
+    }
+  } catch (err) {
+    // Don't throw: allow UI to continue logging out locally.
+    console.warn("Logout request failed:", err);
+  }
 }
 
+/**
+ * Logout, then hard redirect to /login.
+ *
+ * Hard redirect is intentional: it stops all in-flight React effects on protected
+ * pages that may keep firing API calls and showing 401 errors after logout.
+ */
+export async function logoutHard(): Promise<void> {
+  await logout();
+  window.location.href = "/login";
+}
