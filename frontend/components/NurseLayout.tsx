@@ -78,9 +78,10 @@ export default function NurseLayout({ children }: Props) {
   const router = useRouter();
   const isActive = (href: string) => router.pathname.startsWith(href);
 
+ const { logoutAndRedirect } = useAuth();
+
   const handleLogout = async () => {
-    await logout();
-    router.replace("/login");
+    await logoutAndRedirect();
   };
 
   return (
