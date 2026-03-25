@@ -101,12 +101,13 @@ export default function DoctorLayout({ children, showDashboardSummary = false }:
   // component and are page-specific by design, so they never appear on other
   // pages like patient profile regardless of this flag.
   void showDashboardSummary;
-  const router = useRouter();
+   const router = useRouter();
   const isActive = (href: string) => router.pathname.startsWith(href);
 
+  const { logoutAndRedirect } = useAuth();
+
   const handleLogout = async () => {
-    await logout();
-    router.replace("/login");
+    await logoutAndRedirect();
   };
 
   return (
