@@ -1717,12 +1717,127 @@ router.get("/appointments-report", async (req, res) => {
       }),
     }));
 
+    // ──────────────────────────────────────────────────────────────
+    // SECTION 3: Hour-level load data for the Ачаалал table
+    // ──────────────────────────────────────────────────────────────
+    // For each 1-hour bucket per day:
+    //   possible = total 30-min sub-slots from doctor schedules in that hour (across all doctors)
+    //   filled   = 30-min sub-slots with ≥1 appointment (any status, max 1 per slot)
+
+    // Track which 30-min slots have ≥1 appointment per doctor per date
+    // apptSlotsByDoctorDate[doctorId][date] = Set<slotKey>
+    const apptSlotsByDoctorDate = {};
+    for (const appt of appointments) {
+      if (!appt.doctorId) continue;
+      const date = appt.scheduledAt.toISOString().slice(0, 10);
+      const mins =
+        appt.scheduledAt.getHours() * 60 + appt.scheduledAt.getMinutes();
+      const slotKey = Math.floor(mins / SLOT_MINS);
+      if (!apptSlotsByDoctorDate[appt.doctorId])
+        apptSlotsByDoctorDate[appt.doctorId] = {};
+      if (!apptSlotsByDoctorDate[appt.doctorId][date])
+        apptSlotsByDoctorDate[appt.doctorId][date] = new Set();
+      apptSlotsByDoctorDate[appt.doctorId][date].add(slotKey);
+    }
+
+    // branchHourData[branchId][date][hourKey] = { possible, filled }
+    const branchHourData = {};
+    for (const b of targetBranches) branchHourData[b.id] = {};
+
+    for (const [doctorIdStr, dateMap] of Object.entries(schedGrouped)) {
+      const doctorId = Number(doctorIdStr);
+      for (const [date, { branchId: bId, windows }] of Object.entries(
+        dateMap
+      )) {
+        if (!branchHourData[bId]) branchHourData[bId] = {};
+        if (!branchHourData[bId][date]) branchHourData[bId][date] = {};
+
+        // Collect all possible 30-min slots for this doctor on this date
+        const possibleSlotSet = new Set();
+        for (const { startMins, endMins } of windows) {
+          const firstSlot = Math.ceil(startMins / SLOT_MINS);
+          const lastSlot = Math.floor(endMins / SLOT_MINS) - 1;
+          for (let s = firstSlot; s <= lastSlot; s++) possibleSlotSet.add(s);
+        }
+
+        const apptSlots =
+          apptSlotsByDoctorDate[doctorId]?.[date] || new Set();
+
+        // Group by 1-hour bucket: hourKey = floor(slotKey / 2) = hour of day
+        for (const slotKey of possibleSlotSet) {
+          const hourKey = Math.floor(slotKey / 2);
+          if (!branchHourData[bId][date][hourKey])
+            branchHourData[bId][date][hourKey] = { possible: 0, filled: 0 };
+          branchHourData[bId][date][hourKey].possible += 1;
+          if (apptSlots.has(slotKey))
+            branchHourData[bId][date][hourKey].filled += 1;
+        }
+      }
+    }
+
+    // Build hourLoadDailyData – totals across all targeted branches
+    const hourLoadDailyData = days.map((date) => {
+      const d = new Date(date + "T00:00:00");
+      const weekday = d.getDay();
+      const isWeekend = weekday === 0 || weekday === 6;
+      const startHour = isWeekend ? 10 : 9;
+      const endHour = isWeekend ? 19 : 21;
+
+      // Aggregate across all targeted branches
+      const hourTotals = {};
+      for (const b of targetBranches) {
+        const bHours = branchHourData[b.id]?.[date] || {};
+        for (const [hStr, { possible, filled }] of Object.entries(bHours)) {
+          const h = Number(hStr);
+          if (h < startHour || h >= endHour) continue;
+          if (!hourTotals[h]) hourTotals[h] = { possible: 0, filled: 0 };
+          hourTotals[h].possible += possible;
+          hourTotals[h].filled += filled;
+        }
+      }
+
+      const hours = [];
+      for (let h = startHour; h < endHour; h++) {
+        const data = hourTotals[h];
+        if (data && data.possible > 0)
+          hours.push({ hour: h, filled: data.filled, possible: data.possible });
+      }
+      return { date, isWeekend, hours };
+    });
+
+    // Build branchHourLoadDailyData – per branch
+    const branchHourLoadDailyData = targetBranches.map((b) => ({
+      branchId: b.id,
+      branchName: b.name,
+      daily: days.map((date) => {
+        const d = new Date(date + "T00:00:00");
+        const weekday = d.getDay();
+        const isWeekend = weekday === 0 || weekday === 6;
+        const startHour = isWeekend ? 10 : 9;
+        const endHour = isWeekend ? 19 : 21;
+
+        const hours = [];
+        for (let h = startHour; h < endHour; h++) {
+          const data = branchHourData[b.id]?.[date]?.[h];
+          if (data && data.possible > 0)
+            hours.push({
+              hour: h,
+              filled: data.filled,
+              possible: data.possible,
+            });
+        }
+        return { date, isWeekend, hours };
+      }),
+    }));
+
     return res.json({
       branches: targetBranches,
       patientDailyData,
       branchPatientDailyData,
       ratesDailyData,
       branchRatesDailyData,
+      hourLoadDailyData,
+      branchHourLoadDailyData,
     });
   } catch (err) {
     console.error("GET /api/reports/appointments-report error:", err);

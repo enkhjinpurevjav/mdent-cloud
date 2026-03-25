@@ -47,12 +47,22 @@ type BranchRatesEntry = {
   daily: RatesDay[];
 };
 
+type HourLoad = { hour: number; filled: number; possible: number };
+type HourLoadDay = { date: string; isWeekend: boolean; hours: HourLoad[] };
+type BranchHourLoadEntry = {
+  branchId: number;
+  branchName: string;
+  daily: HourLoadDay[];
+};
+
 type AppointmentsReportData = {
   branches: Branch[];
   patientDailyData: PatientDay[];
   branchPatientDailyData: BranchPatientEntry[];
   ratesDailyData: RatesDay[];
   branchRatesDailyData: BranchRatesEntry[];
+  hourLoadDailyData: HourLoadDay[];
+  branchHourLoadDailyData: BranchHourLoadEntry[];
 };
 
 // ─────────────────────────────────────────────
@@ -959,11 +969,17 @@ function AppointmentRatesBlock({
   branchRatesDailyData,
   isYearView,
   branchNames,
+  hourLoadDailyData,
+  branchHourLoadDailyData,
+  hasBranchFilter,
 }: {
   ratesDailyData: RatesDay[];
   branchRatesDailyData: BranchRatesEntry[];
   isYearView: boolean;
   branchNames: string[];
+  hourLoadDailyData: HourLoadDay[];
+  branchHourLoadDailyData: BranchHourLoadEntry[];
+  hasBranchFilter: boolean;
 }) {
   const [tableOpen, setTableOpen] = useState(false);
 
@@ -1167,6 +1183,330 @@ function AppointmentRatesBlock({
           )}
         </div>
       </div>
+
+      {/* ── Ачаалал table ── */}
+      <LoadTableBlock
+        hourLoadDailyData={hourLoadDailyData}
+        branchHourLoadDailyData={branchHourLoadDailyData}
+        isYearView={isYearView}
+        branchNames={branchNames}
+        hasBranchFilter={hasBranchFilter}
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Section 2b: Ачаалал (Load table by hour slot)
+// ─────────────────────────────────────────────
+function formatHourSlotLabel(hour: number): string {
+  const h = String(hour).padStart(2, "0");
+  const h1 = String(hour + 1).padStart(2, "0");
+  return `${h}:00–${h1}:00`;
+}
+
+function loadPctColor(pct: number | null): string {
+  if (pct === null) return "text-gray-300";
+  if (pct >= 80) return "text-red-700 font-bold";
+  if (pct >= 50) return "text-amber-600 font-semibold";
+  if (pct >= 20) return "text-green-700 font-semibold";
+  return "text-gray-500";
+}
+
+function loadPctBg(pct: number | null): string {
+  if (pct === null) return "";
+  if (pct >= 80) return "bg-red-50";
+  if (pct >= 50) return "bg-amber-50";
+  if (pct >= 20) return "bg-green-50";
+  return "";
+}
+
+function LoadTableBlock({
+  hourLoadDailyData,
+  branchHourLoadDailyData,
+  isYearView,
+  branchNames,
+  hasBranchFilter,
+}: {
+  hourLoadDailyData: HourLoadDay[];
+  branchHourLoadDailyData: BranchHourLoadEntry[];
+  isYearView: boolean;
+  branchNames: string[];
+  hasBranchFilter: boolean;
+}) {
+  const [tableOpen, setTableOpen] = useState(false);
+
+  // When no branch filter and multiple branches: columns = branches (side-by-side comparison)
+  // When branch filter applied: columns = months or days
+  const showBranchColumns = !hasBranchFilter && branchNames.length > 1;
+
+  const { columns, rows, csvRows } = useMemo(() => {
+    if (showBranchColumns) {
+      // Columns = branch names, aggregated over the full period
+      const hourSet = new Set<number>();
+      for (const b of branchHourLoadDailyData) {
+        for (const day of b.daily) {
+          for (const h of day.hours) hourSet.add(h.hour);
+        }
+      }
+      const allHours = Array.from(hourSet).sort((a, b) => a - b);
+
+      const tableRows: {
+        hourLabel: string;
+        hour: number;
+        values: (number | null)[];
+      }[] = [];
+
+      for (const hour of allHours) {
+        const values = branchNames.map((bName) => {
+          const entry = branchHourLoadDailyData.find(
+            (b) => b.branchName === bName
+          );
+          if (!entry) return null;
+          let filled = 0;
+          let possible = 0;
+          for (const day of entry.daily) {
+            const hd = day.hours.find((h) => h.hour === hour);
+            if (hd) {
+              filled += hd.filled;
+              possible += hd.possible;
+            }
+          }
+          return possible > 0 ? Math.round((filled / possible) * 100) : null;
+        });
+        if (values.some((v) => v !== null)) {
+          tableRows.push({
+            hourLabel: formatHourSlotLabel(hour),
+            hour,
+            values,
+          });
+        }
+      }
+
+      const csvRows = tableRows.map((r) => {
+        const row: Record<string, unknown> = { Цаг: r.hourLabel };
+        branchNames.forEach((b, i) => {
+          row[b] = r.values[i] !== null ? `${r.values[i]}%` : "–";
+        });
+        return row;
+      });
+
+      return { columns: branchNames, rows: tableRows, csvRows };
+    } else {
+      // Columns = months (year view) or days (date-filtered view)
+      const hourSet = new Set<number>();
+      for (const day of hourLoadDailyData) {
+        for (const h of day.hours) hourSet.add(h.hour);
+      }
+      const allHours = Array.from(hourSet).sort((a, b) => a - b);
+
+      if (isYearView) {
+        // Group by month
+        const monthMap = new Map<
+          string,
+          {
+            label: string;
+            hourData: Map<number, { filled: number; possible: number }>;
+          }
+        >();
+        for (const day of hourLoadDailyData) {
+          const monthKey = day.date.slice(0, 7);
+          const monthIdx = Number(day.date.slice(5, 7)) - 1;
+          if (!monthMap.has(monthKey)) {
+            monthMap.set(monthKey, {
+              label: MONTH_LABELS[monthIdx],
+              hourData: new Map(),
+            });
+          }
+          const entry = monthMap.get(monthKey)!;
+          for (const h of day.hours) {
+            const ex = entry.hourData.get(h.hour) || {
+              filled: 0,
+              possible: 0,
+            };
+            ex.filled += h.filled;
+            ex.possible += h.possible;
+            entry.hourData.set(h.hour, ex);
+          }
+        }
+        const sortedMonths = Array.from(monthMap.entries()).sort(([a], [b]) =>
+          a.localeCompare(b)
+        );
+        const colDefs = sortedMonths.map(([, v]) => ({ label: v.label, hourData: v.hourData }));
+
+        const tableRows: {
+          hourLabel: string;
+          hour: number;
+          values: (number | null)[];
+        }[] = [];
+        for (const hour of allHours) {
+          const values = colDefs.map(({ hourData }) => {
+            const hd = hourData.get(hour);
+            if (!hd || hd.possible === 0) return null;
+            return Math.round((hd.filled / hd.possible) * 100);
+          });
+          if (values.some((v) => v !== null)) {
+            tableRows.push({
+              hourLabel: formatHourSlotLabel(hour),
+              hour,
+              values,
+            });
+          }
+        }
+
+        const csvRows = tableRows.map((r) => {
+          const row: Record<string, unknown> = { Цаг: r.hourLabel };
+          colDefs.forEach((c, i) => {
+            row[c.label] = r.values[i] !== null ? `${r.values[i]}%` : "–";
+          });
+          return row;
+        });
+
+        return {
+          columns: colDefs.map((c) => c.label),
+          rows: tableRows,
+          csvRows,
+        };
+      } else {
+        // Columns = individual days
+        const dayMap = new Map<
+          string,
+          {
+            label: string;
+            hourData: Map<number, { filled: number; possible: number }>;
+          }
+        >();
+        for (const day of hourLoadDailyData) {
+          if (!dayMap.has(day.date)) {
+            dayMap.set(day.date, {
+              label: day.date.slice(5),
+              hourData: new Map(),
+            });
+          }
+          const entry = dayMap.get(day.date)!;
+          for (const h of day.hours) {
+            entry.hourData.set(h.hour, { filled: h.filled, possible: h.possible });
+          }
+        }
+        const sortedDays = Array.from(dayMap.entries()).sort(([a], [b]) =>
+          a.localeCompare(b)
+        );
+
+        const tableRows: {
+          hourLabel: string;
+          hour: number;
+          values: (number | null)[];
+        }[] = [];
+        for (const hour of allHours) {
+          const values = sortedDays.map(([, { hourData }]) => {
+            const hd = hourData.get(hour);
+            if (!hd || hd.possible === 0) return null;
+            return Math.round((hd.filled / hd.possible) * 100);
+          });
+          if (values.some((v) => v !== null)) {
+            tableRows.push({
+              hourLabel: formatHourSlotLabel(hour),
+              hour,
+              values,
+            });
+          }
+        }
+
+        const csvRows = tableRows.map((r) => {
+          const row: Record<string, unknown> = { Цаг: r.hourLabel };
+          sortedDays.forEach(([, { label }], i) => {
+            row[label] = r.values[i] !== null ? `${r.values[i]}%` : "–";
+          });
+          return row;
+        });
+
+        return {
+          columns: sortedDays.map(([, { label }]) => label),
+          rows: tableRows,
+          csvRows,
+        };
+      }
+    }
+  }, [
+    showBranchColumns,
+    branchNames,
+    branchHourLoadDailyData,
+    hourLoadDailyData,
+    isYearView,
+  ]);
+
+  return (
+    <div className="border border-gray-100 rounded-xl overflow-hidden">
+      <div className="flex items-center px-4 py-2 bg-gray-50 border-b border-gray-100">
+        <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+          Ачаалал
+        </span>
+        <CollapseButton
+          open={tableOpen}
+          onClick={() => setTableOpen((v) => !v)}
+        />
+      </div>
+      {tableOpen && (
+        <>
+          {rows.length > 0 ? (
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="px-3 py-2 text-left font-semibold text-gray-600 whitespace-nowrap sticky left-0 bg-gray-50 z-10">
+                        Цаг
+                      </th>
+                      {columns.map((col) => (
+                        <th
+                          key={col}
+                          className="px-3 py-2 text-right font-semibold text-gray-600 whitespace-nowrap"
+                        >
+                          {col}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr
+                        key={row.hour}
+                        className="border-t border-gray-100 hover:bg-gray-50"
+                      >
+                        <td className="px-3 py-1.5 font-medium text-gray-700 whitespace-nowrap sticky left-0 bg-gray-50 z-10">
+                          {row.hourLabel}
+                        </td>
+                        {row.values.map((v, i) => (
+                          <td
+                            key={i}
+                            className={`px-3 py-1.5 text-right ${loadPctColor(v)} ${loadPctBg(v)}`}
+                          >
+                            {v !== null ? `${v}%` : "–"}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="px-4 py-2 border-t border-gray-100">
+                <button
+                  onClick={() =>
+                    downloadCSV("Ачаалал.csv", csvRows)
+                  }
+                  className="text-xs text-blue-600 hover:text-blue-800 underline"
+                >
+                  CSV татах
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="px-4 py-6 text-center text-gray-400 text-sm">
+              Өгөгдөл байхгүй байна
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -1344,6 +1684,9 @@ export default function AppointmentsReportPage() {
               branchRatesDailyData={data.branchRatesDailyData}
               isYearView={isYearView}
               branchNames={branchNamesForChart}
+              hourLoadDailyData={data.hourLoadDailyData ?? []}
+              branchHourLoadDailyData={data.branchHourLoadDailyData ?? []}
+              hasBranchFilter={hasBranchFilter}
             />
           </>
         )}
