@@ -82,7 +82,7 @@ const navItems: NavItem[] = [
   label: "Ариутгал",
   icon: "🧼",
   children: [
-    { label: "Цикл үүсгэх", href: "/sterilization/cycles/new", icon: "🔄" },
+    { label: "Ариутгалын багаж үүсгэх", href: "/sterilization/cycles/new", icon: "🔄" },
     { label: "Өрмийн бүртгэл, хяналт", href: "/sterilization/bur-cycles", icon: "🦷" },
     { label: "Халдваргүйтгэл", href: "/sterilization/disinfection", icon: "🧴" },
     { label: "Циклийн жагсаалт", href: "/sterilization/cycles", icon: "📋" },
