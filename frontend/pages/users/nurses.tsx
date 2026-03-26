@@ -398,38 +398,46 @@ export default function NursesPage() {
       {confirmNurse && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
-            <h3 className="text-base font-bold mb-3 text-gray-900">
-              {(confirmNurse.nurseRevenueSharingEnabled ?? true)
-                ? "Орлого хуваалцахыг зогсоох уу?"
-                : "Орлого хуваалцахыг идэвхжүүлэх үү?"}
-            </h3>
-            <p className="text-sm text-gray-600 mb-5">
-              {(confirmNurse.nurseRevenueSharingEnabled ?? true)
-                ? `"${(confirmNurse.ovog ? confirmNurse.ovog.charAt(0) + ". " : "") + (confirmNurse.name || confirmNurse.email)}" сувилагчийн орлого хуваалцахыг идэвхгүй болгох уу? Цаашид орлого бодогдохгүй болно.`
-                : `"${(confirmNurse.ovog ? confirmNurse.ovog.charAt(0) + ". " : "") + (confirmNurse.name || confirmNurse.email)}" сувилагчийн орлого хуваалцахыг идэвхжүүлэх үү?`}
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
-                onClick={() => setConfirmNurse(null)}
-              >
-                Болих
-              </button>
-              <button
-                type="button"
-                className={`px-4 py-2 rounded-lg text-sm font-semibold text-white ${
-                  (confirmNurse.nurseRevenueSharingEnabled ?? true)
-                    ? "bg-red-600 hover:bg-red-700"
-                    : "bg-green-600 hover:bg-green-700"
-                }`}
-                onClick={() => handleToggleRevenue(confirmNurse)}
-              >
-                {(confirmNurse.nurseRevenueSharingEnabled ?? true)
-                  ? "Хувьгүй болгох"
-                  : "Хувьтай болгох"}
-              </button>
-            </div>
+            {(() => {
+              const isEnabled = confirmNurse.nurseRevenueSharingEnabled ?? true;
+              const displayName =
+                (confirmNurse.ovog ? confirmNurse.ovog.charAt(0) + ". " : "") +
+                (confirmNurse.name || confirmNurse.email);
+              return (
+                <>
+                  <h3 className="text-base font-bold mb-3 text-gray-900">
+                    {isEnabled
+                      ? "Орлого хуваалцахыг зогсоох уу?"
+                      : "Орлого хуваалцахыг идэвхжүүлэх үү?"}
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-5">
+                    {isEnabled
+                      ? `"${displayName}" сувилагчийн орлого хуваалцахыг идэвхгүй болгох уу? Цаашид орлого бодогдохгүй болно.`
+                      : `"${displayName}" сувилагчийн орлого хуваалцахыг идэвхжүүлэх үү?`}
+                  </p>
+                  <div className="flex justify-end gap-3">
+                    <button
+                      type="button"
+                      className="px-4 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+                      onClick={() => setConfirmNurse(null)}
+                    >
+                      Болих
+                    </button>
+                    <button
+                      type="button"
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold text-white ${
+                        isEnabled
+                          ? "bg-red-600 hover:bg-red-700"
+                          : "bg-green-600 hover:bg-green-700"
+                      }`}
+                      onClick={() => handleToggleRevenue(confirmNurse)}
+                    >
+                      {isEnabled ? "Хувьгүй болгох" : "Хувьтай болгох"}
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
