@@ -113,9 +113,9 @@ function ChartTooltip({
 // ─────────────────────────────────────────────
 function BreakdownPanel({ breakdown, total }: { breakdown: Breakdown; total: number }) {
   const typeLabel: Record<string, string> = {
-    branches: "Салбарын хувь нэмэр",
-    doctors: "Эмчийн хувь нэмэр",
-    categories: "Ангиллын хувь нэмэр",
+    branches: "Салбарын оролцоо",
+    doctors: "Эмчийн оролцоо",
+    categories: "Бүрдүүлэлтйин ангилал",
   };
 
   const rows = breakdown.rows;
@@ -155,7 +155,7 @@ function BreakdownPanel({ breakdown, total }: { breakdown: Breakdown; total: num
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value: number) => [formatMoney(value), "Орлого"]}
+                  formatter={(value: number) => [formatMoney(value), "Дүн"]}
                 />
                 <Legend
                   iconType="circle"
@@ -456,7 +456,7 @@ export default function DoctorIncomeReportPage() {
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                  Нийт эмчийн орлого
+                  Нийт эмчийн хувь
                   {data.mode === "monthly"
                     ? ` · ${data.year} он`
                     : ` · ${data.startDate} – ${data.endDate}`}
@@ -481,7 +481,7 @@ export default function DoctorIncomeReportPage() {
               {/* Left: chart */}
               <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-3">
                 <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-                  Эмчийн орлого ·{" "}
+                  Эмчийн хувь ·{" "}
                   {data.mode === "monthly"
                     ? `${data.year} он — сарын задаргаа`
                     : `${data.startDate} – ${data.endDate} (өдрийн задаргаа)`}
@@ -539,7 +539,7 @@ export default function DoctorIncomeReportPage() {
                             <th className="py-2 text-left font-semibold">
                               {data.mode === "monthly" ? "Сар" : "Огноо"}
                             </th>
-                            <th className="py-2 text-right font-semibold">Эмчийн орлого</th>
+                            <th className="py-2 text-right font-semibold">Эмчийн хувь</th>
                           </tr>
                         </thead>
                         <tbody>
