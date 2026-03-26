@@ -93,6 +93,10 @@ router.post("/login", ipBackstopRateLimit, ipEmailRateLimit, async (req, res) =>
     return res.status(401).json({ error: "Invalid credentials." });
   }
 
+  if (!user.isActive) {
+    return res.status(401).json({ error: "Энэ бүртгэл идэвхгүй байна. Системийн администратортой холбоо барина уу." });
+  }
+
   // Support both bcrypt-hashed and legacy plaintext passwords
   let valid = false;
   try {

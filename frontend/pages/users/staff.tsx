@@ -525,7 +525,7 @@ export default function OtherStaffPage() {
 
   const deleteUser = async (id: number) => {
     const ok = window.confirm(
-      "Та энэхүү ажилтныг устгахдаа итгэлтэй байна уу?"
+      "Та энэхүү ажилтныг идэвхгүй болгохдоо итгэлтэй байна уу?"
     );
     if (!ok) return;
 
@@ -542,7 +542,7 @@ export default function OtherStaffPage() {
       }
 
       if (!res.ok) {
-        alert((data && data.error) || "Устгах үед алдаа гарлаа");
+        alert((data && data.error) || "Идэвхгүй болгох үед алдаа гарлаа");
         return;
       }
 
@@ -723,19 +723,19 @@ export default function OtherStaffPage() {
                           </button>
                           <span className={tooltipCls}>Засах</span>
                         </div>
-                        {/* Устгах */}
+                        {/* Идэвхгүй болгох */}
                         <div className="group relative inline-block">
                           <button
                             type="button"
                             onClick={() => deleteUser(u.id)}
-                            aria-label="Устгах"
+                            aria-label="Идэвхгүй болгох"
                             className="inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 bg-gray-50 text-red-500 hover:bg-red-50 hover:border-red-200 transition-colors"
                           >
                             <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                               <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
                             </svg>
                           </button>
-                          <span className={tooltipCls}>Устгах</span>
+                          <span className={tooltipCls}>Идэвхгүй болгох</span>
                         </div>
                         {/* Нууц үг сэргээх */}
                         <SendResetLinkButton userId={u.id} />

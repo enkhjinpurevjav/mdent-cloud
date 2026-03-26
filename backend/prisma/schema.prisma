@@ -765,6 +765,10 @@ model User {
   // Nurse revenue sharing: true = хувьтай (receives income share), false = хувьгүй (salary-only)
   nurseRevenueSharingEnabled Boolean @default(true)
 
+  // Soft delete
+  isActive        Boolean   @default(true)
+  deactivatedAt   DateTime?
+
   passwordResetTokens PasswordResetToken[]
 
   // Attendance sessions

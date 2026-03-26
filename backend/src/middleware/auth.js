@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import prisma from "../db.js";
 
 const COOKIE_NAME = "access_token";
 
@@ -38,13 +39,27 @@ export function authenticateJWT(req, res, next) {
     return res.status(500).json({ error: "Internal server error." });
   }
 
-  jwt.verify(token, secret, (err, user) => {
+  jwt.verify(token, secret, async (err, user) => {
     if (err) {
       if (err.name === "TokenExpiredError") {
         return res.status(401).json({ error: "Token expired." });
       }
       console.error("JWT error:", err.message);
       return res.status(401).json({ error: "Invalid token." });
+    }
+
+    // Verify the user is still active in the database
+    try {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { isActive: true },
+      });
+      if (!dbUser || !dbUser.isActive) {
+        return res.status(401).json({ error: "Энэ бүртгэл идэвхгүй байна. Дахин нэвтрэнэ үү." });
+      }
+    } catch (dbErr) {
+      console.error("DB error during isActive check:", dbErr);
+      return res.status(500).json({ error: "Internal server error." });
     }
 
     req.user = user;

@@ -56,7 +56,7 @@ router.get("/", async (req, res) => {
   console.log("GET /api/users query:", req.query);
 
   try {
-    const where = {};
+    const where = { isActive: true };
 
     if (role) {
       // role is string at runtime, must match UserRole enum value
@@ -1207,12 +1207,20 @@ router.put("/:id", async (req, res) => {
 
 /**
  * DELETE /api/users/:id
- * Deletes a user (any role).
+ * Soft-deletes (deactivates) a user.
+ * Guards:
+ *  - Cannot deactivate yourself.
+ *  - Cannot deactivate the last remaining admin or super_admin.
  */
 router.delete("/:id", async (req, res) => {
   const id = Number(req.params.id);
   if (!id || Number.isNaN(id)) {
     return res.status(400).json({ error: "Invalid user id" });
+  }
+
+  // Guard: cannot deactivate yourself
+  if (req.user && req.user.id === id) {
+    return res.status(400).json({ error: "Өөрийгөө идэвхгүй болгох боломжгүй." });
   }
 
   try {
@@ -1221,12 +1229,34 @@ router.delete("/:id", async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    await prisma.user.delete({ where: { id } });
+    if (!existing.isActive) {
+      return res.status(200).json({ success: true });
+    }
+
+    // Guard: cannot deactivate the last active admin or super_admin
+    if (existing.role === "admin" || existing.role === "super_admin") {
+      const activeAdminCount = await prisma.user.count({
+        where: {
+          isActive: true,
+          role: { in: ["admin", "super_admin"] },
+        },
+      });
+      if (activeAdminCount <= 1) {
+        return res.status(400).json({
+          error: "Сүүлчийн идэвхтэй админ/супер админыг идэвхгүй болгох боломжгүй.",
+        });
+      }
+    }
+
+    await prisma.user.update({
+      where: { id },
+      data: { isActive: false, deactivatedAt: new Date() },
+    });
 
     return res.status(200).json({ success: true });
   } catch (err) {
     console.error("DELETE /api/users/:id error:", err);
-    return res.status(500).json({ error: "Failed to delete user" });
+    return res.status(500).json({ error: "Failed to deactivate user" });
   }
 });
 
@@ -1809,6 +1839,7 @@ router.get("/receptions/today", async (req, res) => {
             name: true,
             ovog: true,
             phone: true,
+            isActive: true,
           },
         },
       },
@@ -1822,6 +1853,8 @@ router.get("/receptions/today", async (req, res) => {
     // Group by receptionId so frontend can show unique staff count
     const map = new Map();
     for (const s of schedules) {
+      // Skip inactive receptionists
+      if (!s.reception.isActive) continue;
       const key = s.receptionId;
       if (!map.has(key)) {
         map.set(key, {
@@ -1896,6 +1929,7 @@ router.get("/nurses/today", async (req, res) => {
             name: true,
             ovog: true,
             phone: true,
+            isActive: true,
           },
         },
       },
@@ -1908,6 +1942,8 @@ router.get("/nurses/today", async (req, res) => {
 
     const map = new Map();
     for (const s of schedules) {
+      // Skip inactive nurses
+      if (!s.nurse.isActive) continue;
       if (!map.has(s.nurseId)) {
         map.set(s.nurseId, {
           nurseId: s.nurseId,
