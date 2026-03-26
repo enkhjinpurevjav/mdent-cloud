@@ -16,12 +16,21 @@
  *     mode: "monthly" | "daily",
  *     year, startDate, endDate,
  *     scope: { branchId, doctorId },
- *     series: [{ key: "YYYY-MM" | "YYYY-MM-DD", salesMnt, incomeMnt }],
- *     totalSalesMnt,
- *     totalIncomeMnt,
- *     breakdown: {
- *       type: "branches"|"doctors"|"categories",
- *       rows: [{ id, label, salesMnt, incomeMnt, pctSales, pctIncome }]
+ *     sales: {
+ *       series: [{ key, valueMnt }],
+ *       totalMnt,
+ *       breakdown: { type: "branches"|"doctors"|"categories", rows: [{ id, label, valueMnt, pct }] }
+ *     },
+ *     income: {
+ *       series: [{ key, valueMnt }],
+ *       totalMnt,
+ *       breakdown: { type, rows: [{ id, label, valueMnt, pct }] }
+ *     },
+ *     avgSalesPerCompletedAppt: {
+ *       series: [{ key, valueMnt }],
+ *       totalMnt,
+ *       completedCount,
+ *       breakdown: { type, rows: [{ id, label, avgMnt, salesMnt, completedCount, pctSales }] }
  *     },
  *     filters: { branches: [...], doctors: [...] }
  *   }
@@ -495,41 +504,75 @@ router.get("/reports/appointments/doctors-income", async (req, res) => {
       ...(branchId ? { branchId } : {}), // ✅ branch-at-time
     };
 
-    const invoices = await prisma.invoice.findMany({
-      where: invoiceWhere,
-      include: {
-        branch: { select: { id: true, name: true } },
-        encounter: {
-          include: {
-            doctor: {
-              include: {
-                commissionConfig: true,
+    const [invoices, completedAppts] = await Promise.all([
+      prisma.invoice.findMany({
+        where: invoiceWhere,
+        include: {
+          branch: { select: { id: true, name: true } },
+          encounter: {
+            include: {
+              doctor: {
+                include: {
+                  commissionConfig: true,
+                },
               },
             },
           },
-        },
-        items: { include: { service: true } },
-        payments: {
-          include: {
-            allocations: { select: { invoiceItemId: true, amount: true } },
+          items: { include: { service: true } },
+          payments: {
+            include: {
+              allocations: { select: { invoiceItemId: true, amount: true } },
+            },
           },
         },
-      },
-    });
+      }),
+      prisma.appointment.findMany({
+        where: {
+          status: "completed",
+          scheduledAt: { gte: rangeStart, lt: rangeEndExclusive },
+          ...(branchId ? { branchId } : {}),
+          ...(doctorId ? { doctorId } : {}),
+        },
+        select: { id: true, branchId: true, doctorId: true, scheduledAt: true },
+      }),
+    ]);
 
     // Pre-populate series buckets with zeros
     const bucketMap = new Map();
     const bucketSalesMap = new Map();
+    const bucketCompletedMap = new Map();
     if (mode === "monthly") {
       for (let m = 1; m <= 12; m++) {
         const k = `${year}-${String(m).padStart(2, "0")}`;
         bucketMap.set(k, 0);
         bucketSalesMap.set(k, 0);
+        bucketCompletedMap.set(k, 0);
       }
     } else {
       for (const d of enumerateDaysInclusive(startDateStr, endDateStr)) {
         bucketMap.set(d, 0);
         bucketSalesMap.set(d, 0);
+        bucketCompletedMap.set(d, 0);
+      }
+    }
+
+    // Count completed appointments per bucket / branch / doctor
+    const apptByBranch = new Map(); // branchId -> count
+    const apptByDoctor = new Map(); // doctorId -> count
+    let totalCompletedCount = 0;
+
+    for (const appt of completedAppts) {
+      totalCompletedCount++;
+      const iso = new Date(appt.scheduledAt).toISOString().slice(0, 10);
+      const apptKey = mode === "monthly" ? iso.slice(0, 7) : iso;
+      if (bucketCompletedMap.has(apptKey)) {
+        bucketCompletedMap.set(apptKey, bucketCompletedMap.get(apptKey) + 1);
+      }
+      if (appt.branchId != null) {
+        apptByBranch.set(appt.branchId, (apptByBranch.get(appt.branchId) || 0) + 1);
+      }
+      if (appt.doctorId != null) {
+        apptByDoctor.set(appt.doctorId, (apptByDoctor.get(appt.doctorId) || 0) + 1);
       }
     }
 
@@ -643,55 +686,159 @@ router.get("/reports/appointments/doctors-income", async (req, res) => {
       }
     }
 
-    // choose breakdown type + rows
+    // Choose breakdown type (same for all 3 cards)
     let breakdownType;
-    let breakdownRows;
-
     if (doctorId) {
       breakdownType = "categories";
-      breakdownRows = Array.from(breakdownByCategory.keys())
+    } else if (branchId) {
+      breakdownType = "doctors";
+    } else {
+      breakdownType = "branches";
+    }
+
+    // ── Build per-card breakdown rows ─────────────────────────────────────────
+
+    // Sales breakdown rows
+    let salesBreakdownRows;
+    // Income breakdown rows
+    let incomeBreakdownRows;
+    // Avg breakdown rows
+    let avgBreakdownRows;
+
+    if (doctorId) {
+      salesBreakdownRows = Array.from(breakdownByCategorySales.keys())
         .map((key) => ({
           id: key,
           label: CATEGORY_LABELS[key] || key,
-          incomeMnt: Math.round(breakdownByCategory.get(key) || 0),
-          salesMnt: Math.round(breakdownByCategorySales.get(key) || 0),
-          pctIncome: calcPct(breakdownByCategory.get(key) || 0, totalIncomeMnt),
-          pctSales: calcPct(breakdownByCategorySales.get(key) || 0, totalSalesMnt),
+          valueMnt: Math.round(breakdownByCategorySales.get(key) || 0),
+          pct: calcPct(breakdownByCategorySales.get(key) || 0, totalSalesMnt),
         }))
-        .filter((r) => r.incomeMnt > 0 || r.salesMnt > 0);
+        .filter((r) => r.valueMnt > 0);
+
+      incomeBreakdownRows = Array.from(breakdownByCategory.keys())
+        .map((key) => ({
+          id: key,
+          label: CATEGORY_LABELS[key] || key,
+          valueMnt: Math.round(breakdownByCategory.get(key) || 0),
+          pct: calcPct(breakdownByCategory.get(key) || 0, totalIncomeMnt),
+        }))
+        .filter((r) => r.valueMnt > 0);
+
+      // Avg: each category shares the doctor's total completed count.
+      // Appointments are not split by service category (one appointment can
+      // include services from multiple categories), so the denominator is the
+      // doctor's total completed appointment count for the period — matching
+      // the spec definition: categoryAvg = categorySales / completedCount(scope).
+      avgBreakdownRows = Array.from(breakdownByCategorySales.keys())
+        .map((key) => {
+          const salesMntRaw = breakdownByCategorySales.get(key) || 0;
+          const salesMntRounded = Math.round(salesMntRaw);
+          const avgMnt = totalCompletedCount > 0
+            ? Math.round(salesMntRaw / totalCompletedCount)
+            : 0;
+          return {
+            id: key,
+            label: CATEGORY_LABELS[key] || key,
+            avgMnt,
+            salesMnt: salesMntRounded,
+            completedCount: totalCompletedCount,
+            pctSales: calcPct(salesMntRaw, totalSalesMnt),
+          };
+        })
+        .filter((r) => r.salesMnt > 0);
+
     } else if (branchId) {
-      breakdownType = "doctors";
-      breakdownRows = Array.from(breakdownByDoctor.values())
+      salesBreakdownRows = Array.from(breakdownByDoctor.values())
         .map((r) => ({
           id: r.id,
           label: r.label,
-          incomeMnt: Math.round(r.incomeMnt),
-          salesMnt: Math.round(r.salesMnt),
-          pctIncome: calcPct(r.incomeMnt, totalIncomeMnt),
-          pctSales: calcPct(r.salesMnt, totalSalesMnt),
+          valueMnt: Math.round(r.salesMnt),
+          pct: calcPct(r.salesMnt, totalSalesMnt),
         }))
-        .sort((a, b) => b.incomeMnt - a.incomeMnt);
+        .sort((a, b) => b.valueMnt - a.valueMnt);
+
+      incomeBreakdownRows = Array.from(breakdownByDoctor.values())
+        .map((r) => ({
+          id: r.id,
+          label: r.label,
+          valueMnt: Math.round(r.incomeMnt),
+          pct: calcPct(r.incomeMnt, totalIncomeMnt),
+        }))
+        .sort((a, b) => b.valueMnt - a.valueMnt);
+
+      avgBreakdownRows = Array.from(breakdownByDoctor.values())
+        .map((r) => {
+          const cnt = apptByDoctor.get(r.id) || 0;
+          return {
+            id: r.id,
+            label: r.label,
+            avgMnt: cnt > 0 ? Math.round(r.salesMnt / cnt) : 0,
+            salesMnt: Math.round(r.salesMnt),
+            completedCount: cnt,
+            pctSales: calcPct(r.salesMnt, totalSalesMnt),
+          };
+        })
+        .sort((a, b) => b.salesMnt - a.salesMnt);
+
     } else {
-      breakdownType = "branches";
-      breakdownRows = Array.from(breakdownByBranch.values())
+      salesBreakdownRows = Array.from(breakdownByBranch.values())
         .map((r) => ({
           id: r.id,
           label: r.label,
-          incomeMnt: Math.round(r.incomeMnt),
-          salesMnt: Math.round(r.salesMnt),
-          pctIncome: calcPct(r.incomeMnt, totalIncomeMnt),
-          pctSales: calcPct(r.salesMnt, totalSalesMnt),
+          valueMnt: Math.round(r.salesMnt),
+          pct: calcPct(r.salesMnt, totalSalesMnt),
         }))
-        .sort((a, b) => b.incomeMnt - a.incomeMnt);
+        .sort((a, b) => b.valueMnt - a.valueMnt);
+
+      incomeBreakdownRows = Array.from(breakdownByBranch.values())
+        .map((r) => ({
+          id: r.id,
+          label: r.label,
+          valueMnt: Math.round(r.incomeMnt),
+          pct: calcPct(r.incomeMnt, totalIncomeMnt),
+        }))
+        .sort((a, b) => b.valueMnt - a.valueMnt);
+
+      avgBreakdownRows = Array.from(breakdownByBranch.values())
+        .map((r) => {
+          const cnt = apptByBranch.get(r.id) || 0;
+          return {
+            id: r.id,
+            label: r.label,
+            avgMnt: cnt > 0 ? Math.round(r.salesMnt / cnt) : 0,
+            salesMnt: Math.round(r.salesMnt),
+            completedCount: cnt,
+            pctSales: calcPct(r.salesMnt, totalSalesMnt),
+          };
+        })
+        .sort((a, b) => b.salesMnt - a.salesMnt);
     }
 
-    const series = Array.from(bucketMap.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, incAmt]) => ({
+    // ── Build per-card series ────────────────────────────────────────────────
+    const sortedKeys = Array.from(bucketMap.keys()).sort((a, b) => a.localeCompare(b));
+
+    const salesSeries = sortedKeys.map((key) => ({
+      key,
+      valueMnt: Math.round(bucketSalesMap.get(key) || 0),
+    }));
+
+    const incomeSeries = sortedKeys.map((key) => ({
+      key,
+      valueMnt: Math.round(bucketMap.get(key) || 0),
+    }));
+
+    const avgSeries = sortedKeys.map((key) => {
+      const bucketSales = bucketSalesMap.get(key) || 0;
+      const bucketCompleted = bucketCompletedMap.get(key) || 0;
+      return {
         key,
-        salesMnt: Math.round(bucketSalesMap.get(key) || 0),
-        incomeMnt: Math.round(incAmt),
-      }));
+        valueMnt: bucketCompleted > 0 ? Math.round(bucketSales / bucketCompleted) : 0,
+      };
+    });
+
+    const avgTotalMnt = totalCompletedCount > 0
+      ? Math.round(totalSalesMnt / totalCompletedCount)
+      : 0;
 
     return res.json({
       mode,
@@ -699,10 +846,22 @@ router.get("/reports/appointments/doctors-income", async (req, res) => {
       startDate: startDateStr,
       endDate: endDateStr,
       scope: { branchId: branchId || null, doctorId: doctorId || null },
-      series,
-      totalSalesMnt: Math.round(totalSalesMnt),
-      totalIncomeMnt: Math.round(totalIncomeMnt),
-      breakdown: { type: breakdownType, rows: breakdownRows },
+      sales: {
+        series: salesSeries,
+        totalMnt: Math.round(totalSalesMnt),
+        breakdown: { type: breakdownType, rows: salesBreakdownRows },
+      },
+      income: {
+        series: incomeSeries,
+        totalMnt: Math.round(totalIncomeMnt),
+        breakdown: { type: breakdownType, rows: incomeBreakdownRows },
+      },
+      avgSalesPerCompletedAppt: {
+        series: avgSeries,
+        totalMnt: avgTotalMnt,
+        completedCount: totalCompletedCount,
+        breakdown: { type: breakdownType, rows: avgBreakdownRows },
+      },
       filters: {
         branches,
         doctors: doctors.map((d) => ({
