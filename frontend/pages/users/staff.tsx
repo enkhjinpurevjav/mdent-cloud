@@ -7,7 +7,7 @@ type Branch = {
   name: string;
 };
 
-type UserRole = "accountant" | "manager" | "admin" | "super_admin" | "sterilization" | "other" | "receptionist" | "nurse" | "xray";
+type UserRole = "accountant" | "manager" | "admin" | "super_admin" | "sterilization" | "other" | "xray";
 
 type OtherStaff = {
   id: number;
@@ -30,8 +30,6 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "super_admin", label: "Супер Админ" },
   { value: "sterilization", label: "Ариутгал" },
   { value: "other", label: "Бусад" },
-  { value: "receptionist", label: "Ресепшн" },
-  { value: "nurse", label: "Сувилагч" },
   { value: "xray", label: "Рентген" },
 ];
 
