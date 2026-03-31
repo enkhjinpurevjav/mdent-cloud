@@ -239,24 +239,31 @@ export default function AdminLayout({ children, wide }: Props) {
   };
 
   // Auto-open the group that contains the current path
-  useEffect(() => {
-    const found = navItems.find((item) => {
-      if (!item.children) return false;
-      return item.children.some((child) => {
-        if (!child.href) return false;
-        if (child.href === "/") return currentPath === "/";
-        return (
-          currentPath === child.href ||
-          currentPath.startsWith(child.href + "/")
-        );
-      });
+useEffect(() => {
+  // Always keep "Цаг захиалга" open on /appointments (incl. /appointments?branchId=...)
+  if (currentPath === "/appointments") {
+    setOpenGroup("Цаг захиалга");
+    return;
+  }
+
+  const found = navItems.find((item) => {
+    if (!item.children) return false;
+    return item.children.some((child) => {
+      if (!child.href) return false;
+      if (child.href === "/") return currentPath === "/";
+      return (
+        currentPath === child.href ||
+        currentPath.startsWith(child.href + "/")
+      );
     });
-    if (found) {
-      setOpenGroup(found.label);
-    } else {
-      setOpenGroup(null);
-    }
-  }, [currentPath]);
+  });
+
+  if (found) {
+    setOpenGroup(found.label);
+  } else {
+    setOpenGroup(null);
+  }
+}, [currentPath]);
 
   // Load branches once for Цаг захиалах submenu (dynamic)
   useEffect(() => {
