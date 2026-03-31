@@ -448,11 +448,50 @@ export default function EncounterAdminPage() {
   // OPTIONAL: if you want custom range to auto-apply when user types,
   // call this from an effect or from the input onBlur/onEnter.
   function applyCustomToothRange() {
-    const parsed = parseCustomToothRange(customToothRange);
+  const raw = (customToothRange || "").trim();
+  if (!raw) return;
 
+  // Normalize non-standard dashes to hyphen so ranges like 21–24 work
+  const normalized = raw.replace(/[–—−]/g, "-");
+
+  const parsed = parseCustomToothRange(normalized);
+
+  // Case A: valid teeth parsed -> normal behavior
+  if (parsed.length > 0) {
     setSelectedTeeth(parsed);
     updateActiveRowToothList(parsed, { isAllTeeth: false });
+    return;
   }
+
+  // Case B: free text -> still create/update a row, store it in toothCode
+  setSelectedTeeth([]);
+
+  const label = `custom: ${raw}`;
+
+  const activeRow =
+    activeDxRowLocalId !== null
+      ? rows.find((r) => r.localId === activeDxRowLocalId) ?? null
+      : null;
+
+  const hasWritableActiveRow = activeRow !== null && !activeRow.locked;
+
+  if (!hasWritableActiveRow) {
+    // Create a new row (no teeth selected)
+    const newLocalId = createDiagnosisRow([]);
+    setActiveDxRowLocalId(newLocalId);
+
+    // Set toothCode to the custom label
+    setRows((prev) =>
+      prev.map((r) => (r.localId === newLocalId ? { ...r, toothCode: label } : r))
+    );
+  } else {
+    // Update the active row’s toothCode
+    const localId = activeDxRowLocalId as number;
+    setRows((prev) =>
+      prev.map((r) => (r.localId === localId ? { ...r, toothCode: label } : r))
+    );
+  }
+}
 
   // Helper to update a single field in rows
   const updateDxRowField = useCallback(
