@@ -7,6 +7,7 @@ import { parseRegNo } from "../utils/regno.js";
 import { getPatientBalance } from "./reports-patient-balances.js";
 import { sseBroadcastAll } from "../utils/sseStore.js";
 import { formatApptForResponse } from "../utils/formatAppointment.js";
+import { formatDoctorDisplayName } from "../utils/formatDoctorDisplayName.js";
 
 const router = express.Router();
 const uploadDir = process.env.MEDIA_UPLOAD_DIR || "/data/media";
@@ -705,7 +706,16 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
         encounterId,
         patient: { ...patient, patientBook: { id: pb.id, bookNumber: pb.bookNumber } },
       };
-      return { ...formatApptForResponse(apptForFormatting), materialsCount };
+      // Build the doctor object (needed by patient profile UI: formatDoctorName(a.doctor))
+      const doctorObj = a.doctor
+        ? { id: a.doctor.id, name: a.doctor.name || null, ovog: a.doctor.ovog || null }
+        : null;
+      return {
+        ...formatApptForResponse(apptForFormatting),
+        doctor: doctorObj,
+        doctorDisplayName: formatDoctorDisplayName(a.doctor),
+        materialsCount,
+      };
     });
 
     // Find the active visit card (latest savedAt)
