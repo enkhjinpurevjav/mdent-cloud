@@ -2158,6 +2158,7 @@ const handleFinishEncounter = async () => {
               onToggleToothMode={toggleToothMode}
               onToggleToothSelection={toggleToothSelection}
               onCustomToothRangeChange={setCustomToothRange}
+              onApplyCustomToothRange={applyCustomToothRange}
               isToothSelected={isToothSelected}
               areAllModeTeethSelected={areAllModeTeethSelected}
             />
