@@ -105,11 +105,9 @@ export default function AgendaView({
     return Number.isNaN(d.getTime()) ? new Date() : d;
   })();
 
-  const sorted = [...dayAppointments].sort((a, b) => {
-    return (
-      new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
-    );
-  });
+  const sorted = [...dayAppointments].sort((a, b) =>
+    (a.scheduledAt ?? "").localeCompare(b.scheduledAt ?? "")
+  );
 
   return (
     <div className="flex flex-col">

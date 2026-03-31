@@ -8,6 +8,8 @@ import EncounterReportModal from "../../../components/patients/EncounterReportMo
 import EncounterMaterialsModal from "../../../components/patients/EncounterMaterialsModal";
 import type { Appointment } from "../../../components/appointments/types";
 import DoctorDashboardTab from "../../../components/doctors/DoctorDashboardTab";
+import { formatNaiveHm, getBusinessYmd, minutesFromNaive } from "../../../utils/businessTime";
+import { addDaysYmd, isWeekendYmd } from "../../../utils/appointmentTime";
 
 type Branch = {
   id: number;
@@ -318,15 +320,9 @@ function formatApptPatientLabel(a: DoctorAppointment): string {
 
 function formatApptTimeRange(a: DoctorAppointment): string {
   if (!a.scheduledAt) return "";
-  const start = new Date(a.scheduledAt);
-  const hh = String(start.getHours()).padStart(2, "0");
-  const mm = String(start.getMinutes()).padStart(2, "0");
-  const startStr = `${hh}:${mm}`;
+  const startStr = formatNaiveHm(a.scheduledAt);
   if (!a.endAt) return startStr;
-  const end = new Date(a.endAt);
-  const eh = String(end.getHours()).padStart(2, "0");
-  const em = String(end.getMinutes()).padStart(2, "0");
-  return `${startStr} – ${eh}:${em}`;
+  return `${startStr} – ${formatNaiveHm(a.endAt)}`;
 }
 
 function doctorApptToModalAppt(a: DoctorAppointment): Appointment {
@@ -796,11 +792,9 @@ useEffect(() => {
       setScheduleError(null);
 
       try {
-        const today = new Date();
-        const from = today.toISOString().slice(0, 10);
-        const toDate = new Date(today);
-        toDate.setDate(today.getDate() + 31);
-        const to = toDate.toISOString().slice(0, 10);
+        const today = getBusinessYmd();
+        const from = today;
+        const to = addDaysYmd(today, 31);
 
         const res = await fetch(
           `/api/users/${id}/schedule?from=${from}&to=${to}`
@@ -850,20 +844,16 @@ useEffect(() => {
     }
 
     // Initialize appointments date range: today to today+30
-    const today = new Date();
-    const defaultFrom = today.toISOString().slice(0, 10);
-    const thirtyDaysLater = new Date(today);
-    thirtyDaysLater.setDate(today.getDate() + 30);
-    const defaultTo = thirtyDaysLater.toISOString().slice(0, 10);
+    const todayYmd = getBusinessYmd();
+    const defaultFrom = todayYmd;
+    const defaultTo = addDaysYmd(todayYmd, 30);
     
     setAppointmentsFrom(defaultFrom);
     setAppointmentsTo(defaultTo);
 
     // Initialize appointment history date range: today-7 to today
-    const sevenDaysAgo = new Date(today);
-    sevenDaysAgo.setDate(today.getDate() - 7);
-    const todayStr = today.toISOString().slice(0, 10);
-    setApptHistoryFrom(sevenDaysAgo.toISOString().slice(0, 10));
+    const todayStr = todayYmd;
+    setApptHistoryFrom(addDaysYmd(todayYmd, -7));
     setApptHistoryTo(todayStr);
 
     load();
@@ -877,11 +867,9 @@ useEffect(() => {
     setScheduleError(null);
 
     try {
-      const today = new Date();
-      const from = today.toISOString().slice(0, 10);
-      const toDate = new Date(today);
-      toDate.setDate(today.getDate() + 31);
-      const to = toDate.toISOString().slice(0, 10);
+      const today = getBusinessYmd();
+      const from = today;
+      const to = addDaysYmd(today, 31);
 
       const res = await fetch(`/api/users/${id}/schedule?from=${from}&to=${to}`);
       const data = await res.json();
@@ -2919,9 +2907,8 @@ function formatScheduleDate(ymd: string): string {
 
           {activeTab === "appointments" && (() => {
             // ── helpers scoped to render ──────────────────────────────────
-            const todayStr = new Date().toISOString().slice(0, 10);
-            const todayDate = new Date(todayStr);
-            const isWeekend = todayDate.getDay() === 0 || todayDate.getDay() === 6;
+            const todayStr = getBusinessYmd();
+            const isWeekend = isWeekendYmd(todayStr);
 
             // Change 1: derive calendar bounds from today's schedule entry
             const todaySchedule = schedule.find((s) => s.date === todayStr);
@@ -2961,10 +2948,9 @@ function formatScheduleDate(ymd: string): string {
             }
             const sortedDates = Array.from(groupedMap.keys()).sort();
 
-            // slot index for a given ISO time string (can be fractional)
-            function slotIndex(iso: string): number {
-              const d = new Date(iso);
-              const minutes = d.getHours() * 60 + d.getMinutes();
+            // slot index for a given naive timestamp string
+            function slotIndex(naive: string): number {
+              const minutes = minutesFromNaive(naive);
               return (minutes - calendarFirstMinute) / 30;
             }
 
