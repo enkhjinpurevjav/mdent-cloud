@@ -416,14 +416,8 @@ router.patch("/:id", async (req, res) => {
       }
     }
 
-    // When regNo is provided and valid, authoritative override of gender + birthDate
-    if (regNo !== undefined && data.regNo) {
-      const parsed = parseRegNo(data.regNo);
-      if (parsed.isValid) {
-        data.gender = parsed.gender;
-        data.birthDate = new Date(`${parsed.birthDate}T00:00:00.000Z`);
-      }
-    }
+    // NOTE: gender and birthDate are NOT auto-derived from regNo on edit.
+    // They must only change if the client explicitly sends them in the request body.
 
     if (address !== undefined) {
       data.address = address === "" ? null : String(address).trim();
