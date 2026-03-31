@@ -6,6 +6,7 @@ import path from "path";
 import { parseRegNo } from "../utils/regno.js";
 import { getPatientBalance } from "./reports-patient-balances.js";
 import { sseBroadcastAll } from "../utils/sseStore.js";
+import { formatApptForResponse } from "../utils/formatAppointment.js";
 
 const router = express.Router();
 const uploadDir = process.env.MEDIA_UPLOAD_DIR || "/data/media";
@@ -697,7 +698,14 @@ router.get("/profile/by-book/:bookNumber", async (req, res) => {
       }
 
       const { encounters, ...apptWithoutEncounters } = a;
-      return { ...apptWithoutEncounters, encounterId, materialsCount };
+      // Inject the already-loaded patient so formatApptForResponse can populate
+      // patient fields and convert scheduledAt/endAt to naive wall-clock strings.
+      const apptForFormatting = {
+        ...apptWithoutEncounters,
+        encounterId,
+        patient: { ...patient, patientBook: { id: pb.id, bookNumber: pb.bookNumber } },
+      };
+      return { ...formatApptForResponse(apptForFormatting), materialsCount };
     });
 
     // Find the active visit card (latest savedAt)
