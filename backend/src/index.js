@@ -55,6 +55,7 @@ import nursePortalRouter from "./routes/nurse.js";
 import attendanceReportRouter from "./routes/admin/attendanceReport.js";
 import adminPasswordResetRouter from "./routes/admin/passwordReset.js";
 import doctorIncomeReportRouter from "./routes/admin/doctorIncomeReport.js";
+import backfillRegnoRouter from "./routes/admin/backfillRegno.js";
 import checkInRouter from "./routes/check-in.js";
 import { authenticateJWT, requireRole } from "./middleware/auth.js";
 import rateLimit from "express-rate-limit";
@@ -268,6 +269,9 @@ app.use("/api/admin", doctorIncomeReportRouter);
 
 // Admin password reset (send reset link to user by id)
 app.use("/api/admin/users", adminPasswordResetRouter);
+
+// Admin patient backfill (derive gender/birthDate from regNo for CSV-imported records)
+app.use("/api/admin", backfillRegnoRouter);
 
 // Optional central error handler
 app.use((err, _req, res, _next) => {

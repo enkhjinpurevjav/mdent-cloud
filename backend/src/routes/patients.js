@@ -416,8 +416,16 @@ router.patch("/:id", async (req, res) => {
       }
     }
 
-    // NOTE: gender and birthDate are NOT auto-derived from regNo on edit.
-    // They must only change if the client explicitly sends them in the request body.
+    // If regNo is being set/changed to a valid value, always derive gender and
+    // birthDate from it — overriding whatever the client sent.  This makes regNo
+    // the authoritative source and keeps behaviour consistent with POST.
+    if (data.regNo) {
+      const parsed = parseRegNo(data.regNo);
+      if (parsed.isValid) {
+        data.gender = parsed.gender;
+        data.birthDate = new Date(`${parsed.birthDate}T00:00:00.000Z`);
+      }
+    }
 
     if (address !== undefined) {
       data.address = address === "" ? null : String(address).trim();

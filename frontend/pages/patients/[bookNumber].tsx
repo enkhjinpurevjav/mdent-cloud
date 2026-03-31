@@ -112,6 +112,8 @@ export default function PatientProfilePage() {
 
   // regNo validation state: true means regNo format is invalid
   const [regNoInvalid, setRegNoInvalid] = useState(false);
+  // true when the current regNo is valid — gender/birthDate become read-only
+  const [regNoAutofillLocked, setRegNoAutofillLocked] = useState(false);
   const regNoParseAbortRef = useRef<AbortController | null>(null);
 
   // Encounter report modal state
@@ -207,7 +209,8 @@ export default function PatientProfilePage() {
     return String(age);
   };
 
-  // Validate regNo format when it changes in edit mode (does NOT modify gender/birthDate)
+  // Validate regNo format when it changes in edit mode.
+  // When regNo is valid, auto-fills gender/birthDate and locks those fields.
   const validateRegNo = useCallback(async (regNoValue: string) => {
     // Cancel previous in-flight request
     if (regNoParseAbortRef.current) {
@@ -216,6 +219,7 @@ export default function PatientProfilePage() {
     const trimmed = regNoValue.trim();
     if (!trimmed) {
       setRegNoInvalid(false);
+      setRegNoAutofillLocked(false);
       return;
     }
     const controller = new AbortController();
@@ -227,9 +231,21 @@ export default function PatientProfilePage() {
       );
       const json = await res.json();
       setRegNoInvalid(!json.isValid);
+      if (json.isValid) {
+        // Auto-fill gender and birthDate from regNo and lock the fields
+        setEditForm((prev) => ({
+          ...prev,
+          gender: json.gender ?? prev.gender,
+          birthDate: json.birthDate ?? prev.birthDate,
+        }));
+        setRegNoAutofillLocked(true);
+      } else {
+        setRegNoAutofillLocked(false);
+      }
     } catch (err: any) {
       if (err?.name === "AbortError") return;
       setRegNoInvalid(false);
+      setRegNoAutofillLocked(false);
     }
   }, []);
 
@@ -254,13 +270,21 @@ export default function PatientProfilePage() {
     setSaveError("");
     setSaveSuccess("");
     setRegNoInvalid(false);
+    // Pre-lock immediately if the patient already has a regNo so there is no
+    // brief flash of unlocked fields before the async validation completes.
+    setRegNoAutofillLocked(!!initialRegNo);
     setEditMode(true);
+    // Validate the existing regNo so gender/birthDate get auto-filled and locked
+    if (initialRegNo) {
+      validateRegNo(initialRegNo);
+    }
   };
 
   const cancelEdit = () => {
     setEditMode(false);
     setEditForm({});
     setRegNoInvalid(false);
+    setRegNoAutofillLocked(false);
     setSaveError("");
     setSaveSuccess("");
   };
@@ -834,37 +858,43 @@ export default function PatientProfilePage() {
                         {editMode ? (
                           <div>
                             <div className="flex gap-2 items-center pt-0.5">
-                              <label className="flex items-center gap-1">
+                              <label className={`flex items-center gap-1 ${regNoAutofillLocked ? "opacity-60" : ""}`}>
                                 <input
                                   type="radio"
                                   name="gender"
                                   value="эр"
                                   checked={editForm.gender === "эр"}
                                   onChange={() => handleGenderChange("эр")}
+                                  disabled={regNoAutofillLocked}
                                 />
                                 <span>Эр</span>
                               </label>
-                              <label className="flex items-center gap-1">
+                              <label className={`flex items-center gap-1 ${regNoAutofillLocked ? "opacity-60" : ""}`}>
                                 <input
                                   type="radio"
                                   name="gender"
                                   value="эм"
                                   checked={editForm.gender === "эм"}
                                   onChange={() => handleGenderChange("эм")}
+                                  disabled={regNoAutofillLocked}
                                 />
                                 <span>Эм</span>
                               </label>
-                              <label className="flex items-center gap-1">
+                              <label className={`flex items-center gap-1 ${regNoAutofillLocked ? "opacity-60" : ""}`}>
                                 <input
                                   type="radio"
                                   name="gender"
                                   value=""
                                   checked={!editForm.gender}
                                   onChange={() => handleGenderChange("")}
+                                  disabled={regNoAutofillLocked}
                                 />
                                 <span>Хоосон</span>
                               </label>
                             </div>
+                            {regNoAutofillLocked && (
+                              <div className="text-xs text-gray-400 mt-0.5">РД-аас автоматаар тодорхойлогдсон</div>
+                            )}
                           </div>
                         ) : (
                           <div>{displayOrDash(patient.gender)}</div>
@@ -880,7 +910,11 @@ export default function PatientProfilePage() {
                               value={editForm.birthDate ?? ""}
                               onChange={handleEditChange}
                               className={inputClass}
+                              disabled={regNoAutofillLocked}
                             />
+                            {regNoAutofillLocked && (
+                              <div className="text-xs text-gray-400 mt-0.5">РД-аас автоматаар тодорхойлогдсон</div>
+                            )}
                           </div>
                         ) : (
                           <div>
