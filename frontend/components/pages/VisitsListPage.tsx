@@ -3,10 +3,12 @@ import { useRouter } from "next/router";
 import EncounterReportModal from "../patients/EncounterReportModal";
 import { getMe, AuthUser } from "../../utils/auth";
 import type { AppointmentRow, AppointmentStatus } from "../../types/appointments";
+import { formatNaiveHm, naiveTimestampToYmd } from "../../utils/businessTime";
+import { businessTodayYmd } from "../../utils/appointmentTime";
 
 const PAGE_SIZE = 30;
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => businessTodayYmd();
 
 type StatusOption = {
   value: string;
@@ -33,21 +35,17 @@ const STATUS_EDIT_OPTIONS: StatusOption[] = STATUS_OPTIONS.filter(
 
 const EDITABLE_STATUSES = ["booked", "confirmed", "online", "other"];
 
-function formatHm(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+function formatHm(naive: string | null | undefined): string {
+  if (!naive) return "";
+  return formatNaiveHm(naive);
 }
 
-function formatYmdDot(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}.${m}.${day}`;
+function formatYmdDot(naive: string | null | undefined): string {
+  if (!naive) return "";
+  const ymd = naiveTimestampToYmd(naive);
+  if (!ymd) return "";
+  const [y, m, d] = ymd.split("-");
+  return `${y}.${m}.${d}`;
 }
 
 function formatShortName(

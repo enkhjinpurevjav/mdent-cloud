@@ -21,8 +21,9 @@ import type {
   AssignedTo,
   Branch,
 } from "../../types/encounter-admin";
-import { formatDateTime, formatShortDate, ymdLocal, addDays, getTimeHHMM, isTimeWithinRangeStr } from "../../utils/date-formatters";
-import { toNaiveTimestamp } from "../../utils/businessTime";
+import { formatDateTime, formatShortDate, getTimeHHMM, isTimeWithinRangeStr } from "../../utils/date-formatters";
+import { toNaiveTimestamp, getBusinessYmd } from "../../utils/businessTime";
+import { addDaysYmd } from "../../utils/appointmentTime";
 import { formatPatientName, formatDoctorDisplayName, formatStaffName } from "../../utils/name-formatters";
 import { extractWarningLinesFromVisitCard } from "../../utils/visit-card-helpers";
 import { displayOrDash } from "../../utils/display-helpers";
@@ -882,12 +883,8 @@ useEffect(() => {
   // Initialize follow-up date range when checkbox is toggled on (7 days)
 useEffect(() => {
   if (showFollowUpScheduler && !followUpDateFrom) {
-    const today = new Date();
-    const todayStr = ymdLocal(today);
-
-    const plusSeven = new Date(today);
-    plusSeven.setDate(plusSeven.getDate() + 7);
-    const plusSevenStr = ymdLocal(plusSeven);
+    const todayStr = getBusinessYmd();
+    const plusSevenStr = addDaysYmd(todayStr, 7);
 
     setFollowUpDateFrom(todayStr);
     setFollowUpDateTo(plusSevenStr);

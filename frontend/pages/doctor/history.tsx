@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import EncounterReportModal from "../../components/patients/EncounterReportModal";
 import EncounterMaterialsModal from "../../components/patients/EncounterMaterialsModal";
+import { formatApptRange, businessTodayYmd, addDaysYmd } from "../../utils/appointmentTime";
 
 type DoctorAppointment = {
   id: number;
@@ -30,16 +31,7 @@ function formatScheduleDate(ymd: string): string {
 }
 
 function formatApptTimeRange(a: DoctorAppointment): string {
-  if (!a.scheduledAt) return "";
-  const start = new Date(a.scheduledAt);
-  const hh = String(start.getHours()).padStart(2, "0");
-  const mm = String(start.getMinutes()).padStart(2, "0");
-  const startStr = `${hh}:${mm}`;
-  if (!a.endAt) return startStr;
-  const end = new Date(a.endAt);
-  const eh = String(end.getHours()).padStart(2, "0");
-  const em = String(end.getMinutes()).padStart(2, "0");
-  return `${startStr} – ${eh}:${em}`;
+  return formatApptRange(a.scheduledAt, a.endAt);
 }
 
 function formatApptPatientLabel(a: DoctorAppointment): string {
@@ -97,13 +89,11 @@ function formatApptStatus(status: string): string {
 }
 
 function todayYMD(): string {
-  return new Date().toISOString().slice(0, 10);
+  return businessTodayYmd();
 }
 
 function sevenDaysAgoYMD(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 7);
-  return d.toISOString().slice(0, 10);
+  return addDaysYmd(businessTodayYmd(), -7);
 }
 
 export default function DoctorHistoryPage() {
