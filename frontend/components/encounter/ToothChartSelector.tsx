@@ -9,6 +9,7 @@ type ToothChartSelectorProps = {
   onToggleToothMode: (mode: "ADULT" | "CHILD") => void;
   onToggleToothSelection: (code: string) => void;
   onCustomToothRangeChange: (value: string) => void;
+  onApplyCustomToothRange: () => void;
   isToothSelected: (code: string) => boolean;
   areAllModeTeethSelected: () => boolean;
 };
@@ -31,6 +32,7 @@ export default function ToothChartSelector({
   onToggleToothMode,
   onToggleToothSelection,
   onCustomToothRangeChange,
+  onApplyCustomToothRange,
   isToothSelected,
   areAllModeTeethSelected,
 }: ToothChartSelectorProps) {
@@ -207,6 +209,15 @@ export default function ToothChartSelector({
           placeholder="ж: 21-24, 25-26, 11,21,22"
           value={customToothRange}
           onChange={(e) => onCustomToothRangeChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              onApplyCustomToothRange();
+            }
+          }}
+          onBlur={() => {
+            if ((customToothRange || "").trim()) onApplyCustomToothRange();
+          }}
           style={{
             minWidth: 140,
             padding: "4px 8px",
@@ -215,6 +226,23 @@ export default function ToothChartSelector({
             fontSize: 12,
           }}
         />
+
+        <button
+          type="button"
+          onClick={onApplyCustomToothRange}
+          style={{
+            minWidth: 60,
+            padding: "4px 10px",
+            borderRadius: 999,
+            border: "1px solid #d1d5db",
+            background: "white",
+            color: "#111827",
+            fontSize: 12,
+            cursor: "pointer",
+          }}
+        >
+          Оруулах
+        </button>
 
         <button
           type="button"
