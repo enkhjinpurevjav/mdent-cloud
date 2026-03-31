@@ -29,6 +29,7 @@ import { extractWarningLinesFromVisitCard } from "../../utils/visit-card-helpers
 import { displayOrDash } from "../../utils/display-helpers";
 import { ADULT_TEETH, CHILD_TEETH, ALL_TEETH_LABEL, stringifyToothList } from "../../utils/tooth-helpers";
 import { buildFollowUpAvailability } from "../../utils/scheduling";
+import type { FollowUpAvailability } from "../../utils/scheduling";
 import SignaturePad from "../../components/SignaturePad";
 import PatientHeader from "../../components/encounter/PatientHeader";
 import ToothChartSelector from "../../components/encounter/ToothChartSelector";
@@ -257,19 +258,7 @@ export default function EncounterAdminPage() {
   const [followUpDateFrom, setFollowUpDateFrom] = useState("");
   const [followUpDateTo, setFollowUpDateTo] = useState("");
   const [followUpSlotMinutes, setFollowUpSlotMinutes] = useState(30);
-  const [followUpAvailability, setFollowUpAvailability] = useState<{
-    days: Array<{
-      date: string;
-      dayLabel: string;
-      slots: Array<{
-        start: string;
-        end: string;
-        status: "available" | "booked" | "off";
-        appointmentIds?: number[];
-      }>;
-    }>;
-    timeLabels: string[];
-  } | null>(null);
+  const [followUpAvailability, setFollowUpAvailability] = useState<FollowUpAvailability | null>(null);
 
   // NEW: store appointments and no-schedule flag
   const [followUpAppointments, setFollowUpAppointments] = useState<any[]>([]);
@@ -1103,17 +1092,13 @@ function removeDiagnosisRow(localId: number) {
 
     try {
       const doctorId = encounter.doctorId;
-      const branchId = encounter.patientBook.patient.branchId;
 
-      // 1) Load doctor schedules
+      // 1) Load doctor schedules (no branch filter: follow-up should show all branches)
       const schedParams = new URLSearchParams({
         doctorId: String(doctorId),
         dateFrom: followUpDateFrom,
         dateTo: followUpDateTo,
       });
-      if (branchId) {
-        schedParams.append("branchId", String(branchId));
-      }
 
       const schedRes = await fetch(`/api/doctors/scheduled?${schedParams}`);
       if (!schedRes.ok) {
@@ -1170,6 +1155,7 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
             id: s.id,
             doctorId: s.doctorId,
             branchId: s.branchId,
+            branch: s.branch ?? null,
             date: s.date,
             startTime: s.startTime,
             endTime: s.endTime,

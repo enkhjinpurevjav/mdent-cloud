@@ -14,6 +14,8 @@ export type FollowUpAvailability = {
       end: string;
       status: FollowUpSlotStatus;
       appointmentIds?: number[];
+      branchId?: number;
+      branchName?: string;
     }>;
   }>;
 };
@@ -22,6 +24,7 @@ export type DoctorScheduleWindow = {
   id?: number;
   doctorId: number;
   branchId: number;
+  branch?: { id: number; name: string } | null;
   date: string; // YYYY-MM-DD
   startTime: string; // HH:MM
   endTime: string; // HH:MM
@@ -90,6 +93,11 @@ export function buildFollowUpAvailability(opts: {
 
     const clinicWindow = getClinicWindowForDay(ymd);
 
+    // Doctor cannot work at multiple branches on the same day;
+    // derive the day's branch from the first schedule (if any).
+    const dayBranchId: number | undefined = daySchedules[0]?.branchId;
+    const dayBranchName: string | undefined = daySchedules[0]?.branch?.name;
+
     const slots = timeLabels.map((hm) => {
       // Use "hm" as slot start label.
       // Note: last header label is 21:00; treat that as a display label but it should not be bookable as a start.
@@ -142,6 +150,8 @@ export function buildFollowUpAvailability(opts: {
           end: slotEndStr,
           status: "booked" as const,
           appointmentIds: ids.slice(0, capacityPerSlot),
+          branchId: dayBranchId,
+          branchName: dayBranchName,
         };
       }
 
@@ -149,6 +159,8 @@ export function buildFollowUpAvailability(opts: {
         start: slotStartStr,
         end: slotEndStr,
         status: "available" as const,
+        branchId: dayBranchId,
+        branchName: dayBranchName,
       };
     });
 

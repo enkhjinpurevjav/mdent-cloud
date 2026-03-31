@@ -119,6 +119,7 @@ router.get("/scheduled", async (req, res) => {
       where,
       include: {
         doctor: true,
+        branch: { select: { id: true, name: true } },
       },
       orderBy: [
         { doctor: { calendarOrder: "asc" } },
@@ -145,6 +146,7 @@ router.get("/scheduled", async (req, res) => {
         id: s.id,
         doctorId: s.doctorId,
         branchId: s.branchId,
+        branch: s.branch,
         date: toISODateOnly(s.date),
         startTime: s.startTime,
         endTime: s.endTime,
