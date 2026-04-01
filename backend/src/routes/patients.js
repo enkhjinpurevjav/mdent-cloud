@@ -50,7 +50,7 @@ router.get("/", async (req, res) => {
     const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const rawLimit = parseInt(req.query.limit, 10) || 50;
-    const limit = [10, 50, 100].includes(rawLimit) ? rawLimit : 50;
+    const limit = [10, 20, 50, 100].includes(rawLimit) ? rawLimit : 50;
     const skip = (page - 1) * limit;
     const sort = req.query.sort === "name" ? "name" : "bookNumber";
     const dir = req.query.dir === "asc" ? "ASC" : "DESC";
@@ -152,6 +152,7 @@ router.get("/", async (req, res) => {
       limit,
       total,
       totalPages: Math.ceil(total / limit),
+      hasMore: page * limit < total,
       totalMale,
       totalFemale,
       totalKids,
