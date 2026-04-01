@@ -407,6 +407,7 @@ router.get("/", async (req, res) => {
             ovog: true,
             regNo: true,
             phone: true,
+            notes: true,
             patientBook: true,
           },
         },

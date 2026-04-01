@@ -47,6 +47,7 @@ function formatApptForResponse(a) {
     patientOvog: patient ? patient.ovog || null : null,
     patientRegNo: patient ? patient.regNo || null : null,
     patientPhone: patient ? patient.phone || null : null,
+    patientNotes: patient ? patient.notes || null : null,
 
     doctorName: doctor ? doctor.name || null : null,
     doctorOvog: doctor ? doctor.ovog || null : null,
@@ -82,6 +83,7 @@ function formatApptForResponse(a) {
           ovog: patient.ovog || null,
           regNo: patient.regNo || null,
           phone: patient.phone || null,
+          notes: patient.notes || null,
           patientBook: patient.patientBook || null,
         }
       : null,

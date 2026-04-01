@@ -39,6 +39,7 @@ export type AppointmentRow = {
   // new extra fields used by your new UI
   patientOvog?: string | null;
   patientPhone?: string | null;
+  patientNotes?: string | null;
   doctorOvog?: string | null;
 
   // naive local timestamps "YYYY-MM-DD HH:mm:ss" (Mongolia wall time, no TZ offset)
