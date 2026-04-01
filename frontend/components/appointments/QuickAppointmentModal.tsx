@@ -5,7 +5,6 @@ import { formatDoctorName, historyDoctorToDoctor, formatPatientSearchLabel, form
 import { SLOT_MINUTES, addMinutesToTimeString, generateTimeSlotsForDay, getSlotTimeString, isTimeWithinRange, getDateFromYMD } from "./time";
 import { parseNaiveTimestamp, naiveTimestampToYmd, naiveTimestampToHm, toNaiveTimestamp } from "../../utils/businessTime";
 
-const PATIENT_RESULTS_LIMIT = 10;
 const COMPLETED_READONLY_MSG = "Дууссан цаг засварлах боломжгүй.";
 
 type QuickAppointmentModalProps = {
@@ -89,12 +88,17 @@ export default function QuickAppointmentModal({
   const workingDoctors = scheduledDoctors.length ? scheduledDoctors : doctors;
 
   const [patientResults, setPatientResults] = useState<PatientLite[]>([]);
-  const [hasMorePatientResults, setHasMorePatientResults] = useState(false);
+  const [patientHasMore, setPatientHasMore] = useState(false);
+  const [patientPage, setPatientPage] = useState(1);
   const [patientSearchLoading, setPatientSearchLoading] = useState(false);
+  const [patientLoadingMore, setPatientLoadingMore] = useState(false);
+  const [patientLoadError, setPatientLoadError] = useState(false);
   const [searchDebounceTimer, setSearchDebounceTimer] =
     useState<NodeJS.Timeout | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const patientSearchRef = useRef<HTMLInputElement>(null);
+  const patientDropdownRef = useRef<HTMLDivElement>(null);
+  const patientCurrentQueryRef = useRef<string>("");
 
   // completed visit history for selected patient
   const [completedHistory, setCompletedHistory] = useState<CompletedHistoryItem[]>([]);
@@ -197,6 +201,11 @@ export default function QuickAppointmentModal({
 
       setError("");
       setPatientResults([]);
+      setPatientHasMore(false);
+      setPatientPage(1);
+      setPatientLoadingMore(false);
+      setPatientLoadError(false);
+      patientCurrentQueryRef.current = "";
       setCompletedHistory([]);
       return;
     }
@@ -220,6 +229,11 @@ export default function QuickAppointmentModal({
     setEndTimeManuallySet(false);
     setError("");
     setPatientResults([]);
+    setPatientHasMore(false);
+    setPatientPage(1);
+    setPatientLoadingMore(false);
+    setPatientLoadError(false);
+    patientCurrentQueryRef.current = "";
     setCompletedHistory([]);
     if (prePatientId) {
       loadPatientHistory(prePatientId);
@@ -236,9 +250,6 @@ export default function QuickAppointmentModal({
   // Reset highlighted index whenever results change
   useEffect(() => {
     setHighlightedIndex(0);
-    if (patientResults.length === 0) {
-      setHasMorePatientResults(false);
-    }
   }, [patientResults]);
 
   // slots calculation (same as your current, but in edit mode: filter by selected doctor schedule still ok)
@@ -307,78 +318,109 @@ export default function QuickAppointmentModal({
     }
   }, [branches, form.branchId, allowAutoDefaultBranch]);
 
+  const PATIENT_SEARCH_PAGE_SIZE = 20;
+
+  const mapPatient = (p: any): PatientLite => ({
+    id: p.id,
+    ovog: p.ovog ?? null,
+    name: p.name,
+    regNo: p.regNo ?? p.regno ?? "",
+    phone: p.phone,
+    patientBook: p.patientBook || null,
+  });
+
   const triggerPatientSearch = (rawQuery: string) => {
     const query = rawQuery.trim();
     if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
     if (!query) {
       setPatientResults([]);
+      setPatientHasMore(false);
+      setPatientPage(1);
+      setPatientLoadError(false);
+      patientCurrentQueryRef.current = "";
       return;
     }
-
-    const lower = query.toLowerCase();
 
     const t = setTimeout(async () => {
       try {
         setPatientSearchLoading(true);
-        const url = `/api/patients?q=${encodeURIComponent(query)}&limit=50`;
+        setPatientLoadError(false);
+        patientCurrentQueryRef.current = query;
+        const url = `/api/patients?q=${encodeURIComponent(query)}&limit=${PATIENT_SEARCH_PAGE_SIZE}&page=1`;
         const res = await fetch(url);
-        const data = await res.json().catch(() => []);
+        const data = await res.json().catch(() => ({}));
 
         if (!res.ok) {
           setPatientResults([]);
+          setPatientHasMore(false);
+          setPatientPage(1);
           return;
         }
+
+        if (patientCurrentQueryRef.current !== query) return;
 
         const rawList = Array.isArray(data)
           ? data
           : Array.isArray((data as any).data)
           ? (data as any).data
-          : Array.isArray((data as any).patients)
-          ? (data as any).patients
           : [];
 
-        const isNumeric = /^[0-9]+$/.test(lower);
-
-        const filtered = rawList.filter((p: any) => {
-          const regNo = (p.regNo ?? p.regno ?? "").toString().toLowerCase();
-          const phone = (p.phone ?? "").toString().toLowerCase();
-          const name = (p.name ?? "").toString().toLowerCase();
-          const ovog = (p.ovog ?? "").toString().toLowerCase();
-          const bookNumber = (p.patientBook?.bookNumber ?? "").toString().toLowerCase();
-
-          if (isNumeric) {
-            return regNo.includes(lower) || phone.includes(lower) || bookNumber.includes(lower);
-          }
-
-          return (
-            regNo.includes(lower) ||
-            phone.includes(lower) ||
-            name.includes(lower) ||
-            ovog.includes(lower) ||
-            bookNumber.includes(lower)
-          );
-        });
-
-        setPatientResults(
-          filtered.slice(0, PATIENT_RESULTS_LIMIT).map((p: any) => ({
-            id: p.id,
-            ovog: p.ovog ?? null,
-            name: p.name,
-            regNo: p.regNo ?? p.regno ?? "",
-            phone: p.phone,
-            patientBook: p.patientBook || null,
-          }))
-        );
-        setHasMorePatientResults(filtered.length > PATIENT_RESULTS_LIMIT);
+        setPatientResults(rawList.map(mapPatient));
+        setPatientHasMore(!!(data as any).hasMore);
+        setPatientPage(1);
       } catch (e) {
         console.error("patient search failed", e);
         setPatientResults([]);
+        setPatientHasMore(false);
+        setPatientPage(1);
       } finally {
         setPatientSearchLoading(false);
       }
     }, 300);
 
     setSearchDebounceTimer(t);
+  };
+
+  const loadMorePatients = async () => {
+    const query = patientCurrentQueryRef.current;
+    if (!query || patientLoadingMore || !patientHasMore || patientSearchLoading) return;
+    try {
+      setPatientLoadingMore(true);
+      setPatientLoadError(false);
+      const nextPage = patientPage + 1;
+      const url = `/api/patients?q=${encodeURIComponent(query)}&limit=${PATIENT_SEARCH_PAGE_SIZE}&page=${nextPage}`;
+      const res = await fetch(url);
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setPatientLoadError(true);
+        return;
+      }
+
+      if (patientCurrentQueryRef.current !== query) return;
+
+      const rawList = Array.isArray(data)
+        ? data
+        : Array.isArray((data as any).data)
+        ? (data as any).data
+        : [];
+
+      setPatientResults((prev) => [...prev, ...rawList.map(mapPatient)]);
+      setPatientHasMore(!!(data as any).hasMore);
+      setPatientPage(nextPage);
+    } catch (e) {
+      console.error("patient load more failed", e);
+      setPatientLoadError(true);
+    } finally {
+      setPatientLoadingMore(false);
+    }
+  };
+
+  const handlePatientDropdownScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 60) {
+      loadMorePatients();
+    }
   };
 
   const handleSelectPatient = (p: PatientLite) => {
@@ -426,6 +468,10 @@ export default function QuickAppointmentModal({
       if (!trimmed) {
         setForm((prev) => ({ ...prev, patientId: null }));
         setPatientResults([]);
+        setPatientHasMore(false);
+        setPatientPage(1);
+        setPatientLoadError(false);
+        patientCurrentQueryRef.current = "";
         setCompletedHistory([]);
         return;
       }
@@ -862,6 +908,8 @@ export default function QuickAppointmentModal({
 
           {!isEditMode && patientResults.length > 0 && (
             <div
+              ref={patientDropdownRef}
+              onScroll={handlePatientDropdownScroll}
               style={{
                 gridColumn: "1 / -1",
                 borderRadius: 6,
@@ -891,7 +939,7 @@ export default function QuickAppointmentModal({
                   {formatPatientSearchLabel(p)}
                 </button>
               ))}
-              {hasMorePatientResults && (
+              {patientLoadingMore && (
                 <div
                   style={{
                     padding: "4px 8px",
@@ -900,7 +948,19 @@ export default function QuickAppointmentModal({
                     fontStyle: "italic",
                   }}
                 >
-                  Илүү олон үр дүн байна…
+                  Ачааллаж байна…
+                </div>
+              )}
+              {patientLoadError && !patientLoadingMore && (
+                <div
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: 11,
+                    color: "#ef4444",
+                    fontStyle: "italic",
+                  }}
+                >
+                  Алдаа гарлаа. Дахин скролл хийнэ үү.
                 </div>
               )}
             </div>
