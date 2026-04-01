@@ -12,6 +12,11 @@ type XrayAppointment = AppointmentRow & {
   scheduledAt?: string | null;
   /** Canonical regNo field returned by the API */
   patientRegNo?: string | null;
+  /** Nested patient object returned by the appointments API */
+  patient?: {
+    patientBook?: { bookNumber?: string | null } | null;
+    phone?: string | null;
+  } | null;
 };
 
 /** Imaging config loaded from / saved to the backend */
@@ -554,11 +559,29 @@ export default function XrayPage() {
               <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
                 <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center gap-3">
                   <h2 className="text-base font-semibold text-gray-900">
-                    {selectedAppt.patientName}
+                    {selectedAppt.patientOvog
+                      ? `${selectedAppt.patientOvog} ${selectedAppt.patientName ?? ""}`.trim()
+                      : selectedAppt.patientName ?? "—"}
                   </h2>
                   <StatusBadge status={selectedAppt.status} />
                 </div>
-                <div className="px-4 py-3 grid grid-cols-1 sm:grid-cols-3 gap-y-1 gap-x-4 text-sm text-gray-600">
+                <div className="px-4 py-3 grid grid-cols-1 sm:grid-cols-2 gap-y-1 gap-x-6 text-sm text-gray-600">
+                  <div>
+                    <span className="font-medium text-gray-700">Овог: </span>
+                    {selectedAppt.patientOvog || "—"}
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Нэр: </span>
+                    {selectedAppt.patientName || "—"}
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Карт: </span>
+                    {selectedAppt.patient?.patientBook?.bookNumber || "—"}
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-700">Утас: </span>
+                    {selectedAppt.patientPhone || selectedAppt.patient?.phone || "—"}
+                  </div>
                   <div>
                     <span className="font-medium text-gray-700">РД: </span>
                     {getRegNo(selectedAppt)}
@@ -567,9 +590,9 @@ export default function XrayPage() {
                     <span className="font-medium text-gray-700">Эмч: </span>
                     {selectedAppt.doctorName || "—"}
                   </div>
-                  <div>
-                    <span className="font-medium text-gray-700">Салбар: </span>
-                    {selectedAppt.branchName || "—"}
+                  <div className="sm:col-span-2">
+                    <span className="font-medium text-gray-700">Огноо: </span>
+                    {formatDateTime(selectedAppt)}
                   </div>
                 </div>
               </div>
