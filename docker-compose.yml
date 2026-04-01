@@ -2,9 +2,11 @@ version: "3.9"
 
 services:
   backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     environment:
       - NODE_ENV=production
-      # (keep the rest)
       - RUN_SEED=false
       - DATABASE_URL=${DATABASE_URL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
@@ -12,6 +14,8 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - COOKIE_DOMAIN=${COOKIE_DOMAIN}
       - CORS_ORIGIN=${CORS_ORIGIN}
+
+      # Password reset email (SMTP)
       - APP_URL=${APP_URL}
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=${SMTP_PORT}
@@ -20,6 +24,8 @@ services:
       - SMTP_PASS=${SMTP_PASS}
       - SMTP_FROM_NAME=${SMTP_FROM_NAME}
       - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL}
+
+      # POS API
       - POSAPI_BASE_URL=${POSAPI_BASE_URL}
       - POSAPI_MERCHANT_TIN=37900846788
       - POSAPI_POS_NO=10013198
