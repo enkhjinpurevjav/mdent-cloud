@@ -2,6 +2,7 @@ version: "3.9"
 
 services:
   backend:
+    container_name: mdent-dev-backend
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -11,8 +12,13 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       DISABLE_AUTH: "false"
       JWT_SECRET: ${JWT_SECRET}
+
+      # IMPORTANT: keep dev cookies host-only (don’t share with prod)
+      # If your backend supports COOKIE_DOMAIN, set it empty in dev .env:
+      # COOKIE_DOMAIN=
       CORS_ORIGIN: ${CORS_ORIGIN}
       APP_URL: ${APP_URL}
+
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_SECURE: ${SMTP_SECURE}
@@ -20,6 +26,7 @@ services:
       SMTP_PASS: ${SMTP_PASS}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL}
+
       POSAPI_BASE_URL: ${POSAPI_BASE_URL}
       POSAPI_MERCHANT_TIN: "37900846788"
       POSAPI_POS_NO: "10013198"
@@ -29,11 +36,13 @@ services:
       - "8083:8080"
     networks:
       - mdent-dev-net
+      - mdent_shared
     restart: unless-stopped
     volumes:
       - media_data_dev:/data/media
 
   frontend:
+    container_name: mdent-dev-frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -44,10 +53,13 @@ services:
       - "3001:3000"
     networks:
       - mdent-dev-net
+      - mdent_shared
     restart: unless-stopped
 
 networks:
   mdent-dev-net: {}
+  mdent_shared:
+    external: true
 
 volumes:
   media_data_dev:
