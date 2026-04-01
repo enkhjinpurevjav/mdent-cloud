@@ -178,7 +178,6 @@ export default function QuickAppointmentModal({
 
       setForm((prev) => ({
         ...prev,
-        // lock patient in UI (but we still store it)
         patientId: editingAppointment.patientId ?? null,
         patientQuery: editingAppointment.patient
           ? formatPatientSearchLabel(editingAppointment.patient as any)
@@ -194,7 +193,6 @@ export default function QuickAppointmentModal({
         startTime,
         endTime,
 
-        // status locked in edit mode (not used, but keep consistent)
         status: editingAppointment.status || "booked",
         notes: editingAppointment.notes || "",
       }));
@@ -207,6 +205,9 @@ export default function QuickAppointmentModal({
       setPatientLoadError(false);
       patientCurrentQueryRef.current = "";
       setCompletedHistory([]);
+      if (editingAppointment.patientId) {
+        loadPatientHistory(editingAppointment.patientId);
+      }
       return;
     }
 
@@ -240,12 +241,12 @@ export default function QuickAppointmentModal({
     }
   }, [open, defaultDoctorId, defaultDate, defaultTime, selectedBranchId, editingAppointment, defaultPatientId, defaultPatientQuery]);
 
-  // Autofocus patient search input when modal opens in create mode
+  // Autofocus patient search input when modal opens
   useEffect(() => {
-    if (open && !isEditMode) {
+    if (open && !isCompletedReadOnly) {
       patientSearchRef.current?.focus();
     }
-  }, [open, isEditMode]);
+  }, [open, isCompletedReadOnly]);
 
   // Reset highlighted index whenever results change
   useEffect(() => {
@@ -460,9 +461,6 @@ export default function QuickAppointmentModal({
     const { name, value } = e.target;
 
     if (name === "patientQuery") {
-      // locked in edit mode
-      if (isEditMode) return;
-
       setForm((prev) => ({ ...prev, patientQuery: value }));
       const trimmed = value.trim();
       if (!trimmed) {
@@ -500,8 +498,8 @@ export default function QuickAppointmentModal({
         return { ...prev, endTime: value };
       }
 
-      // lock these fields in edit mode
-      if (isEditMode && (name === "date" || name === "branchId" || name === "status")) {
+      // lock branchId in edit mode
+      if (isEditMode && name === "branchId") {
         return prev;
       }
 
@@ -527,9 +525,6 @@ export default function QuickAppointmentModal({
   };
 
   const handleQuickPatientSave = async () => {
-    // disabled in edit mode (UI won't show the button, but also guard here)
-    if (isEditMode) return;
-
     setQuickPatientError("");
 
     if (!quickPatientForm.name.trim() || !quickPatientForm.phone.trim()) {
@@ -602,32 +597,6 @@ export default function QuickAppointmentModal({
     }
   };
 
-  const handleOpenPatientProfileNewTab = () => {
-    const p =
-      (editingAppointment && (editingAppointment.patient as any)) ||
-      null;
-
-    const bookNumber = p?.patientBook?.bookNumber;
-
-    if (bookNumber) {
-      const isReceptionRoute = router.asPath.startsWith("/reception/");
-      const url = isReceptionRoute
-        ? `/reception/patients/${encodeURIComponent(String(bookNumber))}?tab=patient_history`
-        : `/patients/${encodeURIComponent(String(bookNumber))}?tab=patient_history`;
-      window.open(url, "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    // fallback: if you have a patient page by id, adjust as needed
-    if (form.patientId) {
-      const url = `/patients/${form.patientId}`;
-      window.open(url, "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    setError("Үйлчлүүлэгчийн картын дугаар олдсонгүй.");
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -644,15 +613,13 @@ export default function QuickAppointmentModal({
       return;
     }
 
-    if (!isEditMode) {
-      if (!form.branchId) {
-        setError("Салбар сонгоно уу.");
-        return;
-      }
-      if (!form.patientId) {
-        setError("Үйлчлүүлэгчийг жагсаалтаас сонгоно уу.");
-        return;
-      }
+    if (!form.branchId && !isEditMode) {
+      setError("Салбар сонгоно уу.");
+      return;
+    }
+    if (!form.patientId) {
+      setError("Үйлчлүүлэгчийг жагсаалтаас сонгоно уу.");
+      return;
     }
 
     const parsed = parseYmd(form.date);
@@ -716,16 +683,22 @@ export default function QuickAppointmentModal({
         return;
       }
 
+      const patchPayload: any = {
+        scheduledAt: scheduledAtStr,
+        endAt: endAtStr,
+        doctorId: form.doctorId ? Number(form.doctorId) : null,
+        notes: form.notes || null,
+        status: form.status,
+      };
+      // Only include patientId if it changed to avoid triggering unnecessary validation
+      if (form.patientId !== (editingAppointment.patientId ?? null)) {
+        patchPayload.patientId = form.patientId;
+      }
+
       const res = await fetch(`/api/appointments/${editingAppointment.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scheduledAt: scheduledAtStr,
-          endAt: endAtStr,
-          doctorId: form.doctorId ? Number(form.doctorId) : null,
-          notes: form.notes || null,
-          // IMPORTANT: do not send patientId/branchId/status in edit mode
-        }),
+        body: JSON.stringify(patchPayload),
       });
 
       let data: Appointment | { error?: string };
@@ -827,7 +800,7 @@ export default function QuickAppointmentModal({
               {COMPLETED_READONLY_MSG}
             </div>
           )}
-          {/* Patient (locked in edit mode) */}
+          {/* Patient */}
           <div
             style={{
               gridColumn: "1 / -1",
@@ -846,67 +819,50 @@ export default function QuickAppointmentModal({
                 onChange={handleChange}
                 onKeyDown={handlePatientKeyDown}
                 autoComplete="off"
-                disabled={isEditMode}
+                disabled={isCompletedReadOnly}
                 style={{
                   flex: 1,
                   borderRadius: 6,
                   border: "1px solid #d1d5db",
                   padding: "6px 8px",
-                  background: isEditMode ? "#f9fafb" : "white",
+                  background: isCompletedReadOnly ? "#f9fafb" : "white",
                 }}
               />
 
-              {!isEditMode ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowQuickPatientModal(true);
-                    setQuickPatientError("");
-                    setQuickPatientForm((prev) => ({
-                      ...prev,
-                      branchId: prev.branchId || form.branchId,
-                    }));
-                  }}
-                  style={{
-                    padding: "0 10px",
-                    borderRadius: 6,
-                    border: "1px solid #16a34a",
-                    background: "#dcfce7",
-                    color: "#166534",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                  title="Шинэ үйлчлүүлэгчийн бүртгэл"
-                >
-                  +
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleOpenPatientProfileNewTab}
-                  style={{
-                    padding: "0 10px",
-                    borderRadius: 6,
-                    border: "1px solid #d1d5db",
-                    background: "#f9fafb",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
-                  title="Дэлгэрэнгүй (шинэ таб)"
-                >
-                  Дэлгэрэнгүй
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowQuickPatientModal(true);
+                  setQuickPatientError("");
+                  setQuickPatientForm((prev) => ({
+                    ...prev,
+                    branchId: prev.branchId || form.branchId,
+                  }));
+                }}
+                disabled={isCompletedReadOnly}
+                style={{
+                  padding: "0 10px",
+                  borderRadius: 6,
+                  border: "1px solid #16a34a",
+                  background: isCompletedReadOnly ? "#f9fafb" : "#dcfce7",
+                  color: isCompletedReadOnly ? "#9ca3af" : "#166534",
+                  fontWeight: 600,
+                  cursor: isCompletedReadOnly ? "default" : "pointer",
+                }}
+                title="Шинэ үйлчлүүлэгчийн бүртгэл"
+              >
+                +
+              </button>
             </div>
 
-            {patientSearchLoading && !isEditMode && (
+            {patientSearchLoading && (
               <span style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
                 Үйлчлүүлэгч хайж байна...
               </span>
             )}
           </div>
 
-          {!isEditMode && patientResults.length > 0 && (
+          {patientResults.length > 0 && (
             <div
               ref={patientDropdownRef}
               onScroll={handlePatientDropdownScroll}
@@ -966,8 +922,8 @@ export default function QuickAppointmentModal({
             </div>
           )}
 
-          {/* Completed visit history (shown after patient is selected in create mode) */}
-          {!isEditMode && form.patientId && !patientResults.length && (
+          {/* Completed visit history (shown after patient is selected) */}
+          {form.patientId && !patientResults.length && (
             <div
               style={{
                 gridColumn: "1 / -1",
@@ -1023,7 +979,75 @@ export default function QuickAppointmentModal({
             </div>
           )}
 
-          {/* Date (locked in edit mode) */}
+          {/* Branch (display-only in edit mode, selectable in create mode) */}
+          {isEditMode ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label>Салбар</label>
+              <div
+                style={{
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "6px 8px",
+                  background: "#f9fafb",
+                  color: "#6b7280",
+                  fontSize: 13,
+                }}
+              >
+                {(() => {
+                  const b = branches.find((br) => String(br.id) === form.branchId);
+                  return b ? b.name : form.branchId || "—";
+                })()}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label>Салбар</label>
+              <select
+                name="branchId"
+                value={form.branchId}
+                onChange={handleChange}
+                required
+                style={{
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                  padding: "6px 8px",
+                }}
+              >
+                <option value="">Сонгох</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Doctor picker */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label>Эмч</label>
+            <select
+              name="doctorId"
+              value={form.doctorId}
+              onChange={handleChange}
+              disabled={isCompletedReadOnly}
+              style={{
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                padding: "6px 8px",
+                background: isCompletedReadOnly ? "#f9fafb" : "white",
+              }}
+            >
+              <option value="">— Эмч сонгоогүй —</option>
+              {workingDoctors.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {formatDoctorName(d)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Date (editable) */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label>Огноо</label>
             <input
@@ -1032,17 +1056,15 @@ export default function QuickAppointmentModal({
               value={form.date}
               onChange={handleChange}
               required
-              disabled={isEditMode}
+              disabled={isCompletedReadOnly}
               style={{
                 borderRadius: 6,
                 border: "1px solid #d1d5db",
                 padding: "6px 8px",
-                background: isEditMode ? "#f9fafb" : "white",
+                background: isCompletedReadOnly ? "#f9fafb" : "white",
               }}
             />
           </div>
-
-          {/* Doctor field hidden - doctor is optional */}
 
           {/* Start time (editable) */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1130,18 +1152,20 @@ export default function QuickAppointmentModal({
             </select>
           </div>
 
-          {/* Status (create only, hidden when forceBookedStatus) */}
-          {!isEditMode && !forceBookedStatus && (
+          {/* Status (hidden when forceBookedStatus) */}
+          {!forceBookedStatus && (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <label>Төлөв</label>
               <select
                 name="status"
                 value={form.status}
                 onChange={handleChange}
+                disabled={isCompletedReadOnly}
                 style={{
                   borderRadius: 6,
                   border: "1px solid #d1d5db",
                   padding: "6px 8px",
+                  background: isCompletedReadOnly ? "#f9fafb" : "white",
                 }}
               >
                 <option value="booked">Захиалсан</option>
@@ -1235,8 +1259,8 @@ export default function QuickAppointmentModal({
             )}
           </div>
 
-          {/* Quick new patient modal (create only) */}
-          {!isEditMode && showQuickPatientModal && (
+          {/* Quick new patient modal */}
+          {showQuickPatientModal && (
             <div
               style={{
                 position: "fixed",
