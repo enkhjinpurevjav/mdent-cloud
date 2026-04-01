@@ -11,14 +11,14 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
       - DISABLE_AUTH=false
 
-      # ✅ required for /api/auth/login cookie signing + /api/auth/me
+      # required for /api/auth/login cookie signing + /api/auth/me
       - JWT_SECRET=${JWT_SECRET}
 
-      # ✅ recommended (your backend uses these)
+      # recommended (your backend uses these)
       - COOKIE_DOMAIN=${COOKIE_DOMAIN}
       - CORS_ORIGIN=${CORS_ORIGIN}
 
-            # Password reset email (SMTP)
+      # Password reset email (SMTP)
       - APP_URL=${APP_URL}
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=${SMTP_PORT}
@@ -27,7 +27,6 @@ services:
       - SMTP_PASS=${SMTP_PASS}
       - SMTP_FROM_NAME=${SMTP_FROM_NAME}
       - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL}
-      
 
       # POS API
       - POSAPI_BASE_URL=${POSAPI_BASE_URL}
@@ -40,6 +39,7 @@ services:
       - postgres
     networks:
       - mdent-net
+      - mdent_shared
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null || exit 1"]
@@ -58,6 +58,7 @@ services:
       dockerfile: Dockerfile
     networks:
       - mdent-net
+      - mdent_shared
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:3000 >/dev/null || exit 1"]
@@ -100,10 +101,13 @@ services:
       - caddy_config:/config
     networks:
       - mdent-net
+      - mdent_shared
     restart: unless-stopped
 
 networks:
   mdent-net: {}
+  mdent_shared:
+    external: true
 
 volumes:
   caddy_data:
