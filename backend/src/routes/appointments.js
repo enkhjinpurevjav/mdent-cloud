@@ -815,7 +815,7 @@ if (req.user?.role === "receptionist" && req.user.branchId !== parsedBranchId) {
     }
   } catch (err) {
     if (err.isCapacityExceeded) {
-      return res.status(409).json({ error: "Энэ цагт 2 захиалга бүртгэгдсэн байна" });
+      return res.status(409).json({ error: "Энэ цагт 2 захиалга орсон байна" });
     }
     console.error("Error creating appointment:", err);
     res.status(500).json({ error: "failed to create appointment" });
@@ -836,19 +836,13 @@ router.patch("/:id", async (req, res) => {
       scheduledAt,
       endAt,
       doctorId,
-
-      // explicitly forbid these in this endpoint for safety
       patientId,
+
+      // explicitly forbid branchId change for safety
       branchId,
     } = req.body || {};
 
-    // ✅ hard block changes you don't want reception to do via "Засварлах"
-    if (patientId !== undefined) {
-      return res.status(400).json({
-        error:
-          "patientId cannot be updated here. Create a new appointment if patient must change.",
-      });
-    }
+    // ✅ hard block branchId change — branch is always fixed on edit
     if (branchId !== undefined) {
       return res.status(400).json({
         error:
@@ -948,6 +942,29 @@ router.patch("/:id", async (req, res) => {
         }
         data.doctorId = parsed;
       }
+    }
+
+    // ---------------- patientId (optional) ----------------
+    if (patientId !== undefined) {
+      if (patientId === null) {
+        return res.status(400).json({ error: "patientId cannot be null" });
+      }
+      const parsed = Number(patientId);
+      if (Number.isNaN(parsed) || parsed <= 0) {
+        return res.status(400).json({ error: "patientId must be a positive number" });
+      }
+      // Verify the patient exists and is active
+      const patient = await prisma.patient.findUnique({
+        where: { id: parsed },
+        select: { id: true, isActive: true },
+      });
+      if (!patient) {
+        return res.status(404).json({ error: "Үйлчлүүлэгч олдсонгүй." });
+      }
+      if (!patient.isActive) {
+        return res.status(400).json({ error: "Үйлчлүүлэгч идэвхгүй байна." });
+      }
+      data.patientId = parsed;
     }
 
     // ---------------- scheduledAt / endAt (optional) ----------------
@@ -1093,7 +1110,7 @@ router.patch("/:id", async (req, res) => {
     return res.json(updateResponsePayload);
   } catch (err) {
     if (err.isCapacityExceeded) {
-      return res.status(409).json({ error: "Энэ цагт 2 захиалга бүртгэгдсэн байна" });
+      return res.status(409).json({ error: "Энэ цагт 2 захиалга орсон байна" });
     }
     console.error("Error updating appointment:", err);
     if (err.code === "P2025") {
