@@ -82,6 +82,7 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
   const [date, setDate] = useState<string>(today());
   const [branchId, setBranchId] = useState<string>("");
   const [status, setStatus] = useState<string>("ready_to_pay");
+  const [searchName, setSearchName] = useState<string>("");
 
   const [rows, setRows] = useState<AppointmentRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -173,14 +174,24 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
       .finally(() => setLoading(false));
   }, [queryString, userLoading, noBranch, user, branchId]);
 
-  // Reset page when filters change
+  // Reset page and search when filters change
   useEffect(() => {
     setPage(1);
+    setSearchName("");
   }, [queryString]);
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const filteredRows = useMemo(() => {
+    const q = searchName.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => {
+      const nameStr = formatShortName(r.patientName, r.patientOvog).toLowerCase();
+      return nameStr.includes(q);
+    });
+  }, [rows, searchName]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
-  const pageRows = rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageRows = filteredRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const handlePayClick = async (row: AppointmentRow) => {
     setPayLoading(row.id);
@@ -347,6 +358,18 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
             ))}
           </select>
         </div>
+
+        {/* Name search */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-medium">Хайх</label>
+          <input
+            type="text"
+            value={searchName}
+            onChange={(e) => { setSearchName(e.target.value); setPage(1); }}
+            placeholder="Нэрээр хайх…"
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[160px]"
+          />
+        </div>
       </div>
 
       {/* Table */}
@@ -367,6 +390,12 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
                 </th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">
                   Өвчтөн
+                </th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">
+                  Утас
+                </th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">
+                  Тэмдэглэл
                 </th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-600 whitespace-nowrap">
                   Эмч
@@ -392,6 +421,12 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
                     </td>
                     <td className="px-4 py-3 text-gray-800 max-w-[160px] truncate">
                       {formatShortName(row.patientName, row.patientOvog)}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700 whitespace-nowrap">
+                      {row.patientPhone || "—"}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700 max-w-[200px] truncate" title={row.patientNotes || undefined}>
+                      {row.patientNotes || "—"}
                     </td>
                     <td className="px-4 py-3 text-gray-800 max-w-[160px] truncate">
                       {formatShortName(row.doctorName, row.doctorOvog)}
@@ -470,11 +505,11 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
       </div>
 
       {/* Pagination */}
-      {!loading && rows.length > PAGE_SIZE && (
+      {!loading && filteredRows.length > PAGE_SIZE && (
         <div className="flex items-center justify-between bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100">
           <span className="text-xs text-gray-500">
-            {rows.length} бичлэгийн {(currentPage - 1) * PAGE_SIZE + 1}–
-            {Math.min(currentPage * PAGE_SIZE, rows.length)}
+            {filteredRows.length} бичлэгийн {(currentPage - 1) * PAGE_SIZE + 1}–
+            {Math.min(currentPage * PAGE_SIZE, filteredRows.length)}
           </span>
           <div className="flex gap-2">
             <button
