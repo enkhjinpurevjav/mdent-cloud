@@ -44,6 +44,53 @@ async function generateNextBookNumber() {
   return String(next);
 }
 
+// GET /api/patients/search?q=...&limit=10
+// Lightweight quick-search endpoint for autocomplete / patient lookup.
+// Returns minimal fields only; does not compute totals or counts.
+router.get("/search", async (req, res) => {
+  try {
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    if (q.length < 2) {
+      return res
+        .status(400)
+        .json({ error: "q must be at least 2 characters" });
+    }
+
+    const rawLimit = parseInt(req.query.limit, 10);
+    const limit =
+      Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 20) : 10;
+
+    const patients = await prisma.patient.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { name: { contains: q, mode: "insensitive" } },
+          { ovog: { contains: q, mode: "insensitive" } },
+          { phone: { contains: q, mode: "insensitive" } },
+          { regNo: { contains: q, mode: "insensitive" } },
+          { patientBook: { bookNumber: { contains: q, mode: "insensitive" } } },
+        ],
+      },
+      select: {
+        id: true,
+        name: true,
+        ovog: true,
+        phone: true,
+        regNo: true,
+        branchId: true,
+        patientBook: { select: { bookNumber: true } },
+      },
+      take: limit,
+      orderBy: [{ id: "desc" }],
+    });
+
+    return res.json(patients);
+  } catch (err) {
+    console.error("GET /api/patients/search error:", err);
+    return res.status(500).json({ error: "Failed to search patients" });
+  }
+});
+
 // GET /api/patients
 router.get("/", async (req, res) => {
   try {
@@ -54,6 +101,9 @@ router.get("/", async (req, res) => {
     const skip = (page - 1) * limit;
     const sort = req.query.sort === "name" ? "name" : "bookNumber";
     const dir = req.query.dir === "asc" ? "ASC" : "DESC";
+    // includeCounts defaults to true; pass includeCounts=0 or includeCounts=false to skip
+    const includeCounts =
+      req.query.includeCounts !== "0" && req.query.includeCounts !== "false";
 
     const where = q
       ? {
@@ -139,12 +189,19 @@ router.get("/", async (req, res) => {
       });
     }
 
-    const [total, totalMale, totalFemale, totalKids] = await Promise.all([
-      prisma.patient.count({ where }),
-      prisma.patient.count({ where: { isActive: true, gender: "эр" } }),
-      prisma.patient.count({ where: { isActive: true, gender: "эм" } }),
-      prisma.patient.count({ where: { isActive: true, birthDate: { gte: seventeenYearsAgo } } }),
-    ]);
+    let total = 0;
+    let totalMale = 0;
+    let totalFemale = 0;
+    let totalKids = 0;
+
+    if (includeCounts) {
+      [total, totalMale, totalFemale, totalKids] = await Promise.all([
+        prisma.patient.count({ where }),
+        prisma.patient.count({ where: { isActive: true, gender: "эр" } }),
+        prisma.patient.count({ where: { isActive: true, gender: "эм" } }),
+        prisma.patient.count({ where: { isActive: true, birthDate: { gte: seventeenYearsAgo } } }),
+      ]);
+    }
 
     res.json({
       data,
