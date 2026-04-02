@@ -10,7 +10,7 @@ services:
       RUN_SEED: "false"
       DATABASE_URL: ${DATABASE_URL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      DISABLE_AUTH: "false"
+      DISABLE_AUTH: "true"
       JWT_SECRET: ${JWT_SECRET}
 
       # IMPORTANT: keep dev cookies host-only (don’t share with prod)
