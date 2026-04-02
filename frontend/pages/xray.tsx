@@ -235,17 +235,17 @@ export default function XrayPage() {
     }
     setLoadingNurses(true);
     try {
-      const res = await fetch(`/api/users/nurses/today?branchId=${appt.branchId}`);
+      const res = await fetch(`/api/users?role=nurse&branchId=${appt.branchId}`);
       if (!res.ok) throw new Error("Failed to fetch nurses");
       const data = await res.json();
-      const nurseItems = data.items || [];
+      const nurseItems = Array.isArray(data) ? data : [];
       setNurses(
         nurseItems.map((n: any) => ({
-          id: n.nurseId,
-          name: n.name,
-          email: "",
-        }))
-      );
+        id: n.id,
+        name: n.name,
+        email: n.email ?? "",
+      }))
+    );
     } catch (err: any) {
       console.error("Error fetching nurses:", err);
     } finally {
