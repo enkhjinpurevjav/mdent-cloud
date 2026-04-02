@@ -115,15 +115,44 @@ app.use("/api", (req, res, next) => {
   next();
 });
 
-// General API rate limiter — applied to all /api routes
-const apiRateLimit = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 500,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many requests. Please try again later." },
-});
-app.use("/api", apiRateLimit);
+// General API rate limiter — applied to all /api routes (configurable via env)
+const API_RATE_LIMIT_DISABLED = process.env.DISABLE_API_RATE_LIMIT === "true";
+
+const _rawMax = parseInt(process.env.API_RATE_LIMIT_MAX, 10);
+const API_RATE_LIMIT_MAX = Number.isFinite(_rawMax) && _rawMax > 0 ? _rawMax : 500;
+
+const _rawWindow = parseInt(process.env.API_RATE_LIMIT_WINDOW_MS, 10);
+const API_RATE_LIMIT_WINDOW_MS =
+  Number.isFinite(_rawWindow) && _rawWindow > 0 ? _rawWindow : 15 * 60 * 1000;
+
+if (API_RATE_LIMIT_DISABLED) {
+  log.info("api rate limit: DISABLED (DISABLE_API_RATE_LIMIT=true)");
+} else {
+  log.info(
+    {
+      max: API_RATE_LIMIT_MAX,
+      windowMs: API_RATE_LIMIT_WINDOW_MS,
+      streamExcluded: true,
+    },
+    "api rate limit: enabled — /api/appointments/stream is excluded"
+  );
+
+  const apiRateLimit = rateLimit({
+    windowMs: API_RATE_LIMIT_WINDOW_MS,
+    max: API_RATE_LIMIT_MAX,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests. Please try again later." },
+  });
+
+  // Apply the global limiter to all /api routes, but skip the SSE stream
+  // endpoint so keep-alive connections do not consume quota.
+  // req.path is the path relative to the /api mount point (no query string).
+  app.use("/api", (req, res, next) => {
+    if (req.path === "/appointments/stream") return next();
+    return apiRateLimit(req, res, next);
+  });
+}
 
 // Serve uploaded media files
 const mediaDir = process.env.MEDIA_UPLOAD_DIR || "/data/media";

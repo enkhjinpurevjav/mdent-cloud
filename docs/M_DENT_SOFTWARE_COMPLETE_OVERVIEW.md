@@ -336,6 +336,40 @@ The system implements two distinct patient card types following Mongolian Health
 - PostgreSQL database with automated backups
 - Environment-based configuration
 
+### API Rate Limiting Configuration
+
+The backend applies a global rate limiter to all `/api/*` routes. The limiter
+behaviour can be tuned or disabled entirely via environment variables without
+requiring a code change.
+
+| Environment Variable | Default | Description |
+|---|---|---|
+| `DISABLE_API_RATE_LIMIT` | `false` | Set to `"true"` to bypass the global `/api` rate limiter entirely. Use in production when legitimate traffic causes 429 responses. The login-specific rate limiter in `/api/auth` is **not** affected. |
+| `API_RATE_LIMIT_MAX` | `500` | Maximum number of requests allowed per window per IP. Must be a positive integer; invalid values fall back to the default. |
+| `API_RATE_LIMIT_WINDOW_MS` | `900000` (15 min) | Rate-limit window duration in milliseconds. Must be a positive integer; invalid values fall back to the default. |
+
+**SSE endpoint exclusion**: `GET /api/appointments/stream` (the calendar
+real-time event stream) is always excluded from the global rate limiter so that
+long-lived SSE connections and keep-alive events do not consume quota or cause
+throttling.
+
+#### Example: disable rate limiting in production
+
+```env
+DISABLE_API_RATE_LIMIT=true
+```
+
+#### Example: raise limits and shorten window
+
+```env
+API_RATE_LIMIT_MAX=2000
+API_RATE_LIMIT_WINDOW_MS=300000
+```
+
+> **Note**: The `/api/auth/login` route has its own independent dual-layer
+> rate limiter (IP backstop + per-IP-and-email). These settings have no effect
+> on that limiter.
+
 ### Monitoring & Maintenance
 - Application logging
 - Error tracking and alerting
