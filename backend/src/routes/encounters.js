@@ -76,6 +76,102 @@ async function requireEncounterWriteAccess(req, res, next) {
   return res.status(403).json({ error: "Forbidden. Insufficient role." });
 }
 
+/**
+ * Authorization middleware for encounter media (upload/delete) endpoints.
+ *
+ * Rules:
+ * - admin / super_admin: always allowed.
+ * - doctor: allowed only when
+ *     1) encounter.doctorId === req.user.id  (ownership)
+ *     2) the linked appointment.status === 'ongoing'
+ * - xray: allowed only when
+ *     1) the encounter has a linked appointment
+ *     2) appointment.status === 'imaging'
+ *     3) appointment.branchId === req.user.branchId  (own branch only)
+ * - Any other role (or unauthenticated): 403.
+ */
+async function requireEncounterMediaWriteAccess(req, res, next) {
+  // Skip auth when DISABLE_AUTH is set (development bypass)
+  if (process.env.DISABLE_AUTH === "true") return next();
+
+  if (!req.user) {
+    return res.status(401).json({ error: "Authentication required." });
+  }
+
+  const { role, id: userId, branchId: userBranchId } = req.user;
+
+  // Admins are always allowed
+  if (role === "admin" || role === "super_admin") return next();
+
+  const rawId = req.params.encounterId ?? req.params.id;
+  const encounterId = Number(rawId);
+  if (!Number.isFinite(encounterId) || encounterId <= 0) {
+    return res.status(400).json({ error: "Invalid encounter id" });
+  }
+
+  // Doctors must own the encounter AND the appointment must be ongoing
+  if (role === "doctor") {
+    const encounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      select: {
+        doctorId: true,
+        appointment: { select: { status: true } },
+      },
+    });
+
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    if (encounter.doctorId !== userId) {
+      return res.status(403).json({ error: "Forbidden. This encounter does not belong to you." });
+    }
+
+    const apptStatus = encounter.appointment?.status;
+    if (apptStatus !== "ongoing") {
+      return res.status(403).json({
+        error: `Encounters can only be edited while the appointment is 'ongoing'. Current status: '${apptStatus ?? "unknown"}'.`,
+      });
+    }
+
+    return next();
+  }
+
+  // XRAY users may upload/delete media only during 'imaging' status and within their own branch
+  if (role === "xray") {
+    const encounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      select: {
+        appointment: { select: { status: true, branchId: true } },
+      },
+    });
+
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    const appointment = encounter.appointment;
+    if (!appointment) {
+      return res.status(403).json({ error: "Forbidden. No appointment linked to this encounter." });
+    }
+
+    if (appointment.status !== "imaging") {
+      return res.status(403).json({
+        error: `XRAY users can only modify media while the appointment is 'imaging'. Current status: '${appointment.status}'.`,
+      });
+    }
+
+    if (appointment.branchId !== userBranchId) {
+      return res.status(403).json({ error: "Forbidden. This appointment belongs to a different branch." });
+    }
+
+    return next();
+  }
+
+  // All other roles are forbidden
+  return res.status(403).json({ error: "Forbidden. Insufficient role." });
+}
+
 // --- Media upload config ---
 const uploadDir = process.env.MEDIA_UPLOAD_DIR || "/data/media";
 
@@ -1066,11 +1162,13 @@ router.get("/:id/media", async (req, res) => {
 
 /**
  * POST /api/encounters/:id/media
- * 
- * Note: XRAY users should only be able to upload when appointment.status === "imaging"
- * After ready_to_pay (and later statuses), XRAY becomes read-only.
+ *
+ * Access control is enforced by requireEncounterMediaWriteAccess:
+ * - admin/super_admin: always allowed
+ * - doctor: own encounter + appointment.status === 'ongoing'
+ * - xray: appointment.status === 'imaging' + same branch as user
  */
-router.post("/:id/media", requireEncounterWriteAccess, upload.single("file"), async (req, res) => {
+router.post("/:id/media", requireEncounterMediaWriteAccess, upload.single("file"), async (req, res) => {
   try {
     const encounterId = Number(req.params.id);
     if (!encounterId || Number.isNaN(encounterId)) {
@@ -1080,28 +1178,6 @@ router.post("/:id/media", requireEncounterWriteAccess, upload.single("file"), as
     if (!req.file) {
       return res.status(400).json({ error: "file is required" });
     }
-
-    // Check if XRAY is allowed to upload (only during imaging status)
-    // Note: Full enforcement requires authentication to check user role
-    const encounter = await prisma.encounter.findUnique({
-      where: { id: encounterId },
-      include: {
-        appointment: true,
-      },
-    });
-
-    if (!encounter) {
-      return res.status(404).json({ error: "Encounter not found" });
-    }
-
-    // TODO: When authentication is fully implemented, add role-based check to block XRAY users
-    // from uploading media after appointment moves to ready_to_pay/partial_paid/completed status:
-    // if (req.user?.role === 'xray' && 
-    //     ["ready_to_pay", "partial_paid", "completed"].includes(encounter.appointment?.status)) {
-    //   return res.status(403).json({ 
-    //     error: "XRAY users cannot modify media after appointment moves to payment status" 
-    //   });
-    // }
 
     const { toothCode, type } = req.body || {};
     const mediaType = typeof type === "string" && type.trim() ? type.trim() : "XRAY";
@@ -1132,7 +1208,7 @@ router.post("/:id/media", requireEncounterWriteAccess, upload.single("file"), as
  * - Deletes the DB record
  * - Attempts to delete the file from disk (best effort)
  */
-router.delete("/:encounterId/media/:mediaId", requireEncounterWriteAccess, async (req, res) => {
+router.delete("/:encounterId/media/:mediaId", requireEncounterMediaWriteAccess, async (req, res) => {
   try {
     const encounterId = Number(req.params.encounterId);
     const mediaId = Number(req.params.mediaId);
