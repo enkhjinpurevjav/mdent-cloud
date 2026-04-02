@@ -591,6 +591,7 @@ export default function PatientsIndexPage({
       params.set("limit", String(currentLimit));
       params.set("sort", currentSort);
       params.set("dir", currentDir);
+      if (!showSummaryCards) params.set("includeCounts", "0");
 
       const pRes = await fetch(`/api/patients?${params}`);
       let pData: any = null;

@@ -938,6 +938,8 @@ model Appointment {
   encounters Encounter[]
 
   @@index([branchId, scheduledAt])
+  @@index([doctorId, scheduledAt])
+  @@index([patientId, scheduledAt])
 }
 
 model Booking {
@@ -1027,6 +1029,9 @@ model Encounter {
   finalizedSterilization    SterilizationFinalizedUsage[]       @relation("EncounterFinalizedSterilization")
   sterilizationMismatches   SterilizationMismatch[]             @relation("EncounterSterilizationMismatches")
   adjustmentConsumptions    SterilizationAdjustmentConsumption[] @relation("EncounterAdjustmentConsumptions")
+
+  @@index([appointmentId])
+  @@index([patientBookId, visitDate])
 }
 
 model EncounterConsent {
