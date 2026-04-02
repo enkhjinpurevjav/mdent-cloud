@@ -1139,9 +1139,6 @@ const [hasMounted, setHasMounted] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
 const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
 
-// NEW: per‑day revenue
-const [dailyRevenue, setDailyRevenue] = useState<number | null>(null);
-
 // NEW: backend-computed occupancy rate for the selected day + branch
 const [apiOccupancy, setApiOccupancy] = useState<{
   occupancyRate: number;
@@ -1152,7 +1149,6 @@ const [apiOccupancy, setApiOccupancy] = useState<{
 // Request ID tracking to prevent stale fetch overwrites
 const appointmentsRequestIdRef = useRef(0);
 const scheduledDoctorsRequestIdRef = useRef(0);
-const revenueRequestIdRef = useRef(0);
 const occupancyRequestIdRef = useRef(0);
 
 
@@ -1571,7 +1567,6 @@ const workingDoctorsForFilter = scheduledDoctors.length
     setAppointments([]);
     setScheduledDoctors([]);
     setGridDoctorsOverride(null);
-    setDailyRevenue(null);
     setApiOccupancy(null);
   }, [effectiveBranchId, filterDate]);
 
@@ -1857,45 +1852,6 @@ const workingDoctorsForFilter = scheduledDoctors.length
   const totalMinutes =
     (lastSlot.getTime() - firstSlot.getTime()) / 60000 || 1;
   const columnHeightPx = 60 * (totalMinutes / 60);
-
-// ---- Load daily revenue for selected date + branch ----
-useEffect(() => {
-  const loadRevenue = async () => {
-    try {
-      // Increment request ID and capture it for this request
-      revenueRequestIdRef.current += 1;
-      const currentRequestId = revenueRequestIdRef.current;
-
-      const params = new URLSearchParams();
-      if (filterDate) params.set("date", filterDate);
-      // Only use effectiveBranchId as single source of truth
-      if (effectiveBranchId) params.set("branchId", effectiveBranchId);
-
-      const res = await fetch(`/api/reports/daily-revenue?${params.toString()}`);
-      
-      // Guard: only update state if this is still the latest request
-      if (currentRequestId !== revenueRequestIdRef.current) {
-        console.debug(`Discarding stale revenue response (req ${currentRequestId}, current ${revenueRequestIdRef.current})`);
-        return;
-      }
-
-      if (!res.ok) {
-        setDailyRevenue(null);
-        return;
-      }
-      const data = await res.json().catch(() => null);
-      if (!data || typeof data.total !== "number") {
-        setDailyRevenue(null);
-        return;
-      }
-      setDailyRevenue(data.total);
-    } catch {
-      setDailyRevenue(null);
-    }
-  };
-
-  loadRevenue();
-}, [filterDate, effectiveBranchId]);
 
 // ---- Load backend-computed occupancy rate for selected date + branch ----
 useEffect(() => {
@@ -2870,36 +2826,6 @@ const handleCancelDraft = (appointmentId: number) => {
   </>
   )}
 
-  {/* Борлуулалтын орлого — hidden for receptionist role */}
-  {currentUserRole !== "receptionist" && (
-  <div
-    style={{
-      background: "linear-gradient(90deg,#dcfce7,#ffffff)",
-      boxShadow: "0 8px 16px rgba(15,23,42,0.06)",
-    }}
-    className="rounded-xl border border-green-200 p-3 flex flex-col gap-2"
-  >
-    <div className="flex items-center justify-between">
-      <div className="text-[11px] uppercase text-green-700 font-bold tracking-[0.5px]">
-        Борлуулалтын орлого
-      </div>
-      <div
-        style={{ background: "radial-gradient(circle at 30% 30%,#bbf7d0,#22c55e)" }}
-        className="w-[30px] h-[30px] rounded-full flex items-center justify-center text-white text-base"
-      >
-        💰
-      </div>
-    </div>
-    <div className="text-[26px] font-bold text-gray-900">
-      {dailyRevenue == null
-        ? "—"
-        : dailyRevenue.toLocaleString("mn-MN") + " ₮"}
-    </div>
-    <div className="text-[11px] text-gray-500">
-      Сонгосон өдрийн нийт борлуулалтын орлого
-    </div>
-  </div>
-  )}
 </section>
      
 
