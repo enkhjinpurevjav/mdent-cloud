@@ -8,6 +8,7 @@ import { useAuth } from "../contexts/AuthContext";
 type Props = {
   children: React.ReactNode;
   wide?: boolean;
+  hideSidebar?: boolean;
 };
 
 type NavItem = {
@@ -191,7 +192,7 @@ const navItems: NavItem[] = [
   },
 ];
 
-export default function AdminLayout({ children, wide }: Props) {
+export default function AdminLayout({ children, wide, hideSidebar }: Props) {
   const router = useRouter();
   const currentPath = router.pathname;
   const { me, logoutAndRedirect } = useAuth();
@@ -299,6 +300,7 @@ useEffect(() => {
       }}
     >
       {/* LEFT SIDEBAR */}
+      {!hideSidebar && (
       <aside
         className="hidden lg:flex lg:flex-col"
         style={{
@@ -598,6 +600,7 @@ useEffect(() => {
           <div>Copyright © 2025 - M Peak LLC</div>
         </div>
       </aside>
+      )}
 
       {/* RIGHT SIDE: TOP BAR + PAGE CONTENT (unchanged) */}
       <div

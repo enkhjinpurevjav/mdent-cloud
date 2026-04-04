@@ -5,7 +5,7 @@ import NurseLayout from "../components/NurseLayout";
 import ReceptionLayout from "../components/ReceptionLayout";
 import XrayLayout from "../components/XrayLayout";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
 import "../styles/globals.css";
 
@@ -70,6 +70,25 @@ function AppContent({ Component, pageProps }: AppProps) {
   const { me, loading } = useAuth();
 
   const isPublicRoute = isPublicPath(router.pathname);
+  const isEncounterPath = router.pathname.startsWith("/encounters/");
+
+  // Detect doctor_kiosk session for encounter pages: call /api/branch/doctor/me
+  const [isDoctorKiosk, setIsDoctorKiosk] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!isEncounterPath) {
+      setIsDoctorKiosk(false);
+      return;
+    }
+    fetch("/api/branch/doctor/me", { credentials: "include" })
+      .then((res) => setIsDoctorKiosk(res.ok))
+      .catch((err) => {
+        if (process.env.NODE_ENV !== "production") {
+          console.error("[kiosk] Failed to check doctor kiosk session:", err);
+        }
+        setIsDoctorKiosk(false);
+      });
+  }, [isEncounterPath]);
 
   useEffect(() => {
     if (loading) return;
@@ -95,7 +114,6 @@ function AppContent({ Component, pageProps }: AppProps) {
   const userRole = me?.role ?? null;
 
   const isPatientPath = router.pathname.startsWith("/patients/");
-  const isEncounterPath = router.pathname.startsWith("/encounters/");
   const useDoctorLayout =
     isDoctorPath(router.pathname) || ((isPatientPath || isEncounterPath) && userRole === "doctor");
   const useNurseLayout = isNursePath(router.pathname);
@@ -139,8 +157,22 @@ function AppContent({ Component, pageProps }: AppProps) {
     );
   }
 
+  // Branch kiosk pages: keep navy header but hide sidebar
   if (useBranchKioskLayout) {
-    return <Component {...pageProps} />;
+    return (
+      <AdminLayout hideSidebar>
+        <Component {...pageProps} />
+      </AdminLayout>
+    );
+  }
+
+  // Encounter pages opened from doctor kiosk session: keep navy header but hide sidebar
+  if (isEncounterPath && isDoctorKiosk) {
+    return (
+      <AdminLayout hideSidebar>
+        <Component {...pageProps} />
+      </AdminLayout>
+    );
   }
 
   return (
