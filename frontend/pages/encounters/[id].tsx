@@ -309,6 +309,14 @@ export default function EncounterAdminPage() {
   const [mediaOpen, setMediaOpen] = useState(true);
   const [prescriptionOpen, setPrescriptionOpen] = useState(true);
 
+  // Helper: collapse secondary sections to doctor-minimal layout
+  const collapseDoctorSections = React.useCallback(() => {
+    setConsentOpen(false);
+    setFollowUpOpen(false);
+    setMediaOpen(false);
+    setPrescriptionOpen(false);
+  }, []);
+
   useEffect(() => {
     getMe().then((user) => {
       setCurrentUser(user);
@@ -319,10 +327,7 @@ export default function EncounterAdminPage() {
       }
       // Collapse secondary sections by default for doctor
       if (user?.role === "doctor") {
-        setConsentOpen(false);
-        setFollowUpOpen(false);
-        setMediaOpen(false);
-        setPrescriptionOpen(false);
+        collapseDoctorSections();
       }
       // On branch tablets (branch_kiosk session), check if a doctor has unlocked
       // via PIN (doctor_kiosk_token cookie). The check is scoped to branch_kiosk
@@ -332,10 +337,7 @@ export default function EncounterAdminPage() {
           .then((r) => {
             if (r.ok) {
               setIsKioskDoctor(true);
-              setConsentOpen(false);
-              setFollowUpOpen(false);
-              setMediaOpen(false);
-              setPrescriptionOpen(false);
+              collapseDoctorSections();
             }
           })
           .catch(() => {});
@@ -343,7 +345,7 @@ export default function EncounterAdminPage() {
     }).catch(() => {
       // If auth check fails, keep currentUser null (isDoctor = false, use admin layout)
     });
-  }, [router]);
+  }, [router, collapseDoctorSections]);
   
   const encounterId = useMemo(
     () => (typeof id === "string" ? Number(id) : NaN),

@@ -24,7 +24,8 @@ const router = Router();
 
 const COOKIE_NAME = "access_token";
 const DOCTOR_KIOSK_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
-const DOCTOR_KIOSK_TTL_JWT = "8h"; // must stay in sync with DOCTOR_KIOSK_TTL_MS
+// Derive the JWT expiresIn string directly from the TTL constant to prevent desynchronization.
+const DOCTOR_KIOSK_TTL_JWT = `${DOCTOR_KIOSK_TTL_MS / 3_600_000}h`;
 const BCRYPT_ROUNDS = 10;
 const MS_PER_MINUTE = 60_000;
 const MONGOLIA_UTC_OFFSET_MS = 8 * 60 * MS_PER_MINUTE; // UTC+8
