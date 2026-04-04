@@ -32,6 +32,7 @@ type DiagnosesEditorProps = {
   encounterServices?: EncounterService[];
   branchId?: number;
   nurseOptions?: { id: number; name: string | null }[];
+  nursesLoading?: boolean;
   onDiagnosisChange: (localId: number, diagnosisId: number) => Promise<void>;
   onToggleProblem: (localId: number, problemId: number) => void;
   onNoteChange: (localId: number, value: string) => void;
@@ -80,6 +81,7 @@ export default function DiagnosesEditor({
   encounterServices,
   branchId,
   nurseOptions = [],
+  nursesLoading = false,
   onDiagnosisChange,
   onToggleProblem,
   onNoteChange,
@@ -482,7 +484,7 @@ export default function DiagnosesEditor({
                         style={{
                           padding: "4px 8px",
                           borderRadius: 4,
-                          border: row.nurseId == null ? "1.5px solid #ef4444" : "1px solid #d1d5db",
+                          border: (row.nurseId == null && !nursesLoading) ? "1.5px solid #ef4444" : "1px solid #d1d5db",
                           minWidth: 160,
                           background: isLocked ? "#f3f4f6" : "white",
                           fontSize: 16,
@@ -495,7 +497,7 @@ export default function DiagnosesEditor({
                           </option>
                         ))}
                       </select>
-                      {row.nurseId == null && (
+                      {row.nurseId == null && !nursesLoading && (
                         <div style={{ fontSize: 11, color: "#ef4444", marginTop: 2 }}>
                           Сувилагч сонгоно уу
                         </div>
