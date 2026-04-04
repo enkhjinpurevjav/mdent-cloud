@@ -61,7 +61,13 @@ export default function EncounterAdminPage() {
   const { id } = router.query;
 
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const isDoctor = currentUser?.role === "doctor";
+
+  // Kiosk mode: doctor unlocked via PIN on the branch tablet
+  const [isKioskDoctor, setIsKioskDoctor] = useState(false);
+
+  // isDoctor controls doctor-specific UI (minimal layout, action bar, etc.)
+  // Also enabled for kiosk doctor sessions (isKioskDoctor).
+  const isDoctor = currentUser?.role === "doctor" || isKioskDoctor;
 
   const [encounter, setEncounter] = useState<Encounter | null>(null);
   const [loading, setLoading] = useState(true);
@@ -303,6 +309,14 @@ export default function EncounterAdminPage() {
   const [mediaOpen, setMediaOpen] = useState(true);
   const [prescriptionOpen, setPrescriptionOpen] = useState(true);
 
+  // Helper: collapse secondary sections to doctor-minimal layout
+  const collapseDoctorSections = React.useCallback(() => {
+    setConsentOpen(false);
+    setFollowUpOpen(false);
+    setMediaOpen(false);
+    setPrescriptionOpen(false);
+  }, []);
+
   useEffect(() => {
     getMe().then((user) => {
       setCurrentUser(user);
@@ -313,15 +327,25 @@ export default function EncounterAdminPage() {
       }
       // Collapse secondary sections by default for doctor
       if (user?.role === "doctor") {
-        setConsentOpen(false);
-        setFollowUpOpen(false);
-        setMediaOpen(false);
-        setPrescriptionOpen(false);
+        collapseDoctorSections();
+      }
+      // On branch tablets (branch_kiosk session), check if a doctor has unlocked
+      // via PIN (doctor_kiosk_token cookie). The check is scoped to branch_kiosk
+      // sessions to avoid unnecessary requests for regular doctor/admin users.
+      if (user?.role === "branch_kiosk") {
+        fetch("/api/branch/doctor/me", { credentials: "include" })
+          .then((r) => {
+            if (r.ok) {
+              setIsKioskDoctor(true);
+              collapseDoctorSections();
+            }
+          })
+          .catch(() => {});
       }
     }).catch(() => {
       // If auth check fails, keep currentUser null (isDoctor = false, use admin layout)
     });
-  }, [router]);
+  }, [router, collapseDoctorSections]);
   
   const encounterId = useMemo(
     () => (typeof id === "string" ? Number(id) : NaN),
@@ -1978,7 +2002,7 @@ const handleFinishEncounter = async () => {
         );
       }
 
-      await router.push(isDoctor ? "/doctor/appointments" : `/billing/${id}`);
+      await router.push(isKioskDoctor ? "/branch" : isDoctor ? "/doctor/appointments" : `/billing/${id}`);
     } catch (err) {
       console.error("handleFinishEncounter failed", err);
     } finally {
@@ -2053,6 +2077,25 @@ const handleFinishEncounter = async () => {
     >
       {!isDoctor && (
         <h1 className="text-xl mb-3">Үзлэгийн дэлгэрэнгүй</h1>
+      )}
+
+      {/* Kiosk doctor: show logout button at the top */}
+      {isKioskDoctor && (
+        <div className="flex justify-end mb-2">
+          <button
+            type="button"
+            onClick={async () => {
+              await fetch("/api/branch/doctor/logout", {
+                method: "POST",
+                credentials: "include",
+              }).catch(() => {});
+              router.push("/branch");
+            }}
+            className="text-sm text-gray-500 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50"
+          >
+            Гарах
+          </button>
+        </div>
       )}
 
       {loading && <div>Ачаалж байна...</div>}

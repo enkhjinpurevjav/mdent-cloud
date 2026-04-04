@@ -2301,4 +2301,4 @@ router.post("/:id/imaging/transition-to-ready", async (req, res) => {
 });
 
 export default router;
-export { sseBroadcast, naiveTsToYmd, formatApptForResponse, parseNaiveTs };
+export { sseBroadcast, naiveTsToYmd, formatApptForResponse, parseNaiveTs, ensureEncounterForAppointment };

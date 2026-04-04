@@ -7,7 +7,7 @@ type Branch = {
   name: string;
 };
 
-type UserRole = "accountant" | "manager" | "admin" | "super_admin" | "sterilization" | "other" | "receptionist" | "nurse" | "xray";
+type UserRole = "accountant" | "manager" | "admin" | "super_admin" | "sterilization" | "other" | "receptionist" | "nurse" | "xray" | "branch_kiosk";
 
 type OtherStaff = {
   id: number;
@@ -31,6 +31,7 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "sterilization", label: "Ариутгал" },
   { value: "other", label: "Бусад" },
   { value: "xray", label: "Рентген" },
+  { value: "branch_kiosk", label: "Салбар киоск" },
 ];
 
 const getRoleLabel = (role: string) => {
@@ -49,6 +50,8 @@ const getRoleLabel = (role: string) => {
       return "Бусад";
     case "xray":
       return "Рентген";
+    case "branch_kiosk":
+      return "Салбар киоск";
     default:
       return role;
   }
@@ -344,7 +347,7 @@ export default function OtherStaffPage() {
     setError("");
     try {
       // fetch each role then merge
-      const roles: UserRole[] = ["accountant", "manager", "admin", "super_admin", "sterilization", "other", "receptionist", "nurse", "xray"];
+      const roles: UserRole[] = ["accountant", "manager", "admin", "super_admin", "sterilization", "other", "receptionist", "nurse", "xray", "branch_kiosk"];
       const results: OtherStaff[] = [];
 
       for (const role of roles) {

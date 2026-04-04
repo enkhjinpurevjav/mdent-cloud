@@ -13,6 +13,7 @@ const ROLE_HOME: Record<string, string> = {
   doctor: "/doctor/appointments",
   nurse: "/nurse/schedule",
   xray: "/xray",
+  branch_kiosk: "/branch",
 };
 
 export default function LoginPage() {

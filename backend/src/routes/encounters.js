@@ -3,7 +3,7 @@ import prisma from "../db.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { authenticateJWT, optionalAuthenticateJWT } from "../middleware/auth.js";
+import { authenticateJWT, optionalAuthenticateJWT, parseKioskToken } from "../middleware/auth.js";
 import { finalizeSterilizationForEncounter } from "../services/sterilizationFinalize.js";
 import { sseBroadcast, naiveTsToYmd, formatApptForResponse, parseNaiveTs } from "./appointments.js";
 
@@ -72,6 +72,50 @@ async function requireEncounterWriteAccess(req, res, next) {
     return next();
   }
 
+  // Doctor kiosk: authenticated via the doctor_kiosk_token cookie (separate from the
+  // main access_token). On the branch tablet, both cookies may be present simultaneously:
+  // access_token identifies the branch_kiosk session (used for global auth), while
+  // doctor_kiosk_token grants write access to this specific doctor's encounters.
+  // req.user is populated from access_token by the global middleware (role=branch_kiosk),
+  // which passes auth but falls through here. We check doctor_kiosk_token as a supplement.
+  const kioskUser = parseKioskToken(req);
+  if (kioskUser && kioskUser.role === "doctor_kiosk") {
+    const rawId = req.params.encounterId ?? req.params.id;
+    const encounterId = Number(rawId);
+    if (!Number.isFinite(encounterId) || encounterId <= 0) {
+      return res.status(400).json({ error: "Invalid encounter id" });
+    }
+
+    const encounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      select: {
+        doctorId: true,
+        appointment: { select: { status: true, branchId: true } },
+      },
+    });
+
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    if (encounter.doctorId !== kioskUser.id) {
+      return res.status(403).json({ error: "Forbidden. This encounter does not belong to you." });
+    }
+
+    const apptStatus = encounter.appointment?.status;
+    if (apptStatus !== "ongoing") {
+      return res.status(403).json({
+        error: `Encounters can only be edited while the appointment is 'ongoing'. Current status: '${apptStatus ?? "unknown"}'.`,
+      });
+    }
+
+    if (encounter.appointment?.branchId !== kioskUser.branchId) {
+      return res.status(403).json({ error: "Forbidden. Branch mismatch." });
+    }
+
+    return next();
+  }
+
   // All other roles are forbidden
   return res.status(403).json({ error: "Forbidden. Insufficient role." });
 }
@@ -84,6 +128,10 @@ async function requireEncounterWriteAccess(req, res, next) {
  * - doctor: allowed only when
  *     1) encounter.doctorId === req.user.id  (ownership)
  *     2) the linked appointment.status === 'ongoing'
+ * - doctor_kiosk: allowed when doctor_kiosk_token is present and valid, and
+ *     1) encounter.doctorId === kiosk doctorId
+ *     2) appointment.status === 'ongoing'
+ *     3) appointment.branchId === kiosk branchId
  * - xray: allowed only when
  *     1) the encounter has a linked appointment
  *     2) appointment.status === 'imaging'
@@ -137,39 +185,73 @@ async function requireEncounterMediaWriteAccess(req, res, next) {
     return next();
   }
 
+  // Doctor kiosk: authenticated via the doctor_kiosk_token cookie (see requireEncounterWriteAccess
+  // for a detailed explanation of the dual-cookie pattern used on branch tablets).
+  const kioskUser = parseKioskToken(req);
+  if (kioskUser && kioskUser.role === "doctor_kiosk") {
+    const encounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      select: {
+        doctorId: true,
+        appointment: { select: { status: true, branchId: true } },
+      },
+    });
+
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
+
+    if (encounter.doctorId !== kioskUser.id) {
+      return res.status(403).json({ error: "Forbidden. This encounter does not belong to you." });
+    }
+
+    const apptStatus = encounter.appointment?.status;
+    if (apptStatus !== "ongoing") {
+      return res.status(403).json({
+        error: `Encounters can only be edited while the appointment is 'ongoing'. Current status: '${apptStatus ?? "unknown"}'.`,
+      });
+    }
+
+    if (encounter.appointment?.branchId !== kioskUser.branchId) {
+      return res.status(403).json({ error: "Forbidden. Branch mismatch." });
+    }
+
+    return next();
+  }
+
   // XRAY users may upload/delete media only during 'ongoing' or 'imaging' status and within their own branch
-if (role === "xray") {
-  const encounter = await prisma.encounter.findUnique({
-    where: { id: encounterId },
-    select: {
-      appointment: { select: { status: true, branchId: true } },
-    },
-  });
-
-  if (!encounter) {
-    return res.status(404).json({ error: "Encounter not found" });
-  }
-
-  const appointment = encounter.appointment;
-  if (!appointment) {
-    return res.status(403).json({ error: "Forbidden. No appointment linked to this encounter." });
-  }
-
-  const allowedStatuses = new Set(["ongoing", "imaging"]);
-  if (!allowedStatuses.has(appointment.status)) {
-    return res.status(403).json({
-      error: `XRAY users can only modify media while the appointment is 'ongoing' or 'imaging'. Current status: '${appointment.status}'.`,
+  if (role === "xray") {
+    const encounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      select: {
+        appointment: { select: { status: true, branchId: true } },
+      },
     });
-  }
 
-  if (appointment.branchId !== userBranchId) {
-    return res.status(403).json({
-      error: "Forbidden. This appointment belongs to a different branch.",
-    });
-  }
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found" });
+    }
 
-  return next();
-}
+    const appointment = encounter.appointment;
+    if (!appointment) {
+      return res.status(403).json({ error: "Forbidden. No appointment linked to this encounter." });
+    }
+
+    const allowedStatuses = new Set(["ongoing", "imaging"]);
+    if (!allowedStatuses.has(appointment.status)) {
+      return res.status(403).json({
+        error: `XRAY users can only modify media while the appointment is 'ongoing' or 'imaging'. Current status: '${appointment.status}'.`,
+      });
+    }
+
+    if (appointment.branchId !== userBranchId) {
+      return res.status(403).json({
+        error: "Forbidden. This appointment belongs to a different branch.",
+      });
+    }
+
+    return next();
+  }
 
   // All other roles are forbidden
   return res.status(403).json({ error: "Forbidden. Insufficient role." });

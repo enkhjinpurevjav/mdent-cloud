@@ -11,6 +11,7 @@
 import express from "express";
 import multer from "multer";
 import path from "path";
+import bcrypt from "bcryptjs";
 import prisma from "../db.js";
 import { authenticateJWT, requireRole } from "../middleware/auth.js";
 import {
@@ -188,6 +189,42 @@ function resolvePatientBookId(appointment, res) {
   }
   return patientBookId;
 }
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PIN management
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/doctor/pin
+ * Set or change the authenticated doctor's 4-digit kiosk PIN.
+ * Body: { pin: "1234" }
+ * Requires: doctor session (authenticateJWT + requireRole("doctor")).
+ */
+router.post("/pin", async (req, res) => {
+  try {
+    const doctorId = req.user.id;
+    const { pin } = req.body || {};
+
+    if (!pin || typeof pin !== "string") {
+      return res.status(400).json({ error: "PIN is required." });
+    }
+    if (!/^\d{4}$/.test(pin)) {
+      return res.status(400).json({ error: "PIN must be exactly 4 digits." });
+    }
+
+    const pinHash = await bcrypt.hash(pin, 10);
+
+    await prisma.user.update({
+      where: { id: doctorId },
+      data: { pinHash, pinUpdatedAt: new Date() },
+    });
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("POST /api/doctor/pin error:", err);
+    return res.status(500).json({ error: "Failed to save PIN." });
+  }
+});
 
 // ═════════════════════════════════════════════════════════════════════════════
 // A) GET /api/doctor/appointments
