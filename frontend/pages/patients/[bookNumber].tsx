@@ -64,7 +64,7 @@ export default function PatientProfilePage() {
   useEffect(() => {
     getMe()
       .then((user) => {
-        setIsDoctor(user?.role === "doctor");
+        setIsDoctor(user?.role === "doctor" || user?.role === "doctor_kiosk");
         setCurrentUserRole(user?.role ?? null);
         setOwnBranchId(user?.branchId != null ? String(user.branchId) : null);
       })
