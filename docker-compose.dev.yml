@@ -13,9 +13,9 @@ services:
       DISABLE_AUTH: "true"
       JWT_SECRET: ${JWT_SECRET}
 
-      # IMPORTANT: keep dev cookies host-only (don’t share with prod)
-      # If your backend supports COOKIE_DOMAIN, set it empty in dev .env:
-      # COOKIE_DOMAIN=
+      # Keep dev cookies host-only (do NOT share with prod)
+      COOKIE_DOMAIN: ""
+
       CORS_ORIGIN: ${CORS_ORIGIN}
       APP_URL: ${APP_URL}
 
@@ -32,8 +32,7 @@ services:
       POSAPI_POS_NO: "10013198"
       POSAPI_BRANCH_NO: "001"
       POSAPI_DISTRICT_CODE: "2501"
-    ports:
-      - "8083:8080"
+    # No published ports: dev is only reachable via https://dev.mdent.cloud through prod Caddy
     networks:
       - mdent-dev-net
       - mdent_shared
@@ -49,10 +48,21 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       NEXT_PUBLIC_PORTAL_URL: ${NEXT_PUBLIC_PORTAL_URL}
-    ports:
-      - "3001:3000"
+    # No published ports: dev is only reachable via https://dev.mdent.cloud through prod Caddy
     networks:
       - mdent-dev-net
+      - mdent_shared
+    restart: unless-stopped
+
+  dev-proxy:
+    image: caddy:2
+    container_name: mdent-dev-proxy
+    command: ["caddy","run","--config","/etc/caddy/Caddyfile","--adapter","caddyfile"]
+    volumes:
+      # Create this file in your repo: ./caddy/dev/Caddyfile
+      - ./caddy/dev/Caddyfile:/etc/caddy/Caddyfile:ro
+    # No published ports: only prod Caddy reaches this over the shared docker network
+    networks:
       - mdent_shared
     restart: unless-stopped
 
