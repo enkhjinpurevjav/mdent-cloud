@@ -62,16 +62,24 @@ export default function PatientProfilePage() {
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [ownBranchId, setOwnBranchId] = useState<string | null>(null);
   useEffect(() => {
-    getMe()
-      .then((user) => {
-        setIsDoctor(user?.role === "doctor" || user?.role === "doctor_kiosk");
-        setCurrentUserRole(user?.role ?? null);
-        setOwnBranchId(user?.branchId != null ? String(user.branchId) : null);
-      })
-      .catch(() => {
-        // Default to non-doctor on error (safe fallback: shows full UI)
-        setIsDoctor(false);
-      });
+    // In kiosk flow, /api/auth/me returns branch_kiosk (not doctor_kiosk).
+    // Probe /api/branch/doctor/me in parallel to detect a PIN-unlocked doctor session.
+    // Both results are combined in a single state update to avoid race conditions.
+    const mePromise = getMe().catch(() => null);
+    const kioskProbe = fetch("/api/branch/doctor/me", { credentials: "include" })
+      .then((res) => res.ok)
+      .catch(() => false);
+
+    Promise.all([mePromise, kioskProbe]).then(([user, isKioskDoctor]) => {
+      setIsDoctor(
+        user?.role === "doctor" || user?.role === "doctor_kiosk" || isKioskDoctor
+      );
+      setCurrentUserRole(user?.role ?? null);
+      setOwnBranchId(user?.branchId != null ? String(user.branchId) : null);
+    }).catch(() => {
+      // Safe fallback: show full UI if session detection fails unexpectedly
+      setIsDoctor(false);
+    });
   }, []);
 
   const patientBookId = data?.patientBook?.id || null;
