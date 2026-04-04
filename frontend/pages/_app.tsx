@@ -71,12 +71,14 @@ function AppContent({ Component, pageProps }: AppProps) {
 
   const isPublicRoute = isPublicPath(router.pathname);
   const isEncounterPath = router.pathname.startsWith("/encounters/");
+  const isPatientPath = router.pathname.startsWith("/patients/");
+  const shouldCheckKiosk = isEncounterPath || isPatientPath;
 
-  // Detect doctor_kiosk session for encounter pages: call /api/branch/doctor/me
+  // Detect doctor_kiosk session for encounter and patient pages: call /api/branch/doctor/me
   const [isDoctorKiosk, setIsDoctorKiosk] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!isEncounterPath) {
+    if (!shouldCheckKiosk) {
       setIsDoctorKiosk(false);
       return;
     }
@@ -88,7 +90,7 @@ function AppContent({ Component, pageProps }: AppProps) {
         }
         setIsDoctorKiosk(false);
       });
-  }, [isEncounterPath]);
+  }, [shouldCheckKiosk]);
 
   useEffect(() => {
     if (loading) return;
@@ -113,7 +115,6 @@ function AppContent({ Component, pageProps }: AppProps) {
 
   const userRole = me?.role ?? null;
 
-  const isPatientPath = router.pathname.startsWith("/patients/");
   const useDoctorLayout =
     isDoctorPath(router.pathname) || ((isPatientPath || isEncounterPath) && userRole === "doctor");
   const useNurseLayout = isNursePath(router.pathname);
@@ -175,8 +176,8 @@ function AppContent({ Component, pageProps }: AppProps) {
     );
   }
 
-  // Patient profile opened by doctor_kiosk: keep navy header but hide sidebar
-  if (isPatientPath && userRole === "doctor_kiosk") {
+  // Patient profile opened by doctor kiosk session: keep navy header but hide sidebar
+  if (isPatientPath && isDoctorKiosk) {
     return (
       <AdminLayout hideSidebar>
         <Component {...pageProps} />
