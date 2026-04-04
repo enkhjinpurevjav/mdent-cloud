@@ -1970,13 +1970,12 @@ const [consentError, setConsentError] = useState("");
 
   // Fetch nurses for IMAGING attribution
   useEffect(() => {
-    const branchId = invoice?.branchId;
-    if (!branchId) return;
+    if (!encounterId || Number.isNaN(encounterId)) return;
     const hasImaging = items.some((r) => r.serviceCategory === "IMAGING" && r.itemType === "SERVICE");
     if (!hasImaging) return;
     if (nurses.length > 0 || nursesLoading) return;
     setNursesLoading(true);
-    fetch(`/api/users/nurses/today?branchId=${branchId}`)
+    fetch(`/api/encounters/${encounterId}/nurses`)
       .then((r) => r.json())
       .then((data) => {
         const items2: { nurseId: number; name: string | null }[] = data.items || [];
@@ -1985,7 +1984,7 @@ const [consentError, setConsentError] = useState("");
       .catch(() => {})
       .finally(() => setNursesLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoice?.branchId, items]);
+  }, [encounterId, items]);
 
   // XRAY
   useEffect(() => {
@@ -2511,9 +2510,9 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
                     );
 
                     // Fetch nurses if IMAGING service selected
-                    if (picked.category === "IMAGING" && invoice?.branchId && nurses.length === 0 && !nursesLoading) {
+                    if (picked.category === "IMAGING" && encounterId && !Number.isNaN(encounterId) && nurses.length === 0 && !nursesLoading) {
                       setNursesLoading(true);
-                      fetch(`/api/users/nurses/today?branchId=${invoice.branchId}`)
+                      fetch(`/api/encounters/${encounterId}/nurses`)
                         .then((r) => r.json())
                         .then((data) => { const items2 = data.items || []; setNurses(items2.map((n: any) => ({ id: n.nurseId, name: n.name }))); })
                         .catch(() => {})
