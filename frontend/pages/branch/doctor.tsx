@@ -32,7 +32,7 @@ function formatPatientName(p: Patient | null): string {
   if (!p) return "Тодорхойгүй";
   const name = p.name || "";
   const ovog = (p.ovog || "").trim();
-  if (ovog) return `${ovog.charAt(0).toUpperCase()}.${name}`;
+  if (ovog) return `${ovog.charAt(0).toUpperCase()}. ${name}`;
   return name || p.regNo || String(p.id);
 }
 

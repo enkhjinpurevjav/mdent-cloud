@@ -310,20 +310,6 @@ export default function EncounterAdminPage() {
   const [prescriptionOpen, setPrescriptionOpen] = useState(true);
 
   useEffect(() => {
-    // Check for kiosk doctor session (doctor_kiosk_token cookie)
-    fetch("/api/branch/doctor/me", { credentials: "include" })
-      .then((r) => {
-        if (r.ok) {
-          setIsKioskDoctor(true);
-          // Collapse secondary sections for kiosk doctor (same as regular doctor)
-          setConsentOpen(false);
-          setFollowUpOpen(false);
-          setMediaOpen(false);
-          setPrescriptionOpen(false);
-        }
-      })
-      .catch(() => {});
-
     getMe().then((user) => {
       setCurrentUser(user);
       // Receptionist cannot access encounter pages — redirect away
@@ -337,6 +323,22 @@ export default function EncounterAdminPage() {
         setFollowUpOpen(false);
         setMediaOpen(false);
         setPrescriptionOpen(false);
+      }
+      // On branch tablets (branch_kiosk session), check if a doctor has unlocked
+      // via PIN (doctor_kiosk_token cookie). The check is scoped to branch_kiosk
+      // sessions to avoid unnecessary requests for regular doctor/admin users.
+      if (user?.role === "branch_kiosk") {
+        fetch("/api/branch/doctor/me", { credentials: "include" })
+          .then((r) => {
+            if (r.ok) {
+              setIsKioskDoctor(true);
+              setConsentOpen(false);
+              setFollowUpOpen(false);
+              setMediaOpen(false);
+              setPrescriptionOpen(false);
+            }
+          })
+          .catch(() => {});
       }
     }).catch(() => {
       // If auth check fails, keep currentUser null (isDoctor = false, use admin layout)

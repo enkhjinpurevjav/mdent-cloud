@@ -220,7 +220,6 @@ export default function BranchKioskPage() {
                 type="password"
                 inputMode="numeric"
                 maxLength={4}
-                pattern="\d{4}"
                 value={pin}
                 onChange={(e) => {
                   const v = e.target.value.replace(/\D/g, "").slice(0, 4);

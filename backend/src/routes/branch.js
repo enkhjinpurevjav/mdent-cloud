@@ -24,7 +24,9 @@ const router = Router();
 
 const COOKIE_NAME = "access_token";
 const DOCTOR_KIOSK_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
+const DOCTOR_KIOSK_TTL_JWT = "8h"; // must stay in sync with DOCTOR_KIOSK_TTL_MS
 const BCRYPT_ROUNDS = 10;
+const MS_PER_MINUTE = 60_000;
 
 function getJwtSecret() {
   return process.env.JWT_SECRET || "";
@@ -48,8 +50,8 @@ function kioskCookieOptions() {
 /** Mongolia timezone (UTC+8): return today as YYYY-MM-DD */
 function mongoliaLocalDateString() {
   const now = new Date();
-  const mongoliaOffset = 8 * 60;
-  const localTime = new Date(now.getTime() + mongoliaOffset * 60_000);
+  const mongoliaOffset = 8 * MS_PER_MINUTE;
+  const localTime = new Date(now.getTime() + mongoliaOffset);
   return localTime.toISOString().slice(0, 10);
 }
 
@@ -300,7 +302,7 @@ router.post(
         ovog: doctor.ovog,
         email: doctor.email,
       };
-      const token = jwt.sign(payload, secret, { expiresIn: "8h" });
+      const token = jwt.sign(payload, secret, { expiresIn: DOCTOR_KIOSK_TTL_JWT });
 
       res.cookie(DOCTOR_KIOSK_COOKIE_NAME, token, kioskCookieOptions());
 

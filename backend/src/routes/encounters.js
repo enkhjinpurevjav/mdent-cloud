@@ -72,8 +72,12 @@ async function requireEncounterWriteAccess(req, res, next) {
     return next();
   }
 
-  // Doctor kiosk: validated via separate doctor_kiosk_token cookie
-  // The main req.user may be branch_kiosk (access_token); we supplement with kiosk identity.
+  // Doctor kiosk: authenticated via the doctor_kiosk_token cookie (separate from the
+  // main access_token). On the branch tablet, both cookies may be present simultaneously:
+  // access_token identifies the branch_kiosk session (used for global auth), while
+  // doctor_kiosk_token grants write access to this specific doctor's encounters.
+  // req.user is populated from access_token by the global middleware (role=branch_kiosk),
+  // which passes auth but falls through here. We check doctor_kiosk_token as a supplement.
   const kioskUser = parseKioskToken(req);
   if (kioskUser && kioskUser.role === "doctor_kiosk") {
     const rawId = req.params.encounterId ?? req.params.id;
@@ -181,7 +185,8 @@ async function requireEncounterMediaWriteAccess(req, res, next) {
     return next();
   }
 
-  // Doctor kiosk: validated via separate doctor_kiosk_token cookie
+  // Doctor kiosk: authenticated via the doctor_kiosk_token cookie (see requireEncounterWriteAccess
+  // for a detailed explanation of the dual-cookie pattern used on branch tablets).
   const kioskUser = parseKioskToken(req);
   if (kioskUser && kioskUser.role === "doctor_kiosk") {
     const encounter = await prisma.encounter.findUnique({
