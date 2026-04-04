@@ -27,6 +27,7 @@ const DOCTOR_KIOSK_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 const DOCTOR_KIOSK_TTL_JWT = "8h"; // must stay in sync with DOCTOR_KIOSK_TTL_MS
 const BCRYPT_ROUNDS = 10;
 const MS_PER_MINUTE = 60_000;
+const MONGOLIA_UTC_OFFSET_MS = 8 * 60 * MS_PER_MINUTE; // UTC+8
 
 function getJwtSecret() {
   return process.env.JWT_SECRET || "";
@@ -50,8 +51,7 @@ function kioskCookieOptions() {
 /** Mongolia timezone (UTC+8): return today as YYYY-MM-DD */
 function mongoliaLocalDateString() {
   const now = new Date();
-  const mongoliaOffset = 8 * MS_PER_MINUTE;
-  const localTime = new Date(now.getTime() + mongoliaOffset);
+  const localTime = new Date(now.getTime() + MONGOLIA_UTC_OFFSET_MS);
   return localTime.toISOString().slice(0, 10);
 }
 
