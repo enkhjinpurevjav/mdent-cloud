@@ -2207,6 +2207,7 @@ const handleFinishEncounter = async () => {
               totalDiagnosisServicesPrice={totalDiagnosisServicesPrice}
               encounterServices={editableServices}
               branchId={encounter?.patientBook?.patient?.branchId}
+              nurseOptions={nursesForEncounter.map((n) => ({ id: n.nurseId, name: n.name ?? null }))}
               onDiagnosisChange={handleDiagnosisChange}
               onToggleProblem={toggleProblem}
               onNoteChange={handleNoteChange}
