@@ -32,6 +32,10 @@ function isXrayPath(pathname: string) {
   return pathname === "/xray" || pathname.startsWith("/xray/");
 }
 
+function isBranchKioskPath(pathname: string) {
+  return pathname === "/branch" || pathname.startsWith("/branch/");
+}
+
 function isAppointmentsPath(pathname: string) {
   return (
     pathname === "/appointments" ||
@@ -97,6 +101,7 @@ function AppContent({ Component, pageProps }: AppProps) {
   const useNurseLayout = isNursePath(router.pathname);
   const useReceptionLayout = isReceptionPath(router.pathname);
   const useXrayLayout = isXrayPath(router.pathname);
+  const useBranchKioskLayout = isBranchKioskPath(router.pathname);
 
   // Wide layout for appointments pages (admin + reception) to support many doctor columns
   const wide = isAppointmentsPath(router.pathname);
@@ -132,6 +137,10 @@ function AppContent({ Component, pageProps }: AppProps) {
         <Component {...pageProps} />
       </XrayLayout>
     );
+  }
+
+  if (useBranchKioskLayout) {
+    return <Component {...pageProps} />;
   }
 
   return (
