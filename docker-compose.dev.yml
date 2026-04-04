@@ -60,7 +60,7 @@ services:
     command: ["caddy","run","--config","/etc/caddy/Caddyfile","--adapter","caddyfile"]
     volumes:
       # Create this file in your repo: ./caddy/dev/Caddyfile
-      - ./caddy/dev/Caddyfile:/etc/caddy/Caddyfile:ro
+       - /opt/mdent-dev-caddy/Caddyfile:/etc/caddy/Caddyfile:ro
     # No published ports: only prod Caddy reaches this over the shared docker network
     networks:
       - mdent_shared
