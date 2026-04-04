@@ -1,5 +1,6 @@
 import express from "express";
 import prisma from "../db.js";
+import { checkEncounterWriteAccess } from "../middleware/encounterAccess.js";
 
 const router = express.Router();
 
@@ -61,6 +62,10 @@ router.put("/:id/texts/sync", async (req, res) => {
     if (!service) {
       return res.status(404).json({ error: "Encounter service not found" });
     }
+
+    // Enforce write access to the parent encounter
+    const accessDenied = await checkEncounterWriteAccess(req, service.encounterId);
+    if (accessDenied) return res.status(accessDenied.status).json({ error: accessDenied.error });
 
     const { texts } = req.body;
     if (!Array.isArray(texts)) {
