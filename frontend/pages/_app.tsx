@@ -175,6 +175,15 @@ function AppContent({ Component, pageProps }: AppProps) {
     );
   }
 
+  // Patient profile opened by doctor_kiosk: keep navy header but hide sidebar
+  if (isPatientPath && userRole === "doctor_kiosk") {
+    return (
+      <AdminLayout hideSidebar>
+        <Component {...pageProps} />
+      </AdminLayout>
+    );
+  }
+
   return (
     <AdminLayout wide={wide}>
       <Component {...pageProps} />
