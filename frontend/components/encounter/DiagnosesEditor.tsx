@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import type {
   EditableDiagnosis,
   Diagnosis,
@@ -31,6 +31,7 @@ type DiagnosesEditorProps = {
   totalDiagnosisServicesPrice: number;
   encounterServices?: EncounterService[];
   branchId?: number;
+  nurseOptions?: { id: number; name: string | null }[];
   onDiagnosisChange: (localId: number, diagnosisId: number) => Promise<void>;
   onToggleProblem: (localId: number, problemId: number) => void;
   onNoteChange: (localId: number, value: string) => void;
@@ -78,6 +79,7 @@ export default function DiagnosesEditor({
   totalDiagnosisServicesPrice,
   encounterServices,
   branchId,
+  nurseOptions = [],
   onDiagnosisChange,
   onToggleProblem,
   onNoteChange,
@@ -101,24 +103,6 @@ export default function DiagnosesEditor({
   onReloadEncounter,
   hideInlineActions,
 }: DiagnosesEditorProps) {
-  const [todayNurses, setTodayNurses] = useState<{ id: number; name: string | null }[]>([]);
-
-  useEffect(() => {
-    if (!branchId) return;
-    const fetchNurses = async () => {
-      try {
-        const res = await fetch(`/api/users/nurses/today?branchId=${branchId}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        const items: { nurseId: number; name: string | null }[] = data.items || [];
-        setTodayNurses(items.map((n) => ({ id: n.nurseId, name: n.name })));
-      } catch {
-        // ignore
-      }
-    };
-    void fetchNurses();
-  }, [branchId]);
-
   return (
     <section
       style={{
@@ -505,7 +489,7 @@ export default function DiagnosesEditor({
                         }}
                       >
                         <option value="">— Сувилагч сонгох —</option>
-                        {todayNurses.map((n) => (
+                        {nurseOptions.map((n) => (
                           <option key={n.id} value={n.id}>
                             {n.name ?? `Nurse #${n.id}`}
                           </option>
