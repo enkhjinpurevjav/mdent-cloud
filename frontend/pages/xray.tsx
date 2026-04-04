@@ -179,7 +179,7 @@ export default function XrayPage() {
         // 3. For imaging appointments: load saved config + supporting data
         if (selectedAppt.status === "imaging") {
           loadImagingConfig(selectedAppt.id);
-          fetchNurses(selectedAppt);
+          fetchNurses(data.encounterId);
           fetchServices();
         }
       } catch (err: any) {
@@ -228,24 +228,20 @@ export default function XrayPage() {
     }
   };
 
-  const fetchNurses = async (appt: XrayAppointment) => {
-    if (!appt.branchId) {
-      console.warn("Branch ID not available for appointment", appt.id);
-      return;
-    }
+  const fetchNurses = async (eid: number) => {
     setLoadingNurses(true);
     try {
-      const res = await fetch(`/api/users?role=nurse&branchId=${appt.branchId}`);
+      const res = await fetch(`/api/encounters/${eid}/nurses`);
       if (!res.ok) throw new Error("Failed to fetch nurses");
       const data = await res.json();
-      const nurseItems = Array.isArray(data) ? data : [];
+      const nurseItems: { nurseId: number; name: string | null; email: string | null }[] = data.items || [];
       setNurses(
-        nurseItems.map((n: any) => ({
-        id: n.id,
-        name: n.name,
-        email: n.email ?? "",
-      }))
-    );
+        nurseItems.map((n) => ({
+          id: n.nurseId,
+          name: n.name,
+          email: n.email ?? "",
+        }))
+      );
     } catch (err: any) {
       console.error("Error fetching nurses:", err);
     } finally {
