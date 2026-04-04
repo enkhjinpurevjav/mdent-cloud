@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import prisma from "../db.js";
 
 const COOKIE_NAME = "access_token";
+export const DOCTOR_KIOSK_COOKIE_NAME = "doctor_kiosk_token";
 
 /**
  * Reads the JWT from either the cookie or the Authorization header.
@@ -111,4 +112,24 @@ export function optionalAuthenticateJWT(req, _res, next) {
     }
     return next();
   });
+}
+
+/**
+ * Synchronously parses and verifies the doctor_kiosk_token cookie.
+ * Returns the decoded payload { id (doctorId), branchId, role, name, ovog }
+ * or null if missing/invalid.
+ *
+ * Note: does NOT do a database isActive check — use in low-latency middleware
+ * where the short token lifetime provides sufficient security.
+ */
+export function parseKioskToken(req) {
+  const token = req.cookies?.[DOCTOR_KIOSK_COOKIE_NAME];
+  if (!token) return null;
+  const secret = getJwtSecret();
+  if (!secret) return null;
+  try {
+    return jwt.verify(token, secret);
+  } catch {
+    return null;
+  }
 }

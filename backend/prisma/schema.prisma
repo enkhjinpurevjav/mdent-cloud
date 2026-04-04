@@ -26,6 +26,8 @@ enum UserRole {
   super_admin
   sterilization
   other
+  branch_kiosk
+  doctor_kiosk
 }
 
 enum ServiceCategory {
@@ -768,6 +770,10 @@ model User {
   // Soft delete
   isActive        Boolean   @default(true)
   deactivatedAt   DateTime?
+
+  // Kiosk PIN (4-digit, stored hashed with bcrypt)
+  pinHash         String?
+  pinUpdatedAt    DateTime?
 
   passwordResetTokens PasswordResetToken[]
 

@@ -61,7 +61,13 @@ export default function EncounterAdminPage() {
   const { id } = router.query;
 
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const isDoctor = currentUser?.role === "doctor";
+
+  // Kiosk mode: doctor unlocked via PIN on the branch tablet
+  const [isKioskDoctor, setIsKioskDoctor] = useState(false);
+
+  // isDoctor controls doctor-specific UI (minimal layout, action bar, etc.)
+  // Also enabled for kiosk doctor sessions (isKioskDoctor).
+  const isDoctor = currentUser?.role === "doctor" || isKioskDoctor;
 
   const [encounter, setEncounter] = useState<Encounter | null>(null);
   const [loading, setLoading] = useState(true);
@@ -304,6 +310,20 @@ export default function EncounterAdminPage() {
   const [prescriptionOpen, setPrescriptionOpen] = useState(true);
 
   useEffect(() => {
+    // Check for kiosk doctor session (doctor_kiosk_token cookie)
+    fetch("/api/branch/doctor/me", { credentials: "include" })
+      .then((r) => {
+        if (r.ok) {
+          setIsKioskDoctor(true);
+          // Collapse secondary sections for kiosk doctor (same as regular doctor)
+          setConsentOpen(false);
+          setFollowUpOpen(false);
+          setMediaOpen(false);
+          setPrescriptionOpen(false);
+        }
+      })
+      .catch(() => {});
+
     getMe().then((user) => {
       setCurrentUser(user);
       // Receptionist cannot access encounter pages — redirect away
@@ -1978,7 +1998,7 @@ const handleFinishEncounter = async () => {
         );
       }
 
-      await router.push(isDoctor ? "/doctor/appointments" : `/billing/${id}`);
+      await router.push(isKioskDoctor ? "/branch" : isDoctor ? "/doctor/appointments" : `/billing/${id}`);
     } catch (err) {
       console.error("handleFinishEncounter failed", err);
     } finally {
@@ -2053,6 +2073,25 @@ const handleFinishEncounter = async () => {
     >
       {!isDoctor && (
         <h1 className="text-xl mb-3">Үзлэгийн дэлгэрэнгүй</h1>
+      )}
+
+      {/* Kiosk doctor: show logout button at the top */}
+      {isKioskDoctor && (
+        <div className="flex justify-end mb-2">
+          <button
+            type="button"
+            onClick={async () => {
+              await fetch("/api/branch/doctor/logout", {
+                method: "POST",
+                credentials: "include",
+              }).catch(() => {});
+              router.push("/branch");
+            }}
+            className="text-sm text-gray-500 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50"
+          >
+            Гарах
+          </button>
+        </div>
       )}
 
       {loading && <div>Ачаалж байна...</div>}

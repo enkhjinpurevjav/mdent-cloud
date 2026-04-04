@@ -57,7 +57,8 @@ import adminPasswordResetRouter from "./routes/admin/passwordReset.js";
 import doctorIncomeReportRouter from "./routes/admin/doctorIncomeReport.js";
 import backfillRegnoRouter from "./routes/admin/backfillRegno.js";
 import checkInRouter from "./routes/check-in.js";
-import { authenticateJWT, requireRole } from "./middleware/auth.js";
+import branchKioskRouter from "./routes/branch.js";
+import { authenticateJWT, requireRole, DOCTOR_KIOSK_COOKIE_NAME } from "./middleware/auth.js";
 import rateLimit from "express-rate-limit";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
@@ -102,8 +103,11 @@ const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 app.use("/api", (req, res, next) => {
   if (!STATE_CHANGING_METHODS.has(req.method)) return next();
 
-  // Only enforce when a cookie is present (i.e., cookie-authenticated request)
-  if (!req.cookies?.[COOKIE_NAME_FOR_CSRF]) return next();
+  // Only enforce when a recognized auth cookie is present
+  const hasCookie =
+    req.cookies?.[COOKIE_NAME_FOR_CSRF] ||
+    req.cookies?.[DOCTOR_KIOSK_COOKIE_NAME];
+  if (!hasCookie) return next();
 
   const origin = req.headers.origin || req.headers.referer || "";
   const allowed = corsOrigins;
@@ -194,6 +198,8 @@ app.use("/api", (req, res, next) => {
   if (req.path.startsWith("/public")) return next();
   // Skip /api/check-in — public tablet endpoints, no login required
   if (req.path.startsWith("/check-in")) return next();
+  // Skip /api/branch — branch kiosk router handles its own authentication per-route
+  if (req.path.startsWith("/branch")) return next();
   return authenticateJWT(req, res, next);
 });
 
@@ -229,6 +235,9 @@ app.use("/api/users", (req, res, next) => {
 
 // Check-in tablet routes (public — no auth required)
 app.use("/api/check-in", checkInRouter);
+
+// Branch kiosk routes (handles own auth per-route)
+app.use("/api/branch", branchKioskRouter);
 
 // Existing routers
 app.use("/api/login", loginRouter);
