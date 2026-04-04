@@ -137,36 +137,39 @@ async function requireEncounterMediaWriteAccess(req, res, next) {
     return next();
   }
 
-  // XRAY users may upload/delete media only during 'imaging' status and within their own branch
-  if (role === "xray") {
-    const encounter = await prisma.encounter.findUnique({
-      where: { id: encounterId },
-      select: {
-        appointment: { select: { status: true, branchId: true } },
-      },
-    });
+  // XRAY users may upload/delete media only during 'ongoing' or 'imaging' status and within their own branch
+if (role === "xray") {
+  const encounter = await prisma.encounter.findUnique({
+    where: { id: encounterId },
+    select: {
+      appointment: { select: { status: true, branchId: true } },
+    },
+  });
 
-    if (!encounter) {
-      return res.status(404).json({ error: "Encounter not found" });
-    }
-
-    const appointment = encounter.appointment;
-    if (!appointment) {
-      return res.status(403).json({ error: "Forbidden. No appointment linked to this encounter." });
-    }
-
-    if (appointment.status !== "imaging") {
-      return res.status(403).json({
-        error: `XRAY users can only modify media while the appointment is 'imaging'. Current status: '${appointment.status}'.`,
-      });
-    }
-
-    if (appointment.branchId !== userBranchId) {
-      return res.status(403).json({ error: "Forbidden. This appointment belongs to a different branch." });
-    }
-
-    return next();
+  if (!encounter) {
+    return res.status(404).json({ error: "Encounter not found" });
   }
+
+  const appointment = encounter.appointment;
+  if (!appointment) {
+    return res.status(403).json({ error: "Forbidden. No appointment linked to this encounter." });
+  }
+
+  const allowedStatuses = new Set(["ongoing", "imaging"]);
+  if (!allowedStatuses.has(appointment.status)) {
+    return res.status(403).json({
+      error: `XRAY users can only modify media while the appointment is 'ongoing' or 'imaging'. Current status: '${appointment.status}'.`,
+    });
+  }
+
+  if (appointment.branchId !== userBranchId) {
+    return res.status(403).json({
+      error: "Forbidden. This appointment belongs to a different branch.",
+    });
+  }
+
+  return next();
+}
 
   // All other roles are forbidden
   return res.status(403).json({ error: "Forbidden. Insufficient role." });
