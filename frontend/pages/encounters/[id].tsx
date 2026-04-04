@@ -292,6 +292,7 @@ export default function EncounterAdminPage() {
       }[];
     }[]
   >([]);
+  const [nursesForEncounterLoading, setNursesForEncounterLoading] = useState(false);
   const [changingNurse, setChangingNurse] = useState(false);
 
   const [visitCard, setVisitCard] = useState<VisitCard | null>(null);
@@ -552,6 +553,7 @@ export default function EncounterAdminPage() {
     };
 
     const loadNursesForEncounter = async () => {
+      setNursesForEncounterLoading(true);
       try {
         const res = await fetch(`/api/encounters/${id}/nurses`);
         const json = await res.json().catch(() => null);
@@ -562,6 +564,8 @@ export default function EncounterAdminPage() {
         }
       } catch {
         setNursesForEncounter([]);
+      } finally {
+        setNursesForEncounterLoading(false);
       }
     };
 
@@ -1624,6 +1628,9 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
         serviceId: serverRow.serviceId ?? null,
         serviceSearchText,
         assignedTo: serverRow.assignedTo ?? "DOCTOR",
+        // Preserve nurseId from backend response (fix: backend now includes it); fall back to
+        // the original row value so it is never silently dropped to undefined.
+        nurseId: serverRow.nurseId ?? originalRow?.nurseId ?? null,
 
         // Indicator data (now saved atomically with diagnosis)
         indicatorIds: Array.isArray(serverRow.indicatorIds) ? serverRow.indicatorIds : [],
@@ -1699,6 +1706,10 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
         // Update savedDxRows with fresh problemTexts and serviceTexts from backend
         const refreshedDxRows: EditableDiagnosis[] = savedDxRows.map((savedRow) => {
           const backendDx = encounterData.encounterDiagnoses?.find((dx: any) => dx.id === savedRow.id);
+          // Restore nurseId and assignedTo from the linked encounter service meta
+          const linkedSvc = (encounterData.encounterServices || []).find(
+            (svc: any) => (svc.meta as any)?.diagnosisId === savedRow.id
+          );
           return {
             ...savedRow,
             // Preserve draftAttachments from backend refresh
@@ -1706,6 +1717,9 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
             problemTexts: backendDx?.problemTexts || [],
             draftProblemTexts: undefined, // Clear drafts, use saved data
             draftServiceTexts: undefined, // Clear drafts, use saved data
+            // Restore nurseId from encounter service meta (prevents loss after save)
+            assignedTo: ((linkedSvc?.meta as any)?.assignedTo as AssignedTo) ?? savedRow.assignedTo ?? "DOCTOR",
+            nurseId: (linkedSvc?.meta as any)?.nurseId ?? null,
           };
         });
         
@@ -2252,6 +2266,7 @@ const handleFinishEncounter = async () => {
               encounterServices={editableServices}
               branchId={encounter?.patientBook?.patient?.branchId}
               nurseOptions={nursesForEncounter.map((n) => ({ id: n.nurseId, name: n.name ?? null }))}
+              nursesLoading={nursesForEncounterLoading}
               onDiagnosisChange={handleDiagnosisChange}
               onToggleProblem={toggleProblem}
               onNoteChange={handleNoteChange}

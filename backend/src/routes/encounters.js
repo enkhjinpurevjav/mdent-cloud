@@ -1984,6 +1984,7 @@ router.put("/:encounterId/diagnosis-rows", requireEncounterWriteAccess, async (r
           serviceId: encounterService?.serviceId ?? null,
           encounterServiceId: encounterService?.id ?? null,
           assignedTo: encounterService?.meta?.assignedTo ?? "DOCTOR",
+          nurseId: encounterService?.meta?.nurseId ?? null,
           indicatorIds: savedRow.sterilizationIndicators.map((si) => si.indicatorId),
         });
       } catch (rowError) {
