@@ -1,0 +1,22 @@
+:9000 {
+  route {
+    # API first (supports SSE: no gzip + flush)
+    @api path /api/*
+    handle @api {
+      reverse_proxy mdent-dev-backend:8080 {
+        flush_interval -1
+      }
+    }
+
+    # Optional: make it explicit that dev media isn't configured
+    @media path /media/*
+    handle @media {
+      respond "Dev media is not configured" 404
+    }
+
+    # Everything else -> dev frontend
+    handle {
+      reverse_proxy mdent-dev-frontend:3000
+    }
+  }
+}
