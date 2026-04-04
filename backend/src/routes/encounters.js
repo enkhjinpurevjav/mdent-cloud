@@ -679,7 +679,7 @@ router.put("/:id/consent", requireEncounterWriteAccess, async (req, res) => {
  * GET /api/encounters/:id/nurses
  * Returns all active nurses in the encounter's branch.
  */
-router.get("/:id/nurses", async (req, res) => {
+router.get("/:id/nurses", authenticateJWT, async (req, res) => {
   try {
     const encounterId = Number(req.params.id);
     if (!encounterId || Number.isNaN(encounterId)) {
@@ -1863,6 +1863,14 @@ router.put("/:encounterId/diagnosis-rows", requireEncounterWriteAccess, async (r
                 assignedTo,
                 diagnosisId: diagnosisRowId,
               };
+
+              // Persist nurseId when the service is assigned to a nurse
+              if (assignedTo === "NURSE" && row.nurseId != null) {
+                const nurseId = Number(row.nurseId);
+                if (Number.isFinite(nurseId) && nurseId > 0) {
+                  meta.nurseId = nurseId;
+                }
+              }
 
               // Add toothScope for imaging encounters
               if (isImagingEncounter) {

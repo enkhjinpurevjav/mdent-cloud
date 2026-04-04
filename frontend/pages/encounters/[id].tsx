@@ -1564,6 +1564,7 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
           indicatorIds: Array.isArray(row.indicatorIds) ? row.indicatorIds : [],
           serviceId: row.serviceId ?? null,
           assignedTo: row.assignedTo ?? "DOCTOR",
+          nurseId: row.nurseId ?? null,
           toolLineDrafts, // Includes both existing and new selections
         };
       }),
