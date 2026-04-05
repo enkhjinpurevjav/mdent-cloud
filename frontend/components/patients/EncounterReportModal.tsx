@@ -121,6 +121,7 @@ type ReportData = {
   encounter: {
     id: number;
     visitDate: string;
+    visitDateNaive?: string | null;
     notes?: string | null;
   };
   diagnoses: EncounterDiagnosis[];
@@ -290,7 +291,7 @@ export default function EncounterReportModal({
                 </div>
                 <div className="mb-1">
                   <strong>Үзлэгийн огноо:</strong>{" "}
-                  {formatDateTime(data.encounter.visitDate)}
+                  {data.encounter.visitDateNaive || "-"}
                 </div>
                 <div className="mb-1">
                   <strong>Салбар:</strong> {data.branch.name}
