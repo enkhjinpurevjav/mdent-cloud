@@ -120,7 +120,7 @@ function AppContent({ Component, pageProps }: AppProps) {
   const useNurseLayout = isNursePath(router.pathname);
   const useReceptionLayout = isReceptionPath(router.pathname);
   const useXrayLayout = isXrayPath(router.pathname);
-  const useBranchKioskLayout = isBranchKioskPath(router.pathname);
+  const useBranchKioskLayout = isBranchKioskPath(router.pathname) || userRole === "branch_kiosk";
 
   // Wide layout for appointments pages (admin + reception) to support many doctor columns
   const wide = isAppointmentsPath(router.pathname);
