@@ -629,24 +629,26 @@ useEffect(() => {
               gap: 12,
             }}
           >
-            {/* Hamburger button - mobile only */}
-            <button
-              type="button"
-              className="lg:hidden"
-              onClick={() => setNavOpen(true)}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "white",
-                fontSize: 24,
-                cursor: "pointer",
-                padding: "4px 8px",
-                lineHeight: 1,
-              }}
-              aria-label="Цэс нээх"
-            >
-              ☰
-            </button>
+            {/* Hamburger button - mobile only, hidden when sidebar is disabled */}
+            {!hideSidebar && (
+              <button
+                type="button"
+                className="lg:hidden"
+                onClick={() => setNavOpen(true)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "white",
+                  fontSize: 24,
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                  lineHeight: 1,
+                }}
+                aria-label="Цэс нээх"
+              >
+                ☰
+              </button>
+            )}
        
 <img
   src="/mdent.svg"
@@ -772,7 +774,8 @@ useEffect(() => {
           </div>
         </header>
 
-        {/* Mobile navigation drawer */}
+        {/* Mobile navigation drawer - hidden when sidebar is disabled */}
+        {!hideSidebar && (
         <Drawer side="left" open={navOpen} onClose={() => setNavOpen(false)}>
           {/* Sidebar logo/header */}
           <div
@@ -1005,6 +1008,7 @@ useEffect(() => {
             <div>Copyright © 2025 - M Peak LLC</div>
           </div>
         </Drawer>
+        )}
 
         <main
           style={{
