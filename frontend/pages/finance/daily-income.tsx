@@ -40,6 +40,7 @@ type DailyIncomeResponse = {
 
 type Branch = { id: number; name: string };
 type User = { id: number; name: string | null; ovog: string | null };
+type PaymentProvider = { id: number; name: string };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -113,15 +114,21 @@ function EyeIcon() {
 
 function DetailRows({
   items,
+  method,
+  providerMap,
   onOpenReport,
 }: {
   items: PaymentItem[];
+  method: string;
+  providerMap: Map<number, string>;
   onOpenReport: (appointmentId: number) => void;
 }) {
+  const showProvider = method === "APPLICATION" || method === "INSURANCE";
+
   if (items.length === 0) {
     return (
       <tr>
-        <td colSpan={8} className="py-3 pl-10 text-sm text-gray-400 italic">
+        <td colSpan={showProvider ? 9 : 8} className="py-3 pl-10 text-sm text-gray-400 italic">
           Дэлгэрэнгүй мэдээлэл байхгүй
         </td>
       </tr>
@@ -136,52 +143,65 @@ function DetailRows({
         <td className="px-2 py-2 text-xs font-semibold text-gray-500">Нэхэмжлэл #</td>
         <td className="px-2 py-2 text-xs font-semibold text-gray-500">Үзлэгийн огноо</td>
         <td className="px-2 py-2 text-xs font-semibold text-gray-500">Эмч</td>
+        {showProvider && (
+          <td className="px-2 py-2 text-xs font-semibold text-gray-500">Нийлүүлэгч</td>
+        )}
         <td className="px-2 py-2 text-right text-xs font-semibold text-gray-500">Дүн</td>
         <td className="px-2 py-2 text-xs font-semibold text-gray-500">Төлбөр хураасан</td>
         <td className="px-2 py-2 text-xs font-semibold text-gray-500">Үйлдэл</td>
       </tr>
-      {items.map((item, idx) => (
-        <tr
-          key={item.paymentId}
-          className="border-t border-blue-100 bg-blue-50/60 hover:bg-blue-50"
-        >
-          <td className="py-2 pl-10 pr-2 text-sm text-gray-600">{idx + 1}</td>
-          <td className="px-2 py-2 text-sm text-gray-800">
-            {fmtName(item.patientOvog, item.patientName)}
-          </td>
-          <td className="px-2 py-2 text-sm text-gray-600">
-            {item.invoiceId ? `#${item.invoiceId}` : "-"}
-          </td>
-          <td className="px-2 py-2 text-sm text-gray-600">
-            {fmtDatetime(item.scheduledAt || item.visitDate)}
-          </td>
-          <td className="px-2 py-2 text-sm text-gray-800">
-            {fmtName(item.doctorOvog, item.doctorName)}
-          </td>
-          <td className="px-2 py-2 text-right text-sm font-medium text-gray-800">
-            {fmtMnt(item.amount)}
-          </td>
-          <td className="px-2 py-2 text-sm text-gray-600">
-            {fmtName(item.collectedByOvog, item.collectedByName)}
-          </td>
-          <td className="px-2 py-2">
-            {item.appointmentId != null && (
-              <div className="group relative inline-block">
-                <button
-                  aria-label="Тайлан харах"
-                  className="rounded-md border border-gray-300 bg-white p-1.5 text-gray-500 hover:bg-gray-50 hover:text-blue-600"
-                  onClick={() => onOpenReport(item.appointmentId!)}
-                >
-                  <EyeIcon />
-                </button>
-                <span className="pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
-                  Үзлэгийн тайлан
-                </span>
-              </div>
+      {items.map((item, idx) => {
+        const providerId = item.meta && typeof item.meta.providerId === "number"
+          ? item.meta.providerId
+          : null;
+        const providerName = providerId != null ? (providerMap.get(providerId) ?? "-") : "-";
+
+        return (
+          <tr
+            key={item.paymentId}
+            className="border-t border-blue-100 bg-blue-50/60 hover:bg-blue-50"
+          >
+            <td className="py-2 pl-10 pr-2 text-sm text-gray-600">{idx + 1}</td>
+            <td className="px-2 py-2 text-sm text-gray-800">
+              {fmtName(item.patientOvog, item.patientName)}
+            </td>
+            <td className="px-2 py-2 text-sm text-gray-600">
+              {item.invoiceId ? `#${item.invoiceId}` : "-"}
+            </td>
+            <td className="px-2 py-2 text-sm text-gray-600">
+              {fmtDatetime(item.scheduledAt || item.visitDate)}
+            </td>
+            <td className="px-2 py-2 text-sm text-gray-800">
+              {fmtName(item.doctorOvog, item.doctorName)}
+            </td>
+            {showProvider && (
+              <td className="px-2 py-2 text-sm text-gray-600">{providerName}</td>
             )}
-          </td>
-        </tr>
-      ))}
+            <td className="px-2 py-2 text-right text-sm font-medium text-gray-800">
+              {fmtMnt(item.amount)}
+            </td>
+            <td className="px-2 py-2 text-sm text-gray-600">
+              {fmtName(item.collectedByOvog, item.collectedByName)}
+            </td>
+            <td className="px-2 py-2">
+              {item.appointmentId != null && (
+                <div className="group relative inline-block">
+                  <button
+                    aria-label="Тайлан харах"
+                    className="rounded-md border border-gray-300 bg-white p-1.5 text-gray-500 hover:bg-gray-50 hover:text-blue-600"
+                    onClick={() => onOpenReport(item.appointmentId!)}
+                  >
+                    <EyeIcon />
+                  </button>
+                  <span className="pointer-events-none absolute bottom-full left-1/2 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    Үзлэгийн тайлан
+                  </span>
+                </div>
+              )}
+            </td>
+          </tr>
+        );
+      })}
     </>
   );
 }
@@ -197,6 +217,7 @@ export default function DailyIncomePage() {
   // Reference data
   const [branches, setBranches] = useState<Branch[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [providerMap, setProviderMap] = useState<Map<number, string>>(new Map());
 
   // Report state
   const [data, setData] = useState<DailyIncomeResponse | null>(null);
@@ -219,6 +240,24 @@ export default function DailyIncomePage() {
       .then((r) => r.json())
       .then((d) => setBranches(Array.isArray(d) ? d : []))
       .catch(() => setBranches([]));
+  }, []);
+
+  // Load payment providers (for APPLICATION and INSURANCE) on mount
+  React.useEffect(() => {
+    fetch("/api/payment-settings")
+      .then((r) => r.json())
+      .then((d: { methods?: Array<{ key: string; providers?: PaymentProvider[] }> }) => {
+        const map = new Map<number, string>();
+        for (const m of d.methods ?? []) {
+          if (m.key === "APPLICATION" || m.key === "INSURANCE") {
+            for (const p of m.providers ?? []) {
+              map.set(p.id, p.name);
+            }
+          }
+        }
+        setProviderMap(map);
+      })
+      .catch(() => setProviderMap(new Map()));
   }, []);
 
   // Load users when branch changes
@@ -557,7 +596,7 @@ export default function DailyIncomePage() {
 
                         {/* Expanded detail rows */}
                         {expandedMethods.has(group.method) && (
-                          <DetailRows items={group.items} onOpenReport={openReport} />
+                          <DetailRows items={group.items} method={group.method} providerMap={providerMap} onOpenReport={openReport} />
                         )}
 
                         {/* For print: always show detail rows */}
@@ -566,16 +605,27 @@ export default function DailyIncomePage() {
                             <td colSpan={5}>
                               <table className="w-full text-xs">
                                 <tbody>
-                                  {group.items.map((item) => (
-                                    <tr key={item.paymentId} className="border-t border-blue-100 bg-blue-50/60">
-                                      <td className="py-1 pl-10 pr-2">{fmtName(item.patientOvog, item.patientName)}</td>
-                                      <td className="px-2 py-1">#{item.invoiceId}</td>
-                                      <td className="px-2 py-1">{fmtDatetime(item.scheduledAt || item.visitDate)}</td>
-                                      <td className="px-2 py-1">{fmtName(item.doctorOvog, item.doctorName)}</td>
-                                      <td className="px-2 py-1 text-right">{fmtMnt(item.amount)}</td>
-                                      <td className="px-2 py-1">{fmtName(item.collectedByOvog, item.collectedByName)}</td>
-                                    </tr>
-                                  ))}
+                                  {group.items.map((item) => {
+                                    const showProvider = group.method === "APPLICATION" || group.method === "INSURANCE";
+                                    const providerId = showProvider && item.meta && typeof item.meta.providerId === "number"
+                                      ? item.meta.providerId
+                                      : null;
+                                    const providerName = providerId != null ? (providerMap.get(providerId) ?? "-") : "-";
+
+                                    return (
+                                      <tr key={item.paymentId} className="border-t border-blue-100 bg-blue-50/60">
+                                        <td className="py-1 pl-10 pr-2">{fmtName(item.patientOvog, item.patientName)}</td>
+                                        <td className="px-2 py-1">#{item.invoiceId}</td>
+                                        <td className="px-2 py-1">{fmtDatetime(item.scheduledAt || item.visitDate)}</td>
+                                        <td className="px-2 py-1">{fmtName(item.doctorOvog, item.doctorName)}</td>
+                                        {showProvider && (
+                                          <td className="px-2 py-1">{providerName}</td>
+                                        )}
+                                        <td className="px-2 py-1 text-right">{fmtMnt(item.amount)}</td>
+                                        <td className="px-2 py-1">{fmtName(item.collectedByOvog, item.collectedByName)}</td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </td>
