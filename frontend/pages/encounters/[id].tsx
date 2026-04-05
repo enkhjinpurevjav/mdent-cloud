@@ -656,6 +656,7 @@ const loadEncounter = async () => {
       const assignedTo: AssignedTo =
         ((linkedService?.meta as any)?.assignedTo as AssignedTo) || "DOCTOR";
       const nurseId: number | null = (linkedService?.meta as any)?.nurseId ?? null;
+      const qty: number = (linkedService?.meta as any)?.qty ?? 1;
 
       // Build service search text with same format as after save (code – name)
       let serviceSearchText = "";
@@ -673,6 +674,7 @@ const loadEncounter = async () => {
         serviceSearchText,
         assignedTo,
         nurseId,
+        qty,
         draftServiceTexts,
       };
     });
@@ -1567,6 +1569,7 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
           selectedProblemIds: Array.isArray(row.selectedProblemIds) ? row.selectedProblemIds : [],
           indicatorIds: Array.isArray(row.indicatorIds) ? row.indicatorIds : [],
           serviceId: row.serviceId ?? null,
+          qty: row.qty ?? 1,
           assignedTo: row.assignedTo ?? "DOCTOR",
           nurseId: row.nurseId ?? null,
           toolLineDrafts, // Includes both existing and new selections
@@ -1720,6 +1723,7 @@ const apptRes = await fetch(`/api/appointments?${apptParams}`);
             // Restore nurseId from encounter service meta (prevents loss after save)
             assignedTo: ((linkedSvc?.meta as any)?.assignedTo as AssignedTo) ?? savedRow.assignedTo ?? "DOCTOR",
             nurseId: (linkedSvc?.meta as any)?.nurseId ?? null,
+            qty: (linkedSvc?.meta as any)?.qty ?? savedRow.qty ?? 1,
           };
         });
         
@@ -1808,6 +1812,7 @@ setRows((prev) =>
       serviceSearchText: svc ? `${svc.code} – ${svc.name}` : dxRow.serviceSearchText,
       assignedTo: (linked.meta as any)?.assignedTo ?? dxRow.assignedTo ?? "DOCTOR",
       nurseId: (linked.meta as any)?.nurseId ?? null,
+      qty: (linked.meta as any)?.qty ?? dxRow.qty ?? 1,
     };
   })
 );
@@ -2033,7 +2038,8 @@ const handleFinishEncounter = async () => {
     if (!r.serviceId) return sum;
     const svc = services.find((x) => x.id === r.serviceId);
     const price = svc?.price ?? 0;
-    return sum + price;
+    const qty = r.qty ?? 1;
+    return sum + price * qty;
   }, 0);
 
   if (!id || typeof id !== "string") {

@@ -408,7 +408,40 @@ export default function DiagnosesEditor({
                 </div>
               </div>
 
-              {/* Imaging assignedTo selector */}
+              {/* Quantity (Тоо хэмжээ) */}
+              <div
+                style={{
+                  marginBottom: 8,
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                }}
+              >
+                <label style={{ fontSize: 12, color: "#374151", whiteSpace: "nowrap" }}>
+                  Тоо хэмжээ:
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={row.qty ?? 1}
+                  disabled={isLocked}
+                  onChange={(e) => {
+                    if (isLocked) return;
+                    const n = parseInt(e.target.value, 10);
+                    onUpdateRowField(row.localId, "qty", Number.isFinite(n) && n >= 1 ? n : 1);
+                  }}
+                  style={{
+                    width: 72,
+                    borderRadius: 6,
+                    border: "1px solid #d1d5db",
+                    padding: "4px 8px",
+                    fontSize: 13,
+                    background: isLocked ? "#f3f4f6" : "#ffffff",
+                    cursor: isLocked ? "not-allowed" : "text",
+                    opacity: isLocked ? 0.6 : 1,
+                  }}
+                />
+              </div>
               {isImaging && (
                 <div
                   style={{

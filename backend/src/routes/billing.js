@@ -266,7 +266,9 @@ router.get("/encounters/:id/invoice", async (req, res) => {
     const provisionalItems =
       encounter.encounterServices?.map((es) => {
         const unitPrice = es.service?.price != null ? es.service.price : es.price || 0;
-        const quantity = es.quantity || 1;
+        const quantity = (es.meta?.qty != null && Number.isFinite(Number(es.meta.qty)) && Number(es.meta.qty) >= 1)
+          ? Math.floor(Number(es.meta.qty))
+          : (es.quantity || 1);
         const lineTotal = unitPrice * quantity;
 
         return {
