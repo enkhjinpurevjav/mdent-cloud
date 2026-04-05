@@ -50,6 +50,23 @@ router.get("/stream", (req, res) => {
   });
 });
 
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+// Server-local (naive) datetime: "YYYY.MM.DD HH:mm"
+function toNaiveYmdHm(dt) {
+  if (!dt) return null;
+  const d = dt instanceof Date ? dt : new Date(dt);
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = pad2(d.getMonth() + 1);
+  const day = pad2(d.getDate());
+  const hh = pad2(d.getHours());
+  const mm = pad2(d.getMinutes());
+  return `${y}.${m}.${day} ${hh}:${mm}`;
+}
+
 /** Format a Prisma user relation object into the { id, name, ovog } shape used by the frontend. */
 function formatAuditUser(user) {
   if (!user) return null;
@@ -1413,6 +1430,7 @@ router.get("/:id/report", async (req, res) => {
       encounter: {
         id: encounter.id,
         visitDate: encounter.visitDate,
+        visitDateNaive: toNaiveYmdHm(encounter.visitDate),
         notes: encounter.notes,
       },
       diagnoses: encounter.diagnoses,
