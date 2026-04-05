@@ -3,6 +3,25 @@ import prisma from "../../db.js";
 
 const router = express.Router();
 
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+// Server-local (naive) datetime: "YYYY.MM.DD HH:mm"
+function toNaiveYmdHm(dt) {
+  if (!dt) return null;
+  const d = dt instanceof Date ? dt : new Date(dt);
+  if (Number.isNaN(d.getTime())) return null;
+
+  const y = d.getFullYear();
+  const m = pad2(d.getMonth() + 1);
+  const day = pad2(d.getDate());
+  const hh = pad2(d.getHours());
+  const mm = pad2(d.getMinutes());
+
+  return `${y}.${m}.${day} ${hh}:${mm}`;
+}
+
 /**
  * GET /api/admin/daily-income
  * Returns daily income grouped by payment method for a given date, branch, and optional user.
@@ -22,7 +41,9 @@ router.get("/daily-income", async (req, res) => {
 
     const [y, m, d] = date.split("-").map(Number);
     if (!y || !m || !d) {
-      return res.status(400).json({ error: "Invalid date format, expected YYYY-MM-DD" });
+      return res
+        .status(400)
+        .json({ error: "Invalid date format, expected YYYY-MM-DD" });
     }
 
     const dayStart = new Date(y, m - 1, d, 0, 0, 0, 0);
@@ -102,7 +123,9 @@ router.get("/daily-income", async (req, res) => {
       where: { isActive: true },
       select: { key: true, label: true },
     });
-    const methodLabelMap = Object.fromEntries(methodConfigs.map((c) => [c.key, c.label]));
+    const methodLabelMap = Object.fromEntries(
+      methodConfigs.map((c) => [c.key, c.label])
+    );
 
     // Group payments by method
     const groupMap = new Map();
@@ -137,6 +160,7 @@ router.get("/daily-income", async (req, res) => {
         patientOvog: patient?.ovog ?? null,
         scheduledAt: encounter?.visitDate ?? null,
         visitDate: encounter?.visitDate ?? null,
+        visitDateNaive: toNaiveYmdHm(encounter?.visitDate),
         doctorId: doctor?.id ?? null,
         doctorName: doctor?.name ?? null,
         doctorOvog: doctor?.ovog ?? null,
