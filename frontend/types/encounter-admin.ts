@@ -130,6 +130,7 @@ export type EncounterService = {
     diagnosisId?: number | null;
     nurseId?: number | null;
     toothScope?: string;
+    qty?: number;
   } | null;
   texts?: EncounterServiceText[];
 };
@@ -197,6 +198,8 @@ export type EditableDiagnosis = EncounterDiagnosisRow & {
   nurseId?: number | null;
   // Dirty tracking: true if user has explicitly modified indicators
   indicatorsDirty?: boolean;
+  // Quantity multiplier for the encounter service
+  qty?: number;
   // Draft text arrays for local editing before save
   draftProblemTexts?: string[];
   draftServiceTexts?: string[];

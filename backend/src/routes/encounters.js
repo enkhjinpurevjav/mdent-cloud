@@ -1615,7 +1615,6 @@ router.put("/:id/diagnoses/:diagnosisId/sterilization-indicators", requireEncoun
  * - Replaces sterilization indicators to match indicatorIds exactly
  * - Replaces service for that diagnosis row (delete if serviceId is null/missing)
  * - After all row attempts, hard-deletes any EncounterDiagnosis not in payload
- * - Enforces only one "Бүх шүд" row per encounter
  * - Partial save allowed: failed rows don't prevent successful rows from saving
  * 
  * RESPONSE:
@@ -1675,16 +1674,6 @@ router.put("/:encounterId/diagnosis-rows", requireEncounterWriteAccess, async (r
           return res.status(400).json({ error: "Мэс заслын зөвшөөрлийн хуудас бөглөөгүй байна" });
         }
       }
-    }
-
-    // Validate "Бүх шүд" uniqueness in payload
-    const generalServiceRows = rows.filter(
-      (r) => r.toothCode && r.toothCode.trim() === "Бүх шүд"
-    );
-    if (generalServiceRows.length > 1) {
-      return res.status(400).json({
-        error: "Only one general service row (toothCode='Бүх шүд') is allowed per encounter",
-      });
     }
 
     const savedRows = [];
@@ -1859,9 +1848,12 @@ router.put("/:encounterId/diagnosis-rows", requireEncounterWriteAccess, async (r
             if (service) {
               const effectivePrice = service.category === "PREVIOUS" ? 0 : service.price;
               // Build meta object, preserving keys and adding toothScope for imaging
+              const rawQty = Number(row.qty);
+              const qty = Number.isFinite(rawQty) && rawQty >= 1 ? Math.floor(rawQty) : 1;
               const meta = {
                 assignedTo,
                 diagnosisId: diagnosisRowId,
+                qty,
               };
 
               // Persist nurseId when the service is assigned to a nurse
