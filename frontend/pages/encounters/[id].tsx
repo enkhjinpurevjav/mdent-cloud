@@ -2418,33 +2418,55 @@ const handleFinishEncounter = async () => {
           {/* Doctor-mode sticky bottom action bar */}
           {isDoctor && (
             <div
-              className="fixed bottom-[60px] left-0 right-0 z-50 bg-white border-t border-gray-200 px-4 py-3 flex gap-3 sm:max-w-[720px] sm:mx-auto"
+              className="fixed bottom-[60px] left-0 right-0 z-50 bg-white border-t border-gray-200 px-4 py-3 flex flex-col gap-2 sm:max-w-[720px] sm:mx-auto"
             >
-              <button
-                type="button"
-                disabled={saving || finishing}
-                onClick={async () => {
-                  if (saving || finishing) return;
-                  try {
-                    await handleSaveDiagnoses();
-                    await savePrescription();
-                  } catch (err: any) {
-                    console.error("Save failed:", err);
-                    setSaveError(err?.message || "Хадгалахад алдаа гарлаа");
-                  }
-                }}
-                className="flex-1 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 font-semibold text-sm disabled:opacity-50"
-              >
-                {saving ? "Хадгалж байна..." : "Онош хадгалах"}
-              </button>
-              <button
-                type="button"
-                disabled={saving || finishing}
-                onClick={handleFinishEncounter}
-                className="flex-1 py-2.5 rounded-lg bg-[#131a29] text-white font-semibold text-sm disabled:opacity-50"
-              >
-                {finishing ? "Дуусгаж байна..." : "Үзлэг дуусгах"}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  disabled={saving || finishing}
+                  onClick={async () => {
+                    if (saving || finishing) return;
+                    try {
+                      await handleSaveDiagnoses();
+                      await savePrescription();
+                    } catch (err: any) {
+                      console.error("Save failed:", err);
+                      setSaveError(err?.message || "Хадгалахад алдаа гарлаа");
+                    }
+                  }}
+                  className="flex-1 py-2.5 rounded-lg border border-gray-300 bg-white text-gray-700 font-semibold text-sm disabled:opacity-50"
+                >
+                  {saving ? "Хадгалж байна..." : "Онош хадгалах"}
+                </button>
+                <button
+                  type="button"
+                  disabled={saving || finishing}
+                  onClick={handleFinishEncounter}
+                  className="flex-1 py-2.5 rounded-lg bg-[#131a29] text-white font-semibold text-sm disabled:opacity-50"
+                >
+                  {finishing ? "Дуусгаж байна..." : "Үзлэг дуусгах"}
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500 shrink-0">Сувилагч</span>
+                <select
+                  value={encounter.nurseId || ""}
+                  onChange={(e) => handleChangeNurse(e.target.value)}
+                  disabled={changingNurse}
+                  className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-[13px] disabled:opacity-60"
+                >
+                  <option value="">Сонгоогүй</option>
+                  {nursesForEncounter.map((n) => (
+                    <option key={n.nurseId} value={n.nurseId}>
+                      {formatStaffName({
+                        name: n.name || undefined,
+                        ovog: n.ovog || undefined,
+                        email: n.email,
+                      })}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
         </>
