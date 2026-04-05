@@ -13,6 +13,7 @@ type PaymentItem = {
   patientOvog: string | null;
   scheduledAt: string | null;
   visitDate: string | null;
+  visitDateNaive?: string | null;
   doctorId: number | null;
   doctorName: string | null;
   doctorOvog: string | null;
@@ -48,13 +49,17 @@ function fmtMnt(v: number) {
   return `${Number(v || 0).toLocaleString("mn-MN")} ₮`;
 }
 
-function fmtName(ovog: string | null | undefined, name: string | null | undefined) {
+function fmtName(
+  ovog: string | null | undefined,
+  name: string | null | undefined
+) {
   const n = (name || "").trim();
   const o = (ovog || "").trim();
   if (o && n) return `${o[0]}. ${n}`;
   return n || o || "-";
 }
 
+// Keep (used elsewhere like CSV fallback if needed), but Detail rows use visitDateNaive for no-shift.
 function fmtDatetime(iso: string | null | undefined) {
   if (!iso) return "-";
   const d = new Date(iso);
@@ -70,7 +75,10 @@ function fmtDatetime(iso: string | null | undefined) {
 
 function getTodayStr() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -79,7 +87,9 @@ function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      className={`h-4 w-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+      className={`h-4 w-4 transition-transform duration-200 ${
+        open ? "rotate-180" : ""
+      }`}
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -100,7 +110,11 @@ function EyeIcon() {
       stroke="currentColor"
       strokeWidth={2}
     >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+      />
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -128,7 +142,10 @@ function DetailRows({
   if (items.length === 0) {
     return (
       <tr>
-        <td colSpan={showProvider ? 9 : 8} className="py-3 pl-10 text-sm text-gray-400 italic">
+        <td
+          colSpan={showProvider ? 9 : 8}
+          className="py-3 pl-10 text-sm text-gray-400 italic"
+        >
           Дэлгэрэнгүй мэдээлэл байхгүй
         </td>
       </tr>
@@ -138,30 +155,51 @@ function DetailRows({
   return (
     <>
       <tr className="bg-blue-50">
-        <td className="py-2 pl-10 pr-2 text-xs font-semibold text-gray-500">#</td>
-        <td className="px-2 py-2 text-xs font-semibold text-gray-500">Үйлчлүүлэгч</td>
-        <td className="px-2 py-2 text-xs font-semibold text-gray-500">Нэхэмжлэл #</td>
-        <td className="px-2 py-2 text-xs font-semibold text-gray-500">Үзлэгийн огноо</td>
+        <td className="py-2 pl-10 pr-2 text-xs font-semibold text-gray-500">
+          #
+        </td>
+        <td className="px-2 py-2 text-xs font-semibold text-gray-500">
+          Үйлчлүүлэгч
+        </td>
+        <td className="px-2 py-2 text-xs font-semibold text-gray-500">
+          Нэхэмжлэл #
+        </td>
+        <td className="px-2 py-2 text-xs font-semibold text-gray-500">
+          Үзлэгийн огноо
+        </td>
         <td className="px-2 py-2 text-xs font-semibold text-gray-500">Эмч</td>
         {showProvider && (
-          <td className="px-2 py-2 text-xs font-semibold text-gray-500">Нийлүүлэгч</td>
+          <td className="px-2 py-2 text-xs font-semibold text-gray-500">
+            Нийлүүлэгч
+          </td>
         )}
-        <td className="px-2 py-2 text-right text-xs font-semibold text-gray-500">Дүн</td>
-        <td className="px-2 py-2 text-xs font-semibold text-gray-500">Төлбөр хураасан</td>
-        <td className="px-2 py-2 text-xs font-semibold text-gray-500">Үйлдэл</td>
+        <td className="px-2 py-2 text-right text-xs font-semibold text-gray-500">
+          Дүн
+        </td>
+        <td className="px-2 py-2 text-xs font-semibold text-gray-500">
+          Төлбөр хураасан
+        </td>
+        <td className="px-2 py-2 text-xs font-semibold text-gray-500">
+          Үйлдэл
+        </td>
       </tr>
+
       {items.map((item, idx) => {
-        const providerId = item.meta && typeof item.meta.providerId === "number"
-          ? item.meta.providerId
-          : null;
-        const providerName = providerId != null ? (providerMap.get(providerId) ?? "-") : "-";
+        const providerId =
+          item.meta && typeof (item.meta as any).providerId === "number"
+            ? ((item.meta as any).providerId as number)
+            : null;
+        const providerName =
+          providerId != null ? providerMap.get(providerId) ?? "-" : "-";
 
         return (
           <tr
             key={item.paymentId}
             className="border-t border-blue-100 bg-blue-50/60 hover:bg-blue-50"
           >
-            <td className="py-2 pl-10 pr-2 text-sm text-gray-600">{idx + 1}</td>
+            <td className="py-2 pl-10 pr-2 text-sm text-gray-600">
+              {idx + 1}
+            </td>
             <td className="px-2 py-2 text-sm text-gray-800">
               {fmtName(item.patientOvog, item.patientName)}
             </td>
@@ -169,13 +207,15 @@ function DetailRows({
               {item.invoiceId ? `#${item.invoiceId}` : "-"}
             </td>
             <td className="px-2 py-2 text-sm text-gray-600">
-              {fmtDatetime(item.scheduledAt || item.visitDate)}
+              {item.visitDateNaive || "-"}
             </td>
             <td className="px-2 py-2 text-sm text-gray-800">
               {fmtName(item.doctorOvog, item.doctorName)}
             </td>
             {showProvider && (
-              <td className="px-2 py-2 text-sm text-gray-600">{providerName}</td>
+              <td className="px-2 py-2 text-sm text-gray-600">
+                {providerName}
+              </td>
             )}
             <td className="px-2 py-2 text-right text-sm font-medium text-gray-800">
               {fmtMnt(item.amount)}
@@ -217,7 +257,9 @@ export default function DailyIncomePage() {
   // Reference data
   const [branches, setBranches] = useState<Branch[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [providerMap, setProviderMap] = useState<Map<number, string>>(new Map());
+  const [providerMap, setProviderMap] = useState<Map<number, string>>(
+    new Map()
+  );
 
   // Report state
   const [data, setData] = useState<DailyIncomeResponse | null>(null);
@@ -226,10 +268,14 @@ export default function DailyIncomePage() {
 
   // UI state
   const [submitted, setSubmitted] = useState(false);
-  const [expandedMethods, setExpandedMethods] = useState<Set<string>>(new Set());
+  const [expandedMethods, setExpandedMethods] = useState<Set<string>>(
+    new Set()
+  );
 
   // Encounter modal
-  const [reportAppointmentId, setReportAppointmentId] = useState<number | null>(null);
+  const [reportAppointmentId, setReportAppointmentId] = useState<number | null>(
+    null
+  );
   const [reportOpen, setReportOpen] = useState(false);
 
   const printRef = useRef<HTMLDivElement>(null);
@@ -246,17 +292,21 @@ export default function DailyIncomePage() {
   React.useEffect(() => {
     fetch("/api/payment-settings")
       .then((r) => r.json())
-      .then((d: { methods?: Array<{ key: string; providers?: PaymentProvider[] }> }) => {
-        const map = new Map<number, string>();
-        for (const m of d.methods ?? []) {
-          if (m.key === "APPLICATION" || m.key === "INSURANCE") {
-            for (const p of m.providers ?? []) {
-              map.set(p.id, p.name);
+      .then(
+        (d: {
+          methods?: Array<{ key: string; providers?: PaymentProvider[] }>;
+        }) => {
+          const map = new Map<number, string>();
+          for (const m of d.methods ?? []) {
+            if (m.key === "APPLICATION" || m.key === "INSURANCE") {
+              for (const p of m.providers ?? []) {
+                map.set(p.id, p.name);
+              }
             }
           }
+          setProviderMap(map);
         }
-        setProviderMap(map);
-      })
+      )
       .catch(() => setProviderMap(new Map()));
   }, []);
 
@@ -281,7 +331,8 @@ export default function DailyIncomePage() {
       if (userId) params.set("userId", String(userId));
       const res = await fetch(`/api/admin/daily-income?${params}`);
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Мэдээлэл татахад алдаа гарлаа");
+      if (!res.ok)
+        throw new Error(json.error || "Мэдээлэл татахад алдаа гарлаа");
       setData(json);
       setSubmitted(true);
     } catch (e: unknown) {
@@ -322,17 +373,25 @@ export default function DailyIncomePage() {
       `Өдрийн орлогын тайлан: ${data.date}`,
       "",
       "Төлбөрийн төрөл,Тоо,Нийт дүн (₮)",
-      ...data.paymentTypes.map(
-        (g) => `"${g.label}",${g.count},${g.totalAmount}`
-      ),
-      `"Нийт",${data.paymentTypes.reduce((s, g) => s + g.count, 0)},${data.grandTotal}`,
+      ...data.paymentTypes.map((g) => `"${g.label}",${g.count},${g.totalAmount}`),
+      `"Нийт",${data.paymentTypes.reduce((s, g) => s + g.count, 0)},${
+        data.grandTotal
+      }`,
       "",
       "Дэлгэрэнгүй",
       "Төлбөрийн төрөл,Үйлчлүүлэгч,Нэхэмжлэл #,Огноо,Эмч,Дүн (₮),Төлбөр хураасан",
       ...data.paymentTypes.flatMap((g) =>
         g.items.map(
           (item) =>
-            `"${g.label}","${fmtName(item.patientOvog, item.patientName)}",${item.invoiceId},"${fmtDatetime(item.scheduledAt || item.visitDate)}","${fmtName(item.doctorOvog, item.doctorName)}",${item.amount},"${fmtName(item.collectedByOvog, item.collectedByName)}"`
+            `"${g.label}","${fmtName(item.patientOvog, item.patientName)}",${
+              item.invoiceId
+            },"${item.visitDateNaive || ""}","${fmtName(
+              item.doctorOvog,
+              item.doctorName
+            )}",${item.amount},"${fmtName(
+              item.collectedByOvog,
+              item.collectedByName
+            )}"`
         )
       ),
     ];
@@ -382,7 +441,9 @@ export default function DailyIncomePage() {
 
       <main className="w-full px-6 py-6 font-sans" id="daily-income-printable">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold text-gray-900">Өдрийн орлогын тайлан</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Өдрийн орлогын тайлан
+          </h1>
           {submitted && data && (
             <div className="no-print flex gap-2">
               <button
@@ -460,7 +521,9 @@ export default function DailyIncomePage() {
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-gray-600">Хэрэглэгч</label>
+            <label className="text-xs font-semibold text-gray-600">
+              Хэрэглэгч
+            </label>
             <select
               value={userId ?? ""}
               onChange={(e) => setUserId(Number(e.target.value) || null)}
@@ -507,7 +570,9 @@ export default function DailyIncomePage() {
                 d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
               />
             </svg>
-            <p className="text-sm">Огноо болон салбар сонгоод &ldquo;Хайх&rdquo; дарна уу</p>
+            <p className="text-sm">
+              Огноо болон салбар сонгоод &ldquo;Хайх&rdquo; дарна уу
+            </p>
           </div>
         )}
 
@@ -533,7 +598,9 @@ export default function DailyIncomePage() {
             <div className="mb-4 flex flex-wrap gap-3">
               <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-3 text-center">
                 <p className="text-xs text-blue-600">Нийт орлого</p>
-                <p className="text-xl font-bold text-blue-800">{fmtMnt(grandTotal)}</p>
+                <p className="text-xl font-bold text-blue-800">
+                  {fmtMnt(grandTotal)}
+                </p>
               </div>
               <div className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-center">
                 <p className="text-xs text-gray-500">Нийт гүйлгээ</p>
@@ -541,7 +608,9 @@ export default function DailyIncomePage() {
               </div>
               <div className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-center">
                 <p className="text-xs text-gray-500">Төлбөрийн төрөл</p>
-                <p className="text-xl font-bold text-gray-800">{data.paymentTypes.length}</p>
+                <p className="text-xl font-bold text-gray-800">
+                  {data.paymentTypes.length}
+                </p>
               </div>
             </div>
 
@@ -555,26 +624,42 @@ export default function DailyIncomePage() {
                 <table className="w-full border-collapse text-sm">
                   <thead className="bg-gray-50 text-left">
                     <tr>
-                      <th className="px-4 py-3 font-semibold text-gray-600">#</th>
-                      <th className="px-4 py-3 font-semibold text-gray-600">Төлбөрийн төрөл</th>
+                      <th className="px-4 py-3 font-semibold text-gray-600">
+                        #
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-gray-600">
+                        Төлбөрийн төрөл
+                      </th>
                       <th className="px-4 py-3 text-right font-semibold text-gray-600">
                         Гүйлгээний тоо
                       </th>
                       <th className="px-4 py-3 text-right font-semibold text-gray-600">
                         Нийт дүн
                       </th>
-                      <th className="no-print px-4 py-3 font-semibold text-gray-600">Үйлдэл</th>
+                      <th className="no-print px-4 py-3 font-semibold text-gray-600">
+                        Үйлдэл
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.paymentTypes.map((group, idx) => (
                       <React.Fragment key={group.method}>
                         <tr
-                          className={`border-t border-gray-200 ${expandedMethods.has(group.method) ? "bg-blue-50/40" : "hover:bg-gray-50"}`}
+                          className={`border-t border-gray-200 ${
+                            expandedMethods.has(group.method)
+                              ? "bg-blue-50/40"
+                              : "hover:bg-gray-50"
+                          }`}
                         >
-                          <td className="px-4 py-3 text-gray-500">{idx + 1}</td>
-                          <td className="px-4 py-3 font-medium text-gray-800">{group.label}</td>
-                          <td className="px-4 py-3 text-right text-gray-600">{group.count}</td>
+                          <td className="px-4 py-3 text-gray-500">
+                            {idx + 1}
+                          </td>
+                          <td className="px-4 py-3 font-medium text-gray-800">
+                            {group.label}
+                          </td>
+                          <td className="px-4 py-3 text-right text-gray-600">
+                            {group.count}
+                          </td>
                           <td className="px-4 py-3 text-right font-semibold text-gray-800">
                             {fmtMnt(group.totalAmount)}
                           </td>
@@ -588,15 +673,24 @@ export default function DailyIncomePage() {
                               onClick={() => toggleMethod(group.method)}
                               className="flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-blue-600"
                             >
-                              <ChevronIcon open={expandedMethods.has(group.method)} />
-                              {expandedMethods.has(group.method) ? "Хаах" : "Дэлгэрэнгүй"}
+                              <ChevronIcon
+                                open={expandedMethods.has(group.method)}
+                              />
+                              {expandedMethods.has(group.method)
+                                ? "Хаах"
+                                : "Дэлгэрэнгүй"}
                             </button>
                           </td>
                         </tr>
 
                         {/* Expanded detail rows */}
                         {expandedMethods.has(group.method) && (
-                          <DetailRows items={group.items} method={group.method} providerMap={providerMap} onOpenReport={openReport} />
+                          <DetailRows
+                            items={group.items}
+                            method={group.method}
+                            providerMap={providerMap}
+                            onOpenReport={openReport}
+                          />
                         )}
 
                         {/* For print: always show detail rows */}
@@ -606,23 +700,59 @@ export default function DailyIncomePage() {
                               <table className="w-full text-xs">
                                 <tbody>
                                   {group.items.map((item) => {
-                                    const showProvider = group.method === "APPLICATION" || group.method === "INSURANCE";
-                                    const providerId = showProvider && item.meta && typeof item.meta.providerId === "number"
-                                      ? item.meta.providerId
-                                      : null;
-                                    const providerName = providerId != null ? (providerMap.get(providerId) ?? "-") : "-";
+                                    const showProvider =
+                                      group.method === "APPLICATION" ||
+                                      group.method === "INSURANCE";
+                                    const providerId =
+                                      showProvider &&
+                                      item.meta &&
+                                      typeof (item.meta as any).providerId ===
+                                        "number"
+                                        ? ((item.meta as any)
+                                            .providerId as number)
+                                        : null;
+                                    const providerName =
+                                      providerId != null
+                                        ? providerMap.get(providerId) ?? "-"
+                                        : "-";
 
                                     return (
-                                      <tr key={item.paymentId} className="border-t border-blue-100 bg-blue-50/60">
-                                        <td className="py-1 pl-10 pr-2">{fmtName(item.patientOvog, item.patientName)}</td>
-                                        <td className="px-2 py-1">#{item.invoiceId}</td>
-                                        <td className="px-2 py-1">{fmtDatetime(item.scheduledAt || item.visitDate)}</td>
-                                        <td className="px-2 py-1">{fmtName(item.doctorOvog, item.doctorName)}</td>
+                                      <tr
+                                        key={item.paymentId}
+                                        className="border-t border-blue-100 bg-blue-50/60"
+                                      >
+                                        <td className="py-1 pl-10 pr-2">
+                                          {fmtName(
+                                            item.patientOvog,
+                                            item.patientName
+                                          )}
+                                        </td>
+                                        <td className="px-2 py-1">
+                                          #{item.invoiceId}
+                                        </td>
+                                        <td className="px-2 py-1">
+                                          {item.visitDateNaive || "-"}
+                                        </td>
+                                        <td className="px-2 py-1">
+                                          {fmtName(
+                                            item.doctorOvog,
+                                            item.doctorName
+                                          )}
+                                        </td>
                                         {showProvider && (
-                                          <td className="px-2 py-1">{providerName}</td>
+                                          <td className="px-2 py-1">
+                                            {providerName}
+                                          </td>
                                         )}
-                                        <td className="px-2 py-1 text-right">{fmtMnt(item.amount)}</td>
-                                        <td className="px-2 py-1">{fmtName(item.collectedByOvog, item.collectedByName)}</td>
+                                        <td className="px-2 py-1 text-right">
+                                          {fmtMnt(item.amount)}
+                                        </td>
+                                        <td className="px-2 py-1">
+                                          {fmtName(
+                                            item.collectedByOvog,
+                                            item.collectedByName
+                                          )}
+                                        </td>
                                       </tr>
                                     );
                                   })}
@@ -640,7 +770,9 @@ export default function DailyIncomePage() {
                         Нийт
                       </td>
                       <td className="px-4 py-3 text-right">{totalCount}</td>
-                      <td className="px-4 py-3 text-right text-blue-700">{fmtMnt(grandTotal)}</td>
+                      <td className="px-4 py-3 text-right text-blue-700">
+                        {fmtMnt(grandTotal)}
+                      </td>
                       <td className="no-print px-4 py-3" />
                     </tr>
                   </tbody>
@@ -657,7 +789,9 @@ export default function DailyIncomePage() {
                     className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-center shadow-sm"
                   >
                     <p className="text-xs text-gray-500">{g.label}</p>
-                    <p className="text-sm font-bold text-gray-800">{fmtMnt(g.totalAmount)}</p>
+                    <p className="text-sm font-bold text-gray-800">
+                      {fmtMnt(g.totalAmount)}
+                    </p>
                   </div>
                 ))}
               </div>
