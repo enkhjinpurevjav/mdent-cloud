@@ -56,8 +56,9 @@ const ipEmailRateLimit = rateLimit({
 
 const COOKIE_NAME = "access_token";
 const COOKIE_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8 hours
+const KIOSK_COOKIE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours (branch_kiosk)
 
-function cookieOptions() {
+function cookieOptions(maxAgeMs = COOKIE_MAX_AGE_MS) {
   const isProd = process.env.NODE_ENV === "production";
   // Use leading-dot domain in production so the cookie is valid for both
   // mdent.cloud and any subdomains (e.g. api.mdent.cloud).
@@ -68,7 +69,7 @@ function cookieOptions() {
     sameSite: "lax",
     domain: process.env.COOKIE_DOMAIN || (isProd ? ".mdent.cloud" : undefined),
     path: "/",
-    maxAge: COOKIE_MAX_AGE_MS,
+    maxAge: maxAgeMs,
   };
 }
 
@@ -132,6 +133,10 @@ router.post("/login", ipBackstopRateLimit, ipEmailRateLimit, async (req, res) =>
     return res.status(500).json({ error: "Internal server error." });
   }
 
+  const isKiosk = user.role === "branch_kiosk";
+  const jwtExpiresIn = isKiosk ? "12h" : "8h";
+  const cookieMaxAge = isKiosk ? KIOSK_COOKIE_MAX_AGE_MS : COOKIE_MAX_AGE_MS;
+
   const token = jwt.sign(
     {
       id: user.id,
@@ -142,10 +147,10 @@ router.post("/login", ipBackstopRateLimit, ipEmailRateLimit, async (req, res) =>
       ovog: user.ovog ?? null,
     },
     secret,
-    { expiresIn: "8h" }
+    { expiresIn: jwtExpiresIn }
   );
 
-  const opts = cookieOptions();
+  const opts = cookieOptions(cookieMaxAge);
   res.cookie(COOKIE_NAME, token, opts);
   console.info(
     `[auth] login ok — user=${user.id} role=${user.role} cookieDomain=${opts.domain ?? "(none)"} secure=${opts.secure}`

@@ -23,7 +23,7 @@ const router = Router();
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const COOKIE_NAME = "access_token";
-const DOCTOR_KIOSK_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
+const DOCTOR_KIOSK_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 // Derive the JWT expiresIn string directly from the TTL constant to prevent desynchronization.
 const DOCTOR_KIOSK_TTL_JWT = `${DOCTOR_KIOSK_TTL_MS / 3_600_000}h`;
 const BCRYPT_ROUNDS = 10;
