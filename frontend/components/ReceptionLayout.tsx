@@ -128,6 +128,22 @@ export default function ReceptionLayout({ children, wide }: Props) {
               <Clock className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
             </Link>
 
+            {me?.role === "receptionist" && (
+              <Link
+                href="/reception/daily-income"
+                title="Өдрийн орлогын тайлан"
+                aria-label="Өдрийн орлогын тайлан"
+                className={classNames(
+                  "p-1.5 sm:p-2 rounded-lg inline-flex items-center no-underline font-bold text-[15px] leading-none",
+                  isActive("/reception/daily-income")
+                    ? "text-white"
+                    : "text-white/75 hover:text-white"
+                )}
+              >
+                ₮
+              </Link>
+            )}
+
             <Link
               href="/reception/schedule"
               title="Ажлын хуваарь"
