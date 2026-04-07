@@ -3151,7 +3151,7 @@ const handleCancelDraft = (appointmentId: number) => {
    <div
   ref={gridRef}
   className="border border-[#ddd] rounded-lg text-xs overflow-x-auto overflow-y-auto relative"
-  style={{ WebkitOverflowScrolling: "touch", maxHeight: "calc(100vh - 220px)" }}
+  style={{ WebkitOverflowScrolling: "touch", maxHeight: "calc(100vh - 220px)" /* offset for top nav + filters */ }}
 >
 
             {/* Header row */}

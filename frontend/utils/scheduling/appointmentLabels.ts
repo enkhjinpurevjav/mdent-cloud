@@ -3,6 +3,7 @@ export type AppointmentLabelInput = {
     name?: string | null;
     ovog?: string | null;
     phone?: string | null;
+    patientBook?: { bookNumber?: string | null } | null;
   } | null;
 
   patientName?: string | null;
