@@ -36,6 +36,7 @@ import doctorDashboardRouter from "./routes/admin/doctorDashboard.js";
 import diagnosesRouter from "./routes/diagnoses.js";
 import diagnosisProblemsRouter from "./routes/diagnosisProblems.js";
 import receptionRoutes from "./routes/reception.js";
+import receptionDailyIncomeRouter from "./routes/receptionDailyIncome.js";
 import regnoRouter from "./routes/regno.js";
 import paymentSettingsRouter from "./routes/payment-settings.js";
 import adminRouter from "./routes/admin.js";
@@ -274,6 +275,7 @@ app.use("/api/bookings", bookingsRouter);
 app.use("/api/diagnoses", diagnosesRouter);
 app.use("/api", diagnosisProblemsRouter);
 app.use("/api/reception", receptionRoutes);
+app.use("/api/reception", receptionDailyIncomeRouter);
 app.use("/api/staff/summary", staffSummaryRoutes);
 
 app.use("/api/payment-settings", paymentSettingsRouter);
