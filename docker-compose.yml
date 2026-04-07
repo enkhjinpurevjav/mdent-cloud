@@ -5,6 +5,14 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+
+    # Override the image entrypoint to avoid prisma db push (which is crashing due to data-loss warnings)
+    entrypoint: ["sh", "-lc"]
+    command: >
+      npx prisma generate &&
+      npx prisma migrate deploy &&
+      node src/index.js
+
     environment:
       - NODE_ENV=production
       - RUN_SEED=false
