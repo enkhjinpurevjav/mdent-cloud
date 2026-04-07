@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { formatDoctorName } from "../../utils/format";
+import { formatApptDateTime } from "../../utils/appointmentTime";
 
 type EncounterReportModalProps = {
   open: boolean;
@@ -291,7 +292,9 @@ export default function EncounterReportModal({
                 </div>
                 <div className="mb-1">
                   <strong>Үзлэгийн огноо:</strong>{" "}
-                  {data.encounter.visitDateNaive || "-"}
+                  {data.appointment?.scheduledAt
+                    ? formatApptDateTime(data.appointment.scheduledAt)
+                    : data.encounter.visitDateNaive || "-"}
                 </div>
                 <div className="mb-1">
                   <strong>Салбар:</strong> {data.branch.name}
