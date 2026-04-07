@@ -154,3 +154,68 @@ export function formatNaiveHm(naive: string): string {
 export function getBusinessDayKeyFromNaive(naive: string): string {
   return naiveTimestampToYmd(naive);
 }
+
+// ---------------------------------------------------------------------------
+// ISO timestamp → clinic timezone formatters
+// ---------------------------------------------------------------------------
+//
+// Use these for ISO strings from the server (e.g. "2026-04-07T12:00:00.000Z").
+// Do NOT pass naive timestamps ("YYYY-MM-DD HH:mm:ss") to these functions;
+// use the naiveTimestamp* helpers above for those.
+
+/**
+ * Format an ISO timestamp string as "YYYY.MM.DD HH:mm" in the clinic timezone
+ * (Asia/Ulaanbaatar). Safe for use in any browser timezone.
+ *
+ * Returns the original string unchanged if input is empty/invalid.
+ */
+export function formatIsoInClinicTz(iso: string): string {
+  if (!iso) return iso;
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: BUSINESS_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(d);
+    const year = parts.find((p) => p.type === "year")?.value ?? "";
+    const month = parts.find((p) => p.type === "month")?.value ?? "";
+    const day = parts.find((p) => p.type === "day")?.value ?? "";
+    const hour = parts.find((p) => p.type === "hour")?.value ?? "00";
+    const minute = parts.find((p) => p.type === "minute")?.value ?? "00";
+    return `${year}.${month}.${day} ${hour}:${minute}`;
+  } catch {
+    return iso;
+  }
+}
+
+/**
+ * Extract the YYYY-MM-DD date portion of an ISO timestamp in the clinic
+ * timezone (Asia/Ulaanbaatar).
+ *
+ * Returns the original string unchanged if input is empty/invalid.
+ */
+export function clinicIsoToYmd(iso: string): string {
+  if (!iso) return iso;
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: BUSINESS_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(d);
+    const year = parts.find((p) => p.type === "year")?.value ?? "";
+    const month = parts.find((p) => p.type === "month")?.value ?? "";
+    const day = parts.find((p) => p.type === "day")?.value ?? "";
+    return `${year}-${month}-${day}`;
+  } catch {
+    return iso;
+  }
+}
