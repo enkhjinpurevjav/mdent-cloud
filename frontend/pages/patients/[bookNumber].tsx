@@ -257,23 +257,33 @@ export default function PatientProfilePage() {
     }
   }, []);
 
+  // Normalize a DB string field value: convert null, undefined, or the literal
+  // string "null"/"undefined" (case-insensitive, which may have been stored in
+  // the DB by prior bad serialization) to empty string so the edit form never
+  // starts with a synthetic "null" token.  Only use for string/text fields.
+  const normalizeField = (v: string | null | undefined): string => {
+    if (v === null || v === undefined) return "";
+    const s = String(v).trim();
+    return s.toLowerCase() === "null" || s.toLowerCase() === "undefined" ? "" : s;
+  };
+
   const startEdit = () => {
     if (!patient) return;
-    const initialRegNo = patient.regNo || "";
+    const initialRegNo = normalizeField(patient.regNo);
     setEditForm({
-      ovog: patient.ovog || "",
+      ovog: normalizeField(patient.ovog),
       name: patient.name || "",
       regNo: initialRegNo,
-      phone: patient.phone || "",
-      email: patient.email || "",
-      gender: patient.gender || "",
+      phone: normalizeField(patient.phone),
+      email: normalizeField(patient.email),
+      gender: normalizeField(patient.gender),
       birthDate: patient.birthDate ? patient.birthDate.slice(0, 10) : "",
-      address: patient.address || "",
-      workPlace: patient.workPlace || "",
-      bloodType: patient.bloodType || "",
-      citizenship: patient.citizenship || "Монгол",
-      emergencyPhone: patient.emergencyPhone || "",
-      notes: patient.notes || "",
+      address: normalizeField(patient.address),
+      workPlace: normalizeField(patient.workPlace),
+      bloodType: normalizeField(patient.bloodType),
+      citizenship: normalizeField(patient.citizenship) || "Монгол",
+      emergencyPhone: normalizeField(patient.emergencyPhone),
+      notes: normalizeField(patient.notes),
     });
     setSaveError("");
     setSaveSuccess("");
@@ -333,20 +343,25 @@ export default function PatientProfilePage() {
     }
 
     try {
+      // Use "" (empty string) instead of null for optional fields so the
+      // backend's `field === "" ? null : String(field).trim()` normalization
+      // correctly clears the value.  Sending JSON null causes the backend to
+      // run `String(null).trim()` → "null" (a truthy string) which then
+      // triggers the regNo uniqueness check and returns a 400 error.
       const payload: any = {
-        ovog: (editForm.ovog || "").trim() || null,
+        ovog: (editForm.ovog || "").trim(),
         name: (editForm.name || "").trim(),
-        regNo: (editForm.regNo || "").trim() || null,
-        phone: (editForm.phone || "").trim() || null,
-        email: (editForm.email || "").trim() || null,
-        gender: editForm.gender || null,
-        birthDate: editForm.birthDate || null,
-        address: (editForm.address || "").trim() || null,
-        workPlace: (editForm.workPlace || "").trim() || null,
-        bloodType: (editForm.bloodType || "").trim() || null,
-        citizenship: (editForm.citizenship || "").trim() || null,
-        emergencyPhone: (editForm.emergencyPhone || "").trim() || null,
-        notes: (editForm.notes || "").trim() || null,
+        regNo: (editForm.regNo || "").trim(),
+        phone: (editForm.phone || "").trim(),
+        email: (editForm.email || "").trim(),
+        gender: (editForm.gender || "").trim(),
+        birthDate: (editForm.birthDate || "").trim(),
+        address: (editForm.address || "").trim(),
+        workPlace: (editForm.workPlace || "").trim(),
+        bloodType: (editForm.bloodType || "").trim(),
+        citizenship: (editForm.citizenship || "").trim(),
+        emergencyPhone: (editForm.emergencyPhone || "").trim(),
+        notes: (editForm.notes || "").trim(),
       };
 
       const res = await fetch(`/api/patients/${patient.id}`, {
