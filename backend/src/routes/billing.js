@@ -762,7 +762,7 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
         encounterServices: { include: { service: true } },
         invoice: {
           include: {
-            items: { include: { service: { select: { category: true } } } },
+            items: true,
             payments: true,
             eBarimtReceipt: true,
             encounter: {
@@ -833,17 +833,6 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
         : Number(invoice.totalAmount || 0);
 
     const currentAlreadyPaid = computePaidTotal(invoice.payments);
-
-    // Roles authorized to trigger automatic marker-only finalization
-    const MARKER_AUTO_FINALIZE_ROLES = ["receptionist", "admin", "superadmin"];
-
-    // Detect marker-only invoice: base amount is 0, exactly one item, that item is a
-    // SERVICE whose service category is PREVIOUS.
-    const isMarkerOnlyInvoice =
-      currentBaseAmount === 0 &&
-      invoice.items.length === 1 &&
-      invoice.items[0].itemType === "SERVICE" &&
-      invoice.items[0].service?.category === "PREVIOUS";
 
     // Validate split allocations: must reference SERVICE items, amounts must not
     // exceed the remaining unpaid per line (lineTotal − alreadyAllocated).
@@ -1021,74 +1010,6 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
         });
 
         currentPaymentId = newPayment.id;
-      }
-
-      // 2b) Auto-finalize marker-only encounter when old balance is fully cleared.
-      //
-      // Conditions (all must be true):
-      //  - No payment is being applied to the current invoice (amountForCurrent === 0)
-      //  - Current invoice is marker-only (0₮, 1 PREVIOUS-service item)
-      //  - Requesting user has a billing-authorized role
-      //  - After FIFO settlement, the patient has no remaining old balance
-      //
-      // We perform the old-balance check inside the same transaction to avoid races.
-      // No Payment record is created — the appointment is closed administratively.
-      if (
-        amountForCurrent === 0 &&
-        isMarkerOnlyInvoice &&
-        MARKER_AUTO_FINALIZE_ROLES.includes(req.user?.role)
-      ) {
-        // Compute remaining old balance within the transaction (post-FIFO).
-        // Only fetch invoices that are not yet fully paid to reduce the dataset.
-        const oldInvsForBalance = await trx.invoice.findMany({
-          where: {
-            patientId: patient.id,
-            NOT: [{ id: invoice.id }, { statusLegacy: "paid" }],
-          },
-          select: { id: true, finalAmount: true, totalAmount: true },
-        });
-
-        let remainingOldBalance = 0;
-        if (oldInvsForBalance.length > 0) {
-          const oldInvIds = oldInvsForBalance.map((inv) => inv.id);
-          const oldPaymentGroups = await trx.payment.groupBy({
-            by: ["invoiceId"],
-            where: { invoiceId: { in: oldInvIds } },
-            _sum: { amount: true },
-          });
-          const paidByInvId = new Map(
-            oldPaymentGroups.map((p) => [p.invoiceId, Number(p._sum.amount || 0)])
-          );
-          for (const inv of oldInvsForBalance) {
-            const billed =
-              inv.finalAmount != null
-                ? Number(inv.finalAmount)
-                : Number(inv.totalAmount || 0);
-            const paid = paidByInvId.get(inv.id) || 0;
-            const unpaid = billed - paid;
-            if (unpaid > 0) {
-              remainingOldBalance += unpaid;
-              // Short-circuit: balance is non-zero, no need to sum further
-              break;
-            }
-          }
-        }
-
-        if (remainingOldBalance === 0) {
-          // Mark invoice as paid (no payment record created — marker-only, 0₮)
-          await trx.invoice.update({
-            where: { id: invoice.id },
-            data: { statusLegacy: "paid" },
-          });
-
-          // Mark appointment as completed
-          if (encounter.appointmentId) {
-            await trx.appointment.update({
-              where: { id: encounter.appointmentId },
-              data: { status: "completed" },
-            });
-          }
-        }
       }
 
       // 3) Persist split allocations for current invoice payment
