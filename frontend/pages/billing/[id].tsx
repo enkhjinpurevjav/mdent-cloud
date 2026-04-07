@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { QRCodeSVG } from "qrcode.react";
 import { printImage } from "../../utils/printImage";
+import { formatApptDateTime } from "../../utils/appointmentTime";
 import { formatIsoInClinicTz } from "../../utils/businessTime";
 
 type Branch = { id: number; name: string };
@@ -116,6 +117,7 @@ type Encounter = {
   prescription?: Prescription | null;
   encounterServices?: EncounterService[];
   encounterDiagnoses?: EncounterDiagnosisRow[];
+  appointment?: { scheduledAt?: string | null } | null;
 };
 
 type PrescriptionItem = {
@@ -163,8 +165,13 @@ function generateTempKey(): string {
   return `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function formatDateTime(iso: string) {
-  return formatIsoInClinicTz(iso);
+/** Format a date/time for the billing header "Огноо" line.
+ * Prefers naive appointment timestamps (e.g. "YYYY-MM-DD HH:mm:ss") via
+ * formatApptDateTime, which reads wall-clock components directly without any
+ * timezone conversion.  Falls back to ISO clinic-tz formatting for legacy
+ * visitDate strings that are true ISO instants. */
+function formatDateTime(timestamp: string) {
+  return formatApptDateTime(timestamp) || formatIsoInClinicTz(timestamp);
 }
 
 function formatPatientName(p: Patient) {
@@ -2251,7 +2258,7 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
         <strong>Эмч:</strong> {formatDoctorName(encounter.doctor)}
       </div>
       <div className="mb-1">
-        <strong>Огноо:</strong> {formatDateTime(encounter.visitDate)}
+        <strong>Огноо:</strong> {formatDateTime(encounter.appointment?.scheduledAt || encounter.visitDate)}
       </div>
       {encounter.notes && (
         <div className="mt-1">
