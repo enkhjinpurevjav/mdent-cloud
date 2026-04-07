@@ -61,7 +61,7 @@ router.get("/", async (req, res) => {
     if (role) {
       // role is string at runtime, must match UserRole enum value
       if (!Object.values(UserRole).includes(role)) {
-        return res.status(400).json({ error: "Invalid role filter" });
+        return res.status(400).json({ error: "Invalid role" });
       }
       where.role = role;
     }
