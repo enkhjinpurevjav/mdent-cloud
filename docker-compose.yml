@@ -6,7 +6,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
 
-    # Override the image entrypoint to avoid prisma db push (which is crashing due to data-loss warnings)
+    # Override the image entrypoint to avoid prisma db push during startup
     entrypoint: ["sh", "-lc"]
     command: >
       npx prisma generate &&
@@ -43,9 +43,11 @@ services:
 
     depends_on:
       - postgres
+
+    # IMPORTANT: keep only ONE shared network for stable Docker DNS (fixes Caddy "lookup backend" 502s)
     networks:
       - mdent-net
-      - mdent_shared
+
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null || exit 1"]
@@ -62,9 +64,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+
     networks:
       - mdent-net
-      - mdent_shared
+
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:3000 >/dev/null || exit 1"]
@@ -97,7 +100,7 @@ services:
 
   caddy:
     image: caddy:2
-    command: ["caddy","run","--config","/etc/caddy/Caddyfile.conf","--adapter","caddyfile"]
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile.conf", "--adapter", "caddyfile"]
     ports:
       - "80:80"
       - "443:443"
@@ -105,15 +108,14 @@ services:
       - /opt/mdent-caddy:/etc/caddy:ro
       - caddy_data:/data
       - caddy_config:/config
+
     networks:
       - mdent-net
-      - mdent_shared
+
     restart: unless-stopped
 
 networks:
   mdent-net: {}
-  mdent_shared:
-    external: true
 
 volumes:
   caddy_data:
