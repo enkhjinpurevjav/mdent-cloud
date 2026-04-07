@@ -371,6 +371,9 @@ router.get("/:id", async (req, res) => {
             items: { orderBy: { order: "asc" } },
           },
         },
+        appointment: {
+          select: { scheduledAt: true },
+        },
       },
     });
 
