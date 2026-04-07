@@ -317,13 +317,38 @@ export default function DailyIncomePage() {
       .catch(() => setProviderMap(new Map()));
   }, []);
 
-  // Load users when branch changes
+  // Load users when branch changes (only cash-collecting roles)
   React.useEffect(() => {
-    const url = branchId ? `/api/users?branchId=${branchId}` : "/api/users";
-    fetch(url)
-      .then((r) => r.json())
-      .then((d) => setUsers(Array.isArray(d) ? d : []))
-      .catch(() => setUsers([]));
+    const adminUrl = "/api/users?role=admin";
+    const superAdminUrl = "/api/users?role=super_admin";
+    const receptionistUrl = branchId
+      ? `/api/users?role=receptionist&branchId=${branchId}`
+      : "/api/users?role=receptionist";
+
+    Promise.all([
+      fetch(adminUrl).then((r) => r.json()).catch(() => []),
+      fetch(superAdminUrl).then((r) => r.json()).catch(() => []),
+      fetch(receptionistUrl).then((r) => r.json()).catch(() => []),
+    ]).then(([admins, superAdmins, receptionists]) => {
+      const merged = [
+        ...(Array.isArray(admins) ? admins : []),
+        ...(Array.isArray(superAdmins) ? superAdmins : []),
+        ...(Array.isArray(receptionists) ? receptionists : []),
+      ];
+      const seen = new Set<number>();
+      const unique = merged.filter((u: User) => {
+        if (seen.has(u.id)) return false;
+        seen.add(u.id);
+        return true;
+      });
+      unique.sort((a: User, b: User) =>
+        `${a.ovog ?? ""} ${a.name ?? ""}`.localeCompare(
+          `${b.ovog ?? ""} ${b.name ?? ""}`,
+          "mn"
+        )
+      );
+      setUsers(unique);
+    }).catch(() => setUsers([]));
     // Reset user selection if branch changes
     setUserId(null);
   }, [branchId]);
