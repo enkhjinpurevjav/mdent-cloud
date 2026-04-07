@@ -2,11 +2,13 @@ export type AppointmentLabelInput = {
   patient?: {
     name?: string | null;
     ovog?: string | null;
+    phone?: string | null;
     patientBook?: { bookNumber?: string | null } | null;
   } | null;
 
   patientName?: string | null;
   patientOvog?: string | null;
+  patientPhone?: string | null;
 };
 
 export function formatGridShortLabel(a: AppointmentLabelInput): string {
@@ -15,8 +17,7 @@ export function formatGridShortLabel(a: AppointmentLabelInput): string {
   const rawName = (p?.name ?? a.patientName ?? "").toString().trim();
   const rawOvog = (p?.ovog ?? a.patientOvog ?? "").toString().trim();
 
-  const rawBookNumber =
-    p?.patientBook?.bookNumber != null ? String(p.patientBook.bookNumber).trim() : "";
+  const phone = (p?.phone ?? a.patientPhone ?? "").toString().trim();
 
   let displayName = rawName;
 
@@ -27,8 +28,8 @@ export function formatGridShortLabel(a: AppointmentLabelInput): string {
 
   if (!displayName) return "";
 
-  if (rawBookNumber) {
-    return `${displayName} (${rawBookNumber})`;
+  if (phone) {
+    return `${displayName} (${phone})`;
   }
 
   return displayName;

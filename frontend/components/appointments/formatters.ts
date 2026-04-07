@@ -44,10 +44,7 @@ export function formatGridShortLabel(a: Appointment): string {
   const rawName = (p?.name ?? a.patientName ?? "").toString().trim();
   const rawOvog = (p?.ovog ?? a.patientOvog ?? "").toString().trim();
 
-  const rawBookNumber =
-    p?.patientBook?.bookNumber != null
-      ? String(p.patientBook.bookNumber).trim()
-      : "";
+  const phone = (p?.phone ?? a.patientPhone ?? "").toString().trim();
 
   let displayName = rawName;
   if (rawOvog) {
@@ -57,8 +54,8 @@ export function formatGridShortLabel(a: Appointment): string {
 
   if (!displayName) return "";
 
-  if (rawBookNumber) {
-    return `${displayName} (${rawBookNumber})`;
+  if (phone) {
+    return `${displayName} (${phone})`;
   }
 
   return displayName;
