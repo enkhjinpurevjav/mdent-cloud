@@ -143,7 +143,7 @@ router.get("/encounters/:id/invoice", async (req, res) => {
             payments: { include: { createdBy: { select: { id: true, name: true, ovog: true } } } },
           },
         },
-        appointment: { select: { id: true, branchId: true, status: true, scheduledAt: true } },
+        appointment: { select: { branchId: true } },
       },
     });
 
@@ -176,176 +176,7 @@ router.get("/encounters/:id/invoice", async (req, res) => {
         ? await getPatientOldBalance(patient.id, existingInvoice.id)
         : 0;
 
-      // ── Marker-only auto-finalize on page load ─────────────────
-      // When the billing page loads and:
-      //  1) The requesting user has a billing-authorized role
-      //  2) The encounter has an appointment
-      //  3) encounterServices has exactly 1 entry whose service.category === "PREVIOUS"
-      //  4) The invoice has exactly 1 item (SERVICE, category "PREVIOUS")
-      //  5) The invoice base amount is 0
-      //  6) The patient's old balance (excluding this invoice) is already 0
-      //  7) The appointment is currently "ready_to_pay"
-      // …then automatically finalize without creating a Payment record.
-      const MARKER_AUTO_FINALIZE_ROLES = ["receptionist", "admin", "superadmin"];
-      const invoiceBaseAmount =
-        existingInvoice.finalAmount != null
-          ? Number(existingInvoice.finalAmount)
-          : Number(existingInvoice.totalAmount || 0);
-      const isMarkerOnlyInvoice =
-        invoiceBaseAmount === 0 &&
-        existingInvoice.items.length === 1 &&
-        existingInvoice.items[0].itemType === "SERVICE" &&
-        existingInvoice.items[0].service?.category === "PREVIOUS";
-      const isMarkerOnlyEncounter =
-        (encounter.encounterServices || []).length === 1 &&
-        encounter.encounterServices[0].service?.category === "PREVIOUS";
-
-      if (
-        MARKER_AUTO_FINALIZE_ROLES.includes(req.user?.role) &&
-        encounter.appointmentId &&
-        isMarkerOnlyEncounter &&
-        isMarkerOnlyInvoice &&
-        patientOldBalance === 0 &&
-        encounter.appointment?.status === "ready_to_pay"
-      ) {
-        try {
-          await prisma.$transaction(async (trx) => {
-            await trx.invoice.update({
-              where: { id: existingInvoice.id },
-              data: { statusLegacy: "paid" },
-            });
-            await trx.appointment.update({
-              where: { id: encounter.appointmentId },
-              data: { status: "completed" },
-            });
-          });
-
-          // Refresh invoice and appointment data after the transaction
-          const [refreshedInvoice, refreshedAppointment] = await Promise.all([
-            prisma.invoice.findUnique({
-              where: { id: existingInvoice.id },
-              include: {
-                items: { include: { service: true } },
-                eBarimtReceipt: true,
-                payments: { include: { createdBy: { select: { id: true, name: true, ovog: true } } } },
-              },
-            }),
-            prisma.appointment.findUnique({
-              where: { id: encounter.appointmentId },
-              include: {
-                patient: { select: { id: true, name: true, ovog: true, phone: true, patientBook: true } },
-                doctor: { select: { id: true, name: true, ovog: true } },
-                branch: { select: { id: true, name: true } },
-              },
-            }),
-          ]);
-
-          // Broadcast SSE so Appointments page reflects the status change
-          if (refreshedAppointment?.scheduledAt) {
-            const apptDate = refreshedAppointment.scheduledAt.toISOString().slice(0, 10);
-            try {
-              sseBroadcast(
-                "appointment_updated",
-                { ...refreshedAppointment, encounterId },
-                apptDate,
-                refreshedAppointment.branchId
-              );
-            } catch (sseErr) {
-              console.error("SSE broadcast error after GET auto-finalize (non-fatal):", sseErr);
-            }
-          }
-
-          // Rebuild response data from refreshed records
-          if (refreshedInvoice) {
-            const refreshedPaidTotal = computePaidTotal(refreshedInvoice.payments);
-            const refreshedServiceItemIds = refreshedInvoice.items
-              .filter((it) => it.itemType === "SERVICE")
-              .map((it) => it.id);
-            const refreshedAllocGroups =
-              refreshedServiceItemIds.length > 0
-                ? await prisma.paymentAllocation.groupBy({
-                    by: ["invoiceItemId"],
-                    where: { invoiceItemId: { in: refreshedServiceItemIds } },
-                    _sum: { amount: true },
-                  })
-                : [];
-            const refreshedAllocByItemId = new Map(
-              refreshedAllocGroups.map((a) => [a.invoiceItemId, Number(a._sum.amount || 0)])
-            );
-            const refreshedDiscountNum = discountPercentToNumber(refreshedInvoice.discountPercent);
-            const refreshedBalanceData = await getPatientBalance(patient.id);
-            const refreshedBaseAmount =
-              refreshedInvoice.finalAmount != null
-                ? Number(refreshedInvoice.finalAmount)
-                : Number(refreshedInvoice.totalAmount || 0);
-            return res.json({
-              id: refreshedInvoice.id,
-              branchId: refreshedInvoice.branchId,
-              encounterId: refreshedInvoice.encounterId,
-              patientId: refreshedInvoice.patientId,
-              status: refreshedInvoice.statusLegacy || "UNPAID",
-              totalBeforeDiscount: refreshedInvoice.totalBeforeDiscount,
-              discountPercent: refreshedDiscountNum,
-              collectionDiscountAmount: refreshedInvoice.collectionDiscountAmount || 0,
-              finalAmount: refreshedInvoice.finalAmount,
-              hasEBarimt: !!refreshedInvoice.eBarimtReceipt,
-              buyerType: refreshedInvoice.buyerType || "B2C",
-              buyerTin: refreshedInvoice.buyerTin || null,
-              ebarimtReceipt: refreshedInvoice.eBarimtReceipt
-                ? {
-                    id: refreshedInvoice.eBarimtReceipt.id,
-                    status: refreshedInvoice.eBarimtReceipt.status,
-                    ddtd: refreshedInvoice.eBarimtReceipt.ddtd ?? null,
-                    printedAtText: refreshedInvoice.eBarimtReceipt.printedAtText ?? null,
-                    printedAt: refreshedInvoice.eBarimtReceipt.printedAt
-                      ? refreshedInvoice.eBarimtReceipt.printedAt.toISOString()
-                      : null,
-                    totalAmount: refreshedInvoice.eBarimtReceipt.totalAmount ?? null,
-                    qrData: refreshedInvoice.eBarimtReceipt.qrData ?? null,
-                    lottery: refreshedInvoice.eBarimtReceipt.lottery ?? null,
-                  }
-                : null,
-              paidTotal: refreshedPaidTotal,
-              unpaidAmount: Math.max(refreshedBaseAmount - refreshedPaidTotal, 0),
-              payments: refreshedInvoice.payments.map((p) => ({
-                id: p.id,
-                amount: p.amount,
-                method: p.method,
-                timestamp: p.timestamp,
-                createdByUser: p.createdBy
-                  ? { id: p.createdBy.id, name: p.createdBy.name || null, ovog: p.createdBy.ovog || null }
-                  : null,
-              })),
-              items: refreshedInvoice.items.map((it) => ({
-                id: it.id,
-                itemType: it.itemType,
-                serviceId: it.serviceId,
-                productId: it.productId,
-                name: it.name,
-                unitPrice: it.unitPrice,
-                quantity: it.quantity,
-                lineTotal: it.lineTotal,
-                source: it.source,
-                meta: it.meta ?? null,
-                serviceCategory: it.service?.category ?? null,
-                alreadyAllocated: refreshedAllocByItemId.get(it.id) ?? 0,
-              })),
-              patientTotalBilled: refreshedBalanceData.totalBilled,
-              patientTotalPaid: refreshedBalanceData.totalPaid,
-              patientBalance: refreshedBalanceData.balance,
-              hasMarker,
-              patientOldBalance: 0,
-              patientOvog: patient.ovog ?? null,
-              patientName: patient.name,
-              patientRegNo: patient.regNo ?? null,
-              autoFinalized: true,
-            });
-          }
-        } catch (autoFinalizeErr) {
-          console.error("GET auto-finalize failed (non-fatal, continuing with normal response):", autoFinalizeErr);
-        }
-      }
-
+      // Compute per-item already-allocated amounts for split payment display
       const serviceItemIds = existingInvoice.items
         .filter((it) => it.itemType === "SERVICE")
         .map((it) => it.id);
@@ -931,7 +762,7 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
         encounterServices: { include: { service: true } },
         invoice: {
           include: {
-            items: { include: { service: { select: { category: true } } } },
+            items: true,
             payments: true,
             eBarimtReceipt: true,
             encounter: {
@@ -1002,17 +833,6 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
         : Number(invoice.totalAmount || 0);
 
     const currentAlreadyPaid = computePaidTotal(invoice.payments);
-
-    // Roles authorized to trigger automatic marker-only finalization
-    const MARKER_AUTO_FINALIZE_ROLES = ["receptionist", "admin", "superadmin"];
-
-    // Detect marker-only invoice: base amount is 0, exactly one item, that item is a
-    // SERVICE whose service category is PREVIOUS.
-    const isMarkerOnlyInvoice =
-      currentBaseAmount === 0 &&
-      invoice.items.length === 1 &&
-      invoice.items[0].itemType === "SERVICE" &&
-      invoice.items[0].service?.category === "PREVIOUS";
 
     // Validate split allocations: must reference SERVICE items, amounts must not
     // exceed the remaining unpaid per line (lineTotal − alreadyAllocated).
@@ -1190,74 +1010,6 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
         });
 
         currentPaymentId = newPayment.id;
-      }
-
-      // 2b) Auto-finalize marker-only encounter when old balance is fully cleared.
-      //
-      // Conditions (all must be true):
-      //  - No payment is being applied to the current invoice (amountForCurrent === 0)
-      //  - Current invoice is marker-only (0₮, 1 PREVIOUS-service item)
-      //  - Requesting user has a billing-authorized role
-      //  - After FIFO settlement, the patient has no remaining old balance
-      //
-      // We perform the old-balance check inside the same transaction to avoid races.
-      // No Payment record is created — the appointment is closed administratively.
-      if (
-        amountForCurrent === 0 &&
-        isMarkerOnlyInvoice &&
-        MARKER_AUTO_FINALIZE_ROLES.includes(req.user?.role)
-      ) {
-        // Compute remaining old balance within the transaction (post-FIFO).
-        // Only fetch invoices that are not yet fully paid to reduce the dataset.
-        const oldInvsForBalance = await trx.invoice.findMany({
-          where: {
-            patientId: patient.id,
-            NOT: [{ id: invoice.id }, { statusLegacy: "paid" }],
-          },
-          select: { id: true, finalAmount: true, totalAmount: true },
-        });
-
-        let remainingOldBalance = 0;
-        if (oldInvsForBalance.length > 0) {
-          const oldInvIds = oldInvsForBalance.map((inv) => inv.id);
-          const oldPaymentGroups = await trx.payment.groupBy({
-            by: ["invoiceId"],
-            where: { invoiceId: { in: oldInvIds } },
-            _sum: { amount: true },
-          });
-          const paidByInvId = new Map(
-            oldPaymentGroups.map((p) => [p.invoiceId, Number(p._sum.amount || 0)])
-          );
-          for (const inv of oldInvsForBalance) {
-            const billed =
-              inv.finalAmount != null
-                ? Number(inv.finalAmount)
-                : Number(inv.totalAmount || 0);
-            const paid = paidByInvId.get(inv.id) || 0;
-            const unpaid = billed - paid;
-            if (unpaid > 0) {
-              remainingOldBalance += unpaid;
-              // Short-circuit: balance is non-zero, no need to sum further
-              break;
-            }
-          }
-        }
-
-        if (remainingOldBalance === 0) {
-          // Mark invoice as paid (no payment record created — marker-only, 0₮)
-          await trx.invoice.update({
-            where: { id: invoice.id },
-            data: { statusLegacy: "paid" },
-          });
-
-          // Mark appointment as completed
-          if (encounter.appointmentId) {
-            await trx.appointment.update({
-              where: { id: encounter.appointmentId },
-              data: { status: "completed" },
-            });
-          }
-        }
       }
 
       // 3) Persist split allocations for current invoice payment

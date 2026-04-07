@@ -272,6 +272,13 @@ export default function DailyIncomePage() {
     new Set()
   );
 
+  // Payment type filter
+  const [selectedPaymentTypes, setSelectedPaymentTypes] = useState<Set<string>>(
+    new Set()
+  );
+  const [paymentFilterOpen, setPaymentFilterOpen] = useState(false);
+  const paymentFilterRef = useRef<HTMLDivElement>(null);
+
   // Encounter modal
   const [reportAppointmentId, setReportAppointmentId] = useState<number | null>(
     null
@@ -321,6 +328,31 @@ export default function DailyIncomePage() {
     setUserId(null);
   }, [branchId]);
 
+  // Initialize payment type filter when data loads (select all by default)
+  React.useEffect(() => {
+    if (data) {
+      setSelectedPaymentTypes(
+        new Set(data.paymentTypes.map((pt) => pt.method))
+      );
+    }
+  }, [data]);
+
+  // Close payment filter dropdown when clicking outside
+  React.useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        paymentFilterRef.current &&
+        !paymentFilterRef.current.contains(e.target as Node)
+      ) {
+        setPaymentFilterOpen(false);
+      }
+    }
+    if (paymentFilterOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [paymentFilterOpen]);
+
   const fetchReport = useCallback(async () => {
     if (!date) return;
     setLoading(true);
@@ -364,6 +396,20 @@ export default function DailyIncomePage() {
     setReportOpen(true);
   };
 
+  const filteredPaymentTypes = useMemo(() => {
+    if (!data) return [];
+    return data.paymentTypes.filter((g) => selectedPaymentTypes.has(g.method));
+  }, [data, selectedPaymentTypes]);
+
+  const grandTotal = useMemo(
+    () => filteredPaymentTypes.reduce((s, g) => s + g.totalAmount, 0),
+    [filteredPaymentTypes]
+  );
+  const totalCount = useMemo(
+    () => filteredPaymentTypes.reduce((s, g) => s + g.count, 0),
+    [filteredPaymentTypes]
+  );
+
   // CSV export
   const handleExportCSV = () => {
     if (!data) return;
@@ -373,14 +419,12 @@ export default function DailyIncomePage() {
       `Өдрийн орлогын тайлан: ${data.date}`,
       "",
       "Төлбөрийн төрөл,Тоо,Нийт дүн (₮)",
-      ...data.paymentTypes.map((g) => `"${g.label}",${g.count},${g.totalAmount}`),
-      `"Нийт",${data.paymentTypes.reduce((s, g) => s + g.count, 0)},${
-        data.grandTotal
-      }`,
+      ...filteredPaymentTypes.map((g) => `"${g.label}",${g.count},${g.totalAmount}`),
+      `"Нийт",${totalCount},${grandTotal}`,
       "",
       "Дэлгэрэнгүй",
       "Төлбөрийн төрөл,Үйлчлүүлэгч,Нэхэмжлэл #,Огноо,Эмч,Дүн (₮),Төлбөр хураасан",
-      ...data.paymentTypes.flatMap((g) =>
+      ...filteredPaymentTypes.flatMap((g) =>
         g.items.map(
           (item) =>
             `"${g.label}","${fmtName(item.patientOvog, item.patientName)}",${
@@ -407,12 +451,6 @@ export default function DailyIncomePage() {
   };
 
   const handlePrint = () => window.print();
-
-  const grandTotal = useMemo(() => data?.grandTotal ?? 0, [data]);
-  const totalCount = useMemo(
-    () => data?.paymentTypes.reduce((s, g) => s + g.count, 0) ?? 0,
-    [data]
-  );
 
   const selectedBranchName = useMemo(
     () => branches.find((b) => b.id === branchId)?.name ?? "Бүх салбар",
@@ -537,6 +575,111 @@ export default function DailyIncomePage() {
               ))}
             </select>
           </div>
+          {/* Payment type multi-select filter – only visible after data loads */}
+          {data && (
+            <div className="flex flex-col gap-1" ref={paymentFilterRef}>
+              <label className="text-xs font-semibold text-gray-600">
+                Төлбөрийн төрөл
+              </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setPaymentFilterOpen((o) => !o)}
+                  className="flex min-w-[160px] items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                >
+                  <span>
+                    {selectedPaymentTypes.size === 0
+                      ? "Сонгоогүй"
+                      : selectedPaymentTypes.size === data.paymentTypes.length
+                      ? "Бүгд"
+                      : `${selectedPaymentTypes.size} сонгогдсон`}
+                  </span>
+                  <ChevronIcon open={paymentFilterOpen} />
+                </button>
+                {paymentFilterOpen && (
+                  <div className="absolute left-0 top-full z-20 mt-1 w-56 rounded-lg border border-gray-200 bg-white shadow-lg">
+                    <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedPaymentTypes(
+                            new Set(data.paymentTypes.map((g) => g.method))
+                          )
+                        }
+                        className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                      >
+                        Бүгд
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPaymentTypes(new Set())}
+                        className="text-xs font-medium text-gray-500 hover:text-gray-700"
+                      >
+                        Цэвэрлэх
+                      </button>
+                    </div>
+                    <ul className="max-h-48 overflow-y-auto py-1">
+                      {data.paymentTypes.map((g) => (
+                        <li key={g.method}>
+                          <label className="flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-gray-50">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                              checked={selectedPaymentTypes.has(g.method)}
+                              onChange={(e) => {
+                                setSelectedPaymentTypes((prev) => {
+                                  const next = new Set(prev);
+                                  if (e.target.checked) {
+                                    next.add(g.method);
+                                  } else {
+                                    next.delete(g.method);
+                                  }
+                                  return next;
+                                });
+                              }}
+                            />
+                            <span className="text-sm text-gray-700">
+                              {g.label}
+                            </span>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+              {/* Selected chips */}
+              {selectedPaymentTypes.size > 0 &&
+                selectedPaymentTypes.size < data.paymentTypes.length && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {data.paymentTypes
+                      .filter((g) => selectedPaymentTypes.has(g.method))
+                      .map((g) => (
+                        <span
+                          key={g.method}
+                          className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs text-blue-700"
+                        >
+                          {g.label}
+                          <button
+                            type="button"
+                            aria-label={`${g.label} арилгах`}
+                            onClick={() =>
+                              setSelectedPaymentTypes((prev) => {
+                                const next = new Set(prev);
+                                next.delete(g.method);
+                                return next;
+                              })
+                            }
+                            className="ml-0.5 text-blue-400 hover:text-blue-700"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                  </div>
+                )}
+            </div>
+          )}
           <button
             type="submit"
             disabled={loading || !date}
@@ -609,13 +752,17 @@ export default function DailyIncomePage() {
               <div className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-center">
                 <p className="text-xs text-gray-500">Төлбөрийн төрөл</p>
                 <p className="text-xl font-bold text-gray-800">
-                  {data.paymentTypes.length}
+                  {filteredPaymentTypes.length}
                 </p>
               </div>
             </div>
 
             {/* Payment types table */}
-            {data.paymentTypes.length === 0 ? (
+            {selectedPaymentTypes.size === 0 ? (
+              <div className="rounded-xl border border-dashed border-gray-300 py-12 text-center text-sm text-gray-400">
+                Төлбөрийн төрөл сонгоогүй байна
+              </div>
+            ) : data.paymentTypes.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 py-12 text-center text-sm text-gray-400">
                 Тухайн өдөр орлого байхгүй байна
               </div>
@@ -642,7 +789,7 @@ export default function DailyIncomePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data.paymentTypes.map((group, idx) => (
+                    {filteredPaymentTypes.map((group, idx) => (
                       <React.Fragment key={group.method}>
                         <tr
                           className={`border-t border-gray-200 ${
@@ -781,9 +928,9 @@ export default function DailyIncomePage() {
             )}
 
             {/* Bottom totals summary */}
-            {data.paymentTypes.length > 0 && (
+            {filteredPaymentTypes.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-2">
-                {data.paymentTypes.map((g) => (
+                {filteredPaymentTypes.map((g) => (
                   <div
                     key={g.method}
                     className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-center shadow-sm"
