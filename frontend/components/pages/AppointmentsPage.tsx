@@ -1139,17 +1139,9 @@ const [hasMounted, setHasMounted] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
 const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
 
-// NEW: backend-computed occupancy rate for the selected day + branch
-const [apiOccupancy, setApiOccupancy] = useState<{
-  occupancyRate: number;
-  totalSlots: number;
-  bookedSlots: number;
-} | null>(null);
-
 // Request ID tracking to prevent stale fetch overwrites
 const appointmentsRequestIdRef = useRef(0);
 const scheduledDoctorsRequestIdRef = useRef(0);
-const occupancyRequestIdRef = useRef(0);
 
 
 type DraftAppointmentChange = {
@@ -1567,7 +1559,6 @@ const workingDoctorsForFilter = scheduledDoctors.length
     setAppointments([]);
     setScheduledDoctors([]);
     setGridDoctorsOverride(null);
-    setApiOccupancy(null);
   }, [effectiveBranchId, filterDate]);
 
   // ---- Hydrate booking mode from bookPatientId query param ----
@@ -1852,48 +1843,6 @@ const workingDoctorsForFilter = scheduledDoctors.length
   const totalMinutes =
     (lastSlot.getTime() - firstSlot.getTime()) / 60000 || 1;
   const columnHeightPx = 60 * (totalMinutes / 60);
-
-// ---- Load backend-computed occupancy rate for selected date + branch ----
-useEffect(() => {
-  const loadOccupancy = async () => {
-    try {
-      occupancyRequestIdRef.current += 1;
-      const currentRequestId = occupancyRequestIdRef.current;
-
-      const params = new URLSearchParams();
-      if (filterDate) params.set("date", filterDate);
-      if (effectiveBranchId) params.set("branchId", effectiveBranchId);
-
-      const res = await fetch(`/api/appointments/occupancy?${params.toString()}`);
-
-      if (currentRequestId !== occupancyRequestIdRef.current) return;
-
-      if (!res.ok) {
-        setApiOccupancy(null);
-        return;
-      }
-      const data = await res.json().catch(() => null);
-      if (
-        !data ||
-        typeof data.occupancyRate !== "number" ||
-        typeof data.totalSlots !== "number" ||
-        typeof data.bookedSlots !== "number"
-      ) {
-        setApiOccupancy(null);
-        return;
-      }
-      setApiOccupancy({
-        occupancyRate: data.occupancyRate,
-        totalSlots: data.totalSlots,
-        bookedSlots: data.bookedSlots,
-      });
-    } catch {
-      setApiOccupancy(null);
-    }
-  };
-
-  loadOccupancy();
-}, [filterDate, effectiveBranchId, lastSseEventAt]);
 
   // current time line
   useEffect(() => {
@@ -2760,12 +2709,10 @@ const handleCancelDraft = (appointmentId: number) => {
       </div>
     </div>
     <div className="text-[26px] font-bold text-gray-900">
-      {apiOccupancy != null ? apiOccupancy.occupancyRate : fillingStats.percent}%
+      {fillingStats.percent}%
     </div>
     <div className="text-[11px] text-gray-500">
-      {apiOccupancy != null
-        ? `${apiOccupancy.bookedSlots}/${apiOccupancy.totalSlots} цаг захиалагдсан`
-        : `${formatDateYmdDash(selectedDay)} өдрийн нийт цаг дүүргэлт`}
+      {`${formatDateYmdDash(selectedDay)} өдрийн нийт цаг дүүргэлт`}
     </div>
   </div>
 
