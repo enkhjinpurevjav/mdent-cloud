@@ -13,7 +13,7 @@ import { useRouter } from "next/router";
 import { useAuth } from "../../contexts/AuthContext";
 import { useBranchLock } from "../appointments/useBranchLock";
 import type { Branch, Doctor, ScheduledDoctor, PatientLite, Appointment, DoctorScheduleDay, TimeSlot, CompletedHistoryItem } from "../appointments/types";
-import { SLOT_MINUTES, floorToSlotStart, addMinutes, getSlotKey, enumerateSlotStartsOverlappingRange, generateTimeSlotsForDay, getSlotTimeString, addMinutesToTimeString, isTimeWithinRange, getDateFromYMD, pad2 } from "../appointments/time";
+import { SLOT_MINUTES, floorToSlotStart, generateTimeSlotsForDay, getSlotTimeString, addMinutesToTimeString, isTimeWithinRange, getDateFromYMD, pad2 } from "../appointments/time";
 import { formatDoctorName, historyDoctorToDoctor, formatPatientLabel, formatGridShortLabel, formatPatientSearchLabel, formatDateYmdDash, formatStatus, formatDetailedTimeRange, formatHistoryDate } from "../appointments/formatters";
 import AppointmentDetailsModal from "../appointments/AppointmentDetailsModal";
 import QuickAppointmentModal from "../appointments/QuickAppointmentModal";
@@ -2029,111 +2029,6 @@ function clientXToDoctorId(clientX: number, gridLeft: number) {
   return gridDoctors[idx].id;
 }
 
-const fillingStats = useMemo(() => {
-  // Capacity slots: unique schedule slots per doctor
-  const capacity = new Set<string>();
-
-  for (const doc of gridDoctors) {
-    const schedules = (doc.schedules || []) as any[];
-
-    // If schedules are present, use them (best).
-    // If schedules are missing, fallback to clinic visual hours (generateTimeSlotsForDay)
-    if (schedules.length > 0) {
-      for (const s of schedules) {
-        const startTime = String(s.startTime || "");
-        const endTime = String(s.endTime || "");
-        if (!startTime || !endTime) continue;
-
-        const [sh, sm] = startTime.split(":").map(Number);
-        const [eh, em] = endTime.split(":").map(Number);
-        if (
-          !Number.isFinite(sh) ||
-          !Number.isFinite(sm) ||
-          !Number.isFinite(eh) ||
-          !Number.isFinite(em)
-        )
-          continue;
-
-        const start = new Date(
-          selectedDay.getFullYear(),
-          selectedDay.getMonth(),
-          selectedDay.getDate(),
-          sh,
-          sm,
-          0,
-          0
-        );
-        const end = new Date(
-          selectedDay.getFullYear(),
-          selectedDay.getMonth(),
-          selectedDay.getDate(),
-          eh,
-          em,
-          0,
-          0
-        );
-
-        for (const slotStart of enumerateSlotStartsOverlappingRange(
-          start,
-          end,
-          SLOT_MINUTES
-        )) {
-          capacity.add(getSlotKey(doc.id, slotStart));
-        }
-      }
-    } else {
-      // fallback to your existing visual working window
-      for (const slot of generateTimeSlotsForDay(selectedDay)) {
-        capacity.add(getSlotKey(doc.id, slot.start));
-      }
-    }
-  }
-
-  // Filled slots: unique occupied slots per doctor
-  const filled = new Set<string>();
-
-  // appointments already filtered by branch/date above? If not, filter here:
-  const dayKey = filterDate;
-
-  for (const a of appointments) {
-    // ✅ exclude cancelled
-    if (a.status === "cancelled") continue;
-
-    // must have doctor to count against doctor capacity
-    if (a.doctorId == null) continue;
-
-    // ensure it’s the current day (and branch if selected)
-    if (getAppointmentDayKey(a) !== dayKey) continue;
-    // Only use effectiveBranchId as single source of truth
-    if (effectiveBranchId && String(a.branchId) !== effectiveBranchId) continue;
-
-    const start = naiveToFakeUtcDate(a.scheduledAt);
-    const end = a.endAt ? naiveToFakeUtcDate(a.endAt) : addMinutes(start, SLOT_MINUTES);
-
-    if (start.getTime() === 0) continue;
-    if (end <= start) continue;
-
-    // mark all overlapping 30-min slots as filled
-    for (const slotStart of enumerateSlotStartsOverlappingRange(
-      start,
-      end,
-      SLOT_MINUTES
-    )) {
-      const key = getSlotKey(a.doctorId, slotStart);
-      // only count if it exists in capacity (inside working schedule)
-      if (capacity.has(key)) filled.add(key);
-    }
-  }
-
-  const totalSlots = capacity.size;
-  const filledSlots = filled.size;
-  const percent = totalSlots === 0 ? 0 : Math.round((filledSlots / totalSlots) * 100);
-
-  return { totalSlots, filledSlots, percent };
-}, [appointments, gridDoctors, selectedDay, filterDate, effectiveBranchId]);
-
-  
-  // lane map
   const laneById: Record<number, 0 | 1> = useMemo(() => {
     const map: Record<number, 0 | 1> = {};
     const dayKey = filterDate;
@@ -2162,7 +2057,7 @@ const fillingStats = useMemo(() => {
 const dayKey = filterDate;
 
 // All appointments for this day (and branch, if selected), excluding cancelled.
-// Used for grid rendering — not for stats (dayAppointments includes cancelled for totals).
+// Used for grid rendering — not for stats.
 const visibleAppointments = useMemo(
   () =>
     appointments.filter((a) => {
@@ -2189,21 +2084,6 @@ const appointmentsByDoctorId = useMemo(() => {
   return map;
 }, [visibleAppointments]);
 
-// All appointments for this day (and branch, if selected)
-const dayAppointments = useMemo(
-  () =>
-    appointments.filter((a) => {
-      const scheduled = a.scheduledAt;
-      if (!scheduled) return false;
-      const key = scheduled.slice(0, 10);
-      if (key !== dayKey) return false;
-      // Only use effectiveBranchId as single source of truth
-      if (effectiveBranchId && String(a.branchId) !== effectiveBranchId) return false;
-      return true;
-    }),
-  [appointments, dayKey, effectiveBranchId]
-);
-
 // ---- Checked-in patient queue (for reception) ----
 // Shows patients who have checked in, ordered by checkedInAt, excluding ongoing/completed
 const checkedInQueue = useMemo(
@@ -2226,32 +2106,6 @@ const checkedInQueue = useMemo(
       }),
   [appointments, dayKey, effectiveBranchId]
 );
-
-// 1) Нийт цаг захиалга – all appointments for the day
-const totalAppointmentsForDay = dayAppointments.length;
-
-// 2) Хуваарьт эмчийн тоо – unique doctors who have schedule or appointments that day
-const totalScheduledDoctorsForDay = useMemo(() => {
-  const ids = new Set<number>();
-
-  // from scheduledDoctors list (already filtered by date & branch in your loader)
-  scheduledDoctors.forEach((d) => ids.add(d.id));
-
-  // fallback: if no scheduledDoctors were loaded, derive from appointments
-  if (ids.size === 0) {
-    dayAppointments.forEach((a) => {
-      if (a.doctorId != null) ids.add(a.doctorId);
-    });
-  }
-
-  return ids.size;
-}, [scheduledDoctors, dayAppointments]);
-
-// 3) Үйлчлүүлэгчдийн тоо – unique patients with completed appointments that day
-const totalCompletedAppointmentsForDay = useMemo(() => {
-  return dayAppointments.filter((a) => a.status === "completed").length;
-}, [dayAppointments]);
-  
   const [detailsModalState, setDetailsModalState] = useState<{
     open: boolean;
     doctor?: Doctor | null;
@@ -2681,100 +2535,6 @@ const handleCancelDraft = (appointmentId: number) => {
     </div>
   </section>
 )}
-
-<section
-  style={{ gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" }}
-  className="grid gap-3 mb-4"
->
-  {/* Нийт цаг дүүргэлт, Хуваарьт эмчийн тоо, Үйлчлүүлэгчдийн тоо — hidden for receptionist role */}
-  {currentUserRole !== "receptionist" && (
-  <>
-  {/* Нийт цаг захиалга */}
-  <div
-    style={{
-      background: "linear-gradient(90deg,#eff6ff,#ffffff)",
-      boxShadow: "0 8px 16px rgba(15,23,42,0.06)",
-    }}
-    className="rounded-xl border border-blue-200 p-3 flex flex-col gap-2"
-  >
-    <div className="flex items-center justify-between">
-      <div className="text-[11px] uppercase text-blue-700 font-bold tracking-[0.5px]">
-        Нийт цаг дүүргэлт
-      </div>
-      <div
-        style={{ background: "radial-gradient(circle at 30% 30%,#bfdbfe,#1d4ed8)" }}
-        className="w-[30px] h-[30px] rounded-full flex items-center justify-center text-white text-base"
-      >
-        📅
-      </div>
-    </div>
-    <div className="text-[26px] font-bold text-gray-900">
-      {fillingStats.percent}%
-    </div>
-    <div className="text-[11px] text-gray-500">
-      {`${formatDateYmdDash(selectedDay)} өдрийн нийт цаг дүүргэлт`}
-    </div>
-  </div>
-
-  {/* Хуваарьт эмчийн тоо */}
-  <div
-    style={{
-      background: "linear-gradient(90deg,#fef9c3,#ffffff)",
-      boxShadow: "0 8px 16px rgba(15,23,42,0.06)",
-    }}
-    className="rounded-xl border border-yellow-400 p-3 flex flex-col gap-2"
-  >
-    <div className="flex items-center justify-between">
-      <div className="text-[11px] uppercase text-amber-700 font-bold tracking-[0.5px]">
-        Хуваарьт эмчийн тоо
-      </div>
-      <div
-        style={{ background: "radial-gradient(circle at 30% 30%,#fde68a,#f59e0b)" }}
-        className="w-[30px] h-[30px] rounded-full flex items-center justify-center text-white text-base"
-      >
-        🩺
-      </div>
-    </div>
-    <div className="text-[26px] font-bold text-gray-900">
-      {totalScheduledDoctorsForDay}
-    </div>
-    <div className="text-[11px] text-gray-500">
-      Сонгосон өдөрт ажиллаж буй эмч
-    </div>
-  </div>
-
-  {/* Үйлчлүүлэгчдийн тоо (completed) */}
-  <div
-    style={{
-      background: "linear-gradient(90deg,#fee2e2,#ffffff)",
-      boxShadow: "0 8px 16px rgba(15,23,42,0.06)",
-    }}
-    className="rounded-xl border border-red-200 p-3 flex flex-col gap-2"
-  >
-    <div className="flex items-center justify-between">
-      <div className="text-[11px] uppercase text-red-700 font-bold tracking-[0.5px]">
-        Үйлчлүүлэгчдийн тоо
-      </div>
-      <div
-        style={{ background: "radial-gradient(circle at 30% 30%,#fecaca,#ef4444)" }}
-        className="w-[30px] h-[30px] rounded-full flex items-center justify-center text-white text-base"
-      >
-        🧍
-      </div>
-    </div>
-    <div className="text-[26px] font-bold text-gray-900">
-      {totalCompletedAppointmentsForDay}
-    </div>
-    <div className="text-[11px] text-gray-500">
-      {formatDateYmdDash(selectedDay)} өдөр &quot;Дууссан&quot; төлөвтэй
-      үйлчлүүлэгч
-    </div>
-  </div>
-  </>
-  )}
-
-</section>
-     
 
       {/* Filters card — hidden entirely when receptionist is viewing another branch */}
       {!isOtherBranchReceptionView && (
