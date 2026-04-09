@@ -278,6 +278,94 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 /**
+ * GET /api/encounters/free-closed
+ * Admin-only list of encounters closed without payment.
+ * Query params: dateFrom (YYYY-MM-DD), dateTo (YYYY-MM-DD), branchId (number or "all")
+ */
+router.get("/free-closed", authenticateJWT, async (req, res) => {
+  if (process.env.DISABLE_AUTH !== "true") {
+    const role = req.user?.role;
+    if (role !== "admin" && role !== "super_admin") {
+      return res.status(403).json({ error: "Forbidden. Admin only." });
+    }
+  }
+
+  try {
+    const { dateFrom, dateTo, branchId } = req.query;
+
+    const where = { closedWithoutPayment: true };
+
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      if (!isNaN(from.getTime())) {
+        from.setHours(0, 0, 0, 0);
+        where.closedWithoutPaymentAt = { ...where.closedWithoutPaymentAt, gte: from };
+      }
+    }
+
+    if (dateTo) {
+      const to = new Date(dateTo);
+      if (!isNaN(to.getTime())) {
+        to.setHours(23, 59, 59, 999);
+        where.closedWithoutPaymentAt = { ...where.closedWithoutPaymentAt, lte: to };
+      }
+    }
+
+    if (branchId && branchId !== "all") {
+      const bid = Number(branchId);
+      if (!Number.isNaN(bid) && bid > 0) {
+        where.patientBook = {
+          patient: { branchId: bid },
+        };
+      }
+    }
+
+    const encounters = await prisma.encounter.findMany({
+      where,
+      include: {
+        patientBook: {
+          include: {
+            patient: {
+              include: { branch: true },
+            },
+          },
+        },
+        doctor: { select: { id: true, name: true, ovog: true } },
+        closedWithoutPaymentBy: { select: { id: true, name: true, ovog: true } },
+      },
+      orderBy: { closedWithoutPaymentAt: "desc" },
+    });
+
+    const result = encounters.map((enc) => ({
+      id: enc.id,
+      visitDate: enc.visitDate ? enc.visitDate.toISOString() : null,
+      closedWithoutPaymentAt: enc.closedWithoutPaymentAt ? enc.closedWithoutPaymentAt.toISOString() : null,
+      closedWithoutPaymentNote: enc.closedWithoutPaymentNote || null,
+      closedWithoutPaymentBy: enc.closedWithoutPaymentBy
+        ? { id: enc.closedWithoutPaymentBy.id, name: enc.closedWithoutPaymentBy.name, ovog: enc.closedWithoutPaymentBy.ovog }
+        : null,
+      doctor: enc.doctor ? { id: enc.doctor.id, name: enc.doctor.name, ovog: enc.doctor.ovog } : null,
+      patient: enc.patientBook?.patient
+        ? {
+            id: enc.patientBook.patient.id,
+            name: enc.patientBook.patient.name,
+            ovog: enc.patientBook.patient.ovog,
+            phone: enc.patientBook.patient.phone,
+            regNo: enc.patientBook.patient.regNo,
+            branchName: enc.patientBook.patient.branch?.name ?? null,
+          }
+        : null,
+      patientBookId: enc.patientBookId,
+    }));
+
+    return res.json(result);
+  } catch (err) {
+    console.error("GET /api/encounters/free-closed error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+/**
  * GET /api/encounters/:id
  * Returns full encounter details including all nested relations.
  * 
@@ -2309,6 +2397,182 @@ router.post("/:id/follow-up-appointments", optionalAuthenticateJWT, async (req, 
   } catch (err) {
     console.error("Error creating follow-up appointment:", err);
     res.status(500).json({ error: "Failed to create follow-up appointment" });
+  }
+});
+
+/**
+ * POST /api/encounters/:id/close-without-payment
+ *
+ * Close an encounter without requiring payment.
+ * Authorization:
+ *   - super_admin: always allowed
+ *   - doctor: only if encounter.doctorId === req.user.id AND user.canCloseEncounterWithoutPayment === true
+ *   - doctor_kiosk: same as doctor, identified via doctor_kiosk_token cookie
+ *
+ * Body: { note: string (required, non-empty), consent: boolean (must be true) }
+ *
+ * Conflict rule: if an invoice exists and has unpaid balance > 0 → 409.
+ */
+router.post("/:id/close-without-payment", authenticateJWT, async (req, res) => {
+  if (process.env.DISABLE_AUTH !== "true") {
+    const role = req.user?.role;
+    const userId = req.user?.id;
+
+    if (!role) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
+    const isSuperAdmin = role === "super_admin";
+    const isAdmin = role === "admin";
+
+    if (!isSuperAdmin && !isAdmin) {
+      // Check for doctor (direct session)
+      let effectiveDoctorId = null;
+      let checkPermission = false;
+
+      if (role === "doctor") {
+        effectiveDoctorId = userId;
+        checkPermission = true;
+      } else if (role === "branch_kiosk") {
+        // Check kiosk token
+        const kioskUser = parseKioskToken(req);
+        if (kioskUser && kioskUser.role === "doctor_kiosk") {
+          effectiveDoctorId = kioskUser.id;
+          checkPermission = true;
+        }
+      }
+
+      if (!effectiveDoctorId) {
+        return res.status(403).json({ error: "Forbidden. Insufficient role." });
+      }
+
+      if (checkPermission) {
+        const encounterId = Number(req.params.id);
+        if (!Number.isFinite(encounterId) || encounterId <= 0) {
+          return res.status(400).json({ error: "Invalid encounter id." });
+        }
+
+        const enc = await prisma.encounter.findUnique({
+          where: { id: encounterId },
+          select: { doctorId: true },
+        });
+
+        if (!enc) {
+          return res.status(404).json({ error: "Encounter not found." });
+        }
+
+        if (enc.doctorId !== effectiveDoctorId) {
+          return res.status(403).json({ error: "Forbidden. This encounter does not belong to you." });
+        }
+
+        // Check permission flag
+        const doctorUser = await prisma.user.findUnique({
+          where: { id: effectiveDoctorId },
+          select: { canCloseEncounterWithoutPayment: true },
+        });
+
+        if (!doctorUser?.canCloseEncounterWithoutPayment) {
+          return res.status(403).json({ error: "Forbidden. You do not have permission to close encounters without payment." });
+        }
+      }
+    }
+  }
+
+  try {
+    const encounterId = Number(req.params.id);
+    if (!Number.isFinite(encounterId) || encounterId <= 0) {
+      return res.status(400).json({ error: "Invalid encounter id." });
+    }
+
+    const { note, consent } = req.body || {};
+
+    // Validate note
+    if (!note || typeof note !== "string" || !note.trim()) {
+      return res.status(400).json({ error: "note is required and must be a non-empty string." });
+    }
+
+    // Validate consent
+    if (!consent) {
+      return res.status(400).json({ error: "consent must be true." });
+    }
+
+    // Load encounter
+    const encounter = await prisma.encounter.findUnique({
+      where: { id: encounterId },
+      include: {
+        invoice: {
+          include: { payments: true },
+        },
+        appointment: true,
+      },
+    });
+
+    if (!encounter) {
+      return res.status(404).json({ error: "Encounter not found." });
+    }
+
+    // Invoice conflict rule: if invoice exists and has unpaid balance → deny
+    if (encounter.invoice) {
+      const inv = encounter.invoice;
+      const totalAmount =
+        inv.finalAmount != null
+          ? Number(inv.finalAmount)
+          : Number(inv.totalAmount || 0);
+      const paidTotal = (inv.payments || []).reduce(
+        (sum, p) => sum + Number(p.amount || 0),
+        0
+      );
+      const unpaid = totalAmount - paidTotal;
+      if (unpaid > 0) {
+        return res.status(409).json({
+          error: `Тооцоо хаагдаагүй байна. Нийт дүн: ${totalAmount.toLocaleString("mn-MN")} ₮, Төлсөн: ${paidTotal.toLocaleString("mn-MN")} ₮, Үлдэгдэл: ${unpaid.toLocaleString("mn-MN")} ₮. Эхлээд төлбөрийг төлнө үү.`,
+        });
+      }
+    }
+
+    const closedAt = new Date();
+    const closedByUserId = req.user?.id ?? null;
+
+    // Update encounter
+    await prisma.encounter.update({
+      where: { id: encounterId },
+      data: {
+        closedWithoutPayment: true,
+        closedWithoutPaymentNote: note.trim(),
+        closedWithoutPaymentAt: closedAt,
+        closedWithoutPaymentByUserId: closedByUserId,
+      },
+    });
+
+    // Update appointment to completed if linked
+    let updatedAppointment = null;
+    if (encounter.appointmentId && encounter.appointment) {
+      updatedAppointment = await prisma.appointment.update({
+        where: { id: encounter.appointmentId },
+        data: { status: "completed" },
+        include: {
+          patient: { select: { id: true, name: true, ovog: true, phone: true, patientBook: true } },
+          doctor: { select: { id: true, name: true, ovog: true } },
+          branch: { select: { id: true, name: true } },
+        },
+      });
+
+      // Broadcast SSE
+      if (updatedAppointment.scheduledAt) {
+        const apptDate = updatedAppointment.scheduledAt.toISOString().slice(0, 10);
+        sseBroadcast(
+          "appointment_updated",
+          { ...updatedAppointment, encounterId },
+          apptDate,
+          updatedAppointment.branchId
+        );
+      }
+    }
+
+    return res.json({ ok: true, updatedAppointment });
+  } catch (err) {
+    console.error("POST /api/encounters/:id/close-without-payment error:", err);
+    return res.status(500).json({ error: "Internal server error." });
   }
 });
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import UsersTabs from "../../components/UsersTabs";
 import SendResetLinkButton from "../../components/SendResetLinkButton";
+import { useAuth } from "../../contexts/AuthContext";
 
 type Branch = {
   id: number;
@@ -22,6 +23,7 @@ type Doctor = {
   phone?: string | null;
   createdAt?: string;
   calendarOrder?: number | null;
+  canCloseEncounterWithoutPayment?: boolean;
 };
 
 function DoctorForm({
@@ -243,11 +245,14 @@ function doctorComparator(a: Doctor, b: Doctor): number {
 }
 
 export default function DoctorsPage() {
+  const { me } = useAuth();
+  const isAdminUser = me?.role === "admin" || me?.role === "super_admin";
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reorderSaving, setReorderSaving] = useState(false);
+  const [permissionSaving, setPermissionSaving] = useState<Record<number, boolean>>({});
 
   const [summary, setSummary] = useState<{
     total: number;
@@ -360,6 +365,42 @@ export default function DoctorsPage() {
       setError("Дараалал хадгалахад алдаа гарлаа");
     } finally {
       setReorderSaving(false);
+    }
+  };
+
+  const toggleCloseWithoutPayment = async (doctorId: number, currentValue: boolean) => {
+    if (permissionSaving[doctorId]) return;
+    setPermissionSaving((prev) => ({ ...prev, [doctorId]: true }));
+    const newValue = !currentValue;
+    // Optimistic update
+    setDoctors((prev) =>
+      prev.map((d) =>
+        d.id === doctorId ? { ...d, canCloseEncounterWithoutPayment: newValue } : d
+      )
+    );
+    try {
+      const res = await fetch(`/api/admin/users/${doctorId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ canCloseEncounterWithoutPayment: newValue }),
+      });
+      if (!res.ok) {
+        // Roll back on failure
+        setDoctors((prev) =>
+          prev.map((d) =>
+            d.id === doctorId ? { ...d, canCloseEncounterWithoutPayment: currentValue } : d
+          )
+        );
+      }
+    } catch {
+      // Roll back on failure
+      setDoctors((prev) =>
+        prev.map((d) =>
+          d.id === doctorId ? { ...d, canCloseEncounterWithoutPayment: currentValue } : d
+        )
+      );
+    } finally {
+      setPermissionSaving((prev) => ({ ...prev, [doctorId]: false }));
     }
   };
 
@@ -533,6 +574,27 @@ export default function DoctorsPage() {
                         </div>
                         {/* Нууц үг сэргээх */}
                         <SendResetLinkButton userId={d.id} />
+                        {/* Төлбөргүй үзлэг хаах эрх toggle — admin/super_admin only */}
+                        {isAdminUser && (
+                          <div className="group relative inline-block">
+                            <button
+                              type="button"
+                              disabled={!!permissionSaving[d.id]}
+                              onClick={() => toggleCloseWithoutPayment(d.id, !!d.canCloseEncounterWithoutPayment)}
+                              title={d.canCloseEncounterWithoutPayment ? "Төлбөргүй үзлэг хаах эрхтэй" : "Төлбөргүй үзлэг хаах эрхгүй"}
+                              className={`inline-flex items-center justify-center h-7 rounded-full border px-2.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                                d.canCloseEncounterWithoutPayment
+                                  ? "border-green-400 bg-green-50 text-green-700 hover:bg-green-100"
+                                  : "border-gray-300 bg-gray-50 text-gray-500 hover:bg-gray-100"
+                              }`}
+                            >
+                              {d.canCloseEncounterWithoutPayment ? "Хаах эрхтэй" : "Эрхгүй"}
+                            </button>
+                            <span className={tooltipCls}>
+                              {d.canCloseEncounterWithoutPayment ? "Төлбөргүй үзлэг хаах эрхтэй" : "Төлбөргүй үзлэг хаах эрхгүй"}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>

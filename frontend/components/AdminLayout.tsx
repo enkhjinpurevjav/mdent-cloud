@@ -117,6 +117,11 @@ const navItems: NavItem[] = [
         icon: "🎟️",
       },
       {
+        label: "Төлбөргүй үзлэгийн жагсаалт",
+        href: "/finance/free-encounters",
+        icon: "🆓",
+      },
+      {
         label: "Өдрийн орлогын тайлан",
         href: "/finance/daily-income",
         icon: "📅",

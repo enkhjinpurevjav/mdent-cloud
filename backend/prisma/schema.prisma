@@ -788,6 +788,12 @@ model User {
   createdPayments   Payment[] @relation("PaymentCreator")
 
   createdBalanceAdjustments BalanceAdjustmentLog[] @relation("BalanceAdjCreatedBy")
+
+  // Permission: allow doctor to close encounters without payment
+  canCloseEncounterWithoutPayment Boolean @default(false)
+
+  // Back-relation: encounters closed without payment by this user
+  closedWithoutPaymentEncounters Encounter[] @relation("EncounterClosedWithoutPaymentBy")
 }
 
 // ==========================================================
@@ -1035,6 +1041,13 @@ model Encounter {
   finalizedSterilization    SterilizationFinalizedUsage[]       @relation("EncounterFinalizedSterilization")
   sterilizationMismatches   SterilizationMismatch[]             @relation("EncounterSterilizationMismatches")
   adjustmentConsumptions    SterilizationAdjustmentConsumption[] @relation("EncounterAdjustmentConsumptions")
+
+  // Close without payment audit fields
+  closedWithoutPayment           Boolean   @default(false)
+  closedWithoutPaymentNote       String?   @db.Text
+  closedWithoutPaymentAt         DateTime?
+  closedWithoutPaymentByUserId   Int?
+  closedWithoutPaymentBy         User?     @relation("EncounterClosedWithoutPaymentBy", fields: [closedWithoutPaymentByUserId], references: [id])
 
   @@index([appointmentId])
   @@index([patientBookId, visitDate])

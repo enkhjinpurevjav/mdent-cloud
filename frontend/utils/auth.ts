@@ -13,6 +13,7 @@ export interface AuthUser {
   branchId: number | null;
   ovog?: string | null;
   regNo?: string | null;
+  canCloseEncounterWithoutPayment?: boolean;
 }
 
 /** Call /api/auth/me to get the current authenticated user, or null on 401. */
