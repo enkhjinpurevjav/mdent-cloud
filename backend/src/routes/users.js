@@ -107,6 +107,7 @@ router.get("/", async (req, res) => {
       calendarOrder: u.calendarOrder ?? null,
       createdAt: u.createdAt.toISOString(),
       nurseRevenueSharingEnabled: u.nurseRevenueSharingEnabled,
+      canCloseEncounterWithoutPayment: u.canCloseEncounterWithoutPayment,
     }));
 
     // Data minimization: receptionist only receives the fields needed by

@@ -178,7 +178,7 @@ router.post("/logout", (_req, res) => {
 });
 
 // GET /api/auth/me
-router.get("/me", (req, res) => {
+router.get("/me", async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
@@ -194,15 +194,29 @@ router.get("/me", (req, res) => {
   }
 
   try {
-    const user = jwt.verify(token, secret);
+    const decoded = jwt.verify(token, secret);
+
+    // Fetch canCloseEncounterWithoutPayment from DB (not stored in JWT)
+    let canCloseEncounterWithoutPayment = false;
+    try {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        select: { canCloseEncounterWithoutPayment: true },
+      });
+      canCloseEncounterWithoutPayment = dbUser?.canCloseEncounterWithoutPayment ?? false;
+    } catch {
+      // Non-fatal: fall back to false
+    }
+
     return res.json({
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        branchId: user.branchId,
-        ovog: user.ovog ?? null,
+        id: decoded.id,
+        name: decoded.name,
+        email: decoded.email,
+        role: decoded.role,
+        branchId: decoded.branchId,
+        ovog: decoded.ovog ?? null,
+        canCloseEncounterWithoutPayment,
       },
     });
   } catch (err) {

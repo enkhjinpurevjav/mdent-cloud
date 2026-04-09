@@ -135,4 +135,52 @@ router.delete("/payment-providers/:id", async (req, res) => {
 
 // Other routes, such as EMPLOYEE BENEFITS and STAFF INCOME SETTINGS, remain unchanged in the correct implementation
 
+// ==========================================================
+// DOCTOR PERMISSION: canCloseEncounterWithoutPayment
+// ==========================================================
+
+/**
+ * PATCH /api/admin/users/:id
+ * Update doctor-specific permissions.
+ * Supported fields: canCloseEncounterWithoutPayment (boolean)
+ */
+router.patch("/users/:id", async (req, res) => {
+  const userId = Number(req.params.id);
+  if (!userId || Number.isNaN(userId)) {
+    return res.status(400).json({ error: "Invalid user id" });
+  }
+
+  const { canCloseEncounterWithoutPayment } = req.body || {};
+
+  if (canCloseEncounterWithoutPayment === undefined) {
+    return res.status(400).json({ error: "No updatable fields provided." });
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, isActive: true },
+    });
+
+    if (!user || !user.isActive) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    if (user.role !== "doctor") {
+      return res.status(400).json({ error: "canCloseEncounterWithoutPayment can only be set for doctors." });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { canCloseEncounterWithoutPayment: Boolean(canCloseEncounterWithoutPayment) },
+      select: { id: true, role: true, canCloseEncounterWithoutPayment: true },
+    });
+
+    return res.json(updated);
+  } catch (err) {
+    console.error("PATCH /api/admin/users/:id error:", err);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+});
+
 export default router;

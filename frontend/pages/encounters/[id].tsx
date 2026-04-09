@@ -310,6 +310,12 @@ export default function EncounterAdminPage() {
   const [mediaOpen, setMediaOpen] = useState(true);
   const [prescriptionOpen, setPrescriptionOpen] = useState(true);
 
+  // Close without payment section
+  const [closeWithoutPaymentNote, setCloseWithoutPaymentNote] = useState("");
+  const [closeWithoutPaymentConsent, setCloseWithoutPaymentConsent] = useState(false);
+  const [closingWithoutPayment, setClosingWithoutPayment] = useState(false);
+  const [closeWithoutPaymentError, setCloseWithoutPaymentError] = useState("");
+
   // Helper: collapse secondary sections to doctor-minimal layout
   const collapseDoctorSections = React.useCallback(() => {
     setConsentOpen(false);
@@ -2029,6 +2035,54 @@ const handleFinishEncounter = async () => {
       setFinishing(false);
     }
   };
+
+  const handleCloseWithoutPayment = async () => {
+    if (!id || typeof id !== "string") return;
+    if (closingWithoutPayment) return;
+
+    const trimmedNote = closeWithoutPaymentNote.trim();
+    if (!trimmedNote) {
+      setCloseWithoutPaymentError("Тайлбар оруулна уу.");
+      return;
+    }
+    if (!closeWithoutPaymentConsent) {
+      setCloseWithoutPaymentError("Төлбөргүй үйлчилгээний нөхцөл зөвшөөрнө үү.");
+      return;
+    }
+
+    setClosingWithoutPayment(true);
+    setCloseWithoutPaymentError("");
+    try {
+      const res = await fetch(`/api/encounters/${id}/close-without-payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: trimmedNote, consent: true }),
+      });
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        throw new Error(
+          (json && json.error) || "Үзлэг хаахад алдаа гарлаа."
+        );
+      }
+
+      // Redirect based on role
+      if (isKioskDoctor) {
+        await router.push("/branch");
+      } else if (isDoctor) {
+        await router.push("/doctor/appointments");
+      }
+      // super_admin / admin: stay on page (reload to show updated state)
+      else {
+        await reloadEncounter();
+      }
+    } catch (err: any) {
+      console.error("handleCloseWithoutPayment failed", err);
+      setCloseWithoutPaymentError(err?.message || "Үзлэг хаахад алдаа гарлаа.");
+    } finally {
+      setClosingWithoutPayment(false);
+    }
+  };
      
   const warningLines: WarningLine[] = extractWarningLinesFromVisitCard(
     visitCard
@@ -2306,6 +2360,54 @@ const handleFinishEncounter = async () => {
               hideInlineActions={isDoctor}
             />
           </section>
+
+          {/* Close Without Payment Section */}
+          {(currentUser?.role === "super_admin" || currentUser?.role === "admin" ||
+            (isDoctor && currentUser?.canCloseEncounterWithoutPayment === true)) && (
+            <section className="mb-3">
+              <div className="rounded-lg border border-orange-200 bg-orange-50 p-4">
+                <h3 className="text-sm font-semibold text-orange-800 mb-3">Төлбөргүй үзлэг хаах</h3>
+                <div className="mb-3">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                    Тайлбар <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={closeWithoutPaymentNote}
+                    onChange={(e) => setCloseWithoutPaymentNote(e.target.value)}
+                    placeholder="Тайлбар оруулна уу..."
+                    rows={3}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300"
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={closeWithoutPaymentConsent}
+                      onChange={(e) => setCloseWithoutPaymentConsent(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-400"
+                    />
+                    <span className="text-sm text-gray-700">Төлбөргүй үйлчилгээ</span>
+                  </label>
+                </div>
+                {closeWithoutPaymentError && (
+                  <div className="text-red-600 text-xs mb-2">{closeWithoutPaymentError}</div>
+                )}
+                <button
+                  type="button"
+                  disabled={
+                    closingWithoutPayment ||
+                    !closeWithoutPaymentNote.trim() ||
+                    !closeWithoutPaymentConsent
+                  }
+                  onClick={handleCloseWithoutPayment}
+                  className="w-full py-2.5 rounded-lg bg-orange-600 text-white font-semibold text-sm disabled:opacity-40 hover:bg-orange-700 transition-colors"
+                >
+                  {closingWithoutPayment ? "Хааж байна..." : "Үзлэг хаах"}
+                </button>
+              </div>
+            </section>
+          )}
 
           {/* Media Gallery */}
           <section className="mb-3">
