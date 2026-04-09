@@ -899,9 +899,15 @@ router.patch("/:id", async (req, res) => {
       // Receptionist-specific status transition rule:
       // - Receptionist CAN set status to "ongoing" ONLY if the patient's visit card
       //   is completed (sharedConsentAccepted and a signature on file).
+      //   TEMP: This check is gated behind REQUIRE_PATIENT_CARD_TO_START_ENCOUNTER env var.
+      //   Default is false (permissive — allow start without card).
+      //   Set REQUIRE_PATIENT_CARD_TO_START_ENCOUNTER=true to re-enable strict mode.
+      //   Remove this feature flag and restore strict enforcement once no longer needed.
       // - Receptionist CANNOT change status away from "ongoing" once an encounter
       //   has been created for this appointment (doctor has started the visit).
-      if (req.user?.role === "receptionist" && normalizedStatus === "ongoing") {
+      // TEMP: Feature flag — skip visit-card requirement unless explicitly enabled.
+      const requirePatientCard = process.env.REQUIRE_PATIENT_CARD_TO_START_ENCOUNTER === "true";
+      if (req.user?.role === "receptionist" && normalizedStatus === "ongoing" && requirePatientCard) {
         // Fetch the patientBook for this appointment to check visit card completion
         const apptWithPatient = await prisma.appointment.findUnique({
           where: { id },
