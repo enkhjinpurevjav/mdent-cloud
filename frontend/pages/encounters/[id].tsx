@@ -64,6 +64,7 @@ export default function EncounterAdminPage() {
 
   // Kiosk mode: doctor unlocked via PIN on the branch tablet
   const [isKioskDoctor, setIsKioskDoctor] = useState(false);
+  const [kioskDoctorCanCloseWithoutPayment, setKioskDoctorCanCloseWithoutPayment] = useState(false);
 
   // isDoctor controls doctor-specific UI (minimal layout, action bar, etc.)
   // Also enabled for kiosk doctor sessions (isKioskDoctor).
@@ -341,9 +342,11 @@ export default function EncounterAdminPage() {
       // sessions to avoid unnecessary requests for regular doctor/admin users.
       if (user?.role === "branch_kiosk") {
         fetch("/api/branch/doctor/me", { credentials: "include" })
-          .then((r) => {
+          .then(async (r) => {
             if (r.ok) {
+              const data = await r.json().catch(() => ({}));
               setIsKioskDoctor(true);
+              setKioskDoctorCanCloseWithoutPayment(data?.canCloseEncounterWithoutPayment === true);
               collapseDoctorSections();
             }
           })
@@ -2363,7 +2366,8 @@ const handleFinishEncounter = async () => {
 
           {/* Close Without Payment Section */}
           {(currentUser?.role === "super_admin" || currentUser?.role === "admin" ||
-            (isDoctor && currentUser?.canCloseEncounterWithoutPayment === true)) && (
+            (isDoctor && currentUser?.canCloseEncounterWithoutPayment === true) ||
+            (isKioskDoctor && kioskDoctorCanCloseWithoutPayment)) && (
             <section className="mb-3">
               <div className="rounded-lg border border-orange-200 bg-orange-50 p-4">
                 <h3 className="text-sm font-semibold text-orange-800 mb-3">Төлбөргүй үзлэг хаах</h3>
