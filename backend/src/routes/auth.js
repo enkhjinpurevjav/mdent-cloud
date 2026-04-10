@@ -274,10 +274,17 @@ router.post("/password-reset/request", passwordResetRateLimit, async (req, res) 
         },
       });
 
-      await sendPasswordResetEmail(user.email, rawToken);
+      const sent = await sendPasswordResetEmail(user.email, rawToken);
+      if (!sent) {
+        console.error("[password-reset/request] SMTP not configured, email not sent.", { userId: user.id });
+      }
     }
   } catch (err) {
-    console.error("Error during password reset request:", err);
+    console.error("[password-reset/request] Failed to send email:", {
+      message: err.message,
+      code: err.code,
+      response: err.response,
+    });
   }
 
   return res.json({ ok: true });
