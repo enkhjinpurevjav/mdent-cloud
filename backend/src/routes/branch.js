@@ -337,17 +337,31 @@ router.post("/doctor/logout", (req, res) => {
 
 /**
  * GET /api/branch/doctor/me
- * Validates the doctor_kiosk_token cookie and returns the doctor's identity.
+ * Validates the doctor_kiosk_token cookie and returns the doctor's identity,
+ * including canCloseEncounterWithoutPayment (looked up from the database).
  * Returns 401 if no valid kiosk session is active.
  */
-router.get("/doctor/me", requireDoctorKiosk, (req, res) => {
+router.get("/doctor/me", requireDoctorKiosk, async (req, res) => {
   const u = req.doctorKioskUser;
-  return res.json({
-    doctorId: u.id,
-    name: u.name,
-    ovog: u.ovog,
-    branchId: u.branchId,
-  });
+  try {
+    const doctor = await prisma.user.findUnique({
+      where: { id: u.id },
+      select: { canCloseEncounterWithoutPayment: true },
+    });
+    if (!doctor) {
+      return res.status(404).json({ error: "Doctor not found." });
+    }
+    return res.json({
+      doctorId: u.id,
+      name: u.name,
+      ovog: u.ovog,
+      branchId: u.branchId,
+      canCloseEncounterWithoutPayment: doctor.canCloseEncounterWithoutPayment ?? false,
+    });
+  } catch (err) {
+    console.error("GET /api/branch/doctor/me error:", err);
+    return res.status(500).json({ error: "Failed to fetch doctor info." });
+  }
 });
 
 /**
