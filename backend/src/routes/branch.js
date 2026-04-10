@@ -348,12 +348,15 @@ router.get("/doctor/me", requireDoctorKiosk, async (req, res) => {
       where: { id: u.id },
       select: { canCloseEncounterWithoutPayment: true },
     });
+    if (!doctor) {
+      return res.status(404).json({ error: "Doctor not found." });
+    }
     return res.json({
       doctorId: u.id,
       name: u.name,
       ovog: u.ovog,
       branchId: u.branchId,
-      canCloseEncounterWithoutPayment: doctor?.canCloseEncounterWithoutPayment ?? false,
+      canCloseEncounterWithoutPayment: doctor.canCloseEncounterWithoutPayment ?? false,
     });
   } catch (err) {
     console.error("GET /api/branch/doctor/me error:", err);
