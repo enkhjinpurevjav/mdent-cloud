@@ -5,26 +5,20 @@ import { requireRole } from "../middleware/auth.js";
 
 const router = express.Router();
 
-export async function getAdjustmentTotalsByPatient(patientIds) {
-  if (!Array.isArray(patientIds) || patientIds.length === 0) {
-    return new Map();
-  }
-
-  const normalizedPatientIds = [...new Set(
-    patientIds
-      .map((id) => Number(id))
-      .filter((id) => Number.isInteger(id) && id > 0)
-  )];
-  if (normalizedPatientIds.length === 0) {
-    return new Map();
-  }
+export async function getAdjustmentTotalsByPatient(branchId = null) {
+  const normalizedBranchId = Number(branchId);
+  const branchFilter = Number.isInteger(normalizedBranchId) && normalizedBranchId > 0
+    ? Prisma.sql`AND p."branchId" = ${normalizedBranchId}`
+    : Prisma.empty;
 
   try {
     const rows = await prisma.$queryRaw(Prisma.sql`
-      SELECT "patientId", COALESCE(SUM("amount"), 0) AS "sum"
-      FROM "BalanceAdjustmentLog"
-      WHERE "patientId" = ANY(ARRAY[${Prisma.join(normalizedPatientIds)}]::int[])
-      GROUP BY "patientId"
+      SELECT b."patientId", COALESCE(SUM(b."amount"), 0) AS "sum"
+      FROM "BalanceAdjustmentLog" b
+      JOIN "Patient" p ON p."id" = b."patientId"
+      WHERE p."isActive" = true
+      ${branchFilter}
+      GROUP BY b."patientId"
     `);
 
     const adjByPatient = new Map();
@@ -158,11 +152,9 @@ router.get(
       return res.json({ total: 0, page, pageSize, items: [] });
     }
 
-    const patientIds = patients.map((p) => p.id);
-
     // 3) Fetch all invoices for these patients
     const invoices = await prisma.invoice.findMany({
-      where: { patientId: { in: patientIds } },
+      where: { patientId: { in: patients.map((p) => p.id) } },
       select: { id: true, patientId: true, finalAmount: true, totalAmount: true },
     });
 
@@ -182,7 +174,7 @@ router.get(
     }
 
     // 5) Fetch manual balance adjustments
-    const adjByPatient = await getAdjustmentTotalsByPatient(patientIds);
+    const adjByPatient = await getAdjustmentTotalsByPatient(branchId);
 
     // 6) Aggregate per patient
     const billedByPatient = new Map();
