@@ -1,8 +1,48 @@
 import express from "express";
+import { Prisma } from "@prisma/client";
 import prisma from "../db.js";
 import { requireRole } from "../middleware/auth.js";
 
 const router = express.Router();
+
+export async function getAdjustmentTotalsByPatient(patientIds) {
+  if (!Array.isArray(patientIds) || patientIds.length === 0) {
+    return new Map();
+  }
+
+  const normalizedPatientIds = [...new Set(
+    patientIds
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0)
+  )];
+  if (normalizedPatientIds.length === 0) {
+    return new Map();
+  }
+
+  try {
+    const rows = await prisma.$queryRaw(Prisma.sql`
+      SELECT "patientId", COALESCE(SUM("amount"), 0) AS "sum"
+      FROM "BalanceAdjustmentLog"
+      WHERE "patientId" = ANY(ARRAY[${Prisma.join(normalizedPatientIds)}]::int[])
+      GROUP BY "patientId"
+    `);
+
+    const adjByPatient = new Map();
+    for (const row of rows || []) {
+      const patientId = Number(row.patientId);
+      const sum = Number(row.sum || 0);
+      if (!Number.isFinite(patientId)) continue;
+      adjByPatient.set(patientId, Number.isFinite(sum) ? sum : 0);
+    }
+    return adjByPatient;
+  } catch (err) {
+    console.error(
+      "Balance adjustment aggregation failed:",
+      err instanceof Error ? err.message : String(err)
+    );
+    return new Map();
+  }
+}
 
 /**
  * Computes patient balance from all invoices, payments, and manual adjustments.
@@ -142,16 +182,7 @@ router.get(
     }
 
     // 5) Fetch manual balance adjustments
-    const adjustments = await prisma.balanceAdjustmentLog.groupBy({
-      by: ["patientId"],
-      where: { patientId: { in: patientIds } },
-      _sum: { amount: true },
-    }).catch(() => []);
-
-    const adjByPatient = new Map();
-    for (const a of adjustments) {
-      adjByPatient.set(a.patientId, Number(a._sum.amount || 0));
-    }
+    const adjByPatient = await getAdjustmentTotalsByPatient(patientIds);
 
     // 6) Aggregate per patient
     const billedByPatient = new Map();
