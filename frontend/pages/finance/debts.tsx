@@ -55,6 +55,15 @@ type BalanceDetailResponse = {
   adjustmentLog: AdjustmentLogItem[];
 };
 
+type PatientSearchItem = {
+  id: number;
+  bookNumber: string | null;
+  name: string | null;
+  ovog: string | null;
+  regNo: string | null;
+  phone: string | null;
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtMnt(v: number) {
@@ -73,6 +82,18 @@ function fmtDatetime(iso: string | null | undefined) {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "-";
   return d.toLocaleDateString("mn-MN");
+}
+
+const SIGNED_AMOUNT_REGEX = /^[+-]\d+(\.\d+)?$/;
+
+function patientDisplayLine(patient: PatientSearchItem) {
+  const book = patient.bookNumber || "-";
+  return `${book} — ${fmtName(patient.ovog, patient.name)}`;
+}
+
+function csvCell(value: string | number | null | undefined) {
+  const text = String(value ?? "");
+  return `"${text.replace(/"/g, '""')}"`;
 }
 
 // ── Breakdown Modal ───────────────────────────────────────────────────────────
@@ -246,18 +267,18 @@ function BalanceDetailModal({
 function EditBalanceModal({
   open,
   onClose,
-  patientId,
-  patientName,
-  currentBalance,
+  initialPatient,
   onSaved,
 }: {
   open: boolean;
   onClose: () => void;
-  patientId: number | null;
-  patientName: string;
-  currentBalance: number;
+  initialPatient: PatientSearchItem | null;
   onSaved: () => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<PatientSearchItem[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState<PatientSearchItem | null>(null);
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
@@ -265,18 +286,84 @@ function EditBalanceModal({
 
   useEffect(() => {
     if (open) {
+      setQuery(initialPatient ? patientDisplayLine(initialPatient) : "");
+      setSuggestions([]);
+      setSearchLoading(false);
+      setSelectedPatient(initialPatient);
       setAmount("");
       setReason("");
       setError("");
     }
-  }, [open]);
+  }, [open, initialPatient]);
+
+  useEffect(() => {
+    if (!open) return;
+    const q = query.trim();
+    if (selectedPatient && q === patientDisplayLine(selectedPatient)) {
+      setSuggestions([]);
+      return;
+    }
+    if (q.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const res = await fetch(
+          `/api/patients/search?q=${encodeURIComponent(q)}&limit=10`,
+          { credentials: "include" }
+        );
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || "Үйлчлүүлэгч хайхад алдаа гарлаа.");
+        const list = Array.isArray(json)
+          ? json.map((p) => ({
+              id: Number(p.id),
+              bookNumber: p?.patientBook?.bookNumber ?? null,
+              name: typeof p?.name === "string" ? p.name : null,
+              ovog: typeof p?.ovog === "string" ? p.ovog : null,
+              regNo: typeof p?.regNo === "string" ? p.regNo : null,
+              phone: typeof p?.phone === "string" ? p.phone : null,
+            }))
+          : [];
+        setSuggestions(
+          list.filter(
+            (p) =>
+              Number.isFinite(p.id) &&
+              p.id > 0 &&
+              (p.name || p.ovog || p.bookNumber || p.regNo || p.phone)
+          )
+        );
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [open, query, selectedPatient]);
 
   if (!open) return null;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    const numAmount = parseFloat(amount);
-    if (isNaN(numAmount) || numAmount === 0) {
+    if (!selectedPatient) {
+      setError("Үйлчлүүлэгч сонгоно уу.");
+      return;
+    }
+    const rawAmount = amount.trim();
+    if (!SIGNED_AMOUNT_REGEX.test(rawAmount)) {
+      setError("Дүнг тэмдэгтэйгээр оруулна уу. Ж: -10000");
+      return;
+    }
+    if (!rawAmount.startsWith("-")) {
+      setError("Авлага дээр заавал '-' тэмдэгтэй дүн оруулна уу. Ж: -10000");
+      return;
+    }
+    const numAmount = Number(rawAmount);
+    if (!Number.isFinite(numAmount) || numAmount === 0) {
       setError("Дүн оруулна уу (0-ээс ялгаатай тоо).");
       return;
     }
@@ -291,7 +378,11 @@ function EditBalanceModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ patientId, amount: numAmount, reason: reason.trim() }),
+        body: JSON.stringify({
+          patientId: selectedPatient.id,
+          amount: numAmount,
+          reason: reason.trim(),
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Хадгалахад алдаа гарлаа.");
@@ -314,31 +405,67 @@ function EditBalanceModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-          <h2 className="m-0 text-base font-semibold">
-            Үлдэгдэл засварлах — {patientName}
-          </h2>
+          <h2 className="m-0 text-base font-semibold">Авлага — Засвар оруулах</h2>
           <button onClick={onClose} className="text-gray-500 text-2xl leading-none">
             ×
           </button>
         </div>
         <form onSubmit={handleSave} className="p-4 space-y-4">
-          <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded">
-            Одоогийн үлдэгдэл:{" "}
-            <span className="font-semibold text-red-600">{fmtMnt(currentBalance)}</span>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Үйлчлүүлэгч
+            </label>
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setSelectedPatient(null);
+              }}
+              placeholder="Картын №, нэр, РД, утсаар хайх..."
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+            {(searchLoading || suggestions.length > 0) && (
+              <div className="mt-1 max-h-44 overflow-auto rounded-lg border border-gray-200 bg-white">
+                {searchLoading && (
+                  <div className="px-3 py-2 text-xs text-gray-500">Хайж байна...</div>
+                )}
+                {!searchLoading &&
+                  suggestions.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPatient(p);
+                        setQuery(patientDisplayLine(p));
+                        setSuggestions([]);
+                      }}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                    >
+                      <div className="font-medium text-gray-800">
+                        {patientDisplayLine(p)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        РД: {p.regNo || "-"} · Утас: {p.phone || "-"}
+                      </div>
+                    </button>
+                  ))}
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Засварын дүн (₮)
             </label>
             <p className="text-xs text-gray-500 mb-1">
-              Эерэг тоо = үйлчлүүлэгчийн данснд кредит нэмнэ (өр буурна). Сөрөг тоо = дебит (өр нэмнэ).
+              Авлагад заавал <strong>-</strong> тэмдэгтэй дүн оруулна. Ж: -10000
             </p>
             <input
-              type="number"
-              step="any"
+              type="text"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="жишээ: 50000 эсвэл -10000"
+              placeholder="жишээ: -10000"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
@@ -408,19 +535,18 @@ export default function DebtsPage() {
 
   // Edit balance modal
   const [editOpen, setEditOpen] = useState(false);
-  const [editPatientId, setEditPatientId] = useState<number | null>(null);
-  const [editPatientName, setEditPatientName] = useState("");
-  const [editCurrentBalance, setEditCurrentBalance] = useState(0);
+  const [editPatient, setEditPatient] = useState<PatientSearchItem | null>(null);
 
-  const canEdit =
-    me?.role === "admin" || me?.role === "super_admin" || me?.role === "accountant";
+  const canAdjust = me?.role === "super_admin" || me?.role === "accountant";
+  const canView =
+    me?.role === "admin" || me?.role === "manager" || canAdjust;
 
   // Redirect if not authorized
   useEffect(() => {
-    if (!authLoading && me && !canEdit && me.role !== "manager") {
+    if (!authLoading && me && !canView) {
       void router.replace("/");
     }
-  }, [authLoading, me, canEdit, router]);
+  }, [authLoading, me, canView, router]);
 
   // Load branches
   useEffect(() => {
@@ -477,15 +603,56 @@ export default function DebtsPage() {
   };
 
   const openEdit = (item: PatientBalanceItem) => {
-    setEditPatientId(item.patientId);
-    setEditPatientName(fmtName(item.ovog, item.name));
-    setEditCurrentBalance(item.balance);
+    setEditPatient({
+      id: item.patientId,
+      bookNumber: item.bookNumber,
+      name: item.name,
+      ovog: item.ovog,
+      regNo: item.regNo,
+      phone: item.phone,
+    });
+    setEditOpen(true);
+  };
+
+  const openManualAdjust = () => {
+    setEditPatient(null);
     setEditOpen(true);
   };
 
   const openReport = (appointmentId: number) => {
     setReportAppointmentId(appointmentId);
     setReportOpen(true);
+  };
+
+  const downloadCsv = () => {
+    if (!data || data.items.length === 0) return;
+    const header = [
+      "Картын №",
+      "Нэр",
+      "РД",
+      "Утас",
+      "Салбар",
+      "Авлага",
+    ];
+    const rows = data.items.map((item) => [
+      item.bookNumber ?? "",
+      fmtName(item.ovog, item.name),
+      item.regNo ?? "",
+      item.phone ?? "",
+      item.branchName ?? "",
+      Math.abs(Number(item.balance || 0)).toFixed(2),
+    ]);
+    const csv = [header, ...rows]
+      .map((row) => row.map((v) => csvCell(v)).join(","))
+      .join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    a.href = url;
+    a.download = `debts-page-${page}-${stamp}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
@@ -540,6 +707,23 @@ export default function DebtsPage() {
             Хайх
           </button>
         </form>
+        {canAdjust && (
+          <button
+            type="button"
+            onClick={openManualAdjust}
+            className="self-end rounded-lg border border-blue-300 bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100"
+          >
+            Засвар оруулах
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={downloadCsv}
+          disabled={!data || data.items.length === 0}
+          className="self-end rounded-lg border border-gray-300 bg-white px-4 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        >
+          CSV татах
+        </button>
       </div>
 
       {/* Summary */}
@@ -628,7 +812,7 @@ export default function DebtsPage() {
                           >
                             Дэлгэрэнгүй
                           </button>
-                          {canEdit && (
+                          {canAdjust && (
                             <button
                               onClick={() => openEdit(item)}
                               className="rounded border border-blue-300 bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
@@ -690,9 +874,7 @@ export default function DebtsPage() {
       <EditBalanceModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
-        patientId={editPatientId}
-        patientName={editPatientName}
-        currentBalance={editCurrentBalance}
+        initialPatient={editPatient}
         onSaved={() => void fetchData(page, branchId, search)}
       />
     </div>
