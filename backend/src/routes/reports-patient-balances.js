@@ -1,4 +1,5 @@
 import express from "express";
+import { Prisma } from "@prisma/client";
 import prisma from "../db.js";
 import { requireRole } from "../middleware/auth.js";
 
@@ -9,13 +10,22 @@ export async function getAdjustmentTotalsByPatient(patientIds) {
     return new Map();
   }
 
+  const normalizedPatientIds = [...new Set(
+    patientIds
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0)
+  )];
+  if (normalizedPatientIds.length === 0) {
+    return new Map();
+  }
+
   try {
-    const rows = await prisma.$queryRaw`
+    const rows = await prisma.$queryRaw(Prisma.sql`
       SELECT "patientId", COALESCE(SUM("amount"), 0) AS "sum"
       FROM "BalanceAdjustmentLog"
-      WHERE "patientId" = ANY(${patientIds}::int[])
+      WHERE "patientId" = ANY(ARRAY[${Prisma.join(normalizedPatientIds)}]::int[])
       GROUP BY "patientId"
-    `;
+    `);
 
     const adjByPatient = new Map();
     for (const row of rows || []) {
@@ -27,7 +37,7 @@ export async function getAdjustmentTotalsByPatient(patientIds) {
     return adjByPatient;
   } catch (err) {
     console.error(
-      "GET /api/reports/patient-balances adjustment aggregation failed:",
+      "Balance adjustment aggregation failed:",
       err instanceof Error ? err.message : String(err)
     );
     return new Map();
