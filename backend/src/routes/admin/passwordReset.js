@@ -34,8 +34,13 @@ router.post("/:id/password-reset", async (req, res) => {
     return res.status(404).json({ error: "User not found." });
   }
 
+  if (!user.email) {
+    return res.status(400).json({ error: "Энэ хэрэглэгчид и-мэйл бүртгэгдээгүй байна." });
+  }
+
+  let rawToken;
   try {
-    const rawToken = crypto.randomBytes(32).toString("hex");
+    rawToken = crypto.randomBytes(32).toString("hex");
     const tokenHash = hashToken(rawToken);
     const expiresAt = new Date(Date.now() + RESET_TOKEN_EXPIRY_MS);
 
@@ -56,11 +61,27 @@ router.post("/:id/password-reset", async (req, res) => {
         expiresAt,
       },
     });
-
-    await sendPasswordResetEmail(user.email, rawToken);
   } catch (err) {
-    console.error("Error during admin password-reset:", err);
+    console.error("DB error during admin password-reset token creation:", {
+      message: err.message,
+      code: err.code,
+    });
     return res.status(500).json({ error: "Internal server error." });
+  }
+
+  try {
+    const sent = await sendPasswordResetEmail(user.email, rawToken);
+    if (!sent) {
+      console.error("[admin password-reset] SMTP not configured, email not sent.", { userId: user.id });
+      return res.status(502).json({ error: "Имэйл илгээж чадсангүй. SMTP тохиргоог шалгана уу." });
+    }
+  } catch (err) {
+    console.error("Mailer error during admin password-reset:", {
+      message: err.message,
+      code: err.code,
+      response: err.response,
+    });
+    return res.status(502).json({ error: "Имэйл илгээж чадсангүй. SMTP тохиргоог шалгана уу." });
   }
 
   return res.json({ ok: true });
