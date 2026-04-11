@@ -648,8 +648,9 @@ export default function DebtsPage() {
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     a.href = url;
-    a.download = `debts-page-${page}.csv`;
+    a.download = `debts-page-${page}-${stamp}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };

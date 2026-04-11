@@ -656,8 +656,9 @@ export default function OverpaymentsPage() {
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     a.href = url;
-    a.download = `overpayments-page-${page}.csv`;
+    a.download = `overpayments-page-${page}-${stamp}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
