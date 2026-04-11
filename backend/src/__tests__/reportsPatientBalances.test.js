@@ -24,7 +24,7 @@ describe("getAdjustmentTotalsByPatient", () => {
       { patientId: "12", sum: "-42" },
     ]);
 
-    const result = await getAdjustmentTotalsByPatient([11, 12]);
+    const result = await getAdjustmentTotalsByPatient();
 
     assert.equal(result.get(11), 100.5);
     assert.equal(result.get(12), -42);
@@ -40,7 +40,7 @@ describe("getAdjustmentTotalsByPatient", () => {
       messages.push(args.join(" "));
     };
 
-    const result = await getAdjustmentTotalsByPatient([1]);
+    const result = await getAdjustmentTotalsByPatient();
 
     assert.equal(result.size, 0);
     assert.equal(messages.length, 1);
@@ -48,28 +48,29 @@ describe("getAdjustmentTotalsByPatient", () => {
     assert.match(messages[0], /db failure/);
   });
 
-  it("filters invalid patient ids before query", async () => {
-    let callCount = 0;
-    prisma.$queryRaw = async () => {
-      callCount += 1;
-      return Promise.resolve([]);
-    };
-
-    const result = await getAdjustmentTotalsByPatient([0, -1, "abc", null]);
-
-    assert.equal(result.size, 0);
-    assert.equal(callCount, 0);
-  });
-
-  it("deduplicates valid patient ids before query", async () => {
+  it("applies optional branch filter when branch id is valid", async () => {
     let queryArg;
     prisma.$queryRaw = async (arg) => {
       queryArg = arg;
       return Promise.resolve([]);
     };
 
-    await getAdjustmentTotalsByPatient([5, "5", 5, 6, "6"]);
+    await getAdjustmentTotalsByPatient(7);
 
-    assert.deepEqual(queryArg?.values, [5, 6]);
+    assert.deepEqual(queryArg?.values, [7]);
+  });
+
+  it("omits branch filter when branch id is missing or invalid", async () => {
+    const captured = [];
+    prisma.$queryRaw = async (arg) => {
+      captured.push(arg);
+      return Promise.resolve([]);
+    };
+
+    await getAdjustmentTotalsByPatient();
+    await getAdjustmentTotalsByPatient("abc");
+
+    assert.deepEqual(captured[0]?.values, []);
+    assert.deepEqual(captured[1]?.values, []);
   });
 });
