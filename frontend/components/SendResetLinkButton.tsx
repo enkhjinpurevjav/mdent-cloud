@@ -7,9 +7,6 @@ interface Props {
 
 export default function SendResetLinkButton({ userId, className }: Props) {
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [errorMessage, setErrorMessage] = useState<string>("");
-
-  const defaultErrorMessage = "Сүлжээгээ шалгана уу";
 
   const btnCls = [
     "inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 bg-gray-50 text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
@@ -29,21 +26,9 @@ export default function SendResetLinkButton({ userId, className }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
-      if (!res.ok) {
-        let msg = defaultErrorMessage;
-        try {
-          const data = await res.json();
-          if (data?.error) msg = data.error;
-        } catch {
-          // ignore JSON parse failure
-        }
-        setErrorMessage(msg);
-        setStatus("error");
-        return;
-      }
+      if (!res.ok) throw new Error("request failed");
       setStatus("success");
     } catch {
-      setErrorMessage(defaultErrorMessage);
       setStatus("error");
     }
   }
@@ -59,7 +44,7 @@ export default function SendResetLinkButton({ userId, className }: Props) {
   if (status === "error") {
     return (
       <span className="text-xs text-red-500 whitespace-nowrap">
-        {errorMessage || defaultErrorMessage}
+        Сүлжээгээ шалгана уу
       </span>
     );
   }
