@@ -31,7 +31,7 @@ const navItems: NavItem[] = [
   },
 
    // 2. Цаг захиалга
-    {
+  {
     label: "Цаг захиалга",
     icon: "📅",
     children: [
@@ -42,6 +42,11 @@ const navItems: NavItem[] = [
         icon: "📅",
       },
     ],
+  },
+  {
+    label: "Цаг захиалга v2",
+    href: "/appointments-v2",
+    icon: "🗓️",
   },
 
   // 3. Захиалгын жагсаалт
@@ -364,7 +369,14 @@ useEffect(() => {
             Цэс
           </div>
 
-          {navItems.map((item) => {
+          {navItems
+            .filter((item) => {
+              if (item.href === "/appointments-v2") {
+                return me?.role === "admin" || me?.role === "super_admin";
+              }
+              return true;
+            })
+            .map((item) => {
             // Top-level direct link (only Хянах самбар)
             if (!item.children && item.href) {
               const active = isActive(item.href);
@@ -590,7 +602,7 @@ useEffect(() => {
                 )}
               </div>
             );
-          })}
+            })}
         </nav>
 
         {/* Sidebar footer */}

@@ -40,6 +40,8 @@ function isAppointmentsPath(pathname: string) {
   return (
     pathname === "/appointments" ||
     pathname.startsWith("/appointments/") ||
+    pathname === "/appointments-v2" ||
+    pathname.startsWith("/appointments-v2/") ||
     pathname === "/reception/appointments" ||
     pathname.startsWith("/reception/appointments/")
   );
