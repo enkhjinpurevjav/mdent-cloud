@@ -195,6 +195,11 @@ const navItems: NavItem[] = [
       { label: "Эмч", href: "/reports/appointments/doctors", icon: "👨‍⚕️" },
     ],
   },
+  {
+    label: "Цаг захиалга v2",
+    href: "/appointments-v2",
+    icon: "🆕",
+  },
 ];
 
 export default function AdminLayout({ children, wide, hideSidebar }: Props) {
@@ -208,7 +213,7 @@ export default function AdminLayout({ children, wide, hideSidebar }: Props) {
   // mobile nav drawer
   const [navOpen, setNavOpen] = useState(false);
 
-  // Branch list from backend (for Цаг захиалах dynamic items)
+  // Branch list from backend (for Цаг захиалга dynamic items)
   const [branchItems, setBranchItems] = useState<{ id: string; name: string }[]>(
     []
   );
@@ -271,7 +276,7 @@ useEffect(() => {
   }
 }, [currentPath]);
 
-  // Load branches once for Цаг захиалах submenu (dynamic)
+  // Load branches once for Цаг захиалга submenu (dynamic)
   useEffect(() => {
     fetch("/api/branches")
       .then((r) => r.json())
@@ -446,8 +451,8 @@ useEffect(() => {
 
                 {isOpen && item.children && (
                   <div style={{ marginTop: 2, marginLeft: 28 }}>
-                    {/* Special handling for Цаг захиалах to add fixed 4 branches + dynamic list */}
-                    {item.label === "Цаг захиалах" ? (
+                    {/* Special handling for Цаг захиалга to add fixed 4 branches + dynamic list */}
+                    {item.label === "Цаг захиалга" ? (
                       <>
                         {item.children.map((child) => {
                           const active = isActive(child.href);
@@ -889,7 +894,7 @@ useEffect(() => {
 
                   {isOpen && item.children && (
                     <div style={{ marginTop: 2, marginLeft: 28 }}>
-                      {item.label === "Цаг захиалах" ? (
+                      {item.label === "Цаг захиалга" ? (
                         <>
                           {item.children.map((child) => {
                             const active = isActive(child.href);
