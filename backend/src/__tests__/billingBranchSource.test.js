@@ -18,4 +18,26 @@ describe("billing invoice branch source", () => {
 
     assert.equal(branchId, null);
   });
+
+  it("returns null when encounter or appointment is missing", () => {
+    assert.equal(getEncounterAppointmentBranchId(null), null);
+    assert.equal(getEncounterAppointmentBranchId(undefined), null);
+    assert.equal(getEncounterAppointmentBranchId({}), null);
+    assert.equal(getEncounterAppointmentBranchId({ appointment: null }), null);
+  });
+
+  it("returns null for invalid branchId values", () => {
+    assert.equal(
+      getEncounterAppointmentBranchId({ appointment: { branchId: 0 } }),
+      null
+    );
+    assert.equal(
+      getEncounterAppointmentBranchId({ appointment: { branchId: -2 } }),
+      null
+    );
+    assert.equal(
+      getEncounterAppointmentBranchId({ appointment: { branchId: "abc" } }),
+      null
+    );
+  });
 });

@@ -6,8 +6,15 @@ import { sseBroadcast } from "./appointments.js";
 const prisma = new PrismaClient();
 const router = express.Router();
 
+/**
+ * Resolve service branch from encounter appointment for billing invoices.
+ * Returns a positive integer branchId, otherwise null.
+ */
 export function getEncounterAppointmentBranchId(encounter) {
-  const branchId = Number(encounter?.appointment?.branchId);
+  const rawBranchId = encounter?.appointment?.branchId;
+  if (rawBranchId == null) return null;
+
+  const branchId = Number(rawBranchId);
   if (!Number.isInteger(branchId) || branchId <= 0) return null;
   return branchId;
 }
@@ -156,7 +163,7 @@ router.get("/encounters/:id/invoice", async (req, res) => {
     if (!encounter) return res.status(404).json({ error: "Encounter not found." });
 
     const appointmentBranchId = getEncounterAppointmentBranchId(encounter);
-    if (appointmentBranchId == null) {
+    if (appointmentBranchId === null) {
       return res.status(409).json({
         error:
           "Encounter appointment branch is required for billing invoice branch assignment.",
@@ -382,7 +389,7 @@ router.post("/encounters/:id/invoice", async (req, res) => {
     if (!encounter) return res.status(404).json({ error: "Encounter not found." });
 
     const appointmentBranchId = getEncounterAppointmentBranchId(encounter);
-    if (appointmentBranchId == null) {
+    if (appointmentBranchId === null) {
       return res.status(409).json({
         error:
           "Encounter appointment branch is required for billing invoice branch assignment.",
@@ -801,7 +808,7 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
     }
 
     const appointmentBranchId = getEncounterAppointmentBranchId(encounter);
-    if (appointmentBranchId == null) {
+    if (appointmentBranchId === null) {
       return res.status(409).json({
         error:
           "Encounter appointment branch is required for billing invoice branch assignment.",
