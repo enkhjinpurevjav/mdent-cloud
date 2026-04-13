@@ -290,25 +290,24 @@ export default function AppointmentsPageV2() {
   }, [scheduledDoctors]);
 
   const resolveDoctorBranchIdForDay = useCallback(
-    (doctor: ScheduledDoctor, slotLabel?: string) => {
+    (doctor: ScheduledDoctor, slotTime?: string): string | null => {
       const scheduleForDay =
         (doctor.schedules || []).find((s) => {
           if (s.date !== selectedDate) return false;
           if (selectedBranchId && String(s.branchId) !== selectedBranchId) return false;
-          if (slotLabel && !isTimeWithinRange(slotLabel, s.startTime, s.endTime)) return false;
+          if (slotTime && !isTimeWithinRange(slotTime, s.startTime, s.endTime)) return false;
           return true;
         }) ||
         (doctor.schedules || []).find((s) => {
           if (s.date !== selectedDate) return false;
-          return slotLabel ? isTimeWithinRange(slotLabel, s.startTime, s.endTime) : true;
+          return slotTime ? isTimeWithinRange(slotTime, s.startTime, s.endTime) : true;
         }) ||
         (doctor.schedules || []).find(
           (s) => s.date === selectedDate && (!selectedBranchId || String(s.branchId) === selectedBranchId)
         ) ||
         (doctor.schedules || []).find((s) => s.date === selectedDate);
       if (scheduleForDay?.branchId != null) return String(scheduleForDay.branchId);
-      if (selectedBranchId) return selectedBranchId;
-      return "";
+      return selectedBranchId || null;
     },
     [selectedDate, selectedBranchId]
   );
@@ -449,6 +448,10 @@ export default function AppointmentsPageV2() {
   const handleCellClick = useCallback(
     (doctor: ScheduledDoctor, slotLabel: string) => {
       const modalBranchId = resolveDoctorBranchIdForDay(doctor, slotLabel);
+      if (!modalBranchId) {
+        setCapacityMessage("Салбар тодорхойгүй байна. Салбар сонгоод дахин оролдоно уу.");
+        return;
+      }
       const parsedBranchId = Number(modalBranchId);
       if (Number.isNaN(parsedBranchId) || parsedBranchId <= 0) {
         setCapacityMessage("Салбар тодорхойгүй байна. Салбар сонгоод дахин оролдоно уу.");
@@ -795,7 +798,11 @@ export default function AppointmentsPageV2() {
               ? String(fallbackAppointment.branchId)
               : doctor
               ? resolveDoctorBranchIdForDay(doctor, slotTime)
-              : selectedBranchId;
+              : selectedBranchId || null;
+          if (!resolvedBranchId) {
+            setCapacityMessage("Салбар тодорхойгүй байна. Салбар сонгоод дахин оролдоно уу.");
+            return;
+          }
           const parsedBranchId = Number(resolvedBranchId);
           if (Number.isNaN(parsedBranchId) || parsedBranchId <= 0) {
             setCapacityMessage("Салбар тодорхойгүй байна. Салбар сонгоод дахин оролдоно уу.");

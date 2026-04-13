@@ -985,39 +985,38 @@ export default function QuickAppointmentModal({
               ) : completedHistory.length === 0 ? (
                 <div style={{ color: "#9ca3af" }}>Өмнөх дууссан үзлэг байхгүй</div>
               ) : (
-                completedHistory.map((h) => (
-                  <button
-                    key={h.id}
-                    type="button"
-                    onClick={() => {
-                      if (h.doctor) {
-                        setForm((prev) => ({ ...prev, doctorId: String(h.doctor!.id) }));
-                      }
-                    }}
-                    title={
-  h.doctor
-    ? `${formatDoctorName(historyDoctorToDoctor(h.doctor))} эмчийг сонгох`
-    : undefined
-}
-                    style={{
-                      display: "block",
-                      width: "100%",
-                      textAlign: "left",
-                      padding: "3px 0",
-                      border: "none",
-                      background: "transparent",
-                      cursor: h.doctor ? "pointer" : "default",
-                      color: h.doctor ? "#2563eb" : "#374151",
-                      textDecoration: h.doctor ? "underline" : "none",
-                      fontSize: 11,
-                    }}
-                  >
-                    {formatHistoryDate(h.scheduledAt)} — Эмч:{" "}
-{h.doctor
-  ? formatDoctorName(historyDoctorToDoctor(h.doctor))
-  : "-"}
-                  </button>
-                ))
+                completedHistory.map((h) => {
+                  const doctorName = h.doctor
+                    ? formatDoctorName(historyDoctorToDoctor(h.doctor))
+                    : "-";
+                  const doctorSelectTitle = h.doctor ? `${doctorName} эмчийг сонгох` : undefined;
+                  return (
+                    <button
+                      key={h.id}
+                      type="button"
+                      onClick={() => {
+                        if (h.doctor) {
+                          setForm((prev) => ({ ...prev, doctorId: String(h.doctor!.id) }));
+                        }
+                      }}
+                      title={doctorSelectTitle}
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "3px 0",
+                        border: "none",
+                        background: "transparent",
+                        cursor: h.doctor ? "pointer" : "default",
+                        color: h.doctor ? "#2563eb" : "#374151",
+                        textDecoration: h.doctor ? "underline" : "none",
+                        fontSize: 11,
+                      }}
+                    >
+                      {formatHistoryDate(h.scheduledAt)} — Эмч: {doctorName}
+                    </button>
+                  );
+                })
               )}
             </div>
           )}

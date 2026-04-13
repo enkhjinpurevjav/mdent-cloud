@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Appointment, Branch, ScheduledDoctor } from "../appointments/types";
 import { SLOT_MINUTES, addMinutesToTimeString, generateTimeSlotsForDay, getDateFromYMD } from "../appointments/time";
-import { formatDoctorName, formatHistoryDate } from "../appointments/formatters";
+import { formatDoctorName, formatHistoryDate, historyDoctorToDoctor } from "../appointments/formatters";
 import { SLOT_FULL_MESSAGE, findFirstFullSlotForCandidate } from "./slotCapacity";
 import {
   PATIENT_SEARCH_DEBOUNCE_MS,
@@ -16,6 +16,12 @@ type RecentCompletedVisit = {
   scheduledAt: string;
   doctorName: string;
 };
+
+const SPECIAL_BOOKING_DURATION_MINUTES = SLOT_MINUTES * 2;
+const SPECIAL_BOOKING_DURATION_LABEL =
+  SPECIAL_BOOKING_DURATION_MINUTES % 60 === 0
+    ? `${SPECIAL_BOOKING_DURATION_MINUTES / 60} цаг`
+    : `${SPECIAL_BOOKING_DURATION_MINUTES} минут`;
 
 type SpecialBookingModalV2Props = {
   open: boolean;
@@ -119,13 +125,19 @@ export default function SpecialBookingModalV2({
   const loadSelectedPatientRecent = useCallback(async (patientId: number) => {
     try {
       setSelectedPatientHistoryLoading(true);
-      const res = await fetch(`/api/patients/${patientId}/recent-completed?limit=3`);
+      const res = await fetch(`/api/patients/${patientId}/completed-appointments?limit=3`);
       const data = await res.json().catch(() => []);
       if (!res.ok || !Array.isArray(data)) {
         setSelectedPatientRecent([]);
         return;
       }
-      setSelectedPatientRecent(data as RecentCompletedVisit[]);
+      setSelectedPatientRecent(
+        data.map((item: any) => ({
+          id: item.id,
+          scheduledAt: item.scheduledAt,
+          doctorName: item.doctor ? formatDoctorName(historyDoctorToDoctor(item.doctor)) : "",
+        }))
+      );
     } catch {
       setSelectedPatientRecent([]);
     } finally {
@@ -215,13 +227,18 @@ export default function SpecialBookingModalV2({
 
     const docIdNum = Number(doctorId);
     const branchIdNum = Number(branchId);
-    if (!docIdNum || Number.isNaN(docIdNum) || !branchIdNum || Number.isNaN(branchIdNum)) {
+    if (
+      Number.isNaN(docIdNum) ||
+      docIdNum <= 0 ||
+      Number.isNaN(branchIdNum) ||
+      branchIdNum <= 0
+    ) {
       setError("Эмч болон салбарын мэдээлэл буруу байна.");
       return;
     }
 
     const scheduledAt = `${date} ${startTime}:00`;
-    const endAt = `${date} ${addMinutesToTimeString(startTime, SLOT_MINUTES * 2)}:00`;
+    const endAt = `${date} ${addMinutesToTimeString(startTime, SPECIAL_BOOKING_DURATION_MINUTES)}:00`;
     const fullSlot = findFirstFullSlotForCandidate({
       appointments,
       doctorId: docIdNum,
@@ -427,11 +444,11 @@ export default function SpecialBookingModalV2({
           </div>
 
           <div className="text-xs text-gray-500">
-            Үргэлжлэх хугацаа: <strong>1 цаг</strong>
+            Үргэлжлэх хугацаа: <strong>{SPECIAL_BOOKING_DURATION_LABEL}</strong>
             {startTime ? (
               <>
                 {" "}
-                — Дуусах цаг: <strong>{addMinutesToTimeString(startTime, SLOT_MINUTES * 2)}</strong>
+                — Дуусах цаг: <strong>{addMinutesToTimeString(startTime, SPECIAL_BOOKING_DURATION_MINUTES)}</strong>
               </>
             ) : null}
           </div>
