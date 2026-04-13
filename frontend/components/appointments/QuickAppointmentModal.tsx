@@ -4,6 +4,7 @@ import type { Branch, Doctor, ScheduledDoctor, Appointment, PatientLite, DoctorS
 import { formatDoctorName, historyDoctorToDoctor, formatPatientSearchLabel, formatHistoryDate } from "./formatters";
 import { SLOT_MINUTES, addMinutesToTimeString, generateTimeSlotsForDay, getSlotTimeString, isTimeWithinRange, getDateFromYMD } from "./time";
 import { parseNaiveTimestamp, naiveTimestampToYmd, naiveTimestampToHm, toNaiveTimestamp } from "../../utils/businessTime";
+import { SLOT_FULL_MESSAGE as DEFAULT_SLOT_FULL_MESSAGE, findFirstFullSlotForCandidate } from "../appointments-v2/slotCapacity";
 
 const COMPLETED_READONLY_MSG = "Дууссан цаг засварлах боломжгүй.";
 
@@ -35,6 +36,10 @@ type QuickAppointmentModalProps = {
   currentUserRole?: string | null;
   /** When true, forces status to "booked" and hides the status selector */
   forceBookedStatus?: boolean;
+  /** Enable max-2 slot-capacity checks before save (used by V2 flow). */
+  enforceSlotCapacity?: boolean;
+  /** Override for user-facing slot full message. */
+  slotFullMessage?: string;
 };
 
 export default function QuickAppointmentModal({
@@ -56,6 +61,8 @@ export default function QuickAppointmentModal({
   defaultPatientQuery,
   currentUserRole,
   forceBookedStatus = false,
+  enforceSlotCapacity = false,
+  slotFullMessage = DEFAULT_SLOT_FULL_MESSAGE,
 }: QuickAppointmentModalProps) {
   const router = useRouter();
   const isEditMode = Boolean(editingAppointment);
@@ -129,6 +136,12 @@ export default function QuickAppointmentModal({
   });
   const [quickPatientError, setQuickPatientError] = useState("");
   const [quickPatientSaving, setQuickPatientSaving] = useState(false);
+
+  const isSlotFullApiResponse = (statusCode: number, payload: any) =>
+    statusCode === 409 &&
+    (payload?.code === "SLOT_FULL" ||
+      String(payload?.message || "").toLowerCase().includes("slot is full") ||
+      String(payload?.error || "").includes("2 захиалга"));
 
   // ---- helpers ----
   const parseYmd = (ymd: string) => {
@@ -642,6 +655,31 @@ export default function QuickAppointmentModal({
     // Build naive timestamps: "YYYY-MM-DD HH:mm:00" — no timezone conversion
     const scheduledAtStr = toNaiveTimestamp(form.date, form.startTime);
     const endAtStr = toNaiveTimestamp(form.date, form.endTime);
+    const effectiveDoctorId = form.doctorId ? Number(form.doctorId) : null;
+    const effectiveBranchId = isEditMode
+      ? Number(editingAppointment?.branchId ?? form.branchId)
+      : Number(form.branchId);
+
+    if (
+      enforceSlotCapacity &&
+      effectiveDoctorId &&
+      !Number.isNaN(effectiveDoctorId) &&
+      effectiveBranchId &&
+      !Number.isNaN(effectiveBranchId)
+    ) {
+      const fullSlot = findFirstFullSlotForCandidate({
+        appointments,
+        doctorId: effectiveDoctorId,
+        branchId: effectiveBranchId,
+        startNaive: scheduledAtStr,
+        endNaive: endAtStr,
+        excludeAppointmentId: editingAppointment?.id,
+      });
+      if (fullSlot) {
+        setError(slotFullMessage);
+        return;
+      }
+    }
 
     try {
       if (!isEditMode) {
@@ -668,7 +706,13 @@ export default function QuickAppointmentModal({
         }
 
         if (!res.ok) {
-          setError((data as any).error || "Алдаа гарлаа");
+          const payload = data as any;
+          const isSlotFull = isSlotFullApiResponse(res.status, payload);
+          setError(
+            enforceSlotCapacity && isSlotFull
+              ? slotFullMessage
+              : payload?.error || payload?.message || "Алдаа гарлаа"
+          );
           return;
         }
 
@@ -709,7 +753,13 @@ export default function QuickAppointmentModal({
       }
 
       if (!res.ok) {
-        setError((data as any).error || "Алдаа гарлаа");
+        const payload = data as any;
+        const isSlotFull = isSlotFullApiResponse(res.status, payload);
+        setError(
+          enforceSlotCapacity && isSlotFull
+            ? slotFullMessage
+            : payload?.error || payload?.message || "Алдаа гарлаа"
+        );
         return;
       }
 

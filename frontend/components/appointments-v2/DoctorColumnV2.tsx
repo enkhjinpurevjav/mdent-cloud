@@ -11,6 +11,7 @@ type DoctorColumnV2Props = {
   slotHeightPx: number;
   columnHeightPx: number;
   blocks: AppointmentBlockGeometry[];
+  fullSlotLabels?: Record<string, true>;
   onCellClick: (doctor: ScheduledDoctor, slotLabel: string) => void;
   onAppointmentClick: (appointment: Appointment) => void;
 };
@@ -21,6 +22,7 @@ function DoctorColumnV2({
   slotHeightPx,
   columnHeightPx,
   blocks,
+  fullSlotLabels,
   onCellClick,
   onAppointmentClick,
 }: DoctorColumnV2Props) {
@@ -75,28 +77,31 @@ function DoctorColumnV2({
         {formatDoctorName(doctor) || doctor.name || `Эмч #${doctor.id}`}
       </div>
 
-      <div
-        style={{ position: "relative", height: columnHeightPx, cursor: "pointer" }}
-        onClick={handleGridClick}
-      >
-        {timeSlots.map((slot, idx) => (
-          <div
-            key={`${doctor.id}-${slot.label}`}
-            style={{
-              position: "absolute",
-              top: idx * slotHeightPx,
-              left: 0,
-              right: 0,
-              height: slotHeightPx,
-              borderBottom: "1px solid #f0f0f0",
-              background: isNonWorkingSlot(slot)
-                ? "#ffc26b"
-                : idx % 2 === 0
-                  ? "#ffffff"
-                  : "#fafafa",
-            }}
-          />
-        ))}
+      <div style={{ position: "relative", height: columnHeightPx }} onClick={handleGridClick}>
+        {timeSlots.map((slot, idx) => {
+          const isFull = Boolean(fullSlotLabels?.[slot.label]);
+          const nonWorking = isNonWorkingSlot(slot);
+          return (
+            <div
+              key={`${doctor.id}-${slot.label}`}
+              style={{
+                position: "absolute",
+                top: idx * slotHeightPx,
+                left: 0,
+                right: 0,
+                height: slotHeightPx,
+                borderBottom: "1px solid #f0f0f0",
+                background: nonWorking
+                  ? "#ffc26b"
+                  : idx % 2 === 0
+                    ? "#ffffff"
+                    : "#fafafa",
+                cursor: nonWorking || isFull ? "not-allowed" : "pointer",
+                boxShadow: isFull ? "inset 0 0 0 999px rgba(239, 68, 68, 0.12)" : undefined,
+              }}
+            />
+          );
+        })}
 
         {blocks.map((block) => (
           <AppointmentBlockV2 key={block.appointment.id} block={block} onClick={onAppointmentClick} />
@@ -113,6 +118,7 @@ export default React.memo(DoctorColumnV2, (prev, next) => {
     prev.slotHeightPx === next.slotHeightPx &&
     prev.columnHeightPx === next.columnHeightPx &&
     prev.blocks === next.blocks &&
+    prev.fullSlotLabels === next.fullSlotLabels &&
     prev.onCellClick === next.onCellClick &&
     prev.onAppointmentClick === next.onAppointmentClick
   );

@@ -4,6 +4,11 @@ import type { Appointment, Branch, ScheduledDoctor } from "../appointments/types
 import { getBusinessYmd, naiveTimestampToYmd, naiveToFakeUtcDate } from "../../utils/businessTime";
 import { SLOT_MINUTES, generateTimeSlotsForDay, getDateFromYMD } from "../appointments/time";
 import AppointmentsV2Grid from "../appointments-v2/AppointmentsV2Grid";
+import {
+  MAX_APPOINTMENTS_PER_SLOT,
+  SLOT_FULL_MESSAGE,
+  getSlotOccupancyForDoctor,
+} from "../appointments-v2/slotCapacity";
 import { useScheduledDoctorsV2 } from "../appointments-v2/useScheduledDoctorsV2";
 import { useAppointmentsStreamV2 } from "../appointments-v2/useAppointmentsStreamV2";
 import QuickAppointmentModal from "../appointments/QuickAppointmentModal";
@@ -47,6 +52,7 @@ export default function AppointmentsPageV2() {
   const [branchesLoading, setBranchesLoading] = useState(false);
   const [appointmentsLoading, setAppointmentsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [capacityMessage, setCapacityMessage] = useState("");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
 
   const [quickModalState, setQuickModalState] = useState<QuickModalState>({
@@ -251,19 +257,62 @@ export default function AppointmentsPageV2() {
     return map;
   }, [scheduledDoctors]);
 
-  const handleCellClick = useCallback(
-    (doctor: ScheduledDoctor, slotLabel: string) => {
+  const resolveDoctorBranchIdForDay = useCallback(
+    (doctor: ScheduledDoctor) => {
       const scheduleForDay =
         (doctor.schedules || []).find(
           (s) => s.date === selectedDate && (!selectedBranchId || String(s.branchId) === selectedBranchId)
         ) || (doctor.schedules || []).find((s) => s.date === selectedDate);
+      if (scheduleForDay?.branchId != null) return String(scheduleForDay.branchId);
+      return selectedBranchId;
+    },
+    [selectedDate, selectedBranchId]
+  );
 
-      const modalBranchId =
-        scheduleForDay?.branchId != null
-          ? String(scheduleForDay.branchId)
-          : selectedBranchId;
+  const fullSlotLabelsByDoctorId = useMemo(() => {
+    const result: Record<number, Record<string, true>> = {};
+
+    for (const doctor of scheduledDoctors) {
+      const branchId = Number(resolveDoctorBranchIdForDay(doctor));
+      if (!branchId || Number.isNaN(branchId)) continue;
+
+      const full: Record<string, true> = {};
+      for (const slot of timeSlots) {
+        const occupancy = getSlotOccupancyForDoctor({
+          appointments,
+          doctorId: doctor.id,
+          branchId,
+          slotStartMs: slot.start.getTime(),
+        });
+        if (occupancy >= MAX_APPOINTMENTS_PER_SLOT) {
+          full[slot.label] = true;
+        }
+      }
+      if (Object.keys(full).length) result[doctor.id] = full;
+    }
+    return result;
+  }, [appointments, resolveDoctorBranchIdForDay, scheduledDoctors, timeSlots]);
+
+  const handleCellClick = useCallback(
+    (doctor: ScheduledDoctor, slotLabel: string) => {
+      const modalBranchId = resolveDoctorBranchIdForDay(doctor);
+      const parsedBranchId = Number(modalBranchId);
+      if (!Number.isNaN(parsedBranchId) && parsedBranchId > 0) {
+        const slotStartMs = naiveToFakeUtcDate(`${selectedDate} ${slotLabel}:00`).getTime();
+        const occupancy = getSlotOccupancyForDoctor({
+          appointments,
+          doctorId: doctor.id,
+          branchId: parsedBranchId,
+          slotStartMs,
+        });
+        if (occupancy >= MAX_APPOINTMENTS_PER_SLOT) {
+          setCapacityMessage(SLOT_FULL_MESSAGE);
+          return;
+        }
+      }
 
       setEditingAppointment(null);
+      setCapacityMessage("");
       setQuickModalState({
         open: true,
         doctorId: doctor.id,
@@ -272,7 +321,7 @@ export default function AppointmentsPageV2() {
         branchId: modalBranchId,
       });
     },
-    [selectedDate, selectedBranchId]
+    [appointments, resolveDoctorBranchIdForDay, selectedDate]
   );
 
   const handleAppointmentClick = useCallback(
@@ -352,6 +401,11 @@ export default function AppointmentsPageV2() {
           {error || scheduledDoctorsError}
         </div>
       )}
+      {capacityMessage && (
+        <div style={{ color: "#b91c1c", marginBottom: 10, fontSize: 13, fontWeight: 600 }}>
+          {capacityMessage}
+        </div>
+      )}
 
       {loading && (
         <div style={{ marginBottom: 10, fontSize: 13, color: "#475569" }}>
@@ -365,6 +419,7 @@ export default function AppointmentsPageV2() {
         slotHeightPx={SLOT_HEIGHT_PX}
         columnHeightPx={columnHeightPx}
         blocksByDoctorId={blocksByDoctorId}
+        fullSlotLabelsByDoctorId={fullSlotLabelsByDoctorId}
         onCellClick={handleCellClick}
         onAppointmentClick={handleAppointmentClick}
       />
@@ -414,6 +469,8 @@ export default function AppointmentsPageV2() {
         appointments={appointments}
         selectedBranchId={quickModalState.branchId || selectedBranchId}
         allowAutoDefaultBranch={false}
+        enforceSlotCapacity
+        slotFullMessage={SLOT_FULL_MESSAGE}
         editingAppointment={editingAppointment}
         currentUserRole={me?.role ?? null}
         onCreated={(appointment) => {

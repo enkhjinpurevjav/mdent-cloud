@@ -11,6 +11,7 @@ type AppointmentsV2GridProps = {
   slotHeightPx: number;
   columnHeightPx: number;
   blocksByDoctorId: Record<number, AppointmentBlockGeometry[]>;
+  fullSlotLabelsByDoctorId: Record<number, Record<string, true>>;
   onCellClick: (doctor: ScheduledDoctor, slotLabel: string) => void;
   onAppointmentClick: (appointment: Appointment) => void;
 };
@@ -21,6 +22,7 @@ function AppointmentsV2Grid({
   slotHeightPx,
   columnHeightPx,
   blocksByDoctorId,
+  fullSlotLabelsByDoctorId,
   onCellClick,
   onAppointmentClick,
 }: AppointmentsV2GridProps) {
@@ -94,6 +96,7 @@ function AppointmentsV2Grid({
               slotHeightPx={slotHeightPx}
               columnHeightPx={columnHeightPx}
               blocks={blocksByDoctorId[doctor.id] || EMPTY_BLOCKS}
+              fullSlotLabels={fullSlotLabelsByDoctorId[doctor.id]}
               onCellClick={onCellClick}
               onAppointmentClick={onAppointmentClick}
             />
@@ -111,6 +114,7 @@ export default React.memo(AppointmentsV2Grid, (prev, next) => {
     prev.slotHeightPx === next.slotHeightPx &&
     prev.columnHeightPx === next.columnHeightPx &&
     prev.blocksByDoctorId === next.blocksByDoctorId &&
+    prev.fullSlotLabelsByDoctorId === next.fullSlotLabelsByDoctorId &&
     prev.onCellClick === next.onCellClick &&
     prev.onAppointmentClick === next.onAppointmentClick
   );
