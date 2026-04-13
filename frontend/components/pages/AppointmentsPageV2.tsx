@@ -9,6 +9,11 @@ import {
   SLOT_FULL_MESSAGE,
   getSlotOccupancyForDoctor,
 } from "../appointments-v2/slotCapacity";
+import {
+  assignStableTwoLanes,
+  computeDoctorSlotOccupancy,
+  getVisibleAppointmentsV2,
+} from "../appointments-v2/gridLayoutV2";
 import { useScheduledDoctorsV2 } from "../appointments-v2/useScheduledDoctorsV2";
 import { useAppointmentsStreamV2 } from "../appointments-v2/useAppointmentsStreamV2";
 import QuickAppointmentModal from "../appointments/QuickAppointmentModal";
@@ -17,7 +22,6 @@ import type { AppointmentBlockGeometry } from "../appointments-v2/AppointmentBlo
 
 const SLOT_HEIGHT_PX = 30;
 const MIN_BLOCK_HEIGHT_PX = 18;
-const OVERLAP_OFFSET_PX = 8;
 
 type QuickModalState = {
   open: boolean;
@@ -193,7 +197,7 @@ export default function AppointmentsPageV2() {
 
   const appointmentsByDoctorId = useMemo(() => {
     const grouped: Record<number, Appointment[]> = {};
-    for (const appointment of appointments) {
+    for (const appointment of getVisibleAppointmentsV2(appointments)) {
       if (!appointment?.doctorId) continue;
       if (!grouped[appointment.doctorId]) grouped[appointment.doctorId] = [];
       grouped[appointment.doctorId].push(appointment);
@@ -208,16 +212,17 @@ export default function AppointmentsPageV2() {
     const dayStartMs = firstSlot.getTime();
 
     for (const doctor of scheduledDoctors) {
-      const doctorAppointments = [...(appointmentsByDoctorId[doctor.id] || [])].sort((a, b) => {
+      const doctorAppointments = appointmentsByDoctorId[doctor.id] || [];
+      const { laneByAppointmentId, overlappingAppointmentIds } = assignStableTwoLanes(doctorAppointments);
+      const sortedAppointments = [...doctorAppointments].sort((a, b) => {
         const sa = naiveToFakeUtcDate(a.scheduledAt).getTime();
         const sb = naiveToFakeUtcDate(b.scheduledAt).getTime();
         return sa - sb || a.id - b.id;
       });
 
-      const activeEnds: number[] = [];
       const blocks: AppointmentBlockGeometry[] = [];
 
-      for (const appointment of doctorAppointments) {
+      for (const appointment of sortedAppointments) {
         const startMs = naiveToFakeUtcDate(appointment.scheduledAt).getTime();
         const defaultEnd = startMs + SLOT_MINUTES * 60_000;
         const endMs = appointment.endAt
@@ -230,18 +235,12 @@ export default function AppointmentsPageV2() {
         const minutesFromStart = (clampedStartMs - dayStartMs) / 60000;
         const durationMinutes = Math.max(1, (clampedEndMs - clampedStartMs) / 60000);
 
-        for (let i = activeEnds.length - 1; i >= 0; i -= 1) {
-          if (activeEnds[i] <= startMs) activeEnds.splice(i, 1);
-        }
-
-        const overlapIndex = activeEnds.length;
-        activeEnds.push(endMs);
-
         blocks.push({
           appointment,
           top: (minutesFromStart / totalMinutes) * columnHeightPx,
           height: Math.max(MIN_BLOCK_HEIGHT_PX, (durationMinutes / totalMinutes) * columnHeightPx),
-          offsetX: Math.min(overlapIndex * OVERLAP_OFFSET_PX, 24),
+          lane: laneByAppointmentId[appointment.id] ?? 0,
+          split: overlappingAppointmentIds.has(appointment.id),
         });
       }
 
@@ -269,29 +268,16 @@ export default function AppointmentsPageV2() {
     [selectedDate, selectedBranchId]
   );
 
-  const fullSlotLabelsByDoctorId = useMemo(() => {
-    const result: Record<number, Record<string, true>> = {};
-
-    for (const doctor of scheduledDoctors) {
-      const branchId = Number(resolveDoctorBranchIdForDay(doctor));
-      if (!branchId || Number.isNaN(branchId)) continue;
-
-      const full: Record<string, true> = {};
-      for (const slot of timeSlots) {
-        const occupancy = getSlotOccupancyForDoctor({
-          appointments,
-          doctorId: doctor.id,
-          branchId,
-          slotStartMs: slot.start.getTime(),
-        });
-        if (occupancy >= MAX_APPOINTMENTS_PER_SLOT) {
-          full[slot.label] = true;
-        }
-      }
-      if (Object.keys(full).length) result[doctor.id] = full;
-    }
-    return result;
-  }, [appointments, resolveDoctorBranchIdForDay, scheduledDoctors, timeSlots]);
+  const slotOccupancyByDoctorId = useMemo(
+    () =>
+      computeDoctorSlotOccupancy({
+        appointments,
+        scheduledDoctors,
+        timeSlots,
+        resolveDoctorBranchIdForDay,
+      }),
+    [appointments, resolveDoctorBranchIdForDay, scheduledDoctors, timeSlots]
+  );
 
   const handleCellClick = useCallback(
     (doctor: ScheduledDoctor, slotLabel: string) => {
@@ -419,7 +405,7 @@ export default function AppointmentsPageV2() {
         slotHeightPx={SLOT_HEIGHT_PX}
         columnHeightPx={columnHeightPx}
         blocksByDoctorId={blocksByDoctorId}
-        fullSlotLabelsByDoctorId={fullSlotLabelsByDoctorId}
+        slotOccupancyByDoctorId={slotOccupancyByDoctorId}
         onCellClick={handleCellClick}
         onAppointmentClick={handleAppointmentClick}
       />
@@ -438,7 +424,9 @@ export default function AppointmentsPageV2() {
           upsertAppointment(updated);
           setDetailsModalState((prev) => ({
             ...prev,
-            appointments: prev.appointments.map((a) => (a.id === updated.id ? { ...a, ...updated } : a)),
+            appointments: prev.appointments
+              .map((a) => (a.id === updated.id ? { ...a, ...updated } : a))
+              .filter((a) => String(a.status || "").toLowerCase() !== "cancelled"),
           }));
         }}
         onEditAppointment={(a) => {

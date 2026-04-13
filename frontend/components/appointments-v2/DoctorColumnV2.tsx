@@ -11,7 +11,7 @@ type DoctorColumnV2Props = {
   slotHeightPx: number;
   columnHeightPx: number;
   blocks: AppointmentBlockGeometry[];
-  fullSlotLabels?: Record<string, true>;
+  slotOccupancyByLabel?: Record<string, number>;
   onCellClick: (doctor: ScheduledDoctor, slotLabel: string) => void;
   onAppointmentClick: (appointment: Appointment) => void;
 };
@@ -22,7 +22,7 @@ function DoctorColumnV2({
   slotHeightPx,
   columnHeightPx,
   blocks,
-  fullSlotLabels,
+  slotOccupancyByLabel,
   onCellClick,
   onAppointmentClick,
 }: DoctorColumnV2Props) {
@@ -79,7 +79,9 @@ function DoctorColumnV2({
 
       <div style={{ position: "relative", height: columnHeightPx }} onClick={handleGridClick}>
         {timeSlots.map((slot, idx) => {
-          const isFull = Boolean(fullSlotLabels?.[slot.label]);
+          const occupancy = slotOccupancyByLabel?.[slot.label] ?? 0;
+          const isFull = occupancy >= 2;
+          const isOverCapacity = occupancy > 2;
           const nonWorking = isNonWorkingSlot(slot);
           return (
             <div
@@ -97,9 +99,41 @@ function DoctorColumnV2({
                     ? "#ffffff"
                     : "#fafafa",
                 cursor: nonWorking || isFull ? "not-allowed" : "pointer",
-                boxShadow: isFull ? "inset 0 0 0 999px rgba(239, 68, 68, 0.12)" : undefined,
+                boxShadow: isOverCapacity
+                  ? "inset 0 0 0 999px rgba(220, 38, 38, 0.24)"
+                  : isFull
+                    ? "inset 0 0 0 999px rgba(100, 116, 139, 0.14)"
+                    : undefined,
               }}
-            />
+            >
+              {isOverCapacity ? (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 2,
+                    right: 4,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "#991b1b",
+                  }}
+                >
+                  3+
+                </span>
+              ) : isFull ? (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 2,
+                    right: 4,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    color: "#334155",
+                  }}
+                >
+                  2/2
+                </span>
+              ) : null}
+            </div>
           );
         })}
 
@@ -118,7 +152,7 @@ export default React.memo(DoctorColumnV2, (prev, next) => {
     prev.slotHeightPx === next.slotHeightPx &&
     prev.columnHeightPx === next.columnHeightPx &&
     prev.blocks === next.blocks &&
-    prev.fullSlotLabels === next.fullSlotLabels &&
+    prev.slotOccupancyByLabel === next.slotOccupancyByLabel &&
     prev.onCellClick === next.onCellClick &&
     prev.onAppointmentClick === next.onAppointmentClick
   );

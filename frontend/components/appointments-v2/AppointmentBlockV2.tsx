@@ -7,7 +7,8 @@ export type AppointmentBlockGeometry = {
   appointment: Appointment;
   top: number;
   height: number;
-  offsetX: number;
+  lane: 0 | 1;
+  split: boolean;
 };
 
 type AppointmentBlockV2Props = {
@@ -43,10 +44,14 @@ function statusColor(status: string) {
 }
 
 function AppointmentBlockV2({ block, onClick }: AppointmentBlockV2Props) {
-  const { appointment, top, height, offsetX } = block;
+  const { appointment, top, height, lane, split } = block;
   const bg = statusColor(appointment.status);
   const whiteText =
     appointment.status === "completed" || appointment.status === "cancelled";
+  const laneGapPx = 4;
+  const baseInsetPx = 4;
+  const width = split ? `calc(50% - ${(baseInsetPx + laneGapPx / 2).toFixed(1)}px)` : `calc(100% - ${baseInsetPx * 2}px)`;
+  const left = split ? (lane === 0 ? baseInsetPx : `calc(50% + ${laneGapPx / 2}px)`) : baseInsetPx;
 
   return (
     <button
@@ -58,8 +63,8 @@ function AppointmentBlockV2({ block, onClick }: AppointmentBlockV2Props) {
       style={{
         position: "absolute",
         top,
-        left: 4 + offsetX,
-        right: 4,
+        left,
+        width,
         minHeight: height,
         border: "1px solid rgba(0,0,0,0.08)",
         borderRadius: 8,
