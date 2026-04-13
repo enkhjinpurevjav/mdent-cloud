@@ -25,6 +25,7 @@ import {
   PATIENT_SEARCH_DEBOUNCE_MS,
   PATIENT_SEARCH_MIN_CHARS,
   type PatientSearchResult,
+  formatPatientNameOvogFirst,
   formatPatientSearchDropdownRow,
   searchPatientsByRules,
 } from "../appointments-v2/patientSearchRules";
@@ -693,7 +694,7 @@ export default function AppointmentsPageV2() {
         >
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
             <div style={{ fontSize: 13, color: "#0f172a", fontWeight: 700 }}>
-              {[selectedPatient.name, selectedPatient.ovog || ""].filter(Boolean).join(" ")}
+              {formatPatientNameOvogFirst(selectedPatient)}
             </div>
             <button
               type="button"

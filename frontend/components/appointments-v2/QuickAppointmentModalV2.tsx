@@ -9,6 +9,7 @@ import {
   PATIENT_SEARCH_DEBOUNCE_MS,
   PATIENT_SEARCH_MIN_CHARS,
   type PatientSearchResult,
+  formatPatientNameOvogFirst,
   formatPatientSearchDropdownRow,
   searchPatientsByRules,
 } from "./patientSearchRules";
@@ -968,9 +969,7 @@ export default function QuickAppointmentModal({
               {selectedPatientSummary && (
                 <div style={{ marginBottom: 6 }}>
                   <div style={{ color: "#0f172a", fontWeight: 700 }}>
-                    {[selectedPatientSummary.name, selectedPatientSummary.ovog || ""]
-                      .filter(Boolean)
-                      .join(" ")}
+                    {formatPatientNameOvogFirst(selectedPatientSummary)}
                   </div>
                   <div style={{ color: "#334155" }}>
                     🆔 {selectedPatientSummary.regNo || "-"} · 📞 {selectedPatientSummary.phone || "-"}

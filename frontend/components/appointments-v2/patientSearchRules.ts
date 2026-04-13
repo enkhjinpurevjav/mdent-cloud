@@ -14,8 +14,14 @@ function asText(value: unknown) {
   return String(value || "").trim();
 }
 
+export function formatPatientNameOvogFirst(patient: Pick<PatientSearchResult, "name" | "ovog">) {
+  const ovog = asText(patient.ovog);
+  const name = asText(patient.name);
+  return [ovog, name].filter(Boolean).join(" ");
+}
+
 export function formatPatientSearchDropdownRow(patient: PatientSearchResult) {
-  const fullName = [asText(patient.name), asText(patient.ovog)].filter(Boolean).join(" ");
+  const fullName = formatPatientNameOvogFirst(patient);
   return `${fullName || "-"}, 📞 ${asText(patient.phone) || "-"}, 🆔 ${asText(patient.regNo) || "-"}`;
 }
 
