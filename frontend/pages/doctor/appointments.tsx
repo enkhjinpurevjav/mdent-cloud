@@ -359,6 +359,51 @@ export default function DoctorAppointmentsPage() {
     setScheduleToday(picked);
   }, [scheduleRange, today]);
 
+  const doctorAppointmentInCurrentView = useCallback((a: DoctorAppointment): boolean => {
+    if (!doctorId) return false;
+    if ((a?.doctorId ?? null) !== doctorId) return false;
+    if (a?.status === "cancelled") return false;
+
+    const ymd = naiveTimestampToYmd(a?.scheduledAt ?? "");
+    if (!ymd) return false;
+    if (ymd < from || ymd > to) return false;
+
+    const includePast = from < today;
+    if (!includePast && ymd < today) return false;
+
+    return true;
+  }, [doctorId, from, to, today]);
+
+  const upsertDoctorAppointment = useCallback((a: DoctorAppointment): void => {
+    setAppointments((prev) => {
+      if (!doctorAppointmentInCurrentView(a)) {
+        return prev.filter((x) => x.id !== a.id);
+      }
+
+      const idx = prev.findIndex((x) => x.id === a.id);
+      if (idx === -1) return [...prev, a];
+
+      const next = [...prev];
+      next[idx] = a;
+      return next;
+    });
+  }, [doctorAppointmentInCurrentView]);
+
+  const removeDoctorAppointment = useCallback((id: number): void => {
+    setAppointments((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
+  const isDoctorAppointmentPayload = (value: any): value is DoctorAppointment => {
+    return (
+      value &&
+      typeof value === "object" &&
+      typeof value.id === "number" &&
+      typeof value.doctorId === "number" &&
+      typeof value.scheduledAt === "string" &&
+      typeof value.status === "string"
+    );
+  };
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -384,19 +429,7 @@ export default function DoctorAppointmentsPage() {
           ? apptJson.appointments
           : [];
 
-            const includePast = from < today; // user explicitly chose a past range
-
-      const visible = apptsRaw
-        .filter((a) => a?.status !== "cancelled")
-        .filter((a) => {
-          const ymd = naiveTimestampToYmd(a?.scheduledAt ?? "");
-          if (!ymd) return false;
-
-          // Default: hide past days
-          if (!includePast && ymd < today) return false;
-
-          return true;
-        });
+      const visible = apptsRaw.filter((a) => doctorAppointmentInCurrentView(a));
 
       setAppointments(visible);
     } catch (e: any) {
@@ -405,29 +438,63 @@ export default function DoctorAppointmentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [doctorId, from, to]);
+  }, [doctorAppointmentInCurrentView, doctorId, from, to]);
 
   useEffect(() => {
     loadAll();
   }, [loadAll, refreshKey]);
 
-  // ---- SSE live refresh: when admin/reception changes appointments, reload ----
+  // ---- SSE live updates: apply local state changes without full reload ----
   useEffect(() => {
     if (!doctorId) return;
 
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     let es: EventSource | null = null;
     let closed = false;
+    let needsResyncAfterReconnect = false;
+    let reconnectResyncInFlight = false;
 
-    const requestRefresh = () => {
+    const triggerReconnectResync = () => {
+      if (!needsResyncAfterReconnect || reconnectResyncInFlight) return;
+      reconnectResyncInFlight = true;
+      needsResyncAfterReconnect = false;
+      void loadAll().finally(() => {
+        reconnectResyncInFlight = false;
+        if (!closed && needsResyncAfterReconnect) {
+          triggerReconnectResync();
+        }
+      });
+    };
+
+    const parsePayload = (ev: Event): any | null => {
+      const msg = ev as MessageEvent;
+      if (!msg?.data) return null;
+      try {
+        return JSON.parse(msg.data);
+      } catch {
+        return null;
+      }
+    };
+
+    const onCreatedOrUpdated = (ev: Event) => {
       setSseStatus("connected");
       setLastSseEventAt(new Date());
-      if (debounceTimer) return;
-      debounceTimer = setTimeout(() => {
-        debounceTimer = null;
-        setRefreshKey((k) => k + 1);
-      }, 800);
+      const payload = parsePayload(ev);
+      if (!isDoctorAppointmentPayload(payload)) return;
+      upsertDoctorAppointment(payload);
+    };
+
+    const onDeleted = (ev: Event) => {
+      setSseStatus("connected");
+      setLastSseEventAt(new Date());
+      const payload = parsePayload(ev);
+      if (payload && typeof payload === "object" && typeof payload.id === "number") {
+        removeDoctorAppointment(payload.id);
+        return;
+      }
+      if (typeof payload?.appointmentId === "number") {
+        removeDoctorAppointment(payload.appointmentId);
+      }
     };
 
     function connect() {
@@ -444,16 +511,18 @@ export default function DoctorAppointmentsPage() {
 
       es.onopen = () => {
         setSseStatus("connected");
+        triggerReconnectResync();
       };
 
-      es.addEventListener("appointment_created", requestRefresh);
-      es.addEventListener("appointment_updated", requestRefresh);
-      es.addEventListener("appointment_deleted", requestRefresh);
+      es.addEventListener("appointment_created", onCreatedOrUpdated);
+      es.addEventListener("appointment_updated", onCreatedOrUpdated);
+      es.addEventListener("appointment_deleted", onDeleted);
 
       es.onerror = () => {
         if (closed) return;
         es?.close();
         es = null;
+        needsResyncAfterReconnect = true;
         setSseStatus("disconnected");
         retryTimeout = setTimeout(connect, 3000);
       };
@@ -463,11 +532,10 @@ export default function DoctorAppointmentsPage() {
 
     return () => {
       closed = true;
-      if (debounceTimer) clearTimeout(debounceTimer);
       if (retryTimeout) clearTimeout(retryTimeout);
       es?.close();
     };
-  }, [doctorId]);
+  }, [doctorId, loadAll, removeDoctorAppointment, upsertDoctorAppointment]);
 
   const handleDoctorStartEncounter = useCallback(async (a: Appointment) => {
     const res = await fetch(`/api/doctor/appointments/${a.id}/encounter`, {
@@ -801,7 +869,6 @@ export default function DoctorAppointmentsPage() {
               onClick={() => {
                 setFrom(today);
                 setTo(addDaysYmd(today, days));
-                setRefreshKey((k) => k + 1);
                 setShowMobileFilter(false);
               }}
               style={{
