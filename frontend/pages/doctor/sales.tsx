@@ -30,6 +30,7 @@ type SalesLineItem = {
   appointmentId: number | null;
   appointmentScheduledAt: string | null;
   visitDate: string | null;
+  paymentDateYmd?: string | null;
   patientId: number | null;
   patientOvog: string | null;
   patientName: string | null;
@@ -60,12 +61,16 @@ function salesFormatPatient(
 
 function salesFormatDate(isoStr: string | null | undefined) {
   if (!isoStr) return "-";
-  const d = new Date(isoStr);
+  const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(isoStr);
+  const d = isDateOnly
+    ? new Date(`${isoStr}T00:00:00.000+08:00`)
+    : new Date(isoStr);
   if (isNaN(d.getTime())) return "-";
   return d.toLocaleDateString("mn-MN", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+    timeZone: "Asia/Ulaanbaatar",
   });
 }
 
@@ -152,7 +157,7 @@ function DrillDownRows({
     <>
       {lines.map((line, idx) => {
         const dateStr = salesFormatDate(
-          line.appointmentScheduledAt || line.visitDate
+          line.paymentDateYmd || line.appointmentScheduledAt || line.visitDate
         );
         const patientStr = salesFormatPatient(line.patientOvog, line.patientName);
 
