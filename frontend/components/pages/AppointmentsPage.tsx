@@ -67,6 +67,10 @@ function getAppointmentDayKey(a: Appointment): string {
   return scheduled.slice(0, 10);
 }
 
+// 300ms keeps live updates feeling immediate while collapsing SSE bursts
+// into fewer full-grid renders under high update frequency.
+const SSE_FLUSH_DELAY_MS = 300;
+
 /**
  * Compute stable lanes (0 or 1) for all appointments for a doctor on a given day.
  * Ensures that overlapping appointments never share the same lane.
@@ -1664,10 +1668,7 @@ const workingDoctorsForFilter = scheduledDoctors.length
       const data = await res.json().catch(() => []);
       
       // Guard: only update state if this is still the latest request
-      if (
-        currentRequestId !== appointmentsRequestIdRef.current ||
-        abortController.signal.aborted
-      ) {
+      if (currentRequestId !== appointmentsRequestIdRef.current) {
         console.debug(`Discarding stale appointments response (req ${currentRequestId}, current ${appointmentsRequestIdRef.current})`);
         return;
       }
@@ -1712,12 +1713,12 @@ const workingDoctorsForFilter = scheduledDoctors.length
       if (flushTimer) return;
       flushTimer = setTimeout(() => {
         flushTimer = null;
+        if (pendingUpserts.size === 0 && pendingDeletes.size === 0) return;
+
         const upserts = Array.from(pendingUpserts.values());
         const deletes = new Set(Array.from(pendingDeletes));
         pendingUpserts.clear();
         pendingDeletes.clear();
-
-        if (upserts.length === 0 && deletes.size === 0) return;
 
         setLastSseEventAt(new Date());
 
@@ -1741,7 +1742,7 @@ const workingDoctorsForFilter = scheduledDoctors.length
               continue;
             }
             const merged = { ...next[idx], ...appt };
-            const copy = next === prev ? [...next] : next.slice();
+            const copy = [...next];
             copy[idx] = merged;
             next = copy;
             changed = true;
@@ -1776,7 +1777,7 @@ const workingDoctorsForFilter = scheduledDoctors.length
 
           return changed ? { ...prev, appointments: nextAppointments } : prev;
         });
-      }, 300);
+      }, SSE_FLUSH_DELAY_MS);
     };
 
     const queueUpsert = (appt: Appointment) => {
@@ -1797,6 +1798,12 @@ const workingDoctorsForFilter = scheduledDoctors.length
       if (es) {
         es.close();
         es = null;
+      }
+      pendingUpserts.clear();
+      pendingDeletes.clear();
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
       }
       es = new EventSource(`/api/appointments/stream?${params.toString()}`);
 
@@ -1879,10 +1886,7 @@ const workingDoctorsForFilter = scheduledDoctors.length
       const data = await res.json().catch(() => []);
       
       // Guard: only update state if this is still the latest request
-      if (
-        currentRequestId !== scheduledDoctorsRequestIdRef.current ||
-        abortController.signal.aborted
-      ) {
+      if (currentRequestId !== scheduledDoctorsRequestIdRef.current) {
         console.debug(`Discarding stale scheduledDoctors response (req ${currentRequestId}, current ${scheduledDoctorsRequestIdRef.current})`);
         return;
       }
