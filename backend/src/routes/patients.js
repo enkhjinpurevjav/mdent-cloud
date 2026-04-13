@@ -11,6 +11,14 @@ import { formatDoctorDisplayName } from "../utils/formatDoctorDisplayName.js";
 
 const router = express.Router();
 const uploadDir = process.env.MEDIA_UPLOAD_DIR || "/data/media";
+const DEFAULT_PATIENT_SEARCH_LIMIT = 25;
+const MAX_PATIENT_SEARCH_LIMIT = 25;
+const DEFAULT_RECENT_COMPLETED_LIMIT = 3;
+const MAX_RECENT_COMPLETED_LIMIT = 10;
+
+function escapeLikePattern(value = "") {
+  return String(value).replace(/([\\%_])/g, "\\$1");
+}
 
 /** Format a Prisma user relation object into the { id, name, ovog } shape used by the frontend. */
 function formatAuditUser(user) {
@@ -58,11 +66,14 @@ router.get("/search", async (req, res) => {
 
     const rawLimit = parseInt(req.query.limit, 10);
     const limit =
-      Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 25) : 25;
+      Number.isFinite(rawLimit) && rawLimit > 0
+        ? Math.min(rawLimit, MAX_PATIENT_SEARCH_LIMIT)
+        : DEFAULT_PATIENT_SEARCH_LIMIT;
 
-    const exact = q.toLowerCase();
-    const startsWith = `${q}%`;
-    const contains = `%${q}%`;
+    const escaped = escapeLikePattern(q);
+    const exact = escaped;
+    const startsWith = `${escaped}%`;
+    const contains = `%${escaped}%`;
 
     const rows = await prisma.$queryRaw`
       SELECT
@@ -81,8 +92,8 @@ router.get("/search", async (req, res) => {
         )
       ORDER BY
         CASE
-          WHEN LOWER(COALESCE(p.phone, '')) = ${exact}
-            OR LOWER(COALESCE(p."regNo", '')) = ${exact}
+          WHEN COALESCE(p.phone, '') ILIKE ${exact}
+            OR COALESCE(p."regNo", '') ILIKE ${exact}
             THEN 1
           WHEN COALESCE(p.name, '') ILIKE ${startsWith}
             OR COALESCE(p.ovog, '') ILIKE ${startsWith}
@@ -1394,7 +1405,10 @@ router.get("/:id/completed-appointments", async (req, res) => {
     }
 
     const rawLimit = parseInt(req.query.limit, 10);
-    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 10) : 3;
+    const limit =
+      Number.isFinite(rawLimit) && rawLimit > 0
+        ? Math.min(rawLimit, MAX_RECENT_COMPLETED_LIMIT)
+        : DEFAULT_RECENT_COMPLETED_LIMIT;
 
     const appointments = await prisma.appointment.findMany({
       where: {
