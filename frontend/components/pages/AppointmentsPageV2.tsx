@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/router";
 import { useAuth } from "../../contexts/AuthContext";
 import type { Appointment, Branch, ScheduledDoctor } from "../appointments/types";
 import {
@@ -104,11 +105,17 @@ function canEditAppointment(status: string) {
 }
 
 export default function AppointmentsPageV2() {
+  const router = useRouter();
   const { me } = useAuth();
+  const branchIdFromQuery =
+    typeof router.query.branchId === "string" ? router.query.branchId : "";
   const isAdminRole = me?.role === "admin" || me?.role === "super_admin";
+  const isReceptionist = me?.role === "receptionist";
+  const isAllowedRole = isAdminRole || isReceptionist;
+  const ownBranchId = me?.branchId != null ? String(me.branchId) : null;
 
   const [selectedDate, setSelectedDate] = useState(getBusinessYmd());
-  const [selectedBranchId, setSelectedBranchId] = useState("");
+  const [selectedBranchId, setSelectedBranchId] = useState(branchIdFromQuery || "");
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchesLoading, setBranchesLoading] = useState(false);
@@ -154,6 +161,27 @@ export default function AppointmentsPageV2() {
   const patientSearchRequestIdRef = useRef(0);
   const suppressPatientSearchRef = useRef(false);
   const patientSearchAreaRef = useRef<HTMLDivElement | null>(null);
+  const isOtherBranchReceptionView =
+    isReceptionist &&
+    ownBranchId !== null &&
+    selectedBranchId !== "" &&
+    selectedBranchId !== ownBranchId;
+
+  useEffect(() => {
+    if (branchIdFromQuery === selectedBranchId) return;
+    setSelectedBranchId(branchIdFromQuery || "");
+  }, [branchIdFromQuery, selectedBranchId]);
+
+  useEffect(() => {
+    if (!isReceptionist || !ownBranchId) return;
+    if (branchIdFromQuery) return;
+    setSelectedBranchId(ownBranchId);
+    router.replace(
+      { pathname: "/appointments-v2", query: { branchId: ownBranchId } },
+      undefined,
+      { shallow: true }
+    );
+  }, [branchIdFromQuery, isReceptionist, ownBranchId, router]);
 
   const appointmentsRequestIdRef = useRef(0);
   const {
@@ -558,6 +586,7 @@ export default function AppointmentsPageV2() {
       mode: DragMode
     ) => {
       if (pendingSaving || pendingSaveId !== null) return;
+      if (isOtherBranchReceptionView) return;
       if (!canEditAppointment(appointment.status)) return;
       event.preventDefault();
       event.stopPropagation();
@@ -581,7 +610,7 @@ export default function AppointmentsPageV2() {
         hadExplicitEndAt: hasExplicitEndAt,
       });
     },
-    [pendingSaveId, pendingSaving]
+    [isOtherBranchReceptionView, pendingSaveId, pendingSaving]
   );
 
   useEffect(() => {
@@ -876,6 +905,16 @@ export default function AppointmentsPageV2() {
     [handleSelectPatient, highlightedPatientIndex, patientResults, patientSearchOpen]
   );
 
+  const handleBranchChange = useCallback(
+    (nextBranchId: string) => {
+      if (isReceptionist && !nextBranchId) return;
+      setSelectedBranchId(nextBranchId);
+      const query = nextBranchId ? { branchId: nextBranchId } : {};
+      router.push({ pathname: "/appointments-v2", query }, undefined, { shallow: true });
+    },
+    [isReceptionist, router]
+  );
+
   const handleCellClick = useCallback(
     (doctor: ScheduledDoctor, slotLabel: string) => {
       const modalBranchId = resolveDoctorBranchIdForDay(doctor, slotLabel);
@@ -943,7 +982,7 @@ export default function AppointmentsPageV2() {
     [activeDrag, appointments, doctorsById, pendingSaveId, selectedDate]
   );
 
-  if (!isAdminRole) {
+  if (!isAllowedRole) {
     return (
       <div style={{ padding: 20, color: "#b91c1c", fontWeight: 600 }}>
         Энэ хуудсанд нэвтрэх эрхгүй байна.
@@ -1013,10 +1052,10 @@ export default function AppointmentsPageV2() {
           Салбар:
           <select
             value={selectedBranchId}
-            onChange={(e) => setSelectedBranchId(e.target.value)}
+            onChange={(e) => handleBranchChange(e.target.value)}
             style={{ border: "1px solid #cbd5e1", borderRadius: 6, padding: "5px 8px", minWidth: 180 }}
           >
-            <option value="">Бүх салбар</option>
+            {!isReceptionist && <option value="">Бүх салбар</option>}
             {branches.map((branch) => (
               <option key={branch.id} value={String(branch.id)}>
                 {branch.name}
@@ -1092,23 +1131,25 @@ export default function AppointmentsPageV2() {
               </div>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => setSpecialBookingOpen(true)}
-            style={{
-              padding: "6px 10px",
-              borderRadius: 6,
-              border: "none",
-              background: "#0f172a",
-              color: "#ffffff",
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-            }}
-          >
-            Онцгой захиалга
-          </button>
+          {!isOtherBranchReceptionView && (
+            <button
+              type="button"
+              onClick={() => setSpecialBookingOpen(true)}
+              style={{
+                padding: "6px 10px",
+                borderRadius: 6,
+                border: "none",
+                background: "#0f172a",
+                color: "#ffffff",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Онцгой захиалга
+            </button>
+          )}
         </div>
       </div>
 
@@ -1280,7 +1321,9 @@ export default function AppointmentsPageV2() {
         slotOccupancyByDoctorId={slotOccupancyByDoctorId}
         onCellClick={handleCellClick}
         onAppointmentClick={handleAppointmentClick}
-        canDragAppointment={(appointment) => canEditAppointment(appointment.status)}
+        canDragAppointment={(appointment) =>
+          !isOtherBranchReceptionView && canEditAppointment(appointment.status)
+        }
         pendingSaveId={pendingSaveId}
         activeDragAppointmentId={activeDrag?.appointmentId ?? null}
         invalidDragAppointmentId={invalidDragAppointmentId}
@@ -1301,6 +1344,7 @@ export default function AppointmentsPageV2() {
         appointments={detailsModalState.appointments}
         slotAppointmentCount={detailsModalState.slotAppointmentCount}
         currentUserRole={me?.role ?? null}
+        readOnly={isOtherBranchReceptionView}
         onStatusUpdated={(updated) => {
           upsertAppointment(updated);
           setDetailsModalState((prev) => ({
@@ -1387,6 +1431,7 @@ export default function AppointmentsPageV2() {
         slotFullMessage={SLOT_FULL_MESSAGE}
         editingAppointment={editingAppointment}
         currentUserRole={me?.role ?? null}
+        forceBookedStatus={isOtherBranchReceptionView && !editingAppointment}
         onCreated={(appointment) => {
           upsertAppointment(appointment);
           setQuickModalState((prev) => ({ ...prev, open: false }));
