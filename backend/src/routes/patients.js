@@ -70,17 +70,14 @@ router.get("/search", async (req, res) => {
         p.name,
         p.ovog,
         p.phone,
-        p."regNo",
-        pb."bookNumber" AS "bookNumber"
+        p."regNo"
       FROM "Patient" p
-      LEFT JOIN "PatientBook" pb ON pb."patientId" = p.id
       WHERE p."isActive" = true
         AND (
           p.name ILIKE ${contains}
           OR p.ovog ILIKE ${contains}
           OR p.phone ILIKE ${contains}
           OR p."regNo" ILIKE ${contains}
-          OR pb."bookNumber" ILIKE ${contains}
         )
       ORDER BY
         CASE
@@ -105,7 +102,6 @@ router.get("/search", async (req, res) => {
       ovog: row.ovog,
       phone: row.phone,
       regNo: row.regNo,
-      patientBook: row.bookNumber ? { bookNumber: row.bookNumber } : null,
     }));
 
     return res.json(patients);
