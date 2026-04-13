@@ -7,6 +7,7 @@ import {
   PATIENT_SEARCH_DEBOUNCE_MS,
   PATIENT_SEARCH_MIN_CHARS,
   type PatientSearchResult,
+  formatPatientNameOvogFirst,
   formatPatientSearchDropdownRow,
   searchPatientsByRules,
 } from "./patientSearchRules";
@@ -353,7 +354,7 @@ export default function SpecialBookingModalV2({
           {selectedPatient && (
             <div className="rounded border border-slate-200 bg-slate-50 p-2.5 text-xs">
               <div className="font-semibold text-slate-800">
-                {[selectedPatient.name, selectedPatient.ovog || ""].filter(Boolean).join(" ")}
+                {formatPatientNameOvogFirst(selectedPatient)}
               </div>
               <div className="mt-1 text-slate-700">
                 🆔 {selectedPatient.regNo || "-"} · 📞 {selectedPatient.phone || "-"}
