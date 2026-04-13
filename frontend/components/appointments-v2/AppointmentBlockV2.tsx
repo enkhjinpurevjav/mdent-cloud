@@ -33,7 +33,7 @@ function statusColor(status: string) {
   }
 }
 
-export default function AppointmentBlockV2({ block, onClick }: AppointmentBlockV2Props) {
+function AppointmentBlockV2({ block, onClick }: AppointmentBlockV2Props) {
   const { appointment, top, height, offsetX } = block;
   const bg = statusColor(appointment.status);
 
@@ -70,3 +70,5 @@ export default function AppointmentBlockV2({ block, onClick }: AppointmentBlockV
     </button>
   );
 }
+
+export default React.memo(AppointmentBlockV2);
