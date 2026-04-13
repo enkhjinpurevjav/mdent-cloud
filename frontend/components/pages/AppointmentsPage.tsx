@@ -18,6 +18,14 @@ import { formatDoctorName, historyDoctorToDoctor, formatPatientLabel, formatGrid
 import AppointmentDetailsModal from "../appointments/AppointmentDetailsModal";
 import QuickAppointmentModal from "../appointments/QuickAppointmentModal";
 import PendingSaveBar from "../appointments/PendingSaveBar";
+import { useBufferedAppointmentsSse } from "../appointments/hooks/useBufferedAppointmentsSse";
+import {
+  useAppointmentsGridDerived,
+  type DraftAppointmentChange,
+  type GridColumnRenderData,
+  type AppointmentBlockLayout,
+  type TimeSlotLayout,
+} from "../appointments/hooks/useAppointmentsGridDerived";
 import {
   getBusinessYmd,
   toNaiveTimestamp,
@@ -121,6 +129,272 @@ function computeAppointmentLanesForDayAndDoctor(
 
   return result;
 }
+
+type DoctorHeaderCellProps = {
+  doc: ScheduledDoctor;
+  idx: number;
+  count: number;
+  reorderSaving: boolean;
+  totalDoctors: number;
+  onMoveDocInGrid: (doctorId: number, direction: "left" | "right") => void;
+};
+
+const DoctorHeaderCell = React.memo(function DoctorHeaderCell({
+  doc,
+  idx,
+  count,
+  reorderSaving,
+  totalDoctors,
+  onMoveDocInGrid,
+}: DoctorHeaderCellProps) {
+  const isLeftDisabled = reorderSaving || idx === 0;
+  const isRightDisabled = reorderSaving || idx === totalDoctors - 1;
+
+  return (
+    <div className="p-2 font-bold text-center border-l border-[#ddd]">
+      <div className="flex items-center justify-center gap-[4px]">
+        <button
+          type="button"
+          onClick={() => onMoveDocInGrid(doc.id, "left")}
+          disabled={isLeftDisabled}
+          title="Зүүн тийш зөөх"
+          className="text-[11px] px-[5px] py-px"
+          style={{
+            cursor: isLeftDisabled ? "default" : "pointer",
+            opacity: isLeftDisabled ? 0.3 : 1,
+          }}
+        >◀</button>
+        <span>{formatDoctorName(doc)}</span>
+        <button
+          type="button"
+          onClick={() => onMoveDocInGrid(doc.id, "right")}
+          disabled={isRightDisabled}
+          title="Баруун тийш зөөх"
+          className="text-[11px] px-[5px] py-px"
+          style={{
+            cursor: isRightDisabled ? "default" : "pointer",
+            opacity: isRightDisabled ? 0.3 : 1,
+          }}
+        >▶</button>
+      </div>
+      <div className="text-[11px] text-gray-500 mt-0.5">
+        {count} захиалга
+      </div>
+    </div>
+  );
+});
+
+type AppointmentGridBlockProps = {
+  appointment: Appointment;
+  doctor: ScheduledDoctor;
+  layout: AppointmentBlockLayout;
+  doctorAppointments: Appointment[];
+  isDragging: boolean;
+  hasPendingSave: boolean;
+  currentUserRole: string | null;
+  hasActiveDrag: boolean;
+  onStartDrag: (e: React.MouseEvent, appointment: Appointment, mode: "move" | "resize") => void;
+  onOpenDetails: (
+    e: React.MouseEvent,
+    appointment: Appointment,
+    doctor: ScheduledDoctor,
+    doctorAppointments: Appointment[]
+  ) => void;
+  getStatusColor: (status: string) => string;
+};
+
+const AppointmentGridBlock = React.memo(function AppointmentGridBlock({
+  appointment,
+  doctor,
+  layout,
+  doctorAppointments,
+  isDragging,
+  hasPendingSave,
+  currentUserRole,
+  hasActiveDrag,
+  onStartDrag,
+  onOpenDetails,
+  getStatusColor,
+}: AppointmentGridBlockProps) {
+  const canEdit = canEditAppointment(appointment.status, currentUserRole);
+
+  const handleBlockMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!canEdit) return;
+    onStartDrag(e, appointment, "move");
+  }, [canEdit, onStartDrag, appointment]);
+
+  const handleBlockClick = useCallback((e: React.MouseEvent) => {
+    if (isDragging || hasPendingSave || hasActiveDrag) return;
+    onOpenDetails(e, appointment, doctor, doctorAppointments);
+  }, [isDragging, hasPendingSave, hasActiveDrag, onOpenDetails, appointment, doctor, doctorAppointments]);
+
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!canEdit) return;
+    onStartDrag(e, appointment, "resize");
+  }, [canEdit, onStartDrag, appointment]);
+
+  return (
+    <div
+      key={appointment.id}
+      onMouseDown={canEdit ? handleBlockMouseDown : undefined}
+      onClick={handleBlockClick}
+      className="absolute box-border rounded flex items-center justify-center text-center overflow-hidden break-words select-none text-[11px] leading-[1.2] px-[3px] py-px"
+      style={{
+        left: `${layout.leftPercent}%`,
+        width: `${layout.widthPercent}%`,
+        top: layout.top,
+        height: Math.max(layout.height, 18),
+        backgroundColor: getStatusColor(appointment.status),
+        border: isDragging
+          ? "2px solid #2563eb"
+          : hasPendingSave
+            ? "2px solid #f59e0b"
+            : "1px solid rgba(0,0,0,0.08)",
+        color:
+          appointment.status === "completed" ||
+          appointment.status === "cancelled"
+            ? "#ffffff"
+            : "#1F2937",
+        boxShadow: isDragging
+          ? "0 4px 12px rgba(37,99,235,0.5)"
+          : "0 1px 3px rgba(0,0,0,0.25)",
+        cursor: canEdit ? "move" : "pointer",
+        opacity: isDragging ? 0.8 : 1,
+        zIndex: isDragging || hasPendingSave ? 10 : 1,
+        animation: appointment.status === "ready_to_pay" && !isDragging
+          ? "readyToPayPulse 1.4s ease-in-out infinite, readyToPayBlink 1.4s ease-in-out infinite"
+          : undefined,
+      }}
+      title={`${formatPatientLabel(
+        appointment.patient,
+        appointment.patientId
+      )} (${formatStatus(appointment.status)})`}
+    >
+      {`${formatGridShortLabel(appointment)} (${formatStatus(
+        appointment.status
+      )})`}
+      {canEdit && !isDragging && (
+        <div
+          onMouseDown={handleResizeMouseDown}
+          className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize bg-black/10 rounded-b"
+          title="Drag to resize"
+        />
+      )}
+    </div>
+  );
+});
+
+type DoctorGridColumnProps = {
+  doc: ScheduledDoctor;
+  columnHeightPx: number;
+  timeSlotLayouts: TimeSlotLayout[];
+  slotHeightPx: number;
+  gridColumnData: GridColumnRenderData;
+  currentUserRole: string | null;
+  activeDragId: number | null;
+  pendingSaveId: number | null;
+  onCellClick: (
+    doctor: ScheduledDoctor,
+    clickedMinutes: number,
+    existingAppointments: Appointment[]
+  ) => void;
+  onStartDrag: (e: React.MouseEvent, appointment: Appointment, mode: "move" | "resize") => void;
+  onOpenDetails: (
+    e: React.MouseEvent,
+    appointment: Appointment,
+    doctor: ScheduledDoctor,
+    doctorAppointments: Appointment[]
+  ) => void;
+  getStatusColor: (status: string) => string;
+};
+
+const DoctorGridColumn = React.memo(function DoctorGridColumn({
+  doc,
+  columnHeightPx,
+  timeSlotLayouts,
+  slotHeightPx,
+  gridColumnData,
+  currentUserRole,
+  activeDragId,
+  pendingSaveId,
+  onCellClick,
+  onStartDrag,
+  onOpenDetails,
+  getStatusColor,
+}: DoctorGridColumnProps) {
+  return (
+    <div
+      key={doc.id}
+      className="relative border-l border-[#f0f0f0] bg-white"
+      style={{ height: columnHeightPx }}
+    >
+      {timeSlotLayouts.map((slotLayout, index) => {
+        const slotTimeStr = getSlotTimeString(slotLayout.slotStart);
+        const schedules = (doc as any).schedules || [];
+        const isWorkingHour = schedules.some((s: any) =>
+          isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
+        );
+        const weekdayIndex = slotLayout.slotStart.getUTCDay();
+        const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
+        const isWeekendLunch =
+          isWeekend &&
+          isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+        const isNonWorking = !isWorkingHour || isWeekendLunch;
+
+        const appsInThisSlot = gridColumnData.appointmentsBySlotIndex[index] ?? [];
+
+        return (
+          <div
+            key={index}
+            onClick={() =>
+              isNonWorking
+                ? undefined
+                : onCellClick(doc, slotLayout.slotStartMin, appsInThisSlot)
+            }
+            className="absolute left-0 right-0 border-b border-[#f0f0f0]"
+            style={{
+              top: slotLayout.top,
+              height: slotHeightPx,
+              backgroundColor: isNonWorking
+                ? "#ffc26b"
+                : index % 2 === 0
+                  ? "#ffffff"
+                  : "#fafafa",
+              cursor: isNonWorking
+                ? "not-allowed"
+                : "pointer",
+            }}
+          />
+        );
+      })}
+
+      {gridColumnData.doctorAppointments.map((appointment) => {
+        const blockLayout = gridColumnData.blockLayoutByAppointmentId[appointment.id];
+        if (!blockLayout) return null;
+
+        const isDragging = activeDragId === appointment.id;
+        const hasPendingSave = pendingSaveId === appointment.id;
+
+        return (
+          <AppointmentGridBlock
+            key={appointment.id}
+            appointment={appointment}
+            doctor={doc}
+            layout={blockLayout}
+            doctorAppointments={gridColumnData.doctorAppointments}
+            isDragging={isDragging}
+            hasPendingSave={hasPendingSave}
+            currentUserRole={currentUserRole}
+            hasActiveDrag={activeDragId !== null}
+            onStartDrag={onStartDrag}
+            onOpenDetails={onOpenDetails}
+            getStatusColor={getStatusColor}
+          />
+        );
+      })}
+    </div>
+  );
+});
 
 // ===== Inline AppointmentForm with start/end time =====
 
@@ -1144,12 +1418,6 @@ const appointmentsRequestIdRef = useRef(0);
 const scheduledDoctorsRequestIdRef = useRef(0);
 
 
-type DraftAppointmentChange = {
-  scheduledAt: string; // ISO
-  endAt: string | null; // ISO
-  doctorId: number | null;
-};
-
 type DragMode = "move" | "resize";
 
 type DragState = {
@@ -1184,10 +1452,6 @@ const [pendingSaving, setPendingSaving] = useState(false);
   } | null;
 
   const [bookingIntent, setBookingIntent] = useState<BookingIntent>(null);
-
-  // ---- SSE live indicator ----
-  const [sseStatus, setSseStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
-  const [lastSseEventAt, setLastSseEventAt] = useState<Date | null>(null);
 
   // ---- Filter patient search ----
   type FilterPatient = {
@@ -1673,127 +1937,50 @@ const workingDoctorsForFilter = scheduledDoctors.length
     loadAppointments();
   }, [loadAppointments]);
 
-  // ---- SSE real-time subscription ----
-  useEffect(() => {
-    if (!filterDate) return;
+  const applyBufferedSseUpserts = useCallback((incomingAppointments: Appointment[]) => {
+    setAppointments((prev) => {
+      const next = [...prev];
+      for (const incoming of incomingAppointments) {
+        const idx = next.findIndex((appointment) => appointment.id === incoming.id);
+        if (idx !== -1) {
+          next[idx] = { ...next[idx], ...incoming };
+        } else {
+          next.unshift(incoming);
+        }
+      }
+      return next;
+    });
 
-    const params = new URLSearchParams({ date: filterDate });
-    if (effectiveBranchId) params.set("branchId", effectiveBranchId);
-
-    let es: EventSource | null = null;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    let closed = false;
-
-    function connect() {
-      if (closed) return;
-      setSseStatus("connecting");
-      es = new EventSource(`/api/appointments/stream?${params.toString()}`);
-
-      es.onopen = () => {
-        setSseStatus("connected");
+    setDetailsModalState((prev) => {
+      if (prev.appointments.length === 0) return prev;
+      const byId = new Map<number, Appointment>();
+      for (const incoming of incomingAppointments) byId.set(incoming.id, incoming);
+      return {
+        ...prev,
+        appointments: prev.appointments.map((appointment) => {
+          const incoming = byId.get(appointment.id);
+          return incoming ? { ...appointment, ...incoming } : appointment;
+        }),
       };
+    });
+  }, []);
 
-      const markEvent = () => {
-        setLastSseEventAt(new Date());
-      };
+  const applyBufferedSseDeletes = useCallback((deletedIds: number[]) => {
+    if (deletedIds.length === 0) return;
+    const deleted = new Set(deletedIds);
+    setAppointments((prev) => prev.filter((appointment) => !deleted.has(appointment.id)));
+    setDetailsModalState((prev) => ({
+      ...prev,
+      appointments: prev.appointments.filter((appointment) => !deleted.has(appointment.id)),
+    }));
+  }, []);
 
-      es.addEventListener("appointment_created", (e: MessageEvent) => {
-        markEvent();
-        try {
-          const appt = JSON.parse(e.data) as Appointment;
-          // Only apply if the appointment is for the currently viewed date
-          const apptDate = appt.scheduledAt ? appt.scheduledAt.slice(0, 10) : "";
-          if (apptDate !== filterDate) return;
-          // If viewing a specific branch, filter by branch
-          if (effectiveBranchId && String(appt.branchId) !== effectiveBranchId) return;
-          setAppointments((prev) => {
-            const idx = prev.findIndex((a) => a.id === appt.id);
-            if (idx !== -1) {
-              // SSE arrived after optimistic insert — update in-place (upsert)
-              const next = [...prev];
-              next[idx] = { ...next[idx], ...appt };
-              return next;
-            }
-            return [appt, ...prev];
-          });
-          // Keep open details modal in sync
-          setDetailsModalState((prev) => ({
-            ...prev,
-            appointments: prev.appointments.map((a) =>
-              a.id === appt.id ? { ...a, ...appt } : a
-            ),
-          }));
-        } catch { /* ignore parse errors */ }
-      });
-
-      es.addEventListener("appointment_updated", (e: MessageEvent) => {
-        markEvent();
-        try {
-          const appt = JSON.parse(e.data) as Appointment;
-          const apptDate = appt.scheduledAt ? appt.scheduledAt.slice(0, 10) : "";
-          const matchesView =
-            apptDate === filterDate &&
-            (!effectiveBranchId || String(appt.branchId) === effectiveBranchId);
-          setAppointments((prev) => {
-            const idx = prev.findIndex((a) => a.id === appt.id);
-            if (matchesView) {
-              if (idx === -1) {
-                // Appointment moved into the current view — add it
-                return [appt, ...prev];
-              }
-              const next = [...prev];
-              next[idx] = { ...next[idx], ...appt };
-              return next;
-            } else {
-              // Appointment moved out of the current view — remove it
-              if (idx !== -1) return prev.filter((a) => a.id !== appt.id);
-              return prev;
-            }
-          });
-          // Keep open details modal in sync so buttons (e.g. billing) use fresh data
-          setDetailsModalState((prev) => ({
-            ...prev,
-            appointments: prev.appointments.map((a) =>
-              a.id === appt.id ? { ...a, ...appt } : a
-            ),
-          }));
-        } catch { /* ignore parse errors */ }
-      });
-
-      es.addEventListener("appointment_deleted", (e: MessageEvent) => {
-        markEvent();
-        try {
-          const payload = JSON.parse(e.data) as { id: number };
-          setAppointments((prev) => prev.filter((a) => a.id !== payload.id));
-          // Keep open details modal in sync — remove deleted appointment from it
-          setDetailsModalState((prev) => ({
-            ...prev,
-            appointments: prev.appointments.filter((a) => a.id !== payload.id),
-          }));
-        } catch { /* ignore parse errors */ }
-      });
-
-      // Intentionally ignore this SSE event for now: real-time events should not
-      // trigger any "карт бөглөх" refresh/recalculation on /appointments.
-
-      es.onerror = () => {
-        if (closed) return;
-        es?.close();
-        es = null;
-        setSseStatus("disconnected");
-        // Simple exponential-ish backoff: retry after 3s
-        retryTimeout = setTimeout(connect, 3000);
-      };
-    }
-
-    connect();
-
-    return () => {
-      closed = true;
-      if (retryTimeout) clearTimeout(retryTimeout);
-      es?.close();
-    };
-  }, [filterDate, effectiveBranchId]);
+  const { status: sseStatus, lastEventAt: lastSseEventAt } = useBufferedAppointmentsSse({
+    filterDate,
+    effectiveBranchId,
+    onApplyUpserts: applyBufferedSseUpserts,
+    onApplyDeletes: applyBufferedSseDeletes,
+  });
 
   // ---- load scheduled doctors ----
   const loadScheduledDoctors = useCallback(async () => {
@@ -2068,17 +2255,31 @@ const visibleAppointments = useMemo(
   [appointments, dayKey, effectiveBranchId]
 );
 
-// Performance index: appointments by doctorId for the visible day/branch
-// (non-cancelled). Avoids repeated O(n) filter in the hot render path.
-const appointmentsByDoctorId = useMemo(() => {
-  const map = new Map<number, Appointment[]>();
-  for (const a of visibleAppointments) {
-    if (a.doctorId == null) continue;
-    const list = map.get(a.doctorId) ?? [];
-    list.push(a);
-    map.set(a.doctorId, list);
+const {
+  slotHeightPx,
+  timeSlotLayouts,
+  appointmentsByDoctorId,
+  gridColumnRenderData,
+} = useAppointmentsGridDerived({
+  gridDoctors,
+  visibleAppointments,
+  draftEdits,
+  timeSlots,
+  firstSlot,
+  lastSlot,
+  totalMinutes,
+  columnHeightPx,
+  laneById,
+  slotMinutes: SLOT_MINUTES,
+});
+
+const appointmentCountByDoctorId = useMemo(() => {
+  const counts = new Map<number, number>();
+  for (const appointment of visibleAppointments) {
+    if (appointment.doctorId == null) continue;
+    counts.set(appointment.doctorId, (counts.get(appointment.doctorId) ?? 0) + 1);
   }
-  return map;
+  return counts;
 }, [visibleAppointments]);
 
 // ---- Checked-in patient queue (for reception) ----
@@ -2140,7 +2341,7 @@ const checkedInQueue = useMemo(
     );
   };
 
-const getStatusColor = (status: string): string => {
+const getStatusColor = useCallback((status: string): string => {
   switch (status) {
     case "completed":
       return "#22c55e";
@@ -2165,7 +2366,114 @@ const getStatusColor = (status: string): string => {
     default:
       return "#cbd5f5"; // booked
   }
-};
+}, []);
+
+const handleDoctorGridCellClick = useCallback(
+  (
+    doctor: ScheduledDoctor,
+    clickedMinutes: number,
+    existingApps: Appointment[]
+  ) => {
+    const slotTime = new Date(
+      firstSlot.getTime() + clickedMinutes * 60000
+    );
+    const slotTimeStr = getSlotTimeString(slotTime);
+
+    const validApps = existingApps.filter(
+      (appointment) =>
+        appointment.doctorId === doctor.id &&
+        getAppointmentDayKey(appointment) === filterDate
+    );
+
+    if (validApps.length === 2) {
+      setDetailsModalState({
+        open: true,
+        doctor,
+        slotLabel: slotTimeStr,
+        slotTime: slotTimeStr,
+        date: filterDate,
+        appointments: validApps,
+      });
+      return;
+    }
+
+    const cellSchedule = (doctor.schedules || []).find((s: any) => s.date === filterDate);
+    const cellBranchId = cellSchedule
+      ? String(cellSchedule.branchId)
+      : (effectiveBranchId || filterBranchId);
+
+    setQuickModalState({
+      open: true,
+      doctorId: doctor.id,
+      date: filterDate,
+      time: slotTimeStr,
+      branchId: cellBranchId,
+    });
+  },
+  [firstSlot, filterDate, effectiveBranchId, filterBranchId]
+);
+
+const handleAppointmentDragStart = useCallback(
+  (e: React.MouseEvent, appointment: Appointment, mode: DragMode) => {
+    if (!canEditAppointment(appointment.status, currentUserRole)) return;
+    e.stopPropagation();
+    e.preventDefault();
+
+    const origStart = naiveToFakeUtcDate(appointment.scheduledAt);
+    const origEnd = appointment.endAt
+      ? naiveToFakeUtcDate(appointment.endAt)
+      : new Date(origStart.getTime() + SLOT_MINUTES * 60 * 1000);
+
+    setActiveDrag({
+      appointmentId: appointment.id,
+      mode,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      origStart,
+      origEnd,
+      origDoctorId: appointment.doctorId,
+      currentDoctorId: appointment.doctorId,
+      hasMovedBeyondThreshold: false,
+    });
+  },
+  [currentUserRole]
+);
+
+const handleAppointmentBlockOpenDetails = useCallback(
+  (
+    e: React.MouseEvent,
+    appointment: Appointment,
+    doctor: ScheduledDoctor,
+    doctorAppointments: Appointment[]
+  ) => {
+    if (activeDrag || pendingSaveId === appointment.id) return;
+
+    e.stopPropagation();
+    const appointmentStart = naiveToFakeUtcDate(appointment.scheduledAt);
+    const slotStart = floorToSlotStart(appointmentStart, SLOT_MINUTES);
+    const slotEnd = new Date(slotStart.getTime() + SLOT_MINUTES * 60 * 1000);
+    const slotAppointmentCount = doctorAppointments.filter((other) => {
+      const otherStart = naiveToFakeUtcDate(other.scheduledAt);
+      if (otherStart.getTime() === 0) return false;
+      const otherEnd = other.endAt
+        ? naiveToFakeUtcDate(other.endAt)
+        : new Date(otherStart.getTime() + SLOT_MINUTES * 60 * 1000);
+      return otherStart < slotEnd && otherEnd > slotStart;
+    }).length;
+    const slotTimeStr = getSlotTimeString(slotStart);
+
+    setDetailsModalState({
+      open: true,
+      doctor,
+      slotLabel: slotTimeStr,
+      slotTime: slotTimeStr,
+      date: filterDate,
+      appointments: [appointment],
+      slotAppointmentCount,
+    });
+  },
+  [activeDrag, pendingSaveId, filterDate]
+);
 
 // ---- Drag/Resize handlers ----
 useEffect(() => {
@@ -2868,53 +3176,17 @@ const handleCancelDraft = (appointmentId: number) => {
               }}
             >
               <div className="p-2 font-bold sticky left-0 bg-[#f5f5f5] z-[25]" style={{ transform: "translateZ(0)" }}>Цаг</div>
-              {gridDoctors.map((doc, idx) => {
-                // Count visible appointments: matching day + branch + not cancelled
-                const count = appointments.filter((a) => {
-                  if (a.doctorId !== doc.id) return false;
-                  if (naiveTimestampToYmd(a.scheduledAt) !== filterDate) return false;
-                  if (effectiveBranchId && String(a.branchId) !== effectiveBranchId) return false;
-                  if (String(a.status).toLowerCase() === "cancelled") return false;
-                  return true;
-                }).length;
-                const isLeftDisabled = reorderSaving || idx === 0;
-                const isRightDisabled = reorderSaving || idx === gridDoctors.length - 1;
-                return (
-                  <div
-                    key={doc.id}
-                    className="p-2 font-bold text-center border-l border-[#ddd]"
-                  >
-                    <div className="flex items-center justify-center gap-[4px]">
-                      <button
-                        type="button"
-                        onClick={() => moveDocInGrid(doc.id, "left")}
-                        disabled={isLeftDisabled}
-                        title="Зүүн тийш зөөх"
-                        className="text-[11px] px-[5px] py-px"
-                        style={{
-                          cursor: isLeftDisabled ? "default" : "pointer",
-                          opacity: isLeftDisabled ? 0.3 : 1,
-                        }}
-                      >◀</button>
-                      <span>{formatDoctorName(doc)}</span>
-                      <button
-                        type="button"
-                        onClick={() => moveDocInGrid(doc.id, "right")}
-                        disabled={isRightDisabled}
-                        title="Баруун тийш зөөх"
-                        className="text-[11px] px-[5px] py-px"
-                        style={{
-                          cursor: isRightDisabled ? "default" : "pointer",
-                          opacity: isRightDisabled ? 0.3 : 1,
-                        }}
-                      >▶</button>
-                    </div>
-                    <div className="text-[11px] text-gray-500 mt-0.5">
-                      {count} захиалга
-                    </div>
-                  </div>
-                );
-              })}
+              {gridDoctors.map((doc, idx) => (
+                <DoctorHeaderCell
+                  key={doc.id}
+                  doc={doc}
+                  idx={idx}
+                  count={appointmentCountByDoctorId.get(doc.id) ?? 0}
+                  reorderSaving={reorderSaving}
+                  totalDoctors={gridDoctors.length}
+                  onMoveDocInGrid={moveDocInGrid}
+                />
+              ))}
             </div>
 
             {/* Body: time labels + doctor columns */}
@@ -2947,344 +3219,44 @@ const handleCancelDraft = (appointmentId: number) => {
                   transform: "translateZ(0)",
                 }}
               >
-                {timeSlots.map((slot, index) => {
-                  const slotStartMin =
-                    (slot.start.getTime() - firstSlot.getTime()) / 60000;
-                  const slotHeight =
-                    (SLOT_MINUTES / totalMinutes) * columnHeightPx;
-
-                  return (
-                    <div
-                      key={index}
-                      className="absolute left-0 right-0 border-b border-[#f0f0f0] pl-1.5 flex items-center text-[11px]"
-                      style={{
-                        top: (slotStartMin / totalMinutes) * columnHeightPx,
-                        height: slotHeight,
-                        backgroundColor:
-                          index % 2 === 0 ? "#fafafa" : "#ffffff",
-                      }}
-                    >
-                      {slot.label}
-                    </div>
-                  );
-                })}
+                {timeSlotLayouts.map((slotLayout, index) => (
+                  <div
+                    key={index}
+                    className="absolute left-0 right-0 border-b border-[#f0f0f0] pl-1.5 flex items-center text-[11px]"
+                    style={{
+                      top: slotLayout.top,
+                      height: slotHeightPx,
+                      backgroundColor:
+                        index % 2 === 0 ? "#fafafa" : "#ffffff",
+                    }}
+                  >
+                    {slotLayout.label}
+                  </div>
+                ))}
               </div>
 
               {/* Doctor columns */}
-              {gridDoctors.map((doc) => {
-                // Get appointments for this doctor using the pre-built index (perf optimization)
-                const originalDoctorAppointments = appointmentsByDoctorId.get(doc.id) ?? [];
-
-                // Also include appointments dragged TO this doctor
-                const draggedInAppointments = visibleAppointments.filter((a) => {
-                    if (a.doctorId === doc.id) return false; // already in originalDoctorAppointments
-                    const draft = draftEdits[a.id];
-                    return draft && draft.doctorId === doc.id;
-                  }
-                );
-
-                const doctorAppointments = [...originalDoctorAppointments, ...draggedInAppointments];
-
-                const handleCellClick = (
-                  clickedMinutes: number,
-                  existingApps: Appointment[]
-                ) => {
-                  const slotTime = new Date(
-                    firstSlot.getTime() + clickedMinutes * 60000
-                  );
-                  const slotTimeStr = getSlotTimeString(slotTime);
-
-                  const validApps = existingApps.filter(
-                    (a) =>
-                      a.doctorId === doc.id &&
-                      getAppointmentDayKey(a) === filterDate
-                  );
-
-                  if (validApps.length === 2) {
-                    setDetailsModalState({
-                      open: true,
-                      doctor: doc,
-                      slotLabel: slotTimeStr,
-                      slotTime: slotTimeStr,
-                      date: filterDate,
-                      appointments: validApps,
-                    });
-                  } else {
-                    const cellSchedule = (doc.schedules || []).find((s: any) => s.date === filterDate);
-                    const cellBranchId = cellSchedule ? String(cellSchedule.branchId) : (effectiveBranchId || filterBranchId);
-                    setQuickModalState({
-                      open: true,
-                      doctorId: doc.id,
-                      date: filterDate,
-                      time: slotTimeStr,
-                      branchId: cellBranchId,
-                    });
-                  }
-                };
-
-                // Precompute overlaps for this doctor's appointments
-                const overlapsWithOther: Record<number, boolean> = {};
-                for (let i = 0; i < doctorAppointments.length; i++) {
-                  const a = doctorAppointments[i];
-                  const aStart = naiveToFakeUtcDate(a.scheduledAt).getTime();
-                  const aEnd = a.endAt
-                    ? naiveToFakeUtcDate(a.endAt).getTime()
-                    : aStart + SLOT_MINUTES * 60 * 1000;
-
-                  overlapsWithOther[a.id] = false;
-
-                  for (let j = 0; j < doctorAppointments.length; j++) {
-                    if (i === j) continue;
-                    const b = doctorAppointments[j];
-                    const bStart = naiveToFakeUtcDate(b.scheduledAt).getTime();
-                    const bEnd = b.endAt
-                      ? naiveToFakeUtcDate(b.endAt).getTime()
-                      : bStart + SLOT_MINUTES * 60 * 1000;
-
-                    if (aStart < bEnd && aEnd > bStart) {
-                      overlapsWithOther[a.id] = true;
-                      break;
-                    }
-                  }
-                }
-
-                return (
-                  <div
-                    key={doc.id}
-                    className="relative border-l border-[#f0f0f0] bg-white"
-                    style={{
-                      height: columnHeightPx,
-                    }}
-                  >
-                    {/* background stripes & click areas */}
-                    {timeSlots.map((slot, index) => {
-                      const slotStartMin =
-                        (slot.start.getTime() - firstSlot.getTime()) / 60000;
-                      const slotHeight =
-                        (SLOT_MINUTES / totalMinutes) * columnHeightPx;
-
-                      const slotTimeStr = getSlotTimeString(slot.start);
-                      const schedules = (doc as any).schedules || [];
-                      const isWorkingHour = schedules.some((s: any) =>
-                        isTimeWithinRange(
-                          slotTimeStr,
-                          s.startTime,
-                          s.endTime
-                        )
-                      );
-                      const weekdayIndex = slot.start.getUTCDay();
-                      const isWeekend =
-                        weekdayIndex === 0 || weekdayIndex === 6;
-                      const isWeekendLunch =
-                        isWeekend &&
-                        isTimeWithinRange(slotTimeStr, "14:00", "15:00");
-                      const isNonWorking = !isWorkingHour || isWeekendLunch;
-
-                      const appsInThisSlot = doctorAppointments.filter((a) => {
-                        const start = naiveToFakeUtcDate(a.scheduledAt);
-                        if (start.getTime() === 0) return false;
-                        const end = a.endAt
-                          ? naiveToFakeUtcDate(a.endAt)
-                          : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
-                        return start < slot.end && end > slot.start;
-                      });
-
-                      return (
-                        <div
-                          key={index}
-                          onClick={() =>
-                            isNonWorking
-                              ? undefined
-                              : handleCellClick(slotStartMin, appsInThisSlot)
-                          }
-                          className="absolute left-0 right-0 border-b border-[#f0f0f0]"
-                          style={{
-                            top:
-                              (slotStartMin / totalMinutes) *
-                              columnHeightPx,
-                            height: slotHeight,
-                            backgroundColor: isNonWorking
-                              ? "#ffc26b"
-                              : index % 2 === 0
-                              ? "#ffffff"
-                              : "#fafafa",
-                            cursor: isNonWorking
-                              ? "not-allowed"
-                              : "pointer",
-                          }}
-                        />
-                      );
-                    })}
-
-                    {/* Appointment blocks */}
-                    {doctorAppointments.map((a) => {
-                      const draft = draftEdits[a.id];
-
-                      // Use draft values if present, otherwise original.
-                      // Both draft and a.scheduledAt are naive timestamps; convert to fake-UTC Dates.
-                      const effectiveStart = draft
-                        ? naiveToFakeUtcDate(draft.scheduledAt)
-                        : naiveToFakeUtcDate(a.scheduledAt);
-                      const effectiveEnd = draft && draft.endAt
-                        ? naiveToFakeUtcDate(draft.endAt)
-                        : a.endAt
-                          ? naiveToFakeUtcDate(a.endAt)
-                          : new Date(effectiveStart.getTime() + SLOT_MINUTES * 60 * 1000);
-                      
-                      const effectiveDoctorId = draft 
-                        ? draft.doctorId 
-                        : a.doctorId;
-                      
-                      // Skip if moved to different doctor
-                      if (effectiveDoctorId !== doc.id) return null;
-                      
-                      const start = effectiveStart;
-                      if (Number.isNaN(start.getTime())) return null;
-                      const end = effectiveEnd;
-
-                      const clampedStart = new Date(
-                        Math.max(start.getTime(), firstSlot.getTime())
-                      );
-                      const clampedEnd = new Date(
-                        Math.min(end.getTime(), lastSlot.getTime())
-                      );
-                      const startMin =
-                        (clampedStart.getTime() - firstSlot.getTime()) /
-                        60000;
-                      const endMin =
-                        (clampedEnd.getTime() - firstSlot.getTime()) / 60000;
-
-                      if (endMin <= 0 || startMin >= totalMinutes) {
-                        return null;
-                      }
-
-                      const top =
-                        (startMin / totalMinutes) * columnHeightPx;
-                      const height =
-                        ((endMin - startMin) / totalMinutes) *
-                        columnHeightPx;
-
-                      const lane = laneById[a.id] ?? 0;
-                      const hasOverlap = overlapsWithOther[a.id];
-
-                      const widthPercent = hasOverlap ? 50 : 100;
-                      const leftPercent = hasOverlap
-                        ? lane === 0
-                          ? 0
-                          : 50
-                        : 0;
-
-                      // Check if this appointment can be dragged/resized
-                      const canEdit = canEditAppointment(a.status, currentUserRole);
-                      const isDragging = activeDrag?.appointmentId === a.id;
-                      const hasPendingSave = pendingSaveId === a.id;
-
-                      const handleMouseDown = (e: React.MouseEvent, mode: DragMode) => {
-                        if (!canEdit) return;
-                        e.stopPropagation();
-                        e.preventDefault();
-
-                        const origStart = naiveToFakeUtcDate(a.scheduledAt);
-                        const origEnd = a.endAt
-                          ? naiveToFakeUtcDate(a.endAt)
-                          : new Date(origStart.getTime() + SLOT_MINUTES * 60 * 1000);
-
-                        setActiveDrag({
-                          appointmentId: a.id,
-                          mode,
-                          startClientX: e.clientX,
-                          startClientY: e.clientY,
-                          origStart,
-                          origEnd,
-                          origDoctorId: a.doctorId,
-                          currentDoctorId: a.doctorId,
-                          hasMovedBeyondThreshold: false,
-                        });
-                      };
-
-                      const handleBlockClick = (e: React.MouseEvent) => {
-                        // Don't open details if we just finished dragging or have pending save
-                        if (isDragging || hasPendingSave || activeDrag) return;
-                        
-                        e.stopPropagation();
-                        const aStart = naiveToFakeUtcDate(a.scheduledAt);
-                        const aSlotStart = floorToSlotStart(aStart, SLOT_MINUTES);
-                        const aSlotEnd = new Date(aSlotStart.getTime() + SLOT_MINUTES * 60 * 1000);
-                        const slotAppointmentCount = doctorAppointments.filter((other) => {
-                          const otherStart = naiveToFakeUtcDate(other.scheduledAt);
-                          if (otherStart.getTime() === 0) return false;
-                          const otherEnd = other.endAt
-                            ? naiveToFakeUtcDate(other.endAt)
-                            : new Date(otherStart.getTime() + SLOT_MINUTES * 60 * 1000);
-                          return otherStart < aSlotEnd && otherEnd > aSlotStart;
-                        }).length;
-                        const slotTimeStr = getSlotTimeString(aSlotStart);
-                        setDetailsModalState({
-                          open: true,
-                          doctor: doc,
-                          slotLabel: slotTimeStr,
-                          slotTime: slotTimeStr,
-                          date: filterDate,
-                          appointments: [a],
-                          slotAppointmentCount,
-                        });
-                      };
-
-                      return (
-                        <div
-                          key={a.id}
-                          onMouseDown={canEdit ? (e) => handleMouseDown(e, "move") : undefined}
-                          onClick={handleBlockClick}
-                          className="absolute box-border rounded flex items-center justify-center text-center overflow-hidden break-words select-none text-[11px] leading-[1.2] px-[3px] py-px"
-                          style={{
-                            left: `${leftPercent}%`,
-                            width: `${widthPercent}%`,
-                            top,
-                            height: Math.max(height, 18),
-                            backgroundColor: getStatusColor(a.status),
-                            border: isDragging 
-                              ? "2px solid #2563eb" 
-                              : hasPendingSave 
-                                ? "2px solid #f59e0b"
-                                : "1px solid rgba(0,0,0,0.08)",
-                            color:
-                              a.status === "completed" ||
-                              a.status === "cancelled"
-                                ? "#ffffff"
-                                : "#1F2937",
-                            boxShadow: isDragging 
-                              ? "0 4px 12px rgba(37,99,235,0.5)" 
-                              : "0 1px 3px rgba(0,0,0,0.25)",
-                            cursor: canEdit ? "move" : "pointer",
-                            opacity: isDragging ? 0.8 : 1,
-                            zIndex: isDragging || hasPendingSave ? 10 : 1,
-                            animation: a.status === "ready_to_pay" && !isDragging
-                              ? "readyToPayPulse 1.4s ease-in-out infinite, readyToPayBlink 1.4s ease-in-out infinite"
-                              : undefined,
-                          }}
-                          title={`${formatPatientLabel(
-                            a.patient,
-                            a.patientId
-                          )} (${formatStatus(a.status)})`}
-                        >
-                          {`${formatGridShortLabel(a)} (${formatStatus(
-                            a.status
-                          )})`}
-                          
-                          {/* Resize handle at bottom */}
-                          {canEdit && !isDragging && (
-                            <div
-                              onMouseDown={(e) => handleMouseDown(e, "resize")}
-                              className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize bg-black/10 rounded-b"
-                              title="Drag to resize"
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
+              {gridDoctors.map((doc) => (
+                <DoctorGridColumn
+                  key={doc.id}
+                  doc={doc}
+                  columnHeightPx={columnHeightPx}
+                  timeSlotLayouts={timeSlotLayouts}
+                  slotHeightPx={slotHeightPx}
+                  gridColumnData={gridColumnRenderData[doc.id] ?? {
+                    doctorAppointments: appointmentsByDoctorId.get(doc.id) ?? [],
+                    appointmentsBySlotIndex: {},
+                    blockLayoutByAppointmentId: {},
+                  }}
+                  currentUserRole={currentUserRole}
+                  activeDragId={activeDrag?.appointmentId ?? null}
+                  pendingSaveId={pendingSaveId}
+                  onCellClick={handleDoctorGridCellClick}
+                  onStartDrag={handleAppointmentDragStart}
+                  onOpenDetails={handleAppointmentBlockOpenDetails}
+                  getStatusColor={getStatusColor}
+                />
+              ))}
             </div>
           </div>
         )}
