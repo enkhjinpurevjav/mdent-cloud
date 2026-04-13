@@ -168,6 +168,14 @@ export function useAppointmentsGridDerived({
         }
 
         overlapById[appointment.id] = hasOverlap;
+      }
+
+      for (const appointment of doctorAppointments) {
+        const interval = effectiveIntervals.get(appointment.id);
+        if (!interval) continue;
+
+        const startMs = interval.start.getTime();
+        const endMs = interval.end.getTime();
 
         const clampedStartMs = Math.max(startMs, dayStartMs);
         const clampedEndMs = Math.min(endMs, dayEndMs);
@@ -176,6 +184,7 @@ export function useAppointmentsGridDerived({
         if (endMin <= 0 || startMin >= safeTotalMinutes) continue;
 
         const lane = laneById[appointment.id] ?? 0;
+        const hasOverlap = overlapById[appointment.id] ?? false;
         const widthPercent = hasOverlap ? 50 : 100;
         const leftPercent = hasOverlap ? (lane === 0 ? 0 : 50) : 0;
 
@@ -191,13 +200,12 @@ export function useAppointmentsGridDerived({
 
       for (let slotIndex = 0; slotIndex < timeSlots.length; slotIndex += 1) {
         const slot = timeSlots[slotIndex];
+        const slotStartMs = slot.start.getTime();
+        const slotEndMs = slot.end.getTime();
         appointmentsBySlotIndex[slotIndex] = doctorAppointments.filter((appointment) => {
-          const start = naiveToFakeUtcDate(appointment.scheduledAt);
-          if (start.getTime() === 0) return false;
-          const end = appointment.endAt
-            ? naiveToFakeUtcDate(appointment.endAt)
-            : new Date(start.getTime() + slotMinutes * 60_000);
-          return start < slot.end && end > slot.start;
+          const interval = originalIntervals.get(appointment.id);
+          if (!interval) return false;
+          return interval.startMs < slotEndMs && interval.endMs > slotStartMs;
         });
       }
 

@@ -235,7 +235,6 @@ const AppointmentGridBlock = React.memo(function AppointmentGridBlock({
 
   return (
     <div
-      key={appointment.id}
       onMouseDown={canEdit ? handleBlockMouseDown : undefined}
       onClick={handleBlockClick}
       className="absolute box-border rounded flex items-center justify-center text-center overflow-hidden break-words select-none text-[11px] leading-[1.2] px-[3px] py-px"
@@ -2275,12 +2274,11 @@ const {
 
 const appointmentCountByDoctorId = useMemo(() => {
   const counts = new Map<number, number>();
-  for (const appointment of visibleAppointments) {
-    if (appointment.doctorId == null) continue;
-    counts.set(appointment.doctorId, (counts.get(appointment.doctorId) ?? 0) + 1);
-  }
+  appointmentsByDoctorId.forEach((doctorAppointments, doctorId) => {
+    counts.set(doctorId, doctorAppointments.length);
+  });
   return counts;
-}, [visibleAppointments]);
+}, [appointmentsByDoctorId]);
 
 // ---- Checked-in patient queue (for reception) ----
 // Shows patients who have checked in, ordered by checkedInAt, excluding ongoing/completed
