@@ -3,6 +3,8 @@ import type { Appointment, ScheduledDoctor, TimeSlot } from "../appointments/typ
 import DoctorColumnV2 from "./DoctorColumnV2";
 import type { AppointmentBlockGeometry } from "./AppointmentBlockV2";
 
+const EMPTY_BLOCKS: AppointmentBlockGeometry[] = [];
+
 type AppointmentsV2GridProps = {
   doctors: ScheduledDoctor[];
   timeSlots: TimeSlot[];
@@ -13,7 +15,7 @@ type AppointmentsV2GridProps = {
   onAppointmentClick: (appointment: Appointment) => void;
 };
 
-export default function AppointmentsV2Grid({
+function AppointmentsV2Grid({
   doctors,
   timeSlots,
   slotHeightPx,
@@ -75,7 +77,7 @@ export default function AppointmentsV2Grid({
               timeSlots={timeSlots}
               slotHeightPx={slotHeightPx}
               columnHeightPx={columnHeightPx}
-              blocks={blocksByDoctorId[doctor.id] || []}
+              blocks={blocksByDoctorId[doctor.id] || EMPTY_BLOCKS}
               onCellClick={onCellClick}
               onAppointmentClick={onAppointmentClick}
             />
@@ -85,3 +87,15 @@ export default function AppointmentsV2Grid({
     </div>
   );
 }
+
+export default React.memo(AppointmentsV2Grid, (prev, next) => {
+  return (
+    prev.doctors === next.doctors &&
+    prev.timeSlots === next.timeSlots &&
+    prev.slotHeightPx === next.slotHeightPx &&
+    prev.columnHeightPx === next.columnHeightPx &&
+    prev.blocksByDoctorId === next.blocksByDoctorId &&
+    prev.onCellClick === next.onCellClick &&
+    prev.onAppointmentClick === next.onAppointmentClick
+  );
+});
