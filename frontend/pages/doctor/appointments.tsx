@@ -393,6 +393,17 @@ export default function DoctorAppointmentsPage() {
     setAppointments((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
+  const isDoctorAppointmentPayload = (value: any): value is DoctorAppointment => {
+    return (
+      value &&
+      typeof value === "object" &&
+      typeof value.id === "number" &&
+      typeof value.doctorId === "number" &&
+      typeof value.scheduledAt === "string" &&
+      typeof value.status === "string"
+    );
+  };
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -427,7 +438,7 @@ export default function DoctorAppointmentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [doctorAppointmentInCurrentView, from, to]);
+  }, [doctorAppointmentInCurrentView, doctorId, from, to]);
 
   useEffect(() => {
     loadAll();
@@ -440,7 +451,20 @@ export default function DoctorAppointmentsPage() {
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
     let es: EventSource | null = null;
     let closed = false;
-    let disconnectedOnce = false;
+    let needsResyncAfterReconnect = false;
+    let reconnectResyncInFlight = false;
+
+    const triggerReconnectResync = () => {
+      if (!needsResyncAfterReconnect || reconnectResyncInFlight) return;
+      reconnectResyncInFlight = true;
+      needsResyncAfterReconnect = false;
+      void loadAll().finally(() => {
+        reconnectResyncInFlight = false;
+        if (!closed && needsResyncAfterReconnect) {
+          triggerReconnectResync();
+        }
+      });
+    };
 
     const parsePayload = (ev: Event): any | null => {
       const msg = ev as MessageEvent;
@@ -456,8 +480,8 @@ export default function DoctorAppointmentsPage() {
       setSseStatus("connected");
       setLastSseEventAt(new Date());
       const payload = parsePayload(ev);
-      if (!payload || typeof payload !== "object") return;
-      upsertDoctorAppointment(payload as DoctorAppointment);
+      if (!isDoctorAppointmentPayload(payload)) return;
+      upsertDoctorAppointment(payload);
     };
 
     const onDeleted = (ev: Event) => {
@@ -487,10 +511,7 @@ export default function DoctorAppointmentsPage() {
 
       es.onopen = () => {
         setSseStatus("connected");
-        if (disconnectedOnce) {
-          disconnectedOnce = false;
-          void loadAll();
-        }
+        triggerReconnectResync();
       };
 
       es.addEventListener("appointment_created", onCreatedOrUpdated);
@@ -501,7 +522,7 @@ export default function DoctorAppointmentsPage() {
         if (closed) return;
         es?.close();
         es = null;
-        disconnectedOnce = true;
+        needsResyncAfterReconnect = true;
         setSseStatus("disconnected");
         retryTimeout = setTimeout(connect, 3000);
       };
