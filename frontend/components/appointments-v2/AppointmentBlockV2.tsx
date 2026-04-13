@@ -3,11 +3,15 @@ import type { Appointment } from "../appointments/types";
 import { formatGridShortLabel, formatStatus } from "../appointments/formatters";
 import { naiveTimestampToHm } from "../../utils/businessTime";
 
+const LANE_GAP_PX = 4;
+const BLOCK_INSET_PX = 4;
+
 export type AppointmentBlockGeometry = {
   appointment: Appointment;
   top: number;
   height: number;
-  offsetX: number;
+  lane: 0 | 1;
+  split: boolean;
 };
 
 type AppointmentBlockV2Props = {
@@ -43,10 +47,13 @@ function statusColor(status: string) {
 }
 
 function AppointmentBlockV2({ block, onClick }: AppointmentBlockV2Props) {
-  const { appointment, top, height, offsetX } = block;
+  const { appointment, top, height, lane, split } = block;
   const bg = statusColor(appointment.status);
   const whiteText =
     appointment.status === "completed" || appointment.status === "cancelled";
+  const laneInsetPx = BLOCK_INSET_PX + LANE_GAP_PX / 2;
+  const width = split ? `calc(50% - ${laneInsetPx}px)` : `calc(100% - ${BLOCK_INSET_PX * 2}px)`;
+  const left = split ? (lane === 0 ? BLOCK_INSET_PX : `calc(50% + ${LANE_GAP_PX / 2}px)`) : BLOCK_INSET_PX;
 
   return (
     <button
@@ -58,8 +65,8 @@ function AppointmentBlockV2({ block, onClick }: AppointmentBlockV2Props) {
       style={{
         position: "absolute",
         top,
-        left: 4 + offsetX,
-        right: 4,
+        left,
+        width,
         minHeight: height,
         border: "1px solid rgba(0,0,0,0.08)",
         borderRadius: 8,
