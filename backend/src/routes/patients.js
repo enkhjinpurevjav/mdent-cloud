@@ -1446,7 +1446,10 @@ router.get("/:id/recent-completed", async (req, res) => {
     }
 
     const rawLimit = parseInt(req.query.limit, 10);
-    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 10) : 3;
+    const limit =
+      Number.isFinite(rawLimit) && rawLimit > 0
+        ? Math.min(rawLimit, MAX_RECENT_COMPLETED_LIMIT)
+        : DEFAULT_RECENT_COMPLETED_LIMIT;
 
     const appointments = await prisma.appointment.findMany({
       where: {
