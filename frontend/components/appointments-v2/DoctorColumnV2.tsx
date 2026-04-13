@@ -69,7 +69,7 @@ function DoctorColumnV2({
           background: "#f5f5f5",
           position: "sticky",
           top: 0,
-          zIndex: 3,
+          zIndex: 30,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",

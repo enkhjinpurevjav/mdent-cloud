@@ -45,9 +45,24 @@ function AppointmentsV2Grid({
 
   return (
     <div style={{ border: "1px solid #ddd", borderRadius: 10, background: "#fff", overflow: "hidden" }}>
-      <div style={{ overflowX: "auto" }}>
+      <div
+        style={{
+          overflow: "auto",
+          maxHeight: "calc(100vh - 240px)",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
         <div style={{ display: "flex", minWidth: 840 }}>
-          <div style={{ minWidth: 80, borderRight: "1px solid #ddd", background: "#fafafa" }}>
+          <div
+            style={{
+              minWidth: 80,
+              borderRight: "1px solid #ddd",
+              background: "#fafafa",
+              position: "sticky",
+              left: 0,
+              zIndex: 20,
+            }}
+          >
             <div
               style={{
                 height: 41,
@@ -57,8 +72,9 @@ function AppointmentsV2Grid({
                 fontSize: 12,
                 background: "#f5f5f5",
                 position: "sticky",
+                top: 0,
                 left: 0,
-                zIndex: 25,
+                zIndex: 40,
               }}
             >
               Цаг
