@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAuth } from "../../contexts/AuthContext";
 import type { Appointment, Branch, ScheduledDoctor } from "../appointments/types";
 import { getBusinessYmd, naiveTimestampToYmd, naiveToFakeUtcDate } from "../../utils/businessTime";
-import { SLOT_MINUTES, generateTimeSlotsForDay, getDateFromYMD } from "../appointments/time";
+import { isTimeWithinRange, SLOT_MINUTES, generateTimeSlotsForDay, getDateFromYMD } from "../appointments/time";
 import { formatHistoryDate } from "../appointments/formatters";
 import AppointmentsV2Grid from "../appointments-v2/AppointmentsV2Grid";
 import {
@@ -17,9 +17,17 @@ import {
 } from "../appointments-v2/gridLayoutV2";
 import { useScheduledDoctorsV2 } from "../appointments-v2/useScheduledDoctorsV2";
 import { useAppointmentsStreamV2 } from "../appointments-v2/useAppointmentsStreamV2";
-import QuickAppointmentModal from "../appointments/QuickAppointmentModal";
+import QuickAppointmentModal from "../appointments-v2/QuickAppointmentModalV2";
 import AppointmentDetailsModal from "../appointments/AppointmentDetailsModal";
 import type { AppointmentBlockGeometry } from "../appointments-v2/AppointmentBlockV2";
+import SpecialBookingModalV2 from "../appointments-v2/SpecialBookingModalV2";
+import {
+  PATIENT_SEARCH_DEBOUNCE_MS,
+  PATIENT_SEARCH_MIN_CHARS,
+  type PatientSearchResult,
+  formatPatientSearchDropdownRow,
+  searchPatientsByRules,
+} from "../appointments-v2/patientSearchRules";
 
 const SLOT_HEIGHT_PX = 30;
 const MIN_BLOCK_HEIGHT_PX = 18;
@@ -38,15 +46,10 @@ type DetailsModalState = {
   slotTime: string;
   doctor: ScheduledDoctor | null;
   appointments: Appointment[];
+  slotAppointmentCount?: number;
 };
 
-type PatientQuickResult = {
-  id: number;
-  name: string;
-  ovog: string | null;
-  phone: string | null;
-  regNo: string | null;
-};
+type PatientQuickResult = PatientSearchResult;
 
 type RecentCompletedVisit = {
   id: number;
@@ -55,12 +58,7 @@ type RecentCompletedVisit = {
 };
 
 function formatPatientQuickLabel(patient: PatientQuickResult) {
-  const name = String(patient.name || "").trim();
-  const ovog = String(patient.ovog || "").trim();
-  const phone = String(patient.phone || "").trim();
-  const regNo = String(patient.regNo || "").trim();
-  const fullName = [name, ovog].filter(Boolean).join(" ");
-  return `${fullName || "-"}, 📞 ${phone || "-"}, 🆔 ${regNo || "-"}`;
+  return formatPatientSearchDropdownRow(patient);
 }
 
 function appointmentInCurrentView(a: Appointment, date: string, branchId: string) {
@@ -89,6 +87,7 @@ export default function AppointmentsPageV2() {
   const [selectedPatient, setSelectedPatient] = useState<PatientQuickResult | null>(null);
   const [selectedPatientRecent, setSelectedPatientRecent] = useState<RecentCompletedVisit[]>([]);
   const [selectedPatientHistoryLoading, setSelectedPatientHistoryLoading] = useState(false);
+  const [specialBookingOpen, setSpecialBookingOpen] = useState(false);
 
   const [quickModalState, setQuickModalState] = useState<QuickModalState>({
     open: false,
@@ -291,13 +290,25 @@ export default function AppointmentsPageV2() {
   }, [scheduledDoctors]);
 
   const resolveDoctorBranchIdForDay = useCallback(
-    (doctor: ScheduledDoctor) => {
+    (doctor: ScheduledDoctor, slotLabel?: string) => {
       const scheduleForDay =
+        (doctor.schedules || []).find((s) => {
+          if (s.date !== selectedDate) return false;
+          if (selectedBranchId && String(s.branchId) !== selectedBranchId) return false;
+          if (slotLabel && !isTimeWithinRange(slotLabel, s.startTime, s.endTime)) return false;
+          return true;
+        }) ||
+        (doctor.schedules || []).find((s) => {
+          if (s.date !== selectedDate) return false;
+          return slotLabel ? isTimeWithinRange(slotLabel, s.startTime, s.endTime) : true;
+        }) ||
         (doctor.schedules || []).find(
           (s) => s.date === selectedDate && (!selectedBranchId || String(s.branchId) === selectedBranchId)
-        ) || (doctor.schedules || []).find((s) => s.date === selectedDate);
+        ) ||
+        (doctor.schedules || []).find((s) => s.date === selectedDate);
       if (scheduleForDay?.branchId != null) return String(scheduleForDay.branchId);
-      return selectedBranchId;
+      if (selectedBranchId) return selectedBranchId;
+      return "";
     },
     [selectedDate, selectedBranchId]
   );
@@ -319,7 +330,7 @@ export default function AppointmentsPageV2() {
       suppressPatientSearchRef.current = false;
       return;
     }
-    if (trimmed.length < 2) {
+    if (trimmed.length < PATIENT_SEARCH_MIN_CHARS) {
       setPatientResults([]);
       setPatientSearchOpen(false);
       setHighlightedPatientIndex(0);
@@ -329,19 +340,8 @@ export default function AppointmentsPageV2() {
     const currentRequestId = ++patientSearchRequestIdRef.current;
     const timer = setTimeout(async () => {
       try {
-        const params = new URLSearchParams({
-          q: trimmed,
-          limit: "25",
-        });
-        const res = await fetch(`/api/patients/search?${params.toString()}`);
-        const data = await res.json().catch(() => []);
+        const data = await searchPatientsByRules(trimmed);
         if (currentRequestId !== patientSearchRequestIdRef.current) return;
-        if (!res.ok || !Array.isArray(data)) {
-          setPatientResults([]);
-          setPatientSearchOpen(false);
-          return;
-        }
-
         setPatientResults(data as PatientQuickResult[]);
         setHighlightedPatientIndex(0);
         setPatientSearchOpen(data.length > 0);
@@ -350,7 +350,7 @@ export default function AppointmentsPageV2() {
         setPatientResults([]);
         setPatientSearchOpen(false);
       }
-    }, 250);
+    }, PATIENT_SEARCH_DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
   }, [patientQuery]);
@@ -411,7 +411,7 @@ export default function AppointmentsPageV2() {
       setSelectedPatient(null);
       setSelectedPatientRecent([]);
     }
-    if (value.trim().length >= 2) setPatientSearchOpen(true);
+    if (value.trim().length >= PATIENT_SEARCH_MIN_CHARS) setPatientSearchOpen(true);
   }, [selectedPatient]);
 
   const handlePatientInputKeyDown = useCallback(
@@ -448,8 +448,12 @@ export default function AppointmentsPageV2() {
 
   const handleCellClick = useCallback(
     (doctor: ScheduledDoctor, slotLabel: string) => {
-      const modalBranchId = resolveDoctorBranchIdForDay(doctor);
+      const modalBranchId = resolveDoctorBranchIdForDay(doctor, slotLabel);
       const parsedBranchId = Number(modalBranchId);
+      if (Number.isNaN(parsedBranchId) || parsedBranchId <= 0) {
+        setCapacityMessage("Салбар тодорхойгүй байна. Салбар сонгоод дахин оролдоно уу.");
+        return;
+      }
       if (!Number.isNaN(parsedBranchId) && parsedBranchId > 0) {
         const slotStartMs = naiveToFakeUtcDate(`${selectedDate} ${slotLabel}:00`).getTime();
         const occupancy = getSlotOccupancyForDoctor({
@@ -479,15 +483,29 @@ export default function AppointmentsPageV2() {
 
   const handleAppointmentClick = useCallback(
     (appointment: Appointment) => {
+      const slotBranchId =
+        appointment.branchId != null && !Number.isNaN(Number(appointment.branchId))
+          ? Number(appointment.branchId)
+          : null;
+      const slotAppointmentCount =
+        appointment.doctorId != null && slotBranchId
+          ? getSlotOccupancyForDoctor({
+              appointments,
+              doctorId: appointment.doctorId,
+              branchId: slotBranchId,
+              slotStartMs: naiveToFakeUtcDate(appointment.scheduledAt).getTime(),
+            })
+          : 0;
       setDetailsModalState({
         open: true,
         date: selectedDate,
         slotTime: appointment.scheduledAt.slice(11, 16),
         doctor: appointment.doctorId ? doctorsById[appointment.doctorId] || null : null,
         appointments: [appointment],
+        slotAppointmentCount,
       });
     },
-    [doctorsById, selectedDate]
+    [appointments, doctorsById, selectedDate]
   );
 
   if (!isAdminRole) {
@@ -576,13 +594,13 @@ export default function AppointmentsPageV2() {
           ref={patientSearchAreaRef}
           style={{
             display: "flex",
-            flexDirection: "column",
-            gap: 4,
+            alignItems: "center",
+            gap: 6,
             fontSize: 13,
             minWidth: 360,
           }}
         >
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>Үйлчлүүлэгч:</label>
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>Хайх</label>
           <div style={{ position: "relative", width: 320 }}>
             <input
               type="text"
@@ -592,7 +610,7 @@ export default function AppointmentsPageV2() {
               onFocus={() => {
                 if (patientResults.length > 0) setPatientSearchOpen(true);
               }}
-              placeholder="Нэр, овог, утас, РД"
+              placeholder="Үйлчлүүлэгчийн овог, нэр, утас, РД"
               autoComplete="off"
               style={{
                 border: "1px solid #cbd5e1",
@@ -639,6 +657,23 @@ export default function AppointmentsPageV2() {
               </div>
             )}
           </div>
+          <button
+            type="button"
+            onClick={() => setSpecialBookingOpen(true)}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 6,
+              border: "none",
+              background: "#0f172a",
+              color: "#ffffff",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Онцгой захиалга
+          </button>
         </div>
       </div>
 
@@ -729,7 +764,7 @@ export default function AppointmentsPageV2() {
         slotLabel={detailsModalState.slotTime}
         date={detailsModalState.date}
         appointments={detailsModalState.appointments}
-        slotAppointmentCount={detailsModalState.appointments.length}
+        slotAppointmentCount={detailsModalState.slotAppointmentCount}
         currentUserRole={me?.role ?? null}
         onStatusUpdated={(updated) => {
           upsertAppointment(updated);
@@ -748,6 +783,45 @@ export default function AppointmentsPageV2() {
             date: selectedDate,
             time: a.scheduledAt.slice(11, 16),
             branchId: String(a.branchId || selectedBranchId),
+          });
+          setDetailsModalState((prev) => ({ ...prev, open: false }));
+        }}
+        onCreateAppointmentInSlot={() => {
+          const doctor = detailsModalState.doctor;
+          const slotTime = detailsModalState.slotTime;
+          const fallbackAppointment = detailsModalState.appointments[0];
+          const resolvedBranchId =
+            fallbackAppointment?.branchId != null
+              ? String(fallbackAppointment.branchId)
+              : doctor
+              ? resolveDoctorBranchIdForDay(doctor, slotTime)
+              : selectedBranchId;
+          const parsedBranchId = Number(resolvedBranchId);
+          if (Number.isNaN(parsedBranchId) || parsedBranchId <= 0) {
+            setCapacityMessage("Салбар тодорхойгүй байна. Салбар сонгоод дахин оролдоно уу.");
+            return;
+          }
+          if (doctor?.id) {
+            const slotStartMs = naiveToFakeUtcDate(`${detailsModalState.date} ${slotTime}:00`).getTime();
+            const occupancy = getSlotOccupancyForDoctor({
+              appointments,
+              doctorId: doctor.id,
+              branchId: parsedBranchId,
+              slotStartMs,
+            });
+            if (occupancy >= MAX_APPOINTMENTS_PER_SLOT) {
+              setCapacityMessage(SLOT_FULL_MESSAGE);
+              return;
+            }
+          }
+          setCapacityMessage("");
+          setEditingAppointment(null);
+          setQuickModalState({
+            open: true,
+            doctorId: doctor?.id,
+            date: detailsModalState.date,
+            time: slotTime || "09:00",
+            branchId: resolvedBranchId,
           });
           setDetailsModalState((prev) => ({ ...prev, open: false }));
         }}
@@ -783,6 +857,19 @@ export default function AppointmentsPageV2() {
           upsertAppointment(appointment);
           setQuickModalState((prev) => ({ ...prev, open: false }));
           setEditingAppointment(null);
+        }}
+      />
+      <SpecialBookingModalV2
+        open={specialBookingOpen}
+        onClose={() => setSpecialBookingOpen(false)}
+        branches={branches}
+        doctors={scheduledDoctors}
+        appointments={appointments}
+        defaultDate={selectedDate}
+        defaultBranchId={selectedBranchId}
+        onCreated={(appointment) => {
+          upsertAppointment(appointment);
+          clearSelectedPatient();
         }}
       />
     </div>
