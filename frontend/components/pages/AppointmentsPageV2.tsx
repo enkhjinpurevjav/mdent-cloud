@@ -257,23 +257,31 @@ export default function AppointmentsPageV2() {
     return map;
   }, [scheduledDoctors]);
 
-  const fullSlotLabelsByDoctorId = useMemo(() => {
-    const result: Record<number, Record<string, true>> = {};
-
-    for (const doctor of scheduledDoctors) {
+  const resolveDoctorBranchIdForDay = useCallback(
+    (doctor: ScheduledDoctor) => {
       const scheduleForDay =
         (doctor.schedules || []).find(
           (s) => s.date === selectedDate && (!selectedBranchId || String(s.branchId) === selectedBranchId)
         ) || (doctor.schedules || []).find((s) => s.date === selectedDate);
-      const branchId = scheduleForDay?.branchId ?? (selectedBranchId ? Number(selectedBranchId) : null);
-      if (!branchId || Number.isNaN(Number(branchId))) continue;
+      if (scheduleForDay?.branchId != null) return String(scheduleForDay.branchId);
+      return selectedBranchId;
+    },
+    [selectedDate, selectedBranchId]
+  );
+
+  const fullSlotLabelsByDoctorId = useMemo(() => {
+    const result: Record<number, Record<string, true>> = {};
+
+    for (const doctor of scheduledDoctors) {
+      const branchId = Number(resolveDoctorBranchIdForDay(doctor));
+      if (!branchId || Number.isNaN(branchId)) continue;
 
       const full: Record<string, true> = {};
       for (const slot of timeSlots) {
         const occupancy = getSlotOccupancyForDoctor({
           appointments,
           doctorId: doctor.id,
-          branchId: Number(branchId),
+          branchId,
           slotStartMs: slot.start.getTime(),
         });
         if (occupancy >= MAX_APPOINTMENTS_PER_SLOT) {
@@ -283,19 +291,11 @@ export default function AppointmentsPageV2() {
       if (Object.keys(full).length) result[doctor.id] = full;
     }
     return result;
-  }, [appointments, scheduledDoctors, selectedDate, selectedBranchId, timeSlots]);
+  }, [appointments, resolveDoctorBranchIdForDay, scheduledDoctors, timeSlots]);
 
   const handleCellClick = useCallback(
     (doctor: ScheduledDoctor, slotLabel: string) => {
-      const scheduleForDay =
-        (doctor.schedules || []).find(
-          (s) => s.date === selectedDate && (!selectedBranchId || String(s.branchId) === selectedBranchId)
-        ) || (doctor.schedules || []).find((s) => s.date === selectedDate);
-
-      const modalBranchId =
-        scheduleForDay?.branchId != null
-          ? String(scheduleForDay.branchId)
-          : selectedBranchId;
+      const modalBranchId = resolveDoctorBranchIdForDay(doctor);
       const parsedBranchId = Number(modalBranchId);
       if (!Number.isNaN(parsedBranchId) && parsedBranchId > 0) {
         const slotStartMs = naiveToFakeUtcDate(`${selectedDate} ${slotLabel}:00`).getTime();
@@ -321,7 +321,7 @@ export default function AppointmentsPageV2() {
         branchId: modalBranchId,
       });
     },
-    [appointments, selectedDate, selectedBranchId]
+    [appointments, resolveDoctorBranchIdForDay, selectedDate]
   );
 
   const handleAppointmentClick = useCallback(

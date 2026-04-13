@@ -487,7 +487,7 @@ router.get("/", async (req, res) => {
 //
 // Returns true when capacity would be exceeded (caller should return 409).
 // ---------------------------------------------------------------------------
-async function assertDoctorSlotCapacity({ doctorId, branchId, start, end, excludeId = null, tx }) {
+async function validateDoctorSlotCapacity({ doctorId, branchId, start, end, excludeId = null, tx }) {
   const slots = getOverlappedSlotStarts({ start, end });
   if (slots.length === 0) return;
 
@@ -522,15 +522,19 @@ async function assertDoctorSlotCapacity({ doctorId, branchId, start, end, exclud
 }
 
 async function runSerializableTx(operation, retries = 3) {
+  let lastError = null;
   for (let attempt = 1; attempt <= retries; attempt += 1) {
     try {
       return await prisma.$transaction(operation, { isolationLevel: "Serializable" });
     } catch (err) {
-      if (err?.code === "P2034" && attempt < retries) continue;
+      if (err?.code === "P2034" && attempt < retries) {
+        lastError = err;
+        continue;
+      }
       throw err;
     }
   }
-  throw new Error("transaction_failed");
+  throw lastError || new Error("transaction_failed");
 }
 
 /**
@@ -783,7 +787,7 @@ if (req.user?.role === "receptionist" && req.user.branchId !== parsedBranchId) {
     // ===== CAPACITY ENFORCEMENT: Max 2 overlapping appointments (in a transaction) =====
     const appt = await runSerializableTx(async (tx) => {
       if (parsedDoctorId !== null) {
-        await assertDoctorSlotCapacity({
+        await validateDoctorSlotCapacity({
           doctorId: parsedDoctorId,
           branchId: parsedBranchId,
           start: scheduledDate,
@@ -1057,13 +1061,13 @@ router.patch("/:id", async (req, res) => {
         );
         const existingEffectiveEnd = getEffectiveEndAt(existing.scheduledAt, existing.endAt);
 
-        const unchangedCapacityKey =
+        const capacityRelevantFieldsUnchanged =
           effectiveDoctorId === existing.doctorId &&
           effectiveStart.getTime() === existing.scheduledAt.getTime() &&
           effectiveEnd.getTime() === existingEffectiveEnd.getTime();
 
-        if (!unchangedCapacityKey && effectiveDoctorId !== null) {
-          await assertDoctorSlotCapacity({
+        if (!capacityRelevantFieldsUnchanged && effectiveDoctorId !== null) {
+          await validateDoctorSlotCapacity({
             doctorId: effectiveDoctorId,
             branchId: existing.branchId,
             start: effectiveStart,

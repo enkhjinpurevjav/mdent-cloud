@@ -137,6 +137,12 @@ export default function QuickAppointmentModal({
   const [quickPatientError, setQuickPatientError] = useState("");
   const [quickPatientSaving, setQuickPatientSaving] = useState(false);
 
+  const isSlotFullApiResponse = (statusCode: number, payload: any) =>
+    statusCode === 409 &&
+    (payload?.code === "SLOT_FULL" ||
+      String(payload?.message || "").toLowerCase().includes("slot is full") ||
+      String(payload?.error || "").includes("2 захиалга"));
+
   // ---- helpers ----
   const parseYmd = (ymd: string) => {
     const [y, m, d] = String(ymd || "").split("-").map(Number);
@@ -701,11 +707,7 @@ export default function QuickAppointmentModal({
 
         if (!res.ok) {
           const payload = data as any;
-          const isSlotFull =
-            res.status === 409 &&
-            (payload?.code === "SLOT_FULL" ||
-              String(payload?.message || "").toLowerCase().includes("slot is full") ||
-              String(payload?.error || "").includes("2 захиалга"));
+          const isSlotFull = isSlotFullApiResponse(res.status, payload);
           setError(
             enforceSlotCapacity && isSlotFull
               ? slotFullMessage
@@ -752,11 +754,7 @@ export default function QuickAppointmentModal({
 
       if (!res.ok) {
         const payload = data as any;
-        const isSlotFull =
-          res.status === 409 &&
-          (payload?.code === "SLOT_FULL" ||
-            String(payload?.message || "").toLowerCase().includes("slot is full") ||
-            String(payload?.error || "").includes("2 захиалга"));
+        const isSlotFull = isSlotFullApiResponse(res.status, payload);
         setError(
           enforceSlotCapacity && isSlotFull
             ? slotFullMessage
