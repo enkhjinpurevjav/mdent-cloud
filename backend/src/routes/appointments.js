@@ -3,6 +3,13 @@ import prisma from "../db.js";
 import { copyXrayMediaToCanonical } from "../utils/imagingMediaCopy.js";
 import { sseSubscribe, sseBroadcast } from "../utils/sseStore.js";
 import { toNaiveTs, formatApptForResponse } from "../utils/formatAppointment.js";
+import {
+  SLOT_MS,
+  findFirstFullSlot,
+  getEffectiveEndAt,
+  getOverlappedSlotStarts,
+  slotFullErrorPayload,
+} from "../utils/appointmentSlotCapacity.js";
 
 
 const router = express.Router();
@@ -480,52 +487,50 @@ router.get("/", async (req, res) => {
 //
 // Returns true when capacity would be exceeded (caller should return 409).
 // ---------------------------------------------------------------------------
-async function isDoctorCapacityExceeded({ doctorId, branchId, start, end, excludeId = null, tx }) {
+async function assertDoctorSlotCapacity({ doctorId, branchId, start, end, excludeId = null, tx }) {
+  const slots = getOverlappedSlotStarts({ start, end });
+  if (slots.length === 0) return;
+
+  const windowStart = slots[0];
+  const windowEnd = new Date(slots[slots.length - 1].getTime() + SLOT_MS);
   const where = {
     doctorId,
     branchId,
-    status: { in: ["booked", "confirmed", "ongoing", "online", "other"] },
-    scheduledAt: { lt: end },
-    OR: [{ endAt: { gt: start } }, { endAt: null }],
+    status: { not: "cancelled" },
+    scheduledAt: { lt: windowEnd },
+    OR: [{ endAt: { gt: windowStart } }, { endAt: null }],
   };
-  if (excludeId !== null) {
-    where.id = { not: excludeId };
-  }
+  if (excludeId !== null) where.id = { not: excludeId };
 
   const existing = await tx.appointment.findMany({
     where,
-    select: { id: true, scheduledAt: true, endAt: true },
+    select: { id: true, scheduledAt: true, endAt: true, status: true },
   });
 
-  const events = [];
-  for (const apt of existing) {
-    const aptStart = new Date(apt.scheduledAt);
-    const aptEnd = apt.endAt
-      ? new Date(apt.endAt)
-      : new Date(aptStart.getTime() + 30 * 60_000);
-    events.push({ time: aptStart.getTime(), type: "start" });
-    events.push({ time: aptEnd.getTime(), type: "end" });
+  const fullSlot = findFirstFullSlot({
+    appointments: existing,
+    start,
+    end,
+    now: new Date(),
+  });
+
+  if (fullSlot) {
+    const err = new Error("capacity_exceeded");
+    err.isCapacityExceeded = true;
+    throw err;
   }
-  events.push({ time: start.getTime(), type: "start" });
-  events.push({ time: end.getTime(), type: "end" });
+}
 
-  events.sort((a, b) => {
-    if (a.time !== b.time) return a.time - b.time;
-    return a.type === "end" ? -1 : 1;
-  });
-
-  let currentCount = 0;
-  let maxCount = 0;
-  for (const ev of events) {
-    if (ev.type === "start") {
-      currentCount++;
-      maxCount = Math.max(maxCount, currentCount);
-    } else {
-      currentCount--;
+async function runSerializableTx(operation, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      return await prisma.$transaction(operation, { isolationLevel: "Serializable" });
+    } catch (err) {
+      if (err?.code === "P2034" && attempt < retries) continue;
+      throw err;
     }
   }
-
-  return maxCount > 2;
+  throw new Error("transaction_failed");
 }
 
 /**
@@ -776,20 +781,15 @@ if (req.user?.role === "receptionist" && req.user.branchId !== parsedBranchId) {
     const parsedSourceEncounterId = sourceEncounterId ? Number(sourceEncounterId) : null;
 
     // ===== CAPACITY ENFORCEMENT: Max 2 overlapping appointments (in a transaction) =====
-    const appt = await prisma.$transaction(async (tx) => {
+    const appt = await runSerializableTx(async (tx) => {
       if (parsedDoctorId !== null) {
-        const exceeded = await isDoctorCapacityExceeded({
+        await assertDoctorSlotCapacity({
           doctorId: parsedDoctorId,
           branchId: parsedBranchId,
           start: scheduledDate,
           end: endDate,
           tx,
         });
-        if (exceeded) {
-          const err = new Error("capacity_exceeded");
-          err.isCapacityExceeded = true;
-          throw err;
-        }
       }
 
       return tx.appointment.create({
@@ -833,7 +833,7 @@ if (req.user?.role === "receptionist" && req.user.branchId !== parsedBranchId) {
     }
   } catch (err) {
     if (err.isCapacityExceeded) {
-      return res.status(409).json({ error: "Энэ цагт 2 захиалга орсон байна" });
+      return res.status(409).json(slotFullErrorPayload());
     }
     console.error("Error creating appointment:", err);
     res.status(500).json({ error: "failed to create appointment" });
@@ -1041,23 +1041,29 @@ router.patch("/:id", async (req, res) => {
 
     // ===== CAPACITY ENFORCEMENT on edit =====
     // Check capacity whenever the effective doctor/time slot may change.
-    const appt = await prisma.$transaction(async (tx) => {
-      const timeOrDoctorChanged =
+    const appt = await runSerializableTx(async (tx) => {
+      const capacityRelevantInputChanged =
         scheduledAt !== undefined || endAt !== undefined || doctorId !== undefined;
-      if (timeOrDoctorChanged) {
+      if (capacityRelevantInputChanged) {
         const effectiveDoctorId =
           doctorId !== undefined
             ? (doctorId === null || doctorId === "" ? null : Number(doctorId))
             : existing.doctorId;
 
-        if (effectiveDoctorId !== null) {
-          const effectiveStart = nextScheduledAt ?? existing.scheduledAt;
-          const rawEnd = endAt !== undefined ? nextEndAt : existing.endAt;
-          const effectiveEnd = rawEnd
-            ? rawEnd
-            : new Date(effectiveStart.getTime() + 30 * 60_000);
+        const effectiveStart = nextScheduledAt ?? existing.scheduledAt;
+        const effectiveEnd = getEffectiveEndAt(
+          effectiveStart,
+          endAt !== undefined ? nextEndAt : existing.endAt
+        );
+        const existingEffectiveEnd = getEffectiveEndAt(existing.scheduledAt, existing.endAt);
 
-          const exceeded = await isDoctorCapacityExceeded({
+        const unchangedCapacityKey =
+          effectiveDoctorId === existing.doctorId &&
+          effectiveStart.getTime() === existing.scheduledAt.getTime() &&
+          effectiveEnd.getTime() === existingEffectiveEnd.getTime();
+
+        if (!unchangedCapacityKey && effectiveDoctorId !== null) {
+          await assertDoctorSlotCapacity({
             doctorId: effectiveDoctorId,
             branchId: existing.branchId,
             start: effectiveStart,
@@ -1065,11 +1071,6 @@ router.patch("/:id", async (req, res) => {
             excludeId: id,
             tx,
           });
-          if (exceeded) {
-            const err = new Error("capacity_exceeded");
-            err.isCapacityExceeded = true;
-            throw err;
-          }
         }
       }
 
@@ -1134,7 +1135,7 @@ router.patch("/:id", async (req, res) => {
     return res.json(updateResponsePayload);
   } catch (err) {
     if (err.isCapacityExceeded) {
-      return res.status(409).json({ error: "Энэ цагт 2 захиалга орсон байна" });
+      return res.status(409).json(slotFullErrorPayload());
     }
     console.error("Error updating appointment:", err);
     if (err.code === "P2025") {
