@@ -67,6 +67,10 @@ function getAppointmentDayKey(a: Appointment): string {
   return scheduled.slice(0, 10);
 }
 
+// 300ms keeps live updates feeling immediate while collapsing SSE bursts
+// into fewer full-grid renders under high update frequency.
+const SSE_FLUSH_DELAY_MS = 300;
+
 /**
  * Compute stable lanes (0 or 1) for all appointments for a doctor on a given day.
  * Ensures that overlapping appointments never share the same lane.
@@ -1136,12 +1140,16 @@ export default function AppointmentsPage() {
   const [error, setError] = useState("");
 const [nowPosition, setNowPosition] = useState<number | null>(null);
 const [hasMounted, setHasMounted] = useState(false);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(false);
+  const [scheduledDoctorsLoading, setScheduledDoctorsLoading] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
 const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
 
 // Request ID tracking to prevent stale fetch overwrites
 const appointmentsRequestIdRef = useRef(0);
 const scheduledDoctorsRequestIdRef = useRef(0);
+  const appointmentsAbortRef = useRef<AbortController | null>(null);
+  const scheduledDoctorsAbortRef = useRef<AbortController | null>(null);
 
 
 type DraftAppointmentChange = {
@@ -1638,11 +1646,15 @@ const workingDoctorsForFilter = scheduledDoctors.length
 
   // ---- load appointments ----
   const loadAppointments = useCallback(async () => {
+    appointmentsRequestIdRef.current += 1;
+    const currentRequestId = appointmentsRequestIdRef.current;
+    appointmentsAbortRef.current?.abort();
+    const abortController = new AbortController();
+    appointmentsAbortRef.current = abortController;
+
     try {
       setError("");
-      // Increment request ID and capture it for this request
-      appointmentsRequestIdRef.current += 1;
-      const currentRequestId = appointmentsRequestIdRef.current;
+      setAppointmentsLoading(true);
 
       const params = new URLSearchParams();
       if (filterDate) params.set("date", filterDate);
@@ -1650,7 +1662,9 @@ const workingDoctorsForFilter = scheduledDoctors.length
       if (effectiveBranchId) params.set("branchId", effectiveBranchId);
       if (filterDoctorId) params.set("doctorId", filterDoctorId);
 
-      const res = await fetch(`/api/appointments?${params.toString()}`);
+      const res = await fetch(`/api/appointments?${params.toString()}`, {
+        signal: abortController.signal,
+      });
       const data = await res.json().catch(() => []);
       
       // Guard: only update state if this is still the latest request
@@ -1664,8 +1678,16 @@ const workingDoctorsForFilter = scheduledDoctors.length
       }
       setAppointments(data);
     } catch (e) {
+      if ((e as Error)?.name === "AbortError") return;
       console.error(e);
       setError("Цаг захиалгуудыг ачаалах үед алдаа гарлаа.");
+    } finally {
+      if (currentRequestId === appointmentsRequestIdRef.current) {
+        setAppointmentsLoading(false);
+        if (appointmentsAbortRef.current === abortController) {
+          appointmentsAbortRef.current = null;
+        }
+      }
     }
   }, [filterDate, filterDoctorId, effectiveBranchId]);
 
@@ -1682,23 +1704,114 @@ const workingDoctorsForFilter = scheduledDoctors.length
 
     let es: EventSource | null = null;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
     let closed = false;
+    const pendingUpserts = new Map<number, Appointment>();
+    const pendingDeletes = new Set<number>();
+
+    const scheduleFlush = () => {
+      if (flushTimer) return;
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        if (pendingUpserts.size === 0 && pendingDeletes.size === 0) return;
+
+        const upserts = Array.from(pendingUpserts.values());
+        const deletes = new Set(Array.from(pendingDeletes));
+        pendingUpserts.clear();
+        pendingDeletes.clear();
+
+        setLastSseEventAt(new Date());
+
+        setAppointments((prev) => {
+          let next = prev;
+          let changed = false;
+
+          if (deletes.size > 0) {
+            const filtered = next.filter((a) => !deletes.has(a.id));
+            if (filtered.length !== next.length) {
+              next = filtered;
+              changed = true;
+            }
+          }
+
+          for (const appt of upserts) {
+            const idx = next.findIndex((a) => a.id === appt.id);
+            if (idx === -1) {
+              next = [appt, ...next];
+              changed = true;
+              continue;
+            }
+            const merged = { ...next[idx], ...appt };
+            const copy = [...next];
+            copy[idx] = merged;
+            next = copy;
+            changed = true;
+          }
+
+          return changed ? next : prev;
+        });
+
+        setDetailsModalState((prev) => {
+          if (prev.appointments.length === 0) return prev;
+          let changed = false;
+          let nextAppointments = prev.appointments;
+
+          if (deletes.size > 0) {
+            const filtered = nextAppointments.filter((a) => !deletes.has(a.id));
+            if (filtered.length !== nextAppointments.length) {
+              nextAppointments = filtered;
+              changed = true;
+            }
+          }
+
+          if (upserts.length > 0) {
+            const upsertById = new Map(upserts.map((a) => [a.id, a]));
+            const mapped = nextAppointments.map((a) => {
+              const updated = upsertById.get(a.id);
+              if (!updated) return a;
+              changed = true;
+              return { ...a, ...updated };
+            });
+            nextAppointments = mapped;
+          }
+
+          return changed ? { ...prev, appointments: nextAppointments } : prev;
+        });
+      }, SSE_FLUSH_DELAY_MS);
+    };
+
+    const queueUpsert = (appt: Appointment) => {
+      pendingDeletes.delete(appt.id);
+      pendingUpserts.set(appt.id, appt);
+      scheduleFlush();
+    };
+
+    const queueDelete = (id: number) => {
+      pendingUpserts.delete(id);
+      pendingDeletes.add(id);
+      scheduleFlush();
+    };
 
     function connect() {
       if (closed) return;
       setSseStatus("connecting");
+      if (es) {
+        es.close();
+        es = null;
+      }
+      pendingUpserts.clear();
+      pendingDeletes.clear();
+      if (flushTimer) {
+        clearTimeout(flushTimer);
+        flushTimer = null;
+      }
       es = new EventSource(`/api/appointments/stream?${params.toString()}`);
 
       es.onopen = () => {
         setSseStatus("connected");
       };
 
-      const markEvent = () => {
-        setLastSseEventAt(new Date());
-      };
-
       es.addEventListener("appointment_created", (e: MessageEvent) => {
-        markEvent();
         try {
           const appt = JSON.parse(e.data) as Appointment;
           // Only apply if the appointment is for the currently viewed date
@@ -1706,70 +1819,26 @@ const workingDoctorsForFilter = scheduledDoctors.length
           if (apptDate !== filterDate) return;
           // If viewing a specific branch, filter by branch
           if (effectiveBranchId && String(appt.branchId) !== effectiveBranchId) return;
-          setAppointments((prev) => {
-            const idx = prev.findIndex((a) => a.id === appt.id);
-            if (idx !== -1) {
-              // SSE arrived after optimistic insert — update in-place (upsert)
-              const next = [...prev];
-              next[idx] = { ...next[idx], ...appt };
-              return next;
-            }
-            return [appt, ...prev];
-          });
-          // Keep open details modal in sync
-          setDetailsModalState((prev) => ({
-            ...prev,
-            appointments: prev.appointments.map((a) =>
-              a.id === appt.id ? { ...a, ...appt } : a
-            ),
-          }));
+          queueUpsert(appt);
         } catch { /* ignore parse errors */ }
       });
 
       es.addEventListener("appointment_updated", (e: MessageEvent) => {
-        markEvent();
         try {
           const appt = JSON.parse(e.data) as Appointment;
           const apptDate = appt.scheduledAt ? appt.scheduledAt.slice(0, 10) : "";
           const matchesView =
             apptDate === filterDate &&
             (!effectiveBranchId || String(appt.branchId) === effectiveBranchId);
-          setAppointments((prev) => {
-            const idx = prev.findIndex((a) => a.id === appt.id);
-            if (matchesView) {
-              if (idx === -1) {
-                // Appointment moved into the current view — add it
-                return [appt, ...prev];
-              }
-              const next = [...prev];
-              next[idx] = { ...next[idx], ...appt };
-              return next;
-            } else {
-              // Appointment moved out of the current view — remove it
-              if (idx !== -1) return prev.filter((a) => a.id !== appt.id);
-              return prev;
-            }
-          });
-          // Keep open details modal in sync so buttons (e.g. billing) use fresh data
-          setDetailsModalState((prev) => ({
-            ...prev,
-            appointments: prev.appointments.map((a) =>
-              a.id === appt.id ? { ...a, ...appt } : a
-            ),
-          }));
+          if (matchesView) queueUpsert(appt);
+          else queueDelete(appt.id);
         } catch { /* ignore parse errors */ }
       });
 
       es.addEventListener("appointment_deleted", (e: MessageEvent) => {
-        markEvent();
         try {
           const payload = JSON.parse(e.data) as { id: number };
-          setAppointments((prev) => prev.filter((a) => a.id !== payload.id));
-          // Keep open details modal in sync — remove deleted appointment from it
-          setDetailsModalState((prev) => ({
-            ...prev,
-            appointments: prev.appointments.filter((a) => a.id !== payload.id),
-          }));
+          queueDelete(payload.id);
         } catch { /* ignore parse errors */ }
       });
 
@@ -1791,23 +1860,29 @@ const workingDoctorsForFilter = scheduledDoctors.length
     return () => {
       closed = true;
       if (retryTimeout) clearTimeout(retryTimeout);
+      if (flushTimer) clearTimeout(flushTimer);
       es?.close();
     };
   }, [filterDate, effectiveBranchId]);
 
   // ---- load scheduled doctors ----
   const loadScheduledDoctors = useCallback(async () => {
-    try {
-      // Increment request ID and capture it for this request
-      scheduledDoctorsRequestIdRef.current += 1;
-      const currentRequestId = scheduledDoctorsRequestIdRef.current;
+    scheduledDoctorsRequestIdRef.current += 1;
+    const currentRequestId = scheduledDoctorsRequestIdRef.current;
+    scheduledDoctorsAbortRef.current?.abort();
+    const abortController = new AbortController();
+    scheduledDoctorsAbortRef.current = abortController;
 
+    try {
+      setScheduledDoctorsLoading(true);
       const params = new URLSearchParams();
       // Only use effectiveBranchId as single source of truth
       if (effectiveBranchId) params.set("branchId", effectiveBranchId);
       if (filterDate) params.set("date", filterDate);
 
-      const res = await fetch(`/api/doctors/scheduled?${params.toString()}`);
+      const res = await fetch(`/api/doctors/scheduled?${params.toString()}`, {
+        signal: abortController.signal,
+      });
       const data = await res.json().catch(() => []);
       
       // Guard: only update state if this is still the latest request
@@ -1820,13 +1895,28 @@ const workingDoctorsForFilter = scheduledDoctors.length
       setScheduledDoctors(data);
       setGridDoctorsOverride(null);
     } catch (e) {
+      if ((e as Error)?.name === "AbortError") return;
       console.error(e);
+    } finally {
+      if (currentRequestId === scheduledDoctorsRequestIdRef.current) {
+        setScheduledDoctorsLoading(false);
+        if (scheduledDoctorsAbortRef.current === abortController) {
+          scheduledDoctorsAbortRef.current = null;
+        }
+      }
     }
   }, [filterDate, effectiveBranchId]);
 
   useEffect(() => {
     loadScheduledDoctors();
   }, [loadScheduledDoctors]);
+
+  useEffect(() => {
+    return () => {
+      appointmentsAbortRef.current?.abort();
+      scheduledDoctorsAbortRef.current?.abort();
+    };
+  }, []);
 
   // grid helpers
   const selectedDay = useMemo(() => getDateFromYMD(filterDate), [filterDate]);
@@ -1840,6 +1930,19 @@ const workingDoctorsForFilter = scheduledDoctors.length
   const totalMinutes =
     (lastSlot.getTime() - firstSlot.getTime()) / 60000 || 1;
   const columnHeightPx = 60 * (totalMinutes / 60);
+  const slotHeightPx = (SLOT_MINUTES / totalMinutes) * columnHeightPx;
+  const timeSlotLayouts = useMemo(
+    () =>
+      timeSlots.map((slot, index) => ({
+        slot,
+        index,
+        slotStartMin: (slot.start.getTime() - firstSlot.getTime()) / 60000,
+        top:
+          ((slot.start.getTime() - firstSlot.getTime()) / 60000 / totalMinutes) *
+          columnHeightPx,
+      })),
+    [timeSlots, firstSlot, totalMinutes, columnHeightPx]
+  );
 
   // current time line
   useEffect(() => {
@@ -2080,6 +2183,128 @@ const appointmentsByDoctorId = useMemo(() => {
   }
   return map;
 }, [visibleAppointments]);
+
+const gridColumnRenderData = useMemo(() => {
+  const byDoctorId = new Map<
+    number,
+    {
+      doctorAppointments: Appointment[];
+      appointmentsBySlotIndex: Appointment[][];
+      blockLayoutByAppointmentId: Record<
+        number,
+        { top: number; height: number; widthPercent: number; leftPercent: number }
+      >;
+    }
+  >();
+
+  for (const doc of gridDoctors) {
+    const originalDoctorAppointments = appointmentsByDoctorId.get(doc.id) ?? [];
+    const draggedInAppointments = visibleAppointments.filter((a) => {
+      if (a.doctorId === doc.id) return false;
+      const draft = draftEdits[a.id];
+      return draft && draft.doctorId === doc.id;
+    });
+    const doctorAppointments = [...originalDoctorAppointments, ...draggedInAppointments];
+
+    const overlapsWithOther: Record<number, boolean> = {};
+    for (let i = 0; i < doctorAppointments.length; i++) {
+      const a = doctorAppointments[i];
+      const aStart = naiveToFakeUtcDate(a.scheduledAt).getTime();
+      const aEnd = a.endAt
+        ? naiveToFakeUtcDate(a.endAt).getTime()
+        : aStart + SLOT_MINUTES * 60 * 1000;
+
+      overlapsWithOther[a.id] = false;
+      for (let j = 0; j < doctorAppointments.length; j++) {
+        if (i === j) continue;
+        const b = doctorAppointments[j];
+        const bStart = naiveToFakeUtcDate(b.scheduledAt).getTime();
+        const bEnd = b.endAt
+          ? naiveToFakeUtcDate(b.endAt).getTime()
+          : bStart + SLOT_MINUTES * 60 * 1000;
+
+        if (aStart < bEnd && aEnd > bStart) {
+          overlapsWithOther[a.id] = true;
+          break;
+        }
+      }
+    }
+
+    const appointmentsBySlotIndex = timeSlots.map((slot) =>
+      doctorAppointments.filter((a) => {
+        const start = naiveToFakeUtcDate(a.scheduledAt);
+        if (start.getTime() === 0) return false;
+        const end = a.endAt
+          ? naiveToFakeUtcDate(a.endAt)
+          : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
+        return start < slot.end && end > slot.start;
+      })
+    );
+
+    const blockLayoutByAppointmentId: Record<
+      number,
+      { top: number; height: number; widthPercent: number; leftPercent: number }
+    > = {};
+
+    for (const a of doctorAppointments) {
+      const draft = draftEdits[a.id];
+      const effectiveStart = draft
+        ? naiveToFakeUtcDate(draft.scheduledAt)
+        : naiveToFakeUtcDate(a.scheduledAt);
+      const effectiveEnd = draft && draft.endAt
+        ? naiveToFakeUtcDate(draft.endAt)
+        : a.endAt
+          ? naiveToFakeUtcDate(a.endAt)
+          : new Date(effectiveStart.getTime() + SLOT_MINUTES * 60 * 1000);
+      const effectiveDoctorId = draft ? draft.doctorId : a.doctorId;
+      if (effectiveDoctorId !== doc.id) continue;
+      if (Number.isNaN(effectiveStart.getTime())) continue;
+
+      const clampedStart = new Date(
+        Math.max(effectiveStart.getTime(), firstSlot.getTime())
+      );
+      const clampedEnd = new Date(
+        Math.min(effectiveEnd.getTime(), lastSlot.getTime())
+      );
+      const startMin = (clampedStart.getTime() - firstSlot.getTime()) / 60000;
+      const endMin = (clampedEnd.getTime() - firstSlot.getTime()) / 60000;
+      if (endMin <= 0 || startMin >= totalMinutes) continue;
+
+      const top = (startMin / totalMinutes) * columnHeightPx;
+      const height = ((endMin - startMin) / totalMinutes) * columnHeightPx;
+      const lane = laneById[a.id] ?? 0;
+      const hasOverlap = overlapsWithOther[a.id];
+      const widthPercent = hasOverlap ? 50 : 100;
+      const leftPercent = hasOverlap ? (lane === 0 ? 0 : 50) : 0;
+
+      blockLayoutByAppointmentId[a.id] = {
+        top,
+        height,
+        widthPercent,
+        leftPercent,
+      };
+    }
+
+    byDoctorId.set(doc.id, {
+      doctorAppointments,
+      appointmentsBySlotIndex,
+      blockLayoutByAppointmentId,
+    });
+  }
+
+  return byDoctorId;
+}, [
+  gridDoctors,
+  appointmentsByDoctorId,
+  visibleAppointments,
+  draftEdits,
+  timeSlots,
+  firstSlot,
+  lastSlot,
+  totalMinutes,
+  columnHeightPx,
+  laneById,
+]);
 
 // ---- Checked-in patient queue (for reception) ----
 // Shows patients who have checked in, ordered by checkedInAt, excluding ongoing/completed
@@ -2843,6 +3068,10 @@ const handleCancelDraft = (appointmentId: number) => {
     <div className="text-gray-500 text-sm">
       Цагийн хүснэгтийг ачаалж байна...
     </div>
+  ) : appointmentsLoading || scheduledDoctorsLoading ? (
+    <div className="text-gray-500 text-sm">
+      Цагийн хүснэгтийг шинэчилж байна...
+    </div>
   ) : timeSlots.length === 0 ? (
     <div className="text-gray-500 text-sm">
       Энэ өдөрт цагийн интервал тодорхойлогдоогүй байна.
@@ -2869,14 +3098,7 @@ const handleCancelDraft = (appointmentId: number) => {
             >
               <div className="p-2 font-bold sticky left-0 bg-[#f5f5f5] z-[25]" style={{ transform: "translateZ(0)" }}>Цаг</div>
               {gridDoctors.map((doc, idx) => {
-                // Count visible appointments: matching day + branch + not cancelled
-                const count = appointments.filter((a) => {
-                  if (a.doctorId !== doc.id) return false;
-                  if (naiveTimestampToYmd(a.scheduledAt) !== filterDate) return false;
-                  if (effectiveBranchId && String(a.branchId) !== effectiveBranchId) return false;
-                  if (String(a.status).toLowerCase() === "cancelled") return false;
-                  return true;
-                }).length;
+                const count = appointmentsByDoctorId.get(doc.id)?.length ?? 0;
                 const isLeftDisabled = reorderSaving || idx === 0;
                 const isRightDisabled = reorderSaving || idx === gridDoctors.length - 1;
                 return (
@@ -2947,19 +3169,14 @@ const handleCancelDraft = (appointmentId: number) => {
                   transform: "translateZ(0)",
                 }}
               >
-                {timeSlots.map((slot, index) => {
-                  const slotStartMin =
-                    (slot.start.getTime() - firstSlot.getTime()) / 60000;
-                  const slotHeight =
-                    (SLOT_MINUTES / totalMinutes) * columnHeightPx;
-
+                {timeSlotLayouts.map(({ slot, index, top }) => {
                   return (
                     <div
                       key={index}
                       className="absolute left-0 right-0 border-b border-[#f0f0f0] pl-1.5 flex items-center text-[11px]"
                       style={{
-                        top: (slotStartMin / totalMinutes) * columnHeightPx,
-                        height: slotHeight,
+                        top,
+                        height: slotHeightPx,
                         backgroundColor:
                           index % 2 === 0 ? "#fafafa" : "#ffffff",
                       }}
@@ -2972,18 +3189,10 @@ const handleCancelDraft = (appointmentId: number) => {
 
               {/* Doctor columns */}
               {gridDoctors.map((doc) => {
-                // Get appointments for this doctor using the pre-built index (perf optimization)
-                const originalDoctorAppointments = appointmentsByDoctorId.get(doc.id) ?? [];
-
-                // Also include appointments dragged TO this doctor
-                const draggedInAppointments = visibleAppointments.filter((a) => {
-                    if (a.doctorId === doc.id) return false; // already in originalDoctorAppointments
-                    const draft = draftEdits[a.id];
-                    return draft && draft.doctorId === doc.id;
-                  }
-                );
-
-                const doctorAppointments = [...originalDoctorAppointments, ...draggedInAppointments];
+                const columnData = gridColumnRenderData.get(doc.id);
+                const doctorAppointments = columnData?.doctorAppointments ?? [];
+                const appointmentsBySlotIndex = columnData?.appointmentsBySlotIndex ?? [];
+                const blockLayoutByAppointmentId = columnData?.blockLayoutByAppointmentId ?? {};
 
                 const handleCellClick = (
                   clickedMinutes: number,
@@ -3022,32 +3231,6 @@ const handleCancelDraft = (appointmentId: number) => {
                   }
                 };
 
-                // Precompute overlaps for this doctor's appointments
-                const overlapsWithOther: Record<number, boolean> = {};
-                for (let i = 0; i < doctorAppointments.length; i++) {
-                  const a = doctorAppointments[i];
-                  const aStart = naiveToFakeUtcDate(a.scheduledAt).getTime();
-                  const aEnd = a.endAt
-                    ? naiveToFakeUtcDate(a.endAt).getTime()
-                    : aStart + SLOT_MINUTES * 60 * 1000;
-
-                  overlapsWithOther[a.id] = false;
-
-                  for (let j = 0; j < doctorAppointments.length; j++) {
-                    if (i === j) continue;
-                    const b = doctorAppointments[j];
-                    const bStart = naiveToFakeUtcDate(b.scheduledAt).getTime();
-                    const bEnd = b.endAt
-                      ? naiveToFakeUtcDate(b.endAt).getTime()
-                      : bStart + SLOT_MINUTES * 60 * 1000;
-
-                    if (aStart < bEnd && aEnd > bStart) {
-                      overlapsWithOther[a.id] = true;
-                      break;
-                    }
-                  }
-                }
-
                 return (
                   <div
                     key={doc.id}
@@ -3057,12 +3240,7 @@ const handleCancelDraft = (appointmentId: number) => {
                     }}
                   >
                     {/* background stripes & click areas */}
-                    {timeSlots.map((slot, index) => {
-                      const slotStartMin =
-                        (slot.start.getTime() - firstSlot.getTime()) / 60000;
-                      const slotHeight =
-                        (SLOT_MINUTES / totalMinutes) * columnHeightPx;
-
+                    {timeSlotLayouts.map(({ slot, index, slotStartMin, top }) => {
                       const slotTimeStr = getSlotTimeString(slot.start);
                       const schedules = (doc as any).schedules || [];
                       const isWorkingHour = schedules.some((s: any) =>
@@ -3079,15 +3257,7 @@ const handleCancelDraft = (appointmentId: number) => {
                         isWeekend &&
                         isTimeWithinRange(slotTimeStr, "14:00", "15:00");
                       const isNonWorking = !isWorkingHour || isWeekendLunch;
-
-                      const appsInThisSlot = doctorAppointments.filter((a) => {
-                        const start = naiveToFakeUtcDate(a.scheduledAt);
-                        if (start.getTime() === 0) return false;
-                        const end = a.endAt
-                          ? naiveToFakeUtcDate(a.endAt)
-                          : new Date(start.getTime() + SLOT_MINUTES * 60 * 1000);
-                        return start < slot.end && end > slot.start;
-                      });
+                      const appsInThisSlot = appointmentsBySlotIndex[index] ?? [];
 
                       return (
                         <div
@@ -3099,10 +3269,8 @@ const handleCancelDraft = (appointmentId: number) => {
                           }
                           className="absolute left-0 right-0 border-b border-[#f0f0f0]"
                           style={{
-                            top:
-                              (slotStartMin / totalMinutes) *
-                              columnHeightPx,
-                            height: slotHeight,
+                            top,
+                            height: slotHeightPx,
                             backgroundColor: isNonWorking
                               ? "#ffc26b"
                               : index % 2 === 0
@@ -3118,61 +3286,9 @@ const handleCancelDraft = (appointmentId: number) => {
 
                     {/* Appointment blocks */}
                     {doctorAppointments.map((a) => {
-                      const draft = draftEdits[a.id];
-
-                      // Use draft values if present, otherwise original.
-                      // Both draft and a.scheduledAt are naive timestamps; convert to fake-UTC Dates.
-                      const effectiveStart = draft
-                        ? naiveToFakeUtcDate(draft.scheduledAt)
-                        : naiveToFakeUtcDate(a.scheduledAt);
-                      const effectiveEnd = draft && draft.endAt
-                        ? naiveToFakeUtcDate(draft.endAt)
-                        : a.endAt
-                          ? naiveToFakeUtcDate(a.endAt)
-                          : new Date(effectiveStart.getTime() + SLOT_MINUTES * 60 * 1000);
-                      
-                      const effectiveDoctorId = draft 
-                        ? draft.doctorId 
-                        : a.doctorId;
-                      
-                      // Skip if moved to different doctor
-                      if (effectiveDoctorId !== doc.id) return null;
-                      
-                      const start = effectiveStart;
-                      if (Number.isNaN(start.getTime())) return null;
-                      const end = effectiveEnd;
-
-                      const clampedStart = new Date(
-                        Math.max(start.getTime(), firstSlot.getTime())
-                      );
-                      const clampedEnd = new Date(
-                        Math.min(end.getTime(), lastSlot.getTime())
-                      );
-                      const startMin =
-                        (clampedStart.getTime() - firstSlot.getTime()) /
-                        60000;
-                      const endMin =
-                        (clampedEnd.getTime() - firstSlot.getTime()) / 60000;
-
-                      if (endMin <= 0 || startMin >= totalMinutes) {
-                        return null;
-                      }
-
-                      const top =
-                        (startMin / totalMinutes) * columnHeightPx;
-                      const height =
-                        ((endMin - startMin) / totalMinutes) *
-                        columnHeightPx;
-
-                      const lane = laneById[a.id] ?? 0;
-                      const hasOverlap = overlapsWithOther[a.id];
-
-                      const widthPercent = hasOverlap ? 50 : 100;
-                      const leftPercent = hasOverlap
-                        ? lane === 0
-                          ? 0
-                          : 50
-                        : 0;
+                      const blockLayout = blockLayoutByAppointmentId[a.id];
+                      if (!blockLayout) return null;
+                      const { top, height, widthPercent, leftPercent } = blockLayout;
 
                       // Check if this appointment can be dragged/resized
                       const canEdit = canEditAppointment(a.status, currentUserRole);
