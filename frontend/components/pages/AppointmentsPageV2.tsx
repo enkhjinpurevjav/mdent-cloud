@@ -636,7 +636,7 @@ export default function AppointmentsPageV2() {
                   borderRadius: 8,
                   background: "#ffffff",
                   boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
-                  zIndex: 30,
+                  zIndex: 1000,
                 }}
               >
                 {patientResults.map((patient, index) => (
