@@ -10,7 +10,7 @@ import QuickAppointmentModal from "../appointments/QuickAppointmentModal";
 import AppointmentDetailsModal from "../appointments/AppointmentDetailsModal";
 import type { AppointmentBlockGeometry } from "../appointments-v2/AppointmentBlockV2";
 
-const SLOT_HEIGHT_PX = 44;
+const SLOT_HEIGHT_PX = 30;
 const MIN_BLOCK_HEIGHT_PX = 18;
 const OVERLAP_OFFSET_PX = 8;
 

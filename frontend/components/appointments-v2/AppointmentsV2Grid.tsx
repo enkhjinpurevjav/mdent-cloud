@@ -28,7 +28,7 @@ function AppointmentsV2Grid({
     return (
       <div
         style={{
-          border: "1px solid #e5e7eb",
+          border: "1px solid #ddd",
           borderRadius: 10,
           background: "#fff",
           padding: 20,
@@ -42,11 +42,25 @@ function AppointmentsV2Grid({
   }
 
   return (
-    <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, background: "#fff", overflow: "hidden" }}>
+    <div style={{ border: "1px solid #ddd", borderRadius: 10, background: "#fff", overflow: "hidden" }}>
       <div style={{ overflowX: "auto" }}>
         <div style={{ display: "flex", minWidth: 840 }}>
-          <div style={{ minWidth: 70, borderRight: "1px solid #e5e7eb", background: "#f8fafc" }}>
-            <div style={{ height: 54, borderBottom: "1px solid #e5e7eb" }} />
+          <div style={{ minWidth: 80, borderRight: "1px solid #ddd", background: "#fafafa" }}>
+            <div
+              style={{
+                height: 41,
+                borderBottom: "1px solid #ddd",
+                padding: "8px",
+                fontWeight: 700,
+                fontSize: 12,
+                background: "#f5f5f5",
+                position: "sticky",
+                left: 0,
+                zIndex: 25,
+              }}
+            >
+              Цаг
+            </div>
             <div style={{ position: "relative", height: columnHeightPx }}>
               {timeSlots.map((slot, idx) => (
                 <div
@@ -57,11 +71,13 @@ function AppointmentsV2Grid({
                     left: 0,
                     right: 0,
                     height: slotHeightPx,
-                    borderTop: "1px solid #f1f5f9",
+                    borderBottom: "1px solid #f0f0f0",
                     fontSize: 11,
-                    color: "#64748b",
-                    paddingTop: 4,
-                    textAlign: "center",
+                    color: "#4b5563",
+                    paddingLeft: 6,
+                    display: "flex",
+                    alignItems: "center",
+                    backgroundColor: idx % 2 === 0 ? "#fafafa" : "#ffffff",
                   }}
                 >
                   {slot.label}

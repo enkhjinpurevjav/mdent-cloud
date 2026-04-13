@@ -3,6 +3,7 @@ import type { ScheduledDoctor, Appointment, TimeSlot } from "../appointments/typ
 import type { AppointmentBlockGeometry } from "./AppointmentBlockV2";
 import AppointmentBlockV2 from "./AppointmentBlockV2";
 import { formatDoctorName } from "../appointments/formatters";
+import { isTimeWithinRange } from "../appointments/time";
 
 type DoctorColumnV2Props = {
   doctor: ScheduledDoctor;
@@ -23,6 +24,21 @@ function DoctorColumnV2({
   onCellClick,
   onAppointmentClick,
 }: DoctorColumnV2Props) {
+  const isNonWorkingSlot = React.useCallback(
+    (slot: TimeSlot) => {
+      const schedules = doctor.schedules || [];
+      const slotTimeStr = slot.label;
+      const isWorkingHour = schedules.some((s) =>
+        isTimeWithinRange(slotTimeStr, s.startTime, s.endTime)
+      );
+      const weekdayIndex = slot.start.getUTCDay();
+      const isWeekend = weekdayIndex === 0 || weekdayIndex === 6;
+      const isWeekendLunch = isWeekend && isTimeWithinRange(slotTimeStr, "14:00", "15:00");
+      return !isWorkingHour || isWeekendLunch;
+    },
+    [doctor]
+  );
+
   const handleGridClick = React.useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -31,24 +47,29 @@ function DoctorColumnV2({
       const slotIndex = Math.floor(clampedY / slotHeightPx);
       const slot = timeSlots[slotIndex];
       if (!slot) return;
+      if (isNonWorkingSlot(slot)) return;
       onCellClick(doctor, slot.label);
     },
-    [doctor, timeSlots, slotHeightPx, columnHeightPx, onCellClick]
+    [doctor, timeSlots, slotHeightPx, columnHeightPx, onCellClick, isNonWorkingSlot]
   );
 
   return (
-    <div style={{ minWidth: 220, borderLeft: "1px solid #e5e7eb", background: "#fff" }}>
+    <div style={{ minWidth: 180, borderLeft: "1px solid #f0f0f0", background: "#fff" }}>
       <div
         style={{
-          height: 54,
-          borderBottom: "1px solid #e5e7eb",
-          padding: "8px 10px",
-          fontSize: 13,
+          height: 41,
+          borderBottom: "1px solid #ddd",
+          padding: "8px",
+          fontSize: 12,
           fontWeight: 700,
-          background: "#f8fafc",
+          background: "#f5f5f5",
           position: "sticky",
           top: 0,
           zIndex: 3,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          textAlign: "center",
         }}
       >
         {formatDoctorName(doctor) || doctor.name || `Эмч #${doctor.id}`}
@@ -67,8 +88,12 @@ function DoctorColumnV2({
               left: 0,
               right: 0,
               height: slotHeightPx,
-              borderTop: "1px solid #f1f5f9",
-              background: idx % 2 === 0 ? "#ffffff" : "#fcfcfd",
+              borderBottom: "1px solid #f0f0f0",
+              background: isNonWorkingSlot(slot)
+                ? "#ffc26b"
+                : idx % 2 === 0
+                  ? "#ffffff"
+                  : "#fafafa",
             }}
           />
         ))}

@@ -17,25 +17,36 @@ type AppointmentBlockV2Props = {
 
 function statusColor(status: string) {
   switch (status) {
-    case "confirmed":
-      return "#2563eb";
-    case "ongoing":
-      return "#0f766e";
-    case "ready_to_pay":
-      return "#7c3aed";
     case "completed":
-      return "#4b5563";
+      return "#22c55e";
+    case "confirmed":
+      return "#3b82f6";
+    case "online":
+      return "#6366f1";
+    case "ongoing":
+      return "#16a34a";
+    case "imaging":
+      return "#8b5cf6";
+    case "ready_to_pay":
+      return "#fbbf24";
+    case "partial_paid":
+      return "#eab308";
+    case "other":
+      return "#94a3b8";
     case "cancelled":
-    case "no_show":
       return "#b91c1c";
+    case "no_show":
+      return "#ef4444";
     default:
-      return "#334155";
+      return "#cbd5f5";
   }
 }
 
 function AppointmentBlockV2({ block, onClick }: AppointmentBlockV2Props) {
   const { appointment, top, height, offsetX } = block;
   const bg = statusColor(appointment.status);
+  const whiteText =
+    appointment.status === "completed" || appointment.status === "cancelled";
 
   return (
     <button
@@ -50,21 +61,23 @@ function AppointmentBlockV2({ block, onClick }: AppointmentBlockV2Props) {
         left: 4 + offsetX,
         right: 4,
         minHeight: height,
-        border: "none",
+        border: "1px solid rgba(0,0,0,0.08)",
         borderRadius: 8,
         background: bg,
-        color: "#fff",
-        padding: "6px 8px",
+        color: whiteText ? "#ffffff" : "#1F2937",
+        padding: "2px 4px",
         textAlign: "left",
         cursor: "pointer",
         overflow: "hidden",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+        lineHeight: 1.2,
       }}
       title={`${formatStatus(appointment.status)} · ${naiveTimestampToHm(appointment.scheduledAt)}`}
     >
-      <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.2 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
         {naiveTimestampToHm(appointment.scheduledAt)} · {formatStatus(appointment.status)}
       </div>
-      <div style={{ fontSize: 12, lineHeight: 1.2, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+      <div style={{ fontSize: 11, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
         {formatGridShortLabel(appointment) || `#${appointment.id}`}
       </div>
     </button>
