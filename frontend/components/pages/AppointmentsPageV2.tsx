@@ -161,6 +161,7 @@ export default function AppointmentsPageV2() {
   const patientSearchRequestIdRef = useRef(0);
   const suppressPatientSearchRef = useRef(false);
   const patientSearchAreaRef = useRef<HTMLDivElement | null>(null);
+  const receptionistRedirectedRef = useRef(false);
   const isOtherBranchReceptionView =
     isReceptionist &&
     ownBranchId !== null &&
@@ -168,19 +169,25 @@ export default function AppointmentsPageV2() {
     selectedBranchId !== ownBranchId;
 
   useEffect(() => {
-    if (branchIdFromQuery === selectedBranchId) return;
-    setSelectedBranchId(branchIdFromQuery || "");
-  }, [branchIdFromQuery, selectedBranchId]);
-
-  useEffect(() => {
-    if (!isReceptionist || !ownBranchId) return;
-    if (branchIdFromQuery) return;
-    setSelectedBranchId(ownBranchId);
-    router.replace(
-      { pathname: "/appointments-v2", query: { branchId: ownBranchId } },
-      undefined,
-      { shallow: true }
-    );
+    if (branchIdFromQuery) {
+      receptionistRedirectedRef.current = false;
+      setSelectedBranchId((prev) => (prev === branchIdFromQuery ? prev : branchIdFromQuery));
+      return;
+    }
+    if (isReceptionist && ownBranchId) {
+      setSelectedBranchId((prev) => (prev === ownBranchId ? prev : ownBranchId));
+      if (!receptionistRedirectedRef.current) {
+        receptionistRedirectedRef.current = true;
+        router.replace(
+          { pathname: "/appointments-v2", query: { branchId: ownBranchId } },
+          undefined,
+          { shallow: true }
+        );
+      }
+      return;
+    }
+    receptionistRedirectedRef.current = false;
+    setSelectedBranchId((prev) => (prev === "" ? prev : ""));
   }, [branchIdFromQuery, isReceptionist, ownBranchId, router]);
 
   const appointmentsRequestIdRef = useRef(0);
