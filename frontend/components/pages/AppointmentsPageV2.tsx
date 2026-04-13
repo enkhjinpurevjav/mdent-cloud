@@ -1,11 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import type { Appointment, Branch, ScheduledDoctor } from "../appointments/types";
-import { getBusinessYmd, naiveTimestampToYmd, naiveToFakeUtcDate } from "../../utils/businessTime";
+import {
+  fakeUtcDateToNaive,
+  getBusinessYmd,
+  naiveTimestampToYmd,
+  naiveToFakeUtcDate,
+} from "../../utils/businessTime";
 import { isTimeWithinRange, SLOT_MINUTES, generateTimeSlotsForDay, getDateFromYMD } from "../appointments/time";
 import { formatHistoryDate } from "../appointments/formatters";
 import AppointmentsV2Grid from "../appointments-v2/AppointmentsV2Grid";
 import {
+  findFirstFullSlotForCandidate,
   MAX_APPOINTMENTS_PER_SLOT,
   SLOT_FULL_MESSAGE,
   getSlotOccupancyForDoctor,
@@ -32,6 +38,29 @@ import {
 
 const SLOT_HEIGHT_PX = 30;
 const MIN_BLOCK_HEIGHT_PX = 18;
+const GRID_TIME_COL_WIDTH = 80;
+const GRID_DOCTOR_COL_WIDTH = 180;
+const GRID_STICKY_HEADER_HEIGHT = 41;
+
+type DraftAppointmentChange = {
+  scheduledAt: string;
+  endAt: string | null;
+  doctorId: number | null;
+};
+
+type DragMode = "move" | "resize";
+
+type DragState = {
+  appointmentId: number;
+  mode: DragMode;
+  startClientX: number;
+  startClientY: number;
+  origStart: Date;
+  origEnd: Date;
+  origDoctorId: number | null;
+  hasMovedBeyondThreshold: boolean;
+  hadExplicitEndAt: boolean;
+};
 
 type QuickModalState = {
   open: boolean;
@@ -66,6 +95,12 @@ function appointmentInCurrentView(a: Appointment, date: string, branchId: string
   if (naiveTimestampToYmd(a.scheduledAt) !== date) return false;
   if (branchId && String(a.branchId) !== branchId) return false;
   return true;
+}
+
+function canEditAppointment(status: string) {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "completed" || normalized === "ongoing") return false;
+  return ["booked", "confirmed", "online", "other"].includes(normalized);
 }
 
 export default function AppointmentsPageV2() {
@@ -105,6 +140,17 @@ export default function AppointmentsPageV2() {
     appointments: [],
   });
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const [draftEdits, setDraftEdits] = useState<Record<number, DraftAppointmentChange>>({});
+  const [activeDrag, setActiveDrag] = useState<DragState | null>(null);
+  const [pendingSaveId, setPendingSaveId] = useState<number | null>(null);
+  const [pendingSaveError, setPendingSaveError] = useState<string | null>(null);
+  const [pendingSaving, setPendingSaving] = useState(false);
+  const [invalidDragAppointmentId, setInvalidDragAppointmentId] = useState<number | null>(null);
+  const [dragPreviewDoctorId, setDragPreviewDoctorId] = useState<number | null>(null);
+  const [dragPreviewSlotLabels, setDragPreviewSlotLabels] = useState<string[]>([]);
+  const gridScrollRef = useRef<HTMLDivElement | null>(null);
+  const dragFrameRef = useRef<number | null>(null);
+  const lastPointerEventRef = useRef<MouseEvent | null>(null);
   const patientSearchRequestIdRef = useRef(0);
   const suppressPatientSearchRef = useRef(false);
   const patientSearchAreaRef = useRef<HTMLDivElement | null>(null);
@@ -229,15 +275,30 @@ export default function AppointmentsPageV2() {
   }, [firstSlot, lastSlot]);
   const columnHeightPx = timeSlots.length * SLOT_HEIGHT_PX;
 
+  const effectiveAppointments = useMemo(
+    () =>
+      appointments.map((appointment) => {
+        const draft = draftEdits[appointment.id];
+        if (!draft) return appointment;
+        return {
+          ...appointment,
+          scheduledAt: draft.scheduledAt,
+          endAt: draft.endAt,
+          doctorId: draft.doctorId,
+        };
+      }),
+    [appointments, draftEdits]
+  );
+
   const appointmentsByDoctorId = useMemo(() => {
     const grouped: Record<number, Appointment[]> = {};
-    for (const appointment of getVisibleAppointmentsV2(appointments)) {
+    for (const appointment of getVisibleAppointmentsV2(effectiveAppointments)) {
       if (!appointment?.doctorId) continue;
       if (!grouped[appointment.doctorId]) grouped[appointment.doctorId] = [];
       grouped[appointment.doctorId].push(appointment);
     }
     return grouped;
-  }, [appointments]);
+  }, [effectiveAppointments]);
 
   const blocksByDoctorId = useMemo(() => {
     const result: Record<number, AppointmentBlockGeometry[]> = {};
@@ -323,6 +384,375 @@ export default function AppointmentsPageV2() {
       }),
     [appointments, resolveDoctorBranchIdForDay, scheduledDoctors, timeSlots]
   );
+
+  const appointmentsById = useMemo(() => {
+    const map: Record<number, Appointment> = {};
+    for (const appointment of appointments) map[appointment.id] = appointment;
+    return map;
+  }, [appointments]);
+
+  const snapMinutesToSlot = useCallback((minutes: number, slotMinutes = SLOT_MINUTES) => {
+    return Math.round(minutes / slotMinutes) * slotMinutes;
+  }, []);
+
+  const clamp = useCallback((value: number, min: number, max: number) => {
+    return Math.max(min, Math.min(max, value));
+  }, []);
+
+  const getSlotLabelsForRange = useCallback(
+    (start: Date, end: Date) => {
+      const labels: string[] = [];
+      for (const slot of timeSlots) {
+        if (slot.start < end && slot.end > start) labels.push(slot.label);
+      }
+      return labels;
+    },
+    [timeSlots]
+  );
+
+  const clearDragPreview = useCallback(() => {
+    setInvalidDragAppointmentId(null);
+    setDragPreviewDoctorId(null);
+    setDragPreviewSlotLabels([]);
+  }, []);
+
+  const validateDraftCandidate = useCallback(
+    (appointmentId: number, candidate: DraftAppointmentChange) => {
+      const appointment = appointmentsById[appointmentId];
+      if (!appointment || !candidate.doctorId) {
+        return {
+          valid: false,
+          message: "Эмч сонгоно уу.",
+          slotLabels: [] as string[],
+          doctorId: candidate.doctorId,
+        };
+      }
+
+      const doctor = doctorsById[candidate.doctorId];
+      const start = naiveToFakeUtcDate(candidate.scheduledAt);
+      const end = candidate.endAt
+        ? naiveToFakeUtcDate(candidate.endAt)
+        : new Date(start.getTime() + SLOT_MINUTES * 60_000);
+      if (!doctor || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+        return {
+          valid: false,
+          message: "Буруу цаг сонгогдсон байна.",
+          slotLabels: [] as string[],
+          doctorId: candidate.doctorId,
+        };
+      }
+
+      const slotLabels = getSlotLabelsForRange(start, end);
+      if (!slotLabels.length) {
+        return {
+          valid: false,
+          message: "Ажлын цагаас гадуур байна.",
+          slotLabels,
+          doctorId: candidate.doctorId,
+        };
+      }
+
+      const appointmentBranchId = String(appointment.branchId);
+      const hasNonWorkingSlot = slotLabels.some((slotLabel) =>
+        !(doctor.schedules || []).some(
+          (schedule) =>
+            schedule.date === selectedDate &&
+            String(schedule.branchId) === appointmentBranchId &&
+            isTimeWithinRange(slotLabel, schedule.startTime, schedule.endTime)
+        )
+      );
+      if (hasNonWorkingSlot) {
+        return {
+          valid: false,
+          message: "Эмчийн ажлын бус цаг руу шилжүүлэх боломжгүй.",
+          slotLabels,
+          doctorId: candidate.doctorId,
+        };
+      }
+
+      const fullSlot = findFirstFullSlotForCandidate({
+        appointments,
+        doctorId: candidate.doctorId,
+        branchId: appointment.branchId,
+        startNaive: candidate.scheduledAt,
+        endNaive:
+          candidate.endAt ??
+          fakeUtcDateToNaive(new Date(start.getTime() + SLOT_MINUTES * 60_000)),
+        excludeAppointmentId: appointmentId,
+      });
+      if (fullSlot) {
+        return {
+          valid: false,
+          message: SLOT_FULL_MESSAGE,
+          slotLabels,
+          doctorId: candidate.doctorId,
+        };
+      }
+
+      return {
+        valid: true,
+        message: null as string | null,
+        slotLabels,
+        doctorId: candidate.doctorId,
+      };
+    },
+    [appointments, appointmentsById, doctorsById, getSlotLabelsForRange, selectedDate]
+  );
+
+  const handleCancelDraft = useCallback((appointmentId: number) => {
+    setDraftEdits((prev) => {
+      const next = { ...prev };
+      delete next[appointmentId];
+      return next;
+    });
+    setPendingSaveId(null);
+    setPendingSaveError(null);
+    clearDragPreview();
+  }, [clearDragPreview]);
+
+  const handleSaveDraft = useCallback(
+    async (appointmentId: number) => {
+      const draft = draftEdits[appointmentId];
+      if (!draft) return;
+      const validation = validateDraftCandidate(appointmentId, draft);
+      if (!validation.valid) {
+        setPendingSaveError(validation.message || "Өөрчлөлт хадгалах боломжгүй.");
+        return;
+      }
+
+      setPendingSaving(true);
+      setPendingSaveError(null);
+      try {
+        const res = await fetch(`/api/appointments/${appointmentId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            scheduledAt: draft.scheduledAt,
+            endAt: draft.endAt,
+            doctorId: draft.doctorId,
+          }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+          setPendingSaveError((data && data.error) || `Хадгалахад алдаа гарлаа (${res.status})`);
+          if (res.status === 409) {
+            handleCancelDraft(appointmentId);
+          }
+          return;
+        }
+        upsertAppointment(data as Appointment);
+        handleCancelDraft(appointmentId);
+      } catch {
+        setPendingSaveError("Сүлжээгээ шалгана уу.");
+      } finally {
+        setPendingSaving(false);
+      }
+    },
+    [draftEdits, handleCancelDraft, upsertAppointment, validateDraftCandidate]
+  );
+
+  const handleAppointmentMouseDown = useCallback(
+    (
+      event: React.MouseEvent<HTMLButtonElement | HTMLDivElement>,
+      appointment: Appointment,
+      mode: DragMode
+    ) => {
+      if (pendingSaving || pendingSaveId !== null) return;
+      if (!canEditAppointment(appointment.status)) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      const origStart = naiveToFakeUtcDate(appointment.scheduledAt);
+      const hasExplicitEndAt = Boolean(appointment.endAt);
+      const origEnd = appointment.endAt
+        ? naiveToFakeUtcDate(appointment.endAt)
+        : new Date(origStart.getTime() + SLOT_MINUTES * 60_000);
+
+      setPendingSaveError(null);
+      setActiveDrag({
+        appointmentId: appointment.id,
+        mode,
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        origStart,
+        origEnd,
+        origDoctorId: appointment.doctorId,
+        hasMovedBeyondThreshold: false,
+        hadExplicitEndAt: hasExplicitEndAt,
+      });
+    },
+    [pendingSaveId, pendingSaving]
+  );
+
+  useEffect(() => {
+    if (!activeDrag || !firstSlot || !gridScrollRef.current) return;
+
+    const DRAG_THRESHOLD_PX = 5;
+
+    const processPointerMove = (pointerEvent: MouseEvent) => {
+      const gridElement = gridScrollRef.current;
+      if (!gridElement) return;
+
+      const rect = gridElement.getBoundingClientRect();
+      const xWithin = pointerEvent.clientX - rect.left + gridElement.scrollLeft - GRID_TIME_COL_WIDTH;
+      const doctorIndex = Math.floor(xWithin / GRID_DOCTOR_COL_WIDTH);
+      const moveDoctorId =
+        doctorIndex >= 0 && doctorIndex < scheduledDoctors.length
+          ? scheduledDoctors[doctorIndex].id
+          : activeDrag.origDoctorId;
+
+      const yWithin =
+        pointerEvent.clientY - rect.top + gridElement.scrollTop - GRID_STICKY_HEADER_HEIGHT;
+      const minutesFromStart = (yWithin / columnHeightPx) * totalMinutes;
+      const deltaX = Math.abs(pointerEvent.clientX - activeDrag.startClientX);
+      const deltaY = Math.abs(pointerEvent.clientY - activeDrag.startClientY);
+      const exceededThreshold =
+        deltaX * deltaX + deltaY * deltaY >= DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX;
+
+      if (!exceededThreshold) {
+        setActiveDrag((prev) => (prev ? { ...prev, hasMovedBeyondThreshold: false } : null));
+        return;
+      }
+
+      let nextStart = new Date(activeDrag.origStart);
+      let nextEnd = new Date(activeDrag.origEnd);
+      let nextDoctorId = activeDrag.origDoctorId;
+
+      if (activeDrag.mode === "move") {
+        const durationMinutes = (activeDrag.origEnd.getTime() - activeDrag.origStart.getTime()) / 60000;
+        const snappedStart = snapMinutesToSlot(minutesFromStart);
+        const clampedStart = clamp(
+          snappedStart,
+          0,
+          Math.max(0, totalMinutes - Math.max(SLOT_MINUTES, durationMinutes))
+        );
+        const clampedEnd = clamp(clampedStart + durationMinutes, SLOT_MINUTES, totalMinutes);
+        nextStart = new Date(firstSlot.getTime() + clampedStart * 60_000);
+        nextEnd = new Date(firstSlot.getTime() + clampedEnd * 60_000);
+        nextDoctorId = moveDoctorId;
+      } else {
+        const startMinutes = (activeDrag.origStart.getTime() - firstSlot.getTime()) / 60000;
+        const resizedDuration = snapMinutesToSlot(
+          ((activeDrag.origEnd.getTime() - activeDrag.origStart.getTime()) / 60000) +
+            ((pointerEvent.clientY - activeDrag.startClientY) / SLOT_HEIGHT_PX) * SLOT_MINUTES
+        );
+        const clampedDuration = clamp(resizedDuration, SLOT_MINUTES, totalMinutes);
+        const clampedEndMinutes = clamp(startMinutes + clampedDuration, SLOT_MINUTES, totalMinutes);
+        nextStart = new Date(activeDrag.origStart);
+        nextEnd = new Date(firstSlot.getTime() + clampedEndMinutes * 60_000);
+      }
+
+      const durationMinutes = Math.round((nextEnd.getTime() - nextStart.getTime()) / 60000);
+      const draftEndAt =
+        !activeDrag.hadExplicitEndAt && durationMinutes === SLOT_MINUTES
+          ? null
+          : fakeUtcDateToNaive(nextEnd);
+      const candidate: DraftAppointmentChange = {
+        scheduledAt: fakeUtcDateToNaive(nextStart),
+        endAt: draftEndAt,
+        doctorId: nextDoctorId,
+      };
+
+      const validation = validateDraftCandidate(activeDrag.appointmentId, candidate);
+      setDragPreviewDoctorId(validation.doctorId ?? null);
+      setDragPreviewSlotLabels(validation.slotLabels);
+      setInvalidDragAppointmentId(validation.valid ? null : activeDrag.appointmentId);
+
+      setDraftEdits((prev) => ({
+        ...prev,
+        [activeDrag.appointmentId]: candidate,
+      }));
+      setActiveDrag((prev) => (prev ? { ...prev, hasMovedBeyondThreshold: true } : null));
+    };
+
+    const schedulePointerMove = (pointerEvent: MouseEvent) => {
+      lastPointerEventRef.current = pointerEvent;
+      if (dragFrameRef.current !== null) return;
+      dragFrameRef.current = window.requestAnimationFrame(() => {
+        dragFrameRef.current = null;
+        const event = lastPointerEventRef.current;
+        if (!event) return;
+        processPointerMove(event);
+      });
+    };
+
+    const onMouseMove = (pointerEvent: MouseEvent) => {
+      schedulePointerMove(pointerEvent);
+    };
+
+    const onMouseUp = () => {
+      const draft = draftEdits[activeDrag.appointmentId];
+      if (!draft) {
+        clearDragPreview();
+        setActiveDrag(null);
+        return;
+      }
+      const validation = validateDraftCandidate(activeDrag.appointmentId, draft);
+      if (!validation.valid) {
+        setPendingSaveError(validation.message || "Энэ байршилд шилжүүлэх боломжгүй.");
+        setDraftEdits((prev) => {
+          const next = { ...prev };
+          delete next[activeDrag.appointmentId];
+          return next;
+        });
+      } else {
+        setPendingSaveId(activeDrag.appointmentId);
+        setPendingSaveError(null);
+      }
+      clearDragPreview();
+      setActiveDrag(null);
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      if (dragFrameRef.current !== null) {
+        window.cancelAnimationFrame(dragFrameRef.current);
+        dragFrameRef.current = null;
+      }
+    };
+  }, [
+    activeDrag,
+    clamp,
+    clearDragPreview,
+    columnHeightPx,
+    draftEdits,
+    firstSlot,
+    scheduledDoctors,
+    snapMinutesToSlot,
+    totalMinutes,
+    validateDraftCandidate,
+  ]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (activeDrag) {
+        event.preventDefault();
+        setDraftEdits((prev) => {
+          const next = { ...prev };
+          delete next[activeDrag.appointmentId];
+          return next;
+        });
+        clearDragPreview();
+        setActiveDrag(null);
+      } else if (pendingSaveId !== null && !pendingSaving) {
+        handleCancelDraft(pendingSaveId);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeDrag, clearDragPreview, handleCancelDraft, pendingSaveId, pendingSaving]);
+
+  useEffect(() => {
+    setDraftEdits({});
+    setPendingSaveId(null);
+    setPendingSaveError(null);
+    clearDragPreview();
+    setActiveDrag(null);
+  }, [selectedBranchId, selectedDate, clearDragPreview]);
 
   useEffect(() => {
     const trimmed = patientQuery.trim();
@@ -487,6 +917,7 @@ export default function AppointmentsPageV2() {
 
   const handleAppointmentClick = useCallback(
     (appointment: Appointment) => {
+      if (activeDrag || pendingSaveId !== null) return;
       const slotBranchId =
         appointment.branchId != null && !Number.isNaN(Number(appointment.branchId))
           ? Number(appointment.branchId)
@@ -509,7 +940,7 @@ export default function AppointmentsPageV2() {
         slotAppointmentCount,
       });
     },
-    [appointments, doctorsById, selectedDate]
+    [activeDrag, appointments, doctorsById, pendingSaveId, selectedDate]
   );
 
   if (!isAdminRole) {
@@ -742,6 +1173,97 @@ export default function AppointmentsPageV2() {
           {capacityMessage}
         </div>
       )}
+      {pendingSaveError && pendingSaveId === null && (
+        <div
+          style={{
+            marginBottom: 10,
+            padding: "8px 10px",
+            borderRadius: 8,
+            border: "1px solid #fca5a5",
+            background: "#fef2f2",
+            color: "#b91c1c",
+            fontSize: 12,
+            maxWidth: 520,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <span>{pendingSaveError}</span>
+          <button
+            type="button"
+            onClick={() => setPendingSaveError(null)}
+            style={{
+              marginLeft: "auto",
+              border: "none",
+              background: "transparent",
+              color: "#6b7280",
+              cursor: "pointer",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      {pendingSaveId !== null && (
+        <div
+          style={{
+            marginBottom: 10,
+            padding: 10,
+            borderRadius: 8,
+            border: "1px solid #bfdbfe",
+            background: "#eff6ff",
+            maxWidth: 520,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#1d4ed8" }}>
+            Цаг захиалга өөрчлөгдлөө
+          </div>
+          <div style={{ fontSize: 12, color: "#2563eb" }}>
+            Та өөрчлөлтийг хадгалах уу эсвэл цуцлах уу?
+          </div>
+          {pendingSaveError && <div style={{ fontSize: 12, color: "#b91c1c" }}>{pendingSaveError}</div>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => handleSaveDraft(pendingSaveId)}
+              disabled={pendingSaving}
+              style={{
+                padding: "7px 12px",
+                border: "none",
+                borderRadius: 6,
+                background: "#2563eb",
+                color: "#fff",
+                fontWeight: 700,
+                cursor: pendingSaving ? "default" : "pointer",
+                opacity: pendingSaving ? 0.6 : 1,
+              }}
+            >
+              {pendingSaving ? "Хадгалж байна..." : "Хадгалах"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleCancelDraft(pendingSaveId)}
+              disabled={pendingSaving}
+              style={{
+                padding: "7px 12px",
+                borderRadius: 6,
+                border: "1px solid #d1d5db",
+                background: "#fff",
+                color: "#111827",
+                fontWeight: 700,
+                cursor: pendingSaving ? "default" : "pointer",
+                opacity: pendingSaving ? 0.6 : 1,
+              }}
+            >
+              Цуцлах
+            </button>
+          </div>
+        </div>
+      )}
 
       {loading && (
         <div style={{ marginBottom: 10, fontSize: 13, color: "#475569" }}>
@@ -758,6 +1280,15 @@ export default function AppointmentsPageV2() {
         slotOccupancyByDoctorId={slotOccupancyByDoctorId}
         onCellClick={handleCellClick}
         onAppointmentClick={handleAppointmentClick}
+        canDragAppointment={(appointment) => canEditAppointment(appointment.status)}
+        pendingSaveId={pendingSaveId}
+        activeDragAppointmentId={activeDrag?.appointmentId ?? null}
+        invalidDragAppointmentId={invalidDragAppointmentId}
+        dragPreviewDoctorId={dragPreviewDoctorId}
+        dragPreviewSlotLabels={dragPreviewSlotLabels}
+        onAppointmentMouseDown={handleAppointmentMouseDown}
+        disableAppointmentClicks={Boolean(activeDrag) || pendingSaveId !== null}
+        scrollContainerRef={gridScrollRef}
       />
 
       <AppointmentDetailsModal

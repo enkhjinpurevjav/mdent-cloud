@@ -16,6 +16,18 @@ type DoctorColumnV2Props = {
   slotOccupancyByLabel?: Record<string, number>;
   onCellClick: (doctor: ScheduledDoctor, slotLabel: string) => void;
   onAppointmentClick: (appointment: Appointment) => void;
+  canDragAppointment: (appointment: Appointment) => boolean;
+  pendingSaveId: number | null;
+  activeDragAppointmentId: number | null;
+  invalidDragAppointmentId: number | null;
+  dragPreviewDoctorId: number | null;
+  dragPreviewSlotLabels: string[];
+  onAppointmentMouseDown: (
+    event: React.MouseEvent<HTMLButtonElement | HTMLDivElement>,
+    appointment: Appointment,
+    mode: "move" | "resize"
+  ) => void;
+  disableAppointmentClicks: boolean;
 };
 
 function DoctorColumnV2({
@@ -27,7 +39,19 @@ function DoctorColumnV2({
   slotOccupancyByLabel,
   onCellClick,
   onAppointmentClick,
+  canDragAppointment,
+  pendingSaveId,
+  activeDragAppointmentId,
+  invalidDragAppointmentId,
+  dragPreviewDoctorId,
+  dragPreviewSlotLabels,
+  onAppointmentMouseDown,
+  disableAppointmentClicks,
 }: DoctorColumnV2Props) {
+  const previewSlotLabelSet = React.useMemo(
+    () => new Set(dragPreviewSlotLabels),
+    [dragPreviewSlotLabels]
+  );
   const isNonWorkingSlot = React.useCallback(
     (slot: TimeSlot) => {
       const schedules = doctor.schedules || [];
@@ -85,6 +109,9 @@ function DoctorColumnV2({
           const isFull = occupancy >= 2;
           const isOverCapacity = occupancy > 2;
           const nonWorking = isNonWorkingSlot(slot);
+          const isDragPreviewSlot =
+            dragPreviewDoctorId === doctor.id && previewSlotLabelSet.has(slot.label);
+          const isDragPreviewInvalid = isDragPreviewSlot && invalidDragAppointmentId !== null;
           return (
             <div
               key={`${doctor.id}-${slot.label}`}
@@ -105,6 +132,10 @@ function DoctorColumnV2({
                   ? `inset 0 0 0 ${SLOT_HIGHLIGHT_INSET_PX}px rgba(220, 38, 38, 0.24)`
                   : isFull
                     ? `inset 0 0 0 ${SLOT_HIGHLIGHT_INSET_PX}px rgba(100, 116, 139, 0.14)`
+                    : isDragPreviewInvalid
+                      ? `inset 0 0 0 ${SLOT_HIGHLIGHT_INSET_PX}px rgba(220, 38, 38, 0.24)`
+                      : isDragPreviewSlot
+                        ? `inset 0 0 0 ${SLOT_HIGHLIGHT_INSET_PX}px rgba(37, 99, 235, 0.14)`
                     : undefined,
               }}
             >
@@ -140,7 +171,22 @@ function DoctorColumnV2({
         })}
 
         {blocks.map((block) => (
-          <AppointmentBlockV2 key={block.appointment.id} block={block} onClick={onAppointmentClick} />
+          <AppointmentBlockV2
+            key={block.appointment.id}
+            block={block}
+            onClick={onAppointmentClick}
+            canDrag={canDragAppointment(block.appointment)}
+            isDragging={activeDragAppointmentId === block.appointment.id}
+            hasPendingSave={pendingSaveId === block.appointment.id}
+            isInvalidDragTarget={invalidDragAppointmentId === block.appointment.id}
+            disableClick={disableAppointmentClicks}
+            onMouseDownMove={(event) =>
+              onAppointmentMouseDown(event, block.appointment, "move")
+            }
+            onMouseDownResize={(event) =>
+              onAppointmentMouseDown(event, block.appointment, "resize")
+            }
+          />
         ))}
       </div>
     </div>
@@ -156,6 +202,14 @@ export default React.memo(DoctorColumnV2, (prev, next) => {
     prev.blocks === next.blocks &&
     prev.slotOccupancyByLabel === next.slotOccupancyByLabel &&
     prev.onCellClick === next.onCellClick &&
-    prev.onAppointmentClick === next.onAppointmentClick
+    prev.onAppointmentClick === next.onAppointmentClick &&
+    prev.canDragAppointment === next.canDragAppointment &&
+    prev.pendingSaveId === next.pendingSaveId &&
+    prev.activeDragAppointmentId === next.activeDragAppointmentId &&
+    prev.invalidDragAppointmentId === next.invalidDragAppointmentId &&
+    prev.dragPreviewDoctorId === next.dragPreviewDoctorId &&
+    prev.dragPreviewSlotLabels === next.dragPreviewSlotLabels &&
+    prev.onAppointmentMouseDown === next.onAppointmentMouseDown &&
+    prev.disableAppointmentClicks === next.disableAppointmentClicks
   );
 });
