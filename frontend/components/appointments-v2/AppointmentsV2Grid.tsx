@@ -14,6 +14,19 @@ type AppointmentsV2GridProps = {
   slotOccupancyByDoctorId: Record<number, Record<string, number>>;
   onCellClick: (doctor: ScheduledDoctor, slotLabel: string) => void;
   onAppointmentClick: (appointment: Appointment) => void;
+  canDragAppointment: (appointment: Appointment) => boolean;
+  pendingSaveId: number | null;
+  activeDragAppointmentId: number | null;
+  invalidDragAppointmentId: number | null;
+  dragPreviewDoctorId: number | null;
+  dragPreviewSlotLabels: string[];
+  onAppointmentMouseDown: (
+    event: React.MouseEvent<HTMLButtonElement | HTMLDivElement>,
+    appointment: Appointment,
+    mode: "move" | "resize"
+  ) => void;
+  disableAppointmentClicks: boolean;
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
 };
 
 function AppointmentsV2Grid({
@@ -25,6 +38,15 @@ function AppointmentsV2Grid({
   slotOccupancyByDoctorId,
   onCellClick,
   onAppointmentClick,
+  canDragAppointment,
+  pendingSaveId,
+  activeDragAppointmentId,
+  invalidDragAppointmentId,
+  dragPreviewDoctorId,
+  dragPreviewSlotLabels,
+  onAppointmentMouseDown,
+  disableAppointmentClicks,
+  scrollContainerRef,
 }: AppointmentsV2GridProps) {
   if (doctors.length === 0) {
     return (
@@ -46,6 +68,7 @@ function AppointmentsV2Grid({
   return (
     <div style={{ border: "1px solid #ddd", borderRadius: 10, background: "#fff", overflow: "hidden" }}>
       <div
+        ref={scrollContainerRef}
         style={{
           overflow: "auto",
           maxHeight: "calc(100vh - 240px)",
@@ -115,6 +138,14 @@ function AppointmentsV2Grid({
               slotOccupancyByLabel={slotOccupancyByDoctorId[doctor.id]}
               onCellClick={onCellClick}
               onAppointmentClick={onAppointmentClick}
+              canDragAppointment={canDragAppointment}
+              pendingSaveId={pendingSaveId}
+              activeDragAppointmentId={activeDragAppointmentId}
+              invalidDragAppointmentId={invalidDragAppointmentId}
+              dragPreviewDoctorId={dragPreviewDoctorId}
+              dragPreviewSlotLabels={dragPreviewSlotLabels}
+              onAppointmentMouseDown={onAppointmentMouseDown}
+              disableAppointmentClicks={disableAppointmentClicks}
             />
           ))}
         </div>
@@ -132,6 +163,15 @@ export default React.memo(AppointmentsV2Grid, (prev, next) => {
     prev.blocksByDoctorId === next.blocksByDoctorId &&
     prev.slotOccupancyByDoctorId === next.slotOccupancyByDoctorId &&
     prev.onCellClick === next.onCellClick &&
-    prev.onAppointmentClick === next.onAppointmentClick
+    prev.onAppointmentClick === next.onAppointmentClick &&
+    prev.canDragAppointment === next.canDragAppointment &&
+    prev.pendingSaveId === next.pendingSaveId &&
+    prev.activeDragAppointmentId === next.activeDragAppointmentId &&
+    prev.invalidDragAppointmentId === next.invalidDragAppointmentId &&
+    prev.dragPreviewDoctorId === next.dragPreviewDoctorId &&
+    prev.dragPreviewSlotLabels === next.dragPreviewSlotLabels &&
+    prev.onAppointmentMouseDown === next.onAppointmentMouseDown &&
+    prev.disableAppointmentClicks === next.disableAppointmentClicks &&
+    prev.scrollContainerRef === next.scrollContainerRef
   );
 });

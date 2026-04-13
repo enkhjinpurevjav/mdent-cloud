@@ -17,6 +17,13 @@ export type AppointmentBlockGeometry = {
 type AppointmentBlockV2Props = {
   block: AppointmentBlockGeometry;
   onClick: (appointment: Appointment) => void;
+  canDrag?: boolean;
+  isDragging?: boolean;
+  hasPendingSave?: boolean;
+  isInvalidDragTarget?: boolean;
+  disableClick?: boolean;
+  onMouseDownMove?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onMouseDownResize?: (event: React.MouseEvent<HTMLDivElement>) => void;
 };
 
 function statusColor(status: string) {
@@ -46,7 +53,17 @@ function statusColor(status: string) {
   }
 }
 
-function AppointmentBlockV2({ block, onClick }: AppointmentBlockV2Props) {
+function AppointmentBlockV2({
+  block,
+  onClick,
+  canDrag = false,
+  isDragging = false,
+  hasPendingSave = false,
+  isInvalidDragTarget = false,
+  disableClick = false,
+  onMouseDownMove,
+  onMouseDownResize,
+}: AppointmentBlockV2Props) {
   const { appointment, top, height, lane, split } = block;
   const bg = statusColor(appointment.status);
   const whiteText =
@@ -61,24 +78,36 @@ function AppointmentBlockV2({ block, onClick }: AppointmentBlockV2Props) {
       type="button"
       onClick={(e) => {
         e.stopPropagation();
+        if (disableClick) return;
         onClick(appointment);
       }}
+      onMouseDown={canDrag ? onMouseDownMove : undefined}
       style={{
         position: "absolute",
         top,
         left,
         width,
         minHeight: height,
-        border: "1px solid rgba(0,0,0,0.08)",
+        border: isInvalidDragTarget
+          ? "2px solid #dc2626"
+          : isDragging
+            ? "2px solid #2563eb"
+            : hasPendingSave
+              ? "2px solid #f59e0b"
+              : "1px solid rgba(0,0,0,0.08)",
         borderRadius: 8,
         background: bg,
         color: whiteText ? "#ffffff" : "#1F2937",
         padding: "2px 4px",
         textAlign: "left",
-        cursor: "pointer",
+        cursor: canDrag ? "move" : "pointer",
         overflow: "hidden",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+        boxShadow: isDragging
+          ? "0 4px 12px rgba(37,99,235,0.5)"
+          : "0 1px 3px rgba(0,0,0,0.25)",
         lineHeight: 1.2,
+        opacity: isDragging ? 0.85 : 1,
+        zIndex: isDragging || hasPendingSave ? 12 : 1,
         animation: isReadyToPay
           ? "readyToPayPulse 1.4s ease-in-out infinite, readyToPayBlink 1.4s ease-in-out infinite"
           : undefined,
@@ -91,6 +120,27 @@ function AppointmentBlockV2({ block, onClick }: AppointmentBlockV2Props) {
       <div style={{ fontSize: 11, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
         {formatGridShortLabel(appointment) || `#${appointment.id}`}
       </div>
+      {canDrag && !isDragging && (
+        <div
+          onMouseDown={(event) => {
+            event.stopPropagation();
+            onMouseDownResize?.(event);
+          }}
+          aria-label="Цаг сунгах бариул"
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 6,
+            cursor: "ns-resize",
+            background: "rgba(0,0,0,0.12)",
+            borderBottomLeftRadius: 8,
+            borderBottomRightRadius: 8,
+          }}
+          title="Хугацаа сунгахын тулд чирнэ үү"
+        />
+      )}
     </button>
   );
 }
