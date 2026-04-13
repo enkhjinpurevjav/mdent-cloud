@@ -28,6 +28,7 @@ import QuickAppointmentModal from "../appointments-v2/QuickAppointmentModalV2";
 import AppointmentDetailsModal from "../appointments/AppointmentDetailsModal";
 import type { AppointmentBlockGeometry } from "../appointments-v2/AppointmentBlockV2";
 import SpecialBookingModalV2 from "../appointments-v2/SpecialBookingModalV2";
+import PriceListSearch from "../reception/PriceListSearch";
 import {
   PATIENT_SEARCH_DEBOUNCE_MS,
   PATIENT_SEARCH_MIN_CHARS,
@@ -107,6 +108,8 @@ function canEditAppointment(status: string) {
 export default function AppointmentsPageV2() {
   const router = useRouter();
   const { me } = useAuth();
+  const isReceptionRoute = router.pathname.startsWith("/reception/");
+  const appointmentsBasePath = isReceptionRoute ? "/reception/appointments" : "/appointments-v2";
   const branchIdFromQuery =
     typeof router.query.branchId === "string" ? router.query.branchId : "";
   const isAdminRole = me?.role === "admin" || me?.role === "super_admin";
@@ -179,7 +182,7 @@ export default function AppointmentsPageV2() {
       if (!receptionistRedirectedRef.current) {
         receptionistRedirectedRef.current = true;
         router.replace(
-          { pathname: "/appointments-v2", query: { branchId: ownBranchId } },
+          { pathname: appointmentsBasePath, query: { branchId: ownBranchId } },
           undefined,
           { shallow: true }
         );
@@ -188,7 +191,7 @@ export default function AppointmentsPageV2() {
     }
     receptionistRedirectedRef.current = false;
     setSelectedBranchId((prev) => (prev === "" ? prev : ""));
-  }, [branchIdFromQuery, isReceptionist, ownBranchId, router]);
+  }, [appointmentsBasePath, branchIdFromQuery, isReceptionist, ownBranchId, router]);
 
   const appointmentsRequestIdRef = useRef(0);
   const {
@@ -917,9 +920,9 @@ export default function AppointmentsPageV2() {
       if (isReceptionist && !nextBranchId) return;
       setSelectedBranchId(nextBranchId);
       const query = nextBranchId ? { branchId: nextBranchId } : {};
-      router.push({ pathname: "/appointments-v2", query }, undefined, { shallow: true });
+      router.push({ pathname: appointmentsBasePath, query }, undefined, { shallow: true });
     },
-    [isReceptionist, router]
+    [appointmentsBasePath, isReceptionist, router]
   );
 
   const handleCellClick = useCallback(
@@ -1071,74 +1074,74 @@ export default function AppointmentsPageV2() {
           </select>
         </label>
 
-        <div
-          ref={patientSearchAreaRef}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 13,
-            minWidth: 360,
-          }}
-        >
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>Хайх</label>
-          <div style={{ position: "relative", width: 320 }}>
-            <input
-              type="text"
-              value={patientQuery}
-              onChange={(e) => handlePatientQueryChange(e.target.value)}
-              onKeyDown={handlePatientInputKeyDown}
-              onFocus={() => {
-                if (patientResults.length > 0) setPatientSearchOpen(true);
-              }}
-              placeholder="Үйлчлүүлэгчийн овог, нэр, утас, РД"
-              autoComplete="off"
-              style={{
-                border: "1px solid #cbd5e1",
-                borderRadius: 6,
-                padding: "5px 8px",
-                width: "100%",
-              }}
-            />
-            {patientSearchOpen && patientResults.length > 0 && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "calc(100% + 4px)",
-                  left: 0,
-                  width: "100%",
-                  maxHeight: 220,
-                  overflowY: "auto",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: 8,
-                  background: "#ffffff",
-                  boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
-                  zIndex: 1000,
+        {!isOtherBranchReceptionView && (
+          <div
+            ref={patientSearchAreaRef}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 13,
+              minWidth: 360,
+            }}
+          >
+            <label style={{ display: "flex", alignItems: "center", gap: 6 }}>Үйлчлүүлэгч хайх</label>
+            <div style={{ position: "relative", width: 320 }}>
+              <input
+                type="text"
+                value={patientQuery}
+                onChange={(e) => handlePatientQueryChange(e.target.value)}
+                onKeyDown={handlePatientInputKeyDown}
+                onFocus={() => {
+                  if (patientResults.length > 0) setPatientSearchOpen(true);
                 }}
-              >
-                {patientResults.map((patient, index) => (
-                  <button
-                    key={`${patient.id}-${index}`}
-                    type="button"
-                    onClick={() => handleSelectPatient(patient)}
-                    style={{
-                      width: "100%",
-                      border: "none",
-                      textAlign: "left",
-                      padding: "7px 9px",
-                      background: index === highlightedPatientIndex ? "#eff6ff" : "#ffffff",
-                      borderBottom: "1px solid #f1f5f9",
-                      cursor: "pointer",
-                      fontSize: 12,
-                    }}
-                  >
-                    {formatPatientQuickLabel(patient)}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          {!isOtherBranchReceptionView && (
+                placeholder="Үйлчлүүлэгчийн овог, нэр, утас, РД"
+                autoComplete="off"
+                style={{
+                  border: "1px solid #cbd5e1",
+                  borderRadius: 6,
+                  padding: "5px 8px",
+                  width: "100%",
+                }}
+              />
+              {patientSearchOpen && patientResults.length > 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 4px)",
+                    left: 0,
+                    width: "100%",
+                    maxHeight: 220,
+                    overflowY: "auto",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 8,
+                    background: "#ffffff",
+                    boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                    zIndex: 1000,
+                  }}
+                >
+                  {patientResults.map((patient, index) => (
+                    <button
+                      key={`${patient.id}-${index}`}
+                      type="button"
+                      onClick={() => handleSelectPatient(patient)}
+                      style={{
+                        width: "100%",
+                        border: "none",
+                        textAlign: "left",
+                        padding: "7px 9px",
+                        background: index === highlightedPatientIndex ? "#eff6ff" : "#ffffff",
+                        borderBottom: "1px solid #f1f5f9",
+                        cursor: "pointer",
+                        fontSize: 12,
+                      }}
+                    >
+                      {formatPatientQuickLabel(patient)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => setSpecialBookingOpen(true)}
@@ -1156,8 +1159,9 @@ export default function AppointmentsPageV2() {
             >
               Онцгой захиалга
             </button>
-          )}
-        </div>
+          </div>
+        )}
+        {isReceptionist && <PriceListSearch />}
       </div>
 
       {selectedPatient && (
