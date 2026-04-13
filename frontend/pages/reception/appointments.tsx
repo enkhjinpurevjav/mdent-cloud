@@ -4,4 +4,4 @@
 // so this page must NOT wrap itself in ReceptionLayout.
 // Role-based differences (e.g., "Борлуулалтын орлого" card hidden for receptionist)
 // are handled inside the shared component using the currentUserRole state.
-export { default } from "../../components/pages/AppointmentsPageV2";
+export { default } from "../../components/pages/AppointmentsPage";
