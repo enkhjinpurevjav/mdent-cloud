@@ -1,6 +1,6 @@
 import type { Appointment, ScheduledDoctor, TimeSlot } from "../appointments/types";
 import { naiveToFakeUtcDate } from "../../utils/businessTime";
-import { MAX_APPOINTMENTS_PER_SLOT, getSlotOccupancyForDoctor } from "./slotCapacity";
+import { getSlotOccupancyForDoctor } from "./slotCapacity";
 
 type Lane = 0 | 1;
 
@@ -50,7 +50,7 @@ export function assignStableTwoLanes(appointments: Appointment[]) {
 
     const lane0Busy = laneEndMs[0] > range.startMs;
     const lane1Busy = laneEndMs[1] > range.startMs;
-    let lane: Lane = 0;
+    let lane: Lane;
     if (!lane0Busy) lane = 0;
     else if (!lane1Busy) lane = 1;
     else lane = laneEndMs[0] <= laneEndMs[1] ? 0 : 1;
@@ -90,14 +90,4 @@ export function computeDoctorSlotOccupancy({
     byDoctorId[doctor.id] = occupancyBySlotLabel;
   }
   return byDoctorId;
-}
-
-export function getFullAndOverCapacityLabels(occupancyBySlotLabel: Record<string, number>) {
-  const full: Record<string, true> = {};
-  const over: Record<string, true> = {};
-  for (const [slotLabel, occupancy] of Object.entries(occupancyBySlotLabel)) {
-    if (occupancy >= MAX_APPOINTMENTS_PER_SLOT) full[slotLabel] = true;
-    if (occupancy > MAX_APPOINTMENTS_PER_SLOT) over[slotLabel] = true;
-  }
-  return { fullSlotLabels: full, overCapacitySlotLabels: over };
 }

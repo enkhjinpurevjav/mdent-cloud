@@ -5,6 +5,8 @@ import AppointmentBlockV2 from "./AppointmentBlockV2";
 import { formatDoctorName } from "../appointments/formatters";
 import { isTimeWithinRange } from "../appointments/time";
 
+const SLOT_HIGHLIGHT_INSET_PX = 999;
+
 type DoctorColumnV2Props = {
   doctor: ScheduledDoctor;
   timeSlots: TimeSlot[];
@@ -100,9 +102,9 @@ function DoctorColumnV2({
                     : "#fafafa",
                 cursor: nonWorking || isFull ? "not-allowed" : "pointer",
                 boxShadow: isOverCapacity
-                  ? "inset 0 0 0 999px rgba(220, 38, 38, 0.24)"
+                  ? `inset 0 0 0 ${SLOT_HIGHLIGHT_INSET_PX}px rgba(220, 38, 38, 0.24)`
                   : isFull
-                    ? "inset 0 0 0 999px rgba(100, 116, 139, 0.14)"
+                    ? `inset 0 0 0 ${SLOT_HIGHLIGHT_INSET_PX}px rgba(100, 116, 139, 0.14)`
                     : undefined,
               }}
             >
