@@ -6,6 +6,12 @@ import { sseBroadcast } from "./appointments.js";
 const prisma = new PrismaClient();
 const router = express.Router();
 
+export function getEncounterAppointmentBranchId(encounter) {
+  const branchId = Number(encounter?.appointment?.branchId);
+  if (!Number.isInteger(branchId) || branchId <= 0) return null;
+  return branchId;
+}
+
 /**
  * Helper: map DiscountPercent enum to numeric value
  */
@@ -149,10 +155,17 @@ router.get("/encounters/:id/invoice", async (req, res) => {
 
     if (!encounter) return res.status(404).json({ error: "Encounter not found." });
 
+    const appointmentBranchId = getEncounterAppointmentBranchId(encounter);
+    if (appointmentBranchId == null) {
+      return res.status(409).json({
+        error:
+          "Encounter appointment branch is required for billing invoice branch assignment.",
+      });
+    }
+
     // Receptionist can only access billing for their own branch
     if (req.user?.role === "receptionist") {
-      const encBranchId = encounter.appointment?.branchId ?? encounter.patientBook?.patient?.branchId;
-      if (encBranchId !== req.user.branchId) {
+      if (appointmentBranchId !== req.user.branchId) {
         return res.status(403).json({ error: "Receptionist can only access billing for their own branch." });
       }
     }
@@ -260,7 +273,8 @@ router.get("/encounters/:id/invoice", async (req, res) => {
       });
     }
 
-    const branchId = patient.branchId;
+    // Billing invoices must follow the service branch from the encounter appointment.
+    const branchId = appointmentBranchId;
     const patientId = patient.id;
 
     const provisionalItems =
@@ -367,10 +381,17 @@ router.post("/encounters/:id/invoice", async (req, res) => {
 
     if (!encounter) return res.status(404).json({ error: "Encounter not found." });
 
+    const appointmentBranchId = getEncounterAppointmentBranchId(encounter);
+    if (appointmentBranchId == null) {
+      return res.status(409).json({
+        error:
+          "Encounter appointment branch is required for billing invoice branch assignment.",
+      });
+    }
+
     // Receptionist can only access billing for their own branch
     if (req.user?.role === "receptionist") {
-      const encBranchId = encounter.appointment?.branchId ?? encounter.patientBook?.patient?.branchId;
-      if (encBranchId !== req.user.branchId) {
+      if (appointmentBranchId !== req.user.branchId) {
         return res.status(403).json({ error: "Receptionist can only access billing for their own branch." });
       }
     }
@@ -380,7 +401,8 @@ router.post("/encounters/:id/invoice", async (req, res) => {
       return res.status(409).json({ error: "Encounter has no linked patient book / patient." });
     }
 
-    const branchId = patient.branchId;
+    // Billing invoices must follow the service branch from the encounter appointment.
+    const branchId = appointmentBranchId;
     const patientId = patient.id;
     const existingInvoice = encounter.invoice;
 
@@ -778,10 +800,17 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
       return res.status(404).json({ error: "Encounter not found." });
     }
 
+    const appointmentBranchId = getEncounterAppointmentBranchId(encounter);
+    if (appointmentBranchId == null) {
+      return res.status(409).json({
+        error:
+          "Encounter appointment branch is required for billing invoice branch assignment.",
+      });
+    }
+
     // Receptionist can only access billing for their own branch
     if (req.user?.role === "receptionist") {
-      const encBranchId = encounter.appointment?.branchId ?? encounter.patientBook?.patient?.branchId;
-      if (encBranchId !== req.user.branchId) {
+      if (appointmentBranchId !== req.user.branchId) {
         return res.status(403).json({ error: "Receptionist can only access billing for their own branch." });
       }
     }
