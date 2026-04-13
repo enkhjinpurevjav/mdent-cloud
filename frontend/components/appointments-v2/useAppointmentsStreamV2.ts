@@ -68,9 +68,9 @@ export function useAppointmentsStreamV2({
     const flushPending = () => {
       flushTimeout = null;
 
+      pendingDeleted.forEach((id) => onDeletedRef.current({ id }));
       pendingCreated.forEach((appointment) => onCreatedRef.current(appointment));
       pendingUpdated.forEach((appointment) => onUpdatedRef.current(appointment));
-      pendingDeleted.forEach((id) => onDeletedRef.current({ id }));
 
       pendingCreated.clear();
       pendingUpdated.clear();
@@ -154,7 +154,6 @@ export function useAppointmentsStreamV2({
     return () => {
       closed = true;
       if (retryTimeout) clearTimeout(retryTimeout);
-      if (flushTimeout) clearTimeout(flushTimeout);
       clearPending();
       es?.close();
     };

@@ -27,7 +27,7 @@ function DoctorColumnV2({
     (e: React.MouseEvent<HTMLDivElement>) => {
       const rect = e.currentTarget.getBoundingClientRect();
       const y = e.clientY - rect.top;
-      const clampedY = Math.max(0, Math.min(y, Math.max(columnHeightPx - 1, 0)));
+      const clampedY = Math.max(0, Math.min(y, columnHeightPx - 1));
       const slotIndex = Math.floor(clampedY / slotHeightPx);
       const slot = timeSlots[slotIndex];
       if (!slot) return;
@@ -60,7 +60,7 @@ function DoctorColumnV2({
       >
         {timeSlots.map((slot, idx) => (
           <div
-            key={`${doctor.id}-${slot.label}-${idx}`}
+            key={`${doctor.id}-${slot.label}`}
             style={{
               position: "absolute",
               top: idx * slotHeightPx,
