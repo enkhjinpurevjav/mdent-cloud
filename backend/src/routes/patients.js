@@ -44,7 +44,7 @@ async function generateNextBookNumber() {
   return String(next);
 }
 
-// GET /api/patients/search?q=...&limit=10
+// GET /api/patients/search?q=...&limit=25
 // Lightweight quick-search endpoint for autocomplete / patient lookup.
 // Returns minimal fields only; does not compute totals or counts.
 router.get("/search", async (req, res) => {
@@ -58,31 +58,55 @@ router.get("/search", async (req, res) => {
 
     const rawLimit = parseInt(req.query.limit, 10);
     const limit =
-      Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 20) : 10;
+      Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 25) : 25;
 
-    const patients = await prisma.patient.findMany({
-      where: {
-        isActive: true,
-        OR: [
-          { name: { contains: q, mode: "insensitive" } },
-          { ovog: { contains: q, mode: "insensitive" } },
-          { phone: { contains: q, mode: "insensitive" } },
-          { regNo: { contains: q, mode: "insensitive" } },
-          { patientBook: { bookNumber: { contains: q, mode: "insensitive" } } },
-        ],
-      },
-      select: {
-        id: true,
-        name: true,
-        ovog: true,
-        phone: true,
-        regNo: true,
-        branchId: true,
-        patientBook: { select: { bookNumber: true } },
-      },
-      take: limit,
-      orderBy: [{ id: "desc" }],
-    });
+    const exact = q.toLowerCase();
+    const startsWith = `${q}%`;
+    const contains = `%${q}%`;
+
+    const rows = await prisma.$queryRaw`
+      SELECT
+        p.id,
+        p.name,
+        p.ovog,
+        p.phone,
+        p."regNo",
+        pb."bookNumber" AS "bookNumber"
+      FROM "Patient" p
+      LEFT JOIN "PatientBook" pb ON pb."patientId" = p.id
+      WHERE p."isActive" = true
+        AND (
+          p.name ILIKE ${contains}
+          OR p.ovog ILIKE ${contains}
+          OR p.phone ILIKE ${contains}
+          OR p."regNo" ILIKE ${contains}
+          OR pb."bookNumber" ILIKE ${contains}
+        )
+      ORDER BY
+        CASE
+          WHEN LOWER(COALESCE(p.phone, '')) = ${exact}
+            OR LOWER(COALESCE(p."regNo", '')) = ${exact}
+            THEN 1
+          WHEN COALESCE(p.name, '') ILIKE ${startsWith}
+            OR COALESCE(p.ovog, '') ILIKE ${startsWith}
+            THEN 2
+          WHEN COALESCE(p.name, '') ILIKE ${contains}
+            OR COALESCE(p.ovog, '') ILIKE ${contains}
+            THEN 3
+          ELSE 4
+        END ASC,
+        p.id DESC
+      LIMIT ${limit}
+    `;
+
+    const patients = rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      ovog: row.ovog,
+      phone: row.phone,
+      regNo: row.regNo,
+      patientBook: row.bookNumber ? { bookNumber: row.bookNumber } : null,
+    }));
 
     return res.json(patients);
   } catch (err) {
@@ -1399,6 +1423,49 @@ router.get("/:id/completed-appointments", async (req, res) => {
     return res.json(appointments);
   } catch (err) {
     console.error("GET /api/patients/:id/completed-appointments error:", err);
+    return res.status(500).json({ error: "Failed to load completed appointments" });
+  }
+});
+
+// GET /api/patients/:id/recent-completed?limit=3
+router.get("/:id/recent-completed", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!id || Number.isNaN(id) || id <= 0) {
+      return res.status(400).json({ error: "Invalid patient id" });
+    }
+
+    const rawLimit = parseInt(req.query.limit, 10);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 10) : 3;
+
+    const appointments = await prisma.appointment.findMany({
+      where: {
+        patientId: id,
+        status: "completed",
+      },
+      orderBy: { scheduledAt: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        scheduledAt: true,
+        doctor: {
+          select: {
+            name: true,
+            ovog: true,
+          },
+        },
+      },
+    });
+
+    return res.json(
+      appointments.map((item) => ({
+        id: item.id,
+        scheduledAt: item.scheduledAt,
+        doctorName: item.doctor ? formatDoctorDisplayName(item.doctor) : "",
+      }))
+    );
+  } catch (err) {
+    console.error("GET /api/patients/:id/recent-completed error:", err);
     return res.status(500).json({ error: "Failed to load completed appointments" });
   }
 });

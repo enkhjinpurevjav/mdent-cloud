@@ -3,6 +3,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import type { Appointment, Branch, ScheduledDoctor } from "../appointments/types";
 import { getBusinessYmd, naiveTimestampToYmd, naiveToFakeUtcDate } from "../../utils/businessTime";
 import { SLOT_MINUTES, generateTimeSlotsForDay, getDateFromYMD } from "../appointments/time";
+import { formatHistoryDate } from "../appointments/formatters";
 import AppointmentsV2Grid from "../appointments-v2/AppointmentsV2Grid";
 import {
   MAX_APPOINTMENTS_PER_SLOT,
@@ -39,6 +40,29 @@ type DetailsModalState = {
   appointments: Appointment[];
 };
 
+type PatientQuickResult = {
+  id: number;
+  name: string;
+  ovog: string | null;
+  phone: string | null;
+  regNo: string | null;
+};
+
+type RecentCompletedVisit = {
+  id: number;
+  scheduledAt: string;
+  doctorName: string;
+};
+
+function formatPatientQuickLabel(patient: PatientQuickResult) {
+  const name = String(patient.name || "").trim();
+  const ovog = String(patient.ovog || "").trim();
+  const phone = String(patient.phone || "").trim();
+  const regNo = String(patient.regNo || "").trim();
+  const fullName = [name, ovog].filter(Boolean).join(" ");
+  return `${fullName || "-"}, 📞 ${phone || "-"}, 🆔 ${regNo || "-"}`;
+}
+
 function appointmentInCurrentView(a: Appointment, date: string, branchId: string) {
   if (naiveTimestampToYmd(a.scheduledAt) !== date) return false;
   if (branchId && String(a.branchId) !== branchId) return false;
@@ -58,6 +82,13 @@ export default function AppointmentsPageV2() {
   const [error, setError] = useState("");
   const [capacityMessage, setCapacityMessage] = useState("");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [patientQuery, setPatientQuery] = useState("");
+  const [patientResults, setPatientResults] = useState<PatientQuickResult[]>([]);
+  const [patientSearchOpen, setPatientSearchOpen] = useState(false);
+  const [highlightedPatientIndex, setHighlightedPatientIndex] = useState(0);
+  const [selectedPatient, setSelectedPatient] = useState<PatientQuickResult | null>(null);
+  const [selectedPatientRecent, setSelectedPatientRecent] = useState<RecentCompletedVisit[]>([]);
+  const [selectedPatientHistoryLoading, setSelectedPatientHistoryLoading] = useState(false);
 
   const [quickModalState, setQuickModalState] = useState<QuickModalState>({
     open: false,
@@ -74,6 +105,9 @@ export default function AppointmentsPageV2() {
     appointments: [],
   });
   const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null);
+  const patientSearchRequestIdRef = useRef(0);
+  const suppressPatientSearchRef = useRef(false);
+  const patientSearchAreaRef = useRef<HTMLDivElement | null>(null);
 
   const appointmentsRequestIdRef = useRef(0);
   const {
@@ -279,6 +313,139 @@ export default function AppointmentsPageV2() {
     [appointments, resolveDoctorBranchIdForDay, scheduledDoctors, timeSlots]
   );
 
+  useEffect(() => {
+    const trimmed = patientQuery.trim();
+    if (suppressPatientSearchRef.current) {
+      suppressPatientSearchRef.current = false;
+      return;
+    }
+    if (trimmed.length < 2) {
+      setPatientResults([]);
+      setPatientSearchOpen(false);
+      setHighlightedPatientIndex(0);
+      return;
+    }
+
+    const currentRequestId = ++patientSearchRequestIdRef.current;
+    const timer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({
+          q: trimmed,
+          limit: "25",
+        });
+        const res = await fetch(`/api/patients/search?${params.toString()}`);
+        const data = await res.json().catch(() => []);
+        if (currentRequestId !== patientSearchRequestIdRef.current) return;
+        if (!res.ok || !Array.isArray(data)) {
+          setPatientResults([]);
+          setPatientSearchOpen(false);
+          return;
+        }
+
+        setPatientResults(data as PatientQuickResult[]);
+        setHighlightedPatientIndex(0);
+        setPatientSearchOpen(data.length > 0);
+      } catch {
+        if (currentRequestId !== patientSearchRequestIdRef.current) return;
+        setPatientResults([]);
+        setPatientSearchOpen(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [patientQuery]);
+
+  useEffect(() => {
+    const onDocumentMouseDown = (event: MouseEvent) => {
+      if (!patientSearchAreaRef.current?.contains(event.target as Node)) {
+        setPatientSearchOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocumentMouseDown);
+    return () => document.removeEventListener("mousedown", onDocumentMouseDown);
+  }, []);
+
+  const loadSelectedPatientRecent = useCallback(async (patientId: number) => {
+    try {
+      setSelectedPatientHistoryLoading(true);
+      const res = await fetch(`/api/patients/${patientId}/recent-completed?limit=3`);
+      const data = await res.json().catch(() => []);
+      if (!res.ok || !Array.isArray(data)) {
+        setSelectedPatientRecent([]);
+        return;
+      }
+      setSelectedPatientRecent(data as RecentCompletedVisit[]);
+    } catch {
+      setSelectedPatientRecent([]);
+    } finally {
+      setSelectedPatientHistoryLoading(false);
+    }
+  }, []);
+
+  const handleSelectPatient = useCallback(
+    (patient: PatientQuickResult) => {
+      setSelectedPatient(patient);
+      setSelectedPatientRecent([]);
+      setPatientResults([]);
+      setPatientSearchOpen(false);
+      setHighlightedPatientIndex(0);
+      suppressPatientSearchRef.current = true;
+      setPatientQuery(formatPatientQuickLabel(patient));
+      loadSelectedPatientRecent(patient.id);
+    },
+    [loadSelectedPatientRecent]
+  );
+
+  const clearSelectedPatient = useCallback(() => {
+    setSelectedPatient(null);
+    setSelectedPatientRecent([]);
+    setPatientResults([]);
+    setPatientSearchOpen(false);
+    setHighlightedPatientIndex(0);
+    setPatientQuery("");
+  }, []);
+
+  const handlePatientQueryChange = useCallback((value: string) => {
+    setPatientQuery(value);
+    if (selectedPatient) {
+      setSelectedPatient(null);
+      setSelectedPatientRecent([]);
+    }
+    if (value.trim().length >= 2) setPatientSearchOpen(true);
+  }, [selectedPatient]);
+
+  const handlePatientInputKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setPatientSearchOpen(false);
+        return;
+      }
+      if (!patientResults.length || !patientSearchOpen) {
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setHighlightedPatientIndex((prev) => Math.min(prev + 1, patientResults.length - 1));
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setHighlightedPatientIndex((prev) => Math.max(prev - 1, 0));
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        const quickPick =
+          patientResults.length === 1
+            ? patientResults[0]
+            : patientResults[highlightedPatientIndex];
+        if (quickPick) handleSelectPatient(quickPick);
+      }
+    },
+    [handleSelectPatient, highlightedPatientIndex, patientResults, patientSearchOpen]
+  );
+
   const handleCellClick = useCallback(
     (doctor: ScheduledDoctor, slotLabel: string) => {
       const modalBranchId = resolveDoctorBranchIdForDay(doctor);
@@ -335,6 +502,30 @@ export default function AppointmentsPageV2() {
 
   return (
     <div style={{ padding: 16 }}>
+      <style jsx global>{`
+        @keyframes readyToPayPulse {
+          0% {
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.55);
+          }
+          70% {
+            box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+          }
+          100% {
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+          }
+        }
+        @keyframes readyToPayBlink {
+          0%,
+          100% {
+            filter: saturate(1);
+            opacity: 1;
+          }
+          50% {
+            filter: saturate(1.8);
+            opacity: 0.82;
+          }
+        }
+      `}</style>
       <div style={{ marginBottom: 12 }}>
         <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800 }}>Цаг захиалга v2</h1>
         <div style={{ marginTop: 4, fontSize: 12, color: "#64748b" }}>
@@ -380,7 +571,127 @@ export default function AppointmentsPageV2() {
             ))}
           </select>
         </label>
+
+        <div
+          ref={patientSearchAreaRef}
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            fontSize: 13,
+            minWidth: 360,
+          }}
+        >
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>Үйлчлүүлэгч:</label>
+          <div style={{ position: "relative", width: 320 }}>
+            <input
+              type="text"
+              value={patientQuery}
+              onChange={(e) => handlePatientQueryChange(e.target.value)}
+              onKeyDown={handlePatientInputKeyDown}
+              onFocus={() => {
+                if (patientResults.length > 0) setPatientSearchOpen(true);
+              }}
+              placeholder="Нэр, овог, утас, РД"
+              autoComplete="off"
+              style={{
+                border: "1px solid #cbd5e1",
+                borderRadius: 6,
+                padding: "5px 8px",
+                width: "100%",
+              }}
+            />
+            {patientSearchOpen && patientResults.length > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 4px)",
+                  left: 0,
+                  width: "100%",
+                  maxHeight: 220,
+                  overflowY: "auto",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 8,
+                  background: "#ffffff",
+                  boxShadow: "0 10px 20px rgba(15, 23, 42, 0.12)",
+                  zIndex: 30,
+                }}
+              >
+                {patientResults.map((patient, index) => (
+                  <button
+                    key={`${patient.id}-${index}`}
+                    type="button"
+                    onClick={() => handleSelectPatient(patient)}
+                    style={{
+                      width: "100%",
+                      border: "none",
+                      textAlign: "left",
+                      padding: "7px 9px",
+                      background: index === highlightedPatientIndex ? "#eff6ff" : "#ffffff",
+                      borderBottom: "1px solid #f1f5f9",
+                      cursor: "pointer",
+                      fontSize: 12,
+                    }}
+                  >
+                    {formatPatientQuickLabel(patient)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+
+      {selectedPatient && (
+        <div
+          style={{
+            marginBottom: 12,
+            padding: 10,
+            border: "1px solid #e2e8f0",
+            borderRadius: 10,
+            background: "#f8fafc",
+            maxWidth: 640,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+            <div style={{ fontSize: 13, color: "#0f172a", fontWeight: 700 }}>
+              {[selectedPatient.name, selectedPatient.ovog || ""].filter(Boolean).join(" ")}
+            </div>
+            <button
+              type="button"
+              onClick={clearSelectedPatient}
+              style={{
+                border: "none",
+                background: "transparent",
+                cursor: "pointer",
+                color: "#64748b",
+                fontSize: 12,
+              }}
+            >
+              Арилгах
+            </button>
+          </div>
+          <div style={{ marginTop: 4, fontSize: 12, color: "#334155" }}>
+            🆔 {selectedPatient.regNo || "-"} · 📞 {selectedPatient.phone || "-"}
+          </div>
+          <div style={{ marginTop: 8, fontSize: 12, color: "#475569", fontWeight: 600 }}>
+            Сүүлийн 3 дууссан үзлэг
+          </div>
+          <div style={{ marginTop: 4, fontSize: 12, color: "#334155" }}>
+            {selectedPatientHistoryLoading ? (
+              <div style={{ color: "#94a3b8" }}>Уншиж байна...</div>
+            ) : selectedPatientRecent.length === 0 ? (
+              <div style={{ color: "#94a3b8" }}>Өмнөх дууссан үзлэг байхгүй</div>
+            ) : (
+              selectedPatientRecent.map((visit) => (
+                <div key={visit.id}>
+                  {formatHistoryDate(visit.scheduledAt)} — Эмч: {visit.doctorName || "-"}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {(error || scheduledDoctorsError) && (
         <div style={{ color: "#b91c1c", marginBottom: 10, fontSize: 13 }}>
@@ -457,6 +768,8 @@ export default function AppointmentsPageV2() {
         appointments={appointments}
         selectedBranchId={quickModalState.branchId || selectedBranchId}
         allowAutoDefaultBranch={false}
+        defaultPatientId={selectedPatient?.id ?? null}
+        defaultPatientQuery={selectedPatient ? formatPatientQuickLabel(selectedPatient) : ""}
         enforceSlotCapacity
         slotFullMessage={SLOT_FULL_MESSAGE}
         editingAppointment={editingAppointment}
@@ -464,6 +777,7 @@ export default function AppointmentsPageV2() {
         onCreated={(appointment) => {
           upsertAppointment(appointment);
           setQuickModalState((prev) => ({ ...prev, open: false }));
+          clearSelectedPatient();
         }}
         onUpdated={(appointment) => {
           upsertAppointment(appointment);
