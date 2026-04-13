@@ -51,6 +51,7 @@ function AppointmentBlockV2({ block, onClick }: AppointmentBlockV2Props) {
   const bg = statusColor(appointment.status);
   const whiteText =
     appointment.status === "completed" || appointment.status === "cancelled";
+  const isReadyToPay = appointment.status === "ready_to_pay";
   const laneInsetPx = BLOCK_INSET_PX + LANE_GAP_PX / 2;
   const width = split ? `calc(50% - ${laneInsetPx}px)` : `calc(100% - ${BLOCK_INSET_PX * 2}px)`;
   const left = split ? (lane === 0 ? BLOCK_INSET_PX : `calc(50% + ${LANE_GAP_PX / 2}px)`) : BLOCK_INSET_PX;
@@ -78,6 +79,9 @@ function AppointmentBlockV2({ block, onClick }: AppointmentBlockV2Props) {
         overflow: "hidden",
         boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
         lineHeight: 1.2,
+        animation: isReadyToPay
+          ? "readyToPayPulse 1.4s ease-in-out infinite, readyToPayBlink 1.4s ease-in-out infinite"
+          : undefined,
       }}
       title={`${formatStatus(appointment.status)} · ${naiveTimestampToHm(appointment.scheduledAt)}`}
     >
