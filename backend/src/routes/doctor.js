@@ -97,6 +97,14 @@ function ymdToClinicStartEnd(ymd) {
   return { start, end };
 }
 
+function ymdRangeToClinicStartEndExclusive(startYmd, endYmd) {
+  const startRange = ymdToClinicStartEnd(startYmd);
+  const endRange = ymdToClinicStartEnd(endYmd);
+  if (!startRange || !endRange) return null;
+  if (startRange.start > endRange.end) return null;
+  return { start: startRange.start, endExclusive: new Date(endRange.end.getTime() + 1) };
+}
+
 function diffDaysInclusive(fromYmd, toYmd) {
   const a = parseYmd(fromYmd);
   const b = parseYmd(toYmd);
@@ -474,7 +482,7 @@ router.get("/schedule", async (req, res) => {
 /**
  * GET /api/doctor/sales-summary?date=YYYY-MM-DD
  *
- * Returns today's and current month's payment totals for the authenticated doctor.
+ * Returns today's and current month's computed sales totals for the authenticated doctor.
  * date defaults to today in Mongolia timezone if omitted.
  */
 router.get("/sales-summary", async (req, res) => {
@@ -491,7 +499,7 @@ router.get("/sales-summary", async (req, res) => {
       return res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD" });
     }
 
-    const dayRange = ymdToClinicStartEnd(targetDate);
+    const dayRange = ymdRangeToClinicStartEndExclusive(targetDate, targetDate);
     if (!dayRange) {
       return res.status(400).json({ error: "Invalid date format" });
     }
@@ -501,39 +509,70 @@ router.get("/sales-summary", async (req, res) => {
     const lastDay = new Date(year, month, 0).getDate();
     const monthEnd = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
-    const monthStartRange = ymdToClinicStartEnd(monthStart);
-    const monthEndRange = ymdToClinicStartEnd(monthEnd);
-    if (!monthStartRange || !monthEndRange) {
+    const monthRange = ymdRangeToClinicStartEndExclusive(monthStart, monthEnd);
+    if (!monthRange) {
       return res.status(400).json({ error: "Failed to calculate month boundaries" });
     }
 
-    const [todayPayments, monthPayments] = await Promise.all([
-      prisma.payment.findMany({
-        where: {
-          timestamp: { gte: dayRange.start, lte: dayRange.end },
-          invoice: { encounter: { doctorId } },
-        },
-        select: { amount: true },
+    const [homeBleachingDeductSetting, doctorConfig, invoices] = await Promise.all([
+      prisma.settings.findUnique({
+        where: { key: "finance.homeBleachingDeductAmountMnt" },
       }),
-      prisma.payment.findMany({
+      prisma.doctorCommissionConfig.findUnique({
+        where: { doctorId },
+      }),
+      prisma.invoice.findMany({
         where: {
-          timestamp: { gte: monthStartRange.start, lte: monthEndRange.end },
-          invoice: { encounter: { doctorId } },
+          encounter: { doctorId },
+          OR: [
+            { createdAt: { gte: monthRange.start, lt: monthRange.endExclusive } },
+            { payments: { some: { timestamp: { gte: monthRange.start, lt: monthRange.endExclusive } } } },
+          ],
         },
-        select: { amount: true },
+        include: {
+          encounter: {
+            include: {
+              doctor: { include: { commissionConfig: true } },
+            },
+          },
+          items: { include: { service: true } },
+          payments: {
+            include: { allocations: { select: { invoiceItemId: true, amount: true } } },
+          },
+        },
       }),
     ]);
 
-    const todayTotal = todayPayments.reduce((sum, p) => sum + p.amount, 0);
-    const monthTotal = monthPayments.reduce((sum, p) => sum + p.amount, 0);
+    const homeBleachingDeductAmountMnt = Number(homeBleachingDeductSetting?.value || 0) || 0;
+    const cfg = doctorConfig || invoices?.[0]?.encounter?.doctor?.commissionConfig || null;
+
+    let todayTotal = 0;
+    let monthTotal = 0;
+
+    for (const inv of invoices) {
+      monthTotal += calcDashboardInvoiceContribution(
+        inv,
+        monthRange.start,
+        monthRange.endExclusive,
+        homeBleachingDeductAmountMnt,
+        cfg
+      ).sales;
+      todayTotal += calcDashboardInvoiceContribution(
+        inv,
+        dayRange.start,
+        dayRange.endExclusive,
+        homeBleachingDeductAmountMnt,
+        cfg
+      ).sales;
+    }
 
     return res.json({
       doctorId,
       date: targetDate,
-      todayTotal,
+      todayTotal: Math.round(todayTotal),
       monthFrom: monthStart,
       monthTo: monthEnd,
-      monthTotal,
+      monthTotal: Math.round(monthTotal),
     });
   } catch (err) {
     console.error("GET /api/doctor/sales-summary error:", err);
@@ -930,9 +969,11 @@ router.get("/sales-details", async (req, res) => {
   }
 
   const DOCTOR_ID = req.user.id;
-  const start = new Date(`${String(startDate)}T00:00:00.000Z`);
-  const endExclusive = new Date(`${String(endDate)}T00:00:00.000Z`);
-  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+  const range = ymdRangeToClinicStartEndExclusive(String(startDate), String(endDate));
+  if (!range) {
+    return res.status(400).json({ error: "Invalid date range. Use YYYY-MM-DD and ensure endDate >= startDate." });
+  }
+  const { start, endExclusive } = range;
 
   try {
     const doctorUser = await prisma.user.findUnique({
@@ -1146,9 +1187,11 @@ router.get("/sales-details/lines", async (req, res) => {
   }
 
   const DOCTOR_ID = req.user.id;
-  const start = new Date(`${String(startDate)}T00:00:00.000Z`);
-  const endExclusive = new Date(`${String(endDate)}T00:00:00.000Z`);
-  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+  const range = ymdRangeToClinicStartEndExclusive(String(startDate), String(endDate));
+  if (!range) {
+    return res.status(400).json({ error: "Invalid date range. Use YYYY-MM-DD and ensure endDate >= startDate." });
+  }
+  const { start, endExclusive } = range;
 
   const categoryKey = String(category).toUpperCase();
   const VALID_CATEGORIES = ["IMAGING", "ORTHODONTIC_TREATMENT", "DEFECT_CORRECTION", "SURGERY", "GENERAL", "BARTER_EXCESS"];
@@ -1203,7 +1246,9 @@ router.get("/sales-details/lines", async (req, res) => {
       const itemById = new Map(serviceItems.map((it) => [it.id, it]));
       const remainingDue = new Map(serviceItems.map((it) => [it.id, lineNets.get(it.id) || 0]));
       const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
+      const itemLatestPaymentDateYmd = new Map(serviceItems.map((it) => [it.id, null]));
       let barterSum = 0;
+      let barterLatestPaymentDateYmd = null;
       const methodsInRange = new Set();
 
       const sortedPayments = [...payments].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
@@ -1213,7 +1258,14 @@ router.get("/sales-details/lines", async (req, res) => {
         const ts = new Date(p.timestamp);
         if (!inIncomeRange(ts, start, endExclusive)) continue;
         if (EXCLUDED_METHODS.has(method)) continue;
-        if (method === "BARTER") { barterSum += Number(p.amount || 0); continue; }
+        if (method === "BARTER") {
+          const barterAmt = Number(p.amount || 0);
+          barterSum += barterAmt;
+          if (barterAmt > 0) {
+            barterLatestPaymentDateYmd = toMongoliaDateOnly(ts);
+          }
+          continue;
+        }
         if (!INCLUDED_METHODS.has(method) && !OVERRIDE_METHODS.has(method)) continue;
 
         methodsInRange.add(method);
@@ -1226,11 +1278,17 @@ router.get("/sales-details/lines", async (req, res) => {
             const allocAmt = Number(alloc.amount || 0);
             itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
             remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
+            if (allocAmt > 0) {
+              itemLatestPaymentDateYmd.set(item.id, toMongoliaDateOnly(ts));
+            }
           }
         } else {
           const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
           for (const [id, amt] of allocs) {
             itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+            if (amt > 0) {
+              itemLatestPaymentDateYmd.set(id, toMongoliaDateOnly(ts));
+            }
           }
         }
       }
@@ -1277,6 +1335,7 @@ router.get("/sales-details/lines", async (req, res) => {
           netAfterDiscountMnt: Math.round(allocatedBarterExcess),
           allocatedPaidMnt: Math.round(allocatedBarterExcess),
           paymentMethodLabel: "Бартер",
+          paymentDateYmd: barterLatestPaymentDateYmd,
         });
         continue;
       }
@@ -1309,17 +1368,24 @@ router.get("/sales-details/lines", async (req, res) => {
           netAfterDiscountMnt: Math.round(netAfterDiscount),
           allocatedPaidMnt: allocatedPaid,
           paymentMethodLabel,
+          paymentDateYmd: itemLatestPaymentDateYmd.get(it.id) || null,
         });
       }
     }
 
     lines.sort((a, b) => {
-      const dateA = a.appointmentScheduledAt || a.visitDate;
-      const dateB = b.appointmentScheduledAt || b.visitDate;
+      const dateA = a.paymentDateYmd || a.appointmentScheduledAt || a.visitDate;
+      const dateB = b.paymentDateYmd || b.appointmentScheduledAt || b.visitDate;
       if (!dateA && !dateB) return 0;
       if (!dateA) return 1;
       if (!dateB) return -1;
-      return new Date(dateB).getTime() - new Date(dateA).getTime();
+      const dateAValue = /^\d{4}-\d{2}-\d{2}$/.test(dateA)
+        ? new Date(`${dateA}T00:00:00.000+08:00`)
+        : new Date(dateA);
+      const dateBValue = /^\d{4}-\d{2}-\d{2}$/.test(dateB)
+        ? new Date(`${dateB}T00:00:00.000+08:00`)
+        : new Date(dateB);
+      return dateBValue.getTime() - dateAValue.getTime();
     });
 
     return res.json(lines);
