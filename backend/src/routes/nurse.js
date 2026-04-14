@@ -31,7 +31,7 @@ const INCLUDED_METHODS = new Set([
 
 const EXCLUDED_METHODS = new Set(["EMPLOYEE_BENEFIT"]);
 
-const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION"]);
+const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION", "WALLET"]);
 
 function inRange(ts, start, end) {
   return ts >= start && ts < end;

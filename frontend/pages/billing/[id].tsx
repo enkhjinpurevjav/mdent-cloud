@@ -862,6 +862,22 @@ function BillingPaymentSection({
     }
   };
 
+  const preventNumberStepOnWheel = useCallback(
+    (e: React.WheelEvent<HTMLInputElement>) => {
+      e.currentTarget.blur();
+    },
+    []
+  );
+
+  const preventNumberStepOnArrow = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        e.preventDefault();
+      }
+    },
+    []
+  );
+
   return (
     <section className="mt-4 p-4 rounded-lg border border-gray-200 bg-white">
       <h2 className="text-base m-0 mb-2">
@@ -978,6 +994,8 @@ function BillingPaymentSection({
                         min={0}
                         max={remainingForItem}
                         value={itemId != null ? (splitAllocations[itemId] ?? "") : ""}
+                        onWheel={preventNumberStepOnWheel}
+                        onKeyDown={preventNumberStepOnArrow}
                         onChange={(e) => {
                           if (itemId == null) return;
                           setSplitAllocations((prev) => ({
@@ -986,7 +1004,7 @@ function BillingPaymentSection({
                           }));
                         }}
                         placeholder="0"
-                        className="w-[90px] rounded-md border border-gray-300 py-[3px] px-[6px] text-[13px] text-right"
+                        className="w-[90px] rounded-md border border-gray-300 py-[3px] px-[6px] text-[13px] text-right no-number-spin"
                       />
                       <span className="text-xs">₮</span>
                     </div>
@@ -1098,6 +1116,8 @@ function BillingPaymentSection({
           type="number"
           min={0}
           value={row.amount}
+          onWheel={preventNumberStepOnWheel}
+          onKeyDown={preventNumberStepOnArrow}
           onChange={(e) =>
             setAppRows((prev) =>
               prev.map((r, i) =>
@@ -1106,7 +1126,7 @@ function BillingPaymentSection({
             )
           }
           placeholder="0"
-          className="w-[100px] rounded-md border border-gray-300 py-1 px-[6px] text-xs text-right"
+          className="w-[100px] rounded-md border border-gray-300 py-1 px-[6px] text-xs text-right no-number-spin"
         />
         <span className="text-xs">₮</span>
 
@@ -1303,11 +1323,13 @@ function BillingPaymentSection({
                           type="number"
                           min={0}
                           value={value}
+                          onWheel={preventNumberStepOnWheel}
+                          onKeyDown={preventNumberStepOnArrow}
                           onChange={(e) =>
                             handleAmountChange(m.key, e.target.value)
                           }
                           placeholder="0"
-                          className="flex-1 rounded-md border border-gray-300 py-1 px-2 text-[13px] text-right"
+                          className="flex-1 rounded-md border border-gray-300 py-1 px-2 text-[13px] text-right no-number-spin"
                         />
                         <span className="text-xs">₮</span>
                       </div>
@@ -2287,23 +2309,17 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
     {invoice.patientBalance != null && (
       <div className="min-w-[260px] p-[10px] rounded-lg border border-gray-200 bg-gray-50 text-[13px]">
         <div className="font-semibold mb-1 text-right">
-          Санхүүгийн үлдэгдэл
+          Хэтэвчийн үлдэгдэл
         </div>
         <div className="text-right">
           <div>
-            Нийт нэхэмжилсэн:{" "}
+            Боломжит хэтэвч:{" "}
             <strong>
-              {formatMoney(invoice.patientTotalBilled || 0)} ₮
+              {formatMoney(invoice.patientBalance < 0 ? Math.abs(invoice.patientBalance) : 0)} ₮
             </strong>
           </div>
           <div>
-            Нийт төлсөн:{" "}
-            <strong>
-              {formatMoney(invoice.patientTotalPaid || 0)} ₮
-            </strong>
-          </div>
-          <div>
-            Үлдэгдэл (бүх үзлэг):{" "}
+            Цэвэр үлдэгдэл:{" "}
             <strong
               className={invoice.patientBalance > 0 ? "text-red-700" : invoice.patientBalance < 0 ? "text-green-700" : "text-gray-900"}
             >

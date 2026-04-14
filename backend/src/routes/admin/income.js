@@ -34,7 +34,7 @@ const METHOD_LABELS = {
 
 const EXCLUDED_METHODS = new Set(["EMPLOYEE_BENEFIT"]);
 
-const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION"]);
+const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION", "WALLET"]);
 
 // Home bleaching: Service.code === 151
 const HOME_BLEACHING_SERVICE_CODE = 151;

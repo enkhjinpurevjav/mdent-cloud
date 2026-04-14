@@ -8,6 +8,107 @@ import { sseBroadcast } from "./appointments.js";
 
 const router = express.Router();
 
+async function getPatientBalanceSummary(trx, patientId) {
+  const invoices = await trx.invoice.findMany({
+    where: { patientId },
+    select: {
+      id: true,
+      finalAmount: true,
+      totalAmount: true,
+    },
+  });
+
+  if (invoices.length === 0) {
+    return { totalBilled: 0, totalPaid: 0, totalAdjusted: 0, balance: 0 };
+  }
+
+  const invoiceIds = invoices.map((inv) => inv.id);
+  const paymentAgg = await trx.payment.aggregate({
+    where: { invoiceId: { in: invoiceIds } },
+    _sum: { amount: true },
+  });
+  const adjustmentAgg = await trx.balanceAdjustmentLog.aggregate({
+    where: { patientId },
+    _sum: { amount: true },
+  });
+
+  let totalBilled = 0;
+  for (const inv of invoices) {
+    totalBilled += inv.finalAmount != null
+      ? Number(inv.finalAmount)
+      : Number(inv.totalAmount || 0);
+  }
+  const totalPaid = Number(paymentAgg._sum.amount || 0);
+  const totalAdjusted = Number(adjustmentAgg._sum.amount || 0);
+  const balance = Number((totalBilled - totalPaid - totalAdjusted).toFixed(2));
+
+  return { totalBilled, totalPaid, totalAdjusted, balance };
+}
+
+function buildWalletDeductionReason(invoice, meta) {
+  const metaNote = meta && typeof meta.note === "string" ? meta.note.trim() : "";
+  const parts = [
+    `Wallet settlement`,
+    `invoiceId=${invoice.id}`,
+    `encounterId=${invoice.encounterId ?? "null"}`,
+  ];
+  if (metaNote) {
+    parts.push(`note=${metaNote}`);
+  }
+  return parts.join("; ");
+}
+
+function availableWalletFromPatientBalance(patientBalance) {
+  return patientBalance < 0 ? Math.abs(patientBalance) : 0;
+}
+
+export async function applyWalletSettlement(
+  trx,
+  {
+    invoice,
+    payAmount,
+    methodStr,
+    meta = null,
+    createdByUserId = null,
+    applyPaymentFn = applyPaymentToInvoice,
+  }
+) {
+  if (!invoice?.patientId) {
+    throw new Error("Patient мэдээлэл олдсонгүй.");
+  }
+  if (!createdByUserId) {
+    throw new Error("Төлбөр бүртгэж буй хэрэглэгчийн мэдээлэл олдсонгүй.");
+  }
+
+  const balanceSummary = await getPatientBalanceSummary(trx, invoice.patientId);
+  // balanceSummary.balance < 0 means prepaid/overpaid credit that can be consumed as wallet.
+  const availableWallet = availableWalletFromPatientBalance(balanceSummary.balance);
+
+  if (availableWallet < payAmount) {
+    throw new Error(
+      `Хэтэвчийн үлдэгдэл хүрэлцэхгүй байна. Боломжит: ${availableWallet}₮, Шаардлагатай: ${payAmount}₮`
+    );
+  }
+
+  await trx.balanceAdjustmentLog.create({
+    data: {
+      patientId: invoice.patientId,
+      // Wallet deduction is stored as negative adjustment to consume prepaid wallet credit.
+      amount: -payAmount,
+      reason: buildWalletDeductionReason(invoice, meta),
+      createdById: createdByUserId,
+    },
+  });
+
+  return applyPaymentFn(trx, {
+    invoice,
+    payAmount,
+    methodStr,
+    meta,
+    createdByUserId,
+  });
+}
+
 /**
  * POST /api/invoices/:id/settlement
  *
@@ -534,6 +635,90 @@ router.post("/:id/settlement", async (req, res) => {
         });
       } catch (err) {
         console.error("GIFT_CARD settlement transaction error:", err);
+        return res
+          .status(400)
+          .json({ error: err.message || "Төлбөр бүртгэхэд алдаа гарлаа." });
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // SPECIAL CASE: WALLET (Хэтэвч)
+    // ─────────────────────────────────────────────────────────────
+    if (methodStr === "WALLET") {
+      try {
+        const result = await prisma.$transaction(async (trx) => {
+          const { updatedInvoice, paidTotal } = await applyWalletSettlement(trx, {
+            invoice,
+            payAmount,
+            methodStr,
+            meta,
+            createdByUserId: req.user?.id || null,
+          });
+          return { updatedInvoice, paidTotal };
+        });
+
+        const { updatedInvoice, paidTotal } = result;
+
+        const appointmentIdForSse = invoice.encounter?.appointmentId ?? null;
+        if (appointmentIdForSse) {
+          try {
+            const apptForBroadcast = await prisma.appointment.findUnique({
+              where: { id: appointmentIdForSse },
+              include: {
+                patient: { select: { id: true, name: true, ovog: true, phone: true, patientBook: true } },
+                doctor: { select: { id: true, name: true, ovog: true } },
+                branch: { select: { id: true, name: true } },
+              },
+            });
+            if (apptForBroadcast?.scheduledAt) {
+              const apptDate = apptForBroadcast.scheduledAt.toISOString().slice(0, 10);
+              sseBroadcast(
+                "appointment_updated",
+                { ...apptForBroadcast, encounterId: invoice.encounterId },
+                apptDate,
+                apptForBroadcast.branchId
+              );
+            }
+          } catch (sseErr) {
+            console.error("SSE broadcast error after wallet settlement (non-fatal):", sseErr);
+          }
+        }
+
+        return res.json({
+          id: updatedInvoice.id,
+          branchId: updatedInvoice.branchId,
+          encounterId: updatedInvoice.encounterId,
+          patientId: updatedInvoice.patientId,
+          status: updatedInvoice.statusLegacy,
+          totalBeforeDiscount: updatedInvoice.totalBeforeDiscount,
+          discountPercent: updatedInvoice.discountPercent,
+          collectionDiscountAmount: updatedInvoice.collectionDiscountAmount || 0,
+          finalAmount: updatedInvoice.finalAmount,
+          totalAmountLegacy: updatedInvoice.totalAmount,
+          paidTotal,
+          unpaidAmount: Math.max(baseAmount - paidTotal, 0),
+          hasEBarimt: !!updatedInvoice.eBarimtReceipt,
+          items: updatedInvoice.items.map((it) => ({
+            id: it.id,
+            itemType: it.itemType,
+            serviceId: it.serviceId,
+            productId: it.productId,
+            name: it.name,
+            unitPrice: it.unitPrice,
+            quantity: it.quantity,
+            lineTotal: it.lineTotal,
+          })),
+          payments: updatedInvoice.payments.map((p) => ({
+            id: p.id,
+            amount: p.amount,
+            method: p.method,
+            timestamp: p.timestamp,
+            qpayTxnId: p.qpayTxnId,
+            createdByUser: p.createdBy ? { id: p.createdBy.id, name: p.createdBy.name || null, ovog: p.createdBy.ovog || null } : null,
+          })),
+        });
+      } catch (err) {
+        console.error("WALLET settlement transaction error:", err);
         return res
           .status(400)
           .json({ error: err.message || "Төлбөр бүртгэхэд алдаа гарлаа." });

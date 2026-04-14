@@ -71,6 +71,10 @@ async function getPatientBalance(patientId) {
     where: { invoiceId: { in: invoiceIds } },
     _sum: { amount: true },
   });
+  const adjustmentAgg = await prisma.balanceAdjustmentLog.aggregate({
+    where: { patientId },
+    _sum: { amount: true },
+  });
 
   const paidByInvoice = new Map();
   for (const p of payments) {
@@ -79,6 +83,7 @@ async function getPatientBalance(patientId) {
 
   let totalBilled = 0;
   let totalPaid = 0;
+  const totalAdjustments = Number(adjustmentAgg._sum.amount || 0);
 
   for (const inv of invoices) {
     const billed =
@@ -90,7 +95,11 @@ async function getPatientBalance(patientId) {
 
   totalBilled = Number(totalBilled.toFixed(2));
   totalPaid = Number(totalPaid.toFixed(2));
-  const balance = Number((totalBilled - totalPaid).toFixed(2));
+  // totalAdjustments can be positive (manual credit) or negative (wallet deduction),
+  // and we subtract it in the formula:
+  // - positive adjustment lowers patient balance (less debt),
+  // - negative adjustment raises patient balance (consumes wallet credit).
+  const balance = Number((totalBilled - totalPaid - totalAdjustments).toFixed(2));
 
   return { totalBilled, totalPaid, balance };
 }

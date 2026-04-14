@@ -1,3 +1,14 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+input.no-number-spin::-webkit-outer-spin-button,
+input.no-number-spin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input.no-number-spin[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
