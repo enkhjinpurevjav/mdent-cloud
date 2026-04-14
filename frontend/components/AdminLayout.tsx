@@ -30,18 +30,11 @@ const navItems: NavItem[] = [
     icon: "🏠",
   },
 
-   // 2. Цаг захиалга
+   // 2. Цаг захиалга v2
     {
-    label: "Цаг захиалга",
-    icon: "📅",
-    children: [
-      {
-        // only "Бүх салбар" is fixed; individual branches come from backend
-        label: "Бүх салбар",
-        href: APPOINTMENTS_ALL_BRANCHES_ROUTE,
-        icon: "📅",
-      },
-    ],
+    label: "Цаг захиалга v2",
+    href: "/appointments-v2",
+    icon: "🆕",
   },
 
   // 3. Захиалгын жагсаалт
@@ -191,14 +184,7 @@ const navItems: NavItem[] = [
     icon: "📈",
     children: [
       { label: "Эмнэлэг", href: "/reports/clinic", icon: "🏥" },
-      { label: "Цаг захиалга", href: "/reports/appointments", icon: "📅" },
-      { label: "Эмч", href: "/reports/appointments/doctors", icon: "👨‍⚕️" },
     ],
-  },
-  {
-    label: "Цаг захиалга v2",
-    href: "/appointments-v2",
-    icon: "🆕",
   },
 ];
 

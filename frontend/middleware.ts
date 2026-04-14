@@ -37,9 +37,22 @@ export function middleware(req: NextRequest) {
   const host = req.headers.get("host") ?? "";
   // Strip port for comparison (e.g. "mdent.cloud:3000" → "mdent.cloud")
   const hostname = host.split(":")[0];
+  const pathname = req.nextUrl.pathname;
+
+  const isLegacyAppointmentsRoute =
+    pathname === "/appointments" ||
+    pathname.startsWith("/appointments/") ||
+    pathname === "/reports/appointments" ||
+    pathname.startsWith("/reports/appointments/");
 
   // Allow all known hosts (production, dev subdomains, and local)
   if (ALLOWED_HOSTS.has(hostname)) {
+    if (isLegacyAppointmentsRoute) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/appointments-v2";
+      url.search = "";
+      return NextResponse.redirect(url, 307);
+    }
     return NextResponse.next();
   }
 
