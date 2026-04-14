@@ -58,6 +58,10 @@ function buildWalletDeductionReason(invoice, meta) {
   return parts.join("; ");
 }
 
+function availableWalletFromPatientBalance(patientBalance) {
+  return patientBalance < 0 ? Math.abs(patientBalance) : 0;
+}
+
 export async function applyWalletSettlement(
   trx,
   {
@@ -78,12 +82,12 @@ export async function applyWalletSettlement(
 
   const balanceSummary = await getPatientBalanceSummary(trx, invoice.patientId);
   // patientBalance < 0 means prepaid/overpaid credit that can be consumed as wallet.
-  const availableWallet = balanceSummary.balance < 0
-    ? Math.abs(balanceSummary.balance)
-    : 0;
+  const availableWallet = availableWalletFromPatientBalance(balanceSummary.balance);
 
   if (availableWallet < payAmount) {
-    throw new Error("Хэтэвчийн үлдэгдэл хүрэлцэхгүй байна.");
+    throw new Error(
+      `Хэтэвчийн үлдэгдэл хүрэлцэхгүй байна. Боломжит: ${availableWallet}₮, Шаардлагатай: ${payAmount}₮`
+    );
   }
 
   await trx.balanceAdjustmentLog.create({
