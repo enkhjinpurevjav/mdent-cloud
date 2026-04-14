@@ -907,7 +907,7 @@ router.put("/appointments/:appointmentId/ortho-card", async (req, res) => {
 
 const INCLUDED_METHODS = new Set(["CASH", "POS", "TRANSFER", "QPAY", "WALLET", "VOUCHER", "OTHER"]);
 const EXCLUDED_METHODS = new Set(["EMPLOYEE_BENEFIT"]);
-const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION"]);
+const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION", "WALLET"]);
 const HOME_BLEACHING_SERVICE_CODE = 151;
 
 const INCOME_LABELS = {
