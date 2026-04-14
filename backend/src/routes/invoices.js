@@ -93,7 +93,7 @@ export async function applyWalletSettlement(
   await trx.balanceAdjustmentLog.create({
     data: {
       patientId: invoice.patientId,
-      // Wallet deduction is stored as a negative adjustment; this reduces credit (increases balance/debt).
+      // Wallet deduction is stored as negative adjustment to consume prepaid wallet credit.
       amount: -payAmount,
       reason: buildWalletDeductionReason(invoice, meta),
       createdById: createdByUserId,
