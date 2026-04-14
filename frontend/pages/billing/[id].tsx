@@ -2313,7 +2313,7 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
         </div>
         <div className="text-right">
           <div>
-            Боломжит үлдэгдэл:{" "}
+            Боломжит хэтэвч:{" "}
             <strong>
               {formatMoney(invoice.patientBalance < 0 ? Math.abs(invoice.patientBalance) : 0)} ₮
             </strong>

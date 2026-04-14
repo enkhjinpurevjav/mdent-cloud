@@ -77,6 +77,7 @@ export async function applyWalletSettlement(
   }
 
   const balanceSummary = await getPatientBalanceSummary(trx, invoice.patientId);
+  // patientBalance < 0 means prepaid/overpaid credit that can be consumed as wallet.
   const availableWallet = balanceSummary.balance < 0
     ? Math.abs(balanceSummary.balance)
     : 0;

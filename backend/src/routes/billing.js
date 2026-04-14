@@ -95,6 +95,7 @@ async function getPatientBalance(patientId) {
 
   totalBilled = Number(totalBilled.toFixed(2));
   totalPaid = Number(totalPaid.toFixed(2));
+  // BalanceAdjustmentLog is part of wallet accounting, so include it in patient balance.
   const balance = Number((totalBilled - totalPaid - totalAdjusted).toFixed(2));
 
   return { totalBilled, totalPaid, balance };
