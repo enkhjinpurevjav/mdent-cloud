@@ -38,20 +38,22 @@ export function middleware(req: NextRequest) {
   // Strip port for comparison (e.g. "mdent.cloud:3000" → "mdent.cloud")
   const hostname = host.split(":")[0];
   const pathname = req.nextUrl.pathname;
+  const isAppointmentsV2Route =
+    pathname === "/appointments-v2" || pathname.startsWith("/appointments-v2/");
 
   const isLegacyAppointmentsRoute =
-    pathname === "/appointments" ||
-    pathname.startsWith("/appointments/") ||
-    pathname === "/reports/appointments" ||
-    pathname.startsWith("/reports/appointments/");
+    !isAppointmentsV2Route &&
+    (pathname === "/appointments" ||
+      pathname.startsWith("/appointments/") ||
+      pathname === "/reports/appointments" ||
+      pathname.startsWith("/reports/appointments/"));
 
   // Allow all known hosts (production, dev subdomains, and local)
   if (ALLOWED_HOSTS.has(hostname)) {
     if (isLegacyAppointmentsRoute) {
       const url = req.nextUrl.clone();
       url.pathname = "/appointments-v2";
-      url.search = "";
-      return NextResponse.redirect(url, 307);
+      return NextResponse.redirect(url, 308);
     }
     return NextResponse.next();
   }
