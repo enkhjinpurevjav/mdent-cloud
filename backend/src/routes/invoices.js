@@ -81,7 +81,7 @@ export async function applyWalletSettlement(
   }
 
   const balanceSummary = await getPatientBalanceSummary(trx, invoice.patientId);
-  // patientBalance < 0 means prepaid/overpaid credit that can be consumed as wallet.
+  // balanceSummary.balance < 0 means prepaid/overpaid credit that can be consumed as wallet.
   const availableWallet = availableWalletFromPatientBalance(balanceSummary.balance);
 
   if (availableWallet < payAmount) {
@@ -93,7 +93,7 @@ export async function applyWalletSettlement(
   await trx.balanceAdjustmentLog.create({
     data: {
       patientId: invoice.patientId,
-      // Wallet deduction is stored as negative adjustment (debit from patient credit).
+      // Wallet deduction is stored as a negative adjustment; this reduces credit (increases balance/debt).
       amount: -payAmount,
       reason: buildWalletDeductionReason(invoice, meta),
       createdById: createdByUserId,
