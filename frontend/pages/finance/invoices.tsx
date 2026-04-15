@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { useAuth } from "../../contexts/AuthContext";
+import { getBusinessYmd } from "../../utils/businessTime";
 import InvoiceDrawer from "../../components/finance/invoices/InvoiceDrawer";
 import InvoiceFilters from "../../components/finance/invoices/InvoiceFilters";
 import InvoiceSummaryCards from "../../components/finance/invoices/InvoiceSummaryCards";
@@ -15,13 +16,12 @@ import type {
 const PAGE_TITLE = "Нэхэмжлэлүүд";
 
 function todayDate() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return getBusinessYmd();
 }
 
 function monthStartDate() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+  const ymd = getBusinessYmd();
+  return `${ymd.slice(0, 7)}-01`;
 }
 
 const DEFAULT_FILTERS: InvoiceFilterState = {

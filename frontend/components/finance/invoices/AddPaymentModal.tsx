@@ -1,13 +1,13 @@
 import React, { useMemo, useState } from "react";
 
 const METHODS = [
-  "CASH",
-  "POS",
-  "QPAY",
-  "WALLET",
-  "TRANSFER",
-  "INSURANCE",
-  "APPLICATION",
+  { value: "CASH", label: "Бэлэн" },
+  { value: "POS", label: "POS" },
+  { value: "QPAY", label: "QPay" },
+  { value: "WALLET", label: "Хэтэвч" },
+  { value: "TRANSFER", label: "Шилжүүлэг" },
+  { value: "INSURANCE", label: "Даатгал" },
+  { value: "APPLICATION", label: "Апп" },
 ];
 
 const REFERENCE_REQUIRED = new Set(["POS", "QPAY", "TRANSFER", "INSURANCE", "APPLICATION"]);
@@ -57,7 +57,7 @@ export default function AddPaymentModal({ open, invoiceId, onClose, onSuccess }:
       return;
     }
     if (requiresReference && !reference.trim()) {
-      setError("Reference заавал шаардлагатай.");
+      setError("Тайлбар заавал шаардлагатай.");
       return;
     }
 
@@ -95,7 +95,7 @@ export default function AddPaymentModal({ open, invoiceId, onClose, onSuccess }:
   return (
     <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/50 p-4" onClick={handleClose}>
       <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h3 className="mb-3 text-base font-semibold">Төлбөр нэмэх</h3>
+        <h3 className="mb-3 text-base font-semibold">Төлбөр оруулах</h3>
         <form onSubmit={submit} className="space-y-3">
           <label className="block text-xs text-gray-600">
             Дүн
@@ -110,7 +110,7 @@ export default function AddPaymentModal({ open, invoiceId, onClose, onSuccess }:
             />
           </label>
           <label className="block text-xs text-gray-600">
-            Арга
+            Төлбөрийн хэрэгсэл
             <select
               value={method}
               onChange={(e) => setMethod(e.target.value)}
@@ -118,14 +118,14 @@ export default function AddPaymentModal({ open, invoiceId, onClose, onSuccess }:
               required
             >
               {METHODS.map((item) => (
-                <option key={item} value={item}>
-                  {item}
+                <option key={item.value} value={item.value}>
+                  {item.label}
                 </option>
               ))}
             </select>
           </label>
           <label className="block text-xs text-gray-600">
-            Reference
+            Тайлбар
             <input
               type="text"
               value={reference}
@@ -135,7 +135,7 @@ export default function AddPaymentModal({ open, invoiceId, onClose, onSuccess }:
             />
           </label>
           <label className="block text-xs text-gray-600">
-            Note
+            Тэмдэглэл
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}

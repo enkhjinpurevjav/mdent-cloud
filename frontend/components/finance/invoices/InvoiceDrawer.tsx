@@ -1,22 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useAuth } from "../../../contexts/AuthContext";
 import AddPaymentModal from "./AddPaymentModal";
 import type { InvoiceDetail } from "./types";
+import { formatFinanceDateTime, formatPaymentMethodLabel } from "./formatters";
 
 function fmtMnt(value: number) {
   return `${Number(value || 0).toLocaleString("mn-MN")} ₮`;
-}
-
-function fmtDate(value: string | null | undefined) {
-  if (!value) return "-";
-  const dt = new Date(value);
-  if (Number.isNaN(dt.getTime())) return "-";
-  return dt.toLocaleString("mn-MN", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function fmtName(ovog: string | null | undefined, name: string | null | undefined) {
@@ -41,11 +30,15 @@ export default function InvoiceDrawer({
   onDataChanged,
   refreshSignal,
 }: Props) {
+  const { me } = useAuth();
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [issuing, setIssuing] = useState(false);
   const [issueError, setIssueError] = useState("");
+  const [voiding, setVoiding] = useState(false);
+  const [voidError, setVoidError] = useState("");
+  const [voidConfirmOpen, setVoidConfirmOpen] = useState(false);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
   const canLoad = open && !!invoiceId;
@@ -81,6 +74,7 @@ export default function InvoiceDrawer({
     if (!invoice) return false;
     return total > 0 && paid >= total;
   }, [invoice, paid, total]);
+  const canVoid = me?.role === "admin" || me?.role === "super_admin";
 
   const issueEbarimt = async () => {
     if (!invoiceId) return;
@@ -139,6 +133,27 @@ export default function InvoiceDrawer({
     onDataChanged();
   };
 
+  const voidInvoice = async () => {
+    if (!invoiceId) return;
+    setVoiding(true);
+    setVoidError("");
+    try {
+      const res = await fetch(`/api/invoices/${invoiceId}/void`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || "Нэхэмжлэл устгахад алдаа гарлаа.");
+      setVoidConfirmOpen(false);
+      await load();
+      onDataChanged();
+    } catch (err: any) {
+      setVoidError(err?.message || "Нэхэмжлэл устгахад алдаа гарлаа.");
+    } finally {
+      setVoiding(false);
+    }
+  };
+
   if (!open) return null;
 
   return (
@@ -162,7 +177,11 @@ export default function InvoiceDrawer({
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div>
                     <div className="text-gray-500">Огноо</div>
-                    <div>{fmtDate(invoice.createdAt)}</div>
+                    <div>{formatFinanceDateTime(invoice.createdAt)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Захиалгын огноо:</div>
+                    <div>{formatFinanceDateTime(invoice.encounter?.appointment?.scheduledAt)}</div>
                   </div>
                   <div>
                     <div className="text-gray-500">Үйлчлүүлэгч</div>
@@ -180,15 +199,15 @@ export default function InvoiceDrawer({
                 </div>
               </div>
 
-              <h3 className="mb-2 text-sm font-semibold">Invoice Items</h3>
+              <h3 className="mb-2 text-sm font-semibold">Нэхэмжлэлийн дэлгэрэнгүй</h3>
               <div className="mb-4 overflow-x-auto rounded-lg border border-gray-200">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-3 py-2 text-left">Service</th>
-                      <th className="px-3 py-2 text-right">Qty</th>
-                      <th className="px-3 py-2 text-right">Price</th>
-                      <th className="px-3 py-2 text-right">Total</th>
+                      <th className="px-3 py-2 text-left">Үйлчилгээ</th>
+                      <th className="px-3 py-2 text-right">Тоо</th>
+                      <th className="px-3 py-2 text-right">Үнэ</th>
+                      <th className="px-3 py-2 text-right">Нийт</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -204,16 +223,16 @@ export default function InvoiceDrawer({
                 </table>
               </div>
 
-              <h3 className="mb-2 text-sm font-semibold">Payments</h3>
+              <h3 className="mb-2 text-sm font-semibold">Төлбөрүүд</h3>
               <div className="mb-4 overflow-x-auto rounded-lg border border-gray-200">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-3 py-2 text-left">Method</th>
-                      <th className="px-3 py-2 text-right">Amount</th>
-                      <th className="px-3 py-2 text-left">Timestamp</th>
-                      <th className="px-3 py-2 text-left">Created by</th>
-                      <th className="px-3 py-2 text-left">Reference</th>
+                      <th className="px-3 py-2 text-left">Төлбөрийн хэрэгсэл</th>
+                      <th className="px-3 py-2 text-right">Дүн</th>
+                      <th className="px-3 py-2 text-left">Хугацаа</th>
+                      <th className="px-3 py-2 text-left">Бүртгэсэн</th>
+                      <th className="px-3 py-2 text-left">Тайлбар</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -227,10 +246,12 @@ export default function InvoiceDrawer({
                       invoice.payments.map((payment) => (
                         <tr key={payment.id} className="border-t border-gray-100">
                           <td className="px-3 py-2">
-                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs">{payment.method}</span>
+                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs">
+                              {formatPaymentMethodLabel(payment.method)}
+                            </span>
                           </td>
                           <td className="px-3 py-2 text-right">{fmtMnt(payment.amount)}</td>
-                          <td className="px-3 py-2">{fmtDate(payment.timestamp)}</td>
+                          <td className="px-3 py-2">{formatFinanceDateTime(payment.timestamp)}</td>
                           <td className="px-3 py-2">
                             {fmtName(payment.createdByUser?.ovog, payment.createdByUser?.name)}
                           </td>
@@ -244,15 +265,15 @@ export default function InvoiceDrawer({
 
               <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm">
                 <div className="flex justify-between py-1">
-                  <span>Total</span>
+                  <span>Нийт</span>
                   <strong>{fmtMnt(total)}</strong>
                 </div>
                 <div className="flex justify-between py-1">
-                  <span>Paid</span>
+                  <span>Төлсөн</span>
                   <strong>{fmtMnt(paid)}</strong>
                 </div>
                 <div className="flex justify-between py-1">
-                  <span>Remaining</span>
+                  <span>Үлдэгдэл</span>
                   <strong>{fmtMnt(remaining)}</strong>
                 </div>
               </div>
@@ -263,7 +284,7 @@ export default function InvoiceDrawer({
                   onClick={() => setPaymentModalOpen(true)}
                   className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white"
                 >
-                  ➕ Add payment
+                  ➕ Төлбөр оруулах
                 </button>
                 <button
                   type="button"
@@ -271,7 +292,7 @@ export default function InvoiceDrawer({
                   onClick={issueEbarimt}
                   className="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-sm text-green-700 disabled:opacity-50"
                 >
-                  🧾 Issue eBarimt
+                  🧾 eBarimt олгох
                 </button>
                 <button
                   type="button"
@@ -279,20 +300,55 @@ export default function InvoiceDrawer({
                   onClick={reissueEbarimt}
                   className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm text-amber-700 disabled:opacity-50"
                 >
-                  🔄 Reissue eBarimt
+                  🔄 eBarimt дахин олгох
                 </button>
                 <button type="button" disabled className="rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-400">
-                  ✏️ Edit invoice
+                  ✏️ Нэхэмжлэл засах
                 </button>
-                <button type="button" disabled className="rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-400">
-                  ❌ Void invoice
+                <button
+                  type="button"
+                  disabled={!canVoid || voiding}
+                  onClick={() => setVoidConfirmOpen(true)}
+                  className="rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-sm text-red-700 disabled:opacity-50"
+                >
+                  {voiding ? "⏳ Устгаж байна..." : "❌ Нэхэмжлэл устгах"}
                 </button>
               </div>
               {issueError && <p className="text-sm text-red-600">{issueError}</p>}
+              {voidError && <p className="text-sm text-red-600">{voidError}</p>}
             </>
           )}
         </div>
       </div>
+
+      {voidConfirmOpen && (
+        <div className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl">
+            <h3 className="mb-2 text-base font-semibold">Нэхэмжлэл устгах уу?</h3>
+            <p className="mb-4 text-sm text-gray-600">
+              Э-баримтыг буцааж, нэхэмжлэлийг хүчингүй болгоно. Үргэлжлүүлэх үү?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={voiding}
+                onClick={() => setVoidConfirmOpen(false)}
+                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+              >
+                Болих
+              </button>
+              <button
+                type="button"
+                disabled={voiding}
+                onClick={voidInvoice}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-sm text-white disabled:bg-red-300"
+              >
+                {voiding ? "Боловсруулж байна..." : "Тийм, устгах"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <AddPaymentModal
         open={paymentModalOpen}

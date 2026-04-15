@@ -15,10 +15,10 @@ type Props = {
 
 export default function InvoiceSummaryCards({ summary }: Props) {
   const cards = [
-    { label: "💰 Total billed", value: summary.totalBilled, className: "text-blue-700" },
-    { label: "💸 Total collected", value: summary.totalCollected, className: "text-green-700" },
-    { label: "⚠️ Total unpaid", value: summary.totalUnpaid, className: "text-amber-700" },
-    { label: "➕ Overpayments", value: summary.overpayments, className: "text-purple-700" },
+    { label: "💰 Нийт нэхэмжилсэн", value: summary.totalBilled, className: "text-blue-700" },
+    { label: "💸 Нийт төлсөн", value: summary.totalCollected, className: "text-green-700" },
+    { label: "⚠️ Нийт төлөгдөөгүй", value: summary.totalUnpaid, className: "text-amber-700" },
+    { label: "➕ Нийт илүү төлөлт", value: summary.overpayments, className: "text-purple-700" },
   ];
 
   return (

@@ -4,6 +4,7 @@ import {
   computePaidTotal,
   applyPaymentToInvoice,
 } from "../services/settlementService.js";
+import { refundEbarimtByInvoice } from "../services/eBarimtService.js";
 import { sseBroadcast } from "./appointments.js";
 
 const router = express.Router();
@@ -52,6 +53,16 @@ function formatMethodLabel(method) {
   if (normalized === "INSURANCE") return "Insurance";
   if (normalized === "APPLICATION") return "Application";
   return normalized;
+}
+
+export function isInvoiceVoidedStatus(statusLegacy) {
+  const status = String(statusLegacy || "").trim().toLowerCase();
+  return (
+    status === "voided" ||
+    status === "void" ||
+    status === "canceled" ||
+    status === "cancelled"
+  );
 }
 
 export function buildPaymentMethodSummary(payments = []) {
@@ -335,6 +346,7 @@ router.get("/", async (req, res) => {
         encounter: {
           include: {
             doctor: { select: { id: true, name: true, ovog: true } },
+            appointment: { select: { scheduledAt: true } },
             patientBook: {
               include: {
                 patient: {
@@ -405,6 +417,7 @@ router.get("/:id", async (req, res) => {
         encounter: {
           include: {
             doctor: { select: { id: true, name: true, ovog: true } },
+            appointment: { select: { scheduledAt: true } },
             patientBook: {
               include: {
                 patient: {
@@ -443,6 +456,17 @@ router.get("/:id", async (req, res) => {
     const row = buildInvoiceFinanceRow(invoice);
     return res.json({
       ...row,
+      encounter: invoice.encounter
+        ? {
+            appointment: invoice.encounter.appointment
+              ? {
+                  scheduledAt: invoice.encounter.appointment.scheduledAt
+                    ? invoice.encounter.appointment.scheduledAt.toISOString()
+                    : null,
+                }
+              : null,
+          }
+        : null,
       ebarimtReceipt: invoice.eBarimtReceipt
         ? {
             id: invoice.eBarimtReceipt.id,
@@ -493,6 +517,80 @@ router.get("/:id", async (req, res) => {
   } catch (err) {
     console.error("GET /api/invoices/:id error:", err);
     return res.status(500).json({ error: "Failed to fetch invoice details." });
+  }
+});
+
+/**
+ * POST /api/invoices/:id/void
+ * Admin-only:
+ * - Block when invoice has payments
+ * - If eBarimt SUCCESS exists, refund first
+ * - Mark invoice as voided
+ */
+router.post("/:id/void", async (req, res) => {
+  const role = req.user?.role;
+  if (role !== "admin" && role !== "super_admin") {
+    return res.status(403).json({ error: "Forbidden. Admin only." });
+  }
+
+  try {
+    const invoiceId = Number(req.params.id);
+    if (!invoiceId || Number.isNaN(invoiceId)) {
+      return res.status(400).json({ error: "Invalid invoice id." });
+    }
+
+    let ebarimtRefunded = false;
+
+    const updated = await prisma.$transaction(async (trx) => {
+      const invoice = await trx.invoice.findUnique({
+        where: { id: invoiceId },
+        include: {
+          payments: { select: { id: true } },
+          eBarimtReceipt: { select: { status: true } },
+        },
+      });
+
+      if (!invoice) {
+        const err = new Error("Invoice not found.");
+        err.statusCode = 404;
+        throw err;
+      }
+
+      if (isInvoiceVoidedStatus(invoice.statusLegacy)) {
+        const err = new Error("Нэхэмжлэл аль хэдийн хүчингүй болсон байна.");
+        err.statusCode = 409;
+        throw err;
+      }
+
+      if ((invoice.payments?.length || 0) > 0) {
+        const err = new Error("Төлбөр бүртгэлтэй тул эхлээд төлбөрийг буцаана уу.");
+        err.statusCode = 400;
+        throw err;
+      }
+
+      if (invoice.eBarimtReceipt?.status === "SUCCESS") {
+        await refundEbarimtByInvoice(invoiceId, req.user?.id || null);
+        ebarimtRefunded = true;
+      }
+
+      return trx.invoice.update({
+        where: { id: invoiceId },
+        data: { statusLegacy: "voided" },
+        select: { id: true, statusLegacy: true },
+      });
+    });
+
+    return res.json({
+      success: true,
+      id: updated.id,
+      status: updated.statusLegacy,
+      ebarimtRefunded,
+    });
+  } catch (err) {
+    const statusCode = Number(err?.statusCode) || 500;
+    return res.status(statusCode).json({
+      error: err?.message || "Failed to void invoice.",
+    });
   }
 });
 
@@ -550,6 +648,12 @@ router.post("/:id/settlement", async (req, res) => {
 
     if (!invoice) {
       return res.status(404).json({ error: "Invoice not found" });
+    }
+
+    if (isInvoiceVoidedStatus(invoice.statusLegacy)) {
+      return res.status(409).json({
+        error: "Invoice has been voided. Additional settlement is not allowed.",
+      });
     }
 
     // Settlement gating: validate appointment status
