@@ -108,7 +108,7 @@ export default function PaymentDrawer({
         ) : (
           <div className="p-4 text-sm">
             <section className="mb-4 rounded-lg border border-gray-200 p-3">
-              <h3 className="mb-2 font-semibold">1) Payment summary</h3>
+              <h3 className="mb-2 font-semibold">1) Төлбөрийн мэдээлэл</h3>
               <div className="grid gap-2 sm:grid-cols-2">
                 <div>Төлбөрийн ID: <strong>#{payment.id}</strong></div>
                 <div>Огноо/Цаг: <strong>{formatPaymentDateTime(payment.timestamp)}</strong></div>
@@ -119,7 +119,7 @@ export default function PaymentDrawer({
             </section>
 
             <section className="mb-4 rounded-lg border border-gray-200 p-3">
-              <h3 className="mb-2 font-semibold">2) Linked</h3>
+              <h3 className="mb-2 font-semibold">2) Холбоотой мэдээлэл</h3>
               <div className="grid gap-2 sm:grid-cols-2">
                 <div>Нэхэмжлэлийн ID: <strong>{payment.invoice ? `#${payment.invoice.id}` : "-"}</strong></div>
                 <div>Өвчтөн: <strong>{formatPersonName(payment.patient.ovog, payment.patient.name)}</strong></div>
@@ -129,21 +129,21 @@ export default function PaymentDrawer({
             </section>
 
             <section className="mb-4 rounded-lg border border-gray-200 p-3">
-              <h3 className="mb-2 font-semibold">3) Audit</h3>
+              <h3 className="mb-2 font-semibold">3) Аудит</h3>
               <div className="grid gap-2 sm:grid-cols-2">
                 <div>Бүртгэсэн: <strong>{formatPersonName(payment.createdByUser?.ovog, payment.createdByUser?.name)}</strong></div>
                 <div>Тэмдэглэл: <strong>{payment.note || "-"}</strong></div>
-                <div>Reference: <strong>{payment.reference || "-"}</strong></div>
-                <div>Reversed at: <strong>{formatPaymentDateTime(payment.reversal?.reversedAt || null)}</strong></div>
-                <div>Reversed by: <strong>{formatPersonName(payment.reversal?.reversedByUser?.ovog, payment.reversal?.reversedByUser?.name)}</strong></div>
+                <div>Лавлагаа: <strong>{payment.reference || "-"}</strong></div>
+                <div>Буцаасан огноо: <strong>{formatPaymentDateTime(payment.reversal?.reversedAt || null)}</strong></div>
+                <div>Буцаасан хэрэглэгч: <strong>{formatPersonName(payment.reversal?.reversedByUser?.ovog, payment.reversal?.reversedByUser?.name)}</strong></div>
                 <div>
-                  Reversal payment id/link: <strong>{payment.reversal?.reversalPaymentId ? `#${payment.reversal.reversalPaymentId}` : "-"}</strong>
+                  Буцаалтын төлбөрийн ID: <strong>{payment.reversal?.reversalPaymentId ? `#${payment.reversal.reversalPaymentId}` : "-"}</strong>
                 </div>
               </div>
             </section>
 
             <section className="rounded-lg border border-gray-200 p-3">
-              <h3 className="mb-2 font-semibold">4) Actions</h3>
+              <h3 className="mb-2 font-semibold">4) Үйлдэл</h3>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"

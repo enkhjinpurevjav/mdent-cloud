@@ -50,7 +50,7 @@ function parseIntOrNull(value) {
   return parsed;
 }
 
-function displayReference(payment) {
+function displayReferenceOrNote(payment) {
   const meta = safeMeta(payment.meta);
   const reference = typeof meta.reference === "string" ? meta.reference.trim() : "";
   const note = typeof meta.note === "string" ? meta.note.trim() : "";
@@ -127,7 +127,7 @@ function buildPaymentLedgerRow(payment) {
     method,
     amount: Number(payment.amount || 0),
     status: deriveLedgerStatus(payment),
-    reference: displayReference(payment),
+    reference: displayReferenceOrNote(payment),
     note: displayNote(payment),
     isWallet: method === "wallet",
     invoice: payment.invoice
