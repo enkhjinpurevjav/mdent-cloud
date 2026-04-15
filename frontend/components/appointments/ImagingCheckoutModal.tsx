@@ -60,7 +60,23 @@ export default function ImagingCheckoutModal({
   const [loadingServices, setLoadingServices] = useState(false);
   const [loadingNurses, setLoadingNurses] = useState(false);
 
-  const isPerformerSet = !!(existingPerformer?.type);
+  const isPerformerSet = !!existingPerformer?.type;
+
+  // Reset state when opening
+  useEffect(() => {
+    if (!open) return;
+    setError("");
+    setLoading(false);
+    setLoadingServices(false);
+    setLoadingNurses(false);
+
+    // Keep existing performer locked, otherwise reset to defaults
+    setPerformerType(existingPerformer?.type || "DOCTOR");
+    setSelectedNurseId(existingPerformer?.nurseId || null);
+
+    // IMPORTANT: do not auto-select services; user chooses each time
+    setSelectedServiceIds([]);
+  }, [open, existingPerformer?.type, existingPerformer?.nurseId]);
 
   // Fetch IMAGING services
   useEffect(() => {
@@ -73,7 +89,7 @@ export default function ImagingCheckoutModal({
         if (!res.ok) throw new Error("Failed to fetch services");
 
         const data = await res.json();
-        const imagingServices = data.filter(
+        const imagingServices = (Array.isArray(data) ? data : []).filter(
           (s: Service) => s.category === "IMAGING"
         );
         setServices(imagingServices);
@@ -88,7 +104,7 @@ export default function ImagingCheckoutModal({
     fetchServices();
   }, [open]);
 
-  // Fetch nurses by branch
+  // Fetch nurses by branch (shift-independent)
   useEffect(() => {
     if (!open || performerType !== "NURSE") return;
 
@@ -101,13 +117,15 @@ export default function ImagingCheckoutModal({
         if (!res.ok) throw new Error("Failed to fetch nurses");
 
         const data: NurseByBranchResponse = await res.json();
-        
+
         const nurseList = (data.items || []).map((item) => ({
           id: item.nurseId,
           name: item.name,
         }));
-        
+
         setNurses(nurseList);
+
+        // If previously selected nurse is not in this branch list, clear it
         setSelectedNurseId((prev) =>
           prev && nurseList.every((nurse) => nurse.id !== prev) ? null : prev
         );
@@ -133,80 +151,84 @@ export default function ImagingCheckoutModal({
   const handleSave = async () => {
     setError("");
 
-    // Validate performer is set
+    // Validate services
+    if (selectedServiceIds.length < 1) {
+      setError("Үйлчилгээ сонгоно уу");
+      return;
+    }
+
+    // Validate performer selection (only when not locked)
     if (!isPerformerSet) {
       if (performerType === "NURSE" && !selectedNurseId) {
         setError("Сувилагчийг сонгоно уу");
         return;
       }
-
-      // Set performer first if not already set
-      setLoading(true);
-      try {
-        const performerRes = await fetch(
-          `/api/appointments/${appointmentId}/imaging/set-performer`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              performerType,
-              nurseId: performerType === "NURSE" ? selectedNurseId : null,
-            }),
-          }
-        );
-
-        if (!performerRes.ok) {
-          const errData = await performerRes.json();
-          throw new Error(errData.error || "Failed to set performer");
-        }
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Гүйцэтгэгч тохируулахад алдаа гарлаа";
-        setError(errorMessage);
-        setLoading(false);
-        return;
-      }
     }
 
-    // Transition to ready_to_pay with services
+    setLoading(true);
+
     try {
+      // IMPORTANT FIX:
+      // Use XRAY-style save config which persists:
+      // - performer (doctor/nurse)
+      // - selected imaging services
+      // AND writes encounterServices.meta (assignedTo + nurseId)
+      // so billing sees nurse attribution.
+      const configRes = await fetch(
+        `/api/appointments/${appointmentId}/imaging/config`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            performerType,
+            nurseId: performerType === "NURSE" ? selectedNurseId : null,
+            selectedServiceIds,
+          }),
+        }
+      );
+
+      if (!configRes.ok) {
+        const errData = await configRes.json().catch(() => ({}));
+        throw new Error(errData.error || "Imaging config хадгалахад алдаа гарлаа");
+      }
+
+      // Transition to ready_to_pay.
+      // IMPORTANT: do NOT pass serviceIds here; backend uses saved config to avoid
+      // normalizing imaging lines to DOCTOR and wiping nurse meta.
       const transitionRes = await fetch(
         `/api/appointments/${appointmentId}/imaging/transition-to-ready`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            serviceIds: selectedServiceIds,
-          }),
+          body: JSON.stringify({}),
         }
       );
 
       if (!transitionRes.ok) {
-        const errData = await transitionRes.json();
-        
+        const errData = await transitionRes.json().catch(() => ({}));
+
         // Handle duplicate error specially
         if (errData.duplicates && Array.isArray(errData.duplicates)) {
-          setError(
-            `${errData.error}\n${errData.duplicates.join("\n")}`
-          );
-          setLoading(false);
+          setError(`${errData.error}\n${errData.duplicates.join("\n")}`);
           return;
         }
-        
+
         throw new Error(errData.error || "Failed to transition");
       }
 
-      const result = await transitionRes.json();
-      
+      const result = await transitionRes.json().catch(() => ({}));
+
       // Success - redirect to billing
       if (onSuccess && result.encounterId) {
         onSuccess(result.encounterId);
       }
-      
+
       onClose();
     } catch (err) {
       const errorMessage =
-        err instanceof Error ? err.message : "Төлбөр төлөх төлөвт шилжүүлэхэд алдаа гарлаа";
+        err instanceof Error
+          ? err.message
+          : "Төлбөр төлөх төлөвт шилжүүлэхэд алдаа гарлаа";
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -215,8 +237,10 @@ export default function ImagingCheckoutModal({
 
   if (!open) return null;
 
-  const isSubmitDisabled = 
-    loading || (performerType === "NURSE" && !selectedNurseId && !isPerformerSet);
+  const isSubmitDisabled =
+    loading ||
+    selectedServiceIds.length < 1 ||
+    (!isPerformerSet && performerType === "NURSE" && !selectedNurseId);
 
   return (
     <div
@@ -306,7 +330,8 @@ export default function ImagingCheckoutModal({
             >
               {existingPerformer?.type === "DOCTOR" ? (
                 <>
-                  <strong>Эмч:</strong> {existingPerformer.doctorName || doctorName || "-"}
+                  <strong>Эмч:</strong>{" "}
+                  {existingPerformer.doctorName || doctorName || "-"}
                 </>
               ) : (
                 <>
@@ -320,7 +345,14 @@ export default function ImagingCheckoutModal({
           ) : (
             <>
               <div style={{ marginBottom: 12 }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    cursor: "pointer",
+                  }}
+                >
                   <input
                     type="radio"
                     name="performerType"
@@ -335,7 +367,14 @@ export default function ImagingCheckoutModal({
               </div>
 
               <div style={{ marginBottom: 12 }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    cursor: "pointer",
+                  }}
+                >
                   <input
                     type="radio"
                     name="performerType"
