@@ -1088,11 +1088,16 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
     const { updatedInvoice } = result;
     const paidTotal = computePaidTotal(updatedInvoice.payments);
 
+    const numericCurrentBaseAmount = Number(currentBaseAmount);
+    const numericAmountForOld = Number(amountForOld);
+
     const shouldCompleteMarkerAppointment =
       hasMarker &&
       closeOldBalance === true &&
-      Number(currentBaseAmount) === 0 &&
-      Number(amountForOld) > 0 &&
+      Number.isFinite(numericCurrentBaseAmount) &&
+      numericCurrentBaseAmount === 0 &&
+      Number.isFinite(numericAmountForOld) &&
+      numericAmountForOld > 0 &&
       (encounter.appointment?.status === "ready_to_pay" ||
         encounter.appointment?.status === "partial_paid");
 
