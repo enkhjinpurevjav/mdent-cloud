@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildPaymentLedgerRow,
   buildPaymentsSummary,
   deriveLedgerStatus,
   getReversalPaymentId,
@@ -36,4 +37,30 @@ test("buildPaymentsSummary", () => {
     reversedTotal: 5000,
     netCollected: 7000,
   });
+});
+
+test("buildPaymentLedgerRow includes encounter appointment schedule data for drawer", () => {
+  const row = buildPaymentLedgerRow({
+    id: 1,
+    timestamp: "2026-04-15T20:00:00.000Z",
+    method: "transfer",
+    amount: 10000,
+    meta: {},
+    invoice: {
+      id: 100,
+      statusLegacy: "paid",
+      branch: null,
+      patient: null,
+      encounter: {
+        appointment: {
+          scheduledAt: "2026-04-15T20:00:00.000Z",
+        },
+        doctor: null,
+        patientBook: null,
+      },
+    },
+    createdBy: null,
+  });
+
+  assert.equal(row.invoice?.encounter?.appointment?.scheduledAt, "2026-04-15T20:00:00.000Z");
 });

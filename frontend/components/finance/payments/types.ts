@@ -34,6 +34,11 @@ export type PaymentRow = {
   invoice: {
     id: number;
     statusLegacy: string | null;
+    encounter: {
+      appointment: {
+        scheduledAt: string | null;
+      } | null;
+    } | null;
   } | null;
   patient: {
     id: number | null;

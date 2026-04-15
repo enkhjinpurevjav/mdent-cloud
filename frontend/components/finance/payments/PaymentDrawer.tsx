@@ -1,7 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import ReversePaymentModal from "./ReversePaymentModal";
-import { fmtMnt, formatPaymentDateTime, formatPaymentMethod, formatPaymentStatus, formatPersonName } from "./formatters";
+import {
+  fmtMnt,
+  formatPaymentDateTime,
+  formatPaymentMethod,
+  formatPaymentScheduleDateTime,
+  formatPaymentStatus,
+  formatPersonName,
+} from "./formatters";
 import type { PaymentDetail } from "./types";
 
 type Props = {
@@ -125,6 +132,10 @@ export default function PaymentDrawer({
                 <div>Өвчтөн: <strong>{formatPersonName(payment.patient.ovog, payment.patient.name)}</strong></div>
                 <div>Эмч: <strong>{formatPersonName(payment.doctor?.ovog, payment.doctor?.name)}</strong></div>
                 <div>Салбар: <strong>{payment.branch?.name || "-"}</strong></div>
+                <div>
+                  Захиалгын огноо:{" "}
+                  <strong>{formatPaymentScheduleDateTime(payment.invoice?.encounter?.appointment?.scheduledAt)}</strong>
+                </div>
               </div>
             </section>
 

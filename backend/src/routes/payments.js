@@ -105,7 +105,7 @@ function fmtUser(user) {
   };
 }
 
-function buildPaymentLedgerRow(payment) {
+export function buildPaymentLedgerRow(payment) {
   const patient = resolvePatient(payment);
   const method = normalizeMethod(payment.method);
 
@@ -134,6 +134,15 @@ function buildPaymentLedgerRow(payment) {
       ? {
           id: payment.invoice.id,
           statusLegacy: payment.invoice.statusLegacy ?? null,
+          encounter: payment.invoice.encounter
+            ? {
+                appointment: payment.invoice.encounter.appointment
+                  ? {
+                      scheduledAt: payment.invoice.encounter.appointment.scheduledAt ?? null,
+                    }
+                  : null,
+              }
+            : null,
         }
       : null,
     patient: {
@@ -369,6 +378,7 @@ router.get("/:id", async (req, res) => {
             encounter: {
               select: {
                 doctor: { select: { id: true, name: true, ovog: true } },
+                appointment: { select: { scheduledAt: true } },
                 patientBook: {
                   select: {
                     patient: {
