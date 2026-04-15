@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import AddPaymentModal from "./AddPaymentModal";
 import type { InvoiceDetail } from "./types";
 
@@ -50,7 +50,7 @@ export default function InvoiceDrawer({
 
   const canLoad = open && !!invoiceId;
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!invoiceId) return;
     setLoading(true);
     setError("");
@@ -65,13 +65,13 @@ export default function InvoiceDrawer({
     } finally {
       setLoading(false);
     }
-  };
+  }, [invoiceId]);
 
   useEffect(() => {
     if (canLoad) {
       void load();
     }
-  }, [invoiceId, canLoad, refreshSignal]);
+  }, [canLoad, load, refreshSignal]);
 
   const paid = invoice?.paid || 0;
   const total = invoice?.total || 0;
@@ -97,6 +97,38 @@ export default function InvoiceDrawer({
       onDataChanged();
     } catch (err: any) {
       setIssueError(err?.message || "eBarimt гаргахад алдаа гарлаа.");
+    } finally {
+      setIssuing(false);
+    }
+  };
+
+  const reissueEbarimt = async () => {
+    if (!invoiceId) return;
+    setIssuing(true);
+    setIssueError("");
+    try {
+      const refundRes = await fetch(`/api/ebarimt/invoices/${invoiceId}/refund`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const refundJson = await refundRes.json().catch(() => null);
+      if (!refundRes.ok) {
+        throw new Error(refundJson?.error || "eBarimt буцаахад алдаа гарлаа.");
+      }
+
+      const issueRes = await fetch(`/api/ebarimt/invoices/${invoiceId}/issue`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const issueJson = await issueRes.json().catch(() => null);
+      if (!issueRes.ok) {
+        throw new Error(issueJson?.error || "eBarimt дахин гаргахад алдаа гарлаа.");
+      }
+
+      await load();
+      onDataChanged();
+    } catch (err: any) {
+      setIssueError(err?.message || "eBarimt дахин гаргахад алдаа гарлаа.");
     } finally {
       setIssuing(false);
     }
@@ -235,7 +267,7 @@ export default function InvoiceDrawer({
                 </button>
                 <button
                   type="button"
-                  disabled={!canIssue || issuing}
+                  disabled={!canIssue || issuing || invoice.ebarimt.issued}
                   onClick={issueEbarimt}
                   className="rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-sm text-green-700 disabled:opacity-50"
                 >
@@ -243,8 +275,8 @@ export default function InvoiceDrawer({
                 </button>
                 <button
                   type="button"
-                  disabled={!canIssue || issuing}
-                  onClick={issueEbarimt}
+                  disabled={!canIssue || issuing || !invoice.ebarimt.issued}
+                  onClick={reissueEbarimt}
                   className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm text-amber-700 disabled:opacity-50"
                 >
                   🔄 Reissue eBarimt

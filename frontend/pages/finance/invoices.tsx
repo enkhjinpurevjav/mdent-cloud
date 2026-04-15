@@ -57,7 +57,7 @@ export default function FinanceInvoicesPage() {
     if (!authLoading && me && !canView) {
       void router.replace("/");
     }
-  }, [authLoading, me, canView, router]);
+  }, [authLoading, me, router]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

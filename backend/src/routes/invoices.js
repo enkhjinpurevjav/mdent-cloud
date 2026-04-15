@@ -16,7 +16,7 @@ const EBARIMT_STATUS_VALUES = new Set(["all", "issued", "not_issued"]);
 
 function parseDateOnlyStart(value) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  const dt = new Date(`${value}T00:00:00.000Z`);
+  const dt = new Date(`${value}T00:00:00`);
   return Number.isNaN(dt.getTime()) ? null : dt;
 }
 
@@ -260,11 +260,23 @@ router.get("/", async (req, res) => {
     }
 
     const page = Math.max(Number(req.query.page || 1), 1);
-    const rawPageSize = Number(req.query.pageSize || DEFAULT_PAGE_SIZE);
+    const rawPageSize =
+      req.query.pageSize == null || req.query.pageSize === ""
+        ? DEFAULT_PAGE_SIZE
+        : Number(req.query.pageSize);
+    if (Number.isNaN(rawPageSize)) {
+      return res.status(400).json({ error: "Invalid pageSize query parameter." });
+    }
     const pageSize = Math.min(Math.max(rawPageSize, MIN_PAGE_SIZE), MAX_PAGE_SIZE);
     const branchId = req.query.branchId ? Number(req.query.branchId) : null;
     const doctorId = req.query.doctorId ? Number(req.query.doctorId) : null;
-    const invoiceId = req.query.invoiceId ? Number(req.query.invoiceId) : null;
+    const invoiceId =
+      req.query.invoiceId == null || req.query.invoiceId === ""
+        ? null
+        : Number(req.query.invoiceId);
+    if (invoiceId !== null && Number.isNaN(invoiceId)) {
+      return res.status(400).json({ error: "Invalid invoiceId query parameter." });
+    }
     const patientSearch =
       typeof req.query.patientSearch === "string"
         ? req.query.patientSearch.trim()

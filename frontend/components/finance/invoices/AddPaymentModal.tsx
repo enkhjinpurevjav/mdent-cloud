@@ -49,7 +49,7 @@ export default function AddPaymentModal({ open, invoiceId, onClose, onSuccess }:
     e.preventDefault();
     const amountNum = Number(amount);
     if (!Number.isInteger(amountNum) || amountNum <= 0) {
-      setError("Дүн бүхэл тоо байх ёстой.");
+      setError("Дүн эерэг бүхэл тоо байх ёстой.");
       return;
     }
     if (!method) {
