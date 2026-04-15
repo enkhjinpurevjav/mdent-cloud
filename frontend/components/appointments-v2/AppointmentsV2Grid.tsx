@@ -4,12 +4,15 @@ import DoctorColumnV2 from "./DoctorColumnV2";
 import type { AppointmentBlockGeometry } from "./AppointmentBlockV2";
 
 const EMPTY_BLOCKS: AppointmentBlockGeometry[] = [];
+const GRID_MIN_WIDTH_PX = 840;
 
 type AppointmentsV2GridProps = {
   doctors: ScheduledDoctor[];
   timeSlots: TimeSlot[];
   slotHeightPx: number;
   columnHeightPx: number;
+  stickyHeaderHeightPx: number;
+  nowPosition: number | null;
   blocksByDoctorId: Record<number, AppointmentBlockGeometry[]>;
   slotOccupancyByDoctorId: Record<number, Record<string, number>>;
   onCellClick: (doctor: ScheduledDoctor, slotLabel: string) => void;
@@ -34,6 +37,8 @@ function AppointmentsV2Grid({
   timeSlots,
   slotHeightPx,
   columnHeightPx,
+  stickyHeaderHeightPx,
+  nowPosition,
   blocksByDoctorId,
   slotOccupancyByDoctorId,
   onCellClick,
@@ -75,7 +80,23 @@ function AppointmentsV2Grid({
           WebkitOverflowScrolling: "touch",
         }}
       >
-        <div style={{ display: "flex", minWidth: 840 }}>
+        <div style={{ position: "relative", minWidth: GRID_MIN_WIDTH_PX }}>
+          {nowPosition !== null && (
+            <div
+              style={{
+                position: "absolute",
+                top: stickyHeaderHeightPx + nowPosition,
+                left: 0,
+                right: 0,
+                zIndex: 50,
+                pointerEvents: "none",
+              }}
+            >
+              <div style={{ borderTop: "2px dashed #ef4444" }} />
+            </div>
+          )}
+
+          <div style={{ display: "flex" }}>
           <div
             style={{
               minWidth: 80,
@@ -148,6 +169,7 @@ function AppointmentsV2Grid({
               disableAppointmentClicks={disableAppointmentClicks}
             />
           ))}
+          </div>
         </div>
       </div>
     </div>
@@ -160,6 +182,8 @@ export default React.memo(AppointmentsV2Grid, (prev, next) => {
     prev.timeSlots === next.timeSlots &&
     prev.slotHeightPx === next.slotHeightPx &&
     prev.columnHeightPx === next.columnHeightPx &&
+    prev.stickyHeaderHeightPx === next.stickyHeaderHeightPx &&
+    prev.nowPosition === next.nowPosition &&
     prev.blocksByDoctorId === next.blocksByDoctorId &&
     prev.slotOccupancyByDoctorId === next.slotOccupancyByDoctorId &&
     prev.onCellClick === next.onCellClick &&
