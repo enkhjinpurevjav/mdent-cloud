@@ -20,6 +20,7 @@ import appointmentsRouter from "./routes/appointments.js";
 import servicesRouter from "./routes/services.js";
 import serviceCategorySettingsRouter from "./routes/serviceCategorySettings.js";
 import reportsRouter from "./routes/reports.js";
+import dashboardRouter from "./routes/dashboard.js";
 import doctorsRouter from "./routes/doctors.js";
 import bookingsRouter from "./routes/bookings.js";
 import staffSummaryRoutes from "./routes/staff-summary.js";
@@ -209,6 +210,7 @@ app.use("/api", (req, res, next) => {
 // RBAC: /api/admin/* requires admin or super_admin
 const requireAdminRole = requireRole("admin", "super_admin");
 app.use("/api/admin", requireAdminRole);
+app.use("/api/dashboard", requireAdminRole);
 
 // RBAC: /api/users gate
 // - admin/super_admin: full access
@@ -263,6 +265,7 @@ app.use("/api/appointments", appointmentsRouter);
 app.use("/api/services", servicesRouter);
 app.use("/api/service-category-settings", serviceCategorySettingsRouter);
 app.use("/api/reports", reportsRouter);
+app.use("/api/dashboard", dashboardRouter);
 app.use("/api/reports", reportsPatientBalancesRouter);
 app.use("/api", sterilizationRouter);
 app.use("/api/regno", regnoRouter);
