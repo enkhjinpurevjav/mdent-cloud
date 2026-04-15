@@ -5,6 +5,7 @@ import {
   computeFilledSlotsByBranch,
   computeSalesTodayByBranch,
   computeScheduleStatsByBranch,
+  getLocalDayRange,
 } from "../utils/adminHomeDashboard.js";
 
 const router = Router();
@@ -15,9 +16,16 @@ router.get("/admin-home", async (req, res) => {
       return res.status(403).json({ error: "Forbidden. Insufficient role." });
     }
 
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const today = new Date();
+    const defaultDay = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(
+      today.getDate()
+    ).padStart(2, "0")}`;
+    const day = typeof req.query.day === "string" && req.query.day ? req.query.day : defaultDay;
+    const range = getLocalDayRange(day);
+    if (!range) {
+      return res.status(400).json({ error: "day query param must be YYYY-MM-DD" });
+    }
+    const { start, endExclusive } = range;
 
     const branches = await prisma.branch.findMany({
       select: { id: true, name: true },
@@ -34,7 +42,7 @@ router.get("/admin-home", async (req, res) => {
       prisma.doctorSchedule.findMany({
         where: {
           branchId: { in: branchIds },
-          date: { gte: todayStart, lte: todayEnd },
+          date: { gte: start, lt: endExclusive },
         },
         select: {
           branchId: true,
@@ -47,18 +55,19 @@ router.get("/admin-home", async (req, res) => {
         where: {
           branchId: { in: branchIds },
           doctorId: { not: null },
-          scheduledAt: { gte: todayStart, lte: todayEnd },
+          scheduledAt: { gte: start, lt: endExclusive },
         },
         select: {
           branchId: true,
           doctorId: true,
           scheduledAt: true,
+          endAt: true,
           status: true,
         },
       }),
       prisma.payment.findMany({
         where: {
-          timestamp: { gte: todayStart, lte: todayEnd },
+          timestamp: { gte: start, lt: endExclusive },
           method: { in: ADMIN_HOME_INCOME_METHODS },
           amount: { gt: 0 },
           invoice: {

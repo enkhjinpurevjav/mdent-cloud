@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   computeFilledSlotsByBranch,
+  getLocalDayRange,
   computeSalesTodayByBranch,
   computeScheduleStatsByBranch,
 } from "../utils/adminHomeDashboard.js";
@@ -21,20 +22,52 @@ describe("computeScheduleStatsByBranch", () => {
 });
 
 describe("computeFilledSlotsByBranch", () => {
-  it("counts distinct doctor + slot, excluding canceled and no_show", () => {
-    const sameSlot = new Date("2026-04-15T09:00:00.000Z");
-    const anotherSlot = new Date("2026-04-15T09:30:00.000Z");
+  it("counts distinct doctor + slot coverage by duration, excluding canceled and no_show", () => {
+    const start = new Date("2026-04-15T09:00:00.000Z");
+    const nineThirty = new Date("2026-04-15T09:30:00.000Z");
 
     const filled = computeFilledSlotsByBranch([
-      { branchId: 1, doctorId: 10, scheduledAt: sameSlot, status: "booked" },
-      { branchId: 1, doctorId: 10, scheduledAt: sameSlot, status: "completed" }, // duplicate
-      { branchId: 1, doctorId: 10, scheduledAt: anotherSlot, status: "checked_in" },
-      { branchId: 1, doctorId: 11, scheduledAt: sameSlot, status: "no_show" }, // excluded
-      { branchId: 2, doctorId: 12, scheduledAt: sameSlot, status: "CANCELED" }, // excluded
+      // 90-minute appt: 09:00, 09:30, 10:00
+      {
+        branchId: 1,
+        doctorId: 10,
+        scheduledAt: start,
+        endAt: new Date("2026-04-15T10:30:00.000Z"),
+        status: "booked",
+      },
+      // overlaps at 09:30 and 10:00, adds only 10:30 slot
+      {
+        branchId: 1,
+        doctorId: 10,
+        scheduledAt: nineThirty,
+        endAt: new Date("2026-04-15T11:00:00.000Z"),
+        status: "completed",
+      },
+      // null endAt fallback: 1 slot at 09:00 for a different doctor
+      { branchId: 1, doctorId: 11, scheduledAt: start, endAt: null, status: "checked_in" },
+      { branchId: 1, doctorId: 12, scheduledAt: start, endAt: nineThirty, status: "no_show" }, // excluded
+      { branchId: 2, doctorId: 12, scheduledAt: start, endAt: nineThirty, status: "CANCELED" }, // excluded
     ]);
 
-    assert.equal(filled.get(1), 2);
+    assert.equal(filled.get(1), 5);
     assert.equal(filled.has(2), false);
+  });
+});
+
+describe("getLocalDayRange", () => {
+  it("returns [start, endExclusive) for valid YYYY-MM-DD", () => {
+    const range = getLocalDayRange("2026-04-15");
+    assert.ok(range);
+    assert.equal(range.start.getHours(), 0);
+    assert.equal(range.start.getMinutes(), 0);
+    assert.equal(range.endExclusive.getDate() - range.start.getDate(), 1);
+    assert.equal(range.endExclusive.getHours(), 0);
+    assert.equal(range.endExclusive.getMinutes(), 0);
+  });
+
+  it("rejects invalid day format and impossible dates", () => {
+    assert.equal(getLocalDayRange("2026-4-15"), null);
+    assert.equal(getLocalDayRange("2026-02-31"), null);
   });
 });
 

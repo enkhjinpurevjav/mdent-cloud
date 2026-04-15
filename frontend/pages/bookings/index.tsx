@@ -27,6 +27,13 @@ function getFillingColor(rate: number | null) {
   return "#16a34a";
 }
 
+function getBrowserTodayYmd(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+    now.getDate()
+  ).padStart(2, "0")}`;
+}
+
 export default function BookingsDashboardPage() {
   const router = useRouter();
   const { me, loading: authLoading } = useAuth();
@@ -52,7 +59,8 @@ export default function BookingsDashboardPage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch("/api/dashboard/admin-home", {
+        const day = getBrowserTodayYmd();
+        const res = await fetch(`/api/dashboard/admin-home?day=${encodeURIComponent(day)}`, {
           credentials: "include",
         });
         const data = (await res.json().catch(() => null)) as AdminHomeResponse | null;

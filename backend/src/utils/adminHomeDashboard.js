@@ -4,6 +4,7 @@ import {
 } from "../constants/dashboard.js";
 
 const EXCLUDED_STATUS_SET = new Set(ADMIN_HOME_EXCLUDED_APPOINTMENT_STATUSES);
+const YMD_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 export function hmToMinutes(value) {
   if (!value) return 0;
@@ -42,19 +43,44 @@ export function computeFilledSlotsByBranch(appointments) {
     if (EXCLUDED_STATUS_SET.has(status)) continue;
     if (!appt.doctorId) continue;
 
-    const dateKey = `${appt.scheduledAt.getFullYear()}-${appt.scheduledAt.getMonth()}-${appt.scheduledAt.getDate()}`;
-    const slotIndex = Math.floor(
-      (appt.scheduledAt.getHours() * 60 + appt.scheduledAt.getMinutes()) /
-        ADMIN_HOME_SLOT_MINUTES
-    );
-    const doctorSlotKey = `${appt.branchId}:${appt.doctorId}:${dateKey}:${slotIndex}`;
-    if (seen.has(doctorSlotKey)) continue;
-    seen.add(doctorSlotKey);
+    if (!(appt.scheduledAt instanceof Date) || Number.isNaN(appt.scheduledAt.getTime())) continue;
 
-    filledByBranch.set(appt.branchId, (filledByBranch.get(appt.branchId) || 0) + 1);
+    const startAt = appt.scheduledAt;
+    const endAt =
+      appt.endAt instanceof Date && !Number.isNaN(appt.endAt.getTime()) ? appt.endAt : null;
+    const durationMinutes = endAt ? (endAt.getTime() - startAt.getTime()) / 60000 : 0;
+    const slotSpan = Math.max(1, Math.ceil(durationMinutes / ADMIN_HOME_SLOT_MINUTES));
+
+    const dateKey = `${startAt.getFullYear()}-${startAt.getMonth()}-${startAt.getDate()}`;
+    const startSlotIndex = Math.floor(
+      (startAt.getHours() * 60 + startAt.getMinutes()) / ADMIN_HOME_SLOT_MINUTES
+    );
+    const endSlotIndexExclusive = startSlotIndex + slotSpan;
+
+    for (let slotIndex = startSlotIndex; slotIndex < endSlotIndexExclusive; slotIndex += 1) {
+      const doctorSlotKey = `${appt.branchId}:${appt.doctorId}:${dateKey}:${slotIndex}`;
+      if (seen.has(doctorSlotKey)) continue;
+      seen.add(doctorSlotKey);
+      filledByBranch.set(appt.branchId, (filledByBranch.get(appt.branchId) || 0) + 1);
+    }
   }
 
   return filledByBranch;
+}
+
+export function getLocalDayRange(day) {
+  if (!YMD_REGEX.test(String(day || ""))) return null;
+  const [year, month, date] = String(day).split("-").map(Number);
+  const start = new Date(year, month - 1, date, 0, 0, 0, 0);
+  if (
+    start.getFullYear() !== year ||
+    start.getMonth() !== month - 1 ||
+    start.getDate() !== date
+  ) {
+    return null;
+  }
+  const endExclusive = new Date(year, month - 1, date + 1, 0, 0, 0, 0);
+  return { start, endExclusive };
 }
 
 export function computeSalesTodayByBranch(payments) {
