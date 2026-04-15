@@ -4,6 +4,7 @@ import DoctorColumnV2 from "./DoctorColumnV2";
 import type { AppointmentBlockGeometry } from "./AppointmentBlockV2";
 
 const EMPTY_BLOCKS: AppointmentBlockGeometry[] = [];
+const GRID_MIN_WIDTH_PX = 840;
 
 type AppointmentsV2GridProps = {
   doctors: ScheduledDoctor[];
@@ -79,7 +80,7 @@ function AppointmentsV2Grid({
           WebkitOverflowScrolling: "touch",
         }}
       >
-        <div style={{ position: "relative", minWidth: 840 }}>
+        <div style={{ position: "relative", minWidth: GRID_MIN_WIDTH_PX }}>
           {nowPosition !== null && (
             <div
               style={{

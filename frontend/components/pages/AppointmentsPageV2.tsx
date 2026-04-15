@@ -306,6 +306,17 @@ export default function AppointmentsPageV2() {
   });
 
   const timeSlots = useMemo(() => generateTimeSlotsForDay(getDateFromYMD(selectedDate)), [selectedDate]);
+  const businessNowFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat("en-GB", {
+        timeZone: BUSINESS_TIME_ZONE,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      }),
+    []
+  );
 
   const firstSlot = timeSlots[0]?.start;
   const lastSlot = timeSlots[timeSlots.length - 1]?.end;
@@ -331,13 +342,7 @@ export default function AppointmentsPageV2() {
       const now = new Date();
       const todayInBusinessTime = getBusinessYmd(now);
 
-      const nowHmParts = new Intl.DateTimeFormat("en-GB", {
-        timeZone: BUSINESS_TIME_ZONE,
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: false,
-      }).formatToParts(now);
+      const nowHmParts = businessNowFormatter.formatToParts(now);
       const nowHour = nowHmParts.find((part) => part.type === "hour")?.value ?? "00";
       const nowMinute = nowHmParts.find((part) => part.type === "minute")?.value ?? "00";
       const nowSecond = nowHmParts.find((part) => part.type === "second")?.value ?? "00";
@@ -356,7 +361,7 @@ export default function AppointmentsPageV2() {
     updateNowPosition();
     const intervalId = window.setInterval(updateNowPosition, 60_000);
     return () => window.clearInterval(intervalId);
-  }, [selectedDate, firstSlot, lastSlot, totalMinutes, columnHeightPx]);
+  }, [selectedDate, firstSlot, lastSlot, totalMinutes, columnHeightPx, businessNowFormatter]);
 
   const effectiveAppointments = useMemo(
     () =>
