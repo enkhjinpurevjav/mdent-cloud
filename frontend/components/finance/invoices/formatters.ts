@@ -31,6 +31,29 @@ export function formatFinanceDateTime(value: string | null | undefined): string 
   return formatAuditDateTime(raw);
 }
 
+export function formatScheduleDateTimeNaive(value: string | null | undefined): string {
+  if (!value) return "-";
+  const raw = String(value).trim();
+  if (!raw) return "-";
+
+  if (/z$/i.test(raw)) {
+    const dt = new Date(raw);
+    if (Number.isNaN(dt.getTime())) return "-";
+    const yyyy = String(dt.getUTCFullYear()).padStart(4, "0");
+    const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(dt.getUTCDate()).padStart(2, "0");
+    const hh = String(dt.getUTCHours()).padStart(2, "0");
+    const min = String(dt.getUTCMinutes()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(raw)) {
+    return formatNaiveDateTime(raw.replace("T", " "));
+  }
+
+  return formatAuditDateTime(raw);
+}
+
 export function formatPaymentMethodLabel(value: string | null | undefined): string {
   if (!value) return "-";
   const raw = String(value).trim();
