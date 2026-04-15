@@ -1,4 +1,4 @@
-import { formatFinanceDateTime } from "../invoices/formatters";
+import { formatFinanceDateTime, formatPaymentMethodLabel, formatScheduleDateTimeNaive } from "../invoices/formatters";
 
 export function fmtMnt(value: number) {
   return `${Number(value || 0).toLocaleString("mn-MN")} ₮`;
@@ -9,8 +9,11 @@ export function formatPaymentDateTime(value: string | null | undefined): string 
 }
 
 export function formatPaymentMethod(value: string | null | undefined): string {
-  if (!value) return "-";
-  return String(value).trim().toLowerCase();
+  return formatPaymentMethodLabel(value);
+}
+
+export function formatPaymentScheduleDateTime(value: string | null | undefined): string {
+  return formatScheduleDateTimeNaive(value);
 }
 
 export function formatPaymentStatus(value: string | null | undefined): string {
