@@ -8,6 +8,146 @@ import { sseBroadcast } from "./appointments.js";
 
 const router = express.Router();
 
+const DEFAULT_PAGE_SIZE = 20;
+const MIN_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 50;
+const PAYMENT_STATUS_VALUES = new Set(["all", "paid", "partial", "unpaid", "overpaid"]);
+const EBARIMT_STATUS_VALUES = new Set(["all", "issued", "not_issued"]);
+
+function parseDateOnlyStart(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const dt = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function parseDateOnlyEndExclusive(value) {
+  const start = parseDateOnlyStart(value);
+  if (!start) return null;
+  return new Date(start.getTime() + 24 * 60 * 60 * 1000);
+}
+
+function normalizeMoney(value) {
+  return Number(Number(value || 0).toFixed(2));
+}
+
+export function derivePaymentStatus(totalAmount, paidAmount) {
+  const total = normalizeMoney(totalAmount);
+  const paid = normalizeMoney(paidAmount);
+  const epsilon = 0.01;
+
+  if (paid <= 0) return "unpaid";
+  if (paid + epsilon < total) return "partial";
+  if (Math.abs(paid - total) <= epsilon) return "paid";
+  return "overpaid";
+}
+
+function formatMethodLabel(method) {
+  if (!method) return "-";
+  const normalized = String(method).trim().toUpperCase();
+  if (normalized === "QPAY") return "QPay";
+  if (normalized === "POS") return "POS";
+  if (normalized === "CASH") return "Cash";
+  if (normalized === "WALLET") return "Wallet";
+  if (normalized === "TRANSFER") return "Transfer";
+  if (normalized === "INSURANCE") return "Insurance";
+  if (normalized === "APPLICATION") return "Application";
+  return normalized;
+}
+
+export function buildPaymentMethodSummary(payments = []) {
+  const byMethod = new Map();
+  for (const p of payments) {
+    const key = String(p.method || "").trim().toUpperCase();
+    if (!key) continue;
+    const prev = byMethod.get(key) || { method: key, amount: 0, count: 0 };
+    prev.amount = normalizeMoney(prev.amount + Number(p.amount || 0));
+    prev.count += 1;
+    byMethod.set(key, prev);
+  }
+
+  const methods = Array.from(byMethod.values()).sort((a, b) => b.amount - a.amount);
+  const methodLabels = methods.map((m) => formatMethodLabel(m.method));
+  const label = methodLabels.length <= 1 ? (methodLabels[0] || "-") : `Mixed (${methodLabels.join("/")})`;
+
+  return {
+    methods,
+    label,
+    hasWallet: methods.some((m) => m.method === "WALLET"),
+  };
+}
+
+function resolvePatient(invoice) {
+  return (
+    invoice.patient ||
+    invoice.encounter?.patientBook?.patient || {
+      id: null,
+      name: null,
+      ovog: null,
+      phone: null,
+      regNo: null,
+    }
+  );
+}
+
+function buildInvoiceFinanceRow(invoice) {
+  const total = normalizeMoney(
+    invoice.finalAmount != null ? Number(invoice.finalAmount) : Number(invoice.totalAmount || 0)
+  );
+  const paid = normalizeMoney(computePaidTotal(invoice.payments || []));
+  const remaining = normalizeMoney(total - paid);
+  const status = derivePaymentStatus(total, paid);
+  const paymentSummary = buildPaymentMethodSummary(invoice.payments || []);
+  const patient = resolvePatient(invoice);
+  const lastPaymentAt = (invoice.payments || []).reduce((latest, p) => {
+    const current = p?.timestamp ? new Date(p.timestamp) : null;
+    if (!current || Number.isNaN(current.getTime())) return latest;
+    if (!latest) return current;
+    return current > latest ? current : latest;
+  }, null);
+
+  return {
+    id: invoice.id,
+    encounterId: invoice.encounterId,
+    createdAt: invoice.createdAt,
+    patient: {
+      id: patient.id ?? null,
+      name: patient.name ?? null,
+      ovog: patient.ovog ?? null,
+      phone: patient.phone ?? null,
+      regNo: patient.regNo ?? null,
+    },
+    doctor: invoice.encounter?.doctor
+      ? {
+          id: invoice.encounter.doctor.id,
+          name: invoice.encounter.doctor.name ?? null,
+          ovog: invoice.encounter.doctor.ovog ?? null,
+        }
+      : null,
+    branch: invoice.branch
+      ? {
+          id: invoice.branch.id,
+          name: invoice.branch.name,
+        }
+      : null,
+    total,
+    paid,
+    remaining,
+    status,
+    paymentMethods: paymentSummary.methods,
+    paymentMethodsLabel: paymentSummary.label,
+    hasWalletUsage: paymentSummary.hasWallet,
+    lastPaymentAt: lastPaymentAt ? lastPaymentAt.toISOString() : null,
+    ebarimt: {
+      issued: !!invoice.eBarimtReceipt,
+      status: invoice.eBarimtReceipt?.status || null,
+      receiptNumber:
+        invoice.eBarimtReceipt?.ddtd ||
+        invoice.eBarimtReceipt?.printedAtText ||
+        null,
+    },
+  };
+}
+
 async function getPatientBalanceSummary(trx, patientId) {
   const invoices = await trx.invoice.findMany({
     where: { patientId },
@@ -108,6 +248,241 @@ export async function applyWalletSettlement(
     createdByUserId,
   });
 }
+
+router.get("/", async (req, res) => {
+  try {
+    const fromDate = parseDateOnlyStart(req.query.from);
+    const toDateExclusive = parseDateOnlyEndExclusive(req.query.to);
+    if (!fromDate || !toDateExclusive) {
+      return res.status(400).json({
+        error: "from, to query parameters are required in YYYY-MM-DD format.",
+      });
+    }
+
+    const page = Math.max(Number(req.query.page || 1), 1);
+    const rawPageSize = Number(req.query.pageSize || DEFAULT_PAGE_SIZE);
+    const pageSize = Math.min(Math.max(rawPageSize, MIN_PAGE_SIZE), MAX_PAGE_SIZE);
+    const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+    const doctorId = req.query.doctorId ? Number(req.query.doctorId) : null;
+    const invoiceId = req.query.invoiceId ? Number(req.query.invoiceId) : null;
+    const patientSearch =
+      typeof req.query.patientSearch === "string"
+        ? req.query.patientSearch.trim()
+        : "";
+    const paymentStatusRaw =
+      typeof req.query.paymentStatus === "string"
+        ? req.query.paymentStatus.trim().toLowerCase()
+        : "all";
+    const ebarimtStatusRaw =
+      typeof req.query.ebarimtStatus === "string"
+        ? req.query.ebarimtStatus.trim().toLowerCase()
+        : "all";
+
+    const paymentStatus = PAYMENT_STATUS_VALUES.has(paymentStatusRaw)
+      ? paymentStatusRaw
+      : "all";
+    const ebarimtStatus = EBARIMT_STATUS_VALUES.has(ebarimtStatusRaw)
+      ? ebarimtStatusRaw
+      : "all";
+
+    const where = {
+      createdAt: { gte: fromDate, lt: toDateExclusive },
+    };
+
+    if (branchId && !Number.isNaN(branchId)) {
+      where.branchId = branchId;
+    }
+    if (invoiceId && !Number.isNaN(invoiceId)) {
+      where.id = invoiceId;
+    }
+    if (doctorId && !Number.isNaN(doctorId)) {
+      where.encounter = { is: { doctorId } };
+    }
+    if (patientSearch) {
+      where.OR = [
+        { patient: { is: { name: { contains: patientSearch, mode: "insensitive" } } } },
+        { patient: { is: { ovog: { contains: patientSearch, mode: "insensitive" } } } },
+        { patient: { is: { phone: { contains: patientSearch, mode: "insensitive" } } } },
+        { patient: { is: { regNo: { contains: patientSearch, mode: "insensitive" } } } },
+      ];
+    }
+    if (ebarimtStatus === "issued") {
+      where.eBarimtReceipt = { isNot: null };
+    } else if (ebarimtStatus === "not_issued") {
+      where.eBarimtReceipt = { is: null };
+    }
+
+    const invoices = await prisma.invoice.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        branch: { select: { id: true, name: true } },
+        patient: {
+          select: { id: true, name: true, ovog: true, phone: true, regNo: true },
+        },
+        encounter: {
+          include: {
+            doctor: { select: { id: true, name: true, ovog: true } },
+            patientBook: {
+              include: {
+                patient: {
+                  select: { id: true, name: true, ovog: true, phone: true, regNo: true },
+                },
+              },
+            },
+          },
+        },
+        eBarimtReceipt: { select: { status: true, ddtd: true, printedAtText: true } },
+        payments: {
+          select: { id: true, amount: true, method: true, timestamp: true },
+          orderBy: { timestamp: "desc" },
+        },
+      },
+    });
+
+    let rows = invoices.map(buildInvoiceFinanceRow);
+    if (paymentStatus !== "all") {
+      rows = rows.filter((row) => row.status === paymentStatus);
+    }
+
+    const summary = rows.reduce(
+      (acc, row) => {
+        acc.totalBilled = normalizeMoney(acc.totalBilled + row.total);
+        acc.totalCollected = normalizeMoney(acc.totalCollected + row.paid);
+        if (row.remaining > 0) {
+          acc.totalUnpaid = normalizeMoney(acc.totalUnpaid + row.remaining);
+        } else if (row.remaining < 0) {
+          acc.overpayments = normalizeMoney(acc.overpayments + Math.abs(row.remaining));
+        }
+        return acc;
+      },
+      { totalBilled: 0, totalCollected: 0, totalUnpaid: 0, overpayments: 0 }
+    );
+
+    const total = rows.length;
+    const start = (page - 1) * pageSize;
+    const items = rows.slice(start, start + pageSize);
+
+    return res.json({
+      page,
+      pageSize,
+      total,
+      summary,
+      items,
+    });
+  } catch (err) {
+    console.error("GET /api/invoices error:", err);
+    return res.status(500).json({ error: "Failed to fetch invoices." });
+  }
+});
+
+router.get("/:id", async (req, res) => {
+  try {
+    const invoiceId = Number(req.params.id);
+    if (!invoiceId || Number.isNaN(invoiceId)) {
+      return res.status(400).json({ error: "Invalid invoice id." });
+    }
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: {
+        branch: { select: { id: true, name: true } },
+        patient: {
+          select: { id: true, name: true, ovog: true, phone: true, regNo: true },
+        },
+        encounter: {
+          include: {
+            doctor: { select: { id: true, name: true, ovog: true } },
+            patientBook: {
+              include: {
+                patient: {
+                  select: { id: true, name: true, ovog: true, phone: true, regNo: true },
+                },
+              },
+            },
+          },
+        },
+        items: { orderBy: { id: "asc" } },
+        payments: {
+          include: {
+            createdBy: { select: { id: true, name: true, ovog: true } },
+          },
+          orderBy: { timestamp: "desc" },
+        },
+        eBarimtReceipt: {
+          select: {
+            id: true,
+            status: true,
+            ddtd: true,
+            printedAtText: true,
+            printedAt: true,
+            totalAmount: true,
+            qrData: true,
+            lottery: true,
+          },
+        },
+      },
+    });
+
+    if (!invoice) {
+      return res.status(404).json({ error: "Invoice not found." });
+    }
+
+    const row = buildInvoiceFinanceRow(invoice);
+    return res.json({
+      ...row,
+      ebarimtReceipt: invoice.eBarimtReceipt
+        ? {
+            id: invoice.eBarimtReceipt.id,
+            status: invoice.eBarimtReceipt.status,
+            ddtd: invoice.eBarimtReceipt.ddtd ?? null,
+            printedAtText: invoice.eBarimtReceipt.printedAtText ?? null,
+            printedAt: invoice.eBarimtReceipt.printedAt
+              ? invoice.eBarimtReceipt.printedAt.toISOString()
+              : null,
+            totalAmount: invoice.eBarimtReceipt.totalAmount ?? null,
+            qrData: invoice.eBarimtReceipt.qrData ?? null,
+            lottery: invoice.eBarimtReceipt.lottery ?? null,
+          }
+        : null,
+      items: invoice.items.map((item) => ({
+        id: item.id,
+        itemType: item.itemType,
+        serviceId: item.serviceId,
+        productId: item.productId,
+        name: item.name,
+        unitPrice: item.unitPrice,
+        quantity: item.quantity,
+        lineTotal: item.lineTotal,
+      })),
+      payments: invoice.payments.map((payment) => ({
+        id: payment.id,
+        amount: payment.amount,
+        method: payment.method,
+        timestamp: payment.timestamp,
+        qpayTxnId: payment.qpayTxnId,
+        reference:
+          (payment.meta && typeof payment.meta === "object" && payment.meta.reference) ||
+          payment.qpayTxnId ||
+          null,
+        note:
+          payment.meta && typeof payment.meta === "object" && payment.meta.note
+            ? String(payment.meta.note)
+            : null,
+        createdByUser: payment.createdBy
+          ? {
+              id: payment.createdBy.id,
+              name: payment.createdBy.name ?? null,
+              ovog: payment.createdBy.ovog ?? null,
+            }
+          : null,
+      })),
+    });
+  } catch (err) {
+    console.error("GET /api/invoices/:id error:", err);
+    return res.status(500).json({ error: "Failed to fetch invoice details." });
+  }
+});
 
 /**
  * POST /api/invoices/:id/settlement
