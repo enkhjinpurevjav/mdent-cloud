@@ -1088,7 +1088,7 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
     const { updatedInvoice } = result;
     const paidTotal = computePaidTotal(updatedInvoice.payments);
 
-    const canCompletePreviousMarkerEncounter =
+    const shouldCompleteMarkerAppointment =
       hasMarker &&
       closeOldBalance === true &&
       Number(currentBaseAmount) === 0 &&
@@ -1096,7 +1096,7 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
       (encounter.appointment?.status === "ready_to_pay" ||
         encounter.appointment?.status === "partial_paid");
 
-    if (canCompletePreviousMarkerEncounter && encounter.appointmentId) {
+    if (shouldCompleteMarkerAppointment && encounter.appointmentId) {
       await prisma.appointment.update({
         where: { id: encounter.appointmentId },
         data: { status: "completed" },
