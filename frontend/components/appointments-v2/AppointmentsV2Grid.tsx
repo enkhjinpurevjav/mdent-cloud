@@ -10,6 +10,7 @@ type AppointmentsV2GridProps = {
   timeSlots: TimeSlot[];
   slotHeightPx: number;
   columnHeightPx: number;
+  nowPosition: number | null;
   blocksByDoctorId: Record<number, AppointmentBlockGeometry[]>;
   slotOccupancyByDoctorId: Record<number, Record<string, number>>;
   onCellClick: (doctor: ScheduledDoctor, slotLabel: string) => void;
@@ -34,6 +35,7 @@ function AppointmentsV2Grid({
   timeSlots,
   slotHeightPx,
   columnHeightPx,
+  nowPosition,
   blocksByDoctorId,
   slotOccupancyByDoctorId,
   onCellClick,
@@ -75,7 +77,23 @@ function AppointmentsV2Grid({
           WebkitOverflowScrolling: "touch",
         }}
       >
-        <div style={{ display: "flex", minWidth: 840 }}>
+        <div style={{ position: "relative", minWidth: 840 }}>
+          {nowPosition !== null && (
+            <div
+              style={{
+                position: "absolute",
+                top: 41 + nowPosition,
+                left: 0,
+                right: 0,
+                zIndex: 50,
+                pointerEvents: "none",
+              }}
+            >
+              <div style={{ borderTop: "2px dashed #ef4444" }} />
+            </div>
+          )}
+
+          <div style={{ display: "flex" }}>
           <div
             style={{
               minWidth: 80,
@@ -148,6 +166,7 @@ function AppointmentsV2Grid({
               disableAppointmentClicks={disableAppointmentClicks}
             />
           ))}
+          </div>
         </div>
       </div>
     </div>
@@ -160,6 +179,7 @@ export default React.memo(AppointmentsV2Grid, (prev, next) => {
     prev.timeSlots === next.timeSlots &&
     prev.slotHeightPx === next.slotHeightPx &&
     prev.columnHeightPx === next.columnHeightPx &&
+    prev.nowPosition === next.nowPosition &&
     prev.blocksByDoctorId === next.blocksByDoctorId &&
     prev.slotOccupancyByDoctorId === next.slotOccupancyByDoctorId &&
     prev.onCellClick === next.onCellClick &&

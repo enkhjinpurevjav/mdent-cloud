@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { useAuth } from "../../contexts/AuthContext";
 import type { Appointment, Branch, ScheduledDoctor } from "../appointments/types";
 import {
+  BUSINESS_TIME_ZONE,
   fakeUtcDateToNaive,
   getBusinessYmd,
   naiveTimestampToYmd,
@@ -155,6 +156,7 @@ export default function AppointmentsPageV2() {
   const [pendingSaveId, setPendingSaveId] = useState<number | null>(null);
   const [pendingSaveError, setPendingSaveError] = useState<string | null>(null);
   const [pendingSaving, setPendingSaving] = useState(false);
+  const [nowPosition, setNowPosition] = useState<number | null>(null);
   const [invalidDragAppointmentId, setInvalidDragAppointmentId] = useState<number | null>(null);
   const [dragPreviewDoctorId, setDragPreviewDoctorId] = useState<number | null>(null);
   const [dragPreviewSlotLabels, setDragPreviewSlotLabels] = useState<string[]>([]);
@@ -312,6 +314,47 @@ export default function AppointmentsPageV2() {
     return Math.max(1, (lastSlot.getTime() - firstSlot.getTime()) / 60000);
   }, [firstSlot, lastSlot]);
   const columnHeightPx = timeSlots.length * SLOT_HEIGHT_PX;
+
+  useEffect(() => {
+    const updateNowPosition = () => {
+      if (!firstSlot || !lastSlot) {
+        setNowPosition(null);
+        return;
+      }
+
+      const now = new Date();
+      const todayInBusinessTime = getBusinessYmd(now);
+      if (selectedDate !== todayInBusinessTime) {
+        setNowPosition(null);
+        return;
+      }
+
+      const nowHmParts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: BUSINESS_TIME_ZONE,
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+      }).formatToParts(now);
+      const nowHour = nowHmParts.find((part) => part.type === "hour")?.value ?? "00";
+      const nowMinute = nowHmParts.find((part) => part.type === "minute")?.value ?? "00";
+      const nowSecond = nowHmParts.find((part) => part.type === "second")?.value ?? "00";
+      const nowFakeUtc = naiveToFakeUtcDate(
+        `${todayInBusinessTime} ${nowHour}:${nowMinute}:${nowSecond}`
+      );
+
+      const clampedMs = Math.min(
+        Math.max(nowFakeUtc.getTime(), firstSlot.getTime()),
+        lastSlot.getTime()
+      );
+      const minutesFromStart = (clampedMs - firstSlot.getTime()) / 60000;
+      setNowPosition((minutesFromStart / totalMinutes) * columnHeightPx);
+    };
+
+    updateNowPosition();
+    const intervalId = window.setInterval(updateNowPosition, 60_000);
+    return () => window.clearInterval(intervalId);
+  }, [selectedDate, firstSlot, lastSlot, totalMinutes, columnHeightPx]);
 
   const effectiveAppointments = useMemo(
     () =>
@@ -1343,6 +1386,7 @@ export default function AppointmentsPageV2() {
         onAppointmentMouseDown={handleAppointmentMouseDown}
         disableAppointmentClicks={Boolean(activeDrag) || pendingSaveId !== null}
         scrollContainerRef={gridScrollRef}
+        nowPosition={nowPosition}
       />
 
       <AppointmentDetailsModal
