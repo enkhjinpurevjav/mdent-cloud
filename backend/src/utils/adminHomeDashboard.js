@@ -42,9 +42,14 @@ export function computeFilledSlotsByBranch(appointments) {
     if (EXCLUDED_STATUS_SET.has(status)) continue;
     if (!appt.doctorId) continue;
 
-    const slotKey = `${appt.branchId}:${appt.doctorId}:${appt.scheduledAt.toISOString()}`;
-    if (seen.has(slotKey)) continue;
-    seen.add(slotKey);
+    const dateKey = `${appt.scheduledAt.getFullYear()}-${appt.scheduledAt.getMonth()}-${appt.scheduledAt.getDate()}`;
+    const slotIndex = Math.floor(
+      (appt.scheduledAt.getHours() * 60 + appt.scheduledAt.getMinutes()) /
+        ADMIN_HOME_SLOT_MINUTES
+    );
+    const doctorSlotKey = `${appt.branchId}:${appt.doctorId}:${dateKey}:${slotIndex}`;
+    if (seen.has(doctorSlotKey)) continue;
+    seen.add(doctorSlotKey);
 
     filledByBranch.set(appt.branchId, (filledByBranch.get(appt.branchId) || 0) + 1);
   }

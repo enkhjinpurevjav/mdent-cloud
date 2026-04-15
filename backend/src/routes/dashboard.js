@@ -9,8 +9,12 @@ import {
 
 const router = Router();
 
-router.get("/admin-home", async (_req, res) => {
+router.get("/admin-home", async (req, res) => {
   try {
+    if (!req.user || !["admin", "super_admin"].includes(req.user.role)) {
+      return res.status(403).json({ error: "Forbidden. Insufficient role." });
+    }
+
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);

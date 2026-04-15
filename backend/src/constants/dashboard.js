@@ -9,6 +9,7 @@ export const ADMIN_HOME_INCOME_METHODS = [
 
 export const ADMIN_HOME_EXCLUDED_APPOINTMENT_STATUSES = [
   "canceled",
+  "cancelled",
   "no_show",
 ];
 

@@ -99,7 +99,7 @@ export default function BookingsDashboardPage() {
       >
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 700 }}>Хянах самбар</h1>
         {updatedText ? (
-          <span style={{ color: "#6b7280", fontSize: 13 }}>Updated {updatedText}</span>
+          <span style={{ color: "#6b7280", fontSize: 13 }}>Шинэчлэгдсэн {updatedText}</span>
         ) : null}
       </div>
 
