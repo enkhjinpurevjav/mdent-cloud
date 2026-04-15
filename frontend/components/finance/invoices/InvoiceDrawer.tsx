@@ -2,7 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../../contexts/AuthContext";
 import AddPaymentModal from "./AddPaymentModal";
 import type { InvoiceDetail } from "./types";
-import { formatFinanceDateTime, formatPaymentMethodLabel } from "./formatters";
+import {
+  formatFinanceDateTime,
+  formatPaymentMethodLabel,
+  formatScheduleDateTimeNaive,
+} from "./formatters";
 
 function fmtMnt(value: number) {
   return `${Number(value || 0).toLocaleString("mn-MN")} ₮`;
@@ -181,7 +185,7 @@ export default function InvoiceDrawer({
                   </div>
                   <div>
                     <div className="text-gray-500">Захиалгын огноо:</div>
-                    <div>{formatFinanceDateTime(invoice.encounter?.appointment?.scheduledAt)}</div>
+                    <div>{formatScheduleDateTimeNaive(invoice.encounter?.appointment?.scheduledAt)}</div>
                   </div>
                   <div>
                     <div className="text-gray-500">Үйлчлүүлэгч</div>

@@ -310,6 +310,7 @@ router.get("/", async (req, res) => {
 
     const where = {
       createdAt: { gte: fromDate, lt: toDateExclusive },
+      statusLegacy: { not: "voided" },
     };
 
     if (branchId && !Number.isNaN(branchId)) {
