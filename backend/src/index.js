@@ -24,6 +24,7 @@ import doctorsRouter from "./routes/doctors.js";
 import bookingsRouter from "./routes/bookings.js";
 import staffSummaryRoutes from "./routes/staff-summary.js";
 import invoicesRouter from "./routes/invoices.js";
+import paymentsRouter from "./routes/payments.js";
 import sterilizationRouter from "./routes/sterilization.js";
 import employeeBenefitsRouter from "./routes/employeeBenefits.js";
 import bartersRouter from "./routes/barters.js";
@@ -255,6 +256,7 @@ app.use("/api/billing", employeeBenefitsRouter); // <-- ADD THIS LINE TO FIX!
 app.use("/api/billing", bartersRouter);
 app.use("/api/billing", giftCardsRouter);
 app.use("/api/invoices", invoicesRouter);
+app.use("/api/payments", paymentsRouter);
 app.use("/api/appointments", appointmentsRouter);
 app.use("/api/services", servicesRouter);
 app.use("/api/service-category-settings", serviceCategorySettingsRouter);

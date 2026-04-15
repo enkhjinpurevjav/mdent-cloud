@@ -101,6 +101,7 @@ const navItems: NavItem[] = [
     icon: "💰",
     children: [
       { label: "Нэхэмжлэлүүд", href: "/finance/invoices", icon: "🧾" },
+      { label: "Төлбөрүүд", href: "/finance/payments", icon: "💳" },
       { label: "Авлага", href: "/finance/debts", icon: "📄" },
       { label: "Илүү төлөлт", href: "/finance/overpayments", icon: "➕" },
       { label: "Бартер", href: "/finance/barter", icon: "🔄" },
