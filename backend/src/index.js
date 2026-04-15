@@ -211,7 +211,7 @@ app.use("/api/admin", requireAdminRole);
 // RBAC: /api/users gate
 // - admin/super_admin: full access
 // - receptionist: read-only GET /api/users?role=doctor only
-// - any authenticated user: read-only GET /api/users/nurses/today (for XRAY page nurse dropdown)
+// - any authenticated user: read-only GET /api/users/nurses/today and /api/users/nurses/by-branch
 app.use("/api/users", (req, res, next) => {
   if (process.env.DISABLE_AUTH === "true") return next();
   if (!req.user) {
@@ -229,6 +229,9 @@ app.use("/api/users", (req, res, next) => {
   }
   // Allow any authenticated user to fetch today's nurses list (used on XRAY page).
   if (req.method === "GET" && req.path === "/nurses/today") {
+    return next();
+  }
+  if (req.method === "GET" && req.path === "/nurses/by-branch") {
     return next();
   }
   return res.status(403).json({ error: "Forbidden. Insufficient role." });
