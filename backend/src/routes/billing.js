@@ -1088,6 +1088,21 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
     const { updatedInvoice } = result;
     const paidTotal = computePaidTotal(updatedInvoice.payments);
 
+    const canCompletePreviousMarkerEncounter =
+      hasMarker &&
+      closeOldBalance === true &&
+      Number(currentBaseAmount) === 0 &&
+      Number(amountForOld) > 0 &&
+      (encounter.appointment?.status === "ready_to_pay" ||
+        encounter.appointment?.status === "partial_paid");
+
+    if (canCompletePreviousMarkerEncounter && encounter.appointmentId) {
+      await prisma.appointment.update({
+        where: { id: encounter.appointmentId },
+        data: { status: "completed" },
+      });
+    }
+
     // Broadcast SSE so Appointments page reflects status change immediately
     const appointmentIdForSse = encounter.appointmentId ?? null;
     if (appointmentIdForSse) {
