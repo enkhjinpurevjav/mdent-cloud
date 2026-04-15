@@ -51,7 +51,9 @@ export function computeFilledSlotsByBranch(appointments) {
     const durationMinutes = endAt ? (endAt.getTime() - startAt.getTime()) / 60000 : 0;
     const slotSpan = Math.max(1, Math.ceil(durationMinutes / ADMIN_HOME_SLOT_MINUTES));
 
-    const dateKey = `${startAt.getFullYear()}-${startAt.getMonth()}-${startAt.getDate()}`;
+    const dateKey = `${startAt.getFullYear()}-${String(startAt.getMonth() + 1).padStart(2, "0")}-${String(
+      startAt.getDate()
+    ).padStart(2, "0")}`;
     const startSlotIndex = Math.floor(
       (startAt.getHours() * 60 + startAt.getMinutes()) / ADMIN_HOME_SLOT_MINUTES
     );
