@@ -84,6 +84,8 @@ export function deriveEncounterBillingStatus({
   if (closedWithoutPayment) return "close_without_payment";
   if (!invoice || isInvoiceVoidedStatus(invoice.statusLegacy)) return "no_invoice";
 
+  // Business rule for free encounter in finance monitor:
+  // encounter has a real (non-voided) invoice and its total amount is zero.
   if (normalizeMoney(totalAmount) <= 0) return "free";
 
   const remaining = normalizeMoney(totalAmount - paidAmount);
@@ -510,7 +512,7 @@ router.post("/:id/mark-free", async (req, res) => {
     }
 
     const noteRaw = typeof req.body?.note === "string" ? req.body.note.trim() : "";
-    const note = noteRaw || "Finance: төлбөргүй үзлэг";
+    const note = noteRaw || "Санхүү: Төлбөргүй үзлэг";
 
     const encounter = await prisma.encounter.findUnique({
       where: { id: encounterId },
