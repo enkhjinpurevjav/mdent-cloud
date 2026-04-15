@@ -2008,7 +2008,7 @@ router.get("/nurses/by-branch", async (req, res) => {
       name: nurse.name,
       ovog: nurse.ovog,
       email: nurse.email,
-      phone: nurse.phone || null,
+      phone: nurse.phone,
       branchId: nurse.branchId,
     }));
 

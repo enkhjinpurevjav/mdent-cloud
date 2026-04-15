@@ -1789,7 +1789,13 @@ router.post("/:id/imaging/set-performer", async (req, res) => {
         });
       }
 
-      if (nurse.branchId !== appt.branchId) {
+      if (
+        appt.branchId === null ||
+        appt.branchId === undefined ||
+        nurse.branchId === null ||
+        nurse.branchId === undefined ||
+        nurse.branchId !== appt.branchId
+      ) {
         return res.status(400).json({
           error: "Selected nurse does not belong to appointment branch",
         });
@@ -1966,7 +1972,13 @@ router.patch("/:id/imaging/config", async (req, res) => {
         return res.status(400).json({ error: "Invalid nurse selection" });
       }
 
-      if (nurse.branchId !== appt.branchId) {
+      if (
+        appt.branchId === null ||
+        appt.branchId === undefined ||
+        nurse.branchId === null ||
+        nurse.branchId === undefined ||
+        nurse.branchId !== appt.branchId
+      ) {
         return res.status(400).json({
           error: "Selected nurse does not belong to appointment branch",
         });

@@ -109,7 +109,7 @@ export default function ImagingCheckoutModal({
         
         setNurses(nurseList);
         setSelectedNurseId((prev) =>
-          prev && !nurseList.some((nurse) => nurse.id === prev) ? null : prev
+          prev && nurseList.every((nurse) => nurse.id !== prev) ? null : prev
         );
       } catch (err) {
         console.error("Error fetching nurses:", err);
