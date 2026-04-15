@@ -316,18 +316,20 @@ export default function AppointmentsPageV2() {
   const columnHeightPx = timeSlots.length * SLOT_HEIGHT_PX;
 
   useEffect(() => {
-    const updateNowPosition = () => {
-      if (!firstSlot || !lastSlot) {
-        setNowPosition(null);
-        return;
-      }
+    if (!firstSlot || !lastSlot) {
+      setNowPosition(null);
+      return;
+    }
 
+    const isTodayInBusinessTime = selectedDate === getBusinessYmd();
+    if (!isTodayInBusinessTime) {
+      setNowPosition(null);
+      return;
+    }
+
+    const updateNowPosition = () => {
       const now = new Date();
       const todayInBusinessTime = getBusinessYmd(now);
-      if (selectedDate !== todayInBusinessTime) {
-        setNowPosition(null);
-        return;
-      }
 
       const nowHmParts = new Intl.DateTimeFormat("en-GB", {
         timeZone: BUSINESS_TIME_ZONE,
@@ -1386,6 +1388,7 @@ export default function AppointmentsPageV2() {
         onAppointmentMouseDown={handleAppointmentMouseDown}
         disableAppointmentClicks={Boolean(activeDrag) || pendingSaveId !== null}
         scrollContainerRef={gridScrollRef}
+        stickyHeaderHeightPx={GRID_STICKY_HEADER_HEIGHT}
         nowPosition={nowPosition}
       />
 

@@ -10,6 +10,7 @@ type AppointmentsV2GridProps = {
   timeSlots: TimeSlot[];
   slotHeightPx: number;
   columnHeightPx: number;
+  stickyHeaderHeightPx: number;
   nowPosition: number | null;
   blocksByDoctorId: Record<number, AppointmentBlockGeometry[]>;
   slotOccupancyByDoctorId: Record<number, Record<string, number>>;
@@ -35,6 +36,7 @@ function AppointmentsV2Grid({
   timeSlots,
   slotHeightPx,
   columnHeightPx,
+  stickyHeaderHeightPx,
   nowPosition,
   blocksByDoctorId,
   slotOccupancyByDoctorId,
@@ -82,7 +84,7 @@ function AppointmentsV2Grid({
             <div
               style={{
                 position: "absolute",
-                top: 41 + nowPosition,
+                top: stickyHeaderHeightPx + nowPosition,
                 left: 0,
                 right: 0,
                 zIndex: 50,
@@ -179,6 +181,7 @@ export default React.memo(AppointmentsV2Grid, (prev, next) => {
     prev.timeSlots === next.timeSlots &&
     prev.slotHeightPx === next.slotHeightPx &&
     prev.columnHeightPx === next.columnHeightPx &&
+    prev.stickyHeaderHeightPx === next.stickyHeaderHeightPx &&
     prev.nowPosition === next.nowPosition &&
     prev.blocksByDoctorId === next.blocksByDoctorId &&
     prev.slotOccupancyByDoctorId === next.slotOccupancyByDoctorId &&
