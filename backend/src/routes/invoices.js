@@ -562,15 +562,21 @@ router.post("/:id/void", async (req, res) => {
         throw err;
       }
 
-      if ((invoice.payments?.length || 0) > 0) {
-        const err = new Error("Төлбөр бүртгэлтэй тул эхлээд төлбөрийг буцаана уу.");
+      if (invoice.payments?.length > 0) {
+        const err = new Error("Төлбөр бүртгэлтэй тул эхлээд төлбөрийн буцаалтыг хийсний дараа устгана уу.");
         err.statusCode = 400;
         throw err;
       }
 
       if (invoice.eBarimtReceipt?.status === "SUCCESS") {
-        await refundEbarimtByInvoice(invoiceId, req.user?.id || null);
-        ebarimtRefunded = true;
+        try {
+          await refundEbarimtByInvoice(invoiceId, req.user?.id || null);
+          ebarimtRefunded = true;
+        } catch (refundErr) {
+          const err = new Error(refundErr?.message || "Э-баримт буцаахад алдаа гарлаа.");
+          err.statusCode = 400;
+          throw err;
+        }
       }
 
       return trx.invoice.update({
