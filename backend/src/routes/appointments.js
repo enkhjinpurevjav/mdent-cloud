@@ -1699,7 +1699,7 @@ router.patch("/:id/cancel", async (req, res) => {
  * 
  * XRAY endpoint: Set performer for imaging appointment.
  * - Doctor performer is always appointment.doctorId (no override allowed)
- * - Nurse performer is selectable only from nurses on shift
+ * - Nurse performer is selectable from active nurses in the appointment branch
  * 
  * Request body:
  * - performerType: "DOCTOR" | "NURSE"
@@ -1769,7 +1769,7 @@ router.post("/:id/imaging/set-performer", async (req, res) => {
       // Doctor is already set from appointment creation, no need to update
       updateData.nurseId = null; // Clear nurse if switching to doctor
     } else {
-      // NURSE - validate nurse is on shift
+      // NURSE - validate nurse is active and in appointment branch
       if (!nurseId || Number.isNaN(Number(nurseId))) {
         return res.status(400).json({
           error: "nurseId is required when performerType is NURSE",
@@ -1783,66 +1783,21 @@ router.post("/:id/imaging/set-performer", async (req, res) => {
         where: { id: parsedNurseId },
       });
 
-      if (!nurse || nurse.role !== "nurse") {
+      if (!nurse || nurse.role !== "nurse" || !nurse.isActive) {
         return res.status(400).json({
           error: "Invalid nurse selection",
         });
       }
 
-      // Check if nurse is currently on shift
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const todayEnd = new Date(todayStart);
-      todayEnd.setDate(todayEnd.getDate() + 1);
-
-      const nurseSchedule = await prisma.nurseSchedule.findFirst({
-        where: {
-          nurseId: parsedNurseId,
-          branchId: appt.branchId,
-          date: {
-            gte: todayStart,
-            lt: todayEnd,
-          },
-        },
-      });
-
-      if (!nurseSchedule) {
+      if (
+        appt.branchId === null ||
+        appt.branchId === undefined ||
+        nurse.branchId === null ||
+        nurse.branchId === undefined ||
+        nurse.branchId !== appt.branchId
+      ) {
         return res.status(400).json({
-          error: "Selected nurse is not currently on shift",
-        });
-      }
-
-      // Parse time and check if current time is within shift window
-      // Convert HH:MM strings to minutes for proper comparison
-      const timeToMinutes = (timeStr) => {
-        if (!timeStr || typeof timeStr !== 'string') {
-          throw new Error('Invalid time format');
-        }
-        const parts = timeStr.split(':');
-        if (parts.length !== 2) {
-          throw new Error('Invalid time format - expected HH:MM');
-        }
-        const [hours, minutes] = parts.map(Number);
-        if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-          throw new Error('Invalid time values');
-        }
-        return hours * 60 + minutes;
-      };
-      
-      try {
-        const currentMinutes = now.getHours() * 60 + now.getMinutes();
-        const startMinutes = timeToMinutes(nurseSchedule.startTime);
-        const endMinutes = timeToMinutes(nurseSchedule.endTime);
-        
-        if (currentMinutes < startMinutes || currentMinutes >= endMinutes) {
-          return res.status(400).json({
-            error: "Selected nurse is not currently on shift (outside shift hours)",
-          });
-        }
-      } catch (err) {
-        console.error("Error parsing nurse schedule times:", err);
-        return res.status(500).json({
-          error: "Invalid nurse schedule time format",
+          error: "Selected nurse does not belong to appointment branch",
         });
       }
 
@@ -2013,27 +1968,19 @@ router.patch("/:id/imaging/config", async (req, res) => {
       const parsedNurseId = Number(nurseId);
 
       const nurse = await prisma.user.findUnique({ where: { id: parsedNurseId } });
-      if (!nurse || nurse.role !== "nurse") {
+      if (!nurse || nurse.role !== "nurse" || !nurse.isActive) {
         return res.status(400).json({ error: "Invalid nurse selection" });
       }
 
-      // Check nurse is currently on shift
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const todayEnd = new Date(todayStart);
-      todayEnd.setDate(todayEnd.getDate() + 1);
-
-      const nurseSchedule = await prisma.nurseSchedule.findFirst({
-        where: {
-          nurseId: parsedNurseId,
-          branchId: appt.branchId,
-          date: { gte: todayStart, lt: todayEnd },
-        },
-      });
-
-      if (!nurseSchedule) {
+      if (
+        appt.branchId === null ||
+        appt.branchId === undefined ||
+        nurse.branchId === null ||
+        nurse.branchId === undefined ||
+        nurse.branchId !== appt.branchId
+      ) {
         return res.status(400).json({
-          error: "Selected nurse is not currently on shift",
+          error: "Selected nurse does not belong to appointment branch",
         });
       }
 

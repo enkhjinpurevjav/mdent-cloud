@@ -1978,4 +1978,46 @@ router.get("/nurses/today", async (req, res) => {
       .json({ error: "Failed to fetch today's nurses" });
   }
 });
+
+router.get("/nurses/by-branch", async (req, res) => {
+  try {
+    const branchId = Number(req.query.branchId);
+    if (!branchId || Number.isNaN(branchId)) {
+      return res.status(400).json({ error: "branchId is required" });
+    }
+
+    const nurses = await prisma.user.findMany({
+      where: {
+        role: UserRole.nurse,
+        isActive: true,
+        branchId,
+      },
+      select: {
+        id: true,
+        name: true,
+        ovog: true,
+        email: true,
+        phone: true,
+        branchId: true,
+      },
+      orderBy: [{ name: "asc" }, { ovog: "asc" }],
+    });
+
+    const items = nurses.map((nurse) => ({
+      nurseId: nurse.id,
+      name: nurse.name,
+      ovog: nurse.ovog,
+      email: nurse.email,
+      phone: nurse.phone,
+      branchId: nurse.branchId,
+    }));
+
+    return res.json({ count: items.length, items });
+  } catch (err) {
+    console.error("GET /api/users/nurses/by-branch error:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to fetch branch nurses" });
+  }
+});
 export default router;

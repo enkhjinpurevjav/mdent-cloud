@@ -20,7 +20,7 @@ type Performer = {
   nurseId?: number;
 };
 
-type NurseTodayResponse = {
+type NurseByBranchResponse = {
   items?: Array<{
     nurseId: number;
     name: string;
@@ -88,7 +88,7 @@ export default function ImagingCheckoutModal({
     fetchServices();
   }, [open]);
 
-  // Fetch nurses on shift
+  // Fetch nurses by branch
   useEffect(() => {
     if (!open || performerType !== "NURSE") return;
 
@@ -96,19 +96,21 @@ export default function ImagingCheckoutModal({
       setLoadingNurses(true);
       try {
         const res = await fetch(
-          `/api/users/nurses/today?branchId=${branchId}`
+          `/api/users/nurses/by-branch?branchId=${branchId}`
         );
         if (!res.ok) throw new Error("Failed to fetch nurses");
 
-        const data: NurseTodayResponse = await res.json();
+        const data: NurseByBranchResponse = await res.json();
         
-        // Extract nurses from the response structure
         const nurseList = (data.items || []).map((item) => ({
           id: item.nurseId,
           name: item.name,
         }));
         
         setNurses(nurseList);
+        setSelectedNurseId((prev) =>
+          prev && nurseList.every((nurse) => nurse.id !== prev) ? null : prev
+        );
       } catch (err) {
         console.error("Error fetching nurses:", err);
         setError("Сувилагч нарыг ачаалахад алдаа гарлаа");
@@ -353,7 +355,7 @@ export default function ImagingCheckoutModal({
                     </div>
                   ) : nurses.length === 0 ? (
                     <div style={{ fontSize: 13, color: "#ef4444" }}>
-                      Ээлжит сувилагч байхгүй байна
+                      Салбарын идэвхтэй сувилагч байхгүй байна
                     </div>
                   ) : (
                     <select
