@@ -4,6 +4,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { printImage } from "../../utils/printImage";
 import { formatApptDateTime } from "../../utils/appointmentTime";
 import { formatIsoInClinicTz } from "../../utils/businessTime";
+import { formatFinanceDateTime } from "../../components/finance/invoices/formatters";
 
 type Branch = { id: number; name: string };
 
@@ -1414,7 +1415,7 @@ function BillingPaymentSection({
           <ul className="m-0 pl-4">
             {invoice.payments.map((p) => (
               <li key={p.id}>
-                {formatDateTime(p.timestamp)} — {p.method} — {formatAuditUserDisplay(p.createdByUser)} —{" "}
+                {formatFinanceDateTime(p.timestamp)} — {p.method} — {formatAuditUserDisplay(p.createdByUser)} —{" "}
                 {formatMoney(p.amount)} ₮
               </li>
             ))}
