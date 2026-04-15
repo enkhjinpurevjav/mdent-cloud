@@ -66,6 +66,11 @@ export type InvoiceListResponse = {
 };
 
 export type InvoiceDetail = InvoiceListRow & {
+  encounter?: {
+    appointment?: {
+      scheduledAt: string | null;
+    } | null;
+  } | null;
   items: Array<{
     id: number;
     itemType: string;
