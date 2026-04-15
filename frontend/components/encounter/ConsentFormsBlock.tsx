@@ -29,6 +29,99 @@ type ConsentFormsBlockProps = {
   hideTopCheckbox?: boolean;
 };
 
+type SurgeryQuickPickField =
+  | "outcome"
+  | "risks"
+  | "complications"
+  | "additionalProcedures"
+  | "alternativeTreatments"
+  | "advantages";
+
+const SURGERY_QUICK_PICK_OPTIONS: Record<SurgeryQuickPickField, string[]> = {
+  outcome: [
+    "ойлгомжтой тайлбарлав",
+    "70-80% эдгэрэл",
+    "80-90% эдгэрэл",
+    "90-95% эдгэрэл",
+  ],
+  risks: ["цус алдах", "мэдрэл гэмтэх"],
+  complications: [
+    "байхгүй",
+    "5-10% хүндрэл",
+    "20-30% хүндрэл",
+    "хавдах, ам ангайлт хязгаарлагдах",
+    "зэргэлдээх зай руу үрэвсэл тархах",
+    "оромны өвдөлт өгөх",
+    "амны булан гэмтэх",
+    "харшлын гаралтай багтраа",
+    "коллапс",
+    "остеомиелит",
+    "оёдол задрах",
+    "хоёрдогч цус алдалт",
+    "хоёрдогч халдвар",
+  ],
+  additionalProcedures: ["байхгүй", "оёдол тавих", "далбан үүсгэж хаах"],
+  alternativeTreatments: ["орлуулшгүй"],
+  advantages: ["зовиур арилгах", "хүндрэлээс сэргийлэх", "үйлийг сэргээх"],
+};
+
+const QUICK_PICK_TOKENS_WITH_COMMAS = Object.values(
+  SURGERY_QUICK_PICK_OPTIONS
+)
+  .flat()
+  .filter((token) => token.includes(","))
+  .map((token) => token.split(",").map((part) => part.trim()));
+
+function parseCommaTokens(value: string): string[] {
+  const parts = (value || "")
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  const mergedParts: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    let matchedToken = parts[i];
+    let matchedLength = 1;
+
+    for (const candidateParts of QUICK_PICK_TOKENS_WITH_COMMAS) {
+      if (candidateParts[0] !== parts[i]) {
+        continue;
+      }
+      const canMatchAll = candidateParts.every(
+        (candidatePart, index) => parts[i + index] === candidatePart
+      );
+      if (canMatchAll && candidateParts.length > matchedLength) {
+        matchedToken = candidateParts.join(", ");
+        matchedLength = candidateParts.length;
+      }
+    }
+
+    mergedParts.push(matchedToken);
+    i += matchedLength - 1;
+  }
+
+  return Array.from(
+    new Set(
+      mergedParts
+    )
+  );
+}
+
+function toggleCommaToken(value: string, token: string): string {
+  const parsedTokens = parseCommaTokens(value);
+  const index = parsedTokens.indexOf(token);
+  if (index >= 0) {
+    parsedTokens.splice(index, 1);
+  } else {
+    parsedTokens.push(token);
+  }
+  return parsedTokens.join(", ");
+}
+
+function isTokenSelected(value: string, token: string): boolean {
+  return parseCommaTokens(value).includes(token);
+}
+
 export default function ConsentFormsBlock({
   encounter,
   consents,
@@ -54,6 +147,52 @@ export default function ConsentFormsBlock({
   const saveCurrentConsent = onSaveConsent;
   const setConsentTypeDraft = onConsentTypeDraftChange;
   const setConsentAnswersDraft = onConsentAnswersDraftUpdate;
+
+  const renderSurgeryQuickPicks = (
+    field: SurgeryQuickPickField,
+    options: string[]
+  ) => {
+    const currentValue = String(consentAnswersDraft?.[field] || "");
+
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 6,
+          marginTop: -2,
+          marginBottom: 6,
+        }}
+      >
+        {options.map((option) => {
+          const selected = isTokenSelected(currentValue, option);
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => {
+                updateConsentAnswers({
+                  [field]: toggleCommaToken(currentValue, option),
+                });
+              }}
+              style={{
+                borderRadius: 999,
+                border: selected ? "1px solid #60a5fa" : "1px solid #d1d5db",
+                background: selected ? "#dbeafe" : "#f9fafb",
+                color: selected ? "#1d4ed8" : "#374151",
+                fontSize: 11,
+                lineHeight: 1.2,
+                padding: "3px 8px",
+                cursor: "pointer",
+              }}
+            >
+              {option}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
 
   const patientSigRef = useRef<SignaturePadRef>(null);
   const doctorSigRef = useRef<SignaturePadRef>(null);
@@ -573,6 +712,10 @@ export default function ConsentFormsBlock({
                                 fontSize: 12,
                               }}
                             />
+                            {renderSurgeryQuickPicks(
+                              "outcome",
+                              SURGERY_QUICK_PICK_OPTIONS.outcome
+                            )}
 
                             <label
                               style={{
@@ -605,6 +748,10 @@ export default function ConsentFormsBlock({
                                 fontSize: 12,
                               }}
                             />
+                            {renderSurgeryQuickPicks(
+                              "risks",
+                              SURGERY_QUICK_PICK_OPTIONS.risks
+                            )}
 
                             <label
                               style={{
@@ -637,6 +784,10 @@ export default function ConsentFormsBlock({
                                 fontSize: 12,
                               }}
                             />
+                            {renderSurgeryQuickPicks(
+                              "complications",
+                              SURGERY_QUICK_PICK_OPTIONS.complications
+                            )}
 
                             <label
                               style={{
@@ -672,6 +823,10 @@ export default function ConsentFormsBlock({
                                 fontSize: 12,
                               }}
                             />
+                            {renderSurgeryQuickPicks(
+                              "additionalProcedures",
+                              SURGERY_QUICK_PICK_OPTIONS.additionalProcedures
+                            )}
 
                             <label
                               style={{
@@ -707,6 +862,10 @@ export default function ConsentFormsBlock({
                                 fontSize: 12,
                               }}
                             />
+                            {renderSurgeryQuickPicks(
+                              "alternativeTreatments",
+                              SURGERY_QUICK_PICK_OPTIONS.alternativeTreatments
+                            )}
 
                             <label
                               style={{
@@ -738,6 +897,10 @@ export default function ConsentFormsBlock({
                                 fontSize: 12,
                               }}
                             />
+                            {renderSurgeryQuickPicks(
+                              "advantages",
+                              SURGERY_QUICK_PICK_OPTIONS.advantages
+                            )}
 
                             <div
                               style={{
@@ -1045,6 +1208,10 @@ export default function ConsentFormsBlock({
                                 fontSize: 12,
                               }}
                             />
+                            {renderSurgeryQuickPicks(
+                              "outcome",
+                              SURGERY_QUICK_PICK_OPTIONS.outcome
+                            )}
 
                             <label
                               style={{
@@ -1077,6 +1244,10 @@ export default function ConsentFormsBlock({
                                 fontSize: 12,
                               }}
                             />
+                            {renderSurgeryQuickPicks(
+                              "risks",
+                              SURGERY_QUICK_PICK_OPTIONS.risks
+                            )}
 
                             <label
                               style={{
@@ -1109,6 +1280,10 @@ export default function ConsentFormsBlock({
                                 fontSize: 12,
                               }}
                             />
+                            {renderSurgeryQuickPicks(
+                              "complications",
+                              SURGERY_QUICK_PICK_OPTIONS.complications
+                            )}
 
                             <label
                               style={{
@@ -1144,6 +1319,10 @@ export default function ConsentFormsBlock({
                                 fontSize: 12,
                               }}
                             />
+                            {renderSurgeryQuickPicks(
+                              "additionalProcedures",
+                              SURGERY_QUICK_PICK_OPTIONS.additionalProcedures
+                            )}
 
                             <label
                               style={{
@@ -1179,6 +1358,10 @@ export default function ConsentFormsBlock({
                                 fontSize: 12,
                               }}
                             />
+                            {renderSurgeryQuickPicks(
+                              "alternativeTreatments",
+                              SURGERY_QUICK_PICK_OPTIONS.alternativeTreatments
+                            )}
 
                             <label
                               style={{
@@ -1210,6 +1393,10 @@ export default function ConsentFormsBlock({
                                 fontSize: 12,
                               }}
                             />
+                            {renderSurgeryQuickPicks(
+                              "advantages",
+                              SURGERY_QUICK_PICK_OPTIONS.advantages
+                            )}
 
                             <div
                               style={{
