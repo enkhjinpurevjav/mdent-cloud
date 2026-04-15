@@ -65,11 +65,46 @@ const SURGERY_QUICK_PICK_OPTIONS: Record<SurgeryQuickPickField, string[]> = {
   advantages: ["зовиур арилгах", "хүндрэлээс сэргийлэх", "үйлийг сэргээх"],
 };
 
+const QUICK_PICK_TOKENS_WITH_COMMAS = Object.values(
+  SURGERY_QUICK_PICK_OPTIONS
+)
+  .flat()
+  .filter((token) => token.includes(","))
+  .map((token) => token.split(",").map((part) => part.trim()));
+
 function parseCommaTokens(value: string): string[] {
-  return String(value || "")
+  const parts = (value || "")
     .split(",")
     .map((token) => token.trim())
     .filter(Boolean);
+
+  const mergedParts: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    let matchedToken = parts[i];
+    let matchedLength = 1;
+
+    for (const candidateParts of QUICK_PICK_TOKENS_WITH_COMMAS) {
+      if (candidateParts[0] !== parts[i]) {
+        continue;
+      }
+      const canMatchAll = candidateParts.every(
+        (candidatePart, index) => parts[i + index] === candidatePart
+      );
+      if (canMatchAll && candidateParts.length > matchedLength) {
+        matchedToken = candidateParts.join(", ");
+        matchedLength = candidateParts.length;
+      }
+    }
+
+    mergedParts.push(matchedToken);
+    i += matchedLength - 1;
+  }
+
+  return Array.from(
+    new Set(
+      mergedParts
+    )
+  );
 }
 
 function toggleCommaToken(value: string, token: string): string {
@@ -80,7 +115,7 @@ function toggleCommaToken(value: string, token: string): string {
   } else {
     parsedTokens.push(token);
   }
-  return Array.from(new Set(parsedTokens)).join(", ");
+  return parsedTokens.join(", ");
 }
 
 function isTokenSelected(value: string, token: string): boolean {
@@ -135,11 +170,10 @@ export default function ConsentFormsBlock({
             <button
               key={option}
               type="button"
-              onClick={async () => {
+              onClick={() => {
                 updateConsentAnswers({
                   [field]: toggleCommaToken(currentValue, option),
                 });
-                await saveConsentApi(consentTypeDraft);
               }}
               style={{
                 borderRadius: 999,
