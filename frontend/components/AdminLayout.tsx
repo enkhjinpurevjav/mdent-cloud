@@ -100,6 +100,7 @@ const navItems: NavItem[] = [
     label: "Санхүү",
     icon: "💰",
     children: [
+      { label: "Үзлэгүүд", href: "/finance/encounters", icon: "🩺" },
       { label: "Нэхэмжлэлүүд", href: "/finance/invoices", icon: "🧾" },
       { label: "Төлбөрүүд", href: "/finance/payments", icon: "💳" },
       { label: "Авлага", href: "/finance/debts", icon: "📄" },
