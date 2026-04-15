@@ -170,6 +170,7 @@ export function buildPaymentsSummary(rows = []) {
   };
 
   const summary = rows.reduce((acc, row) => {
+    // Reversed amounts are shown as absolute totals on summary cards.
     const amount = Math.abs(Number(row.amount || 0));
     acc.totalPayments += 1;
     if (row.status === "reversed") {
@@ -467,7 +468,7 @@ router.post("/:id/reverse", requireRole("admin", "super_admin"), async (req, res
         throw new Error("INVOICE_VOIDED");
       }
       if (Number(original.amount || 0) <= 0) {
-        throw new Error("ONLY_ACTIVE_PAYMENT");
+        throw new Error("PAYMENT_AMOUNT_MUST_BE_POSITIVE");
       }
 
       const originalMeta = safeMeta(original.meta);
@@ -534,7 +535,7 @@ router.post("/:id/reverse", requireRole("admin", "super_admin"), async (req, res
     if (err?.message === "INVOICE_NOT_FOUND") {
       return res.status(404).json({ error: "Linked invoice not found." });
     }
-    if (err?.message === "ONLY_ACTIVE_PAYMENT") {
+    if (err?.message === "PAYMENT_AMOUNT_MUST_BE_POSITIVE") {
       return res.status(400).json({ error: "Only active payments can be reversed." });
     }
 

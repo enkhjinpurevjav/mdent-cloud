@@ -131,6 +131,7 @@ export default function FinancePaymentsPage() {
 
   const submitReverse = async (reason: string) => {
     if (!canReversePayment(reverseTarget)) return;
+    if (!reverseTarget) return;
     setReverseSubmitting(true);
     setReverseError("");
     try {
