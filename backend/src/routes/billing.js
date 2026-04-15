@@ -19,6 +19,31 @@ export function getEncounterAppointmentBranchId(encounter) {
   return branchId;
 }
 
+export function shouldCompleteMarkerAppointmentAfterBatchSettlement({
+  hasMarker,
+  closeOldBalance,
+  currentBaseAmount,
+  amountForOld,
+  appointmentStatus,
+  appointmentId,
+}) {
+  const numericCurrentBaseAmount = Number(currentBaseAmount);
+  const numericAmountForOld = Number(amountForOld);
+  const numericAppointmentId = Number(appointmentId);
+
+  return (
+    hasMarker === true &&
+    closeOldBalance === true &&
+    Number.isFinite(numericCurrentBaseAmount) &&
+    numericCurrentBaseAmount === 0 &&
+    Number.isFinite(numericAmountForOld) &&
+    numericAmountForOld > 0 &&
+    (appointmentStatus === "ready_to_pay" || appointmentStatus === "partial_paid") &&
+    Number.isInteger(numericAppointmentId) &&
+    numericAppointmentId > 0
+  );
+}
+
 /**
  * Helper: map DiscountPercent enum to numeric value
  */
@@ -1088,20 +1113,16 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
     const { updatedInvoice } = result;
     const paidTotal = computePaidTotal(updatedInvoice.payments);
 
-    const numericCurrentBaseAmount = Number(currentBaseAmount);
-    const numericAmountForOld = Number(amountForOld);
-
-    const shouldCompleteMarkerAppointment =
-      hasMarker &&
-      closeOldBalance === true &&
-      Number.isFinite(numericCurrentBaseAmount) &&
-      numericCurrentBaseAmount === 0 &&
-      Number.isFinite(numericAmountForOld) &&
-      numericAmountForOld > 0 &&
-      (encounter.appointment?.status === "ready_to_pay" ||
-        encounter.appointment?.status === "partial_paid");
-
-    if (shouldCompleteMarkerAppointment && encounter.appointmentId) {
+    if (
+      shouldCompleteMarkerAppointmentAfterBatchSettlement({
+        hasMarker,
+        closeOldBalance,
+        currentBaseAmount,
+        amountForOld,
+        appointmentStatus: encounter.appointment?.status,
+        appointmentId: encounter.appointmentId,
+      })
+    ) {
       await prisma.appointment.update({
         where: { id: encounter.appointmentId },
         data: { status: "completed" },
