@@ -205,7 +205,10 @@ function formatMoney(v: number | null | undefined) {
 
 async function fetchCanonicalBillingInvoice(encounterId: number): Promise<InvoiceResponse> {
   const res = await fetch(`/api/billing/encounters/${encounterId}/invoice`);
-  const data = await res.json().catch(() => undefined);
+  const data = await res.json().catch((err) => {
+    console.error("Failed to parse canonical billing invoice response:", err);
+    return undefined;
+  });
   if (!res.ok) {
     const apiError =
       data && typeof data === "object" && "error" in data
