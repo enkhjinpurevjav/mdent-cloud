@@ -39,6 +39,8 @@ const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION", "WALLET"]);
 
 // Home bleaching: Service.code === 151
 const HOME_BLEACHING_SERVICE_CODE = 151;
+// Always include these rows in detailed income "Нэгтгэл", even when totals are zero,
+// so the table layout remains consistent for finance reconciliation.
 const REQUIRED_PAYMENT_METHODS = [
   "CASH",
   "POS",
@@ -72,6 +74,12 @@ function formatInitialName(ovog, name) {
   return n || o || "-";
 }
 
+/**
+ * Build normalized payment-summary rows for the detailed income report.
+ * @param {Array<{method?: string, _sum?: {amount?: number}, _count?: {_all?: number}}>} paymentGroups
+ * @param {Array<{key?: string, label?: string}>} methodConfigs
+ * @returns {Array<{method: string, label: string, totalAmount: number, count: number}>}
+ */
 export function buildDetailedPaymentSummaryRows(paymentGroups, methodConfigs = []) {
   const methodLabelMap = new Map(
     (methodConfigs || []).map((m) => [String(m.key || "").toUpperCase(), m.label || m.key])
@@ -102,6 +110,10 @@ export function buildDetailedPaymentSummaryRows(paymentGroups, methodConfigs = [
   });
 }
 
+/**
+ * Compute current (as-of now) debt and overpayment snapshot totals for active patients.
+ * This is intentionally independent from report date range and matches patient-balances pages.
+ */
 async function computeBalanceSnapshotTotals(branchId = null) {
   const patientWhere = {
     isActive: true,
@@ -162,6 +174,11 @@ async function computeBalanceSnapshotTotals(branchId = null) {
   };
 }
 
+/**
+ * Reusable doctors-income aggregator that matches /api/admin/doctors-income revenue logic.
+ * @param {{startDate: string, endDate: string, branchId: number|null|string|undefined}} params
+ * @returns {Promise<Array<{doctorId:number,doctorName:string,doctorOvog:string|null,branchName:string|null,startDate:string,endDate:string,revenue:number,commission:number,monthlyGoal:number,progressPercent:number}>>}
+ */
 async function computeDoctorsIncomeData({ startDate, endDate, branchId }) {
   const start = new Date(`${startDate}T00:00:00.000Z`);
   const endExclusive = new Date(`${endDate}T00:00:00.000Z`);
@@ -579,10 +596,11 @@ router.get("/income-detailed", async (req, res) => {
       imagingByPerformer.get(performerKey).amount += net;
     }
 
-    const imagingRows = Array.from(imagingByPerformer.values())
+    const imagingRows = Array.from(imagingByPerformer.entries())
       .map((r) => ({
-        performerName: r.performerName,
-        amount: Number(r.amount || 0),
+        performerKey: r[0],
+        performerName: r[1].performerName,
+        amount: Number(r[1].amount || 0),
       }))
       .sort((a, b) => a.performerName.localeCompare(b.performerName, "mn"));
     const imagingProductionTotal = imagingRows.reduce((sum, r) => sum + r.amount, 0);

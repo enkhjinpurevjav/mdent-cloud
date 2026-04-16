@@ -6,7 +6,7 @@ import { useAuth } from "../../contexts/AuthContext";
 type Branch = { id: number; name: string };
 type ReportRow = { amount: number };
 type DoctorRow = ReportRow & { doctorId: number; doctorName: string };
-type ImagingRow = ReportRow & { performerName: string };
+type ImagingRow = ReportRow & { performerKey: string; performerName: string };
 type PaymentSummaryRow = {
   method: string;
   label: string;
@@ -222,8 +222,8 @@ export default function FinanceIncomeDetailedPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.imaging.map((r, idx) => (
-                  <tr key={`${r.performerName}-${idx}`} className="border-t border-gray-200">
+                {data.imaging.map((r) => (
+                  <tr key={r.performerKey} className="border-t border-gray-200">
                     <td className="px-4 py-2 text-gray-800">{r.performerName}</td>
                     <td className="px-4 py-2 text-right text-gray-800">{fmtMnt(r.amount)}</td>
                   </tr>
