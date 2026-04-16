@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { applyWalletSettlement } from "../routes/invoices.js";
+import { applyWalletSettlement } from "../services/walletSettlementService.js";
 
 describe("applyWalletSettlement", () => {
   it("creates BalanceAdjustmentLog deduction and applies payment in one flow", async () => {

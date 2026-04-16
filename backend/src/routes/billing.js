@@ -1,6 +1,7 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { applyPaymentToInvoice, computePaidTotal } from "../services/settlementService.js";
+import { applyWalletSettlement } from "../services/walletSettlementService.js";
 import { sseBroadcast } from "./appointments.js";
 
 const prisma = new PrismaClient();
@@ -1046,13 +1047,23 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
           const chunk = Math.min(remaining, unpaid);
           remaining -= chunk;
 
-          await applyPaymentToInvoice(trx, {
-            invoice: oi,
-            payAmount: chunk,
-            methodStr,
-            meta,
-            createdByUserId: req.user?.id || null,
-          });
+          if (methodStr === "WALLET") {
+            await applyWalletSettlement(trx, {
+              invoice: oi,
+              payAmount: chunk,
+              methodStr,
+              meta,
+              createdByUserId: req.user?.id || null,
+            });
+          } else {
+            await applyPaymentToInvoice(trx, {
+              invoice: oi,
+              payAmount: chunk,
+              methodStr,
+              meta,
+              createdByUserId: req.user?.id || null,
+            });
+          }
         }
       }
 
@@ -1071,15 +1082,24 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
           encounter: { appointmentId: encounter.appointmentId ?? null },
         };
 
-        const { newPayment } = await applyPaymentToInvoice(trx, {
-          invoice: invoiceForSettlement,
-          payAmount: amountForCurrent,
-          methodStr,
-          meta,
-          createdByUserId: req.user?.id || null,
-        });
+        const paymentResult =
+          methodStr === "WALLET"
+            ? await applyWalletSettlement(trx, {
+                invoice: invoiceForSettlement,
+                payAmount: amountForCurrent,
+                methodStr,
+                meta,
+                createdByUserId: req.user?.id || null,
+              })
+            : await applyPaymentToInvoice(trx, {
+                invoice: invoiceForSettlement,
+                payAmount: amountForCurrent,
+                methodStr,
+                meta,
+                createdByUserId: req.user?.id || null,
+              });
 
-        currentPaymentId = newPayment.id;
+        currentPaymentId = paymentResult.newPayment?.id;
       }
 
       // 3) Persist split allocations for current invoice payment

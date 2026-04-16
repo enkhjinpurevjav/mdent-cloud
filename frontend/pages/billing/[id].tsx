@@ -203,6 +203,25 @@ function formatMoney(v: number | null | undefined) {
   return new Intl.NumberFormat("mn-MN").format(Number(v));
 }
 
+async function fetchCanonicalBillingInvoice(encounterId: number): Promise<InvoiceResponse> {
+  const res = await fetch(`/api/billing/encounters/${encounterId}/invoice`);
+  const data = await res.json().catch((err) => {
+    console.error("Failed to parse canonical billing invoice response:", err);
+    return undefined;
+  });
+  if (!res.ok) {
+    const apiError =
+      data && typeof data === "object" && "error" in data
+        ? (data as { error?: string }).error
+        : null;
+    throw new Error(apiError || "Нэхэмжлэлийн мэдээлэл шинэчилж чадсангүй.");
+  }
+  if (!data) {
+    throw new Error("Нэхэмжлэлийн мэдээлэл шинэчилж чадсангүй.");
+  }
+  return data as InvoiceResponse;
+}
+
 const CONSENT_TYPE_LABELS: Record<string, string> = {
   root_canal: "Сувгийн эмчилгээ",
   surgery: "Мэс засал",
@@ -833,7 +852,13 @@ function BillingPaymentSection({
       }
 
       if (latest) {
-        onUpdated(latest);
+        let nextInvoice = latest;
+        try {
+          nextInvoice = await fetchCanonicalBillingInvoice(invoice.encounterId);
+        } catch (refreshErr) {
+          console.error("Failed to refresh canonical invoice after settlement:", refreshErr);
+        }
+        onUpdated(nextInvoice);
       }
 
       setSuccess("Төлбөр(үүд) амжилттай бүртгэгдлээ.");
@@ -2158,6 +2183,14 @@ const discountAmount = Math.max(Math.round(servicesSubtotal) - discountedService
 
 // Final amount = discounted services + full products
 const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 0);
+const normalizedPatientBalance =
+  invoice &&
+  invoice.patientBalance != null &&
+  Number.isFinite(Number(invoice.patientBalance))
+    ? Number(invoice.patientBalance)
+    : null;
+const patientCredit = normalizedPatientBalance == null ? null : Math.max(-normalizedPatientBalance, 0);
+const patientDebt = normalizedPatientBalance == null ? null : Math.max(normalizedPatientBalance, 0);
 
   const handleSaveBilling = async () => {
     if (!encounterId || Number.isNaN(encounterId)) return;
@@ -2212,9 +2245,16 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
       }
 
       const saved: InvoiceResponse = data;
-      setInvoice(saved);
-      setItems(saved.items || []);
-      setDiscountPercent(saved.discountPercent || 0);
+      let nextInvoice = saved;
+      try {
+        nextInvoice = await fetchCanonicalBillingInvoice(encounterId);
+      } catch (refreshErr) {
+        console.error("Failed to refresh canonical invoice after save:", refreshErr);
+      }
+
+      setInvoice(nextInvoice);
+      setItems(nextInvoice.items || []);
+      setDiscountPercent(nextInvoice.discountPercent || 0);
       setSaveSuccess("Нэхэмжлэлийн бүтцийг хадгаллаа.");
     } catch (err: any) {
       console.error("Failed to save invoice:", err);
@@ -2307,39 +2347,25 @@ const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 
     </div>
 
     {/* RIGHT: patient balance summary */}
-    {invoice.patientBalance != null && (
-      <div className="min-w-[260px] p-[10px] rounded-lg border border-gray-200 bg-gray-50 text-[13px]">
-        <div className="font-semibold mb-1 text-right">
-          Хэтэвчийн үлдэгдэл
+    <div className="min-w-[260px] p-[10px] rounded-lg border border-gray-200 bg-gray-50 text-[13px]">
+      <div className="font-semibold mb-1 text-right">
+        Үйлчлүүлэгчийн үлдэгдэл
+      </div>
+      <div className="text-right">
+        <div>
+          Урьдчилгаа (кредит):{" "}
+          <strong className={normalizedPatientBalance == null ? "text-gray-500" : "text-green-700"}>
+            {patientCredit == null ? "—" : `${formatMoney(patientCredit)} ₮`}
+          </strong>
         </div>
-        <div className="text-right">
-          <div>
-            Боломжит хэтэвч:{" "}
-            <strong>
-              {formatMoney(invoice.patientBalance < 0 ? Math.abs(invoice.patientBalance) : 0)} ₮
-            </strong>
-          </div>
-          <div>
-            Цэвэр үлдэгдэл:{" "}
-            <strong
-              className={invoice.patientBalance > 0 ? "text-red-700" : invoice.patientBalance < 0 ? "text-green-700" : "text-gray-900"}
-            >
-              {formatMoney(invoice.patientBalance)} ₮
-            </strong>
-          </div>
-          {invoice.patientBalance < 0 && (
-            <div className="text-right text-green-700">
-              (урьдчилгаа / илүү төлөлт)
-            </div>
-          )}
-          {invoice.patientBalance > 0 && (
-            <div className="text-right text-red-700">
-              (Үйлчлүүлэгчийн төлөх үлдэгдэл)
-            </div>
-          )}
+        <div>
+          Өр (дебит):{" "}
+          <strong className={normalizedPatientBalance == null ? "text-gray-500" : "text-red-700"}>
+            {patientDebt == null ? "—" : `${formatMoney(patientDebt)} ₮`}
+          </strong>
         </div>
       </div>
-    )}
+    </div>
   </div>
 </section>
 
