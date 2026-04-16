@@ -122,6 +122,11 @@ const navItems: NavItem[] = [
         href: "/finance/daily-income",
         icon: "📅",
       },
+      {
+        label: "Орлогын дэлгэрэнгүй",
+        href: "/finance/income-detailed",
+        icon: "📊",
+      },
        {
         // Only the General Income Page
         label: "Эмчийн орлогын тайлан",
