@@ -205,9 +205,16 @@ function formatMoney(v: number | null | undefined) {
 
 async function fetchCanonicalBillingInvoice(encounterId: number): Promise<InvoiceResponse> {
   const res = await fetch(`/api/billing/encounters/${encounterId}/invoice`);
-  const data = await res.json().catch(() => null);
-  if (!res.ok || !data) {
-    throw new Error((data && data.error) || "Нэхэмжлэлийн мэдээлэл шинэчилж чадсангүй.");
+  const data = await res.json().catch(() => undefined);
+  if (!res.ok) {
+    const apiError =
+      data && typeof data === "object" && "error" in data
+        ? (data as { error?: string }).error
+        : null;
+    throw new Error(apiError || "Нэхэмжлэлийн мэдээлэл шинэчилж чадсангүй.");
+  }
+  if (!data) {
+    throw new Error("Нэхэмжлэлийн мэдээлэл шинэчилж чадсангүй.");
   }
   return data as InvoiceResponse;
 }

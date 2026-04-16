@@ -1099,7 +1099,7 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
                 createdByUserId: req.user?.id || null,
               });
 
-        currentPaymentId = paymentResult.newPayment?.id ?? null;
+        currentPaymentId = paymentResult.newPayment?.id;
       }
 
       // 3) Persist split allocations for current invoice payment

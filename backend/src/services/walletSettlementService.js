@@ -85,6 +85,7 @@ export async function applyWalletSettlement(
   await trx.balanceAdjustmentLog.create({
     data: {
       patientId: invoice.patientId,
+      // Wallet consumption is tracked as a negative adjustment.
       amount: -payAmount,
       reason: buildWalletDeductionReason(invoice, meta),
       createdById: createdByUserId,
