@@ -5,6 +5,7 @@ import {
   computeServiceNetProportionalDiscount,
   allocatePaymentProportionalByRemaining,
 } from "../../utils/incomeHelpers.js";
+import { getAdjustmentTotalsByPatient } from "../reports-patient-balances.js";
 
 const router = express.Router();
 
@@ -38,9 +39,360 @@ const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION", "WALLET"]);
 
 // Home bleaching: Service.code === 151
 const HOME_BLEACHING_SERVICE_CODE = 151;
+const REQUIRED_PAYMENT_METHODS = [
+  "CASH",
+  "POS",
+  "TRANSFER",
+  "QPAY",
+  "APPLICATION",
+  "INSURANCE",
+  "VOUCHER",
+];
 
 function inRange(ts, start, end) {
   return ts >= start && ts < end;
+}
+
+function parseDateOnlyStart(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const dt = new Date(`${value}T00:00:00`);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function parseDateOnlyEndExclusive(value) {
+  const start = parseDateOnlyStart(value);
+  if (!start) return null;
+  return new Date(start.getTime() + 24 * 60 * 60 * 1000);
+}
+
+function formatInitialName(ovog, name) {
+  const n = String(name || "").trim();
+  const o = String(ovog || "").trim();
+  if (o && n) return `${o[0]}. ${n}`;
+  return n || o || "-";
+}
+
+export function buildDetailedPaymentSummaryRows(paymentGroups, methodConfigs = []) {
+  const methodLabelMap = new Map(
+    (methodConfigs || []).map((m) => [String(m.key || "").toUpperCase(), m.label || m.key])
+  );
+  const paymentSummaryMap = new Map(
+    (paymentGroups || []).map((g) => [
+      String(g.method || "").toUpperCase(),
+      {
+        totalAmount: Number(g?._sum?.amount || 0),
+        count: Number(g?._count?._all || 0),
+      },
+    ])
+  );
+
+  const extraMethods = Array.from(paymentSummaryMap.keys())
+    .filter((k) => !REQUIRED_PAYMENT_METHODS.includes(k))
+    .sort((a, b) => a.localeCompare(b));
+  const orderedMethods = [...REQUIRED_PAYMENT_METHODS, ...extraMethods];
+
+  return orderedMethods.map((method) => {
+    const row = paymentSummaryMap.get(method) || { totalAmount: 0, count: 0 };
+    return {
+      method,
+      label: methodLabelMap.get(method) || METHOD_LABELS[method] || method,
+      totalAmount: Number(row.totalAmount || 0),
+      count: Number(row.count || 0),
+    };
+  });
+}
+
+async function computeBalanceSnapshotTotals(branchId = null) {
+  const patientWhere = {
+    isActive: true,
+    ...(branchId ? { branchId: Number(branchId) } : {}),
+  };
+
+  const patients = await prisma.patient.findMany({
+    where: patientWhere,
+    select: { id: true },
+  });
+  if (!patients.length) return { debtAmount: 0, overpaymentAmount: 0 };
+
+  const patientIds = patients.map((p) => p.id);
+  const invoices = await prisma.invoice.findMany({
+    where: { patientId: { in: patientIds } },
+    select: { id: true, patientId: true, finalAmount: true, totalAmount: true },
+  });
+
+  const invoiceIds = invoices.map((i) => i.id);
+  const payments = invoiceIds.length
+    ? await prisma.payment.groupBy({
+      by: ["invoiceId"],
+      where: { invoiceId: { in: invoiceIds } },
+      _sum: { amount: true },
+    })
+    : [];
+
+  const paidByInvoice = new Map(
+    payments.map((p) => [p.invoiceId, Number(p._sum.amount || 0)])
+  );
+  const billedByPatient = new Map();
+  const paidByPatient = new Map();
+
+  for (const inv of invoices) {
+    const billed = inv.finalAmount != null
+      ? Number(inv.finalAmount)
+      : Number(inv.totalAmount || 0);
+    billedByPatient.set(inv.patientId, (billedByPatient.get(inv.patientId) || 0) + billed);
+    paidByPatient.set(inv.patientId, (paidByPatient.get(inv.patientId) || 0) + (paidByInvoice.get(inv.id) || 0));
+  }
+
+  const adjustmentByPatient = await getAdjustmentTotalsByPatient(branchId);
+  let debtAmount = 0;
+  let overpaymentAmount = 0;
+
+  for (const p of patients) {
+    const totalBilled = Number((billedByPatient.get(p.id) || 0).toFixed(2));
+    const totalPaid = Number((paidByPatient.get(p.id) || 0).toFixed(2));
+    const totalAdjusted = Number((adjustmentByPatient.get(p.id) || 0).toFixed(2));
+    const balance = Number((totalBilled - totalPaid - totalAdjusted).toFixed(2));
+    if (balance > 0) debtAmount += balance;
+    if (balance < 0) overpaymentAmount += Math.abs(balance);
+  }
+
+  return {
+    debtAmount: Number(debtAmount.toFixed(2)),
+    overpaymentAmount: Number(overpaymentAmount.toFixed(2)),
+  };
+}
+
+async function computeDoctorsIncomeData({ startDate, endDate, branchId }) {
+  const start = new Date(`${startDate}T00:00:00.000Z`);
+  const endExclusive = new Date(`${endDate}T00:00:00.000Z`);
+  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+
+  // Settings: home bleaching deduction amount
+  const homeBleachingDeductSetting = await prisma.settings.findUnique({
+    where: { key: "finance.homeBleachingDeductAmountMnt" },
+  });
+  const homeBleachingDeductAmountMnt = Number(homeBleachingDeductSetting?.value || 0) || 0;
+
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      ...(branchId ? { branchId: Number(branchId) } : {}),
+      OR: [
+        { createdAt: { gte: start, lt: endExclusive } },
+        { payments: { some: { timestamp: { gte: start, lt: endExclusive } } } },
+      ],
+    },
+    include: {
+      encounter: {
+        include: {
+          doctor: {
+            include: {
+              branch: true,
+              commissionConfig: true,
+            },
+          },
+        },
+      },
+      items: {
+        include: {
+          service: true,
+        },
+      },
+      payments: {
+        include: {
+          allocations: { select: { invoiceItemId: true, amount: true } },
+        },
+      },
+    },
+  });
+
+  const byDoctor = new Map();
+
+  for (const inv of invoices) {
+    const doctor = inv.encounter?.doctor;
+    if (!doctor) continue;
+
+    const cfg = doctor.commissionConfig;
+    const doctorId = doctor.id;
+
+    if (!byDoctor.has(doctorId)) {
+      byDoctor.set(doctorId, {
+        doctorId,
+        doctorName: doctor.name,
+        doctorOvog: doctor.ovog ?? null,
+        branchName: doctor.branch?.name,
+
+        // ✅ date-only strings (no time)
+        startDate: String(startDate),
+        endDate: String(endDate),
+
+        doctorSalesMnt: 0,
+        doctorIncomeMnt: 0,
+        monthlyGoalAmountMnt: Number(cfg?.monthlyGoalAmountMnt || 0),
+      });
+    }
+
+    const acc = byDoctor.get(doctorId);
+
+    const payments = inv.payments || [];
+    const hasOverride = payments.some((p) => OVERRIDE_METHODS.has(String(p.method).toUpperCase()));
+
+    // ---------- per-line nets via proportional discount per service line ----------
+    const discountPct = discountPercentEnumToNumber(inv.discountPercent);
+    const serviceItems = (inv.items || []).filter(
+      (it) => it.itemType === "SERVICE" && it.service?.category !== "PREVIOUS"
+    );
+    const lineNets = computeServiceNetProportionalDiscount(serviceItems, discountPct);
+
+    // Non-IMAGING items used for sales (IMAGING is excluded from doctorSalesMnt)
+    const nonImagingServiceItems = serviceItems.filter(
+      (it) => it.service?.category !== "IMAGING"
+    );
+
+    const totalNonImagingNet = nonImagingServiceItems.reduce(
+      (sum, it) => sum + (lineNets.get(it.id) || 0),
+      0
+    );
+    const totalAllServiceNet = serviceItems.reduce(
+      (sum, it) => sum + (lineNets.get(it.id) || 0),
+      0
+    );
+    // Ratio used to allocate BARTER excess proportionally across non-IMAGING lines
+    const nonImagingRatio = totalAllServiceNet > 0 ? totalNonImagingNet / totalAllServiceNet : 0;
+
+    // ---------- Single payment pass: proportional allocation by remaining due ----------
+    // itemById and serviceLineIds used in both SALES and INCOME sections below
+    const itemById = new Map(serviceItems.map((it) => [it.id, it]));
+    const serviceLineIds = serviceItems.map((it) => it.id);
+
+    // remainingDue tracks outstanding amount per line (initialised to net after discount).
+    // It is mutated by allocatePaymentProportionalByRemaining so later payments only
+    // allocate to still-unpaid portions.
+    const remainingDue = new Map(serviceItems.map((it) => [it.id, lineNets.get(it.id) || 0]));
+
+    // itemAllocationBase accumulates the pre-feeMultiplier payment allocation per line.
+    const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
+
+    let barterSum = 0;
+
+    // Process payments in timestamp order for deterministic remaining-due tracking.
+    const sortedPayments = [...payments].sort(
+      (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+    );
+
+    for (const p of sortedPayments) {
+      const method = String(p.method || "").toUpperCase();
+      const ts = new Date(p.timestamp);
+      if (!inRange(ts, start, endExclusive)) continue;
+      if (EXCLUDED_METHODS.has(method)) continue;
+
+      if (method === "BARTER") {
+        barterSum += Number(p.amount || 0);
+        continue;
+      }
+
+      if (!INCLUDED_METHODS.has(method) && !OVERRIDE_METHODS.has(method)) continue;
+
+      const payAmt = Number(p.amount || 0);
+      const payAllocs = p.allocations || [];
+
+      if (payAllocs.length > 0) {
+        // Use explicit allocations; update remainingDue for subsequent payments.
+        for (const alloc of payAllocs) {
+          const item = itemById.get(alloc.invoiceItemId);
+          if (!item) continue;
+          const allocAmt = Number(alloc.amount || 0);
+          itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
+          remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
+        }
+      } else {
+        // Proportional allocation by remaining due across all service lines (mutates remainingDue).
+        const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
+        for (const [id, amt] of allocs) {
+          itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+        }
+      }
+    }
+
+    // ---------- SALES (exclude IMAGING) ----------
+    if (hasOverride) {
+      // Override invoices: invoice-level sales contribution when paid.
+      const status = String(inv.statusLegacy || "").toLowerCase();
+      if (status === "paid") {
+        acc.doctorSalesMnt += totalNonImagingNet * 0.9;
+      }
+    } else {
+      // Sum proportional allocations for non-IMAGING lines.
+      let salesFromIncluded = 0;
+      for (const it of nonImagingServiceItems) {
+        salesFromIncluded += itemAllocationBase.get(it.id) || 0;
+      }
+
+      // BARTER excess contributes to sales (proportional to non-imaging share of lineNets).
+      const barterExcess = Math.max(0, barterSum - 800000);
+      const barterIncluded = barterExcess * nonImagingRatio;
+      acc.doctorSalesMnt += salesFromIncluded + barterIncluded;
+
+      // Barter excess also contributes to income via generalPct.
+      const generalPct = Number(cfg?.generalPct || 0);
+      acc.doctorIncomeMnt += barterIncluded * (generalPct / 100);
+    }
+
+    // ---------- INCOME ----------
+    {
+      const orthoPct = Number(cfg?.orthoPct || 0);
+      const defectPct = Number(cfg?.defectPct || 0);
+      const surgeryPct = Number(cfg?.surgeryPct || 0);
+      const generalPct = Number(cfg?.generalPct || 0);
+      const imagingPct = Number(cfg?.imagingPct || 0);
+      const feeMultiplier = hasOverride ? 0.9 : 1;
+
+      for (const it of serviceItems) {
+        const service = it.service;
+        const lineNet = (itemAllocationBase.get(it.id) || 0) * feeMultiplier;
+        if (lineNet <= 0) continue;
+
+        if (service?.category === "IMAGING") {
+          // Only credit doctor when explicitly assignedTo=DOCTOR.
+          if (it.meta?.assignedTo === "DOCTOR") {
+            acc.doctorIncomeMnt += lineNet * (imagingPct / 100);
+          }
+          continue;
+        }
+
+        if (Number(it.service?.code) === HOME_BLEACHING_SERVICE_CODE) {
+          // Deduct material cost before applying generalPct.
+          const base = Math.max(0, lineNet - homeBleachingDeductAmountMnt);
+          acc.doctorIncomeMnt += base * (generalPct / 100);
+          continue;
+        }
+
+        let pct = generalPct;
+        if (service?.category === "ORTHODONTIC_TREATMENT") pct = orthoPct;
+        else if (service?.category === "DEFECT_CORRECTION") pct = defectPct;
+        else if (service?.category === "SURGERY") pct = surgeryPct;
+
+        acc.doctorIncomeMnt += lineNet * (pct / 100);
+      }
+    }
+  }
+
+  return Array.from(byDoctor.values()).map((d) => {
+    const goal = Number(d.monthlyGoalAmountMnt || 0);
+    const sales = Number(d.doctorSalesMnt || 0);
+
+    return {
+      doctorId: d.doctorId,
+      doctorName: d.doctorName,
+      doctorOvog: d.doctorOvog,
+      branchName: d.branchName,
+      startDate: d.startDate,
+      endDate: d.endDate,
+      revenue: Math.round(sales),
+      commission: Math.round(d.doctorIncomeMnt),
+      monthlyGoal: Math.round(goal),
+      progressPercent: goal > 0 ? Math.round((sales / goal) * 10000) / 100 : 0,
+    };
+  });
 }
 
 function bucketKeyForService(service) {
@@ -59,245 +411,207 @@ router.get("/doctors-income", async (req, res) => {
     return res.status(400).json({ error: "startDate and endDate are required parameters." });
   }
 
-  const start = new Date(`${startDate}T00:00:00.000Z`);
-  const endExclusive = new Date(`${endDate}T00:00:00.000Z`);
-  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
-
   try {
-    // Settings: home bleaching deduction amount
-    const homeBleachingDeductSetting = await prisma.settings.findUnique({
-      where: { key: "finance.homeBleachingDeductAmountMnt" },
+    const doctors = await computeDoctorsIncomeData({
+      startDate: String(startDate),
+      endDate: String(endDate),
+      branchId,
     });
-    const homeBleachingDeductAmountMnt = Number(homeBleachingDeductSetting?.value || 0) || 0;
-
-    const invoices = await prisma.invoice.findMany({
-      where: {
-        ...(branchId ? { branchId: Number(branchId) } : {}),
-        OR: [
-          { createdAt: { gte: start, lt: endExclusive } },
-          { payments: { some: { timestamp: { gte: start, lt: endExclusive } } } },
-        ],
-      },
-      include: {
-        encounter: {
-          include: {
-            doctor: {
-              include: {
-                branch: true,
-                commissionConfig: true,
-              },
-            },
-          },
-        },
-        items: {
-          include: {
-            service: true,
-          },
-        },
-        payments: {
-          include: {
-            allocations: { select: { invoiceItemId: true, amount: true } },
-          },
-        },
-      },
-    });
-
-    const byDoctor = new Map();
-
-    for (const inv of invoices) {
-      const doctor = inv.encounter?.doctor;
-      if (!doctor) continue;
-
-      const cfg = doctor.commissionConfig;
-      const doctorId = doctor.id;
-
-      if (!byDoctor.has(doctorId)) {
-        byDoctor.set(doctorId, {
-          doctorId,
-          doctorName: doctor.name,
-          doctorOvog: doctor.ovog ?? null,
-          branchName: doctor.branch?.name,
-
-          // ✅ date-only strings (no time)
-          startDate: String(startDate),
-          endDate: String(endDate),
-
-          doctorSalesMnt: 0,
-          doctorIncomeMnt: 0,
-          monthlyGoalAmountMnt: Number(cfg?.monthlyGoalAmountMnt || 0),
-        });
-      }
-
-      const acc = byDoctor.get(doctorId);
-
-      const payments = inv.payments || [];
-      const hasOverride = payments.some((p) => OVERRIDE_METHODS.has(String(p.method).toUpperCase()));
-
-      // ---------- per-line nets via proportional discount per service line ----------
-      const discountPct = discountPercentEnumToNumber(inv.discountPercent);
-      const serviceItems = (inv.items || []).filter(
-        (it) => it.itemType === "SERVICE" && it.service?.category !== "PREVIOUS"
-      );
-      const lineNets = computeServiceNetProportionalDiscount(serviceItems, discountPct);
-
-      // Non-IMAGING items used for sales (IMAGING is excluded from doctorSalesMnt)
-      const nonImagingServiceItems = serviceItems.filter(
-        (it) => it.service?.category !== "IMAGING"
-      );
-
-      const totalNonImagingNet = nonImagingServiceItems.reduce(
-        (sum, it) => sum + (lineNets.get(it.id) || 0),
-        0
-      );
-      const totalAllServiceNet = serviceItems.reduce(
-        (sum, it) => sum + (lineNets.get(it.id) || 0),
-        0
-      );
-      // Ratio used to allocate BARTER excess proportionally across non-IMAGING lines
-      const nonImagingRatio = totalAllServiceNet > 0 ? totalNonImagingNet / totalAllServiceNet : 0;
-
-      // ---------- Single payment pass: proportional allocation by remaining due ----------
-      // itemById and serviceLineIds used in both SALES and INCOME sections below
-      const itemById = new Map(serviceItems.map((it) => [it.id, it]));
-      const serviceLineIds = serviceItems.map((it) => it.id);
-
-      // remainingDue tracks outstanding amount per line (initialised to net after discount).
-      // It is mutated by allocatePaymentProportionalByRemaining so later payments only
-      // allocate to still-unpaid portions.
-      const remainingDue = new Map(serviceItems.map((it) => [it.id, lineNets.get(it.id) || 0]));
-
-      // itemAllocationBase accumulates the pre-feeMultiplier payment allocation per line.
-      const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
-
-      let barterSum = 0;
-
-      // Process payments in timestamp order for deterministic remaining-due tracking.
-      const sortedPayments = [...payments].sort(
-        (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
-      );
-
-      for (const p of sortedPayments) {
-        const method = String(p.method || "").toUpperCase();
-        const ts = new Date(p.timestamp);
-        if (!inRange(ts, start, endExclusive)) continue;
-        if (EXCLUDED_METHODS.has(method)) continue;
-
-        if (method === "BARTER") {
-          barterSum += Number(p.amount || 0);
-          continue;
-        }
-
-        if (!INCLUDED_METHODS.has(method) && !OVERRIDE_METHODS.has(method)) continue;
-
-        const payAmt = Number(p.amount || 0);
-        const payAllocs = p.allocations || [];
-
-        if (payAllocs.length > 0) {
-          // Use explicit allocations; update remainingDue for subsequent payments.
-          for (const alloc of payAllocs) {
-            const item = itemById.get(alloc.invoiceItemId);
-            if (!item) continue;
-            const allocAmt = Number(alloc.amount || 0);
-            itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
-            remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
-          }
-        } else {
-          // Proportional allocation by remaining due across all service lines (mutates remainingDue).
-          const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
-          for (const [id, amt] of allocs) {
-            itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
-          }
-        }
-      }
-
-      // ---------- SALES (exclude IMAGING) ----------
-      if (hasOverride) {
-        // Override invoices: invoice-level sales contribution when paid.
-        const status = String(inv.statusLegacy || "").toLowerCase();
-        if (status === "paid") {
-          acc.doctorSalesMnt += totalNonImagingNet * 0.9;
-        }
-      } else {
-        // Sum proportional allocations for non-IMAGING lines.
-        let salesFromIncluded = 0;
-        for (const it of nonImagingServiceItems) {
-          salesFromIncluded += itemAllocationBase.get(it.id) || 0;
-        }
-
-        // BARTER excess contributes to sales (proportional to non-imaging share of lineNets).
-        const barterExcess = Math.max(0, barterSum - 800000);
-        const barterIncluded = barterExcess * nonImagingRatio;
-        acc.doctorSalesMnt += salesFromIncluded + barterIncluded;
-
-        // Barter excess also contributes to income via generalPct.
-        const generalPct = Number(cfg?.generalPct || 0);
-        acc.doctorIncomeMnt += barterIncluded * (generalPct / 100);
-      }
-
-      // ---------- INCOME ----------
-      {
-        const orthoPct = Number(cfg?.orthoPct || 0);
-        const defectPct = Number(cfg?.defectPct || 0);
-        const surgeryPct = Number(cfg?.surgeryPct || 0);
-        const generalPct = Number(cfg?.generalPct || 0);
-        const imagingPct = Number(cfg?.imagingPct || 0);
-        const feeMultiplier = hasOverride ? 0.9 : 1;
-
-        for (const it of serviceItems) {
-          const service = it.service;
-          const lineNet = (itemAllocationBase.get(it.id) || 0) * feeMultiplier;
-          if (lineNet <= 0) continue;
-
-          if (service?.category === "IMAGING") {
-            // Only credit doctor when explicitly assignedTo=DOCTOR.
-            if (it.meta?.assignedTo === "DOCTOR") {
-              acc.doctorIncomeMnt += lineNet * (imagingPct / 100);
-            }
-            continue;
-          }
-
-          if (Number(it.service?.code) === HOME_BLEACHING_SERVICE_CODE) {
-            // Deduct material cost before applying generalPct.
-            const base = Math.max(0, lineNet - homeBleachingDeductAmountMnt);
-            acc.doctorIncomeMnt += base * (generalPct / 100);
-            continue;
-          }
-
-          let pct = generalPct;
-          if (service?.category === "ORTHODONTIC_TREATMENT") pct = orthoPct;
-          else if (service?.category === "DEFECT_CORRECTION") pct = defectPct;
-          else if (service?.category === "SURGERY") pct = surgeryPct;
-
-          acc.doctorIncomeMnt += lineNet * (pct / 100);
-        }
-      }
-    }
-
-    const doctors = Array.from(byDoctor.values()).map((d) => {
-      const goal = Number(d.monthlyGoalAmountMnt || 0);
-      const sales = Number(d.doctorSalesMnt || 0);
-
-      return {
-        doctorId: d.doctorId,
-        doctorName: d.doctorName,
-        doctorOvog: d.doctorOvog,
-        branchName: d.branchName,
-        startDate: d.startDate,
-        endDate: d.endDate,
-
-        // Keeping legacy response keys so frontend works without changes:
-        revenue: Math.round(sales),
-        commission: Math.round(d.doctorIncomeMnt),
-        monthlyGoal: Math.round(goal),
-        progressPercent: goal > 0 ? Math.round((sales / goal) * 10000) / 100 : 0,
-      };
-    });
-
     if (!doctors.length) return res.status(404).json({ error: "No income data found." });
     return res.json(doctors);
   } catch (error) {
     console.error("Error in fetching doctor incomes:", error);
     return res.status(500).json({ error: "Failed to fetch doctor incomes." });
+  }
+});
+
+/**
+ * GET /api/admin/income-detailed
+ * Combined detailed income report for date range + optional branch.
+ */
+router.get("/income-detailed", async (req, res) => {
+  const { startDate, endDate, branchId: branchIdParam } = req.query;
+
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: "startDate and endDate are required parameters." });
+  }
+
+  const start = parseDateOnlyStart(startDate);
+  const endExclusive = parseDateOnlyEndExclusive(endDate);
+  if (!start || !endExclusive) {
+    return res.status(400).json({ error: "Invalid date format. Expected YYYY-MM-DD." });
+  }
+
+  const branchId = branchIdParam != null && branchIdParam !== ""
+    ? Number(branchIdParam)
+    : null;
+  if (branchIdParam != null && branchIdParam !== "" && (!Number.isInteger(branchId) || branchId <= 0)) {
+    return res.status(400).json({ error: "branchId must be a positive integer." });
+  }
+
+  try {
+    const paymentWhere = {
+      timestamp: { gte: start, lt: endExclusive },
+      ...(branchId ? { invoice: { branchId } } : {}),
+    };
+
+    const [
+      doctors,
+      methodConfigs,
+      paymentGroups,
+      collectorRows,
+      branch,
+      imagingItems,
+      balanceSnapshot,
+    ] = await Promise.all([
+      computeDoctorsIncomeData({
+        startDate: String(startDate),
+        endDate: String(endDate),
+        branchId,
+      }),
+      prisma.paymentMethodConfig.findMany({
+        select: { key: true, label: true, sortOrder: true },
+        orderBy: { sortOrder: "asc" },
+      }),
+      prisma.payment.groupBy({
+        by: ["method"],
+        where: paymentWhere,
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      prisma.payment.findMany({
+        where: paymentWhere,
+        select: {
+          createdByUserId: true,
+          createdBy: { select: { id: true, name: true, ovog: true } },
+        },
+        distinct: ["createdByUserId"],
+      }),
+      branchId
+        ? prisma.branch.findUnique({ where: { id: branchId }, select: { id: true, name: true } })
+        : Promise.resolve(null),
+      prisma.invoiceItem.findMany({
+        where: {
+          itemType: "SERVICE",
+          service: { category: "IMAGING" },
+          invoice: {
+            createdAt: { gte: start, lt: endExclusive },
+            ...(branchId ? { branchId } : {}),
+          },
+        },
+        select: {
+          id: true,
+          unitPrice: true,
+          quantity: true,
+          lineTotal: true,
+          meta: true,
+          invoice: {
+            select: {
+              discountPercent: true,
+              encounter: {
+                select: {
+                  doctor: { select: { id: true, name: true, ovog: true } },
+                },
+              },
+            },
+          },
+        },
+      }),
+      computeBalanceSnapshotTotals(branchId),
+    ]);
+
+    const doctorRows = doctors
+      .map((d) => ({
+        doctorId: d.doctorId,
+        doctorName: formatInitialName(d.doctorOvog, d.doctorName),
+        amount: Number(d.revenue || 0),
+      }))
+      .sort((a, b) => a.doctorName.localeCompare(b.doctorName, "mn"));
+    const doctorRevenueTotal = doctorRows.reduce((sum, d) => sum + d.amount, 0);
+
+    const nurseIds = Array.from(new Set(
+      imagingItems
+        .map((it) => {
+          if (!it.meta || typeof it.meta !== "object") return null;
+          const nurseId = Number(it.meta?.nurseId);
+          return Number.isInteger(nurseId) && nurseId > 0 ? nurseId : null;
+        })
+        .filter(Boolean)
+    ));
+
+    const nurses = nurseIds.length
+      ? await prisma.user.findMany({
+        where: { id: { in: nurseIds } },
+        select: { id: true, name: true, ovog: true },
+      })
+      : [];
+    const nurseById = new Map(nurses.map((n) => [n.id, n]));
+
+    const imagingByPerformer = new Map();
+    for (const item of imagingItems) {
+      const discountPct = discountPercentEnumToNumber(item.invoice?.discountPercent);
+      const gross = Number(item.lineTotal || (item.unitPrice || 0) * (item.quantity || 0) || 0);
+      const net = Math.max(0, Math.round(gross * (1 - discountPct / 100)));
+      if (net <= 0) continue;
+
+      const meta = item.meta && typeof item.meta === "object" ? item.meta : {};
+      const assignedTo = String(meta?.assignedTo || "").toUpperCase();
+      const nurseId = Number(meta?.nurseId);
+
+      let performerKey = "UNASSIGNED";
+      let performerName = "Тодорхойгүй";
+
+      if (assignedTo === "NURSE" && Number.isInteger(nurseId) && nurseId > 0) {
+        const nurse = nurseById.get(nurseId);
+        performerKey = `NURSE:${nurseId}`;
+        performerName = nurse ? formatInitialName(nurse.ovog, nurse.name) : `Сувилагч #${nurseId}`;
+      } else {
+        const doctor = item.invoice?.encounter?.doctor;
+        if (doctor?.id) {
+          performerKey = `DOCTOR:${doctor.id}`;
+          performerName = formatInitialName(doctor.ovog, doctor.name);
+        }
+      }
+
+      if (!imagingByPerformer.has(performerKey)) {
+        imagingByPerformer.set(performerKey, { performerName, amount: 0 });
+      }
+      imagingByPerformer.get(performerKey).amount += net;
+    }
+
+    const imagingRows = Array.from(imagingByPerformer.values())
+      .map((r) => ({
+        performerName: r.performerName,
+        amount: Number(r.amount || 0),
+      }))
+      .sort((a, b) => a.performerName.localeCompare(b.performerName, "mn"));
+    const imagingProductionTotal = imagingRows.reduce((sum, r) => sum + r.amount, 0);
+
+    const paymentSummary = buildDetailedPaymentSummaryRows(paymentGroups, methodConfigs);
+
+    const collectors = collectorRows
+      .map((row) => row.createdBy ? formatInitialName(row.createdBy.ovog, row.createdBy.name) : null)
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "mn"));
+
+    return res.json({
+      startDate: String(startDate),
+      endDate: String(endDate),
+      branchId: branch?.id ?? null,
+      branchName: branch?.name ?? null,
+      collectors,
+      doctors: doctorRows,
+      doctorRevenueTotal: Number(doctorRevenueTotal || 0),
+      imaging: imagingRows,
+      imagingProductionTotal: Number(imagingProductionTotal || 0),
+      grandTotal: Number(doctorRevenueTotal + imagingProductionTotal),
+      paymentSummary,
+      debtSnapshotAmount: Number(balanceSnapshot.debtAmount || 0),
+      overpaymentSnapshotAmount: Number(balanceSnapshot.overpaymentAmount || 0),
+    });
+  } catch (error) {
+    console.error("Error in fetching detailed income report:", error);
+    return res.status(500).json({ error: "Failed to fetch detailed income report." });
   }
 });
 
