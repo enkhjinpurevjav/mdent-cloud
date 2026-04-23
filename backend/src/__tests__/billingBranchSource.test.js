@@ -1,6 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { getEncounterAppointmentBranchId } from "../routes/billing.js";
+import {
+  getEncounterAppointmentBranchId,
+  summarizePatientFinancials,
+} from "../routes/billing.js";
 
 describe("billing invoice branch source", () => {
   it("uses encounter appointment branchId when present", () => {
@@ -39,5 +42,34 @@ describe("billing invoice branch source", () => {
       getEncounterAppointmentBranchId({ appointment: { branchId: "abc" } }),
       null
     );
+  });
+});
+
+describe("summarizePatientFinancials", () => {
+  it("keeps walletAvailable independent from outstanding debt", () => {
+    const result = summarizePatientFinancials({
+      invoiceSnapshots: [
+        // Existing overpayment bucket
+        { billed: 0, paid: 30_000 },
+        // New unpaid invoice should not consume wallet availability
+        { billed: 35_000, paid: 0 },
+      ],
+      totalAdjustments: 0,
+    });
+
+    assert.equal(result.walletAvailable, 30_000);
+    assert.equal(result.outstandingDebt, 35_000);
+    assert.equal(result.balance, 5_000);
+  });
+
+  it("includes adjustment logs in walletAvailable", () => {
+    const result = summarizePatientFinancials({
+      invoiceSnapshots: [],
+      totalAdjustments: 20_000,
+    });
+
+    assert.equal(result.walletAvailable, 20_000);
+    assert.equal(result.outstandingDebt, 0);
+    assert.equal(result.balance, -20_000);
   });
 });
