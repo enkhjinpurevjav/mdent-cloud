@@ -72,9 +72,43 @@ function toDiscountEnum(percent) {
   throw new Error("Invalid discount percent. Allowed: 0, 5, 10.");
 }
 
+export function summarizePatientFinancials({ invoiceSnapshots, totalAdjustments }) {
+  let totalBilled = 0;
+  let totalPaid = 0;
+  let totalOutstandingDebt = 0;
+  let totalOverpaid = 0;
+
+  for (const row of invoiceSnapshots) {
+    const billed = Number(row?.billed || 0);
+    const paid = Number(row?.paid || 0);
+    const unpaid = Math.max(billed - paid, 0);
+    const overpaid = Math.max(paid - billed, 0);
+    totalBilled += billed;
+    totalPaid += paid;
+    totalOutstandingDebt += unpaid;
+    totalOverpaid += overpaid;
+  }
+
+  const normalizedAdjustments = Number(totalAdjustments || 0);
+  const balance = Number((totalBilled - totalPaid - normalizedAdjustments).toFixed(2));
+  const walletAvailable = Number(Math.max(totalOverpaid + normalizedAdjustments, 0).toFixed(2));
+
+  return {
+    totalBilled: Number(totalBilled.toFixed(2)),
+    totalPaid: Number(totalPaid.toFixed(2)),
+    balance,
+    walletAvailable,
+    outstandingDebt: Number(totalOutstandingDebt.toFixed(2)),
+  };
+}
+
 /**
- * Helper: compute patient balance from all invoices + payments.
- * Returns { totalBilled, totalPaid, balance }.
+ * Helper: compute patient financial summary from invoices, payments, and adjustments.
+ *
+ * Returns:
+ * - totalBilled / totalPaid / balance (legacy net-balance view)
+ * - walletAvailable (credit available for WALLET method, independent from new debt)
+ * - outstandingDebt (sum of unpaid invoice balances, does not consume wallet credit)
  */
 async function getPatientBalance(patientId) {
   const invoices = await prisma.invoice.findMany({
@@ -86,48 +120,37 @@ async function getPatientBalance(patientId) {
     },
   });
 
-  if (invoices.length === 0) {
-    return { totalBilled: 0, totalPaid: 0, balance: 0 };
-  }
-
   const invoiceIds = invoices.map((inv) => inv.id);
 
-  const payments = await prisma.payment.groupBy({
-    by: ["invoiceId"],
-    where: { invoiceId: { in: invoiceIds } },
-    _sum: { amount: true },
-  });
-  const adjustmentAgg = await prisma.balanceAdjustmentLog.aggregate({
-    where: { patientId },
-    _sum: { amount: true },
-  });
+  const [payments, adjustmentAgg] = await Promise.all([
+    invoiceIds.length > 0
+      ? prisma.payment.groupBy({
+          by: ["invoiceId"],
+          where: { invoiceId: { in: invoiceIds } },
+          _sum: { amount: true },
+        })
+      : Promise.resolve([]),
+    prisma.balanceAdjustmentLog.aggregate({
+      where: { patientId },
+      _sum: { amount: true },
+    }),
+  ]);
 
   const paidByInvoice = new Map();
   for (const p of payments) {
     paidByInvoice.set(p.invoiceId, Number(p._sum.amount || 0));
   }
 
-  let totalBilled = 0;
-  let totalPaid = 0;
   const totalAdjustments = Number(adjustmentAgg._sum.amount || 0);
-
-  for (const inv of invoices) {
-    const billed =
-      inv.finalAmount != null ? Number(inv.finalAmount) : Number(inv.totalAmount || 0);
-    const paid = paidByInvoice.get(inv.id) || 0;
-    totalBilled += billed;
-    totalPaid += paid;
-  }
-
-  totalBilled = Number(totalBilled.toFixed(2));
-  totalPaid = Number(totalPaid.toFixed(2));
-  // totalAdjustments can be positive (manual credit) or negative (wallet deduction),
-  // and we subtract it in the formula:
-  // - positive adjustment lowers patient balance (less debt),
-  // - negative adjustment raises patient balance (consumes wallet credit).
-  const balance = Number((totalBilled - totalPaid - totalAdjustments).toFixed(2));
-
-  return { totalBilled, totalPaid, balance };
+  const invoiceSnapshots = invoices.map((inv) => ({
+    billed:
+      inv.finalAmount != null ? Number(inv.finalAmount) : Number(inv.totalAmount || 0),
+    paid: paidByInvoice.get(inv.id) || 0,
+  }));
+  return summarizePatientFinancials({
+    invoiceSnapshots,
+    totalAdjustments,
+  });
 }
 
 /**
@@ -307,6 +330,8 @@ router.get("/encounters/:id/invoice", async (req, res) => {
         patientTotalBilled: balanceData.totalBilled,
         patientTotalPaid: balanceData.totalPaid,
         patientBalance: balanceData.balance,
+        patientWalletAvailable: balanceData.walletAvailable,
+        patientOutstandingDebt: balanceData.outstandingDebt,
         hasMarker,
         patientOldBalance,
         patientOvog: patient.ovog ?? null,
@@ -378,6 +403,8 @@ router.get("/encounters/:id/invoice", async (req, res) => {
       patientTotalBilled: balanceData.totalBilled,
       patientTotalPaid: balanceData.totalPaid,
       patientBalance: balanceData.balance,
+      patientWalletAvailable: balanceData.walletAvailable,
+      patientOutstandingDebt: balanceData.outstandingDebt,
       hasMarker,
       patientOldBalance,
       patientOvog: patient.ovog ?? null,

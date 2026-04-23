@@ -66,6 +66,8 @@ type InvoiceResponse = {
   patientTotalBilled?: number;
   patientTotalPaid?: number;
   patientBalance?: number;
+  patientWalletAvailable?: number;
+  patientOutstandingDebt?: number;
   hasMarker?: boolean;
   patientOldBalance?: number;
   patientOvog?: string | null;
@@ -359,8 +361,9 @@ function BillingPaymentSection({
     Math.max((invoice.finalAmount ?? 0) - (invoice.paidTotal ?? 0), 0);
 
   const walletAvailable =
-    invoice.patientBalance != null && invoice.patientBalance < 0
-      ? Math.abs(invoice.patientBalance)
+    invoice.patientWalletAvailable != null &&
+    Number.isFinite(Number(invoice.patientWalletAvailable))
+      ? Math.max(Number(invoice.patientWalletAvailable), 0)
       : 0;
 
   useEffect(() => {
@@ -2183,14 +2186,20 @@ const discountAmount = Math.max(Math.round(servicesSubtotal) - discountedService
 
 // Final amount = discounted services + full products
 const finalAmount = Math.max(discountedServices + Math.round(productsSubtotal), 0);
-const normalizedPatientBalance =
+const normalizedWalletAvailable =
   invoice &&
-  invoice.patientBalance != null &&
-  Number.isFinite(Number(invoice.patientBalance))
-    ? Number(invoice.patientBalance)
+  invoice.patientWalletAvailable != null &&
+  Number.isFinite(Number(invoice.patientWalletAvailable))
+    ? Math.max(Number(invoice.patientWalletAvailable), 0)
     : null;
-const patientCredit = normalizedPatientBalance == null ? null : Math.max(-normalizedPatientBalance, 0);
-const patientDebt = normalizedPatientBalance == null ? null : Math.max(normalizedPatientBalance, 0);
+const normalizedOutstandingDebt =
+  invoice &&
+  invoice.patientOutstandingDebt != null &&
+  Number.isFinite(Number(invoice.patientOutstandingDebt))
+    ? Math.max(Number(invoice.patientOutstandingDebt), 0)
+    : null;
+const patientCredit = normalizedWalletAvailable;
+const patientDebt = normalizedOutstandingDebt;
 
   const handleSaveBilling = async () => {
     if (!encounterId || Number.isNaN(encounterId)) return;
@@ -2354,13 +2363,13 @@ const patientDebt = normalizedPatientBalance == null ? null : Math.max(normalize
       <div className="text-right">
         <div>
           Урьдчилгаа (кредит):{" "}
-          <strong className={normalizedPatientBalance == null ? "text-gray-500" : "text-green-700"}>
+            <strong className={normalizedWalletAvailable == null ? "text-gray-500" : "text-green-700"}>
             {patientCredit == null ? "—" : `${formatMoney(patientCredit)} ₮`}
           </strong>
         </div>
         <div>
           Өр (дебит):{" "}
-          <strong className={normalizedPatientBalance == null ? "text-gray-500" : "text-red-700"}>
+            <strong className={normalizedOutstandingDebt == null ? "text-gray-500" : "text-red-700"}>
             {patientDebt == null ? "—" : `${formatMoney(patientDebt)} ₮`}
           </strong>
         </div>
