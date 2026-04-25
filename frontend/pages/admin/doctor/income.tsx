@@ -33,6 +33,7 @@ type DoctorSummary = {
   endDate: string;
   appointmentCount: number;
   serviceCount: number;
+  averageVisitRevenue: number;
   revenue: number;
   commission: number;
   monthlyGoal: number;
@@ -152,6 +153,7 @@ export default function DoctorsIncomePage() {
                     <th className="px-2 py-3 font-semibold text-gray-700">Дуусах</th>
                     <th className="px-2 py-3 text-right font-semibold text-gray-700">Цаг захиалга</th>
                     <th className="px-2 py-3 text-right font-semibold text-gray-700">Үйлчилгээ</th>
+                    <th className="px-2 py-3 text-right font-semibold text-gray-700">Үзлэгийн дундаж</th>
                     <th className="px-2 py-3 text-right font-semibold text-gray-700">Борлуулалт</th>
                     <th className="px-2 py-3 text-right font-semibold text-gray-700">Эмчийн хувь</th>
                     <th className="px-2 py-3 text-right font-semibold text-gray-700">Сарын зорилт</th>
@@ -169,6 +171,9 @@ export default function DoctorsIncomePage() {
                       <td className="px-2 py-2">{doctor.endDate}</td>
                       <td className="px-2 py-2 text-right">{doctor.appointmentCount}</td>
                       <td className="px-2 py-2 text-right">{doctor.serviceCount}</td>
+                      <td className="px-2 py-2 text-right">
+                        {doctor.averageVisitRevenue.toLocaleString("mn-MN")} ₮
+                      </td>
                       <td className="px-2 py-2 text-right">
                         {doctor.revenue.toLocaleString("mn-MN")} ₮
                       </td>
