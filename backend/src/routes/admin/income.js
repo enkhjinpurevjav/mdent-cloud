@@ -514,6 +514,8 @@ router.get("/income-detailed", async (req, res) => {
       collectorRows,
       branch,
       imagingItems,
+      productItems,
+      overrideFeeInvoices,
       balanceSnapshot,
     ] = await Promise.all([
       computeDoctorsIncomeData({
@@ -569,6 +571,35 @@ router.get("/income-detailed", async (req, res) => {
           },
         },
       }),
+      prisma.invoiceItem.findMany({
+        where: {
+          itemType: "PRODUCT",
+          invoice: {
+            createdAt: { gte: start, lt: endExclusive },
+            ...(branchId ? { branchId } : {}),
+          },
+        },
+        select: {
+          id: true,
+          lineTotal: true,
+          unitPrice: true,
+          quantity: true,
+        },
+      }),
+      prisma.invoice.findMany({
+        where: {
+          ...(branchId ? { branchId } : {}),
+          OR: [
+            { createdAt: { gte: start, lt: endExclusive } },
+            { payments: { some: { timestamp: { gte: start, lt: endExclusive } } } },
+          ],
+          payments: { some: { method: { in: Array.from(OVERRIDE_METHODS) } } },
+        },
+        include: {
+          items: { include: { service: true } },
+          payments: true,
+        },
+      }),
       computeBalanceSnapshotTotals(branchId),
     ]);
 
@@ -578,7 +609,7 @@ router.get("/income-detailed", async (req, res) => {
         doctorName: formatInitialName(d.doctorOvog, d.doctorName),
         amount: Number(d.revenue || 0),
       }))
-      .sort((a, b) => a.doctorName.localeCompare(b.doctorName, "mn"));
+      .sort((a, b) => b.amount - a.amount || a.doctorName.localeCompare(b.doctorName, "mn"));
     const doctorRevenueTotal = doctorRows.reduce((sum, d) => sum + d.amount, 0);
 
     const nurseIds = Array.from(new Set(
@@ -640,7 +671,43 @@ router.get("/income-detailed", async (req, res) => {
       .sort((a, b) => a.performerName.localeCompare(b.performerName, "mn"));
     const imagingProductionTotal = imagingRows.reduce((sum, r) => sum + r.amount, 0);
 
+    const productSalesTotal = productItems.reduce((sum, item) => {
+      const gross = Number(item.lineTotal || (item.unitPrice || 0) * (item.quantity || 0) || 0);
+      return sum + gross;
+    }, 0);
+
+    const overrideFeeTotal = overrideFeeInvoices.reduce((sum, inv) => {
+      const status = String(inv.statusLegacy || "").toLowerCase();
+      if (status !== "paid") return sum;
+
+      const hasOverridePayment = (inv.payments || []).some((p) =>
+        OVERRIDE_METHODS.has(String(p.method || "").toUpperCase())
+      );
+      if (!hasOverridePayment) return sum;
+
+      const discountPct = discountPercentEnumToNumber(inv.discountPercent);
+      const nonImagingServiceItems = (inv.items || []).filter(
+        (it) => it.itemType === "SERVICE" && it.service?.category !== "PREVIOUS" && it.service?.category !== "IMAGING"
+      );
+      const lineNets = computeServiceNetProportionalDiscount(nonImagingServiceItems, discountPct);
+      const totalNonImagingNet = nonImagingServiceItems.reduce(
+        (itemSum, it) => itemSum + (lineNets.get(it.id) || 0),
+        0
+      );
+
+      return sum + totalNonImagingNet * 0.1;
+    }, 0);
+
     const paymentSummary = buildDetailedPaymentSummaryRows(paymentGroups, methodConfigs);
+    const summaryRows = [
+      ...paymentSummary,
+      {
+        method: "PRODUCT_SALES",
+        label: "Барааны борлуулалт",
+        totalAmount: Math.round(productSalesTotal),
+        count: productItems.length,
+      },
+    ];
 
     const collectors = collectorRows
       .map((row) => row.createdBy ? formatInitialName(row.createdBy.ovog, row.createdBy.name) : null)
@@ -657,8 +724,10 @@ router.get("/income-detailed", async (req, res) => {
       doctorRevenueTotal: Number(doctorRevenueTotal || 0),
       imaging: imagingRows,
       imagingProductionTotal: Number(imagingProductionTotal || 0),
-      grandTotal: Number(doctorRevenueTotal + imagingProductionTotal),
-      paymentSummary,
+      overrideFeeTotal: Math.round(overrideFeeTotal),
+      productSalesTotal: Math.round(productSalesTotal),
+      grandTotal: Number(doctorRevenueTotal + imagingProductionTotal + Math.round(overrideFeeTotal)),
+      paymentSummary: summaryRows,
       debtSnapshotAmount: Number(balanceSnapshot.debtAmount || 0),
       overpaymentSnapshotAmount: Number(balanceSnapshot.overpaymentAmount || 0),
     });

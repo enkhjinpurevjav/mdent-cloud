@@ -23,6 +23,8 @@ type IncomeDetailedResponse = {
   doctorRevenueTotal: number;
   imaging: ImagingRow[];
   imagingProductionTotal: number;
+  overrideFeeTotal: number;
+  productSalesTotal: number;
   grandTotal: number;
   paymentSummary: PaymentSummaryRow[];
   debtSnapshotAmount: number;
@@ -237,8 +239,11 @@ export default function FinanceIncomeDetailedPage() {
           </section>
 
           <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
-            <p className="text-sm text-blue-700">Нийт орлого (Эмч + Зураг)</p>
+            <p className="text-sm text-blue-700">Нийт орлого (Эмч + Зураг + Шимтгэл 10%)</p>
             <p className="text-2xl font-bold text-blue-900">{fmtMnt(data.grandTotal)}</p>
+            <p className="mt-1 text-xs text-blue-700">
+              Шимтгэл 10%: {fmtMnt(data.overrideFeeTotal)}
+            </p>
           </div>
 
           <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
