@@ -261,7 +261,7 @@ export default function AppointmentsPageV2() {
     for (const doctor of scheduledDoctors) {
       byId.set(doctor.id, doctor);
     }
-    for (const appointment of appointments) {
+    for (const appointment of getVisibleAppointmentsV2(appointments)) {
       const doctorId = Number(appointment.doctorId);
       if (!Number.isFinite(doctorId) || doctorId <= 0) continue;
       if (byId.has(doctorId)) continue;
