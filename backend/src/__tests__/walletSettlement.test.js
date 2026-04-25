@@ -3,6 +3,51 @@ import assert from "node:assert/strict";
 import { applyWalletSettlement } from "../services/walletSettlementService.js";
 
 describe("applyWalletSettlement", () => {
+  it("allows wallet settlement even when patient has separate unpaid debt", async () => {
+    const createCalls = [];
+    const applyCalls = [];
+    const trx = {
+      invoice: {
+        findMany: async () => [
+          // prior overpayment bucket (wallet credit source)
+          { id: 11, finalAmount: 0, totalAmount: 0 },
+          // separate unpaid invoice should NOT reduce walletAvailable
+          { id: 12, finalAmount: 35000, totalAmount: 35000 },
+        ],
+      },
+      payment: {
+        groupBy: async () => [
+          { invoiceId: 11, _sum: { amount: 30000 } },
+          { invoiceId: 12, _sum: { amount: 0 } },
+        ],
+      },
+      balanceAdjustmentLog: {
+        aggregate: async () => ({ _sum: { amount: 0 } }),
+        create: async (args) => {
+          createCalls.push(args);
+          return { id: 1, ...args.data };
+        },
+      },
+    };
+
+    const result = await applyWalletSettlement(trx, {
+      invoice: { id: 99, patientId: 7, encounterId: 21 },
+      payAmount: 10000,
+      methodStr: "WALLET",
+      createdByUserId: 5,
+      applyPaymentFn: async (_trx, payload) => {
+        applyCalls.push(payload);
+        return { updatedInvoice: { id: 99 }, paidTotal: 10000 };
+      },
+    });
+
+    assert.equal(createCalls.length, 1);
+    assert.equal(createCalls[0].data.amount, -10000);
+    assert.equal(applyCalls.length, 1);
+    assert.equal(applyCalls[0].payAmount, 10000);
+    assert.equal(result.paidTotal, 10000);
+  });
+
   it("creates BalanceAdjustmentLog deduction and applies payment in one flow", async () => {
     const createCalls = [];
     const applyCalls = [];
@@ -11,7 +56,7 @@ describe("applyWalletSettlement", () => {
         findMany: async () => [{ id: 11, finalAmount: 1000, totalAmount: 1000 }],
       },
       payment: {
-        aggregate: async () => ({ _sum: { amount: 1300 } }),
+        groupBy: async () => [{ invoiceId: 11, _sum: { amount: 1300 } }],
       },
       balanceAdjustmentLog: {
         aggregate: async () => ({ _sum: { amount: 0 } }),
@@ -56,7 +101,7 @@ describe("applyWalletSettlement", () => {
         findMany: async () => [{ id: 11, finalAmount: 1000, totalAmount: 1000 }],
       },
       payment: {
-        aggregate: async () => ({ _sum: { amount: 1050 } }),
+        groupBy: async () => [{ invoiceId: 11, _sum: { amount: 1050 } }],
       },
       balanceAdjustmentLog: {
         aggregate: async () => ({ _sum: { amount: 0 } }),
