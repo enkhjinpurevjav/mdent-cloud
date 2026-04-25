@@ -1,13 +1,13 @@
 export type BranchOption = { id: number; name: string };
+export type PaymentMethodOption = { key: string; label: string };
 
 export type PaymentStatus = "all" | "active" | "reversed";
-export type PaymentMethod = "" | "cash" | "transfer" | "pos" | "wallet" | "qpay" | "insurance" | "application";
 
 export type PaymentsFilterState = {
   from: string;
   to: string;
   branchId: string;
-  method: PaymentMethod;
+  paymentMethods: string[];
   status: PaymentStatus;
   patientSearch: string;
   invoiceId: string;

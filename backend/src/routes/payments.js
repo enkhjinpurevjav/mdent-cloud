@@ -8,16 +8,8 @@ const router = express.Router();
 const DEFAULT_PAGE_SIZE = 20;
 const MIN_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
-const METHOD_VALUES = new Set([
-  "cash",
-  "transfer",
-  "pos",
-  "wallet",
-  "qpay",
-  "insurance",
-  "application",
-]);
 const STATUS_VALUES = new Set(["all", "active", "reversed"]);
+const NONE_PAYMENT_METHOD_FILTER = "__none__";
 
 function normalizeMoney(value) {
   return Number(Number(value || 0).toFixed(2));
@@ -37,6 +29,14 @@ function parseDateOnlyEndExclusive(value) {
 
 function normalizeMethod(method) {
   return String(method || "").trim().toLowerCase();
+}
+
+function parsePaymentMethodFilter(value) {
+  if (value == null || value === "") return null;
+  const rawValues = Array.isArray(value) ? value : String(value).split(",");
+  return rawValues
+    .map((v) => normalizeMethod(v))
+    .filter(Boolean);
 }
 
 function safeMeta(meta) {
@@ -276,8 +276,7 @@ router.get("/", async (req, res) => {
 
     const branchId = parseIntOrNull(req.query.branchId);
     const invoiceId = parseIntOrNull(req.query.invoiceId);
-    const methodRaw = typeof req.query.method === "string" ? req.query.method.trim().toLowerCase() : "";
-    const method = METHOD_VALUES.has(methodRaw) ? methodRaw : "";
+    const paymentMethodFilter = parsePaymentMethodFilter(req.query.paymentMethods);
     const statusRaw = typeof req.query.status === "string" ? req.query.status.trim().toLowerCase() : "all";
     const status = STATUS_VALUES.has(statusRaw) ? statusRaw : "all";
     const patientSearch = typeof req.query.patientSearch === "string" ? req.query.patientSearch.trim() : "";
@@ -288,7 +287,14 @@ router.get("/", async (req, res) => {
     };
 
     if (invoiceId) where.invoiceId = invoiceId;
-    if (method) where.method = { equals: method, mode: "insensitive" };
+    if (paymentMethodFilter && !paymentMethodFilter.includes(NONE_PAYMENT_METHOD_FILTER)) {
+      const selectedMethods = Array.from(new Set(paymentMethodFilter));
+      if (selectedMethods.length > 0) {
+        where.OR = selectedMethods.map((method) => ({
+          method: { equals: method, mode: "insensitive" },
+        }));
+      }
+    }
 
     const payments = await prisma.payment.findMany({
       where,
@@ -324,6 +330,10 @@ router.get("/", async (req, res) => {
     let rows = payments
       .filter((payment) => !isReversalEntryPayment(payment))
       .map((payment) => buildPaymentLedgerRow(payment));
+
+    if (paymentMethodFilter?.includes(NONE_PAYMENT_METHOD_FILTER)) {
+      rows = [];
+    }
 
     if (branchId) {
       rows = rows.filter((row) => row.branch?.id === branchId);

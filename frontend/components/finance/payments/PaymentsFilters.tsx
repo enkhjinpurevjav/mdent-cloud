@@ -1,25 +1,15 @@
 import React from "react";
-import type { BranchOption, PaymentMethod, PaymentStatus, PaymentsFilterState } from "./types";
+import type { BranchOption, PaymentMethodOption, PaymentStatus, PaymentsFilterState } from "./types";
 
 type Props = {
   filters: PaymentsFilterState;
   branches: BranchOption[];
+  paymentMethods: PaymentMethodOption[];
   patientInput: string;
   onPatientInputChange: (value: string) => void;
   onFilterChange: (patch: Partial<PaymentsFilterState>) => void;
   onClear: () => void;
 };
-
-const METHOD_OPTIONS: Array<{ value: PaymentMethod; label: string }> = [
-  { value: "", label: "Бүгд" },
-  { value: "cash", label: "cash" },
-  { value: "transfer", label: "transfer" },
-  { value: "pos", label: "pos" },
-  { value: "wallet", label: "wallet" },
-  { value: "qpay", label: "qpay" },
-  { value: "insurance", label: "insurance" },
-  { value: "application", label: "application" },
-];
 
 const STATUS_OPTIONS: Array<{ value: PaymentStatus; label: string }> = [
   { value: "all", label: "Бүгд" },
@@ -30,11 +20,15 @@ const STATUS_OPTIONS: Array<{ value: PaymentStatus; label: string }> = [
 export default function PaymentsFilters({
   filters,
   branches,
+  paymentMethods,
   patientInput,
   onPatientInputChange,
   onFilterChange,
   onClear,
 }: Props) {
+  const selectedPaymentMethodSet = new Set(filters.paymentMethods);
+  const allPaymentMethodKeys = paymentMethods.map((method) => method.key);
+
   return (
     <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
@@ -67,21 +61,6 @@ export default function PaymentsFilters({
             {branches.map((branch) => (
               <option key={branch.id} value={String(branch.id)}>
                 {branch.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="text-xs text-gray-600">
-          Төлбөрийн хэлбэр
-          <select
-            value={filters.method}
-            onChange={(e) => onFilterChange({ method: e.target.value as PaymentMethod, page: 1 })}
-            className="mt-1 w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-          >
-            {METHOD_OPTIONS.map((option) => (
-              <option key={option.value || "all"} value={option.value}>
-                {option.label}
               </option>
             ))}
           </select>
@@ -147,6 +126,51 @@ export default function PaymentsFilters({
             <option value="50">50</option>
           </select>
         </label>
+        <div className="text-xs text-gray-600 sm:col-span-2 lg:col-span-2 xl:col-span-2">
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span>Төлбөрийн хэрэгсэл</span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => onFilterChange({ paymentMethods: allPaymentMethodKeys, page: 1 })}
+                className="text-[11px] font-medium text-blue-600 hover:text-blue-800"
+              >
+                Бүгд
+              </button>
+              <button
+                type="button"
+                onClick={() => onFilterChange({ paymentMethods: [], page: 1 })}
+                className="text-[11px] font-medium text-gray-500 hover:text-gray-700"
+              >
+                Цэвэрлэх
+              </button>
+            </div>
+          </div>
+          <div className="max-h-28 overflow-y-auto rounded-md border border-gray-300 bg-white p-2">
+            {paymentMethods.length === 0 ? (
+              <p className="text-xs text-gray-400">Төлбөрийн хэрэгсэл олдсонгүй</p>
+            ) : (
+              <div className="grid gap-1 sm:grid-cols-2">
+                {paymentMethods.map((method) => (
+                  <label key={method.key} className="flex cursor-pointer items-center gap-2 text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={selectedPaymentMethodSet.has(method.key)}
+                      onChange={(e) => {
+                        const next = new Set(filters.paymentMethods);
+                        if (e.target.checked) next.add(method.key);
+                        else next.delete(method.key);
+                        onFilterChange({ paymentMethods: Array.from(next), page: 1 });
+                      }}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                    />
+                    <span>{method.label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="mt-3">
