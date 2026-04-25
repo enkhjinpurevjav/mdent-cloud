@@ -11,6 +11,7 @@ import type {
   DoctorOption,
   InvoiceFilterState,
   InvoiceListResponse,
+  PaymentMethodOption,
 } from "../../components/finance/invoices/types";
 
 const PAGE_TITLE = "Нэхэмжлэлүүд";
@@ -33,6 +34,7 @@ const DEFAULT_FILTERS: InvoiceFilterState = {
   ebarimtStatus: "all",
   patientSearch: "",
   invoiceId: "",
+  paymentMethods: [],
   page: 1,
   pageSize: 20,
 };
@@ -43,6 +45,7 @@ export default function FinanceInvoicesPage() {
 
   const [branches, setBranches] = useState<BranchOption[]>([]);
   const [doctors, setDoctors] = useState<DoctorOption[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
   const [filters, setFilters] = useState<InvoiceFilterState>(DEFAULT_FILTERS);
   const [patientInput, setPatientInput] = useState("");
   const [data, setData] = useState<InvoiceListResponse | null>(null);
@@ -76,6 +79,20 @@ export default function FinanceInvoicesPage() {
       .then((res) => res.json())
       .then((json) => setDoctors(Array.isArray(json) ? json : []))
       .catch(() => setDoctors([]));
+
+    fetch("/api/payment-settings")
+      .then((res) => res.json())
+      .then((json) => {
+        const methods = Array.isArray(json?.methods) ? json.methods : [];
+        setPaymentMethods(methods.map((m: any) => ({ key: String(m.key), label: String(m.label || m.key) })));
+        setFilters((prev) => ({
+          ...prev,
+          paymentMethods: prev.paymentMethods.length
+            ? prev.paymentMethods
+            : methods.map((m: any) => String(m.key)),
+        }));
+      })
+      .catch(() => setPaymentMethods([]));
   }, []);
 
   useEffect(() => {
@@ -94,6 +111,10 @@ export default function FinanceInvoicesPage() {
     if (filters.doctorId) params.set("doctorId", filters.doctorId);
     if (filters.patientSearch) params.set("patientSearch", filters.patientSearch);
     if (filters.invoiceId) params.set("invoiceId", filters.invoiceId);
+    params.set(
+      "paymentMethods",
+      filters.paymentMethods.length > 0 ? filters.paymentMethods.join(",") : "__NONE__"
+    );
 
     setLoading(true);
     setError("");
@@ -136,11 +157,15 @@ export default function FinanceInvoicesPage() {
         filters={filters}
         branches={branches}
         doctors={doctors}
+        paymentMethods={paymentMethods}
         patientInput={patientInput}
         onPatientInputChange={setPatientInput}
         onFilterChange={(patch) => setFilters((prev) => ({ ...prev, ...patch }))}
         onClear={() => {
-          setFilters(DEFAULT_FILTERS);
+          setFilters({
+            ...DEFAULT_FILTERS,
+            paymentMethods: paymentMethods.map((method) => method.key),
+          });
           setPatientInput("");
         }}
       />

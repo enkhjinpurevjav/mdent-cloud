@@ -1,5 +1,6 @@
 export type BranchOption = { id: number; name: string };
 export type DoctorOption = { id: number; name: string | null; ovog: string | null };
+export type PaymentMethodOption = { key: string; label: string };
 
 export type InvoicePaymentStatus = "all" | "paid" | "partial" | "unpaid" | "overpaid";
 export type InvoiceEbarimtStatus = "all" | "issued" | "not_issued";
@@ -13,6 +14,7 @@ export type InvoiceFilterState = {
   ebarimtStatus: InvoiceEbarimtStatus;
   patientSearch: string;
   invoiceId: string;
+  paymentMethods: string[];
   page: number;
   pageSize: number;
 };
