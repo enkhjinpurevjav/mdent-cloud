@@ -24,8 +24,6 @@ function formatDoctorName(ovog: string | null | undefined, name: string): string
   return name;
 }
 
-const PAGE_SIZE = 15;
-
 type DoctorSummary = {
   doctorId: number;
   doctorName: string;
@@ -33,6 +31,8 @@ type DoctorSummary = {
   branchName: string;
   startDate: string;
   endDate: string;
+  appointmentCount: number;
+  serviceCount: number;
   revenue: number;
   commission: number;
   monthlyGoal: number;
@@ -49,7 +49,6 @@ export default function DoctorsIncomePage() {
   const [doctors, setDoctors] = useState<DoctorSummary[]>([]);
   const [branches, setBranches] = useState<{ id: number; name: string }[]>([]);
   const [error, setError] = useState<string>("");
-  const [page, setPage] = useState<number>(1);
 
   const fetchBranches = async () => {
     try {
@@ -81,18 +80,13 @@ export default function DoctorsIncomePage() {
   };
 
   useEffect(() => {
-    setPage(1);
     fetchBranches();
     fetchData();
   }, [startDate, endDate, branchId]);
 
-  const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(doctors.length / PAGE_SIZE)),
-    [doctors.length]
-  );
-  const pagedDoctors = useMemo(
-    () => doctors.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [doctors, page]
+  const sortedDoctors = useMemo(
+    () => [...doctors].sort((a, b) => b.progressPercent - a.progressPercent || b.revenue - a.revenue),
+    [doctors]
   );
 
   return (
@@ -149,15 +143,16 @@ export default function DoctorsIncomePage() {
           <p className="text-sm text-gray-600">Ачаалж байна...</p>
         ) : (
           <>
-            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-              <table className="w-full border-collapse text-sm">
+            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+              <table className="min-w-[980px] w-full border-collapse text-sm">
                 <thead className="bg-gray-50 text-left">
                   <tr>
-                    <th className="px-2 py-3 font-semibold text-gray-700">Нэр</th>
-                    <th className="px-2 py-3 font-semibold text-gray-700">Салбар</th>
+                    <th className="sticky left-0 z-20 bg-gray-50 px-2 py-3 font-semibold text-gray-700 shadow-[1px_0_0_0_rgba(229,231,235,1)]">Нэр</th>
                     <th className="px-2 py-3 font-semibold text-gray-700">Эхлэх</th>
                     <th className="px-2 py-3 font-semibold text-gray-700">Дуусах</th>
-                    <th className="px-2 py-3 text-right font-semibold text-gray-700">Борлуулалтын орлого</th>
+                    <th className="px-2 py-3 text-right font-semibold text-gray-700">Цаг захиалга</th>
+                    <th className="px-2 py-3 text-right font-semibold text-gray-700">Үйлчилгээ</th>
+                    <th className="px-2 py-3 text-right font-semibold text-gray-700">Борлуулалт</th>
                     <th className="px-2 py-3 text-right font-semibold text-gray-700">Эмчийн хувь</th>
                     <th className="px-2 py-3 text-right font-semibold text-gray-700">Сарын зорилт</th>
                     <th className="px-2 py-3 text-right font-semibold text-gray-700">Гүйцэтгэл (%)</th>
@@ -165,14 +160,15 @@ export default function DoctorsIncomePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pagedDoctors.map((doctor) => (
+                  {sortedDoctors.map((doctor) => (
                     <tr key={doctor.doctorId} className="border-t border-gray-200">
-                      <td className="px-2 py-2">
+                      <td className="sticky left-0 z-10 bg-white px-2 py-2 shadow-[1px_0_0_0_rgba(229,231,235,1)]">
                         {formatDoctorName(doctor.doctorOvog, doctor.doctorName)}
                       </td>
-                      <td className="px-2 py-2">{doctor.branchName}</td>
                       <td className="px-2 py-2">{doctor.startDate}</td>
                       <td className="px-2 py-2">{doctor.endDate}</td>
+                      <td className="px-2 py-2 text-right">{doctor.appointmentCount}</td>
+                      <td className="px-2 py-2 text-right">{doctor.serviceCount}</td>
                       <td className="px-2 py-2 text-right">
                         {doctor.revenue.toLocaleString("mn-MN")} ₮
                       </td>
@@ -224,29 +220,6 @@ export default function DoctorsIncomePage() {
                 </tbody>
               </table>
             </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="mt-4 flex items-center gap-3">
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  ← Өмнөх
-                </button>
-                <span className="text-sm text-gray-600">
-                  {page} / {totalPages}
-                </span>
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Дараах →
-                </button>
-              </div>
-            )}
           </>
         )}
       </section>
