@@ -177,7 +177,7 @@ async function computeBalanceSnapshotTotals(branchId = null) {
 /**
  * Reusable doctors-income aggregator that matches /api/admin/doctors-income revenue logic.
  * @param {{startDate: string, endDate: string, branchId: number|null|string|undefined}} params
- * @returns {Promise<Array<{doctorId:number,doctorName:string,doctorOvog:string|null,branchName:string|null,startDate:string,endDate:string,appointmentCount:number,serviceCount:number,revenue:number,commission:number,monthlyGoal:number,progressPercent:number}>>}
+ * @returns {Promise<Array<{doctorId:number,doctorName:string,doctorOvog:string|null,branchName:string|null,startDate:string,endDate:string,appointmentCount:number,serviceCount:number,averageVisitRevenue:number,revenue:number,commission:number,monthlyGoal:number,progressPercent:number}>>}
  */
 async function computeDoctorsIncomeData({ startDate, endDate, branchId }) {
   const start = new Date(`${startDate}T00:00:00.000Z`);
@@ -427,6 +427,7 @@ async function computeDoctorsIncomeData({ startDate, endDate, branchId }) {
   return Array.from(byDoctor.values()).map((d) => {
     const goal = Number(d.monthlyGoalAmountMnt || 0);
     const sales = Number(d.doctorSalesMnt || 0);
+    const appointmentCount = d.appointmentIds.size;
 
     return {
       doctorId: d.doctorId,
@@ -435,8 +436,9 @@ async function computeDoctorsIncomeData({ startDate, endDate, branchId }) {
       branchName: d.branchName,
       startDate: d.startDate,
       endDate: d.endDate,
-      appointmentCount: d.appointmentIds.size,
+      appointmentCount,
       serviceCount: d.serviceCount,
+      averageVisitRevenue: appointmentCount > 0 ? Math.round(sales / appointmentCount) : 0,
       revenue: Math.round(sales),
       commission: Math.round(d.doctorIncomeMnt),
       monthlyGoal: Math.round(goal),
