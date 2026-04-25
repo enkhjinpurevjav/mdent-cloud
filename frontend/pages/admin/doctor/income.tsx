@@ -40,6 +40,14 @@ type DoctorSummary = {
   progressPercent: number;
 };
 
+type SortKey =
+  | "appointmentCount"
+  | "serviceCount"
+  | "averageVisitRevenue"
+  | "revenue"
+  | "progressPercent";
+type SortDirection = "asc" | "desc";
+
 export default function DoctorsIncomePage() {
   const router = useRouter();
   const [startDate, setStartDate] = useState<string>(getFirstDayOfMonthStr);
@@ -50,6 +58,8 @@ export default function DoctorsIncomePage() {
   const [doctors, setDoctors] = useState<DoctorSummary[]>([]);
   const [branches, setBranches] = useState<{ id: number; name: string }[]>([]);
   const [error, setError] = useState<string>("");
+  const [sortKey, setSortKey] = useState<SortKey>("progressPercent");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   const fetchBranches = async () => {
     try {
@@ -86,8 +96,49 @@ export default function DoctorsIncomePage() {
   }, [startDate, endDate, branchId]);
 
   const sortedDoctors = useMemo(
-    () => [...doctors].sort((a, b) => b.progressPercent - a.progressPercent || b.revenue - a.revenue),
-    [doctors]
+    () =>
+      [...doctors].sort((a, b) => {
+        const diff = a[sortKey] - b[sortKey];
+        const primary = sortDirection === "asc" ? diff : -diff;
+        return primary || b.revenue - a.revenue || a.doctorName.localeCompare(b.doctorName);
+      }),
+    [doctors, sortDirection, sortKey]
+  );
+
+  const renderSortableHeader = (label: string, key: SortKey) => (
+    <th className="px-2 py-3 text-right font-semibold text-gray-700">
+      <span className="inline-flex items-center justify-end gap-1">
+        {label}
+        <span className="inline-flex flex-col leading-none">
+          <button
+            type="button"
+            aria-label={`${label} өсөхөөр эрэмбэлэх`}
+            onClick={() => {
+              setSortKey(key);
+              setSortDirection("asc");
+            }}
+            className={`h-3 px-0.5 text-[10px] ${
+              sortKey === key && sortDirection === "asc" ? "text-blue-600" : "text-gray-400"
+            }`}
+          >
+            ▲
+          </button>
+          <button
+            type="button"
+            aria-label={`${label} буурахаар эрэмбэлэх`}
+            onClick={() => {
+              setSortKey(key);
+              setSortDirection("desc");
+            }}
+            className={`h-3 px-0.5 text-[10px] ${
+              sortKey === key && sortDirection === "desc" ? "text-blue-600" : "text-gray-400"
+            }`}
+          >
+            ▼
+          </button>
+        </span>
+      </span>
+    </th>
   );
 
   return (
@@ -151,13 +202,13 @@ export default function DoctorsIncomePage() {
                     <th className="sticky left-0 z-20 bg-gray-50 px-2 py-3 font-semibold text-gray-700 shadow-[1px_0_0_0_rgba(229,231,235,1)]">Нэр</th>
                     <th className="px-2 py-3 font-semibold text-gray-700">Эхлэх</th>
                     <th className="px-2 py-3 font-semibold text-gray-700">Дуусах</th>
-                    <th className="px-2 py-3 text-right font-semibold text-gray-700">Цаг захиалга</th>
-                    <th className="px-2 py-3 text-right font-semibold text-gray-700">Үйлчилгээ</th>
-                    <th className="px-2 py-3 text-right font-semibold text-gray-700">Үзлэгийн дундаж</th>
-                    <th className="px-2 py-3 text-right font-semibold text-gray-700">Борлуулалт</th>
+                    {renderSortableHeader("Цаг захиалга", "appointmentCount")}
+                    {renderSortableHeader("Үйлчилгээ", "serviceCount")}
+                    {renderSortableHeader("Үзлэгийн дундаж", "averageVisitRevenue")}
+                    {renderSortableHeader("Борлуулалт", "revenue")}
                     <th className="px-2 py-3 text-right font-semibold text-gray-700">Эмчийн хувь</th>
                     <th className="px-2 py-3 text-right font-semibold text-gray-700">Сарын зорилт</th>
-                    <th className="px-2 py-3 text-right font-semibold text-gray-700">Гүйцэтгэл (%)</th>
+                    {renderSortableHeader("Гүйцэтгэл (%)", "progressPercent")}
                     <th className="px-2 py-3 font-semibold text-gray-700">Үйлдэл</th>
                   </tr>
                 </thead>
