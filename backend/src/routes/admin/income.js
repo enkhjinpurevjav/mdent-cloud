@@ -177,7 +177,7 @@ async function computeBalanceSnapshotTotals(branchId = null) {
 /**
  * Reusable doctors-income aggregator that matches /api/admin/doctors-income revenue logic.
  * @param {{startDate: string, endDate: string, branchId: number|null|string|undefined}} params
- * @returns {Promise<Array<{doctorId:number,doctorName:string,doctorOvog:string|null,branchName:string|null,startDate:string,endDate:string,revenue:number,commission:number,monthlyGoal:number,progressPercent:number}>>}
+ * @returns {Promise<Array<{doctorId:number,doctorName:string,doctorOvog:string|null,branchName:string|null,startDate:string,endDate:string,appointmentCount:number,serviceCount:number,revenue:number,commission:number,monthlyGoal:number,progressPercent:number}>>}
  */
 async function computeDoctorsIncomeData({ startDate, endDate, branchId }) {
   const start = new Date(`${startDate}T00:00:00.000Z`);
@@ -201,6 +201,9 @@ async function computeDoctorsIncomeData({ startDate, endDate, branchId }) {
     include: {
       encounter: {
         include: {
+          appointment: {
+            select: { id: true, status: true, scheduledAt: true },
+          },
           doctor: {
             include: {
               branch: true,
@@ -245,6 +248,8 @@ async function computeDoctorsIncomeData({ startDate, endDate, branchId }) {
         doctorSalesMnt: 0,
         doctorIncomeMnt: 0,
         monthlyGoalAmountMnt: Number(cfg?.monthlyGoalAmountMnt || 0),
+        appointmentIds: new Set(),
+        serviceCount: 0,
       });
     }
 
@@ -331,18 +336,32 @@ async function computeDoctorsIncomeData({ startDate, endDate, branchId }) {
     }
 
     // ---------- SALES (exclude IMAGING) ----------
+    let countableSalesMnt = 0;
     if (hasOverride) {
       // Override invoices: invoice-level sales contribution when paid.
       const status = String(inv.statusLegacy || "").toLowerCase();
       if (status === "paid") {
-        acc.doctorSalesMnt += totalNonImagingNet * 0.9;
+        const salesAmt = totalNonImagingNet * 0.9;
+        acc.doctorSalesMnt += salesAmt;
+        countableSalesMnt += salesAmt;
+        if (salesAmt > 0) {
+          acc.serviceCount += nonImagingServiceItems.reduce(
+            (sum, it) => sum + Number(it.quantity || 0),
+            0
+          );
+        }
       }
     } else {
       // Sum proportional allocations for non-IMAGING lines.
       let salesFromIncluded = 0;
       for (const it of nonImagingServiceItems) {
-        salesFromIncluded += itemAllocationBase.get(it.id) || 0;
+        const itemSales = itemAllocationBase.get(it.id) || 0;
+        salesFromIncluded += itemSales;
+        if (itemSales > 0) {
+          acc.serviceCount += Number(it.quantity || 0);
+        }
       }
+      countableSalesMnt += salesFromIncluded;
 
       // BARTER excess contributes to sales (proportional to non-imaging share of lineNets).
       const barterExcess = Math.max(0, barterSum - 800000);
@@ -352,6 +371,18 @@ async function computeDoctorsIncomeData({ startDate, endDate, branchId }) {
       // Barter excess also contributes to income via generalPct.
       const generalPct = Number(cfg?.generalPct || 0);
       acc.doctorIncomeMnt += barterIncluded * (generalPct / 100);
+    }
+
+    const appointment = inv.encounter?.appointment;
+    const appointmentScheduledAt = appointment?.scheduledAt ? new Date(appointment.scheduledAt) : null;
+    if (
+      countableSalesMnt > 0 &&
+      appointment?.id &&
+      String(appointment.status || "").toLowerCase() === "completed" &&
+      appointmentScheduledAt &&
+      inRange(appointmentScheduledAt, start, endExclusive)
+    ) {
+      acc.appointmentIds.add(appointment.id);
     }
 
     // ---------- INCOME ----------
@@ -404,12 +435,14 @@ async function computeDoctorsIncomeData({ startDate, endDate, branchId }) {
       branchName: d.branchName,
       startDate: d.startDate,
       endDate: d.endDate,
+      appointmentCount: d.appointmentIds.size,
+      serviceCount: d.serviceCount,
       revenue: Math.round(sales),
       commission: Math.round(d.doctorIncomeMnt),
       monthlyGoal: Math.round(goal),
       progressPercent: goal > 0 ? Math.round((sales / goal) * 10000) / 100 : 0,
     };
-  });
+  }).sort((a, b) => b.progressPercent - a.progressPercent || b.revenue - a.revenue);
 }
 
 function bucketKeyForService(service) {
