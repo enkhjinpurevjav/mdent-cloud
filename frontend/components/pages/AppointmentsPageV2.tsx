@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { useAuth } from "../../contexts/AuthContext";
-import type { Appointment, Branch, ScheduledDoctor } from "../appointments/types";
+import type { Appointment, Branch, Doctor, ScheduledDoctor } from "../appointments/types";
 import {
   BUSINESS_TIME_ZONE,
   fakeUtcDateToNaive,
@@ -38,6 +38,20 @@ import {
   formatPatientSearchDropdownRow,
   searchPatientsByRules,
 } from "../appointments-v2/patientSearchRules";
+
+function normalizeDoctorBranches(input: any): { id: number; name: string }[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((branch: any) => {
+      const id = Number(branch?.id);
+      if (Number.isNaN(id) || id <= 0) return null;
+      return {
+        id,
+        name: String(branch?.name ?? ""),
+      };
+    })
+    .filter((branch): branch is { id: number; name: string } => Boolean(branch));
+}
 
 const SLOT_HEIGHT_PX = 30;
 const MIN_BLOCK_HEIGHT_PX = 18;
@@ -201,6 +215,70 @@ export default function AppointmentsPageV2() {
     loading: scheduledDoctorsLoading,
     error: scheduledDoctorsError,
   } = useScheduledDoctorsV2({ date: selectedDate, branchId: selectedBranchId });
+  const [allDoctors, setAllDoctors] = useState<Doctor[]>([]);
+  const [allDoctorsError, setAllDoctorsError] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    async function loadAllDoctors() {
+      setAllDoctorsError("");
+      try {
+        const res = await fetch("/api/users?role=doctor", { signal: controller.signal });
+        const data = await res.json().catch(() => []);
+        if (controller.signal.aborted) return;
+        if (!res.ok || !Array.isArray(data)) {
+          setAllDoctors([]);
+          setAllDoctorsError("Эмчийн жагсаалт ачаалахад алдаа гарлаа.");
+          return;
+        }
+        setAllDoctors(
+          data.map((row: any) => ({
+            id: Number(row?.id),
+            name: row?.name ?? null,
+            ovog: row?.ovog ?? null,
+            regNo: row?.regNo ?? null,
+            phone: row?.phone ?? null,
+            calendarOrder:
+              row?.calendarOrder == null || Number.isNaN(Number(row?.calendarOrder))
+                ? null
+                : Number(row.calendarOrder),
+            branches: normalizeDoctorBranches(row?.branches),
+          }))
+          .filter((doctor: Doctor) => Number.isFinite(doctor.id) && doctor.id > 0)
+        );
+      } catch (e: any) {
+        if (e?.name === "AbortError") return;
+        setAllDoctors([]);
+        setAllDoctorsError("Эмчийн жагсаалт ачаалахад алдаа гарлаа.");
+      }
+    }
+    loadAllDoctors();
+    return () => controller.abort();
+  }, []);
+
+  const doctorsForGrid = useMemo(() => {
+    const byId = new Map<number, ScheduledDoctor>();
+    for (const doctor of scheduledDoctors) {
+      byId.set(doctor.id, doctor);
+    }
+    for (const appointment of appointments) {
+      const doctorId = Number(appointment.doctorId);
+      if (!Number.isFinite(doctorId) || doctorId <= 0) continue;
+      if (byId.has(doctorId)) continue;
+      const fallbackDoctor = allDoctors.find((doctor) => doctor.id === doctorId);
+      if (!fallbackDoctor) continue;
+      byId.set(doctorId, {
+        ...fallbackDoctor,
+        schedules: [],
+      });
+    }
+    return Array.from(byId.values()).sort((a, b) => {
+      const ao = a.calendarOrder ?? Number.MAX_SAFE_INTEGER;
+      const bo = b.calendarOrder ?? Number.MAX_SAFE_INTEGER;
+      if (ao !== bo) return ao - bo;
+      return a.id - b.id;
+    });
+  }, [allDoctors, appointments, scheduledDoctors]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -394,7 +472,7 @@ export default function AppointmentsPageV2() {
 
     const dayStartMs = firstSlot.getTime();
 
-    for (const doctor of scheduledDoctors) {
+    for (const doctor of doctorsForGrid) {
       const doctorAppointments = appointmentsByDoctorId[doctor.id] || [];
       const { laneByAppointmentId, overlappingAppointmentIds } = assignStableTwoLanes(doctorAppointments);
       const sortedAppointments = [...doctorAppointments].sort((a, b) => {
@@ -431,13 +509,13 @@ export default function AppointmentsPageV2() {
     }
 
     return result;
-  }, [appointmentsByDoctorId, scheduledDoctors, firstSlot, totalMinutes, columnHeightPx]);
+  }, [appointmentsByDoctorId, doctorsForGrid, firstSlot, totalMinutes, columnHeightPx]);
 
   const doctorsById = useMemo(() => {
     const map: Record<number, ScheduledDoctor> = {};
-    for (const doctor of scheduledDoctors) map[doctor.id] = doctor;
+    for (const doctor of doctorsForGrid) map[doctor.id] = doctor;
     return map;
-  }, [scheduledDoctors]);
+  }, [doctorsForGrid]);
 
   const resolveDoctorBranchIdForDay = useCallback(
     (doctor: ScheduledDoctor, slotTime?: string): string | null => {
@@ -466,11 +544,11 @@ export default function AppointmentsPageV2() {
     () =>
       computeDoctorSlotOccupancy({
         appointments,
-        scheduledDoctors,
+        scheduledDoctors: doctorsForGrid,
         timeSlots,
         resolveDoctorBranchIdForDay,
       }),
-    [appointments, resolveDoctorBranchIdForDay, scheduledDoctors, timeSlots]
+    [appointments, doctorsForGrid, resolveDoctorBranchIdForDay, timeSlots]
   );
 
   const appointmentsById = useMemo(() => {
@@ -686,8 +764,8 @@ export default function AppointmentsPageV2() {
       const xWithin = pointerEvent.clientX - rect.left + gridElement.scrollLeft - GRID_TIME_COL_WIDTH;
       const doctorIndex = Math.floor(xWithin / GRID_DOCTOR_COL_WIDTH);
       const moveDoctorId =
-        doctorIndex >= 0 && doctorIndex < scheduledDoctors.length
-          ? scheduledDoctors[doctorIndex].id
+        doctorIndex >= 0 && doctorIndex < doctorsForGrid.length
+          ? doctorsForGrid[doctorIndex].id
           : activeDrag.origDoctorId;
 
       const yWithin =
@@ -809,7 +887,7 @@ export default function AppointmentsPageV2() {
     columnHeightPx,
     draftEdits,
     firstSlot,
-    scheduledDoctors,
+    doctorsForGrid,
     snapMinutesToSlot,
     totalMinutes,
     validateDraftCandidate,
@@ -1265,9 +1343,9 @@ export default function AppointmentsPageV2() {
         </div>
       )}
 
-      {(error || scheduledDoctorsError) && (
+      {(error || scheduledDoctorsError || allDoctorsError) && (
         <div style={{ color: "#b91c1c", marginBottom: 10, fontSize: 13 }}>
-          {error || scheduledDoctorsError}
+          {error || scheduledDoctorsError || allDoctorsError}
         </div>
       )}
       {capacityMessage && (
@@ -1374,7 +1452,7 @@ export default function AppointmentsPageV2() {
       )}
 
       <AppointmentsV2Grid
-        doctors={scheduledDoctors}
+        doctors={doctorsForGrid}
         timeSlots={timeSlots}
         slotHeightPx={SLOT_HEIGHT_PX}
         columnHeightPx={columnHeightPx}
@@ -1483,8 +1561,8 @@ export default function AppointmentsPageV2() {
         defaultDate={quickModalState.date}
         defaultTime={quickModalState.time}
         branches={branches}
-        doctors={scheduledDoctors}
-        scheduledDoctors={scheduledDoctors}
+        doctors={doctorsForGrid}
+        scheduledDoctors={doctorsForGrid}
         appointments={appointments}
         selectedBranchId={quickModalState.branchId || selectedBranchId}
         allowAutoDefaultBranch={false}
@@ -1510,7 +1588,7 @@ export default function AppointmentsPageV2() {
         open={specialBookingOpen}
         onClose={() => setSpecialBookingOpen(false)}
         branches={branches}
-        doctors={scheduledDoctors}
+        doctors={allDoctors}
         appointments={appointments}
         defaultDate={selectedDate}
         defaultBranchId={selectedBranchId}
