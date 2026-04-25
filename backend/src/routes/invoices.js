@@ -15,6 +15,7 @@ const MIN_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 50;
 const PAYMENT_STATUS_VALUES = new Set(["all", "paid", "partial", "unpaid", "overpaid"]);
 const EBARIMT_STATUS_VALUES = new Set(["all", "issued", "not_issued"]);
+const NONE_PAYMENT_METHOD_FILTER = "__NONE__";
 
 function parseDateOnlyStart(value) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -30,6 +31,14 @@ function parseDateOnlyEndExclusive(value) {
 
 function normalizeMoney(value) {
   return Number(Number(value || 0).toFixed(2));
+}
+
+function parsePaymentMethodFilter(value) {
+  if (value == null || value === "") return null;
+  const rawValues = Array.isArray(value) ? value : String(value).split(",");
+  return rawValues
+    .map((v) => String(v || "").trim().toUpperCase())
+    .filter(Boolean);
 }
 
 export function derivePaymentStatus(totalAmount, paidAmount) {
@@ -200,6 +209,7 @@ router.get("/", async (req, res) => {
       typeof req.query.ebarimtStatus === "string"
         ? req.query.ebarimtStatus.trim().toLowerCase()
         : "all";
+    const paymentMethodFilter = parsePaymentMethodFilter(req.query.paymentMethods);
 
     const paymentStatus = PAYMENT_STATUS_VALUES.has(paymentStatusRaw)
       ? paymentStatusRaw
@@ -268,6 +278,16 @@ router.get("/", async (req, res) => {
     let rows = invoices.map(buildInvoiceFinanceRow);
     if (paymentStatus !== "all") {
       rows = rows.filter((row) => row.status === paymentStatus);
+    }
+    if (paymentMethodFilter) {
+      if (paymentMethodFilter.includes(NONE_PAYMENT_METHOD_FILTER)) {
+        rows = [];
+      } else {
+        const selectedMethods = new Set(paymentMethodFilter);
+        rows = rows.filter((row) =>
+          row.paymentMethods.some((paymentMethod) => selectedMethods.has(paymentMethod.method))
+        );
+      }
     }
 
     const summary = rows.reduce(
