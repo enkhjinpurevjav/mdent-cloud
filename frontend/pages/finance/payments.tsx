@@ -9,6 +9,7 @@ import PaymentsTable from "../../components/finance/payments/PaymentsTable";
 import ReversePaymentModal from "../../components/finance/payments/ReversePaymentModal";
 import type {
   BranchOption,
+  PaymentMethodOption,
   PaymentRow,
   PaymentsFilterState,
   PaymentsListResponse,
@@ -29,7 +30,7 @@ const DEFAULT_FILTERS: PaymentsFilterState = {
   from: monthStartDate(),
   to: todayDate(),
   branchId: "",
-  method: "",
+  paymentMethods: [],
   status: "all",
   patientSearch: "",
   invoiceId: "",
@@ -43,6 +44,7 @@ export default function FinancePaymentsPage() {
   const { me, loading: authLoading } = useAuth();
 
   const [branches, setBranches] = useState<BranchOption[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
   const [filters, setFilters] = useState<PaymentsFilterState>(DEFAULT_FILTERS);
   const [patientInput, setPatientInput] = useState("");
   const [data, setData] = useState<PaymentsListResponse | null>(null);
@@ -82,6 +84,24 @@ export default function FinancePaymentsPage() {
       .then((res) => res.json())
       .then((json) => setBranches(Array.isArray(json) ? json : []))
       .catch(() => setBranches([]));
+
+    fetch("/api/payment-settings")
+      .then((res) => res.json())
+      .then((json) => {
+        const methods = Array.isArray(json?.methods) ? json.methods : [];
+        const options = methods.map((m: any) => ({
+          key: String(m.key),
+          label: String(m.label || m.key),
+        }));
+        setPaymentMethods(options);
+        setFilters((prev) => ({
+          ...prev,
+          paymentMethods: prev.paymentMethods.length
+            ? prev.paymentMethods
+            : options.map((method) => method.key),
+        }));
+      })
+      .catch(() => setPaymentMethods([]));
   }, []);
 
   useEffect(() => {
@@ -96,10 +116,13 @@ export default function FinancePaymentsPage() {
       status: filters.status,
     });
     if (filters.branchId) params.set("branchId", filters.branchId);
-    if (filters.method) params.set("method", filters.method);
     if (filters.patientSearch) params.set("patientSearch", filters.patientSearch);
     if (filters.invoiceId) params.set("invoiceId", filters.invoiceId);
     if (filters.createdBy) params.set("createdBy", filters.createdBy);
+    params.set(
+      "paymentMethods",
+      filters.paymentMethods.length > 0 ? filters.paymentMethods.join(",") : "__NONE__"
+    );
 
     setLoading(true);
     setError("");
@@ -167,11 +190,15 @@ export default function FinancePaymentsPage() {
       <PaymentsFilters
         filters={filters}
         branches={branches}
+        paymentMethods={paymentMethods}
         patientInput={patientInput}
         onPatientInputChange={setPatientInput}
         onFilterChange={(patch) => setFilters((prev) => ({ ...prev, ...patch }))}
         onClear={() => {
-          setFilters(DEFAULT_FILTERS);
+          setFilters({
+            ...DEFAULT_FILTERS,
+            paymentMethods: paymentMethods.map((method) => method.key),
+          });
           setPatientInput("");
         }}
       />
