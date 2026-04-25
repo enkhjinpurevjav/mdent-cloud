@@ -9,6 +9,16 @@ import { sseBroadcast, naiveTsToYmd, formatApptForResponse, parseNaiveTs } from 
 
 const router = express.Router();
 
+export function getCloseWithoutPaymentActorIds({ reqUser, kioskUser = null }) {
+  if (reqUser?.role === "doctor") {
+    return { effectiveDoctorId: reqUser.id, closedByUserId: reqUser.id };
+  }
+  if (reqUser?.role === "branch_kiosk" && kioskUser?.role === "doctor_kiosk" && kioskUser?.id) {
+    return { effectiveDoctorId: kioskUser.id, closedByUserId: kioskUser.id };
+  }
+  return { effectiveDoctorId: null, closedByUserId: reqUser?.id ?? null };
+}
+
 /**
  * Authorization middleware for encounter write endpoints.
  *
@@ -2414,6 +2424,9 @@ router.post("/:id/follow-up-appointments", optionalAuthenticateJWT, async (req, 
  * Conflict rule: if an invoice exists and has unpaid balance > 0 → 409.
  */
 router.post("/:id/close-without-payment", authenticateJWT, async (req, res) => {
+  let actorIds = getCloseWithoutPaymentActorIds({ reqUser: req.user });
+  let closedByUserId = actorIds.closedByUserId;
+
   if (process.env.DISABLE_AUTH !== "true") {
     const role = req.user?.role;
     const userId = req.user?.id;
@@ -2426,18 +2439,18 @@ router.post("/:id/close-without-payment", authenticateJWT, async (req, res) => {
     const isAdmin = role === "admin";
 
     if (!isSuperAdmin && !isAdmin) {
-      // Check for doctor (direct session)
-      let effectiveDoctorId = null;
       let checkPermission = false;
+      let effectiveDoctorId = actorIds.effectiveDoctorId;
 
       if (role === "doctor") {
-        effectiveDoctorId = userId;
         checkPermission = true;
       } else if (role === "branch_kiosk") {
         // Check kiosk token
         const kioskUser = parseKioskToken(req);
-        if (kioskUser && kioskUser.role === "doctor_kiosk") {
-          effectiveDoctorId = kioskUser.id;
+        actorIds = getCloseWithoutPaymentActorIds({ reqUser: req.user, kioskUser });
+        effectiveDoctorId = actorIds.effectiveDoctorId;
+        closedByUserId = actorIds.closedByUserId;
+        if (effectiveDoctorId) {
           checkPermission = true;
         }
       }
@@ -2531,7 +2544,6 @@ router.post("/:id/close-without-payment", authenticateJWT, async (req, res) => {
     }
 
     const closedAt = new Date();
-    const closedByUserId = req.user?.id ?? null;
 
     // Update encounter
     await prisma.encounter.update({
