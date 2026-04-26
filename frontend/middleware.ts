@@ -43,10 +43,7 @@ export function middleware(req: NextRequest) {
 
   const isLegacyAppointmentsRoute =
     !isAppointmentsV2Route &&
-    (pathname === "/appointments" ||
-      pathname.startsWith("/appointments/") ||
-      pathname === "/reports/appointments" ||
-      pathname.startsWith("/reports/appointments/"));
+    (pathname === "/appointments" || pathname.startsWith("/appointments/"));
 
   // Allow all known hosts (production, dev subdomains, and local)
   if (ALLOWED_HOSTS.has(hostname)) {
