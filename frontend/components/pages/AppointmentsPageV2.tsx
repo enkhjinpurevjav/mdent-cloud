@@ -120,6 +120,21 @@ function canEditAppointment(status: string) {
   return ["booked", "confirmed", "online", "other"].includes(normalized);
 }
 
+const ACTIVE_FALLBACK_STATUSES = new Set([
+  "booked",
+  "confirmed",
+  "online",
+  "ongoing",
+  "imaging",
+  "ready_to_pay",
+  "partial_paid",
+  "other",
+]);
+
+function keepsUnscheduledDoctorVisible(status: string) {
+  return ACTIVE_FALLBACK_STATUSES.has(String(status || "").toLowerCase());
+}
+
 export default function AppointmentsPageV2() {
   const router = useRouter();
   const { me } = useAuth();
@@ -257,27 +272,55 @@ export default function AppointmentsPageV2() {
   }, []);
 
   const doctorsForGrid = useMemo(() => {
-    const byId = new Map<number, ScheduledDoctor>();
-    for (const doctor of scheduledDoctors) {
-      byId.set(doctor.id, doctor);
-    }
-    for (const appointment of getVisibleAppointmentsV2(appointments)) {
+    // Keep backend order as source-of-truth so shift-aware ordering remains intact.
+    const scheduledList = [...scheduledDoctors];
+    const scheduledIds = new Set<number>(scheduledList.map((doctor) => doctor.id));
+    const allDoctorsById = new Map<number, Doctor>(allDoctors.map((doctor) => [doctor.id, doctor]));
+    const fallbackMetaByDoctorId = new Map<
+      number,
+      { firstStartMs: number; name: string | null; ovog: string | null }
+    >();
+
+    for (const appointment of appointments) {
+      if (!keepsUnscheduledDoctorVisible(appointment.status)) continue;
       const doctorId = Number(appointment.doctorId);
       if (!Number.isFinite(doctorId) || doctorId <= 0) continue;
-      if (byId.has(doctorId)) continue;
-      const fallbackDoctor = allDoctors.find((doctor) => doctor.id === doctorId);
-      if (!fallbackDoctor) continue;
-      byId.set(doctorId, {
-        ...fallbackDoctor,
-        schedules: [],
-      });
+      if (scheduledIds.has(doctorId)) continue;
+      const startMs = naiveToFakeUtcDate(appointment.scheduledAt).getTime();
+      const existing = fallbackMetaByDoctorId.get(doctorId);
+      if (!existing || startMs < existing.firstStartMs) {
+        fallbackMetaByDoctorId.set(doctorId, {
+          firstStartMs: startMs,
+          name: appointment.doctorName ?? null,
+          ovog: appointment.doctorOvog ?? null,
+        });
+      }
     }
-    return Array.from(byId.values()).sort((a, b) => {
-      const ao = a.calendarOrder ?? Number.MAX_SAFE_INTEGER;
-      const bo = b.calendarOrder ?? Number.MAX_SAFE_INTEGER;
-      if (ao !== bo) return ao - bo;
-      return a.id - b.id;
-    });
+
+    const fallbackDoctors = Array.from(fallbackMetaByDoctorId.entries())
+      .sort((a, b) => a[1].firstStartMs - b[1].firstStartMs || a[0] - b[0])
+      .map(([doctorId, meta]) => {
+        const fullDoctor = allDoctorsById.get(doctorId);
+        if (fullDoctor) {
+          return {
+            ...fullDoctor,
+            schedules: [],
+          } as ScheduledDoctor;
+        }
+        // Fallback shape for resilience if /api/users payload is delayed.
+        return {
+          id: doctorId,
+          name: meta.name,
+          ovog: meta.ovog,
+          regNo: null,
+          phone: null,
+          calendarOrder: null,
+          branches: [],
+          schedules: [],
+        } as ScheduledDoctor;
+      });
+
+    return [...scheduledList, ...fallbackDoctors];
   }, [allDoctors, appointments, scheduledDoctors]);
 
   useEffect(() => {

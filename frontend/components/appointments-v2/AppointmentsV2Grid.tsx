@@ -5,6 +5,8 @@ import type { AppointmentBlockGeometry } from "./AppointmentBlockV2";
 
 const EMPTY_BLOCKS: AppointmentBlockGeometry[] = [];
 const GRID_MIN_WIDTH_PX = 840;
+const GRID_TIME_COL_WIDTH = 80;
+const GRID_DOCTOR_COL_WIDTH = 180;
 
 type AppointmentsV2GridProps = {
   doctors: ScheduledDoctor[];
@@ -53,6 +55,11 @@ function AppointmentsV2Grid({
   disableAppointmentClicks,
   scrollContainerRef,
 }: AppointmentsV2GridProps) {
+  const gridWidthPx = Math.max(
+    GRID_MIN_WIDTH_PX,
+    GRID_TIME_COL_WIDTH + doctors.length * GRID_DOCTOR_COL_WIDTH
+  );
+
   if (doctors.length === 0) {
     return (
       <div
@@ -80,7 +87,7 @@ function AppointmentsV2Grid({
           WebkitOverflowScrolling: "touch",
         }}
       >
-        <div style={{ position: "relative", minWidth: GRID_MIN_WIDTH_PX }}>
+        <div style={{ position: "relative", width: gridWidthPx, minWidth: gridWidthPx }}>
           {nowPosition !== null && (
             <div
               style={{
