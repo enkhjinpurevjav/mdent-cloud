@@ -13,6 +13,7 @@ services:
       - DISABLE_AUTH=false
       - DISABLE_API_RATE_LIMIT=true
       - JWT_SECRET=${JWT_SECRET}
+      - COOKIE_SECURE=false
       - COOKIE_DOMAIN=${COOKIE_DOMAIN}
       - CORS_ORIGIN=${CORS_ORIGIN}
       - APP_URL=${APP_URL}
