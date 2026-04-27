@@ -2,74 +2,118 @@ version: "3.9"
 
 services:
   backend:
-    container_name: mdent-dev-backend
     build:
       context: ./backend
       dockerfile: Dockerfile
+
+   
+
     environment:
-      RUN_SEED: "false"
-      DATABASE_URL: ${DATABASE_URL}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      DISABLE_AUTH: "true"
-      JWT_SECRET: ${JWT_SECRET}
+      - NODE_ENV=production
+      - RUN_SEED=false
+      - DATABASE_URL=${DATABASE_URL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - DISABLE_AUTH=false
+      - DISABLE_API_RATE_LIMIT=true
+      - JWT_SECRET=${JWT_SECRET}
+      - COOKIE_DOMAIN=${COOKIE_DOMAIN}
+      - CORS_ORIGIN=${CORS_ORIGIN}
 
-      # Keep dev cookies host-only (do NOT share with prod)
-      COOKIE_DOMAIN: ""
+      # Password reset email (SMTP)
+      - APP_URL=${APP_URL}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_SECURE=${SMTP_SECURE}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL}
 
-      CORS_ORIGIN: ${CORS_ORIGIN}
-      APP_URL: ${APP_URL}
+      # POS API
+      - POSAPI_BASE_URL=${POSAPI_BASE_URL}
+      - POSAPI_MERCHANT_TIN=37900846788
+      - POSAPI_POS_NO=10013198
+      - POSAPI_BRANCH_NO=001
+      - POSAPI_DISTRICT_CODE=2501
 
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_SECURE: ${SMTP_SECURE}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASS: ${SMTP_PASS}
-      SMTP_FROM_NAME: ${SMTP_FROM_NAME}
-      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL}
+    depends_on:
+      - postgres
 
-      POSAPI_BASE_URL: ${POSAPI_BASE_URL}
-      POSAPI_MERCHANT_TIN: "37900846788"
-      POSAPI_POS_NO: "10013198"
-      POSAPI_BRANCH_NO: "001"
-      POSAPI_DISTRICT_CODE: "2501"
-    # No published ports: dev is only reachable via https://dev.mdent.cloud through prod Caddy
+    # IMPORTANT: keep only ONE shared network for stable Docker DNS (fixes Caddy "lookup backend" 502s)
     networks:
-      - mdent-dev-net
-      - mdent_shared
+      - mdent-net
+
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 25s
+    ports:
+      - "8081:8080"
     volumes:
-      - media_data_dev:/data/media
+      - media_data:/data/media
 
   frontend:
-    container_name: mdent-dev-frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-      NEXT_PUBLIC_PORTAL_URL: ${NEXT_PUBLIC_PORTAL_URL}
-    # No published ports: dev is only reachable via https://dev.mdent.cloud through prod Caddy
-    networks:
-      - mdent-dev-net
-      - mdent_shared
-    restart: unless-stopped
 
-  dev-proxy:
-    image: caddy:2
-    container_name: mdent-dev-proxy
-    command: ["caddy","run","--config","/etc/caddy/Caddyfile","--adapter","caddyfile"]
-    volumes:
-      # Create this file in your repo: ./caddy/dev/Caddyfile
-       - /opt/mdent-dev-caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-    # No published ports: only prod Caddy reaches this over the shared docker network
     networks:
-      - mdent_shared
+      - mdent-net
+
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000 >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 25s
+    volumes:
+      - /root/mdent-cloud/frontend/public:/app/public:ro
+
+  postgres:
+    image: postgres:16
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - mdent-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  caddy:
+    image: caddy:2
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile.conf", "--adapter", "caddyfile"]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/mdent-caddy:/etc/caddy:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+    networks:
+      - mdent-net
+
     restart: unless-stopped
 
 networks:
-  mdent-dev-net: {}
-  mdent_shared:
-    external: true
+  mdent-net: {}
 
 volumes:
-  media_data_dev:
+  caddy_data:
+  caddy_config:
+  pg_data:
+  media_data:
