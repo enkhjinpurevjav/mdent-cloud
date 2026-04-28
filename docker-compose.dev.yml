@@ -6,13 +6,14 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      - NODE_ENV=production
-      - RUN_SEED=false
+      - NODE_ENV=${NODE_ENV:-production}
+      - RUN_SEED=${RUN_SEED:-false}
       - DATABASE_URL=${DATABASE_URL}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD}
-      - DISABLE_AUTH=false
-      - DISABLE_API_RATE_LIMIT=true
+      - DISABLE_AUTH=${DISABLE_AUTH:-false}
+      - DISABLE_API_RATE_LIMIT=${DISABLE_API_RATE_LIMIT:-true}
       - JWT_SECRET=${JWT_SECRET}
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
       - COOKIE_DOMAIN=${COOKIE_DOMAIN}
       - CORS_ORIGIN=${CORS_ORIGIN}
       - APP_URL=${APP_URL}
@@ -49,6 +50,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+        - NEXT_PUBLIC_PORTAL_URL=${NEXT_PUBLIC_PORTAL_URL}
+        - NEXT_PUBLIC_CAPTCHA_KEY=${NEXT_PUBLIC_CAPTCHA_KEY}
+        - NEXT_PUBLIC_BOOKING_FLOW_VERSION=${NEXT_PUBLIC_BOOKING_FLOW_VERSION}
     networks:
       - mdent-dev-net
     restart: unless-stopped
@@ -64,7 +70,7 @@ services:
   postgres-dev:
     image: postgres:16
     ports:
-      - "127.0.0.1:5433:5432"
+      - "5433:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
