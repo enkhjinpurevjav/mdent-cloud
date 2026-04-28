@@ -5,6 +5,7 @@ import {
 
 const EXCLUDED_STATUS_SET = new Set(ADMIN_HOME_EXCLUDED_APPOINTMENT_STATUSES);
 const YMD_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const VOIDED_INVOICE_STATUS_SET = new Set(["voided", "void", "canceled", "cancelled"]);
 
 export function hmToMinutes(value) {
   if (!value) return 0;
@@ -95,4 +96,86 @@ export function computeSalesTodayByBranch(payments) {
   }
 
   return salesByBranch;
+}
+
+function resolveInvoicePayableAmount(invoice) {
+  if (!invoice) return 0;
+  const status = String(invoice.statusLegacy || "").trim().toLowerCase();
+  if (VOIDED_INVOICE_STATUS_SET.has(status)) return 0;
+  const payableRaw = invoice.finalAmount ?? invoice.totalAmount ?? 0;
+  const payable = Number(payableRaw || 0);
+  return Number.isFinite(payable) && payable > 0 ? payable : 0;
+}
+
+function normalizeTimestamp(value) {
+  const dt = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function sortPaymentsAscending(a, b) {
+  const aTs = normalizeTimestamp(a.timestamp)?.getTime() || 0;
+  const bTs = normalizeTimestamp(b.timestamp)?.getTime() || 0;
+  if (aTs !== bTs) return aTs - bTs;
+  return Number(a.id || 0) - Number(b.id || 0);
+}
+
+export function computeRecognizedSalesFromPayments(
+  payments,
+  {
+    windowStart,
+    windowEnd,
+    initialRecognizedByInvoice = new Map(),
+    includedMethods = null,
+  } = {}
+) {
+  const startMs = normalizeTimestamp(windowStart)?.getTime();
+  const endMs = normalizeTimestamp(windowEnd)?.getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs >= endMs) {
+    return { total: 0, byBranch: new Map() };
+  }
+
+  const recognizedByInvoice = new Map(initialRecognizedByInvoice);
+  const byBranch = new Map();
+  let total = 0;
+  const sortedPayments = [...(payments || [])].sort(sortPaymentsAscending);
+  const normalizedIncludedMethods =
+    includedMethods && typeof includedMethods[Symbol.iterator] === "function"
+      ? new Set(Array.from(includedMethods).map((m) => String(m || "").toUpperCase()))
+      : null;
+
+  for (const payment of sortedPayments) {
+    const ts = normalizeTimestamp(payment.timestamp);
+    if (!ts) continue;
+    const tsMs = ts.getTime();
+
+    const amount = Number(payment.amount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    const paymentMethod = String(payment.method || "").toUpperCase();
+
+    const invoice = payment.invoice;
+    const invoiceId = Number(invoice?.id || payment.invoiceId || 0);
+    if (!invoiceId) continue;
+
+    const payableAmount = resolveInvoicePayableAmount(invoice);
+    if (payableAmount <= 0) continue;
+
+    const recognizedSoFar = Number(recognizedByInvoice.get(invoiceId) || 0);
+    const room = Math.max(0, payableAmount - recognizedSoFar);
+    if (room <= 0) continue;
+
+    const recognizedNow = Math.min(amount, room);
+    recognizedByInvoice.set(invoiceId, recognizedSoFar + recognizedNow);
+
+    if (tsMs < startMs || tsMs >= endMs) continue;
+    if (normalizedIncludedMethods && !normalizedIncludedMethods.has(paymentMethod)) continue;
+    total += recognizedNow;
+    if (invoice?.branchId) {
+      byBranch.set(invoice.branchId, (byBranch.get(invoice.branchId) || 0) + recognizedNow);
+    }
+  }
+
+  return {
+    total,
+    byBranch,
+  };
 }

@@ -179,7 +179,7 @@ async function computeBalanceSnapshotTotals(branchId = null) {
  * @param {{startDate: string, endDate: string, branchId: number|null|string|undefined}} params
  * @returns {Promise<Array<{doctorId:number,doctorName:string,doctorOvog:string|null,branchName:string|null,startDate:string,endDate:string,appointmentCount:number,serviceCount:number,averageVisitRevenue:number,revenue:number,commission:number,monthlyGoal:number,progressPercent:number}>>}
  */
-async function computeDoctorsIncomeData({ startDate, endDate, branchId }) {
+export async function computeDoctorsIncomeData({ startDate, endDate, branchId }) {
   const start = new Date(`${startDate}T00:00:00.000Z`);
   const endExclusive = new Date(`${endDate}T00:00:00.000Z`);
   endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
