@@ -1,14 +1,103 @@
 import { Router } from "express";
 import prisma from "../db.js";
-import { ADMIN_HOME_INCOME_METHODS } from "../constants/dashboard.js";
+import {
+  ADMIN_HOME_BOOKED_APPOINTMENT_STATUSES,
+  ADMIN_HOME_INCOME_METHODS,
+} from "../constants/dashboard.js";
 import {
   computeFilledSlotsByBranch,
-  computeSalesTodayByBranch,
+  computeRecognizedSalesFromPayments,
   computeScheduleStatsByBranch,
   getLocalDayRange,
 } from "../utils/adminHomeDashboard.js";
+import { computeDoctorsIncomeData } from "./admin/income.js";
+import { getAdjustmentTotalsByPatient } from "./reports-patient-balances.js";
 
 const router = Router();
+const BOOKED_STATUS_SET = new Set(ADMIN_HOME_BOOKED_APPOINTMENT_STATUSES);
+
+function computeBranchAppointmentCounters(appointments) {
+  const byBranch = new Map();
+  for (const appt of appointments) {
+    const branchId = appt.branchId;
+    if (!branchId) continue;
+    if (!byBranch.has(branchId)) {
+      byBranch.set(branchId, { completedCount: 0, bookedCount: 0, noShowCount: 0 });
+    }
+    const counters = byBranch.get(branchId);
+    const status = String(appt.status || "").toLowerCase();
+    if (status === "completed") counters.completedCount += 1;
+    if (status === "no_show") counters.noShowCount += 1;
+    if (BOOKED_STATUS_SET.has(status)) counters.bookedCount += 1;
+  }
+  return byBranch;
+}
+
+function computeNoShowLostValue(noShowAppointments, avgRevenueByDoctor) {
+  let total = 0;
+  for (const appt of noShowAppointments) {
+    if (!appt.doctorId || !(appt.scheduledAt instanceof Date)) continue;
+    const avgRevenue = Number(avgRevenueByDoctor.get(appt.doctorId) || 0);
+    if (!Number.isFinite(avgRevenue) || avgRevenue <= 0) continue;
+    const endAt =
+      appt.endAt instanceof Date && !Number.isNaN(appt.endAt.getTime()) ? appt.endAt : null;
+    const durationMinutes = endAt ? (endAt.getTime() - appt.scheduledAt.getTime()) / 60000 : 0;
+    const slotSpan = Math.max(1, Math.ceil(durationMinutes / 30));
+    total += slotSpan * (avgRevenue / 2);
+  }
+  return total;
+}
+
+async function computeUnpaidInvoicesTotal() {
+  const patients = await prisma.patient.findMany({
+    where: { isActive: true },
+    select: { id: true },
+  });
+  if (!patients.length) return 0;
+
+  const patientIds = patients.map((p) => p.id);
+  const invoices = await prisma.invoice.findMany({
+    where: { patientId: { in: patientIds } },
+    select: {
+      id: true,
+      patientId: true,
+      finalAmount: true,
+      totalAmount: true,
+    },
+  });
+
+  const invoiceIds = invoices.map((inv) => inv.id);
+  const payments = invoiceIds.length
+    ? await prisma.payment.groupBy({
+        by: ["invoiceId"],
+        where: { invoiceId: { in: invoiceIds } },
+        _sum: { amount: true },
+      })
+    : [];
+
+  const paidByInvoice = new Map(
+    payments.map((p) => [p.invoiceId, Number(p._sum.amount || 0)])
+  );
+  const billedByPatient = new Map();
+  const paidByPatient = new Map();
+
+  for (const inv of invoices) {
+    const billed = inv.finalAmount != null ? Number(inv.finalAmount) : Number(inv.totalAmount || 0);
+    billedByPatient.set(inv.patientId, (billedByPatient.get(inv.patientId) || 0) + billed);
+    paidByPatient.set(inv.patientId, (paidByPatient.get(inv.patientId) || 0) + (paidByInvoice.get(inv.id) || 0));
+  }
+
+  const adjustmentByPatient = await getAdjustmentTotalsByPatient(null);
+  let debtAmount = 0;
+  for (const patient of patients) {
+    const totalBilled = Number((billedByPatient.get(patient.id) || 0).toFixed(2));
+    const totalPaid = Number((paidByPatient.get(patient.id) || 0).toFixed(2));
+    const totalAdjusted = Number((adjustmentByPatient.get(patient.id) || 0).toFixed(2));
+    const balance = Number((totalBilled - totalPaid - totalAdjusted).toFixed(2));
+    if (balance > 0) debtAmount += balance;
+  }
+  return Number(debtAmount.toFixed(2));
+}
 
 router.get("/admin-home", async (req, res) => {
   try {
@@ -26,6 +115,15 @@ router.get("/admin-home", async (req, res) => {
       return res.status(400).json({ error: "day query param must be YYYY-MM-DD" });
     }
     const { start, endExclusive } = range;
+    const monthStartDay = `${day.slice(0, 7)}-01`;
+    const monthRange = getLocalDayRange(monthStartDay);
+    if (!monthRange) {
+      return res.status(400).json({ error: "Invalid month range for dashboard day." });
+    }
+    const { start: monthStart } = monthRange;
+    const isCurrentDay = day === defaultDay;
+    const todaySalesWindowEnd = isCurrentDay ? new Date() : endExclusive;
+    const passedDays = Math.max(0, Math.floor((start.getTime() - monthStart.getTime()) / 86400000));
 
     const branches = await prisma.branch.findMany({
       select: { id: true, name: true },
@@ -33,12 +131,39 @@ router.get("/admin-home", async (req, res) => {
     });
 
     if (branches.length === 0) {
-      return res.json({ branches: [] });
+      return res.json({
+        kpis: {
+          day,
+          monthStart: monthStartDay,
+          monthlyNetSales: 0,
+          dailyAverageSales: 0,
+          todayTotalSales: 0,
+          passedDays,
+        },
+        branches: [],
+        alerts: {
+          noShowLostValue: 0,
+          unpaidInvoicesTotal: 0,
+          readyToPayCount: 0,
+        },
+        sterilization: {
+          dirtyPackageLabel: "Бохир үзлэгийн багцын тоо",
+          completedTodayLabel: "Өнөөдөр дууссан үзлэгийн тоо",
+        },
+      });
     }
 
     const branchIds = branches.map((b) => b.id);
 
-    const [schedules, appointments, payments] = await Promise.all([
+    const [
+      schedules,
+      appointments,
+      salesPayments,
+      noShowAppointments,
+      doctorsIncome,
+      readyToPayCount,
+      unpaidInvoicesTotal,
+    ] = await Promise.all([
       prisma.doctorSchedule.findMany({
         where: {
           branchId: { in: branchIds },
@@ -54,7 +179,6 @@ router.get("/admin-home", async (req, res) => {
       prisma.appointment.findMany({
         where: {
           branchId: { in: branchIds },
-          doctorId: { not: null },
           scheduledAt: { gte: start, lt: endExclusive },
         },
         select: {
@@ -67,7 +191,7 @@ router.get("/admin-home", async (req, res) => {
       }),
       prisma.payment.findMany({
         where: {
-          timestamp: { gte: start, lt: endExclusive },
+          timestamp: { lt: todaySalesWindowEnd },
           method: { in: ADMIN_HOME_INCOME_METHODS },
           amount: { gt: 0 },
           invoice: {
@@ -75,21 +199,81 @@ router.get("/admin-home", async (req, res) => {
           },
         },
         select: {
+          id: true,
           amount: true,
-          invoice: { select: { branchId: true } },
+          timestamp: true,
+          invoiceId: true,
+          invoice: {
+            select: {
+              id: true,
+              branchId: true,
+              finalAmount: true,
+              totalAmount: true,
+              statusLegacy: true,
+            },
+          },
         },
       }),
+      prisma.appointment.findMany({
+        where: {
+          branchId: { in: branchIds },
+          doctorId: { not: null },
+          status: "no_show",
+          scheduledAt: { gte: monthStart, lt: endExclusive },
+        },
+        select: {
+          doctorId: true,
+          scheduledAt: true,
+          endAt: true,
+        },
+      }),
+      computeDoctorsIncomeData({
+        startDate: monthStartDay,
+        endDate: day,
+        branchId: null,
+      }),
+      prisma.appointment.count({
+        where: {
+          branchId: { in: branchIds },
+          status: "ready_to_pay",
+          scheduledAt: { gte: monthStart, lt: endExclusive },
+        },
+      }),
+      computeUnpaidInvoicesTotal(),
     ]);
 
     const scheduleStatsByBranch = computeScheduleStatsByBranch(schedules);
     const filledSlotsByBranch = computeFilledSlotsByBranch(appointments);
-    const salesTodayByBranch = computeSalesTodayByBranch(payments);
+    const appointmentCountersByBranch = computeBranchAppointmentCounters(appointments);
+
+    const salesThroughYesterday = computeRecognizedSalesFromPayments(salesPayments, {
+      windowStart: monthStart,
+      windowEnd: start,
+    });
+    const salesToday = computeRecognizedSalesFromPayments(salesPayments, {
+      windowStart: start,
+      windowEnd: todaySalesWindowEnd,
+    });
+
+    const monthlyNetSales = salesThroughYesterday.total;
+    const dailyAverageSales = passedDays > 0 ? monthlyNetSales / passedDays : 0;
+    const todayTotalSales = salesToday.total;
+
+    const avgRevenueByDoctor = new Map(
+      doctorsIncome.map((row) => [row.doctorId, Number(row.averageVisitRevenue || 0)])
+    );
+    const noShowLostValue = computeNoShowLostValue(noShowAppointments, avgRevenueByDoctor);
 
     const response = branches.map((branch) => {
       const scheduleStats = scheduleStatsByBranch.get(branch.id);
       const possibleSlots = scheduleStats?.possibleSlots || 0;
       const filledSlots = filledSlotsByBranch.get(branch.id) || 0;
       const doctorCount = scheduleStats?.doctorIds?.size || 0;
+      const counters = appointmentCountersByBranch.get(branch.id) || {
+        completedCount: 0,
+        bookedCount: 0,
+        noShowCount: 0,
+      };
       const fillingRate =
         possibleSlots > 0 ? Math.round((filledSlots / possibleSlots) * 100) : null;
 
@@ -100,11 +284,33 @@ router.get("/admin-home", async (req, res) => {
         possibleSlots,
         filledSlots,
         fillingRate,
-        salesToday: Math.round(salesTodayByBranch.get(branch.id) || 0),
+        salesToday: Math.round(salesToday.byBranch.get(branch.id) || 0),
+        completedCount: counters.completedCount,
+        bookedCount: counters.bookedCount,
+        noShowCount: counters.noShowCount,
       };
     });
 
-    return res.json({ branches: response });
+    return res.json({
+      kpis: {
+        day,
+        monthStart: monthStartDay,
+        monthlyNetSales: Math.round(monthlyNetSales),
+        dailyAverageSales: Math.round(dailyAverageSales),
+        todayTotalSales: Math.round(todayTotalSales),
+        passedDays,
+      },
+      branches: response,
+      alerts: {
+        noShowLostValue: Math.round(noShowLostValue),
+        unpaidInvoicesTotal: Math.round(unpaidInvoicesTotal),
+        readyToPayCount,
+      },
+      sterilization: {
+        dirtyPackageLabel: "Бохир үзлэгийн багцын тоо",
+        completedTodayLabel: "Өнөөдөр дууссан үзлэгийн тоо",
+      },
+    });
   } catch (err) {
     console.error("GET /api/dashboard/admin-home error:", err);
     return res.status(500).json({ error: "Failed to fetch admin home dashboard data." });

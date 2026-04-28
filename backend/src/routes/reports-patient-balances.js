@@ -38,6 +38,68 @@ export async function getAdjustmentTotalsByPatient(branchId = null) {
   }
 }
 
+export async function computePatientDebtSnapshotTotal(branchId = null) {
+  const normalizedBranchId = Number(branchId);
+  const validBranchId = Number.isInteger(normalizedBranchId) && normalizedBranchId > 0
+    ? normalizedBranchId
+    : null;
+
+  const patients = await prisma.patient.findMany({
+    where: {
+      isActive: true,
+      ...(validBranchId ? { branchId: validBranchId } : {}),
+    },
+    select: { id: true },
+  });
+  if (!patients.length) return 0;
+
+  const patientIds = patients.map((p) => p.id);
+  const invoices = await prisma.invoice.findMany({
+    where: { patientId: { in: patientIds } },
+    select: {
+      id: true,
+      patientId: true,
+      finalAmount: true,
+      totalAmount: true,
+    },
+  });
+
+  const invoiceIds = invoices.map((inv) => inv.id);
+  const payments = invoiceIds.length
+    ? await prisma.payment.groupBy({
+        by: ["invoiceId"],
+        where: { invoiceId: { in: invoiceIds } },
+        _sum: { amount: true },
+      })
+    : [];
+
+  const paidByInvoice = new Map(
+    payments.map((p) => [p.invoiceId, Number(p._sum.amount || 0)])
+  );
+  const billedByPatient = new Map();
+  const paidByPatient = new Map();
+
+  for (const inv of invoices) {
+    const billed = inv.finalAmount != null
+      ? Number(inv.finalAmount)
+      : Number(inv.totalAmount || 0);
+    billedByPatient.set(inv.patientId, (billedByPatient.get(inv.patientId) || 0) + billed);
+    paidByPatient.set(inv.patientId, (paidByPatient.get(inv.patientId) || 0) + (paidByInvoice.get(inv.id) || 0));
+  }
+
+  const adjustmentByPatient = await getAdjustmentTotalsByPatient(validBranchId);
+  let debtAmount = 0;
+  for (const patient of patients) {
+    const totalBilled = Number((billedByPatient.get(patient.id) || 0).toFixed(2));
+    const totalPaid = Number((paidByPatient.get(patient.id) || 0).toFixed(2));
+    const totalAdjusted = Number((adjustmentByPatient.get(patient.id) || 0).toFixed(2));
+    const balance = Number((totalBilled - totalPaid - totalAdjusted).toFixed(2));
+    if (balance > 0) debtAmount += balance;
+  }
+
+  return Number(debtAmount.toFixed(2));
+}
+
 /**
  * Computes patient balance from all invoices, payments, and manual adjustments.
  * Returns { totalBilled, totalPaid, totalAdjusted, balance }.
