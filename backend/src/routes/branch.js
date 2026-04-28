@@ -17,6 +17,7 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import prisma from "../db.js";
 import { DOCTOR_KIOSK_COOKIE_NAME } from "../middleware/auth.js";
 import { ensureEncounterForAppointment } from "./appointments.js";
+import { buildSessionCookieOptions } from "../utils/authCookieOptions.js";
 
 const router = Router();
 
@@ -34,19 +35,10 @@ function getJwtSecret() {
   return process.env.JWT_SECRET || "";
 }
 
-function isProd() {
-  return process.env.NODE_ENV === "production";
-}
-
 function kioskCookieOptions() {
-  return {
-    httpOnly: true,
-    secure: isProd(),
-    sameSite: "lax",
-    domain: process.env.COOKIE_DOMAIN || (isProd() ? ".mdent.cloud" : undefined),
-    path: "/",
+  return buildSessionCookieOptions({
     maxAge: DOCTOR_KIOSK_TTL_MS,
-  };
+  });
 }
 
 /** Mongolia timezone (UTC+8): return today as YYYY-MM-DD */
@@ -326,11 +318,7 @@ router.post(
  */
 router.post("/doctor/logout", (req, res) => {
   res.clearCookie(DOCTOR_KIOSK_COOKIE_NAME, {
-    httpOnly: true,
-    secure: isProd(),
-    sameSite: "lax",
-    domain: process.env.COOKIE_DOMAIN || (isProd() ? ".mdent.cloud" : undefined),
-    path: "/",
+    ...buildSessionCookieOptions(),
   });
   return res.json({ ok: true });
 });

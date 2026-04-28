@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   computeFilledSlotsByBranch,
+  computeRecognizedSalesFromPayments,
   getLocalDayRange,
   computeSalesTodayByBranch,
   computeScheduleStatsByBranch,
@@ -82,5 +83,56 @@ describe("computeSalesTodayByBranch", () => {
 
     assert.equal(sales.get(1), 150_000);
     assert.equal(sales.get(2), 25_500);
+  });
+});
+
+describe("computeRecognizedSalesFromPayments", () => {
+  it("caps recognized amount per invoice to avoid overpaid amounts", () => {
+    const jan1 = new Date("2026-01-01T00:00:00.000Z");
+    const jan2 = new Date("2026-01-02T00:00:00.000Z");
+    const jan3 = new Date("2026-01-03T00:00:00.000Z");
+    const jan4 = new Date("2026-01-04T00:00:00.000Z");
+    const jan5 = new Date("2026-01-05T00:00:00.000Z");
+    const jan6 = new Date("2026-01-06T00:00:00.000Z");
+
+    const payments = [
+      {
+        id: 1,
+        amount: 70_000,
+        timestamp: jan2,
+        invoiceId: 10,
+        invoice: { id: 10, branchId: 1, finalAmount: 100_000, statusLegacy: "partial" },
+      },
+      {
+        id: 2,
+        amount: 50_000,
+        timestamp: jan3,
+        invoiceId: 10,
+        invoice: { id: 10, branchId: 1, finalAmount: 100_000, statusLegacy: "paid" },
+      },
+      {
+        id: 3,
+        amount: 20_000,
+        timestamp: jan4,
+        invoiceId: 11,
+        invoice: { id: 11, branchId: 2, totalAmount: 20_000, statusLegacy: "paid" },
+      },
+      {
+        id: 4,
+        amount: 10_000,
+        timestamp: jan5,
+        invoiceId: 12,
+        invoice: { id: 12, branchId: 1, finalAmount: 90_000, statusLegacy: "voided" },
+      },
+    ];
+
+    const result = computeRecognizedSalesFromPayments(payments, {
+      windowStart: jan1,
+      windowEnd: jan6,
+    });
+
+    assert.equal(result.total, 120_000);
+    assert.equal(result.byBranch.get(1), 100_000);
+    assert.equal(result.byBranch.get(2), 20_000);
   });
 });

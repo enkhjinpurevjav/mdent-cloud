@@ -6,6 +6,7 @@ import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import prisma from "../db.js";
 import { sendPasswordResetEmail } from "../services/mailer.js";
 import { authenticateJWT } from "../middleware/auth.js";
+import { buildSessionCookieOptions } from "../utils/authCookieOptions.js";
 
 const router = Router();
 
@@ -59,18 +60,9 @@ const COOKIE_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8 hours
 const KIOSK_COOKIE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours (branch_kiosk)
 
 function cookieOptions(maxAgeMs = COOKIE_MAX_AGE_MS) {
-  const isProd = process.env.NODE_ENV === "production";
-  // Use leading-dot domain in production so the cookie is valid for both
-  // mdent.cloud and any subdomains (e.g. api.mdent.cloud).
-  // COOKIE_DOMAIN env var overrides the default when set explicitly.
-  return {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: "lax",
-    domain: process.env.COOKIE_DOMAIN || (isProd ? ".mdent.cloud" : undefined),
-    path: "/",
+  return buildSessionCookieOptions({
     maxAge: maxAgeMs,
-  };
+  });
 }
 
 // POST /api/auth/login

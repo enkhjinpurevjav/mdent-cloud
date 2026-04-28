@@ -31,6 +31,10 @@ const ALLOWED_HOSTS = new Set([
   // Local development
   "localhost",
   "127.0.0.1",
+
+  // Temporary dev testing by IP
+
+  "148.230.100.123",
 ]);
 
 export function middleware(req: NextRequest) {
