@@ -857,12 +857,6 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
     for (const inv of invoices) {
       const payments = inv.payments || [];
       const hasOverride = payments.some((p) => OVERRIDE_METHODS.has(String(p.method).toUpperCase()));
-      const hasWalletPayment = payments.some(
-        (p) => String(p.method || "").toUpperCase() === "WALLET"
-      );
-
-      const status = String(inv.statusLegacy || "").toLowerCase();
-      const isPaid = status === "paid";
 
       // ---------- per-line nets via proportional discount per service line ----------
       const discountPct = discountPercentEnumToNumber(inv.discountPercent);
@@ -938,27 +932,14 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
       // ---------- SALES (exclude IMAGING) ----------
       if (hasOverride) {
-        // Keep existing override behavior for in-range created invoices.
-        if (isPaid && inv.createdAt >= start && inv.createdAt < endExclusive) {
-          for (const it of nonImagingServiceItems) {
-            const lineNet = lineNets.get(it.id) || 0;
-            if (lineNet <= 0) continue;
-            const amt = lineNet * 0.9;
-            const k = bucketKeyForService(it.service);
-            buckets[k].salesMnt += amt;
-            totalSalesMnt += amt;
-          }
-        } else if (isPaid && hasWalletPayment) {
-          // Wallet-paid GENERAL rows can be paid in-range on invoices created earlier.
-          // Include only paid GENERAL allocations so footer/GENERAL totals do not miss them.
-          for (const it of nonImagingServiceItems) {
-            const k = bucketKeyForService(it.service);
-            if (k !== "GENERAL") continue;
-            const amt = (itemAllocationBase.get(it.id) || 0) * 0.9;
-            if (amt <= 0) continue;
-            buckets.GENERAL.salesMnt += amt;
-            totalSalesMnt += amt;
-          }
+        // Keep override fee behavior (0.9), but use in-range payment allocations
+        // so category totals stay consistent with /details/lines drill-down rows.
+        for (const it of nonImagingServiceItems) {
+          const amt = (itemAllocationBase.get(it.id) || 0) * 0.9;
+          if (amt <= 0) continue;
+          const k = bucketKeyForService(it.service);
+          buckets[k].salesMnt += amt;
+          totalSalesMnt += amt;
         }
       } else {
         // Sum equal-split allocations for non-IMAGING lines into their category buckets.
