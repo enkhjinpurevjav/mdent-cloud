@@ -858,9 +858,6 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
       const payments = inv.payments || [];
       const hasOverride = payments.some((p) => OVERRIDE_METHODS.has(String(p.method).toUpperCase()));
 
-      const status = String(inv.statusLegacy || "").toLowerCase();
-      const isPaid = status === "paid";
-
       // ---------- per-line nets via proportional discount per service line ----------
       const discountPct = discountPercentEnumToNumber(inv.discountPercent);
       const serviceItems = (inv.items || []).filter(
@@ -935,16 +932,14 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
       // ---------- SALES (exclude IMAGING) ----------
       if (hasOverride) {
-        if (isPaid && inv.createdAt >= start && inv.createdAt < endExclusive) {
-          // Per-item lineNet * 0.9 allocated to each non-IMAGING category bucket.
-          for (const it of nonImagingServiceItems) {
-            const lineNet = lineNets.get(it.id) || 0;
-            if (lineNet <= 0) continue;
-            const amt = lineNet * 0.9;
-            const k = bucketKeyForService(it.service);
-            buckets[k].salesMnt += amt;
-            totalSalesMnt += amt;
-          }
+        // Keep override fee behavior (0.9), but use in-range payment allocations
+        // so category totals stay consistent with /details/lines drill-down rows.
+        for (const it of nonImagingServiceItems) {
+          const amt = (itemAllocationBase.get(it.id) || 0) * 0.9;
+          if (amt <= 0) continue;
+          const k = bucketKeyForService(it.service);
+          buckets[k].salesMnt += amt;
+          totalSalesMnt += amt;
         }
       } else {
         // Sum equal-split allocations for non-IMAGING lines into their category buckets.
