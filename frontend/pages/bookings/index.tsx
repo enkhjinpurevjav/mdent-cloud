@@ -337,7 +337,7 @@ export default function BookingsDashboardPage() {
               </div>
               <div>
                 <div style={{ color: "#6b7280", fontSize: 13 }}>
-                  Төлбөр төлөт төлөвтэй үзлэгийн тоо
+                  Төлбөр төлөх төлөвтэй үзлэгийн тоо
                 </div>
                 <div style={{ fontWeight: 700, fontSize: 20 }}>
                   {new Intl.NumberFormat("mn-MN").format(alerts?.readyToPayCount || 0)}
