@@ -857,6 +857,8 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
     for (const inv of invoices) {
       const payments = inv.payments || [];
       const hasOverride = payments.some((p) => OVERRIDE_METHODS.has(String(p.method).toUpperCase()));
+      const status = String(inv.statusLegacy || "").toLowerCase();
+      const isPaid = status === "paid";
 
       // ---------- per-line nets via proportional discount per service line ----------
       const discountPct = discountPercentEnumToNumber(inv.discountPercent);
@@ -932,12 +934,16 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
       // ---------- SALES (exclude IMAGING) ----------
       if (hasOverride) {
-        for (const it of nonImagingServiceItems) {
-          const amt = (itemAllocationBase.get(it.id) || 0) * 0.9;
-          if (amt <= 0) continue;
-          const k = bucketKeyForService(it.service);
-          buckets[k].salesMnt += amt;
-          totalSalesMnt += amt;
+        if (isPaid) {
+          for (const it of nonImagingServiceItems) {
+            const lineNet = lineNets.get(it.id) || 0;
+            if (lineNet <= 0) continue;
+            const amt = lineNet * 0.9;
+            if (amt <= 0) continue;
+            const k = bucketKeyForService(it.service);
+            buckets[k].salesMnt += amt;
+            totalSalesMnt += amt;
+          }
         }
       } else {
         // Sum equal-split allocations for non-IMAGING lines into their category buckets.
