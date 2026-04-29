@@ -137,7 +137,13 @@ function toDoctorShortName(d: { name?: string | null; ovog?: string | null; id?:
   const name = (d.name || "").trim();
   const ovog = (d.ovog || "").trim();
   if (ovog && name) return `${ovog.charAt(0)}.${name}`;
-  if (name) return name;
+  if (name) {
+    const parts = name.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return `${parts[0].charAt(0)}.${parts.slice(1).join(" ")}`;
+    }
+    return name;
+  }
   if (ovog) return ovog;
   return d.id ? `Эмч #${d.id}` : "Эмч";
 }
