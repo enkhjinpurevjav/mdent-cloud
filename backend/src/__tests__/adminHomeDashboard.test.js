@@ -135,4 +135,46 @@ describe("computeRecognizedSalesFromPayments", () => {
     assert.equal(result.byBranch.get(1), 100_000);
     assert.equal(result.byBranch.get(2), 20_000);
   });
+
+  it("applies includedMethods filter on top of capped recognition", () => {
+    const jan1 = new Date("2026-01-01T00:00:00.000Z");
+    const jan6 = new Date("2026-01-06T00:00:00.000Z");
+    const payments = [
+      {
+        id: 1,
+        amount: 100_000,
+        method: "CASH",
+        timestamp: new Date("2026-01-02T00:00:00.000Z"),
+        invoiceId: 20,
+        invoice: { id: 20, branchId: 1, finalAmount: 150_000, statusLegacy: "partial" },
+      },
+      {
+        id: 2,
+        amount: 80_000,
+        method: "VOUCHER",
+        timestamp: new Date("2026-01-03T00:00:00.000Z"),
+        invoiceId: 20,
+        invoice: { id: 20, branchId: 1, finalAmount: 150_000, statusLegacy: "paid" },
+      },
+      {
+        id: 3,
+        amount: 30_000,
+        method: "BARTER",
+        timestamp: new Date("2026-01-04T00:00:00.000Z"),
+        invoiceId: 21,
+        invoice: { id: 21, branchId: 2, finalAmount: 30_000, statusLegacy: "paid" },
+      },
+    ];
+
+    const result = computeRecognizedSalesFromPayments(payments, {
+      windowStart: jan1,
+      windowEnd: jan6,
+      includedMethods: ["CASH", "VOUCHER"],
+    });
+
+    // invoice #20 should still cap at 150, and BARTER payment should be excluded by method filter
+    assert.equal(result.total, 150_000);
+    assert.equal(result.byBranch.get(1), 150_000);
+    assert.equal(result.byBranch.has(2), false);
+  });
 });
