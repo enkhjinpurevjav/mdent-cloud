@@ -2,6 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   computeFilledSlotsByBranch,
+  computeImagingServiceCount,
+  computeImagingServiceSalesFromItems,
   computeRecognizedSalesFromPayments,
   getLocalDayRange,
   computeSalesTodayByBranch,
@@ -176,5 +178,46 @@ describe("computeRecognizedSalesFromPayments", () => {
     assert.equal(result.total, 150_000);
     assert.equal(result.byBranch.get(1), 150_000);
     assert.equal(result.byBranch.has(2), false);
+  });
+});
+
+describe("computeImagingServiceSalesFromItems", () => {
+  it("sums imaging service net totals after invoice-level discount", () => {
+    const total = computeImagingServiceSalesFromItems([
+      {
+        lineTotal: 100_000,
+        quantity: 1,
+        unitPrice: 100_000,
+        invoice: { discountPercent: "ZERO" },
+      },
+      {
+        lineTotal: 200_000,
+        quantity: 1,
+        unitPrice: 200_000,
+        invoice: { discountPercent: "TEN" },
+      },
+      {
+        lineTotal: 50_000,
+        quantity: 1,
+        unitPrice: 50_000,
+        invoice: { discountPercent: "FIVE" },
+      },
+    ]);
+
+    // 100,000 + 180,000 + 47,500 = 327,500
+    assert.equal(total, 327_500);
+  });
+});
+
+describe("computeImagingServiceCount", () => {
+  it("sums positive quantities and ignores non-positive entries", () => {
+    const count = computeImagingServiceCount([
+      { quantity: 2 },
+      { quantity: 3 },
+      { quantity: 0 },
+      { quantity: -1 },
+      { quantity: null },
+    ]);
+    assert.equal(count, 5);
   });
 });
