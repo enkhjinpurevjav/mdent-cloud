@@ -42,6 +42,7 @@ import {
   discountPercentEnumToNumber,
   computeServiceNetProportionalDiscount,
   allocatePaymentProportionalByRemaining,
+  hasOverridePaymentMethod,
 } from "../../utils/incomeHelpers.js";
 
 const router = express.Router();
@@ -58,7 +59,8 @@ const INCLUDED_METHODS = new Set([
 ]);
 
 const EXCLUDED_METHODS = new Set(["EMPLOYEE_BENEFIT"]);
-const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION", "WALLET"]);
+// Wallet should follow normal allocation flow; only insurance/app use override rules.
+const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION"]);
 
 const HOME_BLEACHING_SERVICE_CODE = 151;
 const BARTER_THRESHOLD_MNT = 800_000;
@@ -129,9 +131,7 @@ function computeIncomeFromInvoices(
 
     const cfg = doctor.commissionConfig;
     const payments = inv.payments || [];
-    const hasOverride = payments.some((p) =>
-      OVERRIDE_METHODS.has(String(p.method).toUpperCase())
-    );
+    const hasOverride = hasOverridePaymentMethod(payments);
 
     const discountPct = discountPercentEnumToNumber(inv.discountPercent);
 
@@ -282,7 +282,7 @@ function computeIncomeFromInvoices(
  * IMAGING is excluded from sales; barter excess included proportionally.
  * Override methods (INSURANCE/APPLICATION) use totalNonImagingNet * 0.9 when paid.
  */
-function computeSalesFromInvoices(
+export function computeSalesFromInvoices(
   invoices,
   rangeStart,
   rangeEndExclusive
@@ -303,9 +303,7 @@ function computeSalesFromInvoices(
     if (!doctor) continue;
 
     const payments = inv.payments || [];
-    const hasOverride = payments.some((p) =>
-      OVERRIDE_METHODS.has(String(p.method || "").toUpperCase())
-    );
+    const hasOverride = hasOverridePaymentMethod(payments);
 
     const discountPct = discountPercentEnumToNumber(inv.discountPercent);
 
