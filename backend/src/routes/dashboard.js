@@ -15,6 +15,12 @@ import { getAdjustmentTotalsByPatient } from "./reports-patient-balances.js";
 
 const router = Router();
 const BOOKED_STATUS_SET = new Set(ADMIN_HOME_BOOKED_APPOINTMENT_STATUSES);
+const MONTHLY_NET_SALES_METHODS = [
+  ...ADMIN_HOME_INCOME_METHODS,
+  "WALLET",
+  "VOUCHER",
+];
+const MONTHLY_NET_ALLOWED_INVOICE_STATUSES = ["paid", "partial"];
 
 function computeBranchAppointmentCounters(appointments) {
   const byBranch = new Map();
@@ -159,6 +165,7 @@ router.get("/admin-home", async (req, res) => {
       schedules,
       appointments,
       salesPayments,
+      monthlyNetSalesPayments,
       noShowAppointments,
       doctorsIncome,
       readyToPayCount,
@@ -214,6 +221,33 @@ router.get("/admin-home", async (req, res) => {
           },
         },
       }),
+      prisma.payment.findMany({
+        where: {
+          timestamp: { gte: monthStart, lt: start },
+          method: { in: MONTHLY_NET_SALES_METHODS },
+          amount: { gt: 0 },
+          invoice: {
+            branchId: { in: branchIds },
+            statusLegacy: { in: MONTHLY_NET_ALLOWED_INVOICE_STATUSES },
+          },
+        },
+        select: {
+          id: true,
+          amount: true,
+          method: true,
+          timestamp: true,
+          invoiceId: true,
+          invoice: {
+            select: {
+              id: true,
+              branchId: true,
+              finalAmount: true,
+              totalAmount: true,
+              statusLegacy: true,
+            },
+          },
+        },
+      }),
       prisma.appointment.findMany({
         where: {
           branchId: { in: branchIds },
@@ -246,16 +280,17 @@ router.get("/admin-home", async (req, res) => {
     const filledSlotsByBranch = computeFilledSlotsByBranch(appointments);
     const appointmentCountersByBranch = computeBranchAppointmentCounters(appointments);
 
-    const salesThroughYesterday = computeRecognizedSalesFromPayments(salesPayments, {
+    const monthlyNetSalesResult = computeRecognizedSalesFromPayments(monthlyNetSalesPayments, {
       windowStart: monthStart,
       windowEnd: start,
+      includedMethods: MONTHLY_NET_SALES_METHODS,
     });
     const salesToday = computeRecognizedSalesFromPayments(salesPayments, {
       windowStart: start,
       windowEnd: todaySalesWindowEnd,
     });
 
-    const monthlyNetSales = salesThroughYesterday.total;
+    const monthlyNetSales = monthlyNetSalesResult.total;
     const dailyAverageSales = passedDays > 0 ? monthlyNetSales / passedDays : 0;
     const todayTotalSales = salesToday.total;
 
