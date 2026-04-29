@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import * as XLSX from "xlsx";
 
 function getFirstDayOfMonthStr(): string {
   const d = new Date();
@@ -47,6 +48,10 @@ type SortKey =
   | "revenue"
   | "progressPercent";
 type SortDirection = "asc" | "desc";
+
+function buildFilenameDatePart(value: string) {
+  return String(value || "").replaceAll("-", "");
+}
 
 export default function DoctorsIncomePage() {
   const router = useRouter();
@@ -141,6 +146,28 @@ export default function DoctorsIncomePage() {
     </th>
   );
 
+  const handleExportExcel = () => {
+    const rows = sortedDoctors.map((doctor) => ({
+      "Эмч": formatDoctorName(doctor.doctorOvog, doctor.doctorName),
+      "Эхлэх огноо": doctor.startDate,
+      "Дуусах огноо": doctor.endDate,
+      "Цаг захиалга": doctor.appointmentCount,
+      "Үйлчилгээ": doctor.serviceCount,
+      "Үзлэгийн дундаж (₮)": doctor.averageVisitRevenue,
+      "Борлуулалт (₮)": doctor.revenue,
+      "Эмчийн хувь (₮)": doctor.commission,
+      "Сарын зорилт (₮)": doctor.monthlyGoal,
+      "Гүйцэтгэл (%)": doctor.progressPercent,
+    }));
+
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, "DoctorsIncome");
+
+    const filename = `doctors_income_${buildFilenameDatePart(startDate)}_${buildFilenameDatePart(endDate)}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
+
   return (
     <main className="w-full px-6 py-6 font-sans">
       <h1 className="mb-4 text-2xl font-bold text-gray-900">Эмчийн Орлогын Тайлан</h1>
@@ -179,6 +206,16 @@ export default function DoctorsIncomePage() {
               </option>
             ))}
           </select>
+        </div>
+        <div className="flex items-end">
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={loading || sortedDoctors.length === 0}
+            className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Excel татах
+          </button>
         </div>
       </section>
 

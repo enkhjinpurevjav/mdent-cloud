@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import EncounterReportModal from "../../../../components/patients/EncounterReportModal";
+import * as XLSX from "xlsx";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,18 @@ function formatDate(isoStr: string | null | undefined) {
   const d = new Date(isoStr);
   if (isNaN(d.getTime())) return "-";
   return d.toLocaleDateString("mn-MN", { year: "numeric", month: "2-digit", day: "2-digit" });
+}
+
+function formatDateForFile(value: string) {
+  return value.replace(/[^0-9]/g, "");
+}
+
+function sanitizeSheetName(input: string) {
+  return String(input || "Sheet")
+    .replace(/[:\\/?*\[\]]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 31) || "Sheet";
 }
 
 // ✅ Add this right here (after helpers, before Icons / components)
@@ -310,6 +323,75 @@ export default function DoctorIncomeDetailsPage() {
     ? formatDoctorName(data.doctorOvog, data.doctorName)
     : String(doctorId || "");
 
+  const handleExportExcel = useCallback(async () => {
+    if (!data) return;
+    try {
+      const workbook = XLSX.utils.book_new();
+
+      const summaryRows = data.categories.map((row) => ({
+        "Ангилал": row.label,
+        "Хувь (%)": Number(row.pctUsed || 0),
+        "Борлуулалт": Number(row.salesMnt || 0),
+        "Эмчийн хувь": Number(row.incomeMnt || 0),
+      }));
+      summaryRows.push({
+        "Ангилал": "Нийт",
+        "Хувь (%)": "",
+        "Борлуулалт": Number(data.totals.totalSalesMnt || 0),
+        "Эмчийн хувь": Number(data.totals.totalIncomeMnt || 0),
+      } as any);
+
+      const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
+      XLSX.utils.book_append_sheet(workbook, summarySheet, "Нэгтгэл");
+
+      // Include expanded dropdown details for every category in export.
+      for (const row of data.categories) {
+        let lines = categoryLines[row.key];
+        if (lines === undefined || lines === null) {
+          try {
+            const res = await fetch(
+              `/api/admin/doctors-income/${doctorId}/details/lines?startDate=${startDate}&endDate=${endDate}&category=${row.key}`
+            );
+            const json = await res.json();
+            lines = res.ok ? (json as LineItem[]) : [];
+          } catch {
+            lines = [];
+          }
+        }
+
+        const detailRows = (lines || []).map((line) => ({
+          "Нэхэмжлэл #": line.invoiceId,
+          "Үзлэгийн огноо": formatDate(line.appointmentScheduledAt || line.visitDate),
+          "Үйлчлүүлэгч": formatPatient(line.patientOvog, line.patientName),
+          "Үйлчилгээ": line.serviceName,
+          "Үнийн дүн": Number(line.priceMnt || 0),
+          "Хөнгөлөлт": Number(line.discountMnt || 0),
+          "Нийт": Number(line.allocatedPaidMnt || 0),
+          "Төлбөрийн хэрэгсэл": line.paymentMethodLabel || "-",
+        }));
+
+        const rowsForSheet = detailRows.length
+          ? detailRows
+          : [{ "Нэхэмжлэл #": "", "Үзлэгийн огноо": "", "Үйлчлүүлэгч": "", "Үйлчилгээ": "Мэдээлэл олдсонгүй.", "Үнийн дүн": "", "Хөнгөлөлт": "", "Нийт": "", "Төлбөрийн хэрэгсэл": "" }];
+
+        const detailSheet = XLSX.utils.json_to_sheet(rowsForSheet as any[]);
+        XLSX.utils.book_append_sheet(
+          workbook,
+          detailSheet,
+          sanitizeSheetName(row.label)
+        );
+      }
+
+      const fileName = `doctor_income_details_${doctorId}_${formatDateForFile(
+        startDate
+      )}_${formatDateForFile(endDate)}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+    } catch (e) {
+      console.error("Failed to export doctor income details excel:", e);
+      window.alert("Excel таталт амжилтгүй боллоо.");
+    }
+  }, [data, categoryLines, doctorId, startDate, endDate]);
+
   return (
     <main className="w-full px-6 py-6 font-sans">
       {/* Header */}
@@ -324,6 +406,14 @@ export default function DoctorIncomeDetailsPage() {
         <h1 className="m-0 text-xl font-bold text-gray-900">
           Эмчийн Орлогын Тайлан — Дэлгэрэнгүй
         </h1>
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          disabled={!data}
+          className="rounded-md border border-green-600 bg-green-600 px-3 py-2 text-sm text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:border-green-300 disabled:bg-green-300"
+        >
+          Excel татах
+        </button>
       </div>
 
       {/* Meta */}
