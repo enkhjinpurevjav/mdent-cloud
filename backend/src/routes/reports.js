@@ -6,6 +6,12 @@ const router = Router();
 // Payment methods counted as income for the top-card calculations (Cards 1 and 3)
 const INCOME_PAYMENT_METHODS = ["CASH", "POS", "TRANSFER", "INSURANCE", "APPLICATION", "QPAY"];
 const MAIN_REPORT_VOIDED_STATUSES = ["voided", "void", "canceled", "cancelled"];
+const ULAANBAATAR_DAY_FORMATTER = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Ulaanbaatar",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 const MAIN_REPORT_PAYMENT_METHODS = [
   { key: "CASH", label: "Бэлэн мөнгө" },
   { key: "POS", label: "Карт (POS)" },
@@ -32,8 +38,12 @@ function parseDateOnlyEndExclusive(value) {
 }
 
 function monthKey(date) {
+  return dayKey(date).slice(0, 7);
+}
+
+function dayKey(date) {
   const dt = date instanceof Date ? date : new Date(date);
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+  return ULAANBAATAR_DAY_FORMATTER.format(dt);
 }
 
 function asMoney(value) {
@@ -112,7 +122,9 @@ router.get("/main-overview", async (req, res) => {
     ]);
 
     const activeBranches = branchId ? branches.filter((b) => b.id === branchId) : branches;
-    const months = [];
+    const yearMatch = /^(\d{4})-01-01$/.exec(from);
+    const isMonthlyView = Boolean(yearMatch && to === `${yearMatch[1]}-12-31`);
+    const trendKeys = [];
     const monthCursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1, 0, 0, 0, 0);
     const toDateInclusive = new Date(toDateExclusive.getTime() - 1);
     const endMonth = new Date(
@@ -124,13 +136,21 @@ router.get("/main-overview", async (req, res) => {
       0,
       0
     );
-    while (monthCursor <= endMonth) {
-      months.push(monthKey(monthCursor));
-      monthCursor.setMonth(monthCursor.getMonth() + 1);
+    if (isMonthlyView) {
+      while (monthCursor <= endMonth) {
+        trendKeys.push(monthKey(monthCursor));
+        monthCursor.setMonth(monthCursor.getMonth() + 1);
+      }
+    } else {
+      const dayCursor = new Date(fromDate);
+      while (dayCursor < toDateExclusive) {
+        trendKeys.push(dayKey(dayCursor));
+        dayCursor.setDate(dayCursor.getDate() + 1);
+      }
     }
 
-    const monthlySales = new Map(months.map((m) => [m, 0]));
-    const monthlyCollected = new Map(months.map((m) => [m, 0]));
+    const trendSales = new Map(trendKeys.map((k) => [k, 0]));
+    const trendCollected = new Map(trendKeys.map((k) => [k, 0]));
     const methodTotals = new Map(MAIN_REPORT_PAYMENT_METHODS.map((m) => [m.key, 0]));
 
     const doctorSales = new Map();
@@ -153,10 +173,12 @@ router.get("/main-overview", async (req, res) => {
       totalCollected = asMoney(totalCollected + collected);
       if (outstanding > 0) totalOutstanding = asMoney(totalOutstanding + outstanding);
 
-      const mk = monthKey(inv.createdAt);
-      if (monthlySales.has(mk)) monthlySales.set(mk, asMoney((monthlySales.get(mk) || 0) + billed));
-      if (monthlyCollected.has(mk)) {
-        monthlyCollected.set(mk, asMoney((monthlyCollected.get(mk) || 0) + collected));
+      const trendKey = isMonthlyView ? monthKey(inv.createdAt) : dayKey(inv.createdAt);
+      if (trendSales.has(trendKey)) {
+        trendSales.set(trendKey, asMoney((trendSales.get(trendKey) || 0) + billed));
+      }
+      if (trendCollected.has(trendKey)) {
+        trendCollected.set(trendKey, asMoney((trendCollected.get(trendKey) || 0) + collected));
       }
 
       if (inv.branchId && branchSales.has(inv.branchId)) {
@@ -235,7 +257,7 @@ router.get("/main-overview", async (req, res) => {
       period: {
         from,
         to,
-        view: "monthly",
+        view: isMonthlyView ? "monthly" : "daily",
       },
       scope: {
         branchId: branchId || null,
@@ -257,11 +279,11 @@ router.get("/main-overview", async (req, res) => {
         nonCash: Math.round(nonCash),
         completedVisits: completedAppointments.length,
       },
-      revenueTrend: months.map((m) => ({
-        month: m,
-        sales: Math.round(monthlySales.get(m) || 0),
-        collected: Math.round(monthlyCollected.get(m) || 0),
-        income: Math.round(monthlyCollected.get(m) || 0),
+      revenueTrend: trendKeys.map((key) => ({
+        bucket: key,
+        sales: Math.round(trendSales.get(key) || 0),
+        collected: Math.round(trendCollected.get(key) || 0),
+        income: Math.round(trendCollected.get(key) || 0),
       })),
       paymentMethods: MAIN_REPORT_PAYMENT_METHODS.map((method) => ({
         key: method.key,

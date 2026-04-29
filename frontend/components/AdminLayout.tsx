@@ -190,9 +190,7 @@ const navItems: NavItem[] = [
   {
     label: "Үндсэн тайлан",
     icon: "📈",
-    children: [
-      { label: "Товч тайлан", href: "/reports/main", icon: "📊" },
-    ],
+    href: "/reports/main",
   },
 ];
 
