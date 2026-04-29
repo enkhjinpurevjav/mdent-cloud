@@ -21,7 +21,6 @@ import {
   discountPercentEnumToNumber,
   computeServiceNetProportionalDiscount,
   allocatePaymentProportionalByRemaining,
-  hasOverridePaymentMethod,
 } from "../utils/incomeHelpers.js";
 
 // ---------------------------------------------------------------------------
@@ -235,37 +234,5 @@ describe("allocatePaymentProportionalByRemaining – all lines already paid", ()
     const result = allocatePaymentProportionalByRemaining(5000, [1, 2], remainingDue);
     assert.equal(result.get(1), 0);
     assert.equal(result.get(2), 0);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// hasOverridePaymentMethod
-// ---------------------------------------------------------------------------
-
-describe("hasOverridePaymentMethod", () => {
-  it("returns true for insurance/application methods", () => {
-    assert.equal(
-      hasOverridePaymentMethod([
-        { method: "CASH" },
-        { method: "APPLICATION" },
-      ]),
-      true
-    );
-    assert.equal(hasOverridePaymentMethod([{ method: "insurance" }]), true);
-  });
-
-  it("returns false for wallet-only payments", () => {
-    assert.equal(hasOverridePaymentMethod([{ method: "WALLET" }]), false);
-  });
-
-  it("returns false when no override methods are present", () => {
-    assert.equal(
-      hasOverridePaymentMethod([
-        { method: "CASH" },
-        { method: "POS" },
-        { method: "TRANSFER" },
-      ]),
-      false
-    );
   });
 });

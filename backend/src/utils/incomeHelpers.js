@@ -124,19 +124,3 @@ export function allocatePaymentProportionalByRemaining(paymentAmount, lineIds, r
 
   return result;
 }
-
-/**
- * Determine whether an invoice should use override settlement logic.
- *
- * Only INSURANCE and APPLICATION are treated as override methods.
- * WALLET is intentionally excluded so it follows the normal allocation flow.
- *
- * @param {Array<{method?: string|null|undefined}>} payments
- * @returns {boolean}
- */
-export function hasOverridePaymentMethod(payments) {
-  return (payments || []).some((p) => {
-    const method = String(p?.method || "").toUpperCase();
-    return method === "INSURANCE" || method === "APPLICATION";
-  });
-}

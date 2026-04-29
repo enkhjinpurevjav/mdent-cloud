@@ -4,7 +4,6 @@ import {
   discountPercentEnumToNumber,
   computeServiceNetProportionalDiscount,
   allocatePaymentProportionalByRemaining,
-  hasOverridePaymentMethod,
 } from "../../utils/incomeHelpers.js";
 import { getAdjustmentTotalsByPatient } from "../reports-patient-balances.js";
 
@@ -36,8 +35,7 @@ const METHOD_LABELS = {
 
 const EXCLUDED_METHODS = new Set(["EMPLOYEE_BENEFIT"]);
 
-// Wallet should follow normal allocation flow; only insurance/app use override rules.
-const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION"]);
+const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION", "WALLET"]);
 
 // Home bleaching: Service.code === 151
 const HOME_BLEACHING_SERVICE_CODE = 151;
@@ -258,7 +256,7 @@ export async function computeDoctorsIncomeData({ startDate, endDate, branchId })
     const acc = byDoctor.get(doctorId);
 
     const payments = inv.payments || [];
-    const hasOverride = hasOverridePaymentMethod(payments);
+    const hasOverride = payments.some((p) => OVERRIDE_METHODS.has(String(p.method).toUpperCase()));
 
     // ---------- per-line nets via proportional discount per service line ----------
     const discountPct = discountPercentEnumToNumber(inv.discountPercent);
@@ -858,7 +856,7 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
     for (const inv of invoices) {
       const payments = inv.payments || [];
-      const hasOverride = hasOverridePaymentMethod(payments);
+      const hasOverride = payments.some((p) => OVERRIDE_METHODS.has(String(p.method).toUpperCase()));
 
       const status = String(inv.statusLegacy || "").toLowerCase();
       const isPaid = status === "paid";
@@ -1135,7 +1133,9 @@ router.get("/doctors-income/:doctorId/details/lines", async (req, res) => {
     for (const inv of invoices) {
       const encounter = inv.encounter;
       const payments = inv.payments || [];
-      const hasOverride = hasOverridePaymentMethod(payments);
+      const hasOverride = payments.some((p) =>
+        OVERRIDE_METHODS.has(String(p.method).toUpperCase())
+      );
       const feeMultiplier = hasOverride ? 0.9 : 1;
 
       const discountPct = discountPercentEnumToNumber(inv.discountPercent);
@@ -1388,7 +1388,9 @@ router.get("/nurses-income", async (req, res) => {
 
     for (const inv of invoices) {
       const payments = inv.payments || [];
-      const hasOverride = hasOverridePaymentMethod(payments);
+      const hasOverride = payments.some((p) =>
+        OVERRIDE_METHODS.has(String(p.method).toUpperCase())
+      );
       const feeMultiplier = hasOverride ? 0.9 : 1;
 
       const discountPct = discountPercentEnumToNumber(inv.discountPercent);
@@ -1612,7 +1614,9 @@ router.get("/nurses-income/:nurseId/details", async (req, res) => {
 
     for (const inv of invoices) {
       const payments = inv.payments || [];
-      const hasOverride = hasOverridePaymentMethod(payments);
+      const hasOverride = payments.some((p) =>
+        OVERRIDE_METHODS.has(String(p.method).toUpperCase())
+      );
       const feeMultiplier = hasOverride ? 0.9 : 1;
 
       const discountPct = discountPercentEnumToNumber(inv.discountPercent);
