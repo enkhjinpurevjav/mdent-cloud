@@ -5,6 +5,8 @@ import {
   ADMIN_HOME_INCOME_METHODS,
 } from "../constants/dashboard.js";
 import {
+  computeImagingServiceCount,
+  computeImagingServiceSalesFromItems,
   computeFilledSlotsByBranch,
   computeRecognizedSalesFromPayments,
   computeScheduleStatsByBranch,
@@ -15,6 +17,12 @@ import { getAdjustmentTotalsByPatient } from "./reports-patient-balances.js";
 
 const router = Router();
 const BOOKED_STATUS_SET = new Set(ADMIN_HOME_BOOKED_APPOINTMENT_STATUSES);
+const MONTHLY_NET_SALES_METHODS = [
+  ...ADMIN_HOME_INCOME_METHODS,
+  "WALLET",
+  "VOUCHER",
+];
+const MONTHLY_NET_ALLOWED_INVOICE_STATUSES = ["paid", "partial"];
 
 function computeBranchAppointmentCounters(appointments) {
   const byBranch = new Map();
@@ -121,6 +129,7 @@ router.get("/admin-home", async (req, res) => {
       return res.status(400).json({ error: "Invalid month range for dashboard day." });
     }
     const { start: monthStart } = monthRange;
+    const yesterdayStart = new Date(start.getTime() - 86400000);
     const isCurrentDay = day === defaultDay;
     const todaySalesWindowEnd = isCurrentDay ? new Date() : endExclusive;
     const passedDays = Math.max(0, Math.floor((start.getTime() - monthStart.getTime()) / 86400000));
@@ -146,6 +155,11 @@ router.get("/admin-home", async (req, res) => {
           unpaidInvoicesTotal: 0,
           readyToPayCount: 0,
         },
+        imagingService: {
+          monthlyServiceSales: 0,
+          monthlyServiceCount: 0,
+          yesterdayServiceCount: 0,
+        },
         sterilization: {
           dirtyPackageLabel: "Бохир үзлэгийн багцын тоо",
           completedTodayLabel: "Өнөөдөр дууссан үзлэгийн тоо",
@@ -159,10 +173,14 @@ router.get("/admin-home", async (req, res) => {
       schedules,
       appointments,
       salesPayments,
+      monthlyNetSalesPayments,
       noShowAppointments,
       doctorsIncome,
       readyToPayCount,
       unpaidInvoicesTotal,
+      imagingMonthlySalesItems,
+      imagingMonthlyCountItems,
+      imagingYesterdayCountItems,
     ] = await Promise.all([
       prisma.doctorSchedule.findMany({
         where: {
@@ -214,6 +232,33 @@ router.get("/admin-home", async (req, res) => {
           },
         },
       }),
+      prisma.payment.findMany({
+        where: {
+          timestamp: { gte: monthStart, lt: start },
+          method: { in: MONTHLY_NET_SALES_METHODS },
+          amount: { gt: 0 },
+          invoice: {
+            branchId: { in: branchIds },
+            statusLegacy: { in: MONTHLY_NET_ALLOWED_INVOICE_STATUSES },
+          },
+        },
+        select: {
+          id: true,
+          amount: true,
+          method: true,
+          timestamp: true,
+          invoiceId: true,
+          invoice: {
+            select: {
+              id: true,
+              branchId: true,
+              finalAmount: true,
+              totalAmount: true,
+              statusLegacy: true,
+            },
+          },
+        },
+      }),
       prisma.appointment.findMany({
         where: {
           branchId: { in: branchIds },
@@ -240,22 +285,61 @@ router.get("/admin-home", async (req, res) => {
         },
       }),
       computeUnpaidInvoicesTotal(),
+      prisma.invoiceItem.findMany({
+        where: {
+          itemType: "SERVICE",
+          service: { category: "IMAGING" },
+          invoice: {
+            branchId: { in: branchIds },
+            createdAt: { gte: monthStart, lt: endExclusive },
+          },
+        },
+        select: {
+          lineTotal: true,
+          unitPrice: true,
+          quantity: true,
+          invoice: { select: { discountPercent: true } },
+        },
+      }),
+      prisma.invoiceItem.findMany({
+        where: {
+          itemType: "SERVICE",
+          service: { category: "IMAGING" },
+          invoice: {
+            branchId: { in: branchIds },
+            createdAt: { gte: monthStart, lt: start },
+          },
+        },
+        select: { quantity: true },
+      }),
+      prisma.invoiceItem.findMany({
+        where: {
+          itemType: "SERVICE",
+          service: { category: "IMAGING" },
+          invoice: {
+            branchId: { in: branchIds },
+            createdAt: { gte: yesterdayStart, lt: start },
+          },
+        },
+        select: { quantity: true },
+      }),
     ]);
 
     const scheduleStatsByBranch = computeScheduleStatsByBranch(schedules);
     const filledSlotsByBranch = computeFilledSlotsByBranch(appointments);
     const appointmentCountersByBranch = computeBranchAppointmentCounters(appointments);
 
-    const salesThroughYesterday = computeRecognizedSalesFromPayments(salesPayments, {
+    const monthlyNetSalesResult = computeRecognizedSalesFromPayments(monthlyNetSalesPayments, {
       windowStart: monthStart,
       windowEnd: start,
+      includedMethods: MONTHLY_NET_SALES_METHODS,
     });
     const salesToday = computeRecognizedSalesFromPayments(salesPayments, {
       windowStart: start,
       windowEnd: todaySalesWindowEnd,
     });
 
-    const monthlyNetSales = salesThroughYesterday.total;
+    const monthlyNetSales = monthlyNetSalesResult.total;
     const dailyAverageSales = passedDays > 0 ? monthlyNetSales / passedDays : 0;
     const todayTotalSales = salesToday.total;
 
@@ -263,6 +347,9 @@ router.get("/admin-home", async (req, res) => {
       doctorsIncome.map((row) => [row.doctorId, Number(row.averageVisitRevenue || 0)])
     );
     const noShowLostValue = computeNoShowLostValue(noShowAppointments, avgRevenueByDoctor);
+    const monthlyServiceSales = computeImagingServiceSalesFromItems(imagingMonthlySalesItems);
+    const monthlyServiceCount = computeImagingServiceCount(imagingMonthlyCountItems);
+    const yesterdayServiceCount = computeImagingServiceCount(imagingYesterdayCountItems);
 
     const response = branches.map((branch) => {
       const scheduleStats = scheduleStatsByBranch.get(branch.id);
@@ -305,6 +392,11 @@ router.get("/admin-home", async (req, res) => {
         noShowLostValue: Math.round(noShowLostValue),
         unpaidInvoicesTotal: Math.round(unpaidInvoicesTotal),
         readyToPayCount,
+      },
+      imagingService: {
+        monthlyServiceSales: Math.round(monthlyServiceSales),
+        monthlyServiceCount,
+        yesterdayServiceCount,
       },
       sterilization: {
         dirtyPackageLabel: "Бохир үзлэгийн багцын тоо",
