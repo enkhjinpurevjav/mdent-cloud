@@ -5,6 +5,8 @@ import {
   ADMIN_HOME_INCOME_METHODS,
 } from "../constants/dashboard.js";
 import {
+  computeImagingServiceCount,
+  computeImagingServiceSalesFromItems,
   computeFilledSlotsByBranch,
   computeRecognizedSalesFromPayments,
   computeScheduleStatsByBranch,
@@ -127,6 +129,7 @@ router.get("/admin-home", async (req, res) => {
       return res.status(400).json({ error: "Invalid month range for dashboard day." });
     }
     const { start: monthStart } = monthRange;
+    const yesterdayStart = new Date(start.getTime() - 86400000);
     const isCurrentDay = day === defaultDay;
     const todaySalesWindowEnd = isCurrentDay ? new Date() : endExclusive;
     const passedDays = Math.max(0, Math.floor((start.getTime() - monthStart.getTime()) / 86400000));
@@ -152,6 +155,11 @@ router.get("/admin-home", async (req, res) => {
           unpaidInvoicesTotal: 0,
           readyToPayCount: 0,
         },
+        imagingService: {
+          monthlyServiceSales: 0,
+          monthlyServiceCount: 0,
+          yesterdayServiceCount: 0,
+        },
         sterilization: {
           dirtyPackageLabel: "Бохир үзлэгийн багцын тоо",
           completedTodayLabel: "Өнөөдөр дууссан үзлэгийн тоо",
@@ -170,6 +178,9 @@ router.get("/admin-home", async (req, res) => {
       doctorsIncome,
       readyToPayCount,
       unpaidInvoicesTotal,
+      imagingMonthlySalesItems,
+      imagingMonthlyCountItems,
+      imagingYesterdayCountItems,
     ] = await Promise.all([
       prisma.doctorSchedule.findMany({
         where: {
@@ -274,6 +285,44 @@ router.get("/admin-home", async (req, res) => {
         },
       }),
       computeUnpaidInvoicesTotal(),
+      prisma.invoiceItem.findMany({
+        where: {
+          itemType: "SERVICE",
+          service: { category: "IMAGING" },
+          invoice: {
+            branchId: { in: branchIds },
+            createdAt: { gte: monthStart, lt: endExclusive },
+          },
+        },
+        select: {
+          lineTotal: true,
+          unitPrice: true,
+          quantity: true,
+          invoice: { select: { discountPercent: true } },
+        },
+      }),
+      prisma.invoiceItem.findMany({
+        where: {
+          itemType: "SERVICE",
+          service: { category: "IMAGING" },
+          invoice: {
+            branchId: { in: branchIds },
+            createdAt: { gte: monthStart, lt: start },
+          },
+        },
+        select: { quantity: true },
+      }),
+      prisma.invoiceItem.findMany({
+        where: {
+          itemType: "SERVICE",
+          service: { category: "IMAGING" },
+          invoice: {
+            branchId: { in: branchIds },
+            createdAt: { gte: yesterdayStart, lt: start },
+          },
+        },
+        select: { quantity: true },
+      }),
     ]);
 
     const scheduleStatsByBranch = computeScheduleStatsByBranch(schedules);
@@ -298,6 +347,9 @@ router.get("/admin-home", async (req, res) => {
       doctorsIncome.map((row) => [row.doctorId, Number(row.averageVisitRevenue || 0)])
     );
     const noShowLostValue = computeNoShowLostValue(noShowAppointments, avgRevenueByDoctor);
+    const monthlyServiceSales = computeImagingServiceSalesFromItems(imagingMonthlySalesItems);
+    const monthlyServiceCount = computeImagingServiceCount(imagingMonthlyCountItems);
+    const yesterdayServiceCount = computeImagingServiceCount(imagingYesterdayCountItems);
 
     const response = branches.map((branch) => {
       const scheduleStats = scheduleStatsByBranch.get(branch.id);
@@ -340,6 +392,11 @@ router.get("/admin-home", async (req, res) => {
         noShowLostValue: Math.round(noShowLostValue),
         unpaidInvoicesTotal: Math.round(unpaidInvoicesTotal),
         readyToPayCount,
+      },
+      imagingService: {
+        monthlyServiceSales: Math.round(monthlyServiceSales),
+        monthlyServiceCount,
+        yesterdayServiceCount,
       },
       sterilization: {
         dirtyPackageLabel: "Бохир үзлэгийн багцын тоо",

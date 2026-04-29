@@ -30,6 +30,11 @@ type AdminHomeResponse = {
     unpaidInvoicesTotal: number;
     readyToPayCount: number;
   };
+  imagingService: {
+    monthlyServiceSales: number;
+    monthlyServiceCount: number;
+    yesterdayServiceCount: number;
+  };
   sterilization: {
     dirtyPackageLabel: string;
     completedTodayLabel: string;
@@ -61,6 +66,7 @@ export default function BookingsDashboardPage() {
   const [kpis, setKpis] = useState<AdminHomeResponse["kpis"] | null>(null);
   const [cards, setCards] = useState<BranchCard[]>([]);
   const [alerts, setAlerts] = useState<AdminHomeResponse["alerts"] | null>(null);
+  const [imagingService, setImagingService] = useState<AdminHomeResponse["imagingService"] | null>(null);
   const [sterilization, setSterilization] = useState<AdminHomeResponse["sterilization"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +98,7 @@ export default function BookingsDashboardPage() {
           !data ||
           !data.kpis ||
           !data.alerts ||
+          !data.imagingService ||
           !data.sterilization ||
           !Array.isArray(data.branches)
         ) {
@@ -99,12 +106,14 @@ export default function BookingsDashboardPage() {
           setKpis(null);
           setCards([]);
           setAlerts(null);
+          setImagingService(null);
           setSterilization(null);
           return;
         }
         setKpis(data.kpis);
         setCards(data.branches);
         setAlerts(data.alerts);
+        setImagingService(data.imagingService);
         setSterilization(data.sterilization);
         setUpdatedAt(new Date());
       } catch {
@@ -112,6 +121,7 @@ export default function BookingsDashboardPage() {
         setKpis(null);
         setCards([]);
         setAlerts(null);
+        setImagingService(null);
         setSterilization(null);
       } finally {
         setLoading(false);
@@ -289,7 +299,7 @@ export default function BookingsDashboardPage() {
             </div>
           </section>
 
-          {/* Row 3: Alerts + Sterilization */}
+          {/* Row 3: Alerts + Imaging Service + Sterilization */}
           <section
             style={{
               display: "grid",
@@ -331,6 +341,48 @@ export default function BookingsDashboardPage() {
                 </div>
                 <div style={{ fontWeight: 700, fontSize: 20 }}>
                   {new Intl.NumberFormat("mn-MN").format(alerts?.readyToPayCount || 0)}
+                </div>
+              </div>
+            </article>
+
+            <article
+              style={{
+                background: "#fff",
+                borderRadius: 16,
+                border: "1px solid #e5e7eb",
+                padding: 20,
+                display: "flex",
+                flexDirection: "column",
+                gap: 12,
+              }}
+            >
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Зургийн үйлчилгээ</h3>
+              <div>
+                <div style={{ color: "#111827", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                  Борлуулалт
+                </div>
+                <div style={{ color: "#6b7280", fontSize: 13 }}>
+                  Энэ сарын үйлчилгээний борлуулалт
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 20 }}>
+                  {formatMoney(imagingService?.monthlyServiceSales || 0)}
+                </div>
+              </div>
+              <div>
+                <div style={{ color: "#111827", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                  Бусад үзүүлэлтүүд
+                </div>
+                <div style={{ color: "#6b7280", fontSize: 13 }}>
+                  Энэ сарын үйлчилгээний тоо
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 20, marginBottom: 8 }}>
+                  {new Intl.NumberFormat("mn-MN").format(imagingService?.monthlyServiceCount || 0)}
+                </div>
+                <div style={{ color: "#6b7280", fontSize: 13 }}>
+                  Өчигдрийн үйлчилгээний тоо
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 20 }}>
+                  {new Intl.NumberFormat("mn-MN").format(imagingService?.yesterdayServiceCount || 0)}
                 </div>
               </div>
             </article>

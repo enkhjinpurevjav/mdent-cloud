@@ -2,6 +2,7 @@ import {
   ADMIN_HOME_EXCLUDED_APPOINTMENT_STATUSES,
   ADMIN_HOME_SLOT_MINUTES,
 } from "../constants/dashboard.js";
+import { discountPercentEnumToNumber } from "./incomeHelpers.js";
 
 const EXCLUDED_STATUS_SET = new Set(ADMIN_HOME_EXCLUDED_APPOINTMENT_STATUSES);
 const YMD_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -117,6 +118,26 @@ function sortPaymentsAscending(a, b) {
   const bTs = normalizeTimestamp(b.timestamp)?.getTime() || 0;
   if (aTs !== bTs) return aTs - bTs;
   return Number(a.id || 0) - Number(b.id || 0);
+}
+
+export function computeImagingServiceSalesFromItems(items) {
+  let total = 0;
+  for (const item of items || []) {
+    const discountPct = discountPercentEnumToNumber(item?.invoice?.discountPercent);
+    const gross = Number(item?.lineTotal || (item?.unitPrice || 0) * (item?.quantity || 0) || 0);
+    const net = Math.max(0, Math.round(gross * (1 - discountPct / 100)));
+    if (net > 0) total += net;
+  }
+  return total;
+}
+
+export function computeImagingServiceCount(items) {
+  let count = 0;
+  for (const item of items || []) {
+    const quantity = Number(item?.quantity || 0);
+    if (Number.isFinite(quantity) && quantity > 0) count += quantity;
+  }
+  return Math.round(count);
 }
 
 export function computeRecognizedSalesFromPayments(
