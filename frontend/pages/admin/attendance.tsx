@@ -55,6 +55,14 @@ function formatDateTime(iso: string): string {
   });
 }
 
+function formatOvertime(minutes: number | null): string {
+  if (minutes == null || minutes <= 0) return "—";
+  if (minutes < 60) return `${minutes}м`;
+  const hours = Math.floor(minutes / 60);
+  const remain = minutes % 60;
+  return `${hours}ц${remain}м`;
+}
+
 function roleLabel(role: string): string {
   const map: Record<string, string> = {
     doctor: "Эмч",
@@ -256,6 +264,9 @@ export default function AdminAttendancePage() {
   const [attemptsLoading, setAttemptsLoading] = useState(false);
   const [attemptResult, setAttemptResult] = useState<"" | "SUCCESS" | "FAIL">("");
   const [attemptTake, setAttemptTake] = useState(200);
+  const [overtimeApprovedMap, setOvertimeApprovedMap] = useState<
+    Record<string, boolean>
+  >({});
   const [editingPolicyId, setEditingPolicyId] = useState<number | null>(null);
   const [savingPolicyActionId, setSavingPolicyActionId] = useState<number | null>(null);
   const [policyEditForm, setPolicyEditForm] = useState<{
@@ -1045,10 +1056,10 @@ export default function AdminAttendancePage() {
                       Салбар
                     </th>
                     <th className="whitespace-nowrap px-3 py-3 font-semibold text-gray-700">
-                      Хуваарийн эхлэл
+                      Эхлэх цаг
                     </th>
                     <th className="whitespace-nowrap px-3 py-3 font-semibold text-gray-700">
-                      Хуваарийн төгсгөл
+                      Дуусах цаг
                     </th>
                     <th className="whitespace-nowrap px-3 py-3 font-semibold text-gray-700">
                       Ирсэн цаг
@@ -1059,14 +1070,8 @@ export default function AdminAttendancePage() {
                     <th className="whitespace-nowrap px-3 py-3 text-right font-semibold text-gray-700">
                       Хугацаа
                     </th>
-                    <th className="whitespace-nowrap px-3 py-3 text-right font-semibold text-gray-700">
-                      Сешн
-                    </th>
                     <th className="whitespace-nowrap px-3 py-3 font-semibold text-gray-700">
                       Төлөв
-                    </th>
-                    <th className="whitespace-nowrap px-3 py-3 text-right font-semibold text-gray-700">
-                      Хангалт %
                     </th>
                     <th className="whitespace-nowrap px-3 py-3 text-right font-semibold text-gray-700">
                       Шаардлагатай мин
@@ -1078,6 +1083,9 @@ export default function AdminAttendancePage() {
                       Эрт явсан (мин)
                     </th>
                     <th className="whitespace-nowrap px-3 py-3 text-right font-semibold text-gray-700">
+                      Илүү цаг
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-3 text-right font-semibold text-gray-700">
                       Үйлдэл
                     </th>
                   </tr>
@@ -1086,16 +1094,30 @@ export default function AdminAttendancePage() {
                   {!data || data.items.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={17}
+                        colSpan={15}
                         className="px-3 py-6 text-center text-sm text-gray-400"
                       >
                         Мэдээлэл олдсонгүй
                       </td>
                     </tr>
                   ) : (
-                    data.items.map((row, i) => (
+                    data.items.map((row, i) => {
+                      const rowKey = row.sessionId
+                        ? `session-${row.sessionId}`
+                        : `${row.userId}-${row.scheduledDate}-${i}`;
+                      const overtimeMinutes =
+                        row.durationMinutes != null &&
+                        row.requiredMinutes != null &&
+                        row.durationMinutes > row.requiredMinutes
+                          ? row.durationMinutes - row.requiredMinutes
+                          : 0;
+                      const hasOvertime = overtimeMinutes > 0;
+                      const overtimeApproved = hasOvertime
+                        ? overtimeApprovedMap[rowKey] === true
+                        : false;
+                      return (
                       <tr
-                        key={`${row.userId}-${row.scheduledDate}-${i}`}
+                        key={rowKey}
                         className="border-t border-gray-100"
                         style={{ background: statusBg(row.status) }}
                       >
@@ -1132,9 +1154,6 @@ export default function AdminAttendancePage() {
                             : "—"}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right">
-                          {row.sessionCount != null ? row.sessionCount : "—"}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2">
                           <span
                             style={{
                               color: statusColor(row.status),
@@ -1146,9 +1165,6 @@ export default function AdminAttendancePage() {
                           {row.reviewReason ? (
                             <div className="text-[11px] text-amber-700">{row.reviewReason}</div>
                           ) : null}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-2 text-right">
-                          {row.attendanceRatePercent != null ? `${row.attendanceRatePercent}%` : "—"}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right">
                           {row.requiredMinutes != null ? `${row.requiredMinutes}` : "—"}
@@ -1172,20 +1188,64 @@ export default function AdminAttendancePage() {
                           )}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right">
-                          {row.sessionId ? (
+                          {hasOvertime ? formatOvertime(overtimeMinutes) : "—"}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right">
+                          <div className="flex justify-end gap-1">
                             <button
                               type="button"
-                              onClick={() => openEdit(row)}
-                              className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                              title="Илүү цагийг зөвшөөрөх"
+                              aria-label="Илүү цагийг зөвшөөрөх"
+                              disabled={!hasOvertime}
+                              onClick={() =>
+                                setOvertimeApprovedMap((prev) => ({
+                                  ...prev,
+                                  [rowKey]: true,
+                                }))
+                              }
+                              className={`rounded border px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40 ${
+                                overtimeApproved
+                                  ? "border-green-300 bg-green-50 text-green-700"
+                                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                              }`}
                             >
-                              Засах
+                              ✓
                             </button>
-                          ) : (
-                            "—"
-                          )}
+                            <button
+                              type="button"
+                              title="Илүү цаггүй"
+                              aria-label="Илүү цаггүй"
+                              disabled={!hasOvertime}
+                              onClick={() =>
+                                setOvertimeApprovedMap((prev) => ({
+                                  ...prev,
+                                  [rowKey]: false,
+                                }))
+                              }
+                              className={`rounded border px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40 ${
+                                !overtimeApproved
+                                  ? "border-red-300 bg-red-50 text-red-700"
+                                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                              }`}
+                            >
+                              ✕
+                            </button>
+                            {row.sessionId ? (
+                              <button
+                                type="button"
+                                onClick={() => openEdit(row)}
+                                className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                              >
+                                Засах
+                              </button>
+                            ) : (
+                              <span className="px-2 py-1 text-xs text-gray-400">—</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>

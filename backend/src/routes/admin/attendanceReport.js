@@ -12,7 +12,7 @@ import { STANDARD_SHIFT_EXCLUDED_ROLES } from "../../utils/attendanceWorkRules.j
 const router = Router();
 const STANDARD_SHIFT_REQUIRED_MINUTES = 8 * 60;
 function isMongoliaWeekday(ymd) {
-  const dt = new Date(`${ymd}T00:00:00.000+08:00`);
+  const dt = new Date(`${ymd}T00:00:00.000Z`);
   const weekday = dt.getUTCDay();
   return weekday >= 1 && weekday <= 5;
 }
