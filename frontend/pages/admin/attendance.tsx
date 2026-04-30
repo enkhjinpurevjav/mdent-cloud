@@ -107,6 +107,7 @@ type AttendanceRow = {
   checkInAt: string | null;
   checkOutAt: string | null;
   durationMinutes: number | null;
+  sessionCount?: number;
   lateMinutes: number | null;
   earlyLeaveMinutes: number | null;
   status: "present" | "open" | "absent" | "unscheduled";
@@ -332,6 +333,9 @@ export default function AdminAttendancePage() {
                     <th className="whitespace-nowrap px-3 py-3 text-right font-semibold text-gray-700">
                       Хугацаа
                     </th>
+                    <th className="whitespace-nowrap px-3 py-3 text-right font-semibold text-gray-700">
+                      Сешн
+                    </th>
                     <th className="whitespace-nowrap px-3 py-3 font-semibold text-gray-700">
                       Төлөв
                     </th>
@@ -347,7 +351,7 @@ export default function AdminAttendancePage() {
                   {!data || data.items.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={12}
+                        colSpan={13}
                         className="px-3 py-6 text-center text-sm text-gray-400"
                       >
                         Мэдээлэл олдсонгүй
@@ -391,6 +395,9 @@ export default function AdminAttendancePage() {
                           {row.durationMinutes != null
                             ? `${row.durationMinutes} мин`
                             : "—"}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right">
+                          {row.sessionCount != null ? row.sessionCount : "—"}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2">
                           <span

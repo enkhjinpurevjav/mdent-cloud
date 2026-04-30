@@ -250,7 +250,7 @@ router.get("/attendance", async (req, res) => {
         lateMinutes: null,
         earlyLeaveMinutes: null,
         sessionCount: aggregate.sessionCount,
-        status: "unscheduled",
+        status: aggregate.hasOpenSession ? "open" : "unscheduled",
       });
     }
 
