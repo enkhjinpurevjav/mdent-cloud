@@ -56,7 +56,8 @@ function formatDateTime(iso: string): string {
 }
 
 function formatOvertime(minutes: number | null): string {
-  if (minutes == null || minutes <= 0) return "—";
+  if (minutes == null || minutes < 0) return "—";
+  if (minutes === 0) return "0м";
   if (minutes < 60) return `${minutes}м`;
   const hours = Math.floor(minutes / 60);
   const remain = minutes % 60;
@@ -214,6 +215,18 @@ type ApiResponse = {
   totalPages: number;
 };
 
+type SummaryRow = {
+  userId: number;
+  userName: string | null;
+  userOvog: string | null;
+  userRole: string;
+  branchName: string;
+  requiredMinutes: number;
+  lateMinutes: number;
+  earlyLeaveMinutes: number;
+  acceptedOvertimeMinutes: number;
+};
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Page component
 // ──────────────────────────────────────────────────────────────────────────────
@@ -257,7 +270,7 @@ export default function AdminAttendancePage() {
   const [newPolicyAutoClose, setNewPolicyAutoClose] = useState("720");
   const [newPolicyMinAccuracy, setNewPolicyMinAccuracy] = useState("100");
   const [newPolicyEnforceGeofence, setNewPolicyEnforceGeofence] = useState(true);
-  const [activeTab, setActiveTab] = useState<"report" | "attempts" | "policy">(
+  const [activeTab, setActiveTab] = useState<"report" | "attempts" | "policy" | "summary">(
     "report"
   );
   const [attempts, setAttempts] = useState<AttendanceAttemptRow[]>([]);
@@ -267,6 +280,14 @@ export default function AdminAttendancePage() {
   const [overtimeApprovedMap, setOvertimeApprovedMap] = useState<
     Record<string, boolean>
   >({});
+  const [summaryFromDate, setSummaryFromDate] = useState<string>(todayLocalStr);
+  const [summaryToDate, setSummaryToDate] = useState<string>(todayLocalStr);
+  const [summaryBranchId, setSummaryBranchId] = useState<string>("");
+  const [summaryRole, setSummaryRole] = useState<string>("");
+  const [summaryUserId, setSummaryUserId] = useState<string>("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryRows, setSummaryRows] = useState<SummaryRow[]>([]);
+  const [summarySearched, setSummarySearched] = useState(false);
   const [editingPolicyId, setEditingPolicyId] = useState<number | null>(null);
   const [savingPolicyActionId, setSavingPolicyActionId] = useState<number | null>(null);
   const [policyEditForm, setPolicyEditForm] = useState<{
@@ -585,6 +606,79 @@ export default function AdminAttendancePage() {
     }
   }, [activeTab, attemptTake, attemptResult]);
 
+  async function runSummarySearch() {
+    setSummaryLoading(true);
+    setError("");
+    setSummarySearched(true);
+    try {
+      const fromTs = localStartOfDay(summaryFromDate);
+      const toTs = localEndOfDay(summaryToDate);
+      const params = new URLSearchParams({
+        fromTs,
+        toTs,
+        page: "1",
+        pageSize: "500",
+      });
+      if (summaryBranchId) params.set("branchId", summaryBranchId);
+      if (summaryUserId) params.set("userId", summaryUserId);
+      const res = await fetch(`/api/admin/attendance?${params}`, {
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as any).error || "Нэгтгэсэн тайлан татахад алдаа гарлаа.");
+      const items = Array.isArray((json as ApiResponse).items)
+        ? (json as ApiResponse).items
+        : [];
+
+      const grouped = new Map<string, SummaryRow>();
+      for (const row of items) {
+        if (summaryRole && row.userRole !== summaryRole) continue;
+        if (summaryUserId && String(row.userId) !== summaryUserId) continue;
+        const key = `${row.userId}:${row.branchId}`;
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            userId: row.userId,
+            userName: row.userName,
+            userOvog: row.userOvog,
+            userRole: row.userRole,
+            branchName: row.branchName,
+            requiredMinutes: 0,
+            lateMinutes: 0,
+            earlyLeaveMinutes: 0,
+            acceptedOvertimeMinutes: 0,
+          });
+        }
+        const agg = grouped.get(key)!;
+        agg.requiredMinutes += row.requiredMinutes ?? 0;
+        agg.lateMinutes += row.lateMinutes ?? 0;
+        agg.earlyLeaveMinutes += row.earlyLeaveMinutes ?? 0;
+        const rowKey = row.sessionId
+          ? `session-${row.sessionId}`
+          : `${row.userId}-${row.scheduledDate}-${row.branchId}`;
+        const overtimeMinutes =
+          row.durationMinutes != null &&
+          row.requiredMinutes != null &&
+          row.durationMinutes > row.requiredMinutes
+            ? row.durationMinutes - row.requiredMinutes
+            : 0;
+        if (overtimeMinutes > 0 && overtimeApprovedMap[rowKey] === true) {
+          agg.acceptedOvertimeMinutes += overtimeMinutes;
+        }
+      }
+      const nextRows = Array.from(grouped.values()).sort((a, b) => {
+        const nameA = `${a.userOvog || ""}${a.userName || ""}`;
+        const nameB = `${b.userOvog || ""}${b.userName || ""}`;
+        return nameA.localeCompare(nameB);
+      });
+      setSummaryRows(nextRows);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Нэгтгэсэн тайлан татахад алдаа гарлаа.");
+      setSummaryRows([]);
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+
   return (
     <main className="w-full px-4 py-6 font-sans">
       <h1 className="mb-4 text-2xl font-bold text-gray-900">Ирц</h1>
@@ -622,6 +716,17 @@ export default function AdminAttendancePage() {
           }`}
         >
           Ирцийн бодлого
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("summary")}
+          className={`rounded-lg border px-3 py-1.5 text-sm ${
+            activeTab === "summary"
+              ? "border-blue-300 bg-blue-50 text-blue-700"
+              : "border-gray-300 bg-white text-gray-700"
+          }`}
+        >
+          Нэгтгэсэн тайлан
         </button>
       </section>
 
@@ -1104,7 +1209,7 @@ export default function AdminAttendancePage() {
                     data.items.map((row, i) => {
                       const rowKey = row.sessionId
                         ? `session-${row.sessionId}`
-                        : `${row.userId}-${row.scheduledDate}-${i}`;
+                        : `${row.userId}-${row.scheduledDate}`;
                       const overtimeMinutes =
                         row.durationMinutes != null &&
                         row.requiredMinutes != null &&
@@ -1363,6 +1468,137 @@ export default function AdminAttendancePage() {
               </table>
             </div>
           )}
+        </section>
+      )}
+
+      {activeTab === "summary" && (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600">Эхлэх огноо</label>
+              <input
+                type="date"
+                value={summaryFromDate}
+                max={summaryToDate}
+                onChange={(e) => setSummaryFromDate(e.target.value)}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600">Дуусах огноо</label>
+              <input
+                type="date"
+                value={summaryToDate}
+                min={summaryFromDate}
+                onChange={(e) => setSummaryToDate(e.target.value)}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600">Салбар</label>
+              <select
+                value={summaryBranchId}
+                onChange={(e) => setSummaryBranchId(e.target.value)}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm"
+              >
+                <option value="">Бүх салбар</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600">Үүрэг</label>
+              <select
+                value={summaryRole}
+                onChange={(e) => setSummaryRole(e.target.value)}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm"
+              >
+                <option value="">Бүх үүрэг</option>
+                {POLICY_ROLE_OPTIONS.filter((opt) => opt.value).map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600">Ажилтан</label>
+              <select
+                value={summaryUserId}
+                onChange={(e) => setSummaryUserId(e.target.value)}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm"
+              >
+                <option value="">Бүх ажилтан</option>
+                {users.map((u) => (
+                  <option key={u.id} value={String(u.id)}>
+                    {formatDisplayName(u.ovog, u.name)} ({roleLabel(u.role)})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={runSummarySearch}
+              disabled={summaryLoading}
+              className="rounded border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100 disabled:opacity-40"
+            >
+              {summaryLoading ? "Шүүж байна..." : "Шүүх"}
+            </button>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <table className="w-full border-collapse text-sm">
+              <thead className="bg-gray-50 text-left">
+                <tr>
+                  <th className="whitespace-nowrap px-3 py-2 font-semibold text-gray-700">Эхлэх огноо</th>
+                  <th className="whitespace-nowrap px-3 py-2 font-semibold text-gray-700">Дуусах огноо</th>
+                  <th className="whitespace-nowrap px-3 py-2 font-semibold text-gray-700">Нэр</th>
+                  <th className="whitespace-nowrap px-3 py-2 font-semibold text-gray-700">Үүрэг</th>
+                  <th className="whitespace-nowrap px-3 py-2 font-semibold text-gray-700">Салбар</th>
+                  <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700">Ажиллах цаг</th>
+                  <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700">Хоцролт (мин)</th>
+                  <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700">Эрт явсан (мин)</th>
+                  <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700">Илүү цаг</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!summarySearched ? (
+                  <tr>
+                    <td colSpan={9} className="px-3 py-6 text-center text-sm text-gray-400">
+                      Шүүлт хийнэ үү
+                    </td>
+                  </tr>
+                ) : summaryRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="px-3 py-6 text-center text-sm text-gray-400">
+                      Мэдээлэл олдсонгүй
+                    </td>
+                  </tr>
+                ) : (
+                  summaryRows.map((row) => (
+                    <tr key={`${row.userId}-${row.branchName}`} className="border-t border-gray-100">
+                      <td className="whitespace-nowrap px-3 py-2">{summaryFromDate}</td>
+                      <td className="whitespace-nowrap px-3 py-2">{summaryToDate}</td>
+                      <td className="px-3 py-2">{formatDisplayName(row.userOvog, row.userName)}</td>
+                      <td className="whitespace-nowrap px-3 py-2">{roleLabel(row.userRole)}</td>
+                      <td className="px-3 py-2">{row.branchName}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                        {formatOvertime(row.requiredMinutes)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">{row.lateMinutes}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">{row.earlyLeaveMinutes}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                        {formatOvertime(row.acceptedOvertimeMinutes)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 
