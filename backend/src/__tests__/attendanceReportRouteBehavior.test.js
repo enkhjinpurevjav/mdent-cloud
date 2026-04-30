@@ -102,4 +102,59 @@ describe("GET /api/admin/attendance route behavior", () => {
       prisma.receptionSchedule.findMany = originalReceptionFindMany;
     }
   });
+
+  it("sets weekday requiredMinutes=480 for unscheduled standard roles", async () => {
+    const originalDoctorFindMany = prisma.doctorSchedule.findMany;
+    const originalNurseFindMany = prisma.nurseSchedule.findMany;
+    const originalReceptionFindMany = prisma.receptionSchedule.findMany;
+    const originalAttendanceFindMany = prisma.attendanceSession.findMany;
+
+    prisma.doctorSchedule.findMany = async () => [];
+    prisma.nurseSchedule.findMany = async () => [];
+    prisma.receptionSchedule.findMany = async () => [];
+    prisma.attendanceSession.findMany = async () => [
+      {
+        id: 5,
+        userId: 88,
+        checkInAt: new Date("2026-05-04T01:00:00.000Z"), // Monday 09:00 (UTC+8)
+        checkOutAt: new Date("2026-05-04T09:00:00.000Z"), // Monday 17:00 (UTC+8)
+        user: {
+          id: 88,
+          name: "Temuulen",
+          ovog: "Bat",
+          email: "temuulen@example.com",
+          role: "other",
+        },
+        branch: {
+          id: 4,
+          name: "West",
+        },
+      },
+    ];
+
+    const req = {
+      query: {
+        fromTs: "2026-05-04T00:00:00.000Z",
+        toTs: "2026-05-04T23:59:59.999Z",
+      },
+    };
+    const res = createRes();
+
+    try {
+      const handler = getAttendanceHandler();
+      await handler(req, res);
+
+      assert.equal(res.statusCode, 200);
+      assert.ok(Array.isArray(res.body?.items));
+      assert.equal(res.body.items.length, 1);
+      assert.equal(res.body.items[0].rowType, "unscheduled");
+      assert.equal(res.body.items[0].requiredMinutes, 480);
+      assert.equal(res.body.items[0].attendanceRatePercent, 100);
+    } finally {
+      prisma.attendanceSession.findMany = originalAttendanceFindMany;
+      prisma.doctorSchedule.findMany = originalDoctorFindMany;
+      prisma.nurseSchedule.findMany = originalNurseFindMany;
+      prisma.receptionSchedule.findMany = originalReceptionFindMany;
+    }
+  });
 });

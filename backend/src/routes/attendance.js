@@ -12,6 +12,11 @@ import {
   hasErrorStatus,
 } from "../utils/attendanceAttemptLog.js";
 import { getEffectiveAttendancePolicy, isWithinScheduleWindow } from "../utils/attendancePolicy.js";
+import {
+  SCHEDULE_AHEAD_ROLES,
+  enforceStandardShiftCheckInWindow,
+  enforceStandardShiftCheckout,
+} from "../utils/attendanceWorkRules.js";
 
 const router = express.Router();
 
@@ -61,24 +66,15 @@ function mongoliaDateString(now) {
 }
 
 /**
- * Parse a "HH:MM" schedule time string on a given YYYY-MM-DD date
- * in Mongolia timezone (UTC+8). Returns a UTC Date.
- */
-function parseScheduleTime(ymd, timeStr) {
-  return new Date(`${ymd}T${timeStr}:00.000+08:00`);
-}
-
-/**
  * Automatically resolve the attendance branchId for the given user and role.
  *
- * - doctor / nurse / receptionist: look up today's schedule in the respective
- *   schedule table and verify that `now` is within the early check-in window
- *   [startTime - EARLY_CHECKIN_MINUTES, endTime].
- *   Throws 403 if no schedule exists for today or the window has not opened/closed.
+ * - doctor / nurse / receptionist / sterilization: if today's schedule exists,
+ *   use scheduled branch and enforce schedule window.
+ *   If no schedule exists, fall back to user's primary branch and allow unscheduled record.
  * - all other roles: return the user's primary User.branchId.
  */
 async function resolveAttendanceBranch(userId, role, now) {
-  if (role === "doctor" || role === "nurse" || role === "receptionist") {
+  if (SCHEDULE_AHEAD_ROLES.has(role)) {
     const todayYmd = mongoliaDateString(now);
     const dayStart = new Date(`${todayYmd}T00:00:00.000+08:00`);
     const dayEnd = new Date(`${todayYmd}T23:59:59.999+08:00`);
@@ -94,51 +90,44 @@ async function resolveAttendanceBranch(userId, role, now) {
         where: { nurseId: userId, date: { gte: dayStart, lte: dayEnd } },
         select: { branchId: true, startTime: true, endTime: true },
       });
-    } else {
+    } else if (role === "receptionist") {
       schedule = await prisma.receptionSchedule.findFirst({
         where: { receptionId: userId, date: { gte: dayStart, lte: dayEnd } },
         select: { branchId: true, startTime: true, endTime: true },
       });
     }
 
-    if (!schedule) {
-      throw withErrMeta(
-        new Error("Өнөөдрийн ажлын хуваарь олдсонгүй. Администраторт хандана уу."),
-        ATTENDANCE_FAILURE_CODE.SCHEDULE_NOT_FOUND,
-        403
-      );
+    if (schedule) {
+      const policy = await getEffectiveAttendancePolicy({
+        prisma,
+        role,
+        branchId: schedule.branchId,
+      });
+
+      const { withinWindow } = isWithinScheduleWindow({
+        now,
+        ymd: todayYmd,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+        earlyCheckInMinutes: policy.earlyCheckInMinutes,
+      });
+
+      if (!withinWindow) {
+        throw withErrMeta(
+          new Error(
+            `Ирц бүртгэх цаг болоогүй байна. ` +
+              `Таны хуваарийн цаг: ${schedule.startTime}–${schedule.endTime} ` +
+              `(${policy.earlyCheckInMinutes} минут эрт бүртгэх боломжтой).`
+          ),
+          ATTENDANCE_FAILURE_CODE.SCHEDULE_WINDOW_CLOSED,
+          403
+        );
+      }
+      return schedule.branchId;
     }
-
-    const policy = await getEffectiveAttendancePolicy({
-      prisma,
-      role,
-      branchId: schedule.branchId,
-    });
-
-    const { withinWindow } = isWithinScheduleWindow({
-      now,
-      ymd: todayYmd,
-      startTime: schedule.startTime,
-      endTime: schedule.endTime,
-      earlyCheckInMinutes: policy.earlyCheckInMinutes,
-    });
-
-    if (!withinWindow) {
-      throw withErrMeta(
-        new Error(
-          `Ирц бүртгэх цаг болоогүй байна. ` +
-            `Таны хуваарийн цаг: ${schedule.startTime}–${schedule.endTime} ` +
-            `(${policy.earlyCheckInMinutes} минут эрт бүртгэх боломжтой).`
-        ),
-        ATTENDANCE_FAILURE_CODE.SCHEDULE_WINDOW_CLOSED,
-        403
-      );
-    }
-
-    return schedule.branchId;
   }
 
-  // Other roles: use the user's primary registered branch
+  // If no schedule exists (or role is non-scheduled), use primary branch.
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { branchId: true },
@@ -242,7 +231,7 @@ router.get("/me", async (req, res) => {
  * POST /api/attendance/check-in
  * Body: { lat: number, lng: number, accuracyM: number }
  * The attendance branch is automatically determined from today's schedule
- * (for doctor/nurse/receptionist) or the user's primary branch (other roles).
+ * (for schedule-first roles) or the user's primary branch.
  */
 router.post("/check-in", async (req, res) => {
   const userId = req.user.id;
@@ -255,14 +244,16 @@ router.post("/check-in", async (req, res) => {
 
   try {
     ({ lat, lng, accuracyM } = parseGeoBody(req.body));
+    const now = new Date();
 
     // Automatically resolve which branch this worker is attending today
-    branchId = await resolveAttendanceBranch(userId, role, new Date());
+    branchId = await resolveAttendanceBranch(userId, role, now);
     policy = await getEffectiveAttendancePolicy({
       prisma,
       role,
       branchId,
     });
+    enforceStandardShiftCheckInWindow(role, now);
 
     // Enforce geofence against the resolved branch
     const geo = await enforceGeofenceForBranch(branchId, lat, lng, accuracyM, policy);
@@ -406,11 +397,17 @@ router.post("/check-out", async (req, res) => {
       accuracyM,
       policy
     );
+    const now = new Date();
+    enforceStandardShiftCheckout({
+      role,
+      checkInAt: openSession.checkInAt,
+      checkOutAt: now,
+    });
 
     const updated = await prisma.attendanceSession.update({
       where: { id: openSession.id },
       data: {
-        checkOutAt: new Date(),
+        checkOutAt: now,
         checkOutLat: lat,
         checkOutLng: lng,
         checkOutAccuracyM: Math.round(accuracyM),
@@ -526,8 +523,10 @@ router.post("/precheck", async (req, res) => {
 
   try {
     ({ lat, lng, accuracyM } = parseGeoBody(req.body));
-    branchId = await resolveAttendanceBranch(userId, role, new Date());
+    const now = new Date();
+    branchId = await resolveAttendanceBranch(userId, role, now);
     const policy = await getEffectiveAttendancePolicy({ prisma, role, branchId });
+    enforceStandardShiftCheckInWindow(role, now);
     const geo = await enforceGeofenceForBranch(branchId, lat, lng, accuracyM, policy);
 
     const accuracyRounded = Math.round(accuracyM);

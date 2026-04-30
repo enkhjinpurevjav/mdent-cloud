@@ -7,8 +7,20 @@ import {
   parseHHMM,
 } from "../../utils/attendanceReport.js";
 import { computeAttendanceKpis, toAttendanceCsv } from "../../utils/attendanceReport.js";
+import { STANDARD_SHIFT_EXCLUDED_ROLES } from "../../utils/attendanceWorkRules.js";
 
 const router = Router();
+const STANDARD_SHIFT_REQUIRED_MINUTES = 8 * 60;
+function isMongoliaWeekday(ymd) {
+  const dt = new Date(`${ymd}T00:00:00.000+08:00`);
+  const weekday = dt.getUTCDay();
+  return weekday >= 1 && weekday <= 5;
+}
+
+function getUnscheduledRequiredMinutes(role, ymd) {
+  if (STANDARD_SHIFT_EXCLUDED_ROLES.has(role)) return null;
+  return isMongoliaWeekday(ymd) ? STANDARD_SHIFT_REQUIRED_MINUTES : null;
+}
 
 /**
  * GET /api/admin/attendance
@@ -252,6 +264,16 @@ router.get("/attendance", async (req, res) => {
 
       const firstSession = aggregate.firstSession;
       const durationMinutes = aggregate.totalDurationMinutes;
+      const requiredMinutes = getUnscheduledRequiredMinutes(
+        firstSession.user.role,
+        dateStr
+      );
+      const attendanceRatePercent =
+        typeof durationMinutes === "number" &&
+        requiredMinutes !== null &&
+        requiredMinutes > 0
+          ? Math.round((durationMinutes / requiredMinutes) * 1000) / 10
+          : null;
 
       rows.push({
         rowType: "unscheduled",
@@ -273,8 +295,8 @@ router.get("/attendance", async (req, res) => {
         lateMinutes: null,
         earlyLeaveMinutes: null,
         sessionCount: aggregate.sessionCount,
-        requiredMinutes: null,
-        attendanceRatePercent: null,
+        requiredMinutes,
+        attendanceRatePercent,
         correctionCount: 0,
         exceptionFlags: aggregate.hasOpenSession ? "OPEN_SESSION,UNSCHEDULED" : "UNSCHEDULED",
         isAutoClosed: false,
@@ -537,6 +559,14 @@ router.get("/attendance/export", async (req, res) => {
       const [userIdStr, dateStr] = key.split(":");
       if (matchedSessionKeys.has(key)) continue;
       const firstSession = aggregate.firstSession;
+      const requiredMinutes = getUnscheduledRequiredMinutes(
+        firstSession.user.role,
+        dateStr
+      );
+      const attendanceRatePercent =
+        requiredMinutes !== null && requiredMinutes > 0
+          ? Math.round((aggregate.totalDurationMinutes / requiredMinutes) * 1000) / 10
+          : null;
       rows.push({
         rowType: "unscheduled",
         userId: Number(userIdStr),
@@ -556,6 +586,8 @@ router.get("/attendance/export", async (req, res) => {
         lateMinutes: null,
         earlyLeaveMinutes: null,
         sessionCount: aggregate.sessionCount,
+        requiredMinutes,
+        attendanceRatePercent,
         correctionCount: 0,
         exceptionFlags: aggregate.hasOpenSession ? "OPEN_SESSION,UNSCHEDULED" : "UNSCHEDULED",
         status: aggregate.hasOpenSession ? "open" : "unscheduled",
