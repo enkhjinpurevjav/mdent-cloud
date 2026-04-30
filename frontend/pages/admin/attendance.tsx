@@ -60,12 +60,34 @@ function roleLabel(role: string): string {
     doctor: "Эмч",
     nurse: "Сувилагч",
     receptionist: "Ресепшн",
+    sterilization: "Ариутгал",
+    accountant: "Нягтлан",
+    manager: "Менежер",
+    xray: "Рентген",
     admin: "Админ",
     super_admin: "Супер Админ",
-    staff: "Ажилтан",
+    other: "Бусад",
+    branch_kiosk: "Салбар киоск",
+    doctor_kiosk: "Эмч киоск",
   };
   return map[role] || role;
 }
+
+const POLICY_ROLE_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Бүх үүрэг" },
+  { value: "doctor", label: "Эмч" },
+  { value: "nurse", label: "Сувилагч" },
+  { value: "receptionist", label: "Ресепшн" },
+  { value: "sterilization", label: "Ариутгал" },
+  { value: "accountant", label: "Нягтлан" },
+  { value: "manager", label: "Менежер" },
+  { value: "xray", label: "Рентген" },
+  { value: "admin", label: "Админ" },
+  { value: "super_admin", label: "Супер админ" },
+  { value: "other", label: "Бусад" },
+  { value: "branch_kiosk", label: "Салбар киоск" },
+  { value: "doctor_kiosk", label: "Эмч киоск" },
+];
 
 function statusLabel(status: string): string {
   const map: Record<string, string> = {
@@ -227,7 +249,9 @@ export default function AdminAttendancePage() {
   const [newPolicyAutoClose, setNewPolicyAutoClose] = useState("720");
   const [newPolicyMinAccuracy, setNewPolicyMinAccuracy] = useState("100");
   const [newPolicyEnforceGeofence, setNewPolicyEnforceGeofence] = useState(true);
-  const [activeTab, setActiveTab] = useState<"report" | "attempts">("report");
+  const [activeTab, setActiveTab] = useState<"report" | "attempts" | "policy">(
+    "report"
+  );
   const [attempts, setAttempts] = useState<AttendanceAttemptRow[]>([]);
   const [attemptsLoading, setAttemptsLoading] = useState(false);
   const [attemptResult, setAttemptResult] = useState<"" | "SUCCESS" | "FAIL">("");
@@ -552,7 +576,7 @@ export default function AdminAttendancePage() {
 
   return (
     <main className="w-full px-4 py-6 font-sans">
-      <h1 className="mb-4 text-2xl font-bold text-gray-900">Ирцийн тайлан</h1>
+      <h1 className="mb-4 text-2xl font-bold text-gray-900">Ирц</h1>
 
       <section className="mb-4 flex gap-2">
         <button
@@ -576,6 +600,17 @@ export default function AdminAttendancePage() {
           }`}
         >
           Оролдлогын лог
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("policy")}
+          className={`rounded-lg border px-3 py-1.5 text-sm ${
+            activeTab === "policy"
+              ? "border-blue-300 bg-blue-50 text-blue-700"
+              : "border-gray-300 bg-white text-gray-700"
+          }`}
+        >
+          Ирцийн бодлого
         </button>
       </section>
 
@@ -692,7 +727,7 @@ export default function AdminAttendancePage() {
       </section>
       )}
 
-      {activeTab === "report" && (
+      {activeTab === "policy" && (
       <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4">
         <h2 className="mb-3 text-sm font-semibold text-gray-900">Ирцийн бодлого</h2>
         <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-5">
@@ -713,13 +748,11 @@ export default function AdminAttendancePage() {
             onChange={(e) => setNewPolicyRole(e.target.value)}
             className="rounded border border-gray-300 px-2 py-1 text-sm"
           >
-            <option value="">Бүх үүрэг</option>
-            <option value="doctor">Эмч</option>
-            <option value="nurse">Сувилагч</option>
-            <option value="receptionist">Ресепшн</option>
-            <option value="admin">Админ</option>
-            <option value="super_admin">Супер админ</option>
-            <option value="other">Бусад</option>
+            {POLICY_ROLE_OPTIONS.map((roleOption) => (
+              <option key={roleOption.value || "all"} value={roleOption.value}>
+                {roleOption.label}
+              </option>
+            ))}
           </select>
           <input
             value={newPolicyPriority}
@@ -862,13 +895,11 @@ export default function AdminAttendancePage() {
                 }
                 className="rounded border border-gray-300 px-2 py-1 text-sm"
               >
-                <option value="">Бүх үүрэг</option>
-                <option value="doctor">Эмч</option>
-                <option value="nurse">Сувилагч</option>
-                <option value="receptionist">Ресепшн</option>
-                <option value="admin">Админ</option>
-                <option value="super_admin">Супер админ</option>
-                <option value="other">Бусад</option>
+                {POLICY_ROLE_OPTIONS.map((roleOption) => (
+                  <option key={roleOption.value || "all"} value={roleOption.value}>
+                    {roleOption.label}
+                  </option>
+                ))}
               </select>
               <input
                 value={policyEditForm.priority}
