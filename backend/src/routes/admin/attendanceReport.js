@@ -11,6 +11,8 @@ import { STANDARD_SHIFT_EXCLUDED_ROLES } from "../../utils/attendanceWorkRules.j
 
 const router = Router();
 const STANDARD_SHIFT_REQUIRED_MINUTES = 8 * 60;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 function isMongoliaWeekday(ymd) {
   const dt = new Date(`${ymd}T00:00:00.000Z`);
   const weekday = dt.getUTCDay();
@@ -20,6 +22,19 @@ function isMongoliaWeekday(ymd) {
 function getUnscheduledRequiredMinutes(role, ymd) {
   if (STANDARD_SHIFT_EXCLUDED_ROLES.has(role)) return null;
   return isMongoliaWeekday(ymd) ? STANDARD_SHIFT_REQUIRED_MINUTES : null;
+}
+
+function enumerateMongoliaDateRange(from, to) {
+  const startYmd = mongoliaDateString(from);
+  const endYmd = mongoliaDateString(to);
+  const result = [];
+  let cursor = new Date(`${startYmd}T00:00:00.000+08:00`);
+  const end = new Date(`${endYmd}T00:00:00.000+08:00`);
+  while (cursor <= end) {
+    result.push(mongoliaDateString(cursor));
+    cursor = new Date(cursor.getTime() + MS_PER_DAY);
+  }
+  return result;
 }
 
 /**
@@ -73,7 +88,7 @@ router.get("/attendance", async (req, res) => {
     };
     if (filterBranchId) scheduleWhere.branchId = filterBranchId;
 
-    const [doctorSchedules, nurseSchedules, receptionSchedules] =
+    const [doctorSchedules, nurseSchedules, receptionSchedules, activeUsers] =
       await Promise.all([
         prisma.doctorSchedule.findMany({
           where: filterUserId
@@ -110,6 +125,23 @@ router.get("/attendance", async (req, res) => {
             branch: { select: { id: true, name: true } },
           },
           orderBy: [{ date: "asc" }, { startTime: "asc" }],
+        }),
+        prisma.user.findMany({
+          where: {
+            isActive: true,
+            ...(filterUserId ? { id: filterUserId } : {}),
+            ...(filterBranchId ? { branchId: filterBranchId } : {}),
+          },
+          select: {
+            id: true,
+            name: true,
+            ovog: true,
+            email: true,
+            role: true,
+            branchId: true,
+            branch: { select: { id: true, name: true } },
+          },
+          orderBy: { id: "asc" },
         }),
       ]);
 
@@ -307,7 +339,51 @@ router.get("/attendance", async (req, res) => {
     }
 
     // ------------------------------------------------------------------
-    // 6. Filter by status
+    // 6. Add absent baseline rows for users missing in user-day rows
+    // ------------------------------------------------------------------
+    const existingUserDayKeys = new Set(
+      rows.map((row) => `${row.userId}:${row.scheduledDate}`)
+    );
+    const ymdRange = enumerateMongoliaDateRange(from, to);
+    for (const user of activeUsers) {
+      for (const ymd of ymdRange) {
+        const key = `${user.id}:${ymd}`;
+        if (existingUserDayKeys.has(key)) continue;
+        const requiredMinutes = getUnscheduledRequiredMinutes(user.role, ymd);
+        rows.push({
+          rowType: "unscheduled",
+          sessionId: null,
+          userId: user.id,
+          userName: user.name,
+          userOvog: user.ovog,
+          userEmail: user.email,
+          userRole: user.role,
+          branchId: user.branchId ?? 0,
+          branchName: user.branch?.name ?? "Салбаргүй",
+          scheduledDate: ymd,
+          scheduledStart: null,
+          scheduledEnd: null,
+          scheduleNote: null,
+          checkInAt: null,
+          checkOutAt: null,
+          durationMinutes: null,
+          lateMinutes: null,
+          earlyLeaveMinutes: null,
+          sessionCount: 0,
+          requiredMinutes,
+          attendanceRatePercent: null,
+          correctionCount: 0,
+          exceptionFlags: "UNSCHEDULED",
+          isAutoClosed: false,
+          autoCloseReason: null,
+          reviewReason: null,
+          status: "absent",
+        });
+      }
+    }
+
+    // ------------------------------------------------------------------
+    // 7. Filter by status
     // ------------------------------------------------------------------
     const filtered = filterStatus
       ? rows.filter((r) => r.status === filterStatus)
@@ -323,7 +399,7 @@ router.get("/attendance", async (req, res) => {
     });
 
     // ------------------------------------------------------------------
-    // 7. Paginate
+    // 8. Paginate
     // ------------------------------------------------------------------
     const total = filtered.length;
     const totalPages = Math.max(1, Math.ceil(total / pageSizeNum));
@@ -428,7 +504,7 @@ router.get("/attendance/export", async (req, res) => {
     };
     if (filterBranchId) scheduleWhere.branchId = filterBranchId;
 
-    const [doctorSchedules, nurseSchedules, receptionSchedules] =
+    const [doctorSchedules, nurseSchedules, receptionSchedules, activeUsers] =
       await Promise.all([
         prisma.doctorSchedule.findMany({
           where: filterUserId
@@ -465,6 +541,23 @@ router.get("/attendance/export", async (req, res) => {
             branch: { select: { id: true, name: true } },
           },
           orderBy: [{ date: "asc" }, { startTime: "asc" }],
+        }),
+        prisma.user.findMany({
+          where: {
+            isActive: true,
+            ...(filterUserId ? { id: filterUserId } : {}),
+            ...(filterBranchId ? { branchId: filterBranchId } : {}),
+          },
+          select: {
+            id: true,
+            name: true,
+            ovog: true,
+            email: true,
+            role: true,
+            branchId: true,
+            branch: { select: { id: true, name: true } },
+          },
+          orderBy: { id: "asc" },
         }),
       ]);
 
@@ -592,6 +685,43 @@ router.get("/attendance/export", async (req, res) => {
         exceptionFlags: aggregate.hasOpenSession ? "OPEN_SESSION,UNSCHEDULED" : "UNSCHEDULED",
         status: aggregate.hasOpenSession ? "open" : "unscheduled",
       });
+    }
+
+    const existingUserDayKeys = new Set(
+      rows.map((row) => `${row.userId}:${row.scheduledDate}`)
+    );
+    const ymdRange = enumerateMongoliaDateRange(from, to);
+    for (const user of activeUsers) {
+      for (const ymd of ymdRange) {
+        const key = `${user.id}:${ymd}`;
+        if (existingUserDayKeys.has(key)) continue;
+        const requiredMinutes = getUnscheduledRequiredMinutes(user.role, ymd);
+        rows.push({
+          rowType: "unscheduled",
+          userId: user.id,
+          userName: user.name,
+          userOvog: user.ovog,
+          userEmail: user.email,
+          userRole: user.role,
+          branchId: user.branchId ?? 0,
+          branchName: user.branch?.name ?? "Салбаргүй",
+          scheduledDate: ymd,
+          scheduledStart: null,
+          scheduledEnd: null,
+          scheduleNote: null,
+          checkInAt: null,
+          checkOutAt: null,
+          durationMinutes: null,
+          lateMinutes: null,
+          earlyLeaveMinutes: null,
+          sessionCount: 0,
+          requiredMinutes,
+          attendanceRatePercent: null,
+          correctionCount: 0,
+          exceptionFlags: "UNSCHEDULED",
+          status: "absent",
+        });
+      }
     }
 
     const filtered = filterStatus ? rows.filter((r) => r.status === filterStatus) : rows;
