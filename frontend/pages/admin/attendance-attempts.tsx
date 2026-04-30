@@ -41,6 +41,18 @@ function fmtDateTime(iso: string) {
   });
 }
 
+function roleLabel(role: string): string {
+  const map: Record<string, string> = {
+    doctor: "Эмч",
+    nurse: "Сувилагч",
+    receptionist: "Ресепшн",
+    admin: "Админ",
+    super_admin: "Супер админ",
+    staff: "Ажилтан",
+  };
+  return map[role] || role;
+}
+
 export default function AdminAttendanceAttemptsPage() {
   const [items, setItems] = useState<AttemptRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -166,7 +178,7 @@ export default function AdminAttendanceAttemptsPage() {
                       <td className="whitespace-nowrap px-3 py-2">{fmtDateTime(row.attemptAt)}</td>
                       <td className="px-3 py-2">
                         {fmtName(row.user.ovog, row.user.name)}
-                        <div className="text-xs text-gray-500">{row.user.role}</div>
+                        <div className="text-xs text-gray-500">{roleLabel(row.user.role)}</div>
                       </td>
                       <td className="px-3 py-2">{row.branch?.name || "—"}</td>
                       <td className="px-3 py-2">{row.attemptType === "CHECK_IN" ? "Ирэх" : "Явах"}</td>
@@ -182,7 +194,8 @@ export default function AdminAttendanceAttemptsPage() {
                         ) : null}
                       </td>
                       <td className="px-3 py-2 text-xs text-gray-600">
-                        acc: {row.accuracyM ?? "—"}м • d: {row.distanceM ?? "—"}м / r: {row.radiusM ?? "—"}м
+                        Нарийвчлал: {row.accuracyM ?? "—"}м • Зай: {row.distanceM ?? "—"}м /
+                        Радиус: {row.radiusM ?? "—"}м
                       </td>
                     </tr>
                   ))

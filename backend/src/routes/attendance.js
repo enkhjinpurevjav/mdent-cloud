@@ -15,7 +15,6 @@ import { getEffectiveAttendancePolicy, isWithinScheduleWindow } from "../utils/a
 
 const router = express.Router();
 
-const DEFAULT_RADIUS_M = 150;
 const MONGOLIA_OFFSET_MS = 8 * 60 * 60_000; // UTC+8
 const MS_PER_MINUTE = 60_000;
 
@@ -187,7 +186,7 @@ async function enforceGeofenceForBranch(branchId, lat, lng, accuracyM, policy) {
     );
   }
 
-  const radiusM = branch.geoRadiusM ?? DEFAULT_RADIUS_M;
+  const radiusM = branch.geoRadiusM;
   const distM = haversineDistanceM(lat, lng, branch.geoLat, branch.geoLng);
 
   if (enforceGeofence && distM > radiusM) {
@@ -325,7 +324,7 @@ router.post("/check-in", async (req, res) => {
         })
         .catch(() => null);
       if (branch?.geoLat && branch?.geoLng) {
-        const radiusM = branch.geoRadiusM ?? DEFAULT_RADIUS_M;
+        const radiusM = branch.geoRadiusM;
         geo = {
           distM: haversineDistanceM(lat, lng, branch.geoLat, branch.geoLng),
           radiusM,
@@ -441,7 +440,7 @@ router.post("/check-out", async (req, res) => {
         })
         .catch(() => null);
       if (branch?.geoLat && branch?.geoLng) {
-        const radiusM = branch.geoRadiusM ?? DEFAULT_RADIUS_M;
+        const radiusM = branch.geoRadiusM;
         geo = {
           distM: haversineDistanceM(lat, lng, branch.geoLat, branch.geoLng),
           radiusM,

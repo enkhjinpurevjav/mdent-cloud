@@ -218,10 +218,10 @@ export default function AdminAttendancePage() {
         credentials: "include",
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((json as any).error || "Полиси татахад алдаа гарлаа.");
+      if (!res.ok) throw new Error((json as any).error || "Бодлого татахад алдаа гарлаа.");
       setPolicies(Array.isArray((json as any).items) ? (json as any).items : []);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Полиси татахад алдаа гарлаа.");
+      setError(e instanceof Error ? e.message : "Бодлого татахад алдаа гарлаа.");
     } finally {
       setPolicyLoading(false);
     }
@@ -360,10 +360,10 @@ export default function AdminAttendancePage() {
         credentials: "include",
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((json as any).error || "Auto-close алдаа.");
+      if (!res.ok) throw new Error((json as any).error || "Нээлттэй сешн хаахад алдаа гарлаа.");
       fetchData(page);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Auto-close алдаа.");
+      setError(e instanceof Error ? e.message : "Нээлттэй сешн хаахад алдаа гарлаа.");
     } finally {
       setAutoCloseLoading(false);
     }
@@ -392,10 +392,10 @@ export default function AdminAttendancePage() {
         body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((json as any).error || "Полиси үүсгэхэд алдаа гарлаа.");
+      if (!res.ok) throw new Error((json as any).error || "Бодлого үүсгэхэд алдаа гарлаа.");
       await fetchPolicies();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Полиси үүсгэх алдаа.");
+      setError(e instanceof Error ? e.message : "Бодлого үүсгэхэд алдаа гарлаа.");
     } finally {
       setSavingPolicy(false);
     }
@@ -503,7 +503,7 @@ export default function AdminAttendancePage() {
             disabled={autoCloseLoading}
             className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm text-amber-800 hover:bg-amber-100 disabled:opacity-40"
           >
-            {autoCloseLoading ? "Auto-close..." : "Open сешн хаах"}
+            {autoCloseLoading ? "Хааж байна..." : "Нээлттэй сешн хаах"}
           </button>
           <button
             type="button"
@@ -517,14 +517,14 @@ export default function AdminAttendancePage() {
       </section>
 
       <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-gray-900">Attendance policy</h2>
+        <h2 className="mb-3 text-sm font-semibold text-gray-900">Ирцийн бодлого</h2>
         <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-5">
           <select
             value={newPolicyBranchId}
             onChange={(e) => setNewPolicyBranchId(e.target.value)}
             className="rounded border border-gray-300 px-2 py-1 text-sm"
           >
-            <option value="">Global branch</option>
+            <option value="">Бүх салбарт</option>
             {branches.map((b) => (
               <option key={b.id} value={String(b.id)}>
                 {b.name}
@@ -536,49 +536,49 @@ export default function AdminAttendancePage() {
             onChange={(e) => setNewPolicyRole(e.target.value)}
             className="rounded border border-gray-300 px-2 py-1 text-sm"
           >
-            <option value="">All roles</option>
-            <option value="doctor">Doctor</option>
-            <option value="nurse">Nurse</option>
-            <option value="receptionist">Receptionist</option>
-            <option value="admin">Admin</option>
-            <option value="super_admin">Super admin</option>
-            <option value="other">Other</option>
+            <option value="">Бүх үүрэг</option>
+            <option value="doctor">Эмч</option>
+            <option value="nurse">Сувилагч</option>
+            <option value="receptionist">Ресепшн</option>
+            <option value="admin">Админ</option>
+            <option value="super_admin">Супер админ</option>
+            <option value="other">Бусад</option>
           </select>
           <input
             value={newPolicyPriority}
             onChange={(e) => setNewPolicyPriority(e.target.value)}
             className="rounded border border-gray-300 px-2 py-1 text-sm"
-            placeholder="Priority"
+            placeholder="Эрэмбэ"
           />
           <input
             value={newPolicyEarlyCheckIn}
             onChange={(e) => setNewPolicyEarlyCheckIn(e.target.value)}
             className="rounded border border-gray-300 px-2 py-1 text-sm"
-            placeholder="Early check-in (min)"
+            placeholder="Эрт ирц (мин)"
           />
           <input
             value={newPolicyMinAccuracy}
             onChange={(e) => setNewPolicyMinAccuracy(e.target.value)}
             className="rounded border border-gray-300 px-2 py-1 text-sm"
-            placeholder="Min accuracy (m)"
+            placeholder="GPS нарийвчлал (м)"
           />
           <input
             value={newPolicyLateGrace}
             onChange={(e) => setNewPolicyLateGrace(e.target.value)}
             className="rounded border border-gray-300 px-2 py-1 text-sm"
-            placeholder="Late grace (min)"
+            placeholder="Хоцролтын чөлөө (мин)"
           />
           <input
             value={newPolicyEarlyLeaveGrace}
             onChange={(e) => setNewPolicyEarlyLeaveGrace(e.target.value)}
             className="rounded border border-gray-300 px-2 py-1 text-sm"
-            placeholder="Early leave grace (min)"
+            placeholder="Эрт гаралтын чөлөө (мин)"
           />
           <input
             value={newPolicyAutoClose}
             onChange={(e) => setNewPolicyAutoClose(e.target.value)}
             className="rounded border border-gray-300 px-2 py-1 text-sm"
-            placeholder="Auto-close (min)"
+            placeholder="Авто хаалт (мин)"
           />
           <label className="flex items-center gap-2 rounded border border-gray-300 px-2 py-1 text-sm">
             <input
@@ -586,7 +586,7 @@ export default function AdminAttendancePage() {
               checked={newPolicyEnforceGeofence}
               onChange={(e) => setNewPolicyEnforceGeofence(e.target.checked)}
             />
-            Enforce geofence
+            Гео бүс заавал мөрдөх
           </label>
           <button
             type="button"
@@ -594,26 +594,26 @@ export default function AdminAttendancePage() {
             disabled={savingPolicy}
             className="rounded border border-blue-300 bg-blue-50 px-3 py-1 text-sm text-blue-700 hover:bg-blue-100 disabled:opacity-40"
           >
-            {savingPolicy ? "Хадгалж байна..." : "Policy нэмэх"}
+            {savingPolicy ? "Хадгалж байна..." : "Бодлого нэмэх"}
           </button>
         </div>
         {policyLoading ? (
-          <p className="text-xs text-gray-500">Policy ачаалж байна...</p>
+          <p className="text-xs text-gray-500">Бодлого ачаалж байна...</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-xs">
               <thead>
                 <tr className="bg-gray-50">
                   <th className="px-2 py-1 text-left">ID</th>
-                  <th className="px-2 py-1 text-left">Branch</th>
-                  <th className="px-2 py-1 text-left">Role</th>
-                  <th className="px-2 py-1 text-right">Priority</th>
-                  <th className="px-2 py-1 text-right">Early</th>
-                  <th className="px-2 py-1 text-right">Late grace</th>
-                  <th className="px-2 py-1 text-right">Early leave grace</th>
-                  <th className="px-2 py-1 text-right">Auto-close</th>
-                  <th className="px-2 py-1 text-right">Accuracy</th>
-                  <th className="px-2 py-1 text-left">Geofence</th>
+                  <th className="px-2 py-1 text-left">Салбар</th>
+                  <th className="px-2 py-1 text-left">Үүрэг</th>
+                  <th className="px-2 py-1 text-right">Эрэмбэ</th>
+                  <th className="px-2 py-1 text-right">Эрт ирц</th>
+                  <th className="px-2 py-1 text-right">Хоцролтын чөлөө</th>
+                  <th className="px-2 py-1 text-right">Эрт гаралтын чөлөө</th>
+                  <th className="px-2 py-1 text-right">Авто хаалт</th>
+                  <th className="px-2 py-1 text-right">Нарийвчлал</th>
+                  <th className="px-2 py-1 text-left">Гео бүс</th>
                 </tr>
               </thead>
               <tbody>
@@ -622,17 +622,17 @@ export default function AdminAttendancePage() {
                     <td className="px-2 py-1">{p.id}</td>
                     <td className="px-2 py-1">
                       {p.branchId == null
-                        ? "Global"
+                        ? "Бүх салбар"
                         : branches.find((b) => b.id === p.branchId)?.name || p.branchId}
                     </td>
-                    <td className="px-2 py-1">{p.role || "All"}</td>
+                    <td className="px-2 py-1">{p.role ? roleLabel(p.role) : "Бүгд"}</td>
                     <td className="px-2 py-1 text-right">{p.priority}</td>
                     <td className="px-2 py-1 text-right">{p.earlyCheckInMinutes}</td>
                     <td className="px-2 py-1 text-right">{p.lateGraceMinutes}</td>
                     <td className="px-2 py-1 text-right">{p.earlyLeaveGraceMinutes}</td>
                     <td className="px-2 py-1 text-right">{p.autoCloseAfterMinutes}</td>
                     <td className="px-2 py-1 text-right">{p.minAccuracyM}</td>
-                    <td className="px-2 py-1">{p.enforceGeofence ? "ON" : "OFF"}</td>
+                    <td className="px-2 py-1">{p.enforceGeofence ? "Тийм" : "Үгүй"}</td>
                   </tr>
                 ))}
               </tbody>
