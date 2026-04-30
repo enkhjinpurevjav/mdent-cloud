@@ -1107,7 +1107,7 @@ router.get("/doctors-income/:doctorId/details/lines", async (req, res) => {
             appointment: { select: { id: true, scheduledAt: true } },
             patientBook: {
               include: {
-                patient: { select: { id: true, ovog: true, name: true } },
+                patient: { select: { id: true, ovog: true, name: true, phone: true } },
               },
             },
           },
@@ -1210,6 +1210,7 @@ router.get("/doctors-income/:doctorId/details/lines", async (req, res) => {
         patientId: patient?.id ?? null,
         patientOvog: patient?.ovog ?? null,
         patientName: patient?.name ?? null,
+        patientPhone: patient?.phone ?? null,
       };
 
       // ---- BARTER_EXCESS: one row per invoice with barter excess ----
