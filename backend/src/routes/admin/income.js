@@ -4,6 +4,7 @@ import {
   discountPercentEnumToNumber,
   computeServiceNetProportionalDiscount,
   allocatePaymentProportionalByRemaining,
+  computeOverrideSalesFromAllocations,
 } from "../../utils/incomeHelpers.js";
 import { getAdjustmentTotalsByPatient } from "../reports-patient-balances.js";
 
@@ -338,18 +339,17 @@ export async function computeDoctorsIncomeData({ startDate, endDate, branchId })
     // ---------- SALES (exclude IMAGING) ----------
     let countableSalesMnt = 0;
     if (hasOverride) {
-      // Override invoices: invoice-level sales contribution when paid.
-      const status = String(inv.statusLegacy || "").toLowerCase();
-      if (status === "paid") {
-        const salesAmt = totalNonImagingNet * 0.9;
-        acc.doctorSalesMnt += salesAmt;
-        countableSalesMnt += salesAmt;
-        if (salesAmt > 0) {
-          acc.serviceCount += nonImagingServiceItems.reduce(
-            (sum, it) => sum + Number(it.quantity || 0),
-            0
-          );
-        }
+      const salesAmt = computeOverrideSalesFromAllocations(
+        nonImagingServiceItems,
+        itemAllocationBase
+      );
+      acc.doctorSalesMnt += salesAmt;
+      countableSalesMnt += salesAmt;
+      if (salesAmt > 0) {
+        acc.serviceCount += nonImagingServiceItems.reduce(
+          (sum, it) => sum + Number(it.quantity || 0),
+          0
+        );
       }
     } else {
       // Sum proportional allocations for non-IMAGING lines.
