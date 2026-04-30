@@ -11,12 +11,11 @@ import {
   withErrMeta,
   hasErrorStatus,
 } from "../utils/attendanceAttemptLog.js";
+import { getEffectiveAttendancePolicy, isWithinScheduleWindow } from "../utils/attendancePolicy.js";
 
 const router = express.Router();
 
-const MAX_ACCURACY_M = 100;
 const DEFAULT_RADIUS_M = 150;
-const EARLY_CHECKIN_MINUTES = 120;
 const MONGOLIA_OFFSET_MS = 8 * 60 * 60_000; // UTC+8
 const MS_PER_MINUTE = 60_000;
 
@@ -54,6 +53,7 @@ async function logAttendanceAttempt(data) {
     console.error("AttendanceAttempt log error:", e);
   }
 }
+
 
 /** Returns today's date string (YYYY-MM-DD) in Mongolia timezone (UTC+8). */
 function mongoliaDateString(now) {
@@ -110,17 +110,26 @@ async function resolveAttendanceBranch(userId, role, now) {
       );
     }
 
-    // Enforce early check-in window: [startTime - EARLY_CHECKIN_MINUTES, endTime]
-    const startDt = parseScheduleTime(todayYmd, schedule.startTime);
-    const endDt = parseScheduleTime(todayYmd, schedule.endTime);
-    const earlyStart = new Date(startDt.getTime() - EARLY_CHECKIN_MINUTES * MS_PER_MINUTE);
+    const policy = await getEffectiveAttendancePolicy({
+      prisma,
+      role,
+      branchId: schedule.branchId,
+    });
 
-    if (now < earlyStart || now > endDt) {
+    const { withinWindow } = isWithinScheduleWindow({
+      now,
+      ymd: todayYmd,
+      startTime: schedule.startTime,
+      endTime: schedule.endTime,
+      earlyCheckInMinutes: policy.earlyCheckInMinutes,
+    });
+
+    if (!withinWindow) {
       throw withErrMeta(
         new Error(
           `Ирц бүртгэх цаг болоогүй байна. ` +
             `Таны хуваарийн цаг: ${schedule.startTime}–${schedule.endTime} ` +
-            `(${EARLY_CHECKIN_MINUTES} минут эрт бүртгэх боломжтой).`
+            `(${policy.earlyCheckInMinutes} минут эрт бүртгэх боломжтой).`
         ),
         ATTENDANCE_FAILURE_CODE.SCHEDULE_WINDOW_CLOSED,
         403
@@ -150,11 +159,14 @@ async function resolveAttendanceBranch(userId, role, now) {
  * Accuracy must be <=MAX_ACCURACY_M and GPS distance <= branch radius.
  * Throws with status 403 on violation.
  */
-async function enforceGeofenceForBranch(branchId, lat, lng, accuracyM) {
-  if (accuracyM > MAX_ACCURACY_M) {
+async function enforceGeofenceForBranch(branchId, lat, lng, accuracyM, policy) {
+  const minAccuracyM = policy?.minAccuracyM ?? 100;
+  const enforceGeofence = policy?.enforceGeofence ?? true;
+
+  if (accuracyM > minAccuracyM) {
     throw withErrMeta(
       new Error(
-        `Таны байршлын нарийвчлал ${accuracyM}м байна (хязгаар: ${MAX_ACCURACY_M}м). ` +
+        `Таны байршлын нарийвчлал ${accuracyM}м байна (хязгаар: ${minAccuracyM}м). ` +
           "GPS дохио сайжрах хүртэл хүлээнэ үү."
       ),
       ATTENDANCE_FAILURE_CODE.LOW_ACCURACY,
@@ -178,7 +190,7 @@ async function enforceGeofenceForBranch(branchId, lat, lng, accuracyM) {
   const radiusM = branch.geoRadiusM ?? DEFAULT_RADIUS_M;
   const distM = haversineDistanceM(lat, lng, branch.geoLat, branch.geoLng);
 
-  if (distM > radiusM) {
+  if (enforceGeofence && distM > radiusM) {
     throw withErrMeta(
       new Error(
         `Та салбараас ${Math.round(distM)}м зайтай байна (зөвшөөрөгдөх хязгаар: ${radiusM}м). ` +
@@ -240,15 +252,21 @@ router.post("/check-in", async (req, res) => {
   let lng = null;
   let accuracyM = null;
   let branchId = null;
+  let policy = null;
 
   try {
     ({ lat, lng, accuracyM } = parseGeoBody(req.body));
 
     // Automatically resolve which branch this worker is attending today
     branchId = await resolveAttendanceBranch(userId, role, new Date());
+    policy = await getEffectiveAttendancePolicy({
+      prisma,
+      role,
+      branchId,
+    });
 
     // Enforce geofence against the resolved branch
-    const geo = await enforceGeofenceForBranch(branchId, lat, lng, accuracyM);
+    const geo = await enforceGeofenceForBranch(branchId, lat, lng, accuracyM, policy);
 
     // Check for existing open session
     const existing = await prisma.attendanceSession.findFirst({
@@ -298,6 +316,22 @@ router.post("/check-in", async (req, res) => {
 
     res.status(201).json({ session });
   } catch (err) {
+    let geo = null;
+    if (branchId && lat != null && lng != null && typeof accuracyM === "number") {
+      const branch = await prisma.branch
+        .findUnique({
+          where: { id: branchId },
+          select: { geoLat: true, geoLng: true, geoRadiusM: true },
+        })
+        .catch(() => null);
+      if (branch?.geoLat && branch?.geoLng) {
+        const radiusM = branch.geoRadiusM ?? DEFAULT_RADIUS_M;
+        geo = {
+          distM: haversineDistanceM(lat, lng, branch.geoLat, branch.geoLng),
+          radiusM,
+        };
+      }
+    }
     await logAttendanceAttempt({
       userId,
       branchId,
@@ -308,6 +342,8 @@ router.post("/check-in", async (req, res) => {
       lat,
       lng,
       accuracyM: typeof accuracyM === "number" ? Math.round(accuracyM) : null,
+      distanceM: geo ? Math.round(geo.distM) : null,
+      radiusM: geo ? Math.round(geo.radiusM) : null,
     });
     if (hasErrorStatus(err)) {
       return res.status(getErrorStatus(err)).json({ error: getErrorMessage(err) });
@@ -329,6 +365,8 @@ router.post("/check-out", async (req, res) => {
   let lng = null;
   let accuracyM = null;
   let branchId = null;
+  let role = req.user.role;
+  let policy = null;
 
   try {
     ({ lat, lng, accuracyM } = parseGeoBody(req.body));
@@ -355,9 +393,20 @@ router.post("/check-out", async (req, res) => {
     }
 
     branchId = openSession.branchId;
+    policy = await getEffectiveAttendancePolicy({
+      prisma,
+      role,
+      branchId,
+    });
 
     // Use the session's branchId to prevent branch-switching on check-out
-    const geo = await enforceGeofenceForBranch(openSession.branchId, lat, lng, accuracyM);
+    const geo = await enforceGeofenceForBranch(
+      openSession.branchId,
+      lat,
+      lng,
+      accuracyM,
+      policy
+    );
 
     const updated = await prisma.attendanceSession.update({
       where: { id: openSession.id },
@@ -383,6 +432,22 @@ router.post("/check-out", async (req, res) => {
 
     res.json({ session: updated });
   } catch (err) {
+    let geo = null;
+    if (branchId && lat != null && lng != null && typeof accuracyM === "number") {
+      const branch = await prisma.branch
+        .findUnique({
+          where: { id: branchId },
+          select: { geoLat: true, geoLng: true, geoRadiusM: true },
+        })
+        .catch(() => null);
+      if (branch?.geoLat && branch?.geoLng) {
+        const radiusM = branch.geoRadiusM ?? DEFAULT_RADIUS_M;
+        geo = {
+          distM: haversineDistanceM(lat, lng, branch.geoLat, branch.geoLng),
+          radiusM,
+        };
+      }
+    }
     await logAttendanceAttempt({
       userId,
       branchId,
@@ -393,6 +458,8 @@ router.post("/check-out", async (req, res) => {
       lat,
       lng,
       accuracyM: typeof accuracyM === "number" ? Math.round(accuracyM) : null,
+      distanceM: geo ? Math.round(geo.distM) : null,
+      radiusM: geo ? Math.round(geo.radiusM) : null,
     });
     if (hasErrorStatus(err)) {
       return res.status(getErrorStatus(err)).json({ error: getErrorMessage(err) });
@@ -427,7 +494,7 @@ router.get("/attempts", async (req, res) => {
 
     const items = await prisma.attendanceAttempt.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: { attemptAt: "desc" },
       take,
       include: {
         user: {
@@ -442,6 +509,198 @@ router.get("/attempts", async (req, res) => {
     return res.json({ items });
   } catch (err) {
     console.error("GET /api/attendance/attempts error:", err);
+    return res.status(500).json({ error: "Серверийн алдаа гарлаа." });
+  }
+});
+
+/**
+ * POST /api/attendance/precheck
+ * Read-only validation endpoint for GPS+policy checks.
+ */
+router.post("/precheck", async (req, res) => {
+  const userId = req.user.id;
+  const role = req.user.role;
+  let lat = null;
+  let lng = null;
+  let accuracyM = null;
+  let branchId = null;
+
+  try {
+    ({ lat, lng, accuracyM } = parseGeoBody(req.body));
+    branchId = await resolveAttendanceBranch(userId, role, new Date());
+    const policy = await getEffectiveAttendancePolicy({ prisma, role, branchId });
+    const geo = await enforceGeofenceForBranch(branchId, lat, lng, accuracyM, policy);
+
+    const accuracyRounded = Math.round(accuracyM);
+    const distanceRounded = Math.round(geo.distM);
+    const radiusRounded = Math.round(geo.radiusM);
+    return res.json({
+      ok: true,
+      branchId,
+      policy,
+      checks: {
+        accuracyOk: accuracyRounded <= (policy?.minAccuracyM ?? 100),
+        geofenceOk: !policy?.enforceGeofence || distanceRounded <= radiusRounded,
+        scheduleWindowOpen: true,
+      },
+      metrics: {
+        accuracyM: accuracyRounded,
+        distanceM: distanceRounded,
+        radiusM: radiusRounded,
+      },
+      message: "Ирц бүртгэх боломжтой байна.",
+    });
+  } catch (err) {
+    const accuracyRounded = typeof accuracyM === "number" ? Math.round(accuracyM) : null;
+    return res.status(hasErrorStatus(err) ? getErrorStatus(err) : 500).json({
+      ok: false,
+      branchId,
+      failureCode: getAttemptFailureCode(err),
+      message: getErrorMessage(err),
+      checks: {
+        accuracyOk: null,
+        geofenceOk: null,
+        scheduleWindowOpen:
+          err?.failureCode !== ATTENDANCE_FAILURE_CODE.SCHEDULE_WINDOW_CLOSED,
+      },
+      metrics: {
+        accuracyM: accuracyRounded,
+        distanceM: null,
+        radiusM: null,
+      },
+    });
+  }
+});
+
+/**
+ * PATCH /api/attendance/session/:id
+ * Admin-only correction with immutable audit trail.
+ */
+router.patch("/session/:id", async (req, res) => {
+  try {
+    if (req.user.role !== "admin" && req.user.role !== "super_admin") {
+      return res.status(403).json({ error: "Forbidden. Insufficient role." });
+    }
+
+    const sessionId = Number(req.params.id);
+    if (!sessionId || Number.isNaN(sessionId)) {
+      return res.status(400).json({ error: "Invalid session id." });
+    }
+
+    const {
+      newCheckInAt,
+      newCheckOutAt,
+      reasonCode,
+      reasonText,
+      approvedByUserId,
+    } = req.body || {};
+
+    if (!newCheckInAt || !reasonCode) {
+      return res.status(400).json({ error: "newCheckInAt and reasonCode are required." });
+    }
+
+    const existing = await prisma.attendanceSession.findUnique({
+      where: { id: sessionId },
+      select: { id: true, checkInAt: true, checkOutAt: true },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Attendance session not found." });
+    }
+
+    const nextCheckInAt = new Date(newCheckInAt);
+    const nextCheckOutAt = newCheckOutAt ? new Date(newCheckOutAt) : null;
+    if (Number.isNaN(nextCheckInAt.getTime())) {
+      return res.status(400).json({ error: "Invalid newCheckInAt." });
+    }
+    if (nextCheckOutAt && Number.isNaN(nextCheckOutAt.getTime())) {
+      return res.status(400).json({ error: "Invalid newCheckOutAt." });
+    }
+    if (nextCheckOutAt && nextCheckOutAt < nextCheckInAt) {
+      return res.status(400).json({ error: "newCheckOutAt must be after newCheckInAt." });
+    }
+
+    const [updated] = await prisma.$transaction([
+      prisma.attendanceSession.update({
+        where: { id: sessionId },
+        data: {
+          checkInAt: nextCheckInAt,
+          checkOutAt: nextCheckOutAt,
+          requiresReview: false,
+          reviewReason: null,
+        },
+      }),
+      prisma.attendanceSessionEdit.create({
+        data: {
+          sessionId,
+          editedByUserId: req.user.id,
+          approvedByUserId: approvedByUserId ?? null,
+          oldCheckInAt: existing.checkInAt,
+          oldCheckOutAt: existing.checkOutAt,
+          newCheckInAt: nextCheckInAt,
+          newCheckOutAt: nextCheckOutAt,
+          reasonCode: String(reasonCode),
+          reasonText: reasonText ? String(reasonText) : null,
+        },
+      }),
+    ]);
+
+    return res.json({ session: updated });
+  } catch (err) {
+    console.error("PATCH /api/attendance/session/:id error:", err);
+    return res.status(500).json({ error: "Серверийн алдаа гарлаа." });
+  }
+});
+
+/**
+ * POST /api/attendance/auto-close
+ * Admin-only helper endpoint to close stale open sessions.
+ */
+router.post("/auto-close", async (req, res) => {
+  try {
+    if (req.user.role !== "admin" && req.user.role !== "super_admin") {
+      return res.status(403).json({ error: "Forbidden. Insufficient role." });
+    }
+
+    const users = await prisma.user.findMany({
+      where: { isActive: true },
+      select: { id: true, role: true, branchId: true },
+    });
+
+    const openSessions = await prisma.attendanceSession.findMany({
+      where: { checkOutAt: null },
+      select: { id: true, userId: true, branchId: true, checkInAt: true },
+    });
+
+    const userById = new Map(users.map((u) => [u.id, u]));
+    let closedCount = 0;
+
+    for (const s of openSessions) {
+      const user = userById.get(s.userId);
+      if (!user) continue;
+      const policy = await getEffectiveAttendancePolicy({
+        prisma,
+        role: user.role,
+        branchId: s.branchId,
+      });
+      const cutoff = new Date(
+        s.checkInAt.getTime() + (policy.autoCloseAfterMinutes ?? 720) * MS_PER_MINUTE
+      );
+      if (new Date() < cutoff) continue;
+
+      await prisma.attendanceSession.update({
+        where: { id: s.id },
+        data: {
+          checkOutAt: cutoff,
+          requiresReview: true,
+          reviewReason: "AUTO_CLOSED_BY_POLICY",
+        },
+      });
+      closedCount += 1;
+    }
+
+    return res.json({ closedCount });
+  } catch (err) {
+    console.error("POST /api/attendance/auto-close error:", err);
     return res.status(500).json({ error: "Серверийн алдаа гарлаа." });
   }
 });

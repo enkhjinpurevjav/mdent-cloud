@@ -198,6 +198,7 @@ model Branch {
   // Attendance
   attendanceSessions AttendanceSession[]
   attendanceAttempts AttendanceAttempt[]
+  attendancePolicies AttendancePolicy[]
 }
 
 model EmployeeBenefit {
@@ -790,6 +791,8 @@ model User {
 
   // Attendance sessions
   attendanceSessions AttendanceSession[]
+  attendanceSessionEditsMade     AttendanceSessionEdit[] @relation("AttendanceSessionEditedBy")
+  attendanceSessionEditsApproved AttendanceSessionEdit[] @relation("AttendanceSessionApprovedBy")
   attendanceAttempts AttendanceAttempt[]
 
   createdPatients   Patient[] @relation("PatientCreator")
@@ -1867,8 +1870,12 @@ model AttendanceSession {
   checkOutLat       Float?
   checkOutLng       Float?
   checkOutAccuracyM Int?
+  requiresReview    Boolean  @default(false)
+  reviewReason      String?
 
   createdAt DateTime @default(now())
+
+  edits AttendanceSessionEdit[]
 
   @@index([userId, checkInAt])
   @@index([branchId, checkInAt])
@@ -1892,11 +1899,55 @@ model AttendanceAttempt {
   distanceM Int?
   radiusM   Int?
 
-  createdAt DateTime @default(now())
+  attemptAt DateTime @default(now())
 
-  @@index([userId, createdAt])
-  @@index([branchId, createdAt])
-  @@index([attemptType, result, createdAt])
+  @@index([userId, attemptAt])
+  @@index([branchId, attemptAt])
+  @@index([attemptType, result, attemptAt])
+}
+
+model AttendanceSessionEdit {
+  id               Int      @id @default(autoincrement())
+  sessionId        Int
+  session          AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  editedByUserId   Int
+  editedBy         User     @relation("AttendanceSessionEditedBy", fields: [editedByUserId], references: [id])
+  approvedByUserId Int?
+  approvedBy       User?    @relation("AttendanceSessionApprovedBy", fields: [approvedByUserId], references: [id])
+
+  oldCheckInAt   DateTime
+  oldCheckOutAt  DateTime?
+  newCheckInAt   DateTime
+  newCheckOutAt  DateTime?
+  reasonCode     String
+  reasonText     String?
+  editedAt       DateTime @default(now())
+
+  @@index([sessionId, editedAt])
+  @@index([editedByUserId, editedAt])
+  @@index([approvedByUserId, editedAt])
+}
+
+model AttendancePolicy {
+  id                     Int      @id @default(autoincrement())
+  branchId               Int?
+  branch                 Branch?  @relation(fields: [branchId], references: [id])
+  role                   UserRole?
+  priority               Int      @default(0)
+  isActive               Boolean  @default(true)
+
+  earlyCheckInMinutes    Int      @default(120)
+  lateGraceMinutes       Int      @default(0)
+  earlyLeaveGraceMinutes Int      @default(0)
+  autoCloseAfterMinutes  Int      @default(720)
+  minAccuracyM           Int      @default(100)
+  enforceGeofence        Boolean  @default(true)
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([isActive, priority])
+  @@index([branchId, role, isActive])
 }
 
 

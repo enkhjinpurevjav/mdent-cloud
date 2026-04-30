@@ -57,6 +57,7 @@ import attendanceRouter from "./routes/attendance.js";
 import doctorPortalRouter from "./routes/doctor.js";
 import nursePortalRouter from "./routes/nurse.js";
 import attendanceReportRouter from "./routes/admin/attendanceReport.js";
+import attendancePolicyRouter from "./routes/admin/attendancePolicy.js";
 import adminPasswordResetRouter from "./routes/admin/passwordReset.js";
 import doctorIncomeReportRouter from "./routes/admin/doctorIncomeReport.js";
 import backfillRegnoRouter from "./routes/admin/backfillRegno.js";
@@ -318,6 +319,7 @@ app.use("/api/nurse", nursePortalRouter);
 
 // Admin attendance report
 app.use("/api/admin", attendanceReportRouter);
+app.use("/api/admin", attendancePolicyRouter);
 
 // Doctor income performance report (new Эмч page under Үндсэн тайлан → Цаг захиалга)
 app.use("/api/admin", doctorIncomeReportRouter);
