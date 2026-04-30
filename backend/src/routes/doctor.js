@@ -18,6 +18,7 @@ import {
   discountPercentEnumToNumber,
   computeServiceNetProportionalDiscount,
   allocatePaymentProportionalByRemaining,
+  computeOverrideSalesFromAllocations,
 } from "../utils/incomeHelpers.js";
 import { generateBuckets } from "../utils/dashboardHelpers.js";
 
@@ -1015,9 +1016,6 @@ router.get("/sales-details", async (req, res) => {
     for (const inv of invoices) {
       const payments = inv.payments || [];
       const hasOverride = payments.some((p) => OVERRIDE_METHODS.has(String(p.method).toUpperCase()));
-      const status = String(inv.statusLegacy || "").toLowerCase();
-      const isPaid = status === "paid";
-
       const discountPct = discountPercentEnumToNumber(inv.discountPercent);
       const serviceItems = (inv.items || []).filter(
         (it) => it.itemType === "SERVICE" && it.service?.category !== "PREVIOUS"
@@ -1065,15 +1063,12 @@ router.get("/sales-details", async (req, res) => {
       }
 
       if (hasOverride) {
-        if (isPaid && inv.createdAt >= start && inv.createdAt < endExclusive) {
-          for (const it of nonImagingServiceItems) {
-            const lineNet = lineNets.get(it.id) || 0;
-            if (lineNet <= 0) continue;
-            const amt = lineNet * 0.9;
-            const k = bucketKeyForService(it.service);
-            buckets[k].salesMnt += amt;
-            totalSalesMnt += amt;
-          }
+        for (const it of nonImagingServiceItems) {
+          const amt = (itemAllocationBase.get(it.id) || 0) * 0.9;
+          if (amt <= 0) continue;
+          const k = bucketKeyForService(it.service);
+          buckets[k].salesMnt += amt;
+          totalSalesMnt += amt;
         }
       } else {
         for (const it of nonImagingServiceItems) {
@@ -1424,8 +1419,6 @@ const DASHBOARD_BARTER_THRESHOLD_MNT = 800_000;
 function calcDashboardInvoiceContribution(inv, bucketStart, bucketEnd, homeBleachingDeductAmountMnt, cfg) {
   const payments = inv.payments || [];
   const hasOverride = payments.some((p) => OVERRIDE_METHODS.has(String(p.method).toUpperCase()));
-  const status = String(inv.statusLegacy || "").toLowerCase();
-  const isPaid = status === "paid";
 
   const discountPct = discountPercentEnumToNumber(inv.discountPercent);
   const serviceItems = (inv.items || []).filter(
@@ -1446,7 +1439,6 @@ function calcDashboardInvoiceContribution(inv, bucketStart, bucketEnd, homeBleac
   const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
 
   let barterSum = 0;
-  let hasPaymentInRange = false;
 
   const sortedPayments = [...payments].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
@@ -1458,13 +1450,11 @@ function calcDashboardInvoiceContribution(inv, bucketStart, bucketEnd, homeBleac
 
     if (method === "BARTER") {
       barterSum += Number(p.amount || 0);
-      hasPaymentInRange = true;
       continue;
     }
 
     if (!INCLUDED_METHODS.has(method) && !OVERRIDE_METHODS.has(method)) continue;
 
-    hasPaymentInRange = true;
     const payAmt = Number(p.amount || 0);
     const payAllocs = p.allocations || [];
 
@@ -1495,14 +1485,11 @@ function calcDashboardInvoiceContribution(inv, bucketStart, bucketEnd, homeBleac
   const imagingPct = Number(cfg?.imagingPct || 0);
 
   if (hasOverride) {
-    if (isPaid && inIncomeRange(new Date(inv.createdAt), bucketStart, bucketEnd)) {
-      for (const it of nonImagingServiceItems) {
-        const lineNet = lineNets.get(it.id) || 0;
-        if (lineNet <= 0) continue;
-        sales += lineNet * 0.9;
-        servicesCount++;
-      }
-    }
+    sales += computeOverrideSalesFromAllocations(nonImagingServiceItems, itemAllocationBase);
+    servicesCount += nonImagingServiceItems.reduce(
+      (sum, it) => sum + ((itemAllocationBase.get(it.id) || 0) > 0 ? 1 : 0),
+      0
+    );
   } else {
     for (const it of nonImagingServiceItems) {
       const amt = itemAllocationBase.get(it.id) || 0;

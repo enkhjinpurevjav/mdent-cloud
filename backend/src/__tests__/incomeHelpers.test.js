@@ -255,4 +255,25 @@ describe("computeOverrideSalesFromAllocations – wallet override sales", () => 
 
     assert.equal(sales, 450000);
   });
+
+  it("counts partial in-range override payments instead of full invoice net", () => {
+    const nonImagingItems = [{ id: 1 }, { id: 2 }];
+    const allocations = new Map([
+      [1, 120000],
+      [2, 80000],
+    ]);
+
+    const sales = computeOverrideSalesFromAllocations(nonImagingItems, allocations);
+
+    assert.equal(sales, 180000);
+  });
+
+  it("returns zero when override payments have no in-range service allocations", () => {
+    const nonImagingItems = [{ id: 1 }, { id: 2 }];
+    const allocations = new Map();
+
+    const sales = computeOverrideSalesFromAllocations(nonImagingItems, allocations);
+
+    assert.equal(sales, 0);
+  });
 });
