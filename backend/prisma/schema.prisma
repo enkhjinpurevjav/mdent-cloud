@@ -131,6 +131,16 @@ enum OperatorMerchantRequestStatus {
   FAILED
 }
 
+enum AttendanceAttemptType {
+  CHECK_IN
+  CHECK_OUT
+}
+
+enum AttendanceAttemptResult {
+  SUCCESS
+  FAIL
+}
+
 // ==========================================================
 // BRANCHES (Multi-Branch Support)
 // ==========================================================
@@ -187,6 +197,7 @@ model Branch {
 
   // Attendance
   attendanceSessions AttendanceSession[]
+  attendanceAttempts AttendanceAttempt[]
 }
 
 model EmployeeBenefit {
@@ -779,6 +790,7 @@ model User {
 
   // Attendance sessions
   attendanceSessions AttendanceSession[]
+  attendanceAttempts AttendanceAttempt[]
 
   createdPatients   Patient[] @relation("PatientCreator")
   updatedPatients   Patient[] @relation("PatientUpdater")
@@ -1860,6 +1872,31 @@ model AttendanceSession {
 
   @@index([userId, checkInAt])
   @@index([branchId, checkInAt])
+}
+
+model AttendanceAttempt {
+  id       Int    @id @default(autoincrement())
+  userId   Int
+  user     User   @relation(fields: [userId], references: [id])
+  branchId Int?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  attemptType    AttendanceAttemptType
+  result         AttendanceAttemptResult
+  failureCode    String?
+  failureMessage String?
+
+  lat       Float?
+  lng       Float?
+  accuracyM Int?
+  distanceM Int?
+  radiusM   Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([branchId, createdAt])
+  @@index([attemptType, result, createdAt])
 }
 
 
