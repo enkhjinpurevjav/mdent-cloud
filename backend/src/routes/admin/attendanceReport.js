@@ -1,5 +1,11 @@
 import { Router } from "express";
 import prisma from "../../db.js";
+import {
+  buildDailySessionAggregateMap,
+  mongoliaDateString,
+  mongoliaWallClockMinutes,
+  parseHHMM,
+} from "../../utils/attendanceReport.js";
 
 const router = Router();
 
@@ -115,18 +121,9 @@ router.get("/attendance", async (req, res) => {
     });
 
     // ------------------------------------------------------------------
-    // 3. Build a lookup: sessionsByUserAndDate -> earliest check-in per user per date
-    //    Key: `${userId}:${dateStr YYYY-MM-DD}`
+    // 3. Build per-user/day attendance aggregate (UTC+8 day key)
     // ------------------------------------------------------------------
-    const sessionMap = new Map(); // key -> AttendanceSession (earliest)
-    for (const s of sessions) {
-      const dateStr = s.checkInAt.toISOString().slice(0, 10);
-      const key = `${s.userId}:${dateStr}`;
-      const existing = sessionMap.get(key);
-      if (!existing || s.checkInAt < existing.checkInAt) {
-        sessionMap.set(key, s);
-      }
-    }
+    const sessionAggregateMap = buildDailySessionAggregateMap(sessions);
 
     // Track which session keys have been matched to a schedule row
     const matchedSessionKeys = new Set();
@@ -139,12 +136,12 @@ router.get("/attendance", async (req, res) => {
     // Helper: merge schedule + session into a report row
     function buildRow(scheduleEntry) {
       const { user, branch, date, startTime, endTime, note } = scheduleEntry;
-      const dateStr = date.toISOString().slice(0, 10);
+      const dateStr = mongoliaDateString(date);
       const key = `${user.id}:${dateStr}`;
-      const session = sessionMap.get(key) || null;
+      const aggregate = sessionAggregateMap.get(key) || null;
 
       // Mark this session key as "matched" so we don't include it again as unscheduled
-      if (session) {
+      if (aggregate) {
         matchedSessionKeys.add(key);
       }
 
@@ -153,35 +150,31 @@ router.get("/attendance", async (req, res) => {
       let durationMinutes = null;
       let lateMinutes = null;
       let earlyLeaveMinutes = null;
+      let checkInAt = null;
+      let checkOutAt = null;
+      let sessionCount = 0;
 
-      if (session) {
-        rowStatus = session.checkOutAt ? "present" : "open";
-
-        // Duration
-        if (session.checkOutAt) {
-          durationMinutes = Math.round(
-            (session.checkOutAt.getTime() - session.checkInAt.getTime()) / 60000
-          );
-        }
+      if (aggregate) {
+        rowStatus = aggregate.hasOpenSession ? "open" : "present";
+        durationMinutes = aggregate.totalDurationMinutes;
+        checkInAt = aggregate.firstCheckInAt.toISOString();
+        checkOutAt = aggregate.latestCheckOutAt?.toISOString() || null;
+        sessionCount = aggregate.sessionCount;
 
         // Late / early calculations using wall-clock HH:MM comparison.
-        // Schedule startTime/endTime are "HH:MM" strings (local wall-clock time).
-        // We extract wall-clock hours/minutes from checkInAt/checkOutAt using the
-        // server's local clock (which should match the clinic's timezone).
+        // Schedule startTime/endTime are "HH:MM" strings.
+        // Attendance timestamps are converted to Mongolia wall-clock values (UTC+8).
         const schedStartMins = parseHHMM(startTime);
         const schedEndMins = parseHHMM(endTime);
 
         if (schedStartMins !== null) {
-          const checkInMins =
-            session.checkInAt.getHours() * 60 + session.checkInAt.getMinutes();
+          const checkInMins = mongoliaWallClockMinutes(aggregate.firstCheckInAt);
           const diff = checkInMins - schedStartMins;
           if (diff >= 1) lateMinutes = diff;
         }
 
-        if (schedEndMins !== null && session.checkOutAt) {
-          const checkOutMins =
-            session.checkOutAt.getHours() * 60 +
-            session.checkOutAt.getMinutes();
+        if (schedEndMins !== null && aggregate.latestCheckOutAt) {
+          const checkOutMins = mongoliaWallClockMinutes(aggregate.latestCheckOutAt);
           const diff = schedEndMins - checkOutMins;
           if (diff >= 1) earlyLeaveMinutes = diff;
         }
@@ -200,11 +193,12 @@ router.get("/attendance", async (req, res) => {
         scheduledStart: startTime,
         scheduledEnd: endTime,
         scheduleNote: note || null,
-        checkInAt: session?.checkInAt?.toISOString() || null,
-        checkOutAt: session?.checkOutAt?.toISOString() || null,
+        checkInAt,
+        checkOutAt,
         durationMinutes,
         lateMinutes,
         earlyLeaveMinutes,
+        sessionCount,
         status: rowStatus,
       };
     }
@@ -227,42 +221,35 @@ router.get("/attendance", async (req, res) => {
     // ------------------------------------------------------------------
     // 5. Add unscheduled attendance rows (sessions not matched to any schedule)
     // ------------------------------------------------------------------
-    for (const s of sessions) {
-      const dateStr = s.checkInAt.toISOString().slice(0, 10);
-      const key = `${s.userId}:${dateStr}`;
+    for (const [key, aggregate] of sessionAggregateMap.entries()) {
+      const [userIdStr, dateStr] = key.split(":");
+      const userIdNum = Number(userIdStr);
 
       // Skip if this user+date was matched to a schedule row
       if (matchedSessionKeys.has(key)) continue;
 
-      // Only include if this session is the "canonical" one for user+date
-      const canonical = sessionMap.get(key);
-      if (!canonical || canonical.id !== s.id) continue;
-
-      let durationMinutes = null;
-      if (s.checkOutAt) {
-        durationMinutes = Math.round(
-          (s.checkOutAt.getTime() - s.checkInAt.getTime()) / 60000
-        );
-      }
+      const firstSession = aggregate.firstSession;
+      const durationMinutes = aggregate.totalDurationMinutes;
 
       rows.push({
         rowType: "unscheduled",
-        userId: s.user.id,
-        userName: s.user.name,
-        userOvog: s.user.ovog,
-        userEmail: s.user.email,
-        userRole: s.user.role,
-        branchId: s.branch.id,
-        branchName: s.branch.name,
+        userId: userIdNum,
+        userName: firstSession.user.name,
+        userOvog: firstSession.user.ovog,
+        userEmail: firstSession.user.email,
+        userRole: firstSession.user.role,
+        branchId: firstSession.branch.id,
+        branchName: firstSession.branch.name,
         scheduledDate: dateStr,
         scheduledStart: null,
         scheduledEnd: null,
         scheduleNote: null,
-        checkInAt: s.checkInAt.toISOString(),
-        checkOutAt: s.checkOutAt?.toISOString() || null,
+        checkInAt: aggregate.firstCheckInAt.toISOString(),
+        checkOutAt: aggregate.latestCheckOutAt?.toISOString() || null,
         durationMinutes,
         lateMinutes: null,
         earlyLeaveMinutes: null,
+        sessionCount: aggregate.sessionCount,
         status: "unscheduled",
       });
     }
@@ -306,16 +293,5 @@ router.get("/attendance", async (req, res) => {
     return res.status(500).json({ error: "Серверийн алдаа гарлаа." });
   }
 });
-
-/**
- * Parse a "HH:MM" time string into total minutes since midnight.
- * Returns null if the string is invalid.
- */
-function parseHHMM(timeStr) {
-  if (!timeStr) return null;
-  const m = /^(\d{1,2}):(\d{2})$/.exec(timeStr);
-  if (!m) return null;
-  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
-}
 
 export default router;
