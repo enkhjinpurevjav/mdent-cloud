@@ -116,8 +116,8 @@ describe("GET /api/admin/attendance route behavior", () => {
       {
         id: 5,
         userId: 88,
-        checkInAt: new Date("2026-05-04T01:00:00.000Z"), // Monday 09:00 (UTC+8)
-        checkOutAt: new Date("2026-05-04T09:00:00.000Z"), // Monday 17:00 (UTC+8)
+        checkInAt: new Date("2026-05-05T01:00:00.000Z"), // Monday 09:00 (UTC+8)
+        checkOutAt: new Date("2026-05-05T09:00:00.000Z"), // Monday 17:00 (UTC+8)
         user: {
           id: 88,
           name: "Temuulen",
@@ -134,8 +134,8 @@ describe("GET /api/admin/attendance route behavior", () => {
 
     const req = {
       query: {
-        fromTs: "2026-05-04T00:00:00.000Z",
-        toTs: "2026-05-04T23:59:59.999Z",
+        fromTs: "2026-05-05T00:00:00.000Z",
+        toTs: "2026-05-05T23:59:59.999Z",
       },
     };
     const res = createRes();

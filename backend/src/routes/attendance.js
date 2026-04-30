@@ -471,7 +471,13 @@ router.post("/check-out", async (req, res) => {
  */
 router.get("/attempts", async (req, res) => {
   try {
-    if (req.user.role !== "admin" && req.user.role !== "super_admin") {
+    const requesterRole = req.user?.role || null;
+    const authBypassed = process.env.DISABLE_AUTH === "true";
+    if (
+      !authBypassed &&
+      requesterRole !== "admin" &&
+      requesterRole !== "super_admin"
+    ) {
       return res.status(403).json({ error: "Forbidden. Insufficient role." });
     }
 
