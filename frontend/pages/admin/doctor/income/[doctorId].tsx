@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import * as XLSX from "xlsx";
 import EncounterReportModal from "../../../../components/patients/EncounterReportModal";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -40,6 +41,7 @@ type LineItem = {
   patientId: number | null;
   patientOvog: string | null;
   patientName: string | null;
+  patientPhone?: string | null;
   serviceName: string;
   serviceCategory: string;
   priceMnt: number;
@@ -65,15 +67,26 @@ function formatDoctorName(ovog: string | null | undefined, name: string | null |
 function formatPatient(ovog: string | null | undefined, name: string | null | undefined) {
   const n = (name || "").trim();
   const o = (ovog || "").trim();
-  if (o && n) return `${o[0]}. ${n}`;
+  if (o && n) return `${n}.${o[0]}`;
   return n || o || "-";
 }
 
 function formatDate(isoStr: string | null | undefined) {
   if (!isoStr) return "-";
-  const d = new Date(isoStr);
+  const dateOnly = isoStr.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+  if (!dateOnly) return "-";
+  const d = new Date(`${dateOnly}T00:00:00.000Z`);
   if (isNaN(d.getTime())) return "-";
-  return d.toLocaleDateString("mn-MN", { year: "numeric", month: "2-digit", day: "2-digit" });
+  return d.toLocaleDateString("mn-MN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "UTC",
+  });
+}
+
+function buildFilenameDatePart(value: string) {
+  return String(value || "").replaceAll("-", "");
 }
 
 // ✅ Add this right here (after helpers, before Icons / components)
@@ -161,7 +174,10 @@ function DrillDownRows({
           <tr key={`${line.invoiceId}-${idx}`} className="border-t border-blue-100 bg-blue-50/30">
             <td className="py-2 pl-8 pr-3 text-xs text-gray-700">#{line.invoiceId}</td>
             <td className="px-3 py-2 text-xs text-gray-700">{dateStr}</td>
-            <td className="px-3 py-2 text-xs text-gray-700">{patientStr}</td>
+            <td className="px-3 py-2 text-xs text-gray-700">
+              <div className="font-medium text-gray-800">{patientStr}</div>
+              <div className="text-[11px] text-gray-500">{line.patientPhone || "-"}</div>
+            </td>
             <td className="px-3 py-2 text-xs text-gray-700">{line.serviceName}</td>
             <td className="px-3 py-2 text-right text-xs text-gray-700">{fmtMnt(line.priceMnt)}</td>
             <td className="px-3 py-2 text-right text-xs text-gray-700">
@@ -232,6 +248,7 @@ export default function DoctorIncomeDetailsPage() {
     Record<string, LineItem[] | null | undefined>
   >({});
   const [categoryErrors, setCategoryErrors] = useState<Record<string, string>>({});
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   // EncounterReportModal
   const [reportModalAppointmentId, setReportModalAppointmentId] = useState<number | null>(null);
@@ -259,6 +276,20 @@ export default function DoctorIncomeDetailsPage() {
     fetchData();
   }, [fetchData]);
 
+  const loadCategoryLines = useCallback(
+    async (categoryKey: string) => {
+      if (!doctorId || !startDate || !endDate) return [];
+
+      const res = await fetch(
+        `/api/admin/doctors-income/${doctorId}/details/lines?startDate=${startDate}&endDate=${endDate}&category=${categoryKey}`
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Failed to fetch lines");
+      return Array.isArray(json) ? (json as LineItem[]) : [];
+    },
+    [doctorId, startDate, endDate]
+  );
+
   const fetchCategoryLines = useCallback(
     async (categoryKey: string) => {
       if (!doctorId || !startDate || !endDate) return;
@@ -276,18 +307,14 @@ export default function DoctorIncomeDetailsPage() {
       if (!shouldFetch) return;
 
       try {
-        const res = await fetch(
-          `/api/admin/doctors-income/${doctorId}/details/lines?startDate=${startDate}&endDate=${endDate}&category=${categoryKey}`
-        );
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.error || "Failed to fetch lines");
-        setCategoryLines((prev) => ({ ...prev, [categoryKey]: json }));
+        const lines = await loadCategoryLines(categoryKey);
+        setCategoryLines((prev) => ({ ...prev, [categoryKey]: lines }));
       } catch (e: any) {
         setCategoryErrors((prev) => ({ ...prev, [categoryKey]: e?.message || "Error" }));
         setCategoryLines((prev) => ({ ...prev, [categoryKey]: [] }));
       }
     },
-    [doctorId, startDate, endDate]
+    [doctorId, startDate, endDate, loadCategoryLines]
   );
 
   const toggleCategory = useCallback(
@@ -310,6 +337,62 @@ export default function DoctorIncomeDetailsPage() {
     ? formatDoctorName(data.doctorOvog, data.doctorName)
     : String(doctorId || "");
 
+  const handleExportExcel = async () => {
+    if (!data) return;
+
+    setExportingExcel(true);
+    try {
+      const categoryLinePairs = await Promise.all(
+        data.categories.map(async (category) => {
+          const cachedLines = categoryLines[category.key];
+          if (Array.isArray(cachedLines)) {
+            return [category.key, cachedLines] as const;
+          }
+
+          const lines = await loadCategoryLines(category.key);
+          return [category.key, lines] as const;
+        })
+      );
+
+      const lineMap = Object.fromEntries(categoryLinePairs);
+      setCategoryLines((prev) => ({ ...prev, ...lineMap }));
+
+      const rows = data.categories.flatMap((category) => {
+        const lines = lineMap[category.key] || [];
+        return lines.map((line) => ({
+          "Ангилал": category.label,
+          "Нэхэмжлэл #": line.invoiceId,
+          "Үзлэгийн огноо": formatDate(line.appointmentScheduledAt || line.visitDate),
+          "Үйлчлүүлэгч": formatPatient(line.patientOvog, line.patientName),
+          "Утас": line.patientPhone || "",
+          "Үйлчилгээ": line.serviceName,
+          "Үнийн дүн (₮)": line.priceMnt,
+          "Хөнгөлөлт (₮)": line.discountMnt,
+          "Нийт (₮)": line.allocatedPaidMnt,
+          "Төлбөрийн хэрэгсэл": line.paymentMethodLabel || "",
+        }));
+      });
+
+      const summaryRows = data.categories.map((category) => ({
+        "Ангилал": category.label,
+        "Хувь (%)": category.pctUsed,
+        "Борлуулалт (₮)": category.salesMnt,
+        "Эмчийн хувь (₮)": category.incomeMnt,
+      }));
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(summaryRows), "Summary");
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(rows), "DrillDown");
+
+      const filename = `doctor_income_details_${doctorId}_${buildFilenameDatePart(startDate)}_${buildFilenameDatePart(endDate)}.xlsx`;
+      XLSX.writeFile(workbook, filename);
+    } catch (e: any) {
+      setError(e?.message || "Excel татахад алдаа гарлаа.");
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
   return (
     <main className="w-full px-6 py-6 font-sans">
       {/* Header */}
@@ -324,6 +407,14 @@ export default function DoctorIncomeDetailsPage() {
         <h1 className="m-0 text-xl font-bold text-gray-900">
           Эмчийн Орлогын Тайлан — Дэлгэрэнгүй
         </h1>
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          disabled={!data || loading || exportingExcel}
+          className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {exportingExcel ? "Татаж байна..." : "Excel татах"}
+        </button>
       </div>
 
       {/* Meta */}

@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/router";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -45,17 +44,59 @@ function formatDate(isoStr: string | null): string {
   return isoStr;
 }
 
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("mn-MN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function formatOvertime(minutes: number | null): string {
+  if (minutes == null || minutes < 0) return "—";
+  if (minutes === 0) return "0м";
+  if (minutes < 60) return `${minutes}м`;
+  const hours = Math.floor(minutes / 60);
+  const remain = minutes % 60;
+  return `${hours}ц${remain}м`;
+}
+
 function roleLabel(role: string): string {
   const map: Record<string, string> = {
     doctor: "Эмч",
     nurse: "Сувилагч",
     receptionist: "Ресепшн",
+    sterilization: "Ариутгал",
+    accountant: "Нягтлан",
+    manager: "Менежер",
+    xray: "Рентген",
     admin: "Админ",
     super_admin: "Супер Админ",
-    staff: "Ажилтан",
+    other: "Бусад",
+    branch_kiosk: "Салбар киоск",
+    doctor_kiosk: "Эмч киоск",
   };
   return map[role] || role;
 }
+
+const POLICY_ROLE_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Бүх үүрэг" },
+  { value: "doctor", label: "Эмч" },
+  { value: "nurse", label: "Сувилагч" },
+  { value: "receptionist", label: "Ресепшн" },
+  { value: "sterilization", label: "Ариутгал" },
+  { value: "accountant", label: "Нягтлан" },
+  { value: "manager", label: "Менежер" },
+  { value: "xray", label: "Рентген" },
+  { value: "admin", label: "Админ" },
+  { value: "super_admin", label: "Супер админ" },
+  { value: "other", label: "Бусад" },
+  { value: "branch_kiosk", label: "Салбар киоск" },
+  { value: "doctor_kiosk", label: "Эмч киоск" },
+];
 
 function statusLabel(status: string): string {
   const map: Record<string, string> = {
@@ -92,6 +133,7 @@ function statusBg(status: string): string {
 // ──────────────────────────────────────────────────────────────────────────────
 
 type AttendanceRow = {
+  sessionId?: number | null;
   rowType: "scheduled" | "unscheduled";
   userId: number;
   userName: string | null;
@@ -107,17 +149,82 @@ type AttendanceRow = {
   checkInAt: string | null;
   checkOutAt: string | null;
   durationMinutes: number | null;
+  sessionCount?: number;
+  requiredMinutes?: number | null;
+  attendanceRatePercent?: number | null;
+  isAutoClosed?: boolean;
+  autoCloseReason?: string | null;
+  reviewReason?: string | null;
   lateMinutes: number | null;
   earlyLeaveMinutes: number | null;
   status: "present" | "open" | "absent" | "unscheduled";
 };
 
+type AttendanceSummary = {
+  totalRows: number;
+  presentCount: number;
+  openCount: number;
+  absentCount: number;
+  unscheduledCount: number;
+  avgLateMinutes: number;
+  attendanceRatePercent: number;
+};
+
+type AttendancePolicyRow = {
+  id: number;
+  branchId: number | null;
+  role: string | null;
+  priority: number;
+  isActive: boolean;
+  earlyCheckInMinutes: number;
+  lateGraceMinutes: number;
+  earlyLeaveGraceMinutes: number;
+  autoCloseAfterMinutes: number;
+  minAccuracyM: number;
+  enforceGeofence: boolean;
+};
+
+type AttendanceAttemptRow = {
+  id: number;
+  attemptAt: string;
+  attemptType: "CHECK_IN" | "CHECK_OUT";
+  result: "SUCCESS" | "FAIL";
+  failureCode?: string | null;
+  failureMessage?: string | null;
+  accuracyM?: number | null;
+  distanceM?: number | null;
+  radiusM?: number | null;
+  user: {
+    id: number;
+    name: string | null;
+    ovog: string | null;
+    role: string;
+  };
+  branch?: {
+    id: number;
+    name: string;
+  } | null;
+};
+
 type ApiResponse = {
   items: AttendanceRow[];
+  summary?: AttendanceSummary;
   page: number;
   pageSize: number;
   total: number;
   totalPages: number;
+};
+
+type SummaryRow = {
+  userId: number;
+  userName: string | null;
+  userOvog: string | null;
+  userRole: string;
+  branchName: string;
+  requiredMinutes: number;
+  lateMinutes: number;
+  earlyLeaveMinutes: number;
+  acceptedOvertimeMinutes: number;
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -127,8 +234,6 @@ type ApiResponse = {
 const PAGE_SIZE_DEFAULT = 50;
 
 export default function AdminAttendancePage() {
-  const router = useRouter();
-
   const [fromDate, setFromDate] = useState<string>(todayLocalStr);
   const [toDate, setToDate] = useState<string>(todayLocalStr);
   const [branchId, setBranchId] = useState<string>("");
@@ -144,6 +249,59 @@ export default function AdminAttendancePage() {
   const [users, setUsers] = useState<
     { id: number; name: string | null; ovog: string | null; role: string }[]
   >([]);
+  const [exporting, setExporting] = useState(false);
+  const [editingRow, setEditingRow] = useState<AttendanceRow | null>(null);
+  const [editCheckInAt, setEditCheckInAt] = useState("");
+  const [editCheckOutAt, setEditCheckOutAt] = useState("");
+  const [editReasonCode, setEditReasonCode] = useState("MANUAL_CORRECTION");
+  const [editReasonText, setEditReasonText] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [autoCloseLoading, setAutoCloseLoading] = useState(false);
+  const [policies, setPolicies] = useState<AttendancePolicyRow[]>([]);
+  const [policyLoading, setPolicyLoading] = useState(false);
+  const [savingPolicy, setSavingPolicy] = useState(false);
+
+  const [newPolicyBranchId, setNewPolicyBranchId] = useState("");
+  const [newPolicyRole, setNewPolicyRole] = useState("");
+  const [newPolicyPriority, setNewPolicyPriority] = useState("0");
+  const [newPolicyEarlyCheckIn, setNewPolicyEarlyCheckIn] = useState("120");
+  const [newPolicyLateGrace, setNewPolicyLateGrace] = useState("0");
+  const [newPolicyEarlyLeaveGrace, setNewPolicyEarlyLeaveGrace] = useState("0");
+  const [newPolicyAutoClose, setNewPolicyAutoClose] = useState("720");
+  const [newPolicyMinAccuracy, setNewPolicyMinAccuracy] = useState("100");
+  const [newPolicyEnforceGeofence, setNewPolicyEnforceGeofence] = useState(true);
+  const [activeTab, setActiveTab] = useState<"report" | "attempts" | "policy" | "summary">(
+    "report"
+  );
+  const [attempts, setAttempts] = useState<AttendanceAttemptRow[]>([]);
+  const [attemptsLoading, setAttemptsLoading] = useState(false);
+  const [attemptResult, setAttemptResult] = useState<"" | "SUCCESS" | "FAIL">("");
+  const [attemptTake, setAttemptTake] = useState(200);
+  const [overtimeApprovedMap, setOvertimeApprovedMap] = useState<
+    Record<string, boolean>
+  >({});
+  const [summaryFromDate, setSummaryFromDate] = useState<string>(todayLocalStr);
+  const [summaryToDate, setSummaryToDate] = useState<string>(todayLocalStr);
+  const [summaryBranchId, setSummaryBranchId] = useState<string>("");
+  const [summaryRole, setSummaryRole] = useState<string>("");
+  const [summaryUserId, setSummaryUserId] = useState<string>("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryRows, setSummaryRows] = useState<SummaryRow[]>([]);
+  const [summarySearched, setSummarySearched] = useState(false);
+  const [editingPolicyId, setEditingPolicyId] = useState<number | null>(null);
+  const [savingPolicyActionId, setSavingPolicyActionId] = useState<number | null>(null);
+  const [policyEditForm, setPolicyEditForm] = useState<{
+    branchId: string;
+    role: string;
+    priority: string;
+    earlyCheckInMinutes: string;
+    lateGraceMinutes: string;
+    earlyLeaveGraceMinutes: string;
+    autoCloseAfterMinutes: string;
+    minAccuracyM: string;
+    enforceGeofence: boolean;
+    isActive: boolean;
+  } | null>(null);
 
   // Load branch list for filter dropdown
   useEffect(() => {
@@ -156,6 +314,26 @@ export default function AdminAttendancePage() {
       .then((r) => r.json())
       .then((d) => setUsers(Array.isArray(d) ? d : []))
       .catch(() => setUsers([]));
+  }, []);
+
+  async function fetchPolicies() {
+    setPolicyLoading(true);
+    try {
+      const res = await fetch("/api/admin/attendance/policies", {
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as any).error || "Бодлого татахад алдаа гарлаа.");
+      setPolicies(Array.isArray((json as any).items) ? (json as any).items : []);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Бодлого татахад алдаа гарлаа.");
+    } finally {
+      setPolicyLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchPolicies();
   }, []);
 
   const fetchData = useCallback(
@@ -205,11 +383,375 @@ export default function AdminAttendancePage() {
     fetchData(newPage);
   }
 
+  async function exportCsv() {
+    setExporting(true);
+    setError("");
+    try {
+      const fromTs = localStartOfDay(fromDate);
+      const toTs = localEndOfDay(toDate);
+      const params = new URLSearchParams({ fromTs, toTs });
+      if (branchId) params.set("branchId", branchId);
+      if (userId) params.set("userId", userId);
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      const res = await fetch(`/api/admin/attendance/export?${params}`, {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error((json as any).error || "Экспорт хийхэд алдаа гарлаа.");
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `attendance-export-${fromDate}-${toDate}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Экспортын алдаа.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  function openEdit(row: AttendanceRow) {
+    setEditingRow(row);
+    setEditCheckInAt(row.checkInAt ? row.checkInAt.slice(0, 16) : "");
+    setEditCheckOutAt(row.checkOutAt ? row.checkOutAt.slice(0, 16) : "");
+    setEditReasonCode("MANUAL_CORRECTION");
+    setEditReasonText("");
+  }
+
+  function closeEdit() {
+    setEditingRow(null);
+    setEditSaving(false);
+  }
+
+  async function saveEdit() {
+    if (!editingRow) return;
+    setEditSaving(true);
+    setError("");
+    try {
+      if (!editCheckInAt) throw new Error("Шинэ ирсэн цаг оруулна уу.");
+      const body = {
+        newCheckInAt: new Date(editCheckInAt).toISOString(),
+        newCheckOutAt: editCheckOutAt ? new Date(editCheckOutAt).toISOString() : null,
+        reasonCode: editReasonCode || "MANUAL_CORRECTION",
+        reasonText: editReasonText || null,
+      };
+      const res = await fetch(`/api/attendance/session/${editingRow.sessionId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as any).error || "Засвар хадгалахад алдаа гарлаа.");
+      closeEdit();
+      fetchData(page);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Засвар хадгалахад алдаа гарлаа.");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function runAutoClose() {
+    setAutoCloseLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/attendance/auto-close", {
+        method: "POST",
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as any).error || "Нээлттэй сешн хаахад алдаа гарлаа.");
+      fetchData(page);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Нээлттэй сешн хаахад алдаа гарлаа.");
+    } finally {
+      setAutoCloseLoading(false);
+    }
+  }
+
+  async function createPolicy() {
+    setSavingPolicy(true);
+    setError("");
+    try {
+      const body = {
+        branchId: newPolicyBranchId ? Number(newPolicyBranchId) : null,
+        role: newPolicyRole || null,
+        priority: Number(newPolicyPriority) || 0,
+        earlyCheckInMinutes: Number(newPolicyEarlyCheckIn) || 120,
+        lateGraceMinutes: Number(newPolicyLateGrace) || 0,
+        earlyLeaveGraceMinutes: Number(newPolicyEarlyLeaveGrace) || 0,
+        autoCloseAfterMinutes: Number(newPolicyAutoClose) || 720,
+        minAccuracyM: Number(newPolicyMinAccuracy) || 100,
+        enforceGeofence: !!newPolicyEnforceGeofence,
+        isActive: true,
+      };
+      const res = await fetch("/api/admin/attendance/policies", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as any).error || "Бодлого үүсгэхэд алдаа гарлаа.");
+      await fetchPolicies();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Бодлого үүсгэхэд алдаа гарлаа.");
+    } finally {
+      setSavingPolicy(false);
+    }
+  }
+
+  function startEditPolicy(policy: AttendancePolicyRow) {
+    setEditingPolicyId(policy.id);
+    setPolicyEditForm({
+      branchId: policy.branchId == null ? "" : String(policy.branchId),
+      role: policy.role ?? "",
+      priority: String(policy.priority),
+      earlyCheckInMinutes: String(policy.earlyCheckInMinutes),
+      lateGraceMinutes: String(policy.lateGraceMinutes),
+      earlyLeaveGraceMinutes: String(policy.earlyLeaveGraceMinutes),
+      autoCloseAfterMinutes: String(policy.autoCloseAfterMinutes),
+      minAccuracyM: String(policy.minAccuracyM),
+      enforceGeofence: !!policy.enforceGeofence,
+      isActive: !!policy.isActive,
+    });
+  }
+
+  function cancelEditPolicy() {
+    setEditingPolicyId(null);
+    setPolicyEditForm(null);
+  }
+
+  async function savePolicyEdit() {
+    if (!editingPolicyId || !policyEditForm) return;
+    setSavingPolicyActionId(editingPolicyId);
+    setError("");
+    try {
+      const body = {
+        branchId: policyEditForm.branchId ? Number(policyEditForm.branchId) : null,
+        role: policyEditForm.role || null,
+        priority: Number(policyEditForm.priority) || 0,
+        earlyCheckInMinutes: Number(policyEditForm.earlyCheckInMinutes) || 120,
+        lateGraceMinutes: Number(policyEditForm.lateGraceMinutes) || 0,
+        earlyLeaveGraceMinutes: Number(policyEditForm.earlyLeaveGraceMinutes) || 0,
+        autoCloseAfterMinutes: Number(policyEditForm.autoCloseAfterMinutes) || 720,
+        minAccuracyM: Number(policyEditForm.minAccuracyM) || 100,
+        enforceGeofence: !!policyEditForm.enforceGeofence,
+        isActive: !!policyEditForm.isActive,
+      };
+      const res = await fetch(`/api/admin/attendance/policies/${editingPolicyId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as any).error || "Бодлого засахад алдаа гарлаа.");
+      await fetchPolicies();
+      cancelEditPolicy();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Бодлого засахад алдаа гарлаа.");
+    } finally {
+      setSavingPolicyActionId(null);
+    }
+  }
+
+  async function deletePolicy(policyId: number) {
+    if (!window.confirm("Энэ бодлогыг устгах уу?")) return;
+    setSavingPolicyActionId(policyId);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/attendance/policies/${policyId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as any).error || "Бодлого устгахад алдаа гарлаа.");
+      await fetchPolicies();
+      if (editingPolicyId === policyId) cancelEditPolicy();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Бодлого устгахад алдаа гарлаа.");
+    } finally {
+      setSavingPolicyActionId(null);
+    }
+  }
+
+  async function fetchAttempts() {
+    setAttemptsLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ take: String(attemptTake) });
+      if (attemptResult) params.set("result", attemptResult);
+      const res = await fetch(`/api/attendance/attempts?${params}`, {
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as any).error || "Оролдлогын лог татахад алдаа гарлаа.");
+      setAttempts(Array.isArray((json as any).items) ? (json as any).items : []);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Оролдлогын лог татахад алдаа гарлаа.");
+    } finally {
+      setAttemptsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === "attempts") {
+      fetchAttempts();
+    }
+  }, [activeTab, attemptTake, attemptResult]);
+
+  async function runSummarySearch() {
+    setSummaryLoading(true);
+    setError("");
+    setSummarySearched(true);
+    try {
+      const fromTs = localStartOfDay(summaryFromDate);
+      const toTs = localEndOfDay(summaryToDate);
+      const params = new URLSearchParams({
+        fromTs,
+        toTs,
+        page: "1",
+        pageSize: "500",
+      });
+      if (summaryBranchId) params.set("branchId", summaryBranchId);
+      if (summaryUserId) params.set("userId", summaryUserId);
+      const res = await fetch(`/api/admin/attendance?${params}`, {
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as any).error || "Нэгтгэсэн тайлан татахад алдаа гарлаа.");
+      const items = Array.isArray((json as ApiResponse).items)
+        ? (json as ApiResponse).items
+        : [];
+
+      const grouped = new Map<string, SummaryRow>();
+      for (const row of items) {
+        if (summaryRole && row.userRole !== summaryRole) continue;
+        if (summaryUserId && String(row.userId) !== summaryUserId) continue;
+        const key = `${row.userId}:${row.branchId}`;
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            userId: row.userId,
+            userName: row.userName,
+            userOvog: row.userOvog,
+            userRole: row.userRole,
+            branchName: row.branchName,
+            requiredMinutes: 0,
+            lateMinutes: 0,
+            earlyLeaveMinutes: 0,
+            acceptedOvertimeMinutes: 0,
+          });
+        }
+        const agg = grouped.get(key)!;
+        agg.requiredMinutes += row.requiredMinutes ?? 0;
+        agg.lateMinutes += row.lateMinutes ?? 0;
+        agg.earlyLeaveMinutes += row.earlyLeaveMinutes ?? 0;
+        const rowKey = row.sessionId
+          ? `session-${row.sessionId}`
+          : `${row.userId}-${row.scheduledDate}-${row.branchId}`;
+        const overtimeMinutes =
+          row.durationMinutes != null &&
+          row.requiredMinutes != null &&
+          row.durationMinutes > row.requiredMinutes
+            ? row.durationMinutes - row.requiredMinutes
+            : 0;
+        if (overtimeMinutes > 0 && overtimeApprovedMap[rowKey] === true) {
+          agg.acceptedOvertimeMinutes += overtimeMinutes;
+        }
+      }
+      const nextRows = Array.from(grouped.values()).sort((a, b) => {
+        const nameA = `${a.userOvog || ""}${a.userName || ""}`;
+        const nameB = `${b.userOvog || ""}${b.userName || ""}`;
+        return nameA.localeCompare(nameB);
+      });
+      setSummaryRows(nextRows);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Нэгтгэсэн тайлан татахад алдаа гарлаа.");
+      setSummaryRows([]);
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+
   return (
     <main className="w-full px-4 py-6 font-sans">
-      <h1 className="mb-4 text-2xl font-bold text-gray-900">Ирцийн тайлан</h1>
+      <h1 className="mb-4 text-2xl font-bold text-gray-900">Ирц</h1>
+
+      <section className="mb-4 flex gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab("report")}
+          className={`rounded-lg border px-3 py-1.5 text-sm ${
+            activeTab === "report"
+              ? "border-blue-300 bg-blue-50 text-blue-700"
+              : "border-gray-300 bg-white text-gray-700"
+          }`}
+        >
+          Ирцийн тайлан
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("attempts")}
+          className={`rounded-lg border px-3 py-1.5 text-sm ${
+            activeTab === "attempts"
+              ? "border-blue-300 bg-blue-50 text-blue-700"
+              : "border-gray-300 bg-white text-gray-700"
+          }`}
+        >
+          Оролдлогын лог
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("policy")}
+          className={`rounded-lg border px-3 py-1.5 text-sm ${
+            activeTab === "policy"
+              ? "border-blue-300 bg-blue-50 text-blue-700"
+              : "border-gray-300 bg-white text-gray-700"
+          }`}
+        >
+          Ирцийн бодлого
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("summary")}
+          className={`rounded-lg border px-3 py-1.5 text-sm ${
+            activeTab === "summary"
+              ? "border-blue-300 bg-blue-50 text-blue-700"
+              : "border-gray-300 bg-white text-gray-700"
+          }`}
+        >
+          Нэгтгэсэн тайлан
+        </button>
+      </section>
+
+      {data?.summary && activeTab === "report" && (
+        <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-5">
+          <div className="rounded-xl border border-gray-200 bg-white p-3 text-sm">
+            Ирцийн хувь: <strong>{data.summary.attendanceRatePercent}%</strong>
+          </div>
+          <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm">
+            Ирсэн: <strong>{data.summary.presentCount}</strong>
+          </div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
+            Нээлттэй: <strong>{data.summary.openCount}</strong>
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm">
+            Хуваарьгүй: <strong>{data.summary.unscheduledCount}</strong>
+          </div>
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm">
+            Дундаж хоцролт: <strong>{data.summary.avgLateMinutes} мин</strong>
+          </div>
+        </section>
+      )}
 
       {/* ── Filters ── */}
+      {activeTab === "report" && (
       <section className="mb-6 flex flex-wrap gap-3 rounded-xl border border-gray-200 bg-white p-4">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-gray-600">Эхлэх огноо</label>
@@ -279,7 +821,307 @@ export default function AdminAttendancePage() {
             <option value="unscheduled">Хуваарьгүй</option>
           </select>
         </div>
+
+        <div className="ml-auto flex gap-2 self-end">
+          <button
+            type="button"
+            onClick={runAutoClose}
+            disabled={autoCloseLoading}
+            className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm text-amber-800 hover:bg-amber-100 disabled:opacity-40"
+          >
+            {autoCloseLoading ? "Хааж байна..." : "Нээлттэй сешн хаах"}
+          </button>
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={exporting}
+            className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100 disabled:opacity-40"
+          >
+            {exporting ? "Экспорт..." : "CSV экспорт"}
+          </button>
+        </div>
       </section>
+      )}
+
+      {activeTab === "policy" && (
+      <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4">
+        <h2 className="mb-3 text-sm font-semibold text-gray-900">Ирцийн бодлого</h2>
+        <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-5">
+          <select
+            value={newPolicyBranchId}
+            onChange={(e) => setNewPolicyBranchId(e.target.value)}
+            className="rounded border border-gray-300 px-2 py-1 text-sm"
+          >
+            <option value="">Бүх салбарт</option>
+            {branches.map((b) => (
+              <option key={b.id} value={String(b.id)}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={newPolicyRole}
+            onChange={(e) => setNewPolicyRole(e.target.value)}
+            className="rounded border border-gray-300 px-2 py-1 text-sm"
+          >
+            {POLICY_ROLE_OPTIONS.map((roleOption) => (
+              <option key={roleOption.value || "all"} value={roleOption.value}>
+                {roleOption.label}
+              </option>
+            ))}
+          </select>
+          <input
+            value={newPolicyPriority}
+            onChange={(e) => setNewPolicyPriority(e.target.value)}
+            className="rounded border border-gray-300 px-2 py-1 text-sm"
+            placeholder="Эрэмбэ"
+          />
+          <input
+            value={newPolicyEarlyCheckIn}
+            onChange={(e) => setNewPolicyEarlyCheckIn(e.target.value)}
+            className="rounded border border-gray-300 px-2 py-1 text-sm"
+            placeholder="Эрт ирц (мин)"
+          />
+          <input
+            value={newPolicyMinAccuracy}
+            onChange={(e) => setNewPolicyMinAccuracy(e.target.value)}
+            className="rounded border border-gray-300 px-2 py-1 text-sm"
+            placeholder="GPS нарийвчлал (м)"
+          />
+          <input
+            value={newPolicyLateGrace}
+            onChange={(e) => setNewPolicyLateGrace(e.target.value)}
+            className="rounded border border-gray-300 px-2 py-1 text-sm"
+            placeholder="Хоцролтын чөлөө (мин)"
+          />
+          <input
+            value={newPolicyEarlyLeaveGrace}
+            onChange={(e) => setNewPolicyEarlyLeaveGrace(e.target.value)}
+            className="rounded border border-gray-300 px-2 py-1 text-sm"
+            placeholder="Эрт гаралтын чөлөө (мин)"
+          />
+          <input
+            value={newPolicyAutoClose}
+            onChange={(e) => setNewPolicyAutoClose(e.target.value)}
+            className="rounded border border-gray-300 px-2 py-1 text-sm"
+            placeholder="Авто хаалт (мин)"
+          />
+          <label className="flex items-center gap-2 rounded border border-gray-300 px-2 py-1 text-sm">
+            <input
+              type="checkbox"
+              checked={newPolicyEnforceGeofence}
+              onChange={(e) => setNewPolicyEnforceGeofence(e.target.checked)}
+            />
+            Гео бүс заавал мөрдөх
+          </label>
+          <button
+            type="button"
+            onClick={createPolicy}
+            disabled={savingPolicy}
+            className="rounded border border-blue-300 bg-blue-50 px-3 py-1 text-sm text-blue-700 hover:bg-blue-100 disabled:opacity-40"
+          >
+            {savingPolicy ? "Хадгалж байна..." : "Бодлого нэмэх"}
+          </button>
+        </div>
+        {policyLoading ? (
+          <p className="text-xs text-gray-500">Бодлого ачаалж байна...</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="px-2 py-1 text-left">ID</th>
+                  <th className="px-2 py-1 text-left">Салбар</th>
+                  <th className="px-2 py-1 text-left">Үүрэг</th>
+                  <th className="px-2 py-1 text-right">Эрэмбэ</th>
+                  <th className="px-2 py-1 text-right">Эрт ирц</th>
+                  <th className="px-2 py-1 text-right">Хоцролтын чөлөө</th>
+                  <th className="px-2 py-1 text-right">Эрт гаралтын чөлөө</th>
+                  <th className="px-2 py-1 text-right">Авто хаалт</th>
+                  <th className="px-2 py-1 text-right">Нарийвчлал</th>
+                  <th className="px-2 py-1 text-left">Гео бүс</th>
+                  <th className="px-2 py-1 text-right">Үйлдэл</th>
+                </tr>
+              </thead>
+              <tbody>
+                {policies.map((p) => (
+                  <tr key={p.id} className="border-t border-gray-100">
+                    <td className="px-2 py-1">{p.id}</td>
+                    <td className="px-2 py-1">
+                      {p.branchId == null
+                        ? "Бүх салбар"
+                        : branches.find((b) => b.id === p.branchId)?.name || p.branchId}
+                    </td>
+                    <td className="px-2 py-1">{p.role ? roleLabel(p.role) : "Бүгд"}</td>
+                    <td className="px-2 py-1 text-right">{p.priority}</td>
+                    <td className="px-2 py-1 text-right">{p.earlyCheckInMinutes}</td>
+                    <td className="px-2 py-1 text-right">{p.lateGraceMinutes}</td>
+                    <td className="px-2 py-1 text-right">{p.earlyLeaveGraceMinutes}</td>
+                    <td className="px-2 py-1 text-right">{p.autoCloseAfterMinutes}</td>
+                    <td className="px-2 py-1 text-right">{p.minAccuracyM}</td>
+                    <td className="px-2 py-1">{p.enforceGeofence ? "Тийм" : "Үгүй"}</td>
+                    <td className="px-2 py-1">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => startEditPolicy(p)}
+                          disabled={savingPolicyActionId === p.id}
+                          className="rounded border border-gray-300 bg-white px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                        >
+                          Засах
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deletePolicy(p.id)}
+                          disabled={savingPolicyActionId === p.id}
+                          className="rounded border border-red-300 bg-red-50 px-2 py-1 text-[11px] text-red-700 hover:bg-red-100 disabled:opacity-40"
+                        >
+                          Устгах
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {editingPolicyId && policyEditForm && (
+          <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+            <div className="mb-2 text-sm font-semibold text-blue-900">Бодлого засах</div>
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
+              <select
+                value={policyEditForm.branchId}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) => (prev ? { ...prev, branchId: e.target.value } : prev))
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+              >
+                <option value="">Бүх салбарт</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={policyEditForm.role}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) => (prev ? { ...prev, role: e.target.value } : prev))
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+              >
+                {POLICY_ROLE_OPTIONS.map((roleOption) => (
+                  <option key={roleOption.value || "all"} value={roleOption.value}>
+                    {roleOption.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                value={policyEditForm.priority}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) => (prev ? { ...prev, priority: e.target.value } : prev))
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+                placeholder="Эрэмбэ"
+              />
+              <input
+                value={policyEditForm.earlyCheckInMinutes}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) =>
+                    prev ? { ...prev, earlyCheckInMinutes: e.target.value } : prev
+                  )
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+                placeholder="Эрт ирц (мин)"
+              />
+              <input
+                value={policyEditForm.minAccuracyM}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) =>
+                    prev ? { ...prev, minAccuracyM: e.target.value } : prev
+                  )
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+                placeholder="GPS нарийвчлал (м)"
+              />
+              <input
+                value={policyEditForm.lateGraceMinutes}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) =>
+                    prev ? { ...prev, lateGraceMinutes: e.target.value } : prev
+                  )
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+                placeholder="Хоцролтын чөлөө (мин)"
+              />
+              <input
+                value={policyEditForm.earlyLeaveGraceMinutes}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) =>
+                    prev ? { ...prev, earlyLeaveGraceMinutes: e.target.value } : prev
+                  )
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+                placeholder="Эрт гаралтын чөлөө (мин)"
+              />
+              <input
+                value={policyEditForm.autoCloseAfterMinutes}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) =>
+                    prev ? { ...prev, autoCloseAfterMinutes: e.target.value } : prev
+                  )
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+                placeholder="Авто хаалт (мин)"
+              />
+              <label className="flex items-center gap-2 rounded border border-gray-300 px-2 py-1 text-sm">
+                <input
+                  type="checkbox"
+                  checked={policyEditForm.enforceGeofence}
+                  onChange={(e) =>
+                    setPolicyEditForm((prev) =>
+                      prev ? { ...prev, enforceGeofence: e.target.checked } : prev
+                    )
+                  }
+                />
+                Гео бүс заавал мөрдөх
+              </label>
+              <label className="flex items-center gap-2 rounded border border-gray-300 px-2 py-1 text-sm">
+                <input
+                  type="checkbox"
+                  checked={policyEditForm.isActive}
+                  onChange={(e) =>
+                    setPolicyEditForm((prev) =>
+                      prev ? { ...prev, isActive: e.target.checked } : prev
+                    )
+                  }
+                />
+                Идэвхтэй
+              </label>
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={cancelEditPolicy}
+                disabled={savingPolicyActionId != null}
+                className="rounded border border-gray-300 bg-white px-3 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+              >
+                Болих
+              </button>
+              <button
+                type="button"
+                onClick={savePolicyEdit}
+                disabled={savingPolicyActionId != null}
+                className="rounded border border-blue-300 bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-40"
+              >
+                Хадгалах
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+      )}
 
       {/* ── Error ── */}
       {error && (
@@ -289,13 +1131,14 @@ export default function AdminAttendancePage() {
       )}
 
       {/* ── Summary ── */}
-      {data && !loading && (
+      {activeTab === "report" && data && !loading && (
         <p className="mb-2 text-sm text-gray-500">
           Нийт: <strong>{data.total}</strong> бичлэг
         </p>
       )}
 
       {/* ── Table ── */}
+      {activeTab === "report" && (
       <section>
         {loading ? (
           <p className="text-sm text-gray-600">Ачаалж байна...</p>
@@ -318,10 +1161,10 @@ export default function AdminAttendancePage() {
                       Салбар
                     </th>
                     <th className="whitespace-nowrap px-3 py-3 font-semibold text-gray-700">
-                      Хуваарийн эхлэл
+                      Эхлэх цаг
                     </th>
                     <th className="whitespace-nowrap px-3 py-3 font-semibold text-gray-700">
-                      Хуваарийн төгсгөл
+                      Дуусах цаг
                     </th>
                     <th className="whitespace-nowrap px-3 py-3 font-semibold text-gray-700">
                       Ирсэн цаг
@@ -336,10 +1179,19 @@ export default function AdminAttendancePage() {
                       Төлөв
                     </th>
                     <th className="whitespace-nowrap px-3 py-3 text-right font-semibold text-gray-700">
+                      Шаардлагатай мин
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-3 text-right font-semibold text-gray-700">
                       Хоцролт (мин)
                     </th>
                     <th className="whitespace-nowrap px-3 py-3 text-right font-semibold text-gray-700">
                       Эрт явсан (мин)
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-3 text-right font-semibold text-gray-700">
+                      Илүү цаг
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-3 text-right font-semibold text-gray-700">
+                      Үйлдэл
                     </th>
                   </tr>
                 </thead>
@@ -347,16 +1199,30 @@ export default function AdminAttendancePage() {
                   {!data || data.items.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={12}
+                        colSpan={15}
                         className="px-3 py-6 text-center text-sm text-gray-400"
                       >
                         Мэдээлэл олдсонгүй
                       </td>
                     </tr>
                   ) : (
-                    data.items.map((row, i) => (
+                    data.items.map((row, i) => {
+                      const rowKey = row.sessionId
+                        ? `session-${row.sessionId}`
+                        : `${row.userId}-${row.scheduledDate}`;
+                      const overtimeMinutes =
+                        row.durationMinutes != null &&
+                        row.requiredMinutes != null &&
+                        row.durationMinutes > row.requiredMinutes
+                          ? row.durationMinutes - row.requiredMinutes
+                          : 0;
+                      const hasOvertime = overtimeMinutes > 0;
+                      const overtimeApproved = hasOvertime
+                        ? overtimeApprovedMap[rowKey] === true
+                        : false;
+                      return (
                       <tr
-                        key={`${row.userId}-${row.scheduledDate}-${i}`}
+                        key={rowKey}
                         className="border-t border-gray-100"
                         style={{ background: statusBg(row.status) }}
                       >
@@ -392,7 +1258,7 @@ export default function AdminAttendancePage() {
                             ? `${row.durationMinutes} мин`
                             : "—"}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2">
+                        <td className="whitespace-nowrap px-3 py-2 text-right">
                           <span
                             style={{
                               color: statusColor(row.status),
@@ -401,6 +1267,12 @@ export default function AdminAttendancePage() {
                           >
                             {statusLabel(row.status)}
                           </span>
+                          {row.reviewReason ? (
+                            <div className="text-[11px] text-amber-700">{row.reviewReason}</div>
+                          ) : null}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right">
+                          {row.requiredMinutes != null ? `${row.requiredMinutes}` : "—"}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right">
                           {row.lateMinutes != null ? (
@@ -420,8 +1292,65 @@ export default function AdminAttendancePage() {
                             "—"
                           )}
                         </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right">
+                          {hasOvertime ? formatOvertime(overtimeMinutes) : "—"}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right">
+                          <div className="flex justify-end gap-1">
+                            <button
+                              type="button"
+                              title="Илүү цагийг зөвшөөрөх"
+                              aria-label="Илүү цагийг зөвшөөрөх"
+                              disabled={!hasOvertime}
+                              onClick={() =>
+                                setOvertimeApprovedMap((prev) => ({
+                                  ...prev,
+                                  [rowKey]: true,
+                                }))
+                              }
+                              className={`rounded border px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40 ${
+                                overtimeApproved
+                                  ? "border-green-300 bg-green-50 text-green-700"
+                                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                              }`}
+                            >
+                              ✓
+                            </button>
+                            <button
+                              type="button"
+                              title="Илүү цаггүй"
+                              aria-label="Илүү цаггүй"
+                              disabled={!hasOvertime}
+                              onClick={() =>
+                                setOvertimeApprovedMap((prev) => ({
+                                  ...prev,
+                                  [rowKey]: false,
+                                }))
+                              }
+                              className={`rounded border px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40 ${
+                                !overtimeApproved
+                                  ? "border-red-300 bg-red-50 text-red-700"
+                                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                              }`}
+                            >
+                              ✕
+                            </button>
+                            {row.sessionId ? (
+                              <button
+                                type="button"
+                                onClick={() => openEdit(row)}
+                                className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                              >
+                                Засах
+                              </button>
+                            ) : (
+                              <span className="px-2 py-1 text-xs text-gray-400">—</span>
+                            )}
+                          </div>
+                        </td>
                       </tr>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -454,6 +1383,287 @@ export default function AdminAttendancePage() {
           </>
         )}
       </section>
+      )}
+
+      {activeTab === "attempts" && (
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="mb-3 flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600">Үр дүн</label>
+              <select
+                value={attemptResult}
+                onChange={(e) => setAttemptResult(e.target.value as "" | "SUCCESS" | "FAIL")}
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+              >
+                <option value="">Бүгд</option>
+                <option value="SUCCESS">Амжилттай</option>
+                <option value="FAIL">Амжилтгүй</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600">Мөрийн тоо</label>
+              <select
+                value={String(attemptTake)}
+                onChange={(e) => setAttemptTake(Number(e.target.value))}
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+              >
+                <option value="100">100</option>
+                <option value="200">200</option>
+                <option value="500">500</option>
+              </select>
+            </div>
+          </div>
+          {attemptsLoading ? (
+            <p className="text-sm text-gray-600">Ачаалж байна...</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead className="bg-gray-50 text-left">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold text-gray-700">Огноо</th>
+                    <th className="px-3 py-2 font-semibold text-gray-700">Ажилтан</th>
+                    <th className="px-3 py-2 font-semibold text-gray-700">Салбар</th>
+                    <th className="px-3 py-2 font-semibold text-gray-700">Төрөл</th>
+                    <th className="px-3 py-2 font-semibold text-gray-700">Үр дүн</th>
+                    <th className="px-3 py-2 font-semibold text-gray-700">Шалтгаан</th>
+                    <th className="px-3 py-2 font-semibold text-gray-700">GPS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {attempts.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-3 py-6 text-center text-sm text-gray-400">
+                        Мэдээлэл олдсонгүй
+                      </td>
+                    </tr>
+                  ) : (
+                    attempts.map((row) => (
+                      <tr key={row.id} className="border-t border-gray-100">
+                        <td className="whitespace-nowrap px-3 py-2">{formatDateTime(row.attemptAt)}</td>
+                        <td className="px-3 py-2">
+                          {formatDisplayName(row.user.ovog, row.user.name)}
+                          <div className="text-xs text-gray-500">{roleLabel(row.user.role)}</div>
+                        </td>
+                        <td className="px-3 py-2">{row.branch?.name || "—"}</td>
+                        <td className="px-3 py-2">{row.attemptType === "CHECK_IN" ? "Ирэх" : "Явах"}</td>
+                        <td className="px-3 py-2">
+                          <span className={row.result === "SUCCESS" ? "text-green-600" : "text-red-600"}>
+                            {row.result === "SUCCESS" ? "Амжилттай" : "Амжилтгүй"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          {row.failureCode || "—"}
+                          {row.failureMessage ? (
+                            <div className="text-xs text-gray-500">{row.failureMessage}</div>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-600">
+                          Нарийвчлал: {row.accuracyM ?? "—"}м • Зай: {row.distanceM ?? "—"}м / Радиус:{" "}
+                          {row.radiusM ?? "—"}м
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {activeTab === "summary" && (
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-end gap-3 rounded-xl border border-gray-200 bg-white p-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600">Эхлэх огноо</label>
+              <input
+                type="date"
+                value={summaryFromDate}
+                max={summaryToDate}
+                onChange={(e) => setSummaryFromDate(e.target.value)}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600">Дуусах огноо</label>
+              <input
+                type="date"
+                value={summaryToDate}
+                min={summaryFromDate}
+                onChange={(e) => setSummaryToDate(e.target.value)}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600">Салбар</label>
+              <select
+                value={summaryBranchId}
+                onChange={(e) => setSummaryBranchId(e.target.value)}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm"
+              >
+                <option value="">Бүх салбар</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600">Үүрэг</label>
+              <select
+                value={summaryRole}
+                onChange={(e) => setSummaryRole(e.target.value)}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm"
+              >
+                <option value="">Бүх үүрэг</option>
+                {POLICY_ROLE_OPTIONS.filter((opt) => opt.value).map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600">Ажилтан</label>
+              <select
+                value={summaryUserId}
+                onChange={(e) => setSummaryUserId(e.target.value)}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm"
+              >
+                <option value="">Бүх ажилтан</option>
+                {users.map((u) => (
+                  <option key={u.id} value={String(u.id)}>
+                    {formatDisplayName(u.ovog, u.name)} ({roleLabel(u.role)})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              onClick={runSummarySearch}
+              disabled={summaryLoading}
+              className="rounded border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-100 disabled:opacity-40"
+            >
+              {summaryLoading ? "Шүүж байна..." : "Шүүх"}
+            </button>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+            <table className="w-full border-collapse text-sm">
+              <thead className="bg-gray-50 text-left">
+                <tr>
+                  <th className="whitespace-nowrap px-3 py-2 font-semibold text-gray-700">Эхлэх огноо</th>
+                  <th className="whitespace-nowrap px-3 py-2 font-semibold text-gray-700">Дуусах огноо</th>
+                  <th className="whitespace-nowrap px-3 py-2 font-semibold text-gray-700">Нэр</th>
+                  <th className="whitespace-nowrap px-3 py-2 font-semibold text-gray-700">Үүрэг</th>
+                  <th className="whitespace-nowrap px-3 py-2 font-semibold text-gray-700">Салбар</th>
+                  <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700">Ажиллах цаг</th>
+                  <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700">Хоцролт (мин)</th>
+                  <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700">Эрт явсан (мин)</th>
+                  <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700">Илүү цаг</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!summarySearched ? (
+                  <tr>
+                    <td colSpan={9} className="px-3 py-6 text-center text-sm text-gray-400">
+                      Шүүлт хийнэ үү
+                    </td>
+                  </tr>
+                ) : summaryRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="px-3 py-6 text-center text-sm text-gray-400">
+                      Мэдээлэл олдсонгүй
+                    </td>
+                  </tr>
+                ) : (
+                  summaryRows.map((row) => (
+                    <tr key={`${row.userId}-${row.branchName}`} className="border-t border-gray-100">
+                      <td className="whitespace-nowrap px-3 py-2">{summaryFromDate}</td>
+                      <td className="whitespace-nowrap px-3 py-2">{summaryToDate}</td>
+                      <td className="px-3 py-2">{formatDisplayName(row.userOvog, row.userName)}</td>
+                      <td className="whitespace-nowrap px-3 py-2">{roleLabel(row.userRole)}</td>
+                      <td className="px-3 py-2">{row.branchName}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                        {formatOvertime(row.requiredMinutes)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">{row.lateMinutes}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">{row.earlyLeaveMinutes}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                        {formatOvertime(row.acceptedOvertimeMinutes)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {editingRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl">
+            <h2 className="mb-3 text-lg font-semibold text-gray-900">Ирцийн сешн засах</h2>
+            <div className="mb-3 space-y-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Шинэ ирсэн цаг</label>
+                <input
+                  type="datetime-local"
+                  value={editCheckInAt}
+                  onChange={(e) => setEditCheckInAt(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Шинэ гарсан цаг</label>
+                <input
+                  type="datetime-local"
+                  value={editCheckOutAt}
+                  onChange={(e) => setEditCheckOutAt(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Шалтгаан код</label>
+                <input
+                  type="text"
+                  value={editReasonCode}
+                  onChange={(e) => setEditReasonCode(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Тайлбар</label>
+                <textarea
+                  value={editReasonText}
+                  onChange={(e) => setEditReasonText(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  rows={3}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeEdit}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Болих
+              </button>
+              <button
+                type="button"
+                onClick={saveEdit}
+                disabled={editSaving}
+                className="rounded-lg border border-blue-300 bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-40"
+              >
+                {editSaving ? "Хадгалж байна..." : "Хадгалах"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

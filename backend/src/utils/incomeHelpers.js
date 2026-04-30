@@ -5,6 +5,7 @@
  *  1. Mapping the discount-percent enum to a numeric value.
  *  2. Computing per-line net amounts by applying the discount percent to each line.
  *  3. Allocating a single payment proportionally by remaining discounted net due.
+ *  4. Summing paid non-imaging service allocations for override-method sales.
  */
 
 /**
@@ -123,4 +124,27 @@ export function allocatePaymentProportionalByRemaining(paymentAmount, lineIds, r
   }
 
   return result;
+}
+
+/**
+ * Sum override-method doctor sales from actual paid allocations.
+ *
+ * Override payment methods (insurance/application/wallet) keep the existing 0.9
+ * multiplier, but sales should follow payments in the selected date range rather
+ * than invoice-level legacy paid status.
+ *
+ * @param {Array<{id: number}>} nonImagingServiceItems
+ * @param {Map<number, number>} itemAllocationBase
+ * @param {number} feeMultiplier
+ * @returns {number}
+ */
+export function computeOverrideSalesFromAllocations(
+  nonImagingServiceItems,
+  itemAllocationBase,
+  feeMultiplier = 0.9
+) {
+  return (nonImagingServiceItems || []).reduce((sum, it) => {
+    const allocated = Number(itemAllocationBase?.get(it.id) || 0);
+    return sum + allocated * feeMultiplier;
+  }, 0);
 }

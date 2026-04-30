@@ -6,6 +6,7 @@ type Branch = {
   address: string | null;
   geoLat?: number | null;
   geoLng?: number | null;
+  geoRadiusM?: number;
   createdAt?: string;
 };
 
@@ -27,6 +28,7 @@ function BranchForm({ onSuccess }: { onSuccess: (b: Branch) => void }) {
     address: "",
     geoLat: "",
     geoLng: "",
+    geoRadiusM: "150",
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -53,6 +55,13 @@ function BranchForm({ onSuccess }: { onSuccess: (b: Branch) => void }) {
         return;
       }
     }
+    if (form.geoRadiusM !== "") {
+      const v = Number(form.geoRadiusM);
+      if (!Number.isInteger(v) || v < 10 || v > 5000) {
+        setError("Зайны радиус 10-5000 метрийн хооронд бүхэл тоо байна.");
+        return;
+      }
+    }
 
     setSubmitting(true);
 
@@ -63,6 +72,7 @@ function BranchForm({ onSuccess }: { onSuccess: (b: Branch) => void }) {
       };
       if (form.geoLat !== "") body.geoLat = Number(form.geoLat);
       if (form.geoLng !== "") body.geoLng = Number(form.geoLng);
+      if (form.geoRadiusM !== "") body.geoRadiusM = Number(form.geoRadiusM);
 
       const res = await fetch("/api/branches", {
         method: "POST",
@@ -79,7 +89,7 @@ function BranchForm({ onSuccess }: { onSuccess: (b: Branch) => void }) {
 
       if (res.ok) {
         onSuccess(data as Branch);
-        setForm({ name: "", address: "", geoLat: "", geoLng: "" });
+        setForm({ name: "", address: "", geoLat: "", geoLng: "", geoRadiusM: "150" });
       } else {
         setError((data && data.error) || "Алдаа гарлаа");
       }
@@ -190,6 +200,28 @@ function BranchForm({ onSuccess }: { onSuccess: (b: Branch) => void }) {
             {GEO_HELPER_TEXT}
           </span>
         </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label>Салбараас зөвшөөрөх зай (метр)</label>
+          <input
+            name="geoRadiusM"
+            type="number"
+            min={10}
+            max={5000}
+            step={1}
+            placeholder="Ж: 150"
+            value={form.geoRadiusM}
+            onChange={handleChange}
+            style={{
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
+          <span style={{ fontSize: 11, color: "#6b7280" }}>
+            Ирц бүртгэх үед салбараас зөвшөөрөх дээд зай.
+          </span>
+        </div>
       </div>
 
       <div
@@ -232,11 +264,18 @@ export default function BranchesPage() {
 
   // inline edit state
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editValues, setEditValues] = useState<{ name: string; address: string; geoLat: string; geoLng: string }>({
+  const [editValues, setEditValues] = useState<{
+    name: string;
+    address: string;
+    geoLat: string;
+    geoLng: string;
+    geoRadiusM: string;
+  }>({
     name: "",
     address: "",
     geoLat: "",
     geoLng: "",
+    geoRadiusM: "",
   });
   const [savingId, setSavingId] = useState<number | null>(null);
   const [editError, setEditError] = useState("");
@@ -277,20 +316,21 @@ export default function BranchesPage() {
       address: b.address || "",
       geoLat: b.geoLat != null ? String(b.geoLat) : "",
       geoLng: b.geoLng != null ? String(b.geoLng) : "",
+      geoRadiusM: b.geoRadiusM != null ? String(b.geoRadiusM) : "150",
     });
     setEditError("");
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditValues({ name: "", address: "", geoLat: "", geoLng: "" });
+    setEditValues({ name: "", address: "", geoLat: "", geoLng: "", geoRadiusM: "" });
     setSavingId(null);
     setEditError("");
   };
 
   const handleEditChange = (
     e: React.ChangeEvent<HTMLInputElement>,
-    field: "name" | "address" | "geoLat" | "geoLng"
+    field: "name" | "address" | "geoLat" | "geoLng" | "geoRadiusM"
   ) => {
     const value = e.target.value;
     setEditValues((prev) => ({ ...prev, [field]: value }));
@@ -315,6 +355,13 @@ export default function BranchesPage() {
         return;
       }
     }
+    if (editValues.geoRadiusM !== "") {
+      const v = Number(editValues.geoRadiusM);
+      if (!Number.isInteger(v) || v < 10 || v > 5000) {
+        setEditError("Зайны радиус 10-5000 метрийн хооронд бүхэл тоо байна.");
+        return;
+      }
+    }
     setSavingId(b.id);
     setEditError("");
 
@@ -324,6 +371,8 @@ export default function BranchesPage() {
         address: editValues.address.trim() || null,
         geoLat: editValues.geoLat !== "" ? Number(editValues.geoLat) : null,
         geoLng: editValues.geoLng !== "" ? Number(editValues.geoLng) : null,
+        geoRadiusM:
+          editValues.geoRadiusM !== "" ? Number(editValues.geoRadiusM) : undefined,
       };
 
       const res = await fetch(`/api/branches/${b.id}`, {
@@ -438,6 +487,7 @@ export default function BranchesPage() {
                   <th style={{ ...thStyle }}>Хаяг</th>
                   <th style={{ ...thStyle }}>Өргөрөг (Lat)</th>
                   <th style={{ ...thStyle }}>Уртраг (Lng)</th>
+                  <th style={{ ...thStyle }}>Зайны радиус (м)</th>
                   <th style={{ ...thStyle }}>Үүсгэсэн огноо</th>
                   <th
                     style={{
@@ -543,9 +593,30 @@ export default function BranchesPage() {
                       </td>
 
                       {/* CreatedAt */}
-                     <td style={tdStyle}>
-  {formatDateYmdDots(b.createdAt)}
-</td>
+                      <td style={tdStyle}>
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            min={10}
+                            max={5000}
+                            step={1}
+                            value={editValues.geoRadiusM}
+                            onChange={(e) => handleEditChange(e, "geoRadiusM")}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                              fontSize: 12,
+                            }}
+                          />
+                        ) : (
+                          b.geoRadiusM ?? 150
+                        )}
+                      </td>
+
+                      {/* CreatedAt */}
+                      <td style={tdStyle}>{formatDateYmdDots(b.createdAt)}</td>
 
                       {/* Actions */}
                       <td
@@ -617,7 +688,7 @@ export default function BranchesPage() {
                 {branches.length === 0 && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       style={{
                         textAlign: "center",
                         color: "#9ca3af",
