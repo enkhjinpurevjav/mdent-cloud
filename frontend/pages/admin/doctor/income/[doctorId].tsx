@@ -65,15 +65,22 @@ function formatDoctorName(ovog: string | null | undefined, name: string | null |
 function formatPatient(ovog: string | null | undefined, name: string | null | undefined) {
   const n = (name || "").trim();
   const o = (ovog || "").trim();
-  if (o && n) return `${o[0]}. ${n}`;
+  if (o && n) return `${n}.${o[0]}.`;
   return n || o || "-";
 }
 
 function formatDate(isoStr: string | null | undefined) {
   if (!isoStr) return "-";
-  const d = new Date(isoStr);
+  const dateOnly = isoStr.match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+  if (!dateOnly) return "-";
+  const d = new Date(`${dateOnly}T00:00:00.000Z`);
   if (isNaN(d.getTime())) return "-";
-  return d.toLocaleDateString("mn-MN", { year: "numeric", month: "2-digit", day: "2-digit" });
+  return d.toLocaleDateString("mn-MN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "UTC",
+  });
 }
 
 // ✅ Add this right here (after helpers, before Icons / components)
