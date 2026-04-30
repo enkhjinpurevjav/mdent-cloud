@@ -108,7 +108,29 @@ router.patch("/attendance/policies/:id", async (req, res) => {
     });
     return res.json({ policy: updated });
   } catch (err) {
+    if (err?.code === "P2025") {
+      return res.status(404).json({ error: "Бодлого олдсонгүй." });
+    }
     console.error("PATCH /api/admin/attendance/policies/:id error:", err);
+    return res.status(500).json({ error: "Серверийн алдаа гарлаа." });
+  }
+});
+
+router.delete("/attendance/policies/:id", async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: "policy id буруу байна." });
+    }
+    await prisma.attendancePolicy.delete({
+      where: { id },
+    });
+    return res.json({ ok: true });
+  } catch (err) {
+    if (err?.code === "P2025") {
+      return res.status(404).json({ error: "Бодлого олдсонгүй." });
+    }
+    console.error("DELETE /api/admin/attendance/policies/:id error:", err);
     return res.status(500).json({ error: "Серверийн алдаа гарлаа." });
   }
 });

@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/router";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -43,6 +42,17 @@ function formatDate(isoStr: string | null): string {
   if (!isoStr) return "—";
   // dateStr is already YYYY-MM-DD
   return isoStr;
+}
+
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("mn-MN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 function roleLabel(role: string): string {
@@ -143,6 +153,28 @@ type AttendancePolicyRow = {
   enforceGeofence: boolean;
 };
 
+type AttendanceAttemptRow = {
+  id: number;
+  attemptAt: string;
+  attemptType: "CHECK_IN" | "CHECK_OUT";
+  result: "SUCCESS" | "FAIL";
+  failureCode?: string | null;
+  failureMessage?: string | null;
+  accuracyM?: number | null;
+  distanceM?: number | null;
+  radiusM?: number | null;
+  user: {
+    id: number;
+    name: string | null;
+    ovog: string | null;
+    role: string;
+  };
+  branch?: {
+    id: number;
+    name: string;
+  } | null;
+};
+
 type ApiResponse = {
   items: AttendanceRow[];
   summary?: AttendanceSummary;
@@ -159,8 +191,6 @@ type ApiResponse = {
 const PAGE_SIZE_DEFAULT = 50;
 
 export default function AdminAttendancePage() {
-  const router = useRouter();
-
   const [fromDate, setFromDate] = useState<string>(todayLocalStr);
   const [toDate, setToDate] = useState<string>(todayLocalStr);
   const [branchId, setBranchId] = useState<string>("");
@@ -197,6 +227,25 @@ export default function AdminAttendancePage() {
   const [newPolicyAutoClose, setNewPolicyAutoClose] = useState("720");
   const [newPolicyMinAccuracy, setNewPolicyMinAccuracy] = useState("100");
   const [newPolicyEnforceGeofence, setNewPolicyEnforceGeofence] = useState(true);
+  const [activeTab, setActiveTab] = useState<"report" | "attempts">("report");
+  const [attempts, setAttempts] = useState<AttendanceAttemptRow[]>([]);
+  const [attemptsLoading, setAttemptsLoading] = useState(false);
+  const [attemptResult, setAttemptResult] = useState<"" | "SUCCESS" | "FAIL">("");
+  const [attemptTake, setAttemptTake] = useState(200);
+  const [editingPolicyId, setEditingPolicyId] = useState<number | null>(null);
+  const [savingPolicyActionId, setSavingPolicyActionId] = useState<number | null>(null);
+  const [policyEditForm, setPolicyEditForm] = useState<{
+    branchId: string;
+    role: string;
+    priority: string;
+    earlyCheckInMinutes: string;
+    lateGraceMinutes: string;
+    earlyLeaveGraceMinutes: string;
+    autoCloseAfterMinutes: string;
+    minAccuracyM: string;
+    enforceGeofence: boolean;
+    isActive: boolean;
+  } | null>(null);
 
   // Load branch list for filter dropdown
   useEffect(() => {
@@ -401,11 +450,136 @@ export default function AdminAttendancePage() {
     }
   }
 
+  function startEditPolicy(policy: AttendancePolicyRow) {
+    setEditingPolicyId(policy.id);
+    setPolicyEditForm({
+      branchId: policy.branchId == null ? "" : String(policy.branchId),
+      role: policy.role ?? "",
+      priority: String(policy.priority),
+      earlyCheckInMinutes: String(policy.earlyCheckInMinutes),
+      lateGraceMinutes: String(policy.lateGraceMinutes),
+      earlyLeaveGraceMinutes: String(policy.earlyLeaveGraceMinutes),
+      autoCloseAfterMinutes: String(policy.autoCloseAfterMinutes),
+      minAccuracyM: String(policy.minAccuracyM),
+      enforceGeofence: !!policy.enforceGeofence,
+      isActive: !!policy.isActive,
+    });
+  }
+
+  function cancelEditPolicy() {
+    setEditingPolicyId(null);
+    setPolicyEditForm(null);
+  }
+
+  async function savePolicyEdit() {
+    if (!editingPolicyId || !policyEditForm) return;
+    setSavingPolicyActionId(editingPolicyId);
+    setError("");
+    try {
+      const body = {
+        branchId: policyEditForm.branchId ? Number(policyEditForm.branchId) : null,
+        role: policyEditForm.role || null,
+        priority: Number(policyEditForm.priority) || 0,
+        earlyCheckInMinutes: Number(policyEditForm.earlyCheckInMinutes) || 120,
+        lateGraceMinutes: Number(policyEditForm.lateGraceMinutes) || 0,
+        earlyLeaveGraceMinutes: Number(policyEditForm.earlyLeaveGraceMinutes) || 0,
+        autoCloseAfterMinutes: Number(policyEditForm.autoCloseAfterMinutes) || 720,
+        minAccuracyM: Number(policyEditForm.minAccuracyM) || 100,
+        enforceGeofence: !!policyEditForm.enforceGeofence,
+        isActive: !!policyEditForm.isActive,
+      };
+      const res = await fetch(`/api/admin/attendance/policies/${editingPolicyId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as any).error || "Бодлого засахад алдаа гарлаа.");
+      await fetchPolicies();
+      cancelEditPolicy();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Бодлого засахад алдаа гарлаа.");
+    } finally {
+      setSavingPolicyActionId(null);
+    }
+  }
+
+  async function deletePolicy(policyId: number) {
+    if (!window.confirm("Энэ бодлогыг устгах уу?")) return;
+    setSavingPolicyActionId(policyId);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/attendance/policies/${policyId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as any).error || "Бодлого устгахад алдаа гарлаа.");
+      await fetchPolicies();
+      if (editingPolicyId === policyId) cancelEditPolicy();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Бодлого устгахад алдаа гарлаа.");
+    } finally {
+      setSavingPolicyActionId(null);
+    }
+  }
+
+  async function fetchAttempts() {
+    setAttemptsLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ take: String(attemptTake) });
+      if (attemptResult) params.set("result", attemptResult);
+      const res = await fetch(`/api/attendance/attempts?${params}`, {
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as any).error || "Оролдлогын лог татахад алдаа гарлаа.");
+      setAttempts(Array.isArray((json as any).items) ? (json as any).items : []);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Оролдлогын лог татахад алдаа гарлаа.");
+    } finally {
+      setAttemptsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === "attempts") {
+      fetchAttempts();
+    }
+  }, [activeTab, attemptTake, attemptResult]);
+
   return (
     <main className="w-full px-4 py-6 font-sans">
       <h1 className="mb-4 text-2xl font-bold text-gray-900">Ирцийн тайлан</h1>
 
-      {data?.summary && (
+      <section className="mb-4 flex gap-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab("report")}
+          className={`rounded-lg border px-3 py-1.5 text-sm ${
+            activeTab === "report"
+              ? "border-blue-300 bg-blue-50 text-blue-700"
+              : "border-gray-300 bg-white text-gray-700"
+          }`}
+        >
+          Ирцийн тайлан
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("attempts")}
+          className={`rounded-lg border px-3 py-1.5 text-sm ${
+            activeTab === "attempts"
+              ? "border-blue-300 bg-blue-50 text-blue-700"
+              : "border-gray-300 bg-white text-gray-700"
+          }`}
+        >
+          Оролдлогын лог
+        </button>
+      </section>
+
+      {data?.summary && activeTab === "report" && (
         <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-5">
           <div className="rounded-xl border border-gray-200 bg-white p-3 text-sm">
             Ирцийн хувь: <strong>{data.summary.attendanceRatePercent}%</strong>
@@ -426,6 +600,7 @@ export default function AdminAttendancePage() {
       )}
 
       {/* ── Filters ── */}
+      {activeTab === "report" && (
       <section className="mb-6 flex flex-wrap gap-3 rounded-xl border border-gray-200 bg-white p-4">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-gray-600">Эхлэх огноо</label>
@@ -515,7 +690,9 @@ export default function AdminAttendancePage() {
           </button>
         </div>
       </section>
+      )}
 
+      {activeTab === "report" && (
       <section className="mb-6 rounded-xl border border-gray-200 bg-white p-4">
         <h2 className="mb-3 text-sm font-semibold text-gray-900">Ирцийн бодлого</h2>
         <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-5">
@@ -614,6 +791,7 @@ export default function AdminAttendancePage() {
                   <th className="px-2 py-1 text-right">Авто хаалт</th>
                   <th className="px-2 py-1 text-right">Нарийвчлал</th>
                   <th className="px-2 py-1 text-left">Гео бүс</th>
+                  <th className="px-2 py-1 text-right">Үйлдэл</th>
                 </tr>
               </thead>
               <tbody>
@@ -633,13 +811,170 @@ export default function AdminAttendancePage() {
                     <td className="px-2 py-1 text-right">{p.autoCloseAfterMinutes}</td>
                     <td className="px-2 py-1 text-right">{p.minAccuracyM}</td>
                     <td className="px-2 py-1">{p.enforceGeofence ? "Тийм" : "Үгүй"}</td>
+                    <td className="px-2 py-1">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => startEditPolicy(p)}
+                          disabled={savingPolicyActionId === p.id}
+                          className="rounded border border-gray-300 bg-white px-2 py-1 text-[11px] text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                        >
+                          Засах
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deletePolicy(p.id)}
+                          disabled={savingPolicyActionId === p.id}
+                          className="rounded border border-red-300 bg-red-50 px-2 py-1 text-[11px] text-red-700 hover:bg-red-100 disabled:opacity-40"
+                        >
+                          Устгах
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         )}
+        {editingPolicyId && policyEditForm && (
+          <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3">
+            <div className="mb-2 text-sm font-semibold text-blue-900">Бодлого засах</div>
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
+              <select
+                value={policyEditForm.branchId}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) => (prev ? { ...prev, branchId: e.target.value } : prev))
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+              >
+                <option value="">Бүх салбарт</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={policyEditForm.role}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) => (prev ? { ...prev, role: e.target.value } : prev))
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+              >
+                <option value="">Бүх үүрэг</option>
+                <option value="doctor">Эмч</option>
+                <option value="nurse">Сувилагч</option>
+                <option value="receptionist">Ресепшн</option>
+                <option value="admin">Админ</option>
+                <option value="super_admin">Супер админ</option>
+                <option value="other">Бусад</option>
+              </select>
+              <input
+                value={policyEditForm.priority}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) => (prev ? { ...prev, priority: e.target.value } : prev))
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+                placeholder="Эрэмбэ"
+              />
+              <input
+                value={policyEditForm.earlyCheckInMinutes}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) =>
+                    prev ? { ...prev, earlyCheckInMinutes: e.target.value } : prev
+                  )
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+                placeholder="Эрт ирц (мин)"
+              />
+              <input
+                value={policyEditForm.minAccuracyM}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) =>
+                    prev ? { ...prev, minAccuracyM: e.target.value } : prev
+                  )
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+                placeholder="GPS нарийвчлал (м)"
+              />
+              <input
+                value={policyEditForm.lateGraceMinutes}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) =>
+                    prev ? { ...prev, lateGraceMinutes: e.target.value } : prev
+                  )
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+                placeholder="Хоцролтын чөлөө (мин)"
+              />
+              <input
+                value={policyEditForm.earlyLeaveGraceMinutes}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) =>
+                    prev ? { ...prev, earlyLeaveGraceMinutes: e.target.value } : prev
+                  )
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+                placeholder="Эрт гаралтын чөлөө (мин)"
+              />
+              <input
+                value={policyEditForm.autoCloseAfterMinutes}
+                onChange={(e) =>
+                  setPolicyEditForm((prev) =>
+                    prev ? { ...prev, autoCloseAfterMinutes: e.target.value } : prev
+                  )
+                }
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+                placeholder="Авто хаалт (мин)"
+              />
+              <label className="flex items-center gap-2 rounded border border-gray-300 px-2 py-1 text-sm">
+                <input
+                  type="checkbox"
+                  checked={policyEditForm.enforceGeofence}
+                  onChange={(e) =>
+                    setPolicyEditForm((prev) =>
+                      prev ? { ...prev, enforceGeofence: e.target.checked } : prev
+                    )
+                  }
+                />
+                Гео бүс заавал мөрдөх
+              </label>
+              <label className="flex items-center gap-2 rounded border border-gray-300 px-2 py-1 text-sm">
+                <input
+                  type="checkbox"
+                  checked={policyEditForm.isActive}
+                  onChange={(e) =>
+                    setPolicyEditForm((prev) =>
+                      prev ? { ...prev, isActive: e.target.checked } : prev
+                    )
+                  }
+                />
+                Идэвхтэй
+              </label>
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={cancelEditPolicy}
+                disabled={savingPolicyActionId != null}
+                className="rounded border border-gray-300 bg-white px-3 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+              >
+                Болих
+              </button>
+              <button
+                type="button"
+                onClick={savePolicyEdit}
+                disabled={savingPolicyActionId != null}
+                className="rounded border border-blue-300 bg-blue-600 px-3 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-40"
+              >
+                Хадгалах
+              </button>
+            </div>
+          </div>
+        )}
       </section>
+      )}
 
       {/* ── Error ── */}
       {error && (
@@ -649,13 +984,14 @@ export default function AdminAttendancePage() {
       )}
 
       {/* ── Summary ── */}
-      {data && !loading && (
+      {activeTab === "report" && data && !loading && (
         <p className="mb-2 text-sm text-gray-500">
           Нийт: <strong>{data.total}</strong> бичлэг
         </p>
       )}
 
       {/* ── Table ── */}
+      {activeTab === "report" && (
       <section>
         {loading ? (
           <p className="text-sm text-gray-600">Ачаалж байна...</p>
@@ -851,6 +1187,93 @@ export default function AdminAttendancePage() {
           </>
         )}
       </section>
+      )}
+
+      {activeTab === "attempts" && (
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="mb-3 flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600">Үр дүн</label>
+              <select
+                value={attemptResult}
+                onChange={(e) => setAttemptResult(e.target.value as "" | "SUCCESS" | "FAIL")}
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+              >
+                <option value="">Бүгд</option>
+                <option value="SUCCESS">Амжилттай</option>
+                <option value="FAIL">Амжилтгүй</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-gray-600">Мөрийн тоо</label>
+              <select
+                value={String(attemptTake)}
+                onChange={(e) => setAttemptTake(Number(e.target.value))}
+                className="rounded border border-gray-300 px-2 py-1 text-sm"
+              >
+                <option value="100">100</option>
+                <option value="200">200</option>
+                <option value="500">500</option>
+              </select>
+            </div>
+          </div>
+          {attemptsLoading ? (
+            <p className="text-sm text-gray-600">Ачаалж байна...</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead className="bg-gray-50 text-left">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold text-gray-700">Огноо</th>
+                    <th className="px-3 py-2 font-semibold text-gray-700">Ажилтан</th>
+                    <th className="px-3 py-2 font-semibold text-gray-700">Салбар</th>
+                    <th className="px-3 py-2 font-semibold text-gray-700">Төрөл</th>
+                    <th className="px-3 py-2 font-semibold text-gray-700">Үр дүн</th>
+                    <th className="px-3 py-2 font-semibold text-gray-700">Шалтгаан</th>
+                    <th className="px-3 py-2 font-semibold text-gray-700">GPS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {attempts.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-3 py-6 text-center text-sm text-gray-400">
+                        Мэдээлэл олдсонгүй
+                      </td>
+                    </tr>
+                  ) : (
+                    attempts.map((row) => (
+                      <tr key={row.id} className="border-t border-gray-100">
+                        <td className="whitespace-nowrap px-3 py-2">{formatDateTime(row.attemptAt)}</td>
+                        <td className="px-3 py-2">
+                          {formatDisplayName(row.user.ovog, row.user.name)}
+                          <div className="text-xs text-gray-500">{roleLabel(row.user.role)}</div>
+                        </td>
+                        <td className="px-3 py-2">{row.branch?.name || "—"}</td>
+                        <td className="px-3 py-2">{row.attemptType === "CHECK_IN" ? "Ирэх" : "Явах"}</td>
+                        <td className="px-3 py-2">
+                          <span className={row.result === "SUCCESS" ? "text-green-600" : "text-red-600"}>
+                            {row.result === "SUCCESS" ? "Амжилттай" : "Амжилтгүй"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2">
+                          {row.failureCode || "—"}
+                          {row.failureMessage ? (
+                            <div className="text-xs text-gray-500">{row.failureMessage}</div>
+                          ) : null}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-gray-600">
+                          Нарийвчлал: {row.accuracyM ?? "—"}м • Зай: {row.distanceM ?? "—"}м / Радиус:{" "}
+                          {row.radiusM ?? "—"}м
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
 
       {editingRow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
