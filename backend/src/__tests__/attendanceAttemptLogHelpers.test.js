@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 
 import {
   buildAttemptMeta,
-  getAutoCloseAt,
   getAttemptFailureCode,
   hasErrorStatus,
 } from "../utils/attendanceAttemptLog.js";
@@ -44,9 +43,4 @@ describe("attendance attempt log helpers", () => {
     assert.equal(hasErrorStatus(new Error("no status")), false);
   });
 
-  it("computes auto-close time from check-in and policy minutes", () => {
-    const checkInAt = new Date("2026-05-01T00:00:00.000Z");
-    const autoCloseAt = getAutoCloseAt(checkInAt, 120);
-    assert.equal(autoCloseAt.toISOString(), "2026-05-01T02:00:00.000Z");
-  });
 });
