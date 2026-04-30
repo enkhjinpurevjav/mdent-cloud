@@ -21,6 +21,7 @@ import {
   discountPercentEnumToNumber,
   computeServiceNetProportionalDiscount,
   allocatePaymentProportionalByRemaining,
+  computeOverrideSalesFromAllocations,
 } from "../utils/incomeHelpers.js";
 
 // ---------------------------------------------------------------------------
@@ -234,5 +235,24 @@ describe("allocatePaymentProportionalByRemaining – all lines already paid", ()
     const result = allocatePaymentProportionalByRemaining(5000, [1, 2], remainingDue);
     assert.equal(result.get(1), 0);
     assert.equal(result.get(2), 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// computeOverrideSalesFromAllocations
+// ---------------------------------------------------------------------------
+
+describe("computeOverrideSalesFromAllocations – wallet override sales", () => {
+  it("counts actual non-imaging wallet allocations with the 0.9 multiplier", () => {
+    const nonImagingItems = [{ id: 1 }, { id: 2 }];
+    const allocations = new Map([
+      [1, 200000],
+      [2, 300000],
+      [3, 100000], // imaging or unrelated item, intentionally ignored
+    ]);
+
+    const sales = computeOverrideSalesFromAllocations(nonImagingItems, allocations);
+
+    assert.equal(sales, 450000);
   });
 });
