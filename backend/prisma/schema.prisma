@@ -791,6 +791,7 @@ model User {
 
   // Attendance sessions
   attendanceSessions AttendanceSession[]
+  attendanceSessionsOvertimeApproved AttendanceSession[] @relation("AttendanceSessionOvertimeApprovedBy")
   attendanceSessionEditsMade     AttendanceSessionEdit[] @relation("AttendanceSessionEditedBy")
   attendanceSessionEditsApproved AttendanceSessionEdit[] @relation("AttendanceSessionApprovedBy")
   attendanceAttempts AttendanceAttempt[]
@@ -1872,6 +1873,10 @@ model AttendanceSession {
   checkOutAccuracyM Int?
   requiresReview    Boolean  @default(false)
   reviewReason      String?
+  overtimeApproved  Boolean  @default(false)
+  overtimeApprovedAt DateTime?
+  overtimeApprovedByUserId Int?
+  overtimeApprovedBy User? @relation("AttendanceSessionOvertimeApprovedBy", fields: [overtimeApprovedByUserId], references: [id])
 
   createdAt DateTime @default(now())
 

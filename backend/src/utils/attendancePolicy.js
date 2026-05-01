@@ -68,6 +68,7 @@ export function isWithinScheduleWindow({ now, ymd, startTime, endTime, earlyChec
     startDt,
     endDt,
     earlyStart,
-    withinWindow: now >= earlyStart && now <= endDt,
+    // Late check-ins are allowed; only too-early check-ins are blocked.
+    withinWindow: now >= earlyStart,
   };
 }

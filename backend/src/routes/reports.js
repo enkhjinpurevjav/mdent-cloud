@@ -1,5 +1,12 @@
 import { Router } from "express";
 import prisma from "../db.js";
+import { computeDoctorsIncomeData } from "./admin/income.js";
+import {
+  discountPercentEnumToNumber,
+  computeServiceNetProportionalDiscount,
+  allocatePaymentProportionalByRemaining,
+  computeOverrideSalesFromAllocations,
+} from "../utils/incomeHelpers.js";
 
 const router = Router();
 
@@ -24,6 +31,48 @@ const MAIN_REPORT_PAYMENT_METHODS = [
   { key: "BARTER", label: "Бартер" },
   { key: "QPAY", label: "QPAY" },
 ];
+const DOCTOR_TAB_CATEGORY_LABELS = {
+  ADULT_TREATMENT: "Насанд хүрэгчдийн эмчилгээ",
+  CHILD_TREATMENT: "Хүүхдийн эмчилгээ",
+  ORTHODONTIC_TREATMENT: "Гажиг заслын эмчилгээ",
+  DEFECT_CORRECTION: "Согог заслын эмчилгээ",
+  WHITENING: "Цайруулалт",
+  SURGERY: "Мэс ажилбар",
+};
+const DOCTOR_TAB_INCLUDED_METHODS = new Set([
+  "CASH",
+  "POS",
+  "TRANSFER",
+  "QPAY",
+  "WALLET",
+  "VOUCHER",
+  "OTHER",
+]);
+const DOCTOR_TAB_EXCLUDED_METHODS = new Set(["EMPLOYEE_BENEFIT"]);
+const DOCTOR_TAB_OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION", "WALLET"]);
+const DOCTOR_TAB_BARTER_THRESHOLD_MNT = 800000;
+const TREATMENT_CATEGORY_LABELS = {
+  ORTHODONTIC_TREATMENT: "Гажиг Засал",
+  SURGERY: "Мэс Засал",
+  IMAGING: "Зураг",
+  CHILD_TREATMENT: "Хүүхдийн эмчилгээ",
+  ADULT_TREATMENT: "Том хүнийн эмчилгээ",
+  WHITENING: "Цайруулалт",
+};
+const TREATMENT_CATEGORY_KEYS = Object.keys(TREATMENT_CATEGORY_LABELS);
+const TREATMENT_INCLUDED_METHODS = new Set([
+  "CASH",
+  "POS",
+  "TRANSFER",
+  "QPAY",
+  "WALLET",
+  "VOUCHER",
+  "INSURANCE",
+  "APPLICATION",
+  "BARTER",
+  "OTHER",
+]);
+const TREATMENT_EXCLUDED_METHODS = new Set(["EMPLOYEE_BENEFIT"]);
 
 function parseDateOnlyStart(value) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -48,6 +97,123 @@ function dayKey(date) {
 
 function asMoney(value) {
   return Number(Number(value || 0).toFixed(2));
+}
+
+function toShortDoctorName({ ovog, name, id }) {
+  const first = String(ovog || "").trim();
+  const last = String(name || "").trim();
+  if (first && last) return `${first.charAt(0)}.${last}`;
+  if (last) return last;
+  if (first) return first;
+  return `Эмч #${id}`;
+}
+
+function inRange(ts, start, endExclusive) {
+  return ts >= start && ts < endExclusive;
+}
+
+function computeDoctorTabInvoiceSales(inv, rangeStart, rangeEndExclusive) {
+  const serviceItems = (inv.items || []).filter(
+    (it) => it.itemType === "SERVICE" && it.service?.category !== "PREVIOUS"
+  );
+  if (!serviceItems.length) return 0;
+
+  const discountPct = discountPercentEnumToNumber(inv.discountPercent);
+  const lineNets = computeServiceNetProportionalDiscount(serviceItems, discountPct);
+  const nonImagingServiceItems = serviceItems.filter(
+    (it) => it.service?.category !== "IMAGING"
+  );
+
+  const totalAllServiceNet = serviceItems.reduce(
+    (sum, it) => sum + (lineNets.get(it.id) || 0),
+    0
+  );
+  const totalNonImagingNet = nonImagingServiceItems.reduce(
+    (sum, it) => sum + (lineNets.get(it.id) || 0),
+    0
+  );
+  const nonImagingRatio =
+    totalAllServiceNet > 0 ? totalNonImagingNet / totalAllServiceNet : 0;
+
+  const itemById = new Map(serviceItems.map((it) => [it.id, it]));
+  const serviceLineIds = serviceItems.map((it) => it.id);
+  const remainingDue = new Map(
+    serviceItems.map((it) => [it.id, lineNets.get(it.id) || 0])
+  );
+  const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
+
+  const payments = [...(inv.payments || [])].sort(
+    (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+  );
+
+  let barterSum = 0;
+  let hasOverride = false;
+
+  for (const p of payments) {
+    const method = String(p.method || "").toUpperCase();
+    const ts = new Date(p.timestamp);
+    if (!inRange(ts, rangeStart, rangeEndExclusive)) continue;
+    if (DOCTOR_TAB_EXCLUDED_METHODS.has(method)) continue;
+
+    if (DOCTOR_TAB_OVERRIDE_METHODS.has(method)) {
+      hasOverride = true;
+    }
+
+    if (method === "BARTER") {
+      barterSum += Number(p.amount || 0);
+      continue;
+    }
+
+    if (
+      !DOCTOR_TAB_INCLUDED_METHODS.has(method) &&
+      !DOCTOR_TAB_OVERRIDE_METHODS.has(method)
+    ) {
+      continue;
+    }
+
+    const payAmt = Number(p.amount || 0);
+    const payAllocs = p.allocations || [];
+    if (payAllocs.length > 0) {
+      for (const alloc of payAllocs) {
+        const item = itemById.get(alloc.invoiceItemId);
+        if (!item) continue;
+        const allocAmt = Number(alloc.amount || 0);
+        itemAllocationBase.set(
+          item.id,
+          (itemAllocationBase.get(item.id) || 0) + allocAmt
+        );
+        remainingDue.set(
+          item.id,
+          Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt)
+        );
+      }
+    } else {
+      const allocs = allocatePaymentProportionalByRemaining(
+        payAmt,
+        serviceLineIds,
+        remainingDue
+      );
+      for (const [id, amt] of allocs) {
+        itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+      }
+    }
+  }
+
+  if (hasOverride) {
+    return computeOverrideSalesFromAllocations(
+      nonImagingServiceItems,
+      itemAllocationBase,
+      0.9
+    );
+  }
+
+  let sales = 0;
+  for (const it of nonImagingServiceItems) {
+    sales += itemAllocationBase.get(it.id) || 0;
+  }
+  const barterExcess = Math.max(0, barterSum - DOCTOR_TAB_BARTER_THRESHOLD_MNT);
+  sales += barterExcess * nonImagingRatio;
+  return sales;
 }
 
 router.get("/main-overview", async (req, res) => {
@@ -296,6 +462,609 @@ router.get("/main-overview", async (req, res) => {
   } catch (err) {
     console.error("GET /api/reports/main-overview error:", err);
     return res.status(500).json({ error: "Failed to fetch main overview report." });
+  }
+});
+
+router.get("/main-doctor", async (req, res) => {
+  try {
+    const now = new Date();
+    const defaultFrom = `${now.getFullYear()}-01-01`;
+    const defaultTo = `${now.getFullYear()}-12-31`;
+    const from = typeof req.query.from === "string" && req.query.from ? req.query.from : defaultFrom;
+    const to = typeof req.query.to === "string" && req.query.to ? req.query.to : defaultTo;
+
+    const fromDate = parseDateOnlyStart(from);
+    const toDateExclusive = parseDateOnlyEndExclusive(to);
+    if (!fromDate || !toDateExclusive) {
+      return res.status(400).json({
+        error: "from, to query parameters are required in YYYY-MM-DD format.",
+      });
+    }
+
+    const branchId =
+      req.query.branchId == null || req.query.branchId === ""
+        ? null
+        : Number(req.query.branchId);
+    const doctorId =
+      req.query.doctorId == null || req.query.doctorId === ""
+        ? null
+        : Number(req.query.doctorId);
+    const topN =
+      req.query.topN == null || req.query.topN === ""
+        ? 10
+        : Number(req.query.topN);
+
+    if (
+      (branchId != null && Number.isNaN(branchId)) ||
+      (doctorId != null && Number.isNaN(doctorId)) ||
+      Number.isNaN(topN)
+    ) {
+      return res.status(400).json({ error: "Invalid branchId, doctorId or topN." });
+    }
+
+    const topNNormalized = [5, 10, 20].includes(topN) ? topN : 10;
+    const yearMatch = /^(\d{4})-01-01$/.exec(from);
+    const isMonthlyView = Boolean(yearMatch && to === `${yearMatch[1]}-12-31`);
+    const view = isMonthlyView ? "monthly" : "daily";
+
+    const [doctorRowsRaw, filtersData, invoices] = await Promise.all([
+      computeDoctorsIncomeData({
+        startDate: from,
+        endDate: to,
+        branchId,
+      }),
+      Promise.all([
+        prisma.branch.findMany({
+          select: { id: true, name: true },
+          orderBy: { id: "asc" },
+        }),
+        prisma.user.findMany({
+          where: { role: "doctor", ...(branchId ? { branchId } : {}) },
+          select: { id: true, name: true, ovog: true, branchId: true },
+          orderBy: { name: "asc" },
+        }),
+      ]),
+      prisma.invoice.findMany({
+        where: {
+          OR: [
+            { createdAt: { gte: fromDate, lt: toDateExclusive } },
+            {
+              payments: {
+                some: { timestamp: { gte: fromDate, lt: toDateExclusive } },
+              },
+            },
+          ],
+          ...(branchId ? { branchId } : {}),
+          ...(doctorId ? { encounter: { is: { doctorId } } } : {}),
+        },
+        include: {
+          encounter: {
+            include: {
+              doctor: { select: { id: true, name: true, ovog: true } },
+              appointment: {
+                select: { id: true, status: true, scheduledAt: true },
+              },
+            },
+          },
+          items: {
+            where: {
+              itemType: "SERVICE",
+              service: {
+                category: {
+                  in: Object.keys(DOCTOR_TAB_CATEGORY_LABELS),
+                },
+              },
+            },
+            include: { service: { select: { category: true } } },
+          },
+          payments: {
+            select: {
+              amount: true,
+              method: true,
+              timestamp: true,
+              allocations: { select: { invoiceItemId: true, amount: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const [branches, doctors] = filtersData;
+
+    const doctorRowsScoped = doctorRowsRaw
+      .filter((row) => (doctorId ? row.doctorId === doctorId : true))
+      .map((row) => ({
+        doctorId: row.doctorId,
+        doctorName: toShortDoctorName({
+          id: row.doctorId,
+          ovog: row.doctorOvog,
+          name: row.doctorName,
+        }),
+        branchName: row.branchName || "—",
+        sales: Math.round(row.revenue || 0),
+        income: Math.round(row.commission || 0),
+        completedAppointments: Number(row.appointmentCount || 0),
+        completedServices: Number(row.serviceCount || 0),
+        avgPerAppointment: Math.round(row.averageVisitRevenue || 0),
+      }))
+      .sort((a, b) => b.sales - a.sales);
+
+    const doctorById = new Map(doctorRowsScoped.map((d) => [d.doctorId, d]));
+    const doctorTrendMap = new Map();
+    const avgPerPatientRows = [...doctorRowsScoped];
+
+    const totalDoctorIncome = doctorRowsScoped.reduce((s, d) => s + d.income, 0);
+    const totalSales = doctorRowsScoped.reduce((s, d) => s + d.sales, 0);
+    const totalCompletedAppointments = doctorRowsScoped.reduce(
+      (s, d) => s + d.completedAppointments,
+      0
+    );
+    const totalAvgPerAppointment =
+      totalCompletedAppointments > 0
+        ? Math.round(totalSales / totalCompletedAppointments)
+        : 0;
+
+    const categoryBreakdownMap = new Map(
+      Object.keys(DOCTOR_TAB_CATEGORY_LABELS).map((k) => [k, 0])
+    );
+
+    for (const inv of invoices) {
+      const doc = inv.encounter?.doctor;
+      if (!doc || !doctorById.has(doc.id)) continue;
+      const docRow = doctorById.get(doc.id);
+
+      const bucketTs = inv.createdAt;
+      const bucket = view === "monthly" ? monthKey(bucketTs) : dayKey(bucketTs);
+      if (!doctorTrendMap.has(doc.id)) {
+        doctorTrendMap.set(doc.id, new Map());
+      }
+      const perDoctorSeries = doctorTrendMap.get(doc.id);
+      const invoiceSales = computeDoctorTabInvoiceSales(
+        inv,
+        fromDate,
+        toDateExclusive
+      );
+      if (invoiceSales > 0) {
+        perDoctorSeries.set(
+          bucket,
+          (perDoctorSeries.get(bucket) || 0) + invoiceSales
+        );
+      }
+
+      if (doctorId && doc.id === doctorId) {
+        for (const it of inv.items || []) {
+          const cat = it.service?.category;
+          if (!cat || !categoryBreakdownMap.has(cat)) continue;
+          categoryBreakdownMap.set(
+            cat,
+            (categoryBreakdownMap.get(cat) || 0) + Number(it.quantity || 0)
+          );
+        }
+      }
+    }
+
+    const trendBuckets = [];
+    if (view === "monthly") {
+      const monthCursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1, 0, 0, 0, 0);
+      const endMonth = new Date(
+        new Date(toDateExclusive.getTime() - 1).getFullYear(),
+        new Date(toDateExclusive.getTime() - 1).getMonth(),
+        1,
+        0,
+        0,
+        0,
+        0
+      );
+      while (monthCursor <= endMonth) {
+        trendBuckets.push(monthKey(monthCursor));
+        monthCursor.setMonth(monthCursor.getMonth() + 1);
+      }
+    } else {
+      const dayCursor = new Date(fromDate);
+      while (dayCursor < toDateExclusive) {
+        trendBuckets.push(dayKey(dayCursor));
+        dayCursor.setDate(dayCursor.getDate() + 1);
+      }
+    }
+
+    const rankingBase = doctorRowsScoped
+      .slice(0, topNNormalized)
+      .map((d) => ({
+        doctorId: d.doctorId,
+        doctorName: d.doctorName,
+        sales: d.sales,
+        income: d.income,
+        avgPerAppointment: d.avgPerAppointment,
+      }));
+
+    const hasDoctorFilter = Boolean(doctorId);
+    const trendDoctorBase = hasDoctorFilter
+      ? doctorRowsScoped.slice(0, 1)
+      : doctorRowsScoped.slice(0, topNNormalized);
+    const trendDoctorIds = trendDoctorBase.map((d) => d.doctorId);
+    const trendSeriesRows = trendBuckets.map((bucket) => {
+      const row = { bucket };
+      let others = 0;
+      for (const d of doctorRowsScoped) {
+        const v = doctorTrendMap.get(d.doctorId)?.get(bucket) || 0;
+        if (trendDoctorIds.includes(d.doctorId)) {
+          row[String(d.doctorId)] = Math.round(v);
+        } else {
+          others += v;
+        }
+      }
+      if (!hasDoctorFilter && others > 0) {
+        row.others = Math.round(others);
+      }
+      return row;
+    });
+
+    const trendDoctors = trendDoctorBase.map((d) => ({
+      doctorId: d.doctorId,
+      doctorName: d.doctorName,
+    }));
+
+    const categoryBreakdown = hasDoctorFilter
+      ? Object.keys(DOCTOR_TAB_CATEGORY_LABELS)
+          .map((key) => ({
+            key,
+            label: DOCTOR_TAB_CATEGORY_LABELS[key],
+            count: Math.round(categoryBreakdownMap.get(key) || 0),
+          }))
+          .filter((r) => r.count > 0)
+      : [];
+
+    return res.json({
+      period: { from, to, view },
+      scope: { branchId: branchId || null, doctorId: doctorId || null },
+      filters: {
+        branches: branches.map((b) => ({ id: b.id, name: b.name })),
+        doctors: doctors.map((d) => ({
+          id: d.id,
+          name: d.name,
+          ovog: d.ovog,
+          branchId: d.branchId,
+        })),
+      },
+      topN: topNNormalized,
+      kpis: {
+        totalDoctorIncome: Math.round(totalDoctorIncome),
+        totalSales: Math.round(totalSales),
+        avgPerAppointment: totalAvgPerAppointment,
+        completedAppointments: totalCompletedAppointments,
+      },
+      trend: {
+        buckets: trendBuckets,
+        doctors: trendDoctors,
+        rows: trendSeriesRows,
+        hasOther: !hasDoctorFilter && trendSeriesRows.some((r) => Number(r.others || 0) > 0),
+      },
+      ranking: rankingBase,
+      avgPerPatient: avgPerPatientRows
+        .map((r) => ({
+          doctorId: r.doctorId,
+          doctorName: r.doctorName,
+          value: r.avgPerAppointment,
+          sales: r.sales,
+          completedAppointments: r.completedAppointments,
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, topNNormalized),
+      categoryBreakdown,
+      table: [...doctorRowsScoped].sort((a, b) => b.sales - a.sales),
+    });
+  } catch (err) {
+    console.error("GET /api/reports/main-doctor error:", err);
+    return res.status(500).json({ error: "Failed to fetch main doctor report." });
+  }
+});
+
+router.get("/main-treatment", async (req, res) => {
+  try {
+    const now = new Date();
+    const defaultFrom = `${now.getFullYear()}-01-01`;
+    const defaultTo = `${now.getFullYear()}-12-31`;
+    const from = typeof req.query.from === "string" && req.query.from ? req.query.from : defaultFrom;
+    const to = typeof req.query.to === "string" && req.query.to ? req.query.to : defaultTo;
+
+    const fromDate = parseDateOnlyStart(from);
+    const toDateExclusive = parseDateOnlyEndExclusive(to);
+    if (!fromDate || !toDateExclusive) {
+      return res.status(400).json({
+        error: "from, to query parameters are required in YYYY-MM-DD format.",
+      });
+    }
+
+    const branchId =
+      req.query.branchId == null || req.query.branchId === ""
+        ? null
+        : Number(req.query.branchId);
+    const doctorId =
+      req.query.doctorId == null || req.query.doctorId === ""
+        ? null
+        : Number(req.query.doctorId);
+    const topN =
+      req.query.topN == null || req.query.topN === ""
+        ? 20
+        : Number(req.query.topN);
+
+    if (
+      (branchId != null && Number.isNaN(branchId)) ||
+      (doctorId != null && Number.isNaN(doctorId)) ||
+      Number.isNaN(topN)
+    ) {
+      return res.status(400).json({ error: "Invalid branchId, doctorId or topN." });
+    }
+
+    const topNNormalized = [5, 10, 20].includes(topN) ? topN : 20;
+    const yearMatch = /^(\d{4})-01-01$/.exec(from);
+    const isMonthlyView = Boolean(yearMatch && to === `${yearMatch[1]}-12-31`);
+    const view = isMonthlyView ? "monthly" : "daily";
+
+    const [filtersData, invoices] = await Promise.all([
+      Promise.all([
+        prisma.branch.findMany({
+          select: { id: true, name: true },
+          orderBy: { id: "asc" },
+        }),
+        prisma.user.findMany({
+          where: { role: "doctor", ...(branchId ? { branchId } : {}) },
+          select: { id: true, name: true, ovog: true, branchId: true },
+          orderBy: { name: "asc" },
+        }),
+      ]),
+      prisma.invoice.findMany({
+        where: {
+          statusLegacy: { notIn: MAIN_REPORT_VOIDED_STATUSES },
+          OR: [
+            { createdAt: { gte: fromDate, lt: toDateExclusive } },
+            {
+              payments: {
+                some: { timestamp: { gte: fromDate, lt: toDateExclusive } },
+              },
+            },
+          ],
+          ...(branchId ? { branchId } : {}),
+          ...(doctorId ? { encounter: { is: { doctorId } } } : {}),
+        },
+        include: {
+          encounter: {
+            include: {
+              doctor: { select: { id: true, name: true, ovog: true } },
+            },
+          },
+          items: {
+            where: {
+              itemType: "SERVICE",
+              service: {
+                category: { in: TREATMENT_CATEGORY_KEYS },
+              },
+            },
+            include: {
+              service: { select: { id: true, name: true, category: true } },
+            },
+          },
+          payments: {
+            select: {
+              amount: true,
+              method: true,
+              timestamp: true,
+              allocations: { select: { invoiceItemId: true, amount: true } },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const [branches, doctors] = filtersData;
+    const treatmentBuckets = [];
+    if (view === "monthly") {
+      const monthCursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1, 0, 0, 0, 0);
+      const endMonth = new Date(
+        new Date(toDateExclusive.getTime() - 1).getFullYear(),
+        new Date(toDateExclusive.getTime() - 1).getMonth(),
+        1,
+        0,
+        0,
+        0,
+        0
+      );
+      while (monthCursor <= endMonth) {
+        treatmentBuckets.push(monthKey(monthCursor));
+        monthCursor.setMonth(monthCursor.getMonth() + 1);
+      }
+    } else {
+      const dayCursor = new Date(fromDate);
+      while (dayCursor < toDateExclusive) {
+        treatmentBuckets.push(dayKey(dayCursor));
+        dayCursor.setDate(dayCursor.getDate() + 1);
+      }
+    }
+
+    const categoryRevenueMap = new Map(TREATMENT_CATEGORY_KEYS.map((key) => [key, 0]));
+    const categoryCountMap = new Map(TREATMENT_CATEGORY_KEYS.map((key) => [key, 0]));
+    const trendCategoryMap = new Map(
+      treatmentBuckets.map((bucket) => [
+        bucket,
+        new Map(TREATMENT_CATEGORY_KEYS.map((key) => [key, 0])),
+      ])
+    );
+    const serviceMap = new Map();
+
+    let totalServiceRevenue = 0;
+    let totalTreatmentCount = 0;
+
+    for (const inv of invoices) {
+      const serviceItems = (inv.items || []).filter((it) => {
+        const category = it.service?.category;
+        return category && TREATMENT_CATEGORY_KEYS.includes(category);
+      });
+      if (!serviceItems.length) continue;
+
+      const discountPct = discountPercentEnumToNumber(inv.discountPercent);
+      const lineNets = computeServiceNetProportionalDiscount(serviceItems, discountPct);
+      const itemById = new Map(serviceItems.map((it) => [it.id, it]));
+      const serviceLineIds = serviceItems.map((it) => it.id);
+      const remainingDue = new Map(
+        serviceItems.map((it) => [it.id, lineNets.get(it.id) || 0])
+      );
+      const recognizedByItem = new Map(serviceItems.map((it) => [it.id, 0]));
+      const payments = [...(inv.payments || [])].sort(
+        (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+      );
+
+      for (const p of payments) {
+        const method = String(p.method || "").toUpperCase();
+        const ts = new Date(p.timestamp);
+        if (!inRange(ts, fromDate, toDateExclusive)) continue;
+        if (TREATMENT_EXCLUDED_METHODS.has(method)) continue;
+        if (!TREATMENT_INCLUDED_METHODS.has(method)) continue;
+
+        const bucket = view === "monthly" ? monthKey(ts) : dayKey(ts);
+        const bucketMap = trendCategoryMap.get(bucket);
+
+        const payAllocs = p.allocations || [];
+        let allocPairs = [];
+        if (payAllocs.length > 0) {
+          for (const alloc of payAllocs) {
+            const item = itemById.get(alloc.invoiceItemId);
+            if (!item) continue;
+            const before = remainingDue.get(item.id) || 0;
+            if (before <= 0) continue;
+            const rawAlloc = Number(alloc.amount || 0);
+            const appliedAlloc = Math.max(0, Math.min(rawAlloc, before));
+            if (appliedAlloc <= 0) continue;
+            remainingDue.set(item.id, Math.max(0, before - appliedAlloc));
+            allocPairs.push([item.id, appliedAlloc]);
+          }
+        } else {
+          const payAmt = Number(p.amount || 0);
+          allocPairs = Array.from(
+            allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue)
+          );
+        }
+
+        for (const [itemId, amtRaw] of allocPairs) {
+          const amt = Number(amtRaw || 0);
+          if (amt <= 0) continue;
+          const item = itemById.get(itemId);
+          const category = item?.service?.category;
+          if (!item || !category || !TREATMENT_CATEGORY_LABELS[category]) continue;
+
+          recognizedByItem.set(itemId, (recognizedByItem.get(itemId) || 0) + amt);
+          categoryRevenueMap.set(category, (categoryRevenueMap.get(category) || 0) + amt);
+          if (bucketMap) {
+            bucketMap.set(category, (bucketMap.get(category) || 0) + amt);
+          }
+          totalServiceRevenue += amt;
+
+          const sid = item.service?.id || item.serviceId || item.id;
+          if (!serviceMap.has(sid)) {
+            serviceMap.set(sid, {
+              serviceId: sid,
+              serviceName: item.service?.name || `Үйлчилгээ #${sid}`,
+              categoryKey: category,
+              categoryLabel: TREATMENT_CATEGORY_LABELS[category],
+              count: 0,
+              totalSales: 0,
+            });
+          }
+          const svc = serviceMap.get(sid);
+          svc.totalSales += amt;
+        }
+      }
+
+      for (const it of serviceItems) {
+        const rec = Number(recognizedByItem.get(it.id) || 0);
+        if (rec <= 0) continue;
+        const qty = Number(it.quantity || 0);
+        if (!(qty > 0)) continue;
+        const category = it.service?.category;
+        if (!category || !TREATMENT_CATEGORY_LABELS[category]) continue;
+        categoryCountMap.set(category, (categoryCountMap.get(category) || 0) + qty);
+        totalTreatmentCount += qty;
+        const sid = it.service?.id || it.serviceId || it.id;
+        if (serviceMap.has(sid)) {
+          serviceMap.get(sid).count += qty;
+        }
+      }
+    }
+
+    const avgServiceValue =
+      totalTreatmentCount > 0
+        ? Math.round(totalServiceRevenue / totalTreatmentCount)
+        : 0;
+
+    const categoryDistribution = TREATMENT_CATEGORY_KEYS
+      .map((key) => ({
+        key,
+        label: TREATMENT_CATEGORY_LABELS[key],
+        revenue: Math.round(categoryRevenueMap.get(key) || 0),
+        count: Math.round(categoryCountMap.get(key) || 0),
+      }))
+      .filter((row) => row.revenue > 0 || row.count > 0)
+      .sort((a, b) => b.revenue - a.revenue);
+
+    const serviceTable = Array.from(serviceMap.values())
+      .map((row) => ({
+        serviceId: row.serviceId,
+        serviceName: row.serviceName,
+        categoryKey: row.categoryKey,
+        categoryLabel: row.categoryLabel,
+        count: Math.round(row.count),
+        totalSales: Math.round(row.totalSales),
+      }))
+      .filter((row) => row.count > 0)
+      .sort(
+        (a, b) =>
+          b.count - a.count ||
+          b.serviceName.localeCompare(a.serviceName, "mn-MN")
+      );
+
+    const topServices = [...serviceTable]
+      .sort((a, b) => b.totalSales - a.totalSales)
+      .slice(0, topNNormalized);
+    const categoryTrendRows = treatmentBuckets.map((bucket) => {
+      const bucketCategory = trendCategoryMap.get(bucket) || new Map();
+      const row = { bucket };
+      for (const key of TREATMENT_CATEGORY_KEYS) {
+        row[key] = Math.round(bucketCategory.get(key) || 0);
+      }
+      return row;
+    });
+
+    return res.json({
+      period: { from, to, view },
+      scope: { branchId: branchId || null, doctorId: doctorId || null },
+      filters: {
+        branches: branches.map((b) => ({ id: b.id, name: b.name })),
+        doctors: doctors.map((d) => ({
+          id: d.id,
+          name: d.name,
+          ovog: d.ovog,
+          branchId: d.branchId,
+        })),
+      },
+      topN: topNNormalized,
+      kpis: {
+        serviceRevenue: Math.round(totalServiceRevenue),
+        treatmentCount: Math.round(totalTreatmentCount),
+        avgServiceValue,
+      },
+      categoryDistribution,
+      topServices,
+      categoryTrend: {
+        categories: TREATMENT_CATEGORY_KEYS.map((key) => ({
+          key,
+          label: TREATMENT_CATEGORY_LABELS[key],
+        })),
+        rows: categoryTrendRows,
+      },
+      serviceTable,
+    });
+  } catch (err) {
+    console.error("GET /api/reports/main-treatment error:", err);
+    return res.status(500).json({ error: "Failed to fetch main treatment report." });
   }
 });
 
