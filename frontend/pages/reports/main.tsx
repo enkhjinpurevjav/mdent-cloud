@@ -392,10 +392,14 @@ export default function MainReportPage() {
 
   const doctorTrendChartData = useMemo<DoctorTrendChartRow[]>(
     () =>
-      (doctorTabData?.trend.rows || []).map((row) => ({
-        ...row,
-        label: formatTrendLabel(String(row.bucket || ""), doctorTabData?.period.view || "monthly"),
-      })),
+      (doctorTabData?.trend.rows || []).map((row) => {
+        const rawBucket = String(row.bucket || "");
+        return {
+          ...(row as Record<string, string | number | undefined>),
+          bucket: rawBucket,
+          label: formatTrendLabel(rawBucket, doctorTabData?.period.view || "monthly"),
+        };
+      }),
     [doctorTabData?.period.view, doctorTabData?.trend.rows]
   );
 
