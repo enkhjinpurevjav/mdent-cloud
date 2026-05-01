@@ -744,15 +744,15 @@ export default function MainReportPage() {
       {!loading && activeTab === "doctor" && doctorTabData ? (
         <div className="mt-4 space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard label="Нийт эмчийн орлого" value={formatMoney(doctorTabData.kpis.totalDoctorIncome)} />
             <KpiCard label="Нийт борлуулалт" value={formatMoney(doctorTabData.kpis.totalSales)} />
+            <KpiCard label="Нийт эмчийн орлого" value={formatMoney(doctorTabData.kpis.totalDoctorIncome)} />
             <KpiCard label="Нэг үзлэгт ногдох дундаж" value={formatMoney(doctorTabData.kpis.avgPerAppointment)} />
             <KpiCard label="Дууссан үзлэг" value={doctorTabData.kpis.completedAppointments.toLocaleString("mn-MN")} />
           </div>
 
           <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-base font-semibold text-gray-900">Эмчийн борлуулалтын чиг хандлага</h3>
+              <h3 className="text-base font-semibold text-gray-900">Эмчийн борлуулалтын график</h3>
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-gray-500">Топ:</span>
                 <select
@@ -775,7 +775,18 @@ export default function MainReportPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={12} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompact(Number(v))} />
-                  <Tooltip formatter={(v: number) => [formatMoney(v), "Борлуулалт"]} />
+                  <Tooltip
+                    formatter={(v: number | string, name: string | number) => {
+                      const numeric = Number(v || 0);
+                      if (name === "others") {
+                        return [formatMoney(numeric), "Бусад"];
+                      }
+                      const doctorName =
+                        doctorTabData.trend.doctors.find((d) => String(d.doctorId) === String(name))
+                          ?.doctorName || String(name);
+                      return [formatMoney(numeric), doctorName];
+                    }}
+                  />
                   {doctorTabData.trend.doctors.map((d, idx) => (
                     <Line
                       key={d.doctorId}
@@ -878,7 +889,7 @@ export default function MainReportPage() {
                       <th className="px-3 py-2 text-left font-semibold text-gray-700">Эмч</th>
                       <th className="px-3 py-2 text-left font-semibold text-gray-700">Салбар</th>
                       <th className="px-3 py-2 text-right font-semibold text-gray-700">Борлуулалт</th>
-                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Орлого</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Эмчийн орлого</th>
                       <th className="px-3 py-2 text-right font-semibold text-gray-700">Дууссан үзлэг</th>
                       <th className="px-3 py-2 text-right font-semibold text-gray-700">Дууссан үйлчилгээ</th>
                       <th className="px-3 py-2 text-right font-semibold text-gray-700">Нэг үзлэгт ногдох дундаж</th>

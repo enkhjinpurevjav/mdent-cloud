@@ -5,6 +5,7 @@ import {
   discountPercentEnumToNumber,
   computeServiceNetProportionalDiscount,
   allocatePaymentProportionalByRemaining,
+  computeOverrideSalesFromAllocations,
 } from "../utils/incomeHelpers.js";
 
 const router = Router();
@@ -83,6 +84,114 @@ function toShortDoctorName({ ovog, name, id }) {
   if (last) return last;
   if (first) return first;
   return `Эмч #${id}`;
+}
+
+function inRange(ts, start, endExclusive) {
+  return ts >= start && ts < endExclusive;
+}
+
+function computeDoctorTabInvoiceSales(inv, rangeStart, rangeEndExclusive) {
+  const serviceItems = (inv.items || []).filter(
+    (it) => it.itemType === "SERVICE" && it.service?.category !== "PREVIOUS"
+  );
+  if (!serviceItems.length) return 0;
+
+  const discountPct = discountPercentEnumToNumber(inv.discountPercent);
+  const lineNets = computeServiceNetProportionalDiscount(serviceItems, discountPct);
+  const nonImagingServiceItems = serviceItems.filter(
+    (it) => it.service?.category !== "IMAGING"
+  );
+
+  const totalAllServiceNet = serviceItems.reduce(
+    (sum, it) => sum + (lineNets.get(it.id) || 0),
+    0
+  );
+  const totalNonImagingNet = nonImagingServiceItems.reduce(
+    (sum, it) => sum + (lineNets.get(it.id) || 0),
+    0
+  );
+  const nonImagingRatio =
+    totalAllServiceNet > 0 ? totalNonImagingNet / totalAllServiceNet : 0;
+
+  const itemById = new Map(serviceItems.map((it) => [it.id, it]));
+  const serviceLineIds = serviceItems.map((it) => it.id);
+  const remainingDue = new Map(
+    serviceItems.map((it) => [it.id, lineNets.get(it.id) || 0])
+  );
+  const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
+
+  const payments = [...(inv.payments || [])].sort(
+    (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+  );
+
+  let barterSum = 0;
+  let hasOverride = false;
+
+  for (const p of payments) {
+    const method = String(p.method || "").toUpperCase();
+    const ts = new Date(p.timestamp);
+    if (!inRange(ts, rangeStart, rangeEndExclusive)) continue;
+    if (DOCTOR_TAB_EXCLUDED_METHODS.has(method)) continue;
+
+    if (DOCTOR_TAB_OVERRIDE_METHODS.has(method)) {
+      hasOverride = true;
+    }
+
+    if (method === "BARTER") {
+      barterSum += Number(p.amount || 0);
+      continue;
+    }
+
+    if (
+      !DOCTOR_TAB_INCLUDED_METHODS.has(method) &&
+      !DOCTOR_TAB_OVERRIDE_METHODS.has(method)
+    ) {
+      continue;
+    }
+
+    const payAmt = Number(p.amount || 0);
+    const payAllocs = p.allocations || [];
+    if (payAllocs.length > 0) {
+      for (const alloc of payAllocs) {
+        const item = itemById.get(alloc.invoiceItemId);
+        if (!item) continue;
+        const allocAmt = Number(alloc.amount || 0);
+        itemAllocationBase.set(
+          item.id,
+          (itemAllocationBase.get(item.id) || 0) + allocAmt
+        );
+        remainingDue.set(
+          item.id,
+          Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt)
+        );
+      }
+    } else {
+      const allocs = allocatePaymentProportionalByRemaining(
+        payAmt,
+        serviceLineIds,
+        remainingDue
+      );
+      for (const [id, amt] of allocs) {
+        itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+      }
+    }
+  }
+
+  if (hasOverride) {
+    return computeOverrideSalesFromAllocations(
+      nonImagingServiceItems,
+      itemAllocationBase,
+      0.9
+    );
+  }
+
+  let sales = 0;
+  for (const it of nonImagingServiceItems) {
+    sales += itemAllocationBase.get(it.id) || 0;
+  }
+  const barterExcess = Math.max(0, barterSum - DOCTOR_TAB_BARTER_THRESHOLD_MNT);
+  sales += barterExcess * nonImagingRatio;
+  return sales;
 }
 
 router.get("/main-overview", async (req, res) => {
@@ -427,10 +536,12 @@ router.get("/main-doctor", async (req, res) => {
             include: { service: { select: { category: true } } },
           },
           payments: {
-            where: {
-              timestamp: { gte: fromDate, lt: toDateExclusive },
+            select: {
+              amount: true,
+              method: true,
+              timestamp: true,
+              allocations: { select: { invoiceItemId: true, amount: true } },
             },
-            select: { amount: true },
           },
         },
       }),
@@ -486,7 +597,17 @@ router.get("/main-doctor", async (req, res) => {
         doctorTrendMap.set(doc.id, new Map());
       }
       const perDoctorSeries = doctorTrendMap.get(doc.id);
-      perDoctorSeries.set(bucket, (perDoctorSeries.get(bucket) || 0) + docRow.sales);
+      const invoiceSales = computeDoctorTabInvoiceSales(
+        inv,
+        fromDate,
+        toDateExclusive
+      );
+      if (invoiceSales > 0) {
+        perDoctorSeries.set(
+          bucket,
+          (perDoctorSeries.get(bucket) || 0) + invoiceSales
+        );
+      }
 
       if (doctorId && doc.id === doctorId) {
         for (const it of inv.items || []) {
