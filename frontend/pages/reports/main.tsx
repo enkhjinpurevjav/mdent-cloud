@@ -146,7 +146,7 @@ type TreatmentTabResponse = {
     categoryKey: string;
     categoryLabel: string;
     count: number;
-    sales: number;
+    totalSales: number;
   }>;
   categoryTrend: {
     categories: Array<{ key: string; label: string }>;
@@ -158,7 +158,7 @@ type TreatmentTabResponse = {
     categoryKey: string;
     categoryLabel: string;
     count: number;
-    sales: number;
+    totalSales: number;
   }>;
 };
 
@@ -544,7 +544,6 @@ export default function MainReportPage() {
           Үйлчилгээ: row.serviceName,
           Төрөл: row.categoryLabel,
           Тоо: row.count,
-          "Нийт борлуулалт": row.sales,
         });
       }
       downloadCsv("undsen_tailan_emchilgee.csv", rows);
@@ -1108,7 +1107,7 @@ export default function MainReportPage() {
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
             <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm xl:col-span-6">
-              <h3 className="mb-3 text-base font-semibold text-gray-900">Төрлийн борлуулалтын бүтэц</h3>
+              <h3 className="mb-3 text-base font-semibold text-gray-900">Борлуулалтын бүтэц</h3>
               {treatmentTabData.categoryDistribution.length > 0 ? (
                 <>
                   <div className="h-64 w-full">
@@ -1125,7 +1124,12 @@ export default function MainReportPage() {
                             <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(v: number) => [formatMoney(v), "Борлуулалт"]} />
+                        <Tooltip
+                          formatter={(v: number, _name: string | number, item: { payload?: { label?: string } }) => [
+                            formatMoney(v),
+                            item?.payload?.label || "",
+                          ]}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -1172,15 +1176,23 @@ export default function MainReportPage() {
               <div className="h-80 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={treatmentTabData.topServices}
+                    data={treatmentTabData.topServices.map((row) => ({
+                      ...row,
+                      totalSales: Number(row.totalSales || 0),
+                    }))}
                     layout="vertical"
                     margin={{ left: 20, right: 8 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompact(Number(v))} />
+                    <XAxis
+                      type="number"
+                      domain={[0, "dataMax"]}
+                      tick={{ fontSize: 11 }}
+                      tickFormatter={(v) => formatCompact(Number(v))}
+                    />
                     <YAxis type="category" dataKey="serviceName" width={160} tick={{ fontSize: 11 }} />
                     <Tooltip formatter={(v: number) => [formatMoney(v), "Борлуулалт"]} />
-                    <Bar dataKey="sales" fill="#2563eb" radius={[0, 6, 6, 0]} />
+                    <Bar dataKey="totalSales" fill="#2563eb" radius={[0, 6, 6, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1188,14 +1200,22 @@ export default function MainReportPage() {
           </div>
 
           <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-3 text-base font-semibold text-gray-900">Төрлийн чиг хандлага</h3>
+            <h3 className="mb-3 text-base font-semibold text-gray-900">Эмчилгээний төрлийн график</h3>
             <div className="h-96 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={treatmentTrendChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={12} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompact(Number(v))} />
-                  <Tooltip formatter={(v: number) => [formatMoney(v), "Борлуулалт"]} />
+                  <Tooltip
+                    formatter={(v: number, name: string | number) => {
+                      const label =
+                        treatmentTabData.categoryTrend.categories.find((c) => c.key === String(name))?.label ||
+                        String(name || "");
+                      return [formatMoney(v), label];
+                    }}
+                    itemSorter={(item) => -Number(item?.value ?? 0)}
+                  />
                   {treatmentTabData.categoryTrend.categories.map((cat, i) => (
                     <Area
                       key={cat.key}
@@ -1222,7 +1242,6 @@ export default function MainReportPage() {
                     <th className="px-3 py-2 text-left font-semibold text-gray-700">Үйлчилгээ</th>
                     <th className="px-3 py-2 text-left font-semibold text-gray-700">Төрөл</th>
                     <th className="px-3 py-2 text-right font-semibold text-gray-700">Тоо</th>
-                    <th className="px-3 py-2 text-right font-semibold text-gray-700">Нийт борлуулалт</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1231,7 +1250,6 @@ export default function MainReportPage() {
                       <td className="px-3 py-2 text-gray-800">{row.serviceName}</td>
                       <td className="px-3 py-2 text-gray-700">{row.categoryLabel}</td>
                       <td className="px-3 py-2 text-right text-gray-700">{row.count.toLocaleString("mn-MN")}</td>
-                      <td className="px-3 py-2 text-right font-medium text-gray-900">{formatMoney(row.sales)}</td>
                     </tr>
                   ))}
                 </tbody>
