@@ -157,6 +157,9 @@ type AttendanceRow = {
   reviewReason?: string | null;
   lateMinutes: number | null;
   earlyLeaveMinutes: number | null;
+  overtimeApproved?: boolean;
+  overtimeApprovedAt?: string | null;
+  overtimeApprovedByUserId?: number | null;
   status: "present" | "open" | "absent" | "unscheduled";
 };
 
@@ -220,11 +223,24 @@ type SummaryRow = {
   userName: string | null;
   userOvog: string | null;
   userRole: string;
+  branchId: number;
   branchName: string;
   requiredMinutes: number;
   lateMinutes: number;
   earlyLeaveMinutes: number;
   acceptedOvertimeMinutes: number;
+  overtimeBreakdown: {
+    date: string;
+    durationMinutes: number;
+    sessionId: number | null;
+    checkInAt: string | null;
+    checkOutAt: string | null;
+  }[];
+};
+
+type SummaryBreakdownState = {
+  open: boolean;
+  row: SummaryRow | null;
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -277,9 +293,6 @@ export default function AdminAttendancePage() {
   const [attemptsLoading, setAttemptsLoading] = useState(false);
   const [attemptResult, setAttemptResult] = useState<"" | "SUCCESS" | "FAIL">("");
   const [attemptTake, setAttemptTake] = useState(200);
-  const [overtimeApprovedMap, setOvertimeApprovedMap] = useState<
-    Record<string, boolean>
-  >({});
   const [summaryFromDate, setSummaryFromDate] = useState<string>(todayLocalStr);
   const [summaryToDate, setSummaryToDate] = useState<string>(todayLocalStr);
   const [summaryBranchId, setSummaryBranchId] = useState<string>("");
@@ -288,6 +301,10 @@ export default function AdminAttendancePage() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryRows, setSummaryRows] = useState<SummaryRow[]>([]);
   const [summarySearched, setSummarySearched] = useState(false);
+  const [summaryBreakdown, setSummaryBreakdown] = useState<SummaryBreakdownState>({
+    open: false,
+    row: null,
+  });
   const [editingPolicyId, setEditingPolicyId] = useState<number | null>(null);
   const [savingPolicyActionId, setSavingPolicyActionId] = useState<number | null>(null);
   const [policyEditForm, setPolicyEditForm] = useState<{
@@ -606,6 +623,35 @@ export default function AdminAttendancePage() {
     }
   }, [activeTab, attemptTake, attemptResult]);
 
+  async function setOvertimeApproval(sessionId: number, approved: boolean) {
+    try {
+      const res = await fetch(`/api/admin/attendance/session/${sessionId}/overtime-approval`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approved }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((json as any).error || "Илүү цагийн төлөв шинэчлэхэд алдаа гарлаа.");
+      }
+      await fetchData(page);
+      if (activeTab === "summary" && summarySearched) {
+        await runSummarySearch();
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Илүү цагийн төлөв шинэчлэхэд алдаа гарлаа.");
+    }
+  }
+
+  function openSummaryBreakdown(row: SummaryRow) {
+    setSummaryBreakdown({ open: true, row });
+  }
+
+  function closeSummaryBreakdown() {
+    setSummaryBreakdown({ open: false, row: null });
+  }
+
   async function runSummarySearch() {
     setSummaryLoading(true);
     setError("");
@@ -616,61 +662,19 @@ export default function AdminAttendancePage() {
       const params = new URLSearchParams({
         fromTs,
         toTs,
-        page: "1",
-        pageSize: "500",
       });
       if (summaryBranchId) params.set("branchId", summaryBranchId);
       if (summaryUserId) params.set("userId", summaryUserId);
-      const res = await fetch(`/api/admin/attendance?${params}`, {
+      if (summaryRole) params.set("role", summaryRole);
+      const res = await fetch(`/api/admin/attendance/summary?${params}`, {
         credentials: "include",
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((json as any).error || "Нэгтгэсэн тайлан татахад алдаа гарлаа.");
-      const items = Array.isArray((json as ApiResponse).items)
-        ? (json as ApiResponse).items
+      const items = Array.isArray((json as { items?: SummaryRow[] }).items)
+        ? (json as { items: SummaryRow[] }).items
         : [];
-
-      const grouped = new Map<string, SummaryRow>();
-      for (const row of items) {
-        if (summaryRole && row.userRole !== summaryRole) continue;
-        if (summaryUserId && String(row.userId) !== summaryUserId) continue;
-        const key = `${row.userId}:${row.branchId}`;
-        if (!grouped.has(key)) {
-          grouped.set(key, {
-            userId: row.userId,
-            userName: row.userName,
-            userOvog: row.userOvog,
-            userRole: row.userRole,
-            branchName: row.branchName,
-            requiredMinutes: 0,
-            lateMinutes: 0,
-            earlyLeaveMinutes: 0,
-            acceptedOvertimeMinutes: 0,
-          });
-        }
-        const agg = grouped.get(key)!;
-        agg.requiredMinutes += row.requiredMinutes ?? 0;
-        agg.lateMinutes += row.lateMinutes ?? 0;
-        agg.earlyLeaveMinutes += row.earlyLeaveMinutes ?? 0;
-        const rowKey = row.sessionId
-          ? `session-${row.sessionId}`
-          : `${row.userId}-${row.scheduledDate}-${row.branchId}`;
-        const overtimeMinutes =
-          row.durationMinutes != null &&
-          row.requiredMinutes != null &&
-          row.durationMinutes > row.requiredMinutes
-            ? row.durationMinutes - row.requiredMinutes
-            : 0;
-        if (overtimeMinutes > 0 && overtimeApprovedMap[rowKey] === true) {
-          agg.acceptedOvertimeMinutes += overtimeMinutes;
-        }
-      }
-      const nextRows = Array.from(grouped.values()).sort((a, b) => {
-        const nameA = `${a.userOvog || ""}${a.userName || ""}`;
-        const nameB = `${b.userOvog || ""}${b.userName || ""}`;
-        return nameA.localeCompare(nameB);
-      });
-      setSummaryRows(nextRows);
+      setSummaryRows(items);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Нэгтгэсэн тайлан татахад алдаа гарлаа.");
       setSummaryRows([]);
@@ -1206,10 +1210,7 @@ export default function AdminAttendancePage() {
                       </td>
                     </tr>
                   ) : (
-                    data.items.map((row, i) => {
-                      const rowKey = row.sessionId
-                        ? `session-${row.sessionId}`
-                        : `${row.userId}-${row.scheduledDate}`;
+                    data.items.map((row) => {
                       const overtimeMinutes =
                         row.durationMinutes != null &&
                         row.requiredMinutes != null &&
@@ -1217,15 +1218,13 @@ export default function AdminAttendancePage() {
                           ? row.durationMinutes - row.requiredMinutes
                           : 0;
                       const hasOvertime = overtimeMinutes > 0;
-                      const overtimeApproved = hasOvertime
-                        ? overtimeApprovedMap[rowKey] === true
-                        : false;
+                      const overtimeApproved = hasOvertime && row.overtimeApproved === true;
                       return (
-                      <tr
-                        key={rowKey}
-                        className="border-t border-gray-100"
-                        style={{ background: statusBg(row.status) }}
-                      >
+                        <tr
+                          key={row.sessionId ?? `${row.userId}-${row.scheduledDate}`}
+                          className="border-t border-gray-100"
+                          style={{ background: statusBg(row.status) }}
+                        >
                         <td className="whitespace-nowrap px-3 py-2">
                           {formatDate(row.scheduledDate)}
                         </td>
@@ -1301,13 +1300,11 @@ export default function AdminAttendancePage() {
                               type="button"
                               title="Илүү цагийг зөвшөөрөх"
                               aria-label="Илүү цагийг зөвшөөрөх"
-                              disabled={!hasOvertime}
-                              onClick={() =>
-                                setOvertimeApprovedMap((prev) => ({
-                                  ...prev,
-                                  [rowKey]: true,
-                                }))
-                              }
+                              disabled={!hasOvertime || !row.sessionId}
+                              onClick={() => {
+                                if (!row.sessionId) return;
+                                void setOvertimeApproval(row.sessionId, true);
+                              }}
                               className={`rounded border px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40 ${
                                 overtimeApproved
                                   ? "border-green-300 bg-green-50 text-green-700"
@@ -1320,13 +1317,11 @@ export default function AdminAttendancePage() {
                               type="button"
                               title="Илүү цаггүй"
                               aria-label="Илүү цаггүй"
-                              disabled={!hasOvertime}
-                              onClick={() =>
-                                setOvertimeApprovedMap((prev) => ({
-                                  ...prev,
-                                  [rowKey]: false,
-                                }))
-                              }
+                              disabled={!hasOvertime || !row.sessionId}
+                              onClick={() => {
+                                if (!row.sessionId) return;
+                                void setOvertimeApproval(row.sessionId, false);
+                              }}
                               className={`rounded border px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40 ${
                                 !overtimeApproved
                                   ? "border-red-300 bg-red-50 text-red-700"
@@ -1348,7 +1343,7 @@ export default function AdminAttendancePage() {
                             )}
                           </div>
                         </td>
-                      </tr>
+                        </tr>
                       );
                     })
                   )}
@@ -1579,7 +1574,7 @@ export default function AdminAttendancePage() {
                   </tr>
                 ) : (
                   summaryRows.map((row) => (
-                    <tr key={`${row.userId}-${row.branchName}`} className="border-t border-gray-100">
+                    <tr key={`${row.userId}-${row.branchId}`} className="border-t border-gray-100">
                       <td className="whitespace-nowrap px-3 py-2">{summaryFromDate}</td>
                       <td className="whitespace-nowrap px-3 py-2">{summaryToDate}</td>
                       <td className="px-3 py-2">{formatDisplayName(row.userOvog, row.userName)}</td>
@@ -1591,7 +1586,19 @@ export default function AdminAttendancePage() {
                       <td className="whitespace-nowrap px-3 py-2 text-right">{row.lateMinutes}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">{row.earlyLeaveMinutes}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {formatOvertime(row.acceptedOvertimeMinutes)}
+                        {row.acceptedOvertimeMinutes > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() => openSummaryBreakdown(row)}
+                            className="rounded border border-blue-300 bg-blue-50 px-2 py-1 text-xs text-blue-700 hover:bg-blue-100"
+                            title="Илүү цагийн задаргаа харах"
+                            aria-label="Илүү цагийн задаргаа харах"
+                          >
+                            {formatOvertime(row.acceptedOvertimeMinutes)}
+                          </button>
+                        ) : (
+                          formatOvertime(row.acceptedOvertimeMinutes)
+                        )}
                       </td>
                     </tr>
                   ))
@@ -1600,6 +1607,79 @@ export default function AdminAttendancePage() {
             </table>
           </div>
         </section>
+      )}
+
+      {summaryBreakdown.open && summaryBreakdown.row && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white p-4 shadow-xl">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Илүү цагийн задаргаа
+                </h2>
+                <p className="text-sm text-gray-600">
+                  {formatDisplayName(
+                    summaryBreakdown.row.userOvog,
+                    summaryBreakdown.row.userName
+                  )}{" "}
+                  • {roleLabel(summaryBreakdown.row.userRole)} •{" "}
+                  {summaryBreakdown.row.branchName}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeSummaryBreakdown}
+                className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+              >
+                Хаах
+              </button>
+            </div>
+
+            {summaryBreakdown.row.overtimeBreakdown.length === 0 ? (
+              <p className="py-4 text-sm text-gray-500">Илүү цагийн мэдээлэл алга.</p>
+            ) : (
+              <div className="max-h-[420px] overflow-auto rounded border border-gray-200">
+                <table className="w-full border-collapse text-sm">
+                  <thead className="bg-gray-50 text-left">
+                    <tr>
+                      <th className="whitespace-nowrap px-3 py-2 font-semibold text-gray-700">
+                        Огноо
+                      </th>
+                      <th className="whitespace-nowrap px-3 py-2 font-semibold text-gray-700">
+                        Ирсэн цаг
+                      </th>
+                      <th className="whitespace-nowrap px-3 py-2 font-semibold text-gray-700">
+                        Явсан цаг
+                      </th>
+                      <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700">
+                        Илүү цаг
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {summaryBreakdown.row.overtimeBreakdown.map((item, idx) => (
+                      <tr
+                        key={`${item.date}-${item.sessionId ?? "none"}-${idx}`}
+                        className="border-t border-gray-100"
+                      >
+                        <td className="whitespace-nowrap px-3 py-2">{item.date}</td>
+                        <td className="whitespace-nowrap px-3 py-2">
+                          {item.checkInAt ? formatDateTime(item.checkInAt) : "—"}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2">
+                          {item.checkOutAt ? formatDateTime(item.checkOutAt) : "—"}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2 text-right">
+                          {formatOvertime(item.durationMinutes)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {editingRow && (
