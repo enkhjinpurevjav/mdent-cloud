@@ -198,7 +198,11 @@ async function enforceGeofenceForBranch(branchId, lat, lng, accuracyM, policy) {
  */
 router.get("/me", async (req, res) => {
   try {
-    const userId = req.user.id;
+    const authBypassed = process.env.DISABLE_AUTH === "true";
+    const userId = req.user?.id ?? (authBypassed ? 2 : null);
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
 
     // Find open session (checked in but not yet checked out)
     const openSession = await prisma.attendanceSession.findFirst({
@@ -234,8 +238,12 @@ router.get("/me", async (req, res) => {
  * (for schedule-first roles) or the user's primary branch.
  */
 router.post("/check-in", async (req, res) => {
-  const userId = req.user.id;
-  const role = req.user.role;
+  const authBypassed = process.env.DISABLE_AUTH === "true";
+  const userId = req.user?.id ?? (authBypassed ? 2 : null);
+  const role = req.user?.role ?? (authBypassed ? "admin" : null);
+  if (!userId || !role) {
+    return res.status(401).json({ error: "Authentication required." });
+  }
   let lat = null;
   let lng = null;
   let accuracyM = null;
@@ -350,12 +358,16 @@ router.post("/check-in", async (req, res) => {
  * prevent switching branches between check-in and check-out.
  */
 router.post("/check-out", async (req, res) => {
-  const userId = req.user.id;
+  const authBypassed = process.env.DISABLE_AUTH === "true";
+  const userId = req.user?.id ?? (authBypassed ? 2 : null);
+  if (!userId) {
+    return res.status(401).json({ error: "Authentication required." });
+  }
   let lat = null;
   let lng = null;
   let accuracyM = null;
   let branchId = null;
-  let role = req.user.role;
+  let role = req.user?.role ?? (authBypassed ? "admin" : null);
   let policy = null;
 
   try {
