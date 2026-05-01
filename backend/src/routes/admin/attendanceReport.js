@@ -37,6 +37,319 @@ function enumerateMongoliaDateRange(from, to) {
   return result;
 }
 
+function getScheduleDurationMinutes(startTime, endTime) {
+  const schedStartMins = parseHHMM(startTime);
+  const schedEndMins = parseHHMM(endTime);
+  if (schedStartMins === null || schedEndMins === null) return null;
+  return Math.max(0, schedEndMins - schedStartMins);
+}
+
+function getSessionOvertimeMinutes(row) {
+  if (
+    !row.sessionId ||
+    row.durationMinutes == null ||
+    row.requiredMinutes == null ||
+    row.durationMinutes <= row.requiredMinutes
+  ) {
+    return 0;
+  }
+  return row.durationMinutes - row.requiredMinutes;
+}
+
+async function buildAttendanceRows({
+  from,
+  to,
+  filterBranchId,
+  filterUserId,
+  filterStatus = null,
+}) {
+  const scheduleWhere = {
+    date: { gte: from, lte: to },
+  };
+  if (filterBranchId) scheduleWhere.branchId = filterBranchId;
+
+  const [doctorSchedules, nurseSchedules, receptionSchedules, activeUsers] =
+    await Promise.all([
+      prisma.doctorSchedule.findMany({
+        where: filterUserId
+          ? { ...scheduleWhere, doctorId: filterUserId }
+          : scheduleWhere,
+        include: {
+          doctor: {
+            select: { id: true, name: true, ovog: true, email: true, role: true },
+          },
+          branch: { select: { id: true, name: true } },
+        },
+        orderBy: [{ date: "asc" }, { startTime: "asc" }],
+      }),
+      prisma.nurseSchedule.findMany({
+        where: filterUserId
+          ? { ...scheduleWhere, nurseId: filterUserId }
+          : scheduleWhere,
+        include: {
+          nurse: {
+            select: { id: true, name: true, ovog: true, email: true, role: true },
+          },
+          branch: { select: { id: true, name: true } },
+        },
+        orderBy: [{ date: "asc" }, { startTime: "asc" }],
+      }),
+      prisma.receptionSchedule.findMany({
+        where: filterUserId
+          ? { ...scheduleWhere, receptionId: filterUserId }
+          : scheduleWhere,
+        include: {
+          reception: {
+            select: { id: true, name: true, ovog: true, email: true, role: true },
+          },
+          branch: { select: { id: true, name: true } },
+        },
+        orderBy: [{ date: "asc" }, { startTime: "asc" }],
+      }),
+      prisma.user.findMany({
+        where: {
+          isActive: true,
+          ...(filterUserId ? { id: filterUserId } : {}),
+          ...(filterBranchId ? { branchId: filterBranchId } : {}),
+        },
+        select: {
+          id: true,
+          name: true,
+          ovog: true,
+          email: true,
+          role: true,
+          branchId: true,
+          branch: { select: { id: true, name: true } },
+        },
+        orderBy: { id: "asc" },
+      }),
+    ]);
+
+  const sessionWhere = {
+    checkInAt: { gte: from, lte: to },
+  };
+  if (filterBranchId) sessionWhere.branchId = filterBranchId;
+  if (filterUserId) sessionWhere.userId = filterUserId;
+
+  const sessions = await prisma.attendanceSession.findMany({
+    where: sessionWhere,
+    include: {
+      user: {
+        select: { id: true, name: true, ovog: true, email: true, role: true },
+      },
+      branch: { select: { id: true, name: true } },
+    },
+    orderBy: { checkInAt: "asc" },
+  });
+
+  const sessionAggregateMap = buildDailySessionAggregateMap(sessions);
+  const matchedSessionKeys = new Set();
+  const rows = [];
+
+  function buildRow(scheduleEntry) {
+    const { user, branch, date, startTime, endTime, note } = scheduleEntry;
+    const dateStr = mongoliaDateString(date);
+    const key = `${user.id}:${dateStr}`;
+    const aggregate = sessionAggregateMap.get(key) || null;
+
+    if (aggregate) {
+      matchedSessionKeys.add(key);
+    }
+
+    let rowStatus = "absent";
+    let durationMinutes = null;
+    let lateMinutes = null;
+    let earlyLeaveMinutes = null;
+    let checkInAt = null;
+    let checkOutAt = null;
+    let sessionCount = 0;
+
+    if (aggregate) {
+      rowStatus = aggregate.hasOpenSession ? "open" : "present";
+      durationMinutes = aggregate.totalDurationMinutes;
+      checkInAt = aggregate.firstCheckInAt.toISOString();
+      checkOutAt = aggregate.latestCheckOutAt?.toISOString() || null;
+      sessionCount = aggregate.sessionCount;
+
+      const schedStartMins = parseHHMM(startTime);
+      const schedEndMins = parseHHMM(endTime);
+
+      if (schedStartMins !== null) {
+        const checkInMins = mongoliaWallClockMinutes(aggregate.firstCheckInAt);
+        const diff = checkInMins - schedStartMins;
+        if (diff >= 1) lateMinutes = diff;
+      }
+
+      if (schedEndMins !== null && aggregate.latestCheckOutAt) {
+        const checkOutMins = mongoliaWallClockMinutes(aggregate.latestCheckOutAt);
+        const diff = schedEndMins - checkOutMins;
+        if (diff >= 1) earlyLeaveMinutes = diff;
+      }
+    }
+
+    const requiredMinutes = getScheduleDurationMinutes(startTime, endTime);
+    const attendanceRatePercent =
+      typeof durationMinutes === "number" &&
+      requiredMinutes !== null &&
+      requiredMinutes > 0
+        ? Math.round((durationMinutes / requiredMinutes) * 1000) / 10
+        : null;
+
+    return {
+      rowType: "scheduled",
+      sessionId: aggregate?.firstSession?.id ?? null,
+      userId: user.id,
+      userName: user.name,
+      userOvog: user.ovog,
+      userEmail: user.email,
+      userRole: user.role,
+      branchId: branch.id,
+      branchName: branch.name,
+      scheduledDate: dateStr,
+      scheduledStart: startTime,
+      scheduledEnd: endTime,
+      scheduleNote: note || null,
+      checkInAt,
+      checkOutAt,
+      durationMinutes,
+      lateMinutes,
+      earlyLeaveMinutes,
+      sessionCount,
+      requiredMinutes,
+      attendanceRatePercent,
+      correctionCount: 0,
+      exceptionFlags: aggregate?.hasOpenSession ? "OPEN_SESSION" : "",
+      isAutoClosed: false,
+      autoCloseReason: null,
+      reviewReason: null,
+      overtimeApproved: aggregate?.firstSession?.overtimeApproved ?? false,
+      overtimeApprovedAt: aggregate?.firstSession?.overtimeApprovedAt?.toISOString() ?? null,
+      overtimeApprovedByUserId: aggregate?.firstSession?.overtimeApprovedByUserId ?? null,
+      status: rowStatus,
+    };
+  }
+
+  for (const s of doctorSchedules) {
+    rows.push(buildRow({ ...s, user: s.doctor }));
+  }
+  for (const s of nurseSchedules) {
+    rows.push(buildRow({ ...s, user: s.nurse }));
+  }
+  for (const s of receptionSchedules) {
+    rows.push(buildRow({ ...s, user: s.reception }));
+  }
+
+  for (const [key, aggregate] of sessionAggregateMap.entries()) {
+    const [userIdStr, dateStr] = key.split(":");
+    const userIdNum = Number(userIdStr);
+    if (matchedSessionKeys.has(key)) continue;
+
+    const firstSession = aggregate.firstSession;
+    const durationMinutes = aggregate.totalDurationMinutes;
+    const requiredMinutes = getUnscheduledRequiredMinutes(
+      firstSession.user.role,
+      dateStr
+    );
+    const attendanceRatePercent =
+      typeof durationMinutes === "number" &&
+      requiredMinutes !== null &&
+      requiredMinutes > 0
+        ? Math.round((durationMinutes / requiredMinutes) * 1000) / 10
+        : null;
+
+    rows.push({
+      rowType: "unscheduled",
+      sessionId: firstSession.id,
+      userId: userIdNum,
+      userName: firstSession.user.name,
+      userOvog: firstSession.user.ovog,
+      userEmail: firstSession.user.email,
+      userRole: firstSession.user.role,
+      branchId: firstSession.branch.id,
+      branchName: firstSession.branch.name,
+      scheduledDate: dateStr,
+      scheduledStart: null,
+      scheduledEnd: null,
+      scheduleNote: null,
+      checkInAt: aggregate.firstCheckInAt.toISOString(),
+      checkOutAt: aggregate.latestCheckOutAt?.toISOString() || null,
+      durationMinutes,
+      lateMinutes: null,
+      earlyLeaveMinutes: null,
+      sessionCount: aggregate.sessionCount,
+      requiredMinutes,
+      attendanceRatePercent,
+      correctionCount: 0,
+      exceptionFlags: aggregate.hasOpenSession ? "OPEN_SESSION,UNSCHEDULED" : "UNSCHEDULED",
+      isAutoClosed: false,
+      autoCloseReason: null,
+      reviewReason: null,
+      overtimeApproved: firstSession.overtimeApproved ?? false,
+      overtimeApprovedAt: firstSession.overtimeApprovedAt?.toISOString() ?? null,
+      overtimeApprovedByUserId: firstSession.overtimeApprovedByUserId ?? null,
+      status: aggregate.hasOpenSession ? "open" : "unscheduled",
+    });
+  }
+
+  const existingUserDayKeys = new Set(
+    rows.map((row) => `${row.userId}:${row.scheduledDate}`)
+  );
+  const ymdRange = enumerateMongoliaDateRange(from, to);
+  for (const user of activeUsers) {
+    for (const ymd of ymdRange) {
+      const key = `${user.id}:${ymd}`;
+      if (existingUserDayKeys.has(key)) continue;
+      const requiredMinutes = getUnscheduledRequiredMinutes(user.role, ymd);
+      rows.push({
+        rowType: "unscheduled",
+        sessionId: null,
+        userId: user.id,
+        userName: user.name,
+        userOvog: user.ovog,
+        userEmail: user.email,
+        userRole: user.role,
+        branchId: user.branchId ?? 0,
+        branchName: user.branch?.name ?? "Салбаргүй",
+        scheduledDate: ymd,
+        scheduledStart: null,
+        scheduledEnd: null,
+        scheduleNote: null,
+        checkInAt: null,
+        checkOutAt: null,
+        durationMinutes: null,
+        lateMinutes: null,
+        earlyLeaveMinutes: null,
+        sessionCount: 0,
+        requiredMinutes,
+        attendanceRatePercent: null,
+        correctionCount: 0,
+        exceptionFlags: "UNSCHEDULED",
+        isAutoClosed: false,
+        autoCloseReason: null,
+        reviewReason: null,
+        overtimeApproved: false,
+        overtimeApprovedAt: null,
+        overtimeApprovedByUserId: null,
+        status: "absent",
+      });
+    }
+  }
+
+  const filtered = filterStatus
+    ? rows.filter((r) => r.status === filterStatus)
+    : rows;
+
+  filtered.sort((a, b) => {
+    const d = a.scheduledDate.localeCompare(b.scheduledDate);
+    if (d !== 0) return d;
+    const nameA = `${a.userOvog || ""}${a.userName || ""}`;
+    const nameB = `${b.userOvog || ""}${b.userName || ""}`;
+    return nameA.localeCompare(nameB);
+  });
+
+  return filtered;
+}
+
 /**
  * GET /api/admin/attendance
  *
@@ -80,322 +393,12 @@ router.get("/attendance", async (req, res) => {
     const filterStatus =
       status && status !== "all" ? String(status) : null;
 
-    // ------------------------------------------------------------------
-    // 1. Load schedules for doctors / nurses / receptionists in range
-    // ------------------------------------------------------------------
-    const scheduleWhere = {
-      date: { gte: from, lte: to },
-    };
-    if (filterBranchId) scheduleWhere.branchId = filterBranchId;
-
-    const [doctorSchedules, nurseSchedules, receptionSchedules, activeUsers] =
-      await Promise.all([
-        prisma.doctorSchedule.findMany({
-          where: filterUserId
-            ? { ...scheduleWhere, doctorId: filterUserId }
-            : scheduleWhere,
-          include: {
-            doctor: {
-              select: { id: true, name: true, ovog: true, email: true, role: true },
-            },
-            branch: { select: { id: true, name: true } },
-          },
-          orderBy: [{ date: "asc" }, { startTime: "asc" }],
-        }),
-        prisma.nurseSchedule.findMany({
-          where: filterUserId
-            ? { ...scheduleWhere, nurseId: filterUserId }
-            : scheduleWhere,
-          include: {
-            nurse: {
-              select: { id: true, name: true, ovog: true, email: true, role: true },
-            },
-            branch: { select: { id: true, name: true } },
-          },
-          orderBy: [{ date: "asc" }, { startTime: "asc" }],
-        }),
-        prisma.receptionSchedule.findMany({
-          where: filterUserId
-            ? { ...scheduleWhere, receptionId: filterUserId }
-            : scheduleWhere,
-          include: {
-            reception: {
-              select: { id: true, name: true, ovog: true, email: true, role: true },
-            },
-            branch: { select: { id: true, name: true } },
-          },
-          orderBy: [{ date: "asc" }, { startTime: "asc" }],
-        }),
-        prisma.user.findMany({
-          where: {
-            isActive: true,
-            ...(filterUserId ? { id: filterUserId } : {}),
-            ...(filterBranchId ? { branchId: filterBranchId } : {}),
-          },
-          select: {
-            id: true,
-            name: true,
-            ovog: true,
-            email: true,
-            role: true,
-            branchId: true,
-            branch: { select: { id: true, name: true } },
-          },
-          orderBy: { id: "asc" },
-        }),
-      ]);
-
-    // ------------------------------------------------------------------
-    // 2. Load all AttendanceSessions in the range
-    // ------------------------------------------------------------------
-    const sessionWhere = {
-      checkInAt: { gte: from, lte: to },
-    };
-    if (filterBranchId) sessionWhere.branchId = filterBranchId;
-    if (filterUserId) sessionWhere.userId = filterUserId;
-
-    const sessions = await prisma.attendanceSession.findMany({
-      where: sessionWhere,
-      include: {
-        user: {
-          select: { id: true, name: true, ovog: true, email: true, role: true },
-        },
-        branch: { select: { id: true, name: true } },
-      },
-      orderBy: { checkInAt: "asc" },
-    });
-
-    // ------------------------------------------------------------------
-    // 3. Build per-user/day attendance aggregate (UTC+8 day key)
-    // ------------------------------------------------------------------
-    const sessionAggregateMap = buildDailySessionAggregateMap(sessions);
-
-    // Track which session keys have been matched to a schedule row
-    const matchedSessionKeys = new Set();
-
-    // ------------------------------------------------------------------
-    // 4. Build scheduled rows
-    // ------------------------------------------------------------------
-    const rows = [];
-
-    // Helper: merge schedule + session into a report row
-    function buildRow(scheduleEntry) {
-      const { user, branch, date, startTime, endTime, note } = scheduleEntry;
-      const dateStr = mongoliaDateString(date);
-      const key = `${user.id}:${dateStr}`;
-      const aggregate = sessionAggregateMap.get(key) || null;
-
-      // Mark this session key as "matched" so we don't include it again as unscheduled
-      if (aggregate) {
-        matchedSessionKeys.add(key);
-      }
-
-      // Compute status + metrics
-      let rowStatus = "absent";
-      let durationMinutes = null;
-      let lateMinutes = null;
-      let earlyLeaveMinutes = null;
-      let checkInAt = null;
-      let checkOutAt = null;
-      let sessionCount = 0;
-
-      if (aggregate) {
-        rowStatus = aggregate.hasOpenSession ? "open" : "present";
-        durationMinutes = aggregate.totalDurationMinutes;
-        checkInAt = aggregate.firstCheckInAt.toISOString();
-        checkOutAt = aggregate.latestCheckOutAt?.toISOString() || null;
-        sessionCount = aggregate.sessionCount;
-
-        // Late / early calculations using wall-clock HH:MM comparison.
-        // Schedule startTime/endTime are "HH:MM" strings.
-        // Attendance timestamps are converted to Mongolia wall-clock values (UTC+8).
-        const schedStartMins = parseHHMM(startTime);
-        const schedEndMins = parseHHMM(endTime);
-
-        if (schedStartMins !== null) {
-          const checkInMins = mongoliaWallClockMinutes(aggregate.firstCheckInAt);
-          const diff = checkInMins - schedStartMins;
-          if (diff >= 1) lateMinutes = diff;
-        }
-
-        if (schedEndMins !== null && aggregate.latestCheckOutAt) {
-          const checkOutMins = mongoliaWallClockMinutes(aggregate.latestCheckOutAt);
-          const diff = schedEndMins - checkOutMins;
-          if (diff >= 1) earlyLeaveMinutes = diff;
-        }
-      }
-
-      const schedStartMins = parseHHMM(startTime);
-      const schedEndMins = parseHHMM(endTime);
-      const scheduleDurationMinutes =
-        schedStartMins !== null && schedEndMins !== null
-          ? Math.max(0, schedEndMins - schedStartMins)
-          : null;
-      const attendanceRatePercent =
-        typeof durationMinutes === "number" &&
-        scheduleDurationMinutes !== null &&
-        scheduleDurationMinutes > 0
-          ? Math.round((durationMinutes / scheduleDurationMinutes) * 1000) / 10
-          : null;
-
-      return {
-        rowType: "scheduled",
-        sessionId: aggregate?.firstSession?.id ?? null,
-        userId: user.id,
-        userName: user.name,
-        userOvog: user.ovog,
-        userEmail: user.email,
-        userRole: user.role,
-        branchId: branch.id,
-        branchName: branch.name,
-        scheduledDate: dateStr,
-        scheduledStart: startTime,
-        scheduledEnd: endTime,
-        scheduleNote: note || null,
-        checkInAt,
-        checkOutAt,
-        durationMinutes,
-        lateMinutes,
-        earlyLeaveMinutes,
-        sessionCount,
-        requiredMinutes: scheduleDurationMinutes,
-        attendanceRatePercent,
-        correctionCount: 0,
-        exceptionFlags: aggregate?.hasOpenSession ? "OPEN_SESSION" : "",
-        isAutoClosed: false,
-        autoCloseReason: null,
-        reviewReason: null,
-        status: rowStatus,
-      };
-    }
-
-    // Doctor schedules
-    for (const s of doctorSchedules) {
-      rows.push(buildRow({ ...s, user: s.doctor }));
-    }
-
-    // Nurse schedules
-    for (const s of nurseSchedules) {
-      rows.push(buildRow({ ...s, user: s.nurse }));
-    }
-
-    // Reception schedules
-    for (const s of receptionSchedules) {
-      rows.push(buildRow({ ...s, user: s.reception }));
-    }
-
-    // ------------------------------------------------------------------
-    // 5. Add unscheduled attendance rows (sessions not matched to any schedule)
-    // ------------------------------------------------------------------
-    for (const [key, aggregate] of sessionAggregateMap.entries()) {
-      const [userIdStr, dateStr] = key.split(":");
-      const userIdNum = Number(userIdStr);
-
-      // Skip if this user+date was matched to a schedule row
-      if (matchedSessionKeys.has(key)) continue;
-
-      const firstSession = aggregate.firstSession;
-      const durationMinutes = aggregate.totalDurationMinutes;
-      const requiredMinutes = getUnscheduledRequiredMinutes(
-        firstSession.user.role,
-        dateStr
-      );
-      const attendanceRatePercent =
-        typeof durationMinutes === "number" &&
-        requiredMinutes !== null &&
-        requiredMinutes > 0
-          ? Math.round((durationMinutes / requiredMinutes) * 1000) / 10
-          : null;
-
-      rows.push({
-        rowType: "unscheduled",
-        sessionId: firstSession.id,
-        userId: userIdNum,
-        userName: firstSession.user.name,
-        userOvog: firstSession.user.ovog,
-        userEmail: firstSession.user.email,
-        userRole: firstSession.user.role,
-        branchId: firstSession.branch.id,
-        branchName: firstSession.branch.name,
-        scheduledDate: dateStr,
-        scheduledStart: null,
-        scheduledEnd: null,
-        scheduleNote: null,
-        checkInAt: aggregate.firstCheckInAt.toISOString(),
-        checkOutAt: aggregate.latestCheckOutAt?.toISOString() || null,
-        durationMinutes,
-        lateMinutes: null,
-        earlyLeaveMinutes: null,
-        sessionCount: aggregate.sessionCount,
-        requiredMinutes,
-        attendanceRatePercent,
-        correctionCount: 0,
-        exceptionFlags: aggregate.hasOpenSession ? "OPEN_SESSION,UNSCHEDULED" : "UNSCHEDULED",
-        isAutoClosed: false,
-        autoCloseReason: null,
-        reviewReason: null,
-        status: aggregate.hasOpenSession ? "open" : "unscheduled",
-      });
-    }
-
-    // ------------------------------------------------------------------
-    // 6. Add absent baseline rows for users missing in user-day rows
-    // ------------------------------------------------------------------
-    const existingUserDayKeys = new Set(
-      rows.map((row) => `${row.userId}:${row.scheduledDate}`)
-    );
-    const ymdRange = enumerateMongoliaDateRange(from, to);
-    for (const user of activeUsers) {
-      for (const ymd of ymdRange) {
-        const key = `${user.id}:${ymd}`;
-        if (existingUserDayKeys.has(key)) continue;
-        const requiredMinutes = getUnscheduledRequiredMinutes(user.role, ymd);
-        rows.push({
-          rowType: "unscheduled",
-          sessionId: null,
-          userId: user.id,
-          userName: user.name,
-          userOvog: user.ovog,
-          userEmail: user.email,
-          userRole: user.role,
-          branchId: user.branchId ?? 0,
-          branchName: user.branch?.name ?? "Салбаргүй",
-          scheduledDate: ymd,
-          scheduledStart: null,
-          scheduledEnd: null,
-          scheduleNote: null,
-          checkInAt: null,
-          checkOutAt: null,
-          durationMinutes: null,
-          lateMinutes: null,
-          earlyLeaveMinutes: null,
-          sessionCount: 0,
-          requiredMinutes,
-          attendanceRatePercent: null,
-          correctionCount: 0,
-          exceptionFlags: "UNSCHEDULED",
-          isAutoClosed: false,
-          autoCloseReason: null,
-          reviewReason: null,
-          status: "absent",
-        });
-      }
-    }
-
-    // ------------------------------------------------------------------
-    // 7. Filter by status
-    // ------------------------------------------------------------------
-    const filtered = filterStatus
-      ? rows.filter((r) => r.status === filterStatus)
-      : rows;
-
-    // Sort: by scheduledDate then by userName
-    filtered.sort((a, b) => {
-      const d = a.scheduledDate.localeCompare(b.scheduledDate);
-      if (d !== 0) return d;
-      const nameA = `${a.userOvog || ""}${a.userName || ""}`;
-      const nameB = `${b.userOvog || ""}${b.userName || ""}`;
-      return nameA.localeCompare(nameB);
+    const filtered = await buildAttendanceRows({
+      from,
+      to,
+      filterBranchId,
+      filterUserId,
+      filterStatus,
     });
 
     // ------------------------------------------------------------------
@@ -421,6 +424,152 @@ router.get("/attendance", async (req, res) => {
     });
   } catch (err) {
     console.error("GET /api/admin/attendance error:", err);
+    return res.status(500).json({ error: "Серверийн алдаа гарлаа." });
+  }
+});
+
+/**
+ * PATCH /api/admin/attendance/session/:id/overtime-approval
+ * Persist overtime approval state.
+ */
+router.patch("/attendance/session/:id/overtime-approval", async (req, res) => {
+  try {
+    if (req.user.role !== "admin" && req.user.role !== "super_admin") {
+      return res.status(403).json({ error: "Forbidden. Insufficient role." });
+    }
+
+    const sessionId = Number(req.params.id);
+    if (!sessionId || Number.isNaN(sessionId)) {
+      return res.status(400).json({ error: "Invalid session id." });
+    }
+
+    const approved = req.body?.approved;
+    if (typeof approved !== "boolean") {
+      return res.status(400).json({ error: "approved boolean is required." });
+    }
+
+    const existing = await prisma.attendanceSession.findUnique({
+      where: { id: sessionId },
+      select: { id: true, checkOutAt: true },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Attendance session not found." });
+    }
+    if (!existing.checkOutAt) {
+      return res.status(409).json({ error: "Open session overtime cannot be approved yet." });
+    }
+
+    const updated = await prisma.attendanceSession.update({
+      where: { id: sessionId },
+      data: {
+        overtimeApproved: approved,
+        overtimeApprovedAt: approved ? new Date() : null,
+        overtimeApprovedByUserId: approved ? req.user.id : null,
+      },
+      select: {
+        id: true,
+        overtimeApproved: true,
+        overtimeApprovedAt: true,
+        overtimeApprovedByUserId: true,
+      },
+    });
+
+    return res.json({ session: updated });
+  } catch (err) {
+    if (err?.code === "P2025") {
+      return res.status(404).json({ error: "Attendance session not found." });
+    }
+    console.error("PATCH /api/admin/attendance/session/:id/overtime-approval error:", err);
+    return res.status(500).json({ error: "Серверийн алдаа гарлаа." });
+  }
+});
+
+/**
+ * GET /api/admin/attendance/summary
+ * Full-range summary with accepted overtime breakdown.
+ */
+router.get("/attendance/summary", async (req, res) => {
+  try {
+    const { fromTs, toTs, branchId, userId, role } = req.query;
+    if (!fromTs || !toTs) {
+      return res.status(400).json({ error: "fromTs and toTs are required" });
+    }
+    const from = new Date(fromTs);
+    const to = new Date(toTs);
+    if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+      return res
+        .status(400)
+        .json({ error: "fromTs and toTs must be valid ISO timestamps" });
+    }
+
+    const filterBranchId = branchId ? Number(branchId) : null;
+    const filterUserId = userId ? Number(userId) : null;
+    const filterRole = role ? String(role) : "";
+
+    const rows = await buildAttendanceRows({
+      from,
+      to,
+      filterBranchId,
+      filterUserId,
+      filterStatus: null,
+    });
+
+    const grouped = new Map();
+    for (const row of rows) {
+      if (filterRole && row.userRole !== filterRole) continue;
+      if (filterUserId && row.userId !== filterUserId) continue;
+      if (filterBranchId && row.branchId !== filterBranchId) continue;
+
+      const key = `${row.userId}:${row.branchId}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          userId: row.userId,
+          userName: row.userName,
+          userOvog: row.userOvog,
+          userRole: row.userRole,
+          branchId: row.branchId,
+          branchName: row.branchName,
+          requiredMinutes: 0,
+          lateMinutes: 0,
+          earlyLeaveMinutes: 0,
+          acceptedOvertimeMinutes: 0,
+          overtimeBreakdown: [],
+        });
+      }
+      const agg = grouped.get(key);
+      agg.requiredMinutes += row.requiredMinutes ?? 0;
+      agg.lateMinutes += row.lateMinutes ?? 0;
+      agg.earlyLeaveMinutes += row.earlyLeaveMinutes ?? 0;
+
+      const overtimeMinutes = getSessionOvertimeMinutes(row);
+      if (overtimeMinutes > 0 && row.overtimeApproved === true) {
+        agg.acceptedOvertimeMinutes += overtimeMinutes;
+        agg.overtimeBreakdown.push({
+          date: row.scheduledDate,
+          durationMinutes: overtimeMinutes,
+          sessionId: row.sessionId,
+          checkInAt: row.checkInAt,
+          checkOutAt: row.checkOutAt,
+        });
+      }
+    }
+
+    const items = Array.from(grouped.values())
+      .map((row) => ({
+        ...row,
+        overtimeBreakdown: row.overtimeBreakdown.sort((a, b) =>
+          a.date.localeCompare(b.date)
+        ),
+      }))
+      .sort((a, b) => {
+        const nameA = `${a.userOvog || ""}${a.userName || ""}`;
+        const nameB = `${b.userOvog || ""}${b.userName || ""}`;
+        return nameA.localeCompare(nameB);
+      });
+
+    return res.json({ items });
+  } catch (err) {
+    console.error("GET /api/admin/attendance/summary error:", err);
     return res.status(500).json({ error: "Серверийн алдаа гарлаа." });
   }
 });

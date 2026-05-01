@@ -516,67 +516,6 @@ router.get("/attempts", async (req, res) => {
 });
 
 /**
- * POST /api/attendance/precheck
- * Read-only validation endpoint for GPS+policy checks.
- */
-router.post("/precheck", async (req, res) => {
-  const userId = req.user.id;
-  const role = req.user.role;
-  let lat = null;
-  let lng = null;
-  let accuracyM = null;
-  let branchId = null;
-
-  try {
-    ({ lat, lng, accuracyM } = parseGeoBody(req.body));
-    const now = new Date();
-    branchId = await resolveAttendanceBranch(userId, role, now);
-    const policy = await getEffectiveAttendancePolicy({ prisma, role, branchId });
-    enforceStandardShiftCheckInWindow(role, now);
-    const geo = await enforceGeofenceForBranch(branchId, lat, lng, accuracyM, policy);
-
-    const accuracyRounded = Math.round(accuracyM);
-    const distanceRounded = Math.round(geo.distM);
-    const radiusRounded = Math.round(geo.radiusM);
-    return res.json({
-      ok: true,
-      branchId,
-      policy,
-      checks: {
-        accuracyOk: accuracyRounded <= (policy?.minAccuracyM ?? 100),
-        geofenceOk: !policy?.enforceGeofence || distanceRounded <= radiusRounded,
-        scheduleWindowOpen: true,
-      },
-      metrics: {
-        accuracyM: accuracyRounded,
-        distanceM: distanceRounded,
-        radiusM: radiusRounded,
-      },
-      message: "Ирц бүртгэх боломжтой байна.",
-    });
-  } catch (err) {
-    const accuracyRounded = typeof accuracyM === "number" ? Math.round(accuracyM) : null;
-    return res.status(hasErrorStatus(err) ? getErrorStatus(err) : 500).json({
-      ok: false,
-      branchId,
-      failureCode: getAttemptFailureCode(err),
-      message: getErrorMessage(err),
-      checks: {
-        accuracyOk: null,
-        geofenceOk: null,
-        scheduleWindowOpen:
-          err?.failureCode !== ATTENDANCE_FAILURE_CODE.SCHEDULE_WINDOW_CLOSED,
-      },
-      metrics: {
-        accuracyM: accuracyRounded,
-        distanceM: null,
-        radiusM: null,
-      },
-    });
-  }
-});
-
-/**
  * PATCH /api/attendance/session/:id
  * Admin-only correction with immutable audit trail.
  */
@@ -651,6 +590,62 @@ router.patch("/session/:id", async (req, res) => {
     return res.json({ session: updated });
   } catch (err) {
     console.error("PATCH /api/attendance/session/:id error:", err);
+    return res.status(500).json({ error: "Серверийн алдаа гарлаа." });
+  }
+});
+
+/**
+ * PATCH /api/attendance/session/:id/overtime-approval
+ * Admin-only overtime approval state persistence.
+ */
+router.patch("/session/:id/overtime-approval", async (req, res) => {
+  try {
+    if (req.user.role !== "admin" && req.user.role !== "super_admin") {
+      return res.status(403).json({ error: "Forbidden. Insufficient role." });
+    }
+
+    const sessionId = Number(req.params.id);
+    if (!sessionId || Number.isNaN(sessionId)) {
+      return res.status(400).json({ error: "Invalid session id." });
+    }
+
+    const approved = req.body?.approved;
+    if (typeof approved !== "boolean") {
+      return res.status(400).json({ error: "approved boolean is required." });
+    }
+
+    const existing = await prisma.attendanceSession.findUnique({
+      where: { id: sessionId },
+      select: { id: true, checkOutAt: true },
+    });
+    if (!existing) {
+      return res.status(404).json({ error: "Attendance session not found." });
+    }
+    if (!existing.checkOutAt) {
+      return res.status(409).json({ error: "Open session overtime cannot be approved yet." });
+    }
+
+    const updated = await prisma.attendanceSession.update({
+      where: { id: sessionId },
+      data: {
+        overtimeApproved: approved,
+        overtimeApprovedAt: approved ? new Date() : null,
+        overtimeApprovedByUserId: approved ? req.user.id : null,
+      },
+      select: {
+        id: true,
+        overtimeApproved: true,
+        overtimeApprovedAt: true,
+        overtimeApprovedByUserId: true,
+      },
+    });
+
+    return res.json({ session: updated });
+  } catch (err) {
+    if (err?.code === "P2025") {
+      return res.status(404).json({ error: "Attendance session not found." });
+    }
+    console.error("PATCH /api/attendance/session/:id/overtime-approval error:", err);
     return res.status(500).json({ error: "Серверийн алдаа гарлаа." });
   }
 });

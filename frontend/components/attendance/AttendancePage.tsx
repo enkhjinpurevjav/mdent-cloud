@@ -19,28 +19,6 @@ type MeResponse = {
   recent: AttendanceSession[];
 };
 
-type PrecheckResponse = {
-  ok: boolean;
-  branchId?: number;
-  branchName?: string;
-  policy?: {
-    minAccuracyM: number;
-    enforceGeofence: boolean;
-    earlyCheckInMinutes: number;
-  };
-  checks?: {
-    accuracyOk: boolean;
-    geofenceOk: boolean;
-    scheduleWindowOpen: boolean;
-  };
-  metrics?: {
-    accuracyM: number;
-    distanceM: number | null;
-    radiusM: number | null;
-  };
-  message: string;
-};
-
 function formatDateTime(iso: string) {
   const d = new Date(iso);
   return d.toLocaleString("mn-MN", {
@@ -71,8 +49,6 @@ export default function AttendancePage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
-  const [precheck, setPrecheck] = useState<PrecheckResponse | null>(null);
-  const [precheckLoading, setPrecheckLoading] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     setLoadingStatus(true);
@@ -128,34 +104,6 @@ export default function AttendancePage() {
     return position;
   }
 
-  async function runPrecheck() {
-    setPrecheckLoading(true);
-    setActionError("");
-    try {
-      const position = await getCurrentPosition();
-      const lat = position.coords.latitude;
-      const lng = position.coords.longitude;
-      const accuracyM = position.coords.accuracy;
-
-      const res = await fetch("/api/attendance/precheck", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat, lng, accuracyM }),
-      });
-      const data = (await res.json().catch(() => ({}))) as PrecheckResponse;
-      if (!res.ok) {
-        throw new Error((data as any).error || "Урьдчилсан шалгалт хийхэд алдаа гарлаа.");
-      }
-      setPrecheck(data);
-    } catch (err: unknown) {
-      setPrecheck(null);
-      setActionError(err instanceof Error ? err.message : "Урьдчилсан шалгалтын алдаа.");
-    } finally {
-      setPrecheckLoading(false);
-    }
-  }
-
   async function handleAction(type: "check-in" | "check-out") {
     setActionLoading(true);
     setActionError("");
@@ -195,7 +143,6 @@ export default function AttendancePage() {
           : "✅ Гарах бүртгэл амжилттай хийгдлээ."
       );
       await fetchStatus();
-      await runPrecheck();
     } catch (err: unknown) {
       setActionError(err instanceof Error ? err.message : "Алдаа гарлаа.");
     } finally {
@@ -246,47 +193,6 @@ export default function AttendancePage() {
       {/* Action button */}
       {canShowAction && (
         <div className="mb-6">
-          <button
-            type="button"
-            disabled={precheckLoading || actionLoading}
-            onClick={runPrecheck}
-            className={[
-              "mb-3 w-full rounded-[10px] border px-6 py-3 text-[14px] font-semibold transition-colors",
-              precheckLoading || actionLoading
-                ? "cursor-not-allowed border-gray-300 bg-gray-100 text-gray-400"
-                : "cursor-pointer border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100",
-            ].join(" ")}
-          >
-            {precheckLoading ? "Урьдчилсан шалгалт хийгдэж байна..." : "🔎 Урьдчилсан шалгах"}
-          </button>
-
-          {precheck && (
-            <div
-              className={[
-                "mb-3 rounded-lg border px-4 py-3 text-[13px]",
-                precheck.ok
-                  ? "border-green-300 bg-green-50 text-green-800"
-                  : "border-amber-300 bg-amber-50 text-amber-800",
-              ].join(" ")}
-            >
-              <div className="font-semibold">{precheck.message}</div>
-              <div className="mt-1 text-[12px]">
-                Нарийвчлал: {precheck.metrics?.accuracyM ?? "—"}м / босго:{" "}
-                {precheck.policy?.minAccuracyM ?? "—"}м
-              </div>
-              <div className="text-[12px]">
-                Салбар хүртэл:{" "}
-                {precheck.metrics?.distanceM != null ? `${precheck.metrics.distanceM}м` : "—"} /
-                радиус: {precheck.metrics?.radiusM != null ? `${precheck.metrics.radiusM}м` : "—"}
-              </div>
-              <div className="text-[12px]">
-                Цагийн цонх: {precheck.checks?.scheduleWindowOpen ? "НЭЭЛТТЭЙ" : "ХААЛТТАЙ"} •
-                Гео бүс: {precheck.checks?.geofenceOk ? "ЗӨВ" : "ЗӨРСӨН"} •
-                GPS: {precheck.checks?.accuracyOk ? "САЙН" : "СУЛ"}
-              </div>
-            </div>
-          )}
-
           <button
             type="button"
             disabled={actionLoading}
