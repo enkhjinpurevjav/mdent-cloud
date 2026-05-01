@@ -1,5 +1,11 @@
 import { Router } from "express";
 import prisma from "../db.js";
+import { computeDoctorsIncomeData } from "./admin/income.js";
+import {
+  discountPercentEnumToNumber,
+  computeServiceNetProportionalDiscount,
+  allocatePaymentProportionalByRemaining,
+} from "../utils/incomeHelpers.js";
 
 const router = Router();
 
@@ -24,6 +30,26 @@ const MAIN_REPORT_PAYMENT_METHODS = [
   { key: "BARTER", label: "Бартер" },
   { key: "QPAY", label: "QPAY" },
 ];
+const DOCTOR_TAB_CATEGORY_LABELS = {
+  ADULT_TREATMENT: "Насанд хүрэгчдийн эмчилгээ",
+  CHILD_TREATMENT: "Хүүхдийн эмчилгээ",
+  ORTHODONTIC_TREATMENT: "Гажиг заслын эмчилгээ",
+  DEFECT_CORRECTION: "Согог заслын эмчилгээ",
+  WHITENING: "Цайруулалт",
+  SURGERY: "Мэс ажилбар",
+};
+const DOCTOR_TAB_INCLUDED_METHODS = new Set([
+  "CASH",
+  "POS",
+  "TRANSFER",
+  "QPAY",
+  "WALLET",
+  "VOUCHER",
+  "OTHER",
+]);
+const DOCTOR_TAB_EXCLUDED_METHODS = new Set(["EMPLOYEE_BENEFIT"]);
+const DOCTOR_TAB_OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION", "WALLET"]);
+const DOCTOR_TAB_BARTER_THRESHOLD_MNT = 800000;
 
 function parseDateOnlyStart(value) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -48,6 +74,15 @@ function dayKey(date) {
 
 function asMoney(value) {
   return Number(Number(value || 0).toFixed(2));
+}
+
+function toShortDoctorName({ ovog, name, id }) {
+  const first = String(ovog || "").trim();
+  const last = String(name || "").trim();
+  if (first && last) return `${first.charAt(0)}.${last}`;
+  if (last) return last;
+  if (first) return first;
+  return `Эмч #${id}`;
 }
 
 router.get("/main-overview", async (req, res) => {
@@ -296,6 +331,288 @@ router.get("/main-overview", async (req, res) => {
   } catch (err) {
     console.error("GET /api/reports/main-overview error:", err);
     return res.status(500).json({ error: "Failed to fetch main overview report." });
+  }
+});
+
+router.get("/main-doctor", async (req, res) => {
+  try {
+    const now = new Date();
+    const defaultFrom = `${now.getFullYear()}-01-01`;
+    const defaultTo = `${now.getFullYear()}-12-31`;
+    const from = typeof req.query.from === "string" && req.query.from ? req.query.from : defaultFrom;
+    const to = typeof req.query.to === "string" && req.query.to ? req.query.to : defaultTo;
+
+    const fromDate = parseDateOnlyStart(from);
+    const toDateExclusive = parseDateOnlyEndExclusive(to);
+    if (!fromDate || !toDateExclusive) {
+      return res.status(400).json({
+        error: "from, to query parameters are required in YYYY-MM-DD format.",
+      });
+    }
+
+    const branchId =
+      req.query.branchId == null || req.query.branchId === ""
+        ? null
+        : Number(req.query.branchId);
+    const doctorId =
+      req.query.doctorId == null || req.query.doctorId === ""
+        ? null
+        : Number(req.query.doctorId);
+    const topN =
+      req.query.topN == null || req.query.topN === ""
+        ? 10
+        : Number(req.query.topN);
+
+    if (
+      (branchId != null && Number.isNaN(branchId)) ||
+      (doctorId != null && Number.isNaN(doctorId)) ||
+      Number.isNaN(topN)
+    ) {
+      return res.status(400).json({ error: "Invalid branchId, doctorId or topN." });
+    }
+
+    const topNNormalized = [5, 10, 20].includes(topN) ? topN : 10;
+    const yearMatch = /^(\d{4})-01-01$/.exec(from);
+    const isMonthlyView = Boolean(yearMatch && to === `${yearMatch[1]}-12-31`);
+    const view = isMonthlyView ? "monthly" : "daily";
+
+    const [doctorRowsRaw, filtersData, invoices] = await Promise.all([
+      computeDoctorsIncomeData({
+        startDate: from,
+        endDate: to,
+        branchId,
+      }),
+      Promise.all([
+        prisma.branch.findMany({
+          select: { id: true, name: true },
+          orderBy: { id: "asc" },
+        }),
+        prisma.user.findMany({
+          where: { role: "doctor", ...(branchId ? { branchId } : {}) },
+          select: { id: true, name: true, ovog: true, branchId: true },
+          orderBy: { name: "asc" },
+        }),
+      ]),
+      prisma.invoice.findMany({
+        where: {
+          OR: [
+            { createdAt: { gte: fromDate, lt: toDateExclusive } },
+            {
+              payments: {
+                some: { timestamp: { gte: fromDate, lt: toDateExclusive } },
+              },
+            },
+          ],
+          ...(branchId ? { branchId } : {}),
+          ...(doctorId ? { encounter: { is: { doctorId } } } : {}),
+        },
+        include: {
+          encounter: {
+            include: {
+              doctor: { select: { id: true, name: true, ovog: true } },
+              appointment: {
+                select: { id: true, status: true, scheduledAt: true },
+              },
+            },
+          },
+          items: {
+            where: {
+              itemType: "SERVICE",
+              service: {
+                category: {
+                  in: Object.keys(DOCTOR_TAB_CATEGORY_LABELS),
+                },
+              },
+            },
+            include: { service: { select: { category: true } } },
+          },
+          payments: {
+            where: {
+              timestamp: { gte: fromDate, lt: toDateExclusive },
+            },
+            select: { amount: true },
+          },
+        },
+      }),
+    ]);
+
+    const [branches, doctors] = filtersData;
+
+    const doctorRowsScoped = doctorRowsRaw
+      .filter((row) => (doctorId ? row.doctorId === doctorId : true))
+      .map((row) => ({
+        doctorId: row.doctorId,
+        doctorName: toShortDoctorName({
+          id: row.doctorId,
+          ovog: row.doctorOvog,
+          name: row.doctorName,
+        }),
+        branchName: row.branchName || "—",
+        sales: Math.round(row.revenue || 0),
+        income: Math.round(row.commission || 0),
+        completedAppointments: Number(row.appointmentCount || 0),
+        completedServices: Number(row.serviceCount || 0),
+        avgPerAppointment: Math.round(row.averageVisitRevenue || 0),
+      }))
+      .sort((a, b) => b.sales - a.sales);
+
+    const doctorById = new Map(doctorRowsScoped.map((d) => [d.doctorId, d]));
+    const doctorTrendMap = new Map();
+    const avgPerPatientRows = [...doctorRowsScoped];
+
+    const totalDoctorIncome = doctorRowsScoped.reduce((s, d) => s + d.income, 0);
+    const totalSales = doctorRowsScoped.reduce((s, d) => s + d.sales, 0);
+    const totalCompletedAppointments = doctorRowsScoped.reduce(
+      (s, d) => s + d.completedAppointments,
+      0
+    );
+    const totalAvgPerAppointment =
+      totalCompletedAppointments > 0
+        ? Math.round(totalSales / totalCompletedAppointments)
+        : 0;
+
+    const categoryBreakdownMap = new Map(
+      Object.keys(DOCTOR_TAB_CATEGORY_LABELS).map((k) => [k, 0])
+    );
+
+    for (const inv of invoices) {
+      const doc = inv.encounter?.doctor;
+      if (!doc || !doctorById.has(doc.id)) continue;
+      const docRow = doctorById.get(doc.id);
+
+      const bucketTs = inv.createdAt;
+      const bucket = view === "monthly" ? monthKey(bucketTs) : dayKey(bucketTs);
+      if (!doctorTrendMap.has(doc.id)) {
+        doctorTrendMap.set(doc.id, new Map());
+      }
+      const perDoctorSeries = doctorTrendMap.get(doc.id);
+      perDoctorSeries.set(bucket, (perDoctorSeries.get(bucket) || 0) + docRow.sales);
+
+      if (doctorId && doc.id === doctorId) {
+        for (const it of inv.items || []) {
+          const cat = it.service?.category;
+          if (!cat || !categoryBreakdownMap.has(cat)) continue;
+          categoryBreakdownMap.set(
+            cat,
+            (categoryBreakdownMap.get(cat) || 0) + Number(it.quantity || 0)
+          );
+        }
+      }
+    }
+
+    const trendBuckets = [];
+    if (view === "monthly") {
+      const monthCursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1, 0, 0, 0, 0);
+      const endMonth = new Date(
+        new Date(toDateExclusive.getTime() - 1).getFullYear(),
+        new Date(toDateExclusive.getTime() - 1).getMonth(),
+        1,
+        0,
+        0,
+        0,
+        0
+      );
+      while (monthCursor <= endMonth) {
+        trendBuckets.push(monthKey(monthCursor));
+        monthCursor.setMonth(monthCursor.getMonth() + 1);
+      }
+    } else {
+      const dayCursor = new Date(fromDate);
+      while (dayCursor < toDateExclusive) {
+        trendBuckets.push(dayKey(dayCursor));
+        dayCursor.setDate(dayCursor.getDate() + 1);
+      }
+    }
+
+    const rankingBase = doctorRowsScoped
+      .slice(0, topNNormalized)
+      .map((d) => ({
+        doctorId: d.doctorId,
+        doctorName: d.doctorName,
+        sales: d.sales,
+        income: d.income,
+        avgPerAppointment: d.avgPerAppointment,
+      }));
+
+    const hasDoctorFilter = Boolean(doctorId);
+    const trendDoctorBase = hasDoctorFilter
+      ? doctorRowsScoped.slice(0, 1)
+      : doctorRowsScoped.slice(0, topNNormalized);
+    const trendDoctorIds = trendDoctorBase.map((d) => d.doctorId);
+    const trendSeriesRows = trendBuckets.map((bucket) => {
+      const row = { bucket };
+      let others = 0;
+      for (const d of doctorRowsScoped) {
+        const v = doctorTrendMap.get(d.doctorId)?.get(bucket) || 0;
+        if (trendDoctorIds.includes(d.doctorId)) {
+          row[String(d.doctorId)] = Math.round(v);
+        } else {
+          others += v;
+        }
+      }
+      if (!hasDoctorFilter && others > 0) {
+        row.others = Math.round(others);
+      }
+      return row;
+    });
+
+    const trendDoctors = trendDoctorBase.map((d) => ({
+      doctorId: d.doctorId,
+      doctorName: d.doctorName,
+    }));
+
+    const categoryBreakdown = hasDoctorFilter
+      ? Object.keys(DOCTOR_TAB_CATEGORY_LABELS)
+          .map((key) => ({
+            key,
+            label: DOCTOR_TAB_CATEGORY_LABELS[key],
+            count: Math.round(categoryBreakdownMap.get(key) || 0),
+          }))
+          .filter((r) => r.count > 0)
+      : [];
+
+    return res.json({
+      period: { from, to, view },
+      scope: { branchId: branchId || null, doctorId: doctorId || null },
+      filters: {
+        branches: branches.map((b) => ({ id: b.id, name: b.name })),
+        doctors: doctors.map((d) => ({
+          id: d.id,
+          name: d.name,
+          ovog: d.ovog,
+          branchId: d.branchId,
+        })),
+      },
+      topN: topNNormalized,
+      kpis: {
+        totalDoctorIncome: Math.round(totalDoctorIncome),
+        totalSales: Math.round(totalSales),
+        avgPerAppointment: totalAvgPerAppointment,
+        completedAppointments: totalCompletedAppointments,
+      },
+      trend: {
+        buckets: trendBuckets,
+        doctors: trendDoctors,
+        rows: trendSeriesRows,
+        hasOther: !hasDoctorFilter && trendSeriesRows.some((r) => Number(r.others || 0) > 0),
+      },
+      ranking: rankingBase,
+      avgPerPatient: avgPerPatientRows
+        .map((r) => ({
+          doctorId: r.doctorId,
+          doctorName: r.doctorName,
+          value: r.avgPerAppointment,
+          sales: r.sales,
+          completedAppointments: r.completedAppointments,
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, topNNormalized),
+      categoryBreakdown,
+      table: [...doctorRowsScoped].sort((a, b) => b.sales - a.sales),
+    });
+  } catch (err) {
+    console.error("GET /api/reports/main-doctor error:", err);
+    return res.status(500).json({ error: "Failed to fetch main doctor report." });
   }
 });
 
