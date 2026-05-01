@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -116,6 +118,47 @@ type DoctorTabResponse = {
     completedAppointments: number;
     completedServices: number;
     avgPerAppointment: number;
+  }>;
+};
+
+type TreatmentTabResponse = {
+  period: { from: string; to: string; view: TrendView };
+  scope: { branchId: number | null; doctorId: number | null };
+  filters: {
+    branches: Array<{ id: number; name: string }>;
+    doctors: DoctorFilter[];
+  };
+  topN: 5 | 10 | 20;
+  kpis: {
+    serviceRevenue: number;
+    treatmentCount: number;
+    avgServiceValue: number;
+  };
+  categoryDistribution: Array<{
+    key: string;
+    label: string;
+    revenue: number;
+    count: number;
+  }>;
+  topServices: Array<{
+    serviceId: number;
+    serviceName: string;
+    categoryKey: string;
+    categoryLabel: string;
+    count: number;
+    sales: number;
+  }>;
+  categoryTrend: {
+    categories: Array<{ key: string; label: string }>;
+    rows: Array<Record<string, number | string>>;
+  };
+  serviceTable: Array<{
+    serviceId: number;
+    serviceName: string;
+    categoryKey: string;
+    categoryLabel: string;
+    count: number;
+    sales: number;
   }>;
 };
 
@@ -279,7 +322,9 @@ export default function MainReportPage() {
   const [doctorMetric, setDoctorMetric] = useState<DoctorMetric>("sales");
   const [data, setData] = useState<MainReportResponse | null>(null);
   const [doctorTabData, setDoctorTabData] = useState<DoctorTabResponse | null>(null);
+  const [treatmentTabData, setTreatmentTabData] = useState<TreatmentTabResponse | null>(null);
   const [doctorTopN, setDoctorTopN] = useState<5 | 10 | 20>(10);
+  const [treatmentTopN, setTreatmentTopN] = useState<5 | 10 | 20>(20);
   const [doctorRankingMetric, setDoctorRankingMetric] = useState<DoctorMetric>("sales");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -341,13 +386,45 @@ export default function MainReportPage() {
     }
   }, [branchId, doctorId, doctorTopN, from, to]);
 
+  const fetchTreatmentTab = useCallback(async () => {
+    if (!isDateRangeValid(from, to)) {
+      setError("Огнооны муж буруу байна.");
+      setTreatmentTabData(null);
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({ from, to, topN: String(treatmentTopN) });
+      if (branchId) params.set("branchId", branchId);
+      if (doctorId) params.set("doctorId", doctorId);
+      const res = await fetch(`/api/reports/main-treatment?${params.toString()}`, {
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json) {
+        throw new Error(json?.error || "Эмчилгээний тайлан ачааллахад алдаа гарлаа.");
+      }
+      setTreatmentTabData(json as TreatmentTabResponse);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Эмчилгээний тайлан ачааллахад алдаа гарлаа.");
+      setTreatmentTabData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [branchId, doctorId, from, to, treatmentTopN]);
+
   useEffect(() => {
     if (activeTab === "doctor") {
       void fetchDoctorTab();
       return;
     }
+    if (activeTab === "treatment") {
+      void fetchTreatmentTab();
+      return;
+    }
     void fetchSummary();
-  }, [activeTab, fetchDoctorTab, fetchSummary]);
+  }, [activeTab, fetchDoctorTab, fetchSummary, fetchTreatmentTab]);
 
   const doctorNameById = useMemo(() => {
     const map = new Map<number, string>();
@@ -403,6 +480,18 @@ export default function MainReportPage() {
     [doctorTabData?.period.view, doctorTabData?.trend.rows]
   );
 
+  const treatmentTrendChartData = useMemo(
+    () =>
+      (treatmentTabData?.categoryTrend.rows || []).map((row) => ({
+        ...row,
+        label: formatTrendLabel(
+          String(row.bucket || ""),
+          treatmentTabData?.period.view || "monthly"
+        ),
+      })),
+    [treatmentTabData?.categoryTrend.rows, treatmentTabData?.period.view]
+  );
+
   const selectedDoctorName = useMemo(() => {
     if (!doctorId) return "";
     const idNum = Number(doctorId);
@@ -436,6 +525,29 @@ export default function MainReportPage() {
         });
       }
       downloadCsv("undsen_tailan_emch.csv", rows);
+      return;
+    }
+    if (activeTab === "treatment") {
+      if (!treatmentTabData) return;
+      const rows: Array<Record<string, string | number>> = [
+        { Төрөл: "Товч үзүүлэлт", Нэр: "Үйлчилгээний борлуулалт", Утга: treatmentTabData.kpis.serviceRevenue },
+        { Төрөл: "Товч үзүүлэлт", Нэр: "Эмчилгээний тоо", Утга: treatmentTabData.kpis.treatmentCount },
+        {
+          Төрөл: "Товч үзүүлэлт",
+          Нэр: "Нэг үйлчилгээний дундаж үнэ",
+          Утга: treatmentTabData.kpis.avgServiceValue,
+        },
+      ];
+      for (const row of treatmentTabData.serviceTable) {
+        rows.push({
+          Ангилал: "Эмчилгээний хүснэгт",
+          Үйлчилгээ: row.serviceName,
+          Төрөл: row.categoryLabel,
+          Тоо: row.count,
+          "Нийт борлуулалт": row.sales,
+        });
+      }
+      downloadCsv("undsen_tailan_emchilgee.csv", rows);
       return;
     }
     if (!data) return;
@@ -534,7 +646,13 @@ export default function MainReportPage() {
               className="mt-1 w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none"
             >
               <option value="">Бүх салбар</option>
-              {((activeTab === "doctor" ? doctorTabData?.filters.branches : data?.filters.branches) || []).map((b) => (
+              {(
+                (activeTab === "doctor"
+                  ? doctorTabData?.filters.branches
+                  : activeTab === "treatment"
+                    ? treatmentTabData?.filters.branches
+                    : data?.filters.branches) || []
+              ).map((b) => (
                 <option key={b.id} value={String(b.id)}>
                   {b.name}
                 </option>
@@ -549,7 +667,13 @@ export default function MainReportPage() {
               className="mt-1 w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none"
             >
               <option value="">Бүх эмч</option>
-              {((activeTab === "doctor" ? doctorTabData?.filters.doctors : data?.filters.doctors) || []).map((d) => (
+              {(
+                (activeTab === "doctor"
+                  ? doctorTabData?.filters.doctors
+                  : activeTab === "treatment"
+                    ? treatmentTabData?.filters.doctors
+                    : data?.filters.doctors) || []
+              ).map((d) => (
                 <option key={d.id} value={String(d.id)}>
                   {toDoctorShortName(d)}
                 </option>
@@ -561,6 +685,10 @@ export default function MainReportPage() {
             onClick={() => {
               if (activeTab === "doctor") {
                 void fetchDoctorTab();
+                return;
+              }
+              if (activeTab === "treatment") {
+                void fetchTreatmentTab();
                 return;
               }
               void fetchSummary();
@@ -588,7 +716,7 @@ export default function MainReportPage() {
 
       {loading ? <div className="mt-4 text-sm text-gray-600">Тайлан ачааллаж байна...</div> : null}
 
-      {!loading && !["summary", "doctor"].includes(activeTab) ? (
+      {!loading && !["summary", "doctor", "treatment"].includes(activeTab) ? (
         <div className="mt-4 rounded-xl border border-gray-200 bg-white p-5 text-gray-600">
           Энэ таб дараагийн шатанд хийгдэнэ.
         </div>
@@ -967,6 +1095,149 @@ export default function MainReportPage() {
               )}
             </section>
           ) : null}
+        </div>
+      ) : null}
+
+      {!loading && activeTab === "treatment" && treatmentTabData ? (
+        <div className="mt-4 space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <KpiCard label="Үйлчилгээний борлуулалт" value={formatMoney(treatmentTabData.kpis.serviceRevenue)} />
+            <KpiCard label="Эмчилгээний тоо" value={treatmentTabData.kpis.treatmentCount.toLocaleString("mn-MN")} />
+            <KpiCard label="Нэг үйлчилгээний дундаж үнэ" value={formatMoney(treatmentTabData.kpis.avgServiceValue)} />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+            <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm xl:col-span-6">
+              <h3 className="mb-3 text-base font-semibold text-gray-900">Төрлийн борлуулалтын бүтэц</h3>
+              {treatmentTabData.categoryDistribution.length > 0 ? (
+                <>
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={treatmentTabData.categoryDistribution}
+                          dataKey="revenue"
+                          nameKey="label"
+                          innerRadius={52}
+                          outerRadius={102}
+                        >
+                          {treatmentTabData.categoryDistribution.map((_, i) => (
+                            <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => [formatMoney(v), "Борлуулалт"]} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5 text-xs text-gray-700">
+                    {treatmentTabData.categoryDistribution.map((row, i) => (
+                      <div key={row.key} className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: DONUT_COLORS[i % DONUT_COLORS.length] }}
+                          />
+                          <span className="truncate">{row.label}</span>
+                        </div>
+                        <span className="font-semibold text-gray-900">{formatMoney(row.revenue)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="flex h-64 items-center justify-center rounded-lg bg-gray-50 text-sm text-gray-500">
+                  Өгөгдөл байхгүй
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm xl:col-span-6">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-base font-semibold text-gray-900">Топ үйлчилгээний борлуулалт</h3>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-500">Топ:</span>
+                  <select
+                    value={treatmentTopN}
+                    onChange={(e) => setTreatmentTopN(Number(e.target.value) as 5 | 10 | 20)}
+                    className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+                  >
+                    {TOP_N_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="h-80 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={treatmentTabData.topServices}
+                    layout="vertical"
+                    margin={{ left: 20, right: 8 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompact(Number(v))} />
+                    <YAxis type="category" dataKey="serviceName" width={160} tick={{ fontSize: 11 }} />
+                    <Tooltip formatter={(v: number) => [formatMoney(v), "Борлуулалт"]} />
+                    <Bar dataKey="sales" fill="#2563eb" radius={[0, 6, 6, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+          </div>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <h3 className="mb-3 text-base font-semibold text-gray-900">Төрлийн чиг хандлага</h3>
+            <div className="h-96 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={treatmentTrendChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={12} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatCompact(Number(v))} />
+                  <Tooltip formatter={(v: number) => [formatMoney(v), "Борлуулалт"]} />
+                  {treatmentTabData.categoryTrend.categories.map((cat, i) => (
+                    <Area
+                      key={cat.key}
+                      type="monotone"
+                      dataKey={cat.key}
+                      stackId="1"
+                      name={cat.label}
+                      stroke={DONUT_COLORS[i % DONUT_COLORS.length]}
+                      fill={DONUT_COLORS[i % DONUT_COLORS.length]}
+                      fillOpacity={0.45}
+                    />
+                  ))}
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <h3 className="mb-3 text-base font-semibold text-gray-900">Эмчилгээний хүснэгт</h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 bg-gray-50">
+                    <th className="px-3 py-2 text-left font-semibold text-gray-700">Үйлчилгээ</th>
+                    <th className="px-3 py-2 text-left font-semibold text-gray-700">Төрөл</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-700">Тоо</th>
+                    <th className="px-3 py-2 text-right font-semibold text-gray-700">Нийт борлуулалт</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {treatmentTabData.serviceTable.map((row) => (
+                    <tr key={row.serviceId} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="px-3 py-2 text-gray-800">{row.serviceName}</td>
+                      <td className="px-3 py-2 text-gray-700">{row.categoryLabel}</td>
+                      <td className="px-3 py-2 text-right text-gray-700">{row.count.toLocaleString("mn-MN")}</td>
+                      <td className="px-3 py-2 text-right font-medium text-gray-900">{formatMoney(row.sales)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
       ) : null}
     </div>
