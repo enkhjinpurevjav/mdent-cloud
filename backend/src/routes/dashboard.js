@@ -22,6 +22,10 @@ const MONTHLY_NET_SALES_METHODS = [
   "WALLET",
   "VOUCHER",
 ];
+const TODAY_SALES_METHODS = [
+  ...ADMIN_HOME_INCOME_METHODS,
+  "WALLET",
+];
 const MONTHLY_NET_ALLOWED_INVOICE_STATUSES = ["paid", "partial"];
 
 function computeBranchAppointmentCounters(appointments) {
@@ -210,7 +214,7 @@ router.get("/admin-home", async (req, res) => {
       prisma.payment.findMany({
         where: {
           timestamp: { lt: todaySalesWindowEnd },
-          method: { in: ADMIN_HOME_INCOME_METHODS },
+          method: { in: TODAY_SALES_METHODS },
           amount: { gt: 0 },
           invoice: {
             branchId: { in: branchIds },
@@ -219,6 +223,7 @@ router.get("/admin-home", async (req, res) => {
         select: {
           id: true,
           amount: true,
+          method: true,
           timestamp: true,
           invoiceId: true,
           invoice: {
@@ -337,6 +342,7 @@ router.get("/admin-home", async (req, res) => {
     const salesToday = computeRecognizedSalesFromPayments(salesPayments, {
       windowStart: start,
       windowEnd: todaySalesWindowEnd,
+      includedMethods: TODAY_SALES_METHODS,
     });
 
     const monthlyNetSales = monthlyNetSalesResult.total;
