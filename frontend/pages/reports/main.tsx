@@ -786,6 +786,9 @@ export default function MainReportPage() {
                           ?.doctorName || String(name);
                       return [formatMoney(numeric), doctorName];
                     }}
+                    itemSorter={(item: { value?: number | string | ReadonlyArray<string | number> }) =>
+                      -Number(item?.value || 0)
+                    }
                   />
                   {doctorTabData.trend.doctors.map((d, idx) => (
                     <Line
