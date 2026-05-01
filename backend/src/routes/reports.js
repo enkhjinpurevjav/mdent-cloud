@@ -1015,9 +1015,15 @@ router.get("/main-treatment", async (req, res) => {
         totalSales: Math.round(row.totalSales),
       }))
       .filter((row) => row.count > 0)
-      .sort((a, b) => b.totalSales - a.totalSales);
+      .sort(
+        (a, b) =>
+          b.count - a.count ||
+          b.serviceName.localeCompare(a.serviceName, "mn-MN")
+      );
 
-    const topServices = serviceTable.slice(0, topNNormalized);
+    const topServices = [...serviceTable]
+      .sort((a, b) => b.totalSales - a.totalSales)
+      .slice(0, topNNormalized);
     const categoryTrendRows = treatmentBuckets.map((bucket) => {
       const bucketCategory = trendCategoryMap.get(bucket) || new Map();
       const row = { bucket };
