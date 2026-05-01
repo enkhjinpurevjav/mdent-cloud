@@ -179,6 +179,40 @@ describe("computeRecognizedSalesFromPayments", () => {
     assert.equal(result.byBranch.get(1), 150_000);
     assert.equal(result.byBranch.has(2), false);
   });
+
+  it("includes wallet when requested while still excluding overpayment", () => {
+    const jan1 = new Date("2026-01-01T00:00:00.000Z");
+    const jan2 = new Date("2026-01-02T00:00:00.000Z");
+
+    const result = computeRecognizedSalesFromPayments(
+      [
+        {
+          id: 1,
+          amount: 80_000,
+          method: "CASH",
+          timestamp: jan1,
+          invoiceId: 30,
+          invoice: { id: 30, branchId: 1, finalAmount: 100_000, statusLegacy: "partial" },
+        },
+        {
+          id: 2,
+          amount: 50_000,
+          method: "WALLET",
+          timestamp: jan1,
+          invoiceId: 30,
+          invoice: { id: 30, branchId: 1, finalAmount: 100_000, statusLegacy: "paid" },
+        },
+      ],
+      {
+        windowStart: jan1,
+        windowEnd: jan2,
+        includedMethods: ["CASH", "WALLET"],
+      }
+    );
+
+    assert.equal(result.total, 100_000);
+    assert.equal(result.byBranch.get(1), 100_000);
+  });
 });
 
 describe("computeImagingServiceSalesFromItems", () => {
