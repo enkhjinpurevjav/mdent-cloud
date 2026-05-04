@@ -115,7 +115,7 @@ async function computeUnpaidInvoicesTotal() {
 
 router.get("/admin-home", async (req, res) => {
   try {
-    if (!req.user || !["admin", "super_admin"].includes(req.user.role)) {
+    if (!req.user || !["admin", "super_admin", "marketing"].includes(req.user.role)) {
       return res.status(403).json({ error: "Forbidden. Insufficient role." });
     }
 

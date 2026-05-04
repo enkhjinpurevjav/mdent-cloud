@@ -76,6 +76,10 @@ function mapFrontdeskPathByRole(asPath: string, role: string | null) {
     return "/marketing/appointments";
   }
 
+  if (role === "marketing" && asPath.startsWith("/bookings")) {
+    return asPath.replace("/bookings", "/marketing/dashboard");
+  }
+
   if (role === "receptionist" && asPath.startsWith("/marketing")) {
     if (asPath.startsWith("/marketing/appointments")) {
       return asPath.replace("/marketing/appointments", "/reception/appointments");
