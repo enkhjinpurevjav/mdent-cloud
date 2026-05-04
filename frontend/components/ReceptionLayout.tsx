@@ -101,7 +101,12 @@ export default function ReceptionLayout({ children, wide, portalType: portalType
   const router = useRouter();
   const { me, logoutAndRedirect } = useAuth();
   const portalType: "reception" | "marketing" =
-    portalTypeProp ?? (router.pathname.startsWith("/marketing/") ? "marketing" : "reception");
+    portalTypeProp ??
+    (me?.role === "marketing"
+      ? "marketing"
+      : router.pathname.startsWith("/marketing/")
+        ? "marketing"
+        : "reception");
   const basePath = portalType === "marketing" ? "/marketing" : "/reception";
   const bottomNav = getBottomNav(portalType);
   const isActive = (href: string) => isPathActive(router.pathname, href);
@@ -175,12 +180,12 @@ export default function ReceptionLayout({ children, wide, portalType: portalType
 
             {(me?.role === "receptionist" || me?.role === "marketing") && (
               <Link
-                href="/reception/daily-income"
+                href={`${basePath}/daily-income`}
                 title="Өдрийн орлогын тайлан"
                 aria-label="Өдрийн орлогын тайлан"
                 className={classNames(
                   "p-1.5 sm:p-2 rounded-lg inline-flex items-center no-underline font-bold text-[15px] leading-none",
-                  isActive("/reception/daily-income")
+                  isActive(`${basePath}/daily-income`)
                     ? "text-white"
                     : "text-white/75 hover:text-white"
                 )}
@@ -220,7 +225,7 @@ export default function ReceptionLayout({ children, wide, portalType: portalType
               </>
             )}
 
-            {portalType === "reception" && (
+            {portalType === "reception" && me?.role !== "marketing" && (
               <Link
                 href="/reception/schedule"
                 title="Ажлын хуваарь"
