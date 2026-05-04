@@ -209,7 +209,7 @@ app.use("/api", (req, res, next) => {
 });
 
 // RBAC: /api/admin/* requires admin or super_admin
-const requireAdminRole = requireRole("admin", "super_admin");
+const requireAdminRole = requireRole("admin", "super_admin", "marketing");
 app.use("/api/admin", requireAdminRole);
 app.use("/api/dashboard", requireAdminRole);
 

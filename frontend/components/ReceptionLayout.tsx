@@ -8,6 +8,7 @@ import {
   CalendarRange,
   Clock,
   ClipboardList,
+  LayoutDashboard,
   LineChart,
   LogOut,
   ScrollText,
@@ -26,11 +27,62 @@ type BottomNavItem = {
   label: string;
   shortLabel: string;
   href: string;
-  icon: "calendarDays" | "calendarRange" | "user";
+  icon:
+    | "dashboard"
+    | "calendarDays"
+    | "calendarRange"
+    | "user"
+    | "scrollText"
+    | "lineChart";
 };
 
+function getMarketingBottomNavItems() {
+  return [
+    {
+      label: "Хянах самбар",
+      shortLabel: "Самбар",
+      href: "/marketing/dashboard",
+      icon: "dashboard" as const,
+    },
+    {
+      label: "Цаг захиалга",
+      shortLabel: "Цаг",
+      href: "/marketing/appointments",
+      icon: "calendarDays" as const,
+    },
+    {
+      label: "Захиалга",
+      shortLabel: "Захиалга",
+      href: "/marketing/bookings",
+      icon: "calendarRange" as const,
+    },
+    {
+      label: "Үйлчлүүлэгч",
+      shortLabel: "Үйлч",
+      href: "/marketing/patients",
+      icon: "user" as const,
+    },
+    {
+      label: "Үйлчилгээ",
+      shortLabel: "Үйлчилгээ",
+      href: "/marketing/services",
+      icon: "scrollText" as const,
+    },
+    {
+      label: "Үндсэн тайлан",
+      shortLabel: "Тайлан",
+      href: "/marketing/reports/main",
+      icon: "lineChart" as const,
+    },
+  ] satisfies BottomNavItem[];
+}
+
 function getBottomNav(portalType: "reception" | "marketing") {
-  const base = portalType === "marketing" ? "/marketing" : "/reception";
+  if (portalType === "marketing") {
+    return getMarketingBottomNavItems();
+  }
+
+  const base = "/reception";
   const items: BottomNavItem[] = [
     {
       label: "Цаг захиалга",
@@ -52,22 +104,10 @@ function getBottomNav(portalType: "reception" | "marketing") {
     },
   ];
 
-  if (portalType === "marketing") {
-    items.unshift({
-      label: "Хянах самбар",
-      shortLabel: "Самбар",
-      href: "/bookings",
-      icon: "calendarRange" as const,
-    });
-  }
-
   return items;
 }
 
 function isPathActive(pathname: string, href: string) {
-  if (href === "/bookings") {
-    return pathname === "/bookings" || pathname.startsWith("/bookings/");
-  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -88,10 +128,16 @@ function BottomIcon({
   );
 
   switch (kind) {
+    case "dashboard":
+      return <LayoutDashboard className={cls} />;
     case "calendarDays":
       return <CalendarDays className={cls} />;
     case "calendarRange":
       return <CalendarRange className={cls} />;
+    case "scrollText":
+      return <ScrollText className={cls} />;
+    case "lineChart":
+      return <LineChart className={cls} />;
     case "user":
       return <User className={cls} />;
   }
@@ -162,14 +208,14 @@ export default function ReceptionLayout({ children, wide, portalType: portalType
               <Bell className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
             </button>
 
-            {portalType === "reception" && (
+            {(portalType === "reception" || portalType === "marketing") && (
               <Link
-                href="/reception/attendance"
+                href={`${basePath}/attendance`}
                 title="Ирц бүртгэл"
                 aria-label="Ирц бүртгэл"
                 className={classNames(
                   "p-1.5 sm:p-2 rounded-lg inline-flex items-center no-underline",
-                  isActive("/reception/attendance")
+                  isActive(`${basePath}/attendance`)
                     ? "text-white"
                     : "text-white/75 hover:text-white"
                 )}
@@ -192,37 +238,6 @@ export default function ReceptionLayout({ children, wide, portalType: portalType
               >
                 ₮
               </Link>
-            )}
-
-            {portalType === "marketing" && (
-              <>
-                <Link
-                  href="/marketing/services"
-                  title="Үйлчилгээ"
-                  aria-label="Үйлчилгээ"
-                  className={classNames(
-                    "p-1.5 sm:p-2 rounded-lg inline-flex items-center no-underline",
-                    isActive("/marketing/services")
-                      ? "text-white"
-                      : "text-white/75 hover:text-white"
-                  )}
-                >
-                  <ScrollText className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
-                </Link>
-                <Link
-                  href="/marketing/reports/main"
-                  title="Үндсэн тайлан"
-                  aria-label="Үндсэн тайлан"
-                  className={classNames(
-                    "p-1.5 sm:p-2 rounded-lg inline-flex items-center no-underline",
-                    isActive("/marketing/reports/main")
-                      ? "text-white"
-                      : "text-white/75 hover:text-white"
-                  )}
-                >
-                  <LineChart className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
-                </Link>
-              </>
             )}
 
             {portalType === "reception" && me?.role !== "marketing" && (
@@ -289,7 +304,12 @@ export default function ReceptionLayout({ children, wide, portalType: portalType
               >
                 <BottomIcon kind={item.icon} active={active} />
 
-                <span className="text-[10px] leading-none truncate sm:hidden">
+                <span
+                  className={classNames(
+                    "text-[10px] leading-none truncate sm:hidden",
+                    bottomNav.length > 4 ? "max-w-[44px]" : ""
+                  )}
+                >
                   {item.shortLabel}
                 </span>
                 <span className="hidden sm:block text-[10px] leading-none truncate px-1">
