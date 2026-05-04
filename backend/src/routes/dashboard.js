@@ -20,7 +20,9 @@ const BOOKED_STATUS_SET = new Set(ADMIN_HOME_BOOKED_APPOINTMENT_STATUSES);
 const MONTHLY_NET_SALES_METHODS = [
   ...ADMIN_HOME_INCOME_METHODS,
   "WALLET",
-  "VOUCHER",
+  // Marketing coupon settlements stay under VOUCHER and are excluded from net sales.
+  // Gift card settlements are persisted as GIFT_CARD and should be counted.
+  "GIFT_CARD",
 ];
 const TODAY_SALES_METHODS = [
   ...ADMIN_HOME_INCOME_METHODS,
