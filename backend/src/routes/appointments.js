@@ -766,7 +766,10 @@ router.post("/", async (req, res) => {
     }
 
    // Receptionist cross-branch rule: can only create with status "booked" in other branches
-if (req.user?.role === "receptionist" && req.user.branchId !== parsedBranchId) {
+if (
+  (req.user?.role === "receptionist" || req.user?.role === "marketing") &&
+  req.user.branchId !== parsedBranchId
+) {
   // If client explicitly provided a status, it must be "booked"
   if (typeof status === "string" && status.trim()) {
     if (normalizedStatus !== "booked") {
@@ -885,7 +888,10 @@ router.patch("/:id", async (req, res) => {
     }
 
     // Receptionist cross-branch guard: cannot edit appointments in other branches
-    if (req.user?.role === "receptionist" && existing.branchId !== req.user.branchId) {
+    if (
+      (req.user?.role === "receptionist" || req.user?.role === "marketing") &&
+      existing.branchId !== req.user.branchId
+    ) {
       return res.status(403).json({ error: "Receptionist cannot edit appointments in other branches." });
     }
 
@@ -911,7 +917,11 @@ router.patch("/:id", async (req, res) => {
       //   has been created for this appointment (doctor has started the visit).
       // TEMP: Feature flag — skip visit-card requirement unless explicitly enabled.
       const requirePatientCard = process.env.REQUIRE_PATIENT_CARD_TO_START_ENCOUNTER === "true";
-      if (req.user?.role === "receptionist" && normalizedStatus === "ongoing" && requirePatientCard) {
+      if (
+        (req.user?.role === "receptionist" || req.user?.role === "marketing") &&
+        normalizedStatus === "ongoing" &&
+        requirePatientCard
+      ) {
         // Fetch the patientBook for this appointment to check visit card completion
         const apptWithPatient = await prisma.appointment.findUnique({
           where: { id },
@@ -937,7 +947,11 @@ router.patch("/:id", async (req, res) => {
           return res.status(400).json({ error: "Үйлчлүүлэгч карт бөглөөгүй байна." });
         }
       }
-      if (req.user?.role === "receptionist" && existing.status === "ongoing" && normalizedStatus !== "ongoing") {
+      if (
+        (req.user?.role === "receptionist" || req.user?.role === "marketing") &&
+        existing.status === "ongoing" &&
+        normalizedStatus !== "ongoing"
+      ) {
         const encounterCount = await prisma.encounter.count({
           where: { appointmentId: id },
         });
@@ -1163,7 +1177,7 @@ router.post("/:id/start-encounter", async (req, res) => {
     }
 
     // Receptionist cannot start encounters
-    if (req.user?.role === "receptionist") {
+    if (req.user?.role === "receptionist" || req.user?.role === "marketing") {
       return res.status(403).json({ error: "Receptionist cannot start encounters." });
     }
 
@@ -1263,7 +1277,7 @@ router.post("/:id/ensure-encounter", async (req, res) => {
     }
 
     // Receptionist cannot create/ensure encounters
-    if (req.user?.role === "receptionist") {
+    if (req.user?.role === "receptionist" || req.user?.role === "marketing") {
       return res.status(403).json({ error: "Receptionist cannot start encounters." });
     }
 
@@ -1632,7 +1646,11 @@ router.patch("/:id/cancel", async (req, res) => {
     }
 
     // Only reception and admin can cancel appointments
-    if (user.role !== "receptionist" && user.role !== "admin") {
+    if (
+      user.role !== "receptionist" &&
+      user.role !== "marketing" &&
+      user.role !== "admin"
+    ) {
       return res.status(403).json({
         error: "Only reception and admin users can cancel appointments",
       });

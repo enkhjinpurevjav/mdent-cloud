@@ -658,11 +658,18 @@ export default function PatientsIndexPage({
 
   const handleBookAppointment = (patient: Patient) => {
     if (!window.confirm("Энэхүү үйлчлүүлэгчид цаг захиалах уу?")) return;
-    const isReception = isReceptionContext || currentUserRole === "receptionist";
+    const isReception =
+      isReceptionContext ||
+      currentUserRole === "receptionist" ||
+      currentUserRole === "marketing";
+    const appointmentsBasePath =
+      currentUserRole === "marketing" ? "/marketing/appointments" : "/reception/appointments";
     if (isReception && ownBranchId) {
-      router.push(`/reception/appointments?branchId=${ownBranchId}&bookPatientId=${patient.id}`);
+      router.push(
+        `${appointmentsBasePath}?branchId=${ownBranchId}&bookPatientId=${patient.id}`
+      );
     } else if (isReception) {
-      router.push(`/reception/appointments?bookPatientId=${patient.id}`);
+      router.push(`${appointmentsBasePath}?bookPatientId=${patient.id}`);
     } else {
       router.push(`/appointments?bookPatientId=${patient.id}`);
     }

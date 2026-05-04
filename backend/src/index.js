@@ -215,7 +215,7 @@ app.use("/api/dashboard", requireAdminRole);
 
 // RBAC: /api/users gate
 // - admin/super_admin: full access
-// - receptionist: read-only GET /api/users?role=doctor only
+// - receptionist/marketing: read-only GET /api/users?role=doctor only
 // - any authenticated user: read-only GET /api/users/nurses/today and /api/users/nurses/by-branch
 app.use("/api/users", (req, res, next) => {
   if (process.env.DISABLE_AUTH === "true") return next();
@@ -225,7 +225,7 @@ app.use("/api/users", (req, res, next) => {
   const { role } = req.user;
   if (role === "admin" || role === "super_admin") return next();
   if (
-    role === "receptionist" &&
+    (role === "receptionist" || role === "marketing") &&
     req.method === "GET" &&
     req.path === "/" &&
     req.query.role === "doctor"

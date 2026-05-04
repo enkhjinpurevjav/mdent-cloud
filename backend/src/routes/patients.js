@@ -571,9 +571,11 @@ router.delete("/:id", async (req, res) => {
       return res.status(400).json({ error: "Буруу ID байна." });
     }
 
-    // Receptionist cannot delete patients
-    if (req.user?.role === "receptionist") {
-      return res.status(403).json({ error: "Receptionist cannot delete patients." });
+    // Receptionist and marketing cannot delete patients
+    if (req.user?.role === "receptionist" || req.user?.role === "marketing") {
+      return res
+        .status(403)
+        .json({ error: "Receptionist and marketing cannot delete patients." });
     }
 
     const patient = await prisma.patient.findUnique({

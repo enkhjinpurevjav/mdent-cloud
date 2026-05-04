@@ -5,13 +5,13 @@ import { authenticateJWT, requireRole } from "../middleware/auth.js";
 const router = express.Router();
 
 // ─── GET /api/reception/me ────────────────────────────────────────────────────
-// Returns the authenticated receptionist's own user record.
-// Allowed roles: receptionist, admin, super_admin.
+// Returns the authenticated receptionist/marketing user's own record.
+// Allowed roles: receptionist, marketing, admin, super_admin.
 // Must be registered BEFORE any router-level requireRole middleware.
 router.get(
   "/me",
   authenticateJWT,
-  requireRole("receptionist", "admin", "super_admin"),
+  requireRole("receptionist", "marketing", "admin", "super_admin"),
   async (req, res) => {
     try {
       const id = req.user?.id;
@@ -38,22 +38,22 @@ router.get(
       });
     } catch (err) {
       console.error("GET /api/reception/me error:", err);
-      return res.status(500).json({ error: "Failed to fetch receptionist profile." });
+      return res.status(500).json({ error: "Failed to fetch profile." });
     }
   }
 );
 
 // ─── GET /api/reception/schedule ─────────────────────────────────────────────
-// Returns authenticated receptionist's schedule.
+// Returns authenticated receptionist/marketing user's schedule.
 // Default: upcoming entries (today and future, next 31 days).
 // Optional query params: from=YYYY-MM-DD, to=YYYY-MM-DD (for history).
 router.get(
   "/schedule",
   authenticateJWT,
-  requireRole("receptionist", "admin", "super_admin"),
+  requireRole("receptionist", "marketing", "admin", "super_admin"),
   async (req, res) => {
-    const receptionistId = req.user?.id;
-    if (!receptionistId) {
+    const userId = req.user?.id;
+    if (!userId) {
       return res.status(401).json({ error: "Authentication required." });
     }
 
@@ -81,7 +81,7 @@ router.get(
     try {
       const schedules = await prisma.receptionSchedule.findMany({
         where: {
-          receptionId: receptionistId,
+          receptionId: userId,
           date: {
             gte: fromDate,
             lte: toDate,
@@ -105,7 +105,7 @@ router.get(
       );
     } catch (err) {
       console.error("GET /api/reception/schedule error:", err);
-      return res.status(500).json({ error: "Failed to fetch receptionist schedule." });
+      return res.status(500).json({ error: "Failed to fetch schedule." });
     }
   }
 );

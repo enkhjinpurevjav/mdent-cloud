@@ -2,35 +2,74 @@ import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useAuth } from "../contexts/AuthContext";
-import { Bell, CalendarDays, CalendarRange, Clock, ClipboardList, LogOut, User } from "lucide-react";
+import {
+  Bell,
+  CalendarDays,
+  CalendarRange,
+  Clock,
+  ClipboardList,
+  LineChart,
+  LogOut,
+  ScrollText,
+  User,
+} from "lucide-react";
 
 type Props = {
   children: React.ReactNode;
   wide?: boolean;
+  portalType?: "reception" | "marketing";
 };
 
 const NAVY = "#131a29";
 
-const BOTTOM_NAV = [
-  {
-    label: "Цаг захиалга",
-    shortLabel: "Цаг",
-    href: "/reception/appointments",
-    icon: "calendarDays" as const,
-  },
-  {
-    label: "Захиалга",
-    shortLabel: "Захиалга",
-    href: "/reception/bookings",
-    icon: "calendarRange" as const,
-  },
-  {
-    label: "Үйлчлүүлэгч",
-    shortLabel: "Үйлч",
-    href: "/reception/patients",
-    icon: "user" as const,
-  },
-];
+type BottomNavItem = {
+  label: string;
+  shortLabel: string;
+  href: string;
+  icon: "calendarDays" | "calendarRange" | "user";
+};
+
+function getBottomNav(portalType: "reception" | "marketing") {
+  const base = portalType === "marketing" ? "/marketing" : "/reception";
+  const items: BottomNavItem[] = [
+    {
+      label: "Цаг захиалга",
+      shortLabel: "Цаг",
+      href: `${base}/appointments`,
+      icon: "calendarDays" as const,
+    },
+    {
+      label: "Захиалга",
+      shortLabel: "Захиалга",
+      href: `${base}/bookings`,
+      icon: "calendarRange" as const,
+    },
+    {
+      label: "Үйлчлүүлэгч",
+      shortLabel: "Үйлч",
+      href: `${base}/patients`,
+      icon: "user" as const,
+    },
+  ];
+
+  if (portalType === "marketing") {
+    items.unshift({
+      label: "Хянах самбар",
+      shortLabel: "Самбар",
+      href: "/bookings",
+      icon: "calendarRange" as const,
+    });
+  }
+
+  return items;
+}
+
+function isPathActive(pathname: string, href: string) {
+  if (href === "/bookings") {
+    return pathname === "/bookings" || pathname.startsWith("/bookings/");
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 function classNames(...xs: Array<string | false | null | undefined>) {
   return xs.filter(Boolean).join(" ");
@@ -40,7 +79,7 @@ function BottomIcon({
   kind,
   active,
 }: {
-  kind: (typeof BOTTOM_NAV)[number]["icon"];
+  kind: BottomNavItem["icon"];
   active: boolean;
 }) {
   const cls = classNames(
@@ -58,10 +97,14 @@ function BottomIcon({
   }
 }
 
-export default function ReceptionLayout({ children, wide }: Props) {
+export default function ReceptionLayout({ children, wide, portalType: portalTypeProp }: Props) {
   const router = useRouter();
   const { me, logoutAndRedirect } = useAuth();
-  const isActive = (href: string) => router.pathname.startsWith(href);
+  const portalType: "reception" | "marketing" =
+    portalTypeProp ?? (router.pathname.startsWith("/marketing/") ? "marketing" : "reception");
+  const basePath = portalType === "marketing" ? "/marketing" : "/reception";
+  const bottomNav = getBottomNav(portalType);
+  const isActive = (href: string) => isPathActive(router.pathname, href);
 
   const handleLogout = async () => {
     await logoutAndRedirect();
@@ -69,10 +112,10 @@ export default function ReceptionLayout({ children, wide }: Props) {
 
   /** Format: Овгийн эхний үсэг.Нэр (e.g. П.Энхжин). Falls back to name or "Рецепшн". */
   const displayName = (() => {
-    if (!me) return "Рецепшн";
+    if (!me) return portalType === "marketing" ? "Маркетинг" : "Рецепшн";
     const ovog = me.ovog?.trim();
     if (ovog) return `${ovog.charAt(0).toUpperCase()}.${me.name}`;
-    return me.name || "Рецепшн";
+    return me.name || (portalType === "marketing" ? "Маркетинг" : "Рецепшн");
   })();
 
   return (
@@ -85,7 +128,7 @@ export default function ReceptionLayout({ children, wide }: Props) {
         <div className="h-full w-full px-3 flex items-center justify-between min-w-0 md:max-w-[1024px] md:mx-auto">
           {/* Brand */}
           <Link
-            href="/reception/appointments"
+            href={`${basePath}/appointments`}
             className="min-w-0 flex items-center gap-2 no-underline text-white"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -114,21 +157,23 @@ export default function ReceptionLayout({ children, wide }: Props) {
               <Bell className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
             </button>
 
-            <Link
-              href="/reception/attendance"
-              title="Ирц бүртгэл"
-              aria-label="Ирц бүртгэл"
-              className={classNames(
-                "p-1.5 sm:p-2 rounded-lg inline-flex items-center no-underline",
-                isActive("/reception/attendance")
-                  ? "text-white"
-                  : "text-white/75 hover:text-white"
-              )}
-            >
-              <Clock className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
-            </Link>
+            {portalType === "reception" && (
+              <Link
+                href="/reception/attendance"
+                title="Ирц бүртгэл"
+                aria-label="Ирц бүртгэл"
+                className={classNames(
+                  "p-1.5 sm:p-2 rounded-lg inline-flex items-center no-underline",
+                  isActive("/reception/attendance")
+                    ? "text-white"
+                    : "text-white/75 hover:text-white"
+                )}
+              >
+                <Clock className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
+              </Link>
+            )}
 
-            {me?.role === "receptionist" && (
+            {(me?.role === "receptionist" || me?.role === "marketing") && (
               <Link
                 href="/reception/daily-income"
                 title="Өдрийн орлогын тайлан"
@@ -144,27 +189,60 @@ export default function ReceptionLayout({ children, wide }: Props) {
               </Link>
             )}
 
-            <Link
-              href="/reception/schedule"
-              title="Ажлын хуваарь"
-              aria-label="Ажлын хуваарь"
-              className={classNames(
-                "p-1.5 sm:p-2 rounded-lg inline-flex items-center no-underline",
-                isActive("/reception/schedule")
-                  ? "text-white"
-                  : "text-white/75 hover:text-white"
-              )}
-            >
-              <ClipboardList className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
-            </Link>
+            {portalType === "marketing" && (
+              <>
+                <Link
+                  href="/marketing/services"
+                  title="Үйлчилгээ"
+                  aria-label="Үйлчилгээ"
+                  className={classNames(
+                    "p-1.5 sm:p-2 rounded-lg inline-flex items-center no-underline",
+                    isActive("/marketing/services")
+                      ? "text-white"
+                      : "text-white/75 hover:text-white"
+                  )}
+                >
+                  <ScrollText className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
+                </Link>
+                <Link
+                  href="/marketing/reports/main"
+                  title="Үндсэн тайлан"
+                  aria-label="Үндсэн тайлан"
+                  className={classNames(
+                    "p-1.5 sm:p-2 rounded-lg inline-flex items-center no-underline",
+                    isActive("/marketing/reports/main")
+                      ? "text-white"
+                      : "text-white/75 hover:text-white"
+                  )}
+                >
+                  <LineChart className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
+                </Link>
+              </>
+            )}
+
+            {portalType === "reception" && (
+              <Link
+                href="/reception/schedule"
+                title="Ажлын хуваарь"
+                aria-label="Ажлын хуваарь"
+                className={classNames(
+                  "p-1.5 sm:p-2 rounded-lg inline-flex items-center no-underline",
+                  isActive("/reception/schedule")
+                    ? "text-white"
+                    : "text-white/75 hover:text-white"
+                )}
+              >
+                <ClipboardList className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
+              </Link>
+            )}
 
             <Link
-              href="/reception/profile"
+              href={`${basePath}/profile`}
               title="Профайл"
               aria-label="Профайл"
               className={classNames(
                 "p-1.5 sm:p-2 rounded-lg inline-flex items-center no-underline",
-                isActive("/reception/profile")
+                isActive(`${basePath}/profile`)
                   ? "text-white"
                   : "text-white/75 hover:text-white"
               )}
@@ -191,7 +269,7 @@ export default function ReceptionLayout({ children, wide }: Props) {
       {/* Bottom Nav */}
       <nav className="fixed bottom-0 left-0 right-0 h-[60px] bg-white border-t border-gray-200 z-[100] overflow-x-hidden">
         <div className="h-full w-full flex min-w-0 md:max-w-[1024px] md:mx-auto">
-          {BOTTOM_NAV.map((item) => {
+          {bottomNav.map((item) => {
             const active = isActive(item.href);
             return (
               <Link

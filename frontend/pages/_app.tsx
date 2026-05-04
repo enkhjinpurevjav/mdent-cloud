@@ -2,6 +2,7 @@ import type { AppProps } from "next/app";
 import AdminLayout from "../components/AdminLayout";
 import DoctorLayout from "../components/DoctorLayout";
 import NurseLayout from "../components/NurseLayout";
+import MarketingLayout from "../components/MarketingLayout";
 import ReceptionLayout from "../components/ReceptionLayout";
 import XrayLayout from "../components/XrayLayout";
 import { useRouter } from "next/router";
@@ -28,6 +29,10 @@ function isReceptionPath(pathname: string) {
   return pathname === "/reception" || pathname.startsWith("/reception/");
 }
 
+function isMarketingPath(pathname: string) {
+  return pathname === "/marketing" || pathname.startsWith("/marketing/");
+}
+
 function isXrayPath(pathname: string) {
   return pathname === "/xray" || pathname.startsWith("/xray/");
 }
@@ -43,7 +48,9 @@ function isAppointmentsPath(pathname: string) {
     pathname === "/appointments-v2" ||
     pathname.startsWith("/appointments-v2/") ||
     pathname === "/reception/appointments" ||
-    pathname.startsWith("/reception/appointments/")
+    pathname.startsWith("/reception/appointments/") ||
+    pathname === "/marketing/appointments" ||
+    pathname.startsWith("/marketing/appointments/")
   );
 }
 
@@ -121,6 +128,7 @@ function AppContent({ Component, pageProps }: AppProps) {
     isDoctorPath(router.pathname) || ((isPatientPath || isEncounterPath) && userRole === "doctor");
   const useNurseLayout = isNursePath(router.pathname);
   const useReceptionLayout = isReceptionPath(router.pathname);
+  const useMarketingLayout = isMarketingPath(router.pathname);
   const useXrayLayout = isXrayPath(router.pathname);
   const useBranchKioskLayout = isBranchKioskPath(router.pathname) || userRole === "branch_kiosk";
 
@@ -149,6 +157,14 @@ function AppContent({ Component, pageProps }: AppProps) {
       <ReceptionLayout wide={wide}>
         <Component {...pageProps} />
       </ReceptionLayout>
+    );
+  }
+
+  if (useMarketingLayout) {
+    return (
+      <MarketingLayout wide={wide}>
+        <Component {...pageProps} />
+      </MarketingLayout>
     );
   }
 

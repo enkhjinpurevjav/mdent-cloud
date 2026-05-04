@@ -46,6 +46,9 @@ function formatStaffShortName(staff: { name?: string | null; ovog?: string | nul
 export default function ReceptionProfilePage() {
   const router = useRouter();
   const { id } = router.query;
+  const isMarketingUserPage = router.pathname.startsWith("/users/marketing/");
+  const roleLabel = isMarketingUserPage ? "Маркетинг" : "Ресепшн";
+  const usersListPath = isMarketingUserPage ? "/users/marketing" : "/users/reception";
 
   const [reception, setReception] = useState<Reception | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -265,7 +268,7 @@ export default function ReceptionProfilePage() {
         if (!rRes.ok || !rData) {
           setError(
             (rData && rData.error) ||
-              "Ресепшний мэдээллийг ачаалж чадсангүй"
+              `${roleLabel} мэдээллийг ачаалж чадсангүй`
           );
           setLoading(false);
           return;
@@ -457,7 +460,7 @@ export default function ReceptionProfilePage() {
     if (!id) return;
 
     const ok = window.confirm(
-      "Та энэхүү ресепшний аккаунтыг устгахдаа итгэлтэй байна уу?"
+      `Та энэхүү ${roleLabel.toLowerCase()} аккаунтыг устгахдаа итгэлтэй байна уу?`
     );
     if (!ok) return;
 
@@ -473,7 +476,7 @@ export default function ReceptionProfilePage() {
         return;
       }
 
-      router.push("/users/reception");
+      router.push(usersListPath);
     } catch (err) {
       console.error(err);
       alert("Сүлжээгээ шалгана уу");
@@ -811,7 +814,7 @@ export default function ReceptionProfilePage() {
   if (error && !reception) {
     return (
       <div className="p-6">
-        <h1>Ресепшний мэдээлэл</h1>
+        <h1>{roleLabel} мэдээлэл</h1>
         <div className="text-red-600 mt-2">{error}</div>
       </div>
     );
@@ -820,7 +823,7 @@ export default function ReceptionProfilePage() {
   if (!reception) {
     return (
       <div className="p-6">
-        <h1>Ресепшн олдсонгүй</h1>
+        <h1>{roleLabel} олдсонгүй</h1>
       </div>
     );
   }
@@ -831,7 +834,7 @@ export default function ReceptionProfilePage() {
         type="button"
         onClick={() => {
           if (typeof window !== "undefined" && window.history.length <= 1) {
-            router.push("/users/reception");
+            router.push(usersListPath);
           } else {
             router.back();
           }
@@ -1096,7 +1099,7 @@ export default function ReceptionProfilePage() {
                 </div>
 
                 <div className="text-gray-500 text-[13px] mb-2.5">
-                  Энэ ресепшн аль салбаруудад ажиллахыг доороос сонгоно уу.
+                  Энэ {roleLabel.toLowerCase()} аль салбаруудад ажиллахыг доороос сонгоно уу.
                 </div>
 
                 <div className="flex flex-wrap gap-2">

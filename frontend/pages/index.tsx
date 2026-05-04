@@ -7,6 +7,7 @@ const ROLE_HOME: Record<string, string> = {
   admin: "/bookings",
   super_admin: "/bookings",
   receptionist: "/reception/appointments",
+  marketing: "/marketing/appointments",
   doctor: "/doctor/appointments",
   nurse: "/nurse/schedule",
   xray: "/xray",

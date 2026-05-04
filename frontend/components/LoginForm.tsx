@@ -42,6 +42,7 @@ export default function LoginForm() {
       const isDoctor = user?.role === "doctor";
       const isNurse = user?.role === "nurse";
       const isReceptionist = user?.role === "receptionist";
+      const isMarketing = user?.role === "marketing";
       const isXray = user?.role === "xray";
       const isAdminRole = ["admin", "super_admin"].includes(user?.role ?? "");
 
@@ -56,6 +57,8 @@ export default function LoginForm() {
           safeRedirect = redirectParam;
         } else if (isReceptionist && redirectParam.startsWith("/reception")) {
           safeRedirect = redirectParam;
+        } else if (isMarketing && redirectParam.startsWith("/marketing")) {
+          safeRedirect = redirectParam;
         } else if (isXray && redirectParam.startsWith("/xray")) {
           safeRedirect = redirectParam;
         } else if (isAdminRole) {
@@ -69,6 +72,8 @@ export default function LoginForm() {
         ? "/nurse/schedule"
         : isReceptionist
         ? "/reception/appointments"
+        : isMarketing
+        ? "/marketing/appointments"
         : isXray
         ? "/xray"
         : "/bookings";

@@ -8,6 +8,7 @@ export const SCHEDULE_AHEAD_ROLES = new Set([
   "doctor",
   "nurse",
   "receptionist",
+  "marketing",
   "sterilization",
 ]);
 
