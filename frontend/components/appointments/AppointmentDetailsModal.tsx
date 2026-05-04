@@ -180,10 +180,13 @@ export default function AppointmentDetailsModal({
       setError("");
 
       // Receptionist must use existing encounterId — never create encounters
-      if (currentUserRole === "receptionist") {
+      if (currentUserRole === "receptionist" || currentUserRole === "marketing") {
         const encId = a.encounterId;
         if (encId) {
-          router.push(`/reception/billing/${encId}`);
+          const frontdeskBase = router.asPath.startsWith("/marketing/")
+            ? "/marketing"
+            : "/reception";
+          router.push(`${frontdeskBase}/billing/${encId}`);
         } else {
           setError("Эмч үзлэг эхлүүлээгүй байна. Төлбөр төлөхийн тулд эмч үзлэг эхлүүлэх шаардлагатай.");
         }
@@ -402,11 +405,15 @@ export default function AppointmentDetailsModal({
 
     if (!bookNumber) return;
 
-    const isReceptionRoute = router.asPath.startsWith("/reception/");
+  const isReceptionRoute =
+    router.asPath.startsWith("/reception/") || router.asPath.startsWith("/marketing/");
 
     if (isReceptionRoute) {
+      const frontdeskBase = router.asPath.startsWith("/marketing/")
+        ? "/marketing"
+        : "/reception";
       window.open(
-        `/reception/patients/${encodeURIComponent(bookNumber)}?tab=patient_history`,
+        `${frontdeskBase}/patients/${encodeURIComponent(bookNumber)}?tab=patient_history`,
         "_blank",
         "noopener,noreferrer"
       );
@@ -457,7 +464,10 @@ export default function AppointmentDetailsModal({
               const end = a.endAt ?? null;
 
               const isEditing = editingId === a.id;
-              const canStartEncounter = isOngoing(a.status) && currentUserRole !== "receptionist";
+              const canStartEncounter =
+                isOngoing(a.status) &&
+                currentUserRole !== "receptionist" &&
+                currentUserRole !== "marketing";
 
               return (
                 <div

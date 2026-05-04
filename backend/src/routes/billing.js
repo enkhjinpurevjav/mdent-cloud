@@ -228,10 +228,10 @@ router.get("/encounters/:id/invoice", async (req, res) => {
       });
     }
 
-    // Receptionist can only access billing for their own branch
-    if (req.user?.role === "receptionist") {
+    // Reception-like roles can only access billing for their own branch
+    if (req.user?.role === "receptionist" || req.user?.role === "marketing") {
       if (appointmentBranchId !== req.user.branchId) {
-        return res.status(403).json({ error: "Receptionist can only access billing for their own branch." });
+        return res.status(403).json({ error: "Frontdesk user can only access billing for their own branch." });
       }
     }
 
@@ -458,10 +458,10 @@ router.post("/encounters/:id/invoice", async (req, res) => {
       });
     }
 
-    // Receptionist can only access billing for their own branch
-    if (req.user?.role === "receptionist") {
+    // Reception-like roles can only access billing for their own branch
+    if (req.user?.role === "receptionist" || req.user?.role === "marketing") {
       if (appointmentBranchId !== req.user.branchId) {
-        return res.status(403).json({ error: "Receptionist can only access billing for their own branch." });
+        return res.status(403).json({ error: "Frontdesk user can only access billing for their own branch." });
       }
     }
 
@@ -877,10 +877,10 @@ router.post("/encounters/:id/batch-settlement", async (req, res) => {
       });
     }
 
-    // Receptionist can only access billing for their own branch
-    if (req.user?.role === "receptionist") {
+    // Reception-like roles can only access billing for their own branch
+    if (req.user?.role === "receptionist" || req.user?.role === "marketing") {
       if (appointmentBranchId !== req.user.branchId) {
-        return res.status(403).json({ error: "Receptionist can only access billing for their own branch." });
+        return res.status(403).json({ error: "Frontdesk user can only access billing for their own branch." });
       }
     }
 

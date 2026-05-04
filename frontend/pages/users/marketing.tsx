@@ -1,0 +1,374 @@
+import React, { useEffect, useState } from "react";
+import UsersTabs from "../../components/UsersTabs";
+import SendResetLinkButton from "../../components/SendResetLinkButton";
+
+type Branch = {
+  id: number;
+  name: string;
+};
+
+type MarketingUser = {
+  id: number;
+  email: string;
+  name?: string | null;
+  ovog?: string | null;
+  role: string;
+  regNo?: string | null;
+  phone?: string | null;
+  branchId?: number | null;
+  branch?: Branch | null;
+  branches?: Branch[];
+  createdAt?: string;
+};
+
+function MarketingForm({
+  branches,
+  onSuccess,
+}: {
+  branches: Branch[];
+  onSuccess: (u: MarketingUser) => void;
+}) {
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+    name: "",
+    ovog: "",
+    regNo: "",
+    phone: "",
+    branchIds: [] as number[],
+  });
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleBranchToggle = (branchId: number) => {
+    setForm((prev) => {
+      const exists = prev.branchIds.includes(branchId);
+      return {
+        ...prev,
+        branchIds: exists
+          ? prev.branchIds.filter((id) => id !== branchId)
+          : [...prev.branchIds, branchId],
+      };
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+
+    try {
+      const primaryBranchId =
+        form.branchIds.length > 0 ? form.branchIds[0] : undefined;
+
+      const payload: any = {
+        email: form.email,
+        password: form.password,
+        name: form.name || undefined,
+        ovog: form.ovog || undefined,
+        role: "marketing",
+        branchId: primaryBranchId,
+        phone: form.phone || undefined,
+      };
+
+      if (form.regNo.trim()) {
+        payload.regNo = form.regNo.trim();
+      }
+
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok || !data || !data.id) {
+        setError((data && data.error) || "Алдаа гарлаа");
+        setSubmitting(false);
+        return;
+      }
+
+      const createdUser = data as MarketingUser;
+
+      if (form.branchIds.length > 0) {
+        try {
+          const resBranches = await fetch(
+            `/api/users/${createdUser.id}/branches`,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ branchIds: form.branchIds }),
+            }
+          );
+          let branchesData: any = null;
+          try {
+            branchesData = await resBranches.json();
+          } catch {
+            branchesData = null;
+          }
+
+          if (
+            resBranches.ok &&
+            branchesData &&
+            Array.isArray(branchesData.branches)
+          ) {
+            createdUser.branches = branchesData.branches;
+          }
+        } catch (err) {
+          console.error("Failed to assign multiple branches", err);
+        }
+      }
+
+      onSuccess(createdUser);
+
+      setForm({
+        email: "",
+        password: "",
+        name: "",
+        ovog: "",
+        regNo: "",
+        phone: "",
+        branchIds: [],
+      });
+    } catch {
+      setError("Сүлжээгээ шалгана уу");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="mb-6">
+      <h2>Шинэ маркетинг ажилтан бүртгэх</h2>
+
+      <div className="grid [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))] gap-2 mb-2">
+        <input
+          name="ovog"
+          placeholder="Овог"
+          value={form.ovog}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="name"
+          placeholder="Нэр"
+          value={form.name}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="regNo"
+          placeholder="РД"
+          value={form.regNo}
+          onChange={handleChange}
+        />
+        <input
+          name="phone"
+          placeholder="Утас"
+          value={form.phone}
+          onChange={handleChange}
+        />
+        <input
+          name="email"
+          type="email"
+          placeholder="И-мэйл"
+          value={form.email}
+          onChange={handleChange}
+          required
+        />
+        <input
+          name="password"
+          type="password"
+          placeholder="Нууц үг"
+          value={form.password}
+          onChange={handleChange}
+          required
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
+        <span className="text-sm font-medium text-gray-700 shrink-0">Салбар сонгох</span>
+        <div className="flex flex-wrap gap-2 flex-1 min-w-0">
+          {branches.map((b) => (
+            <label
+              key={b.id}
+              className="cursor-pointer select-none inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50 has-[:checked]:text-blue-700 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-blue-400 has-[:focus-visible]:ring-offset-1"
+            >
+              <input
+                type="checkbox"
+                className="sr-only"
+                checked={form.branchIds.includes(b.id)}
+                onChange={() => handleBranchToggle(b.id)}
+              />
+              {b.name}
+            </label>
+          ))}
+        </div>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="shrink-0 bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition"
+        >
+          {submitting ? "Бүртгэж байна..." : "Бүртгэх"}
+        </button>
+      </div>
+
+      {error && <div className="text-red-600 mt-2">{error}</div>}
+    </form>
+  );
+}
+
+export default function MarketingUsersPage() {
+  const [users, setUsers] = useState<MarketingUser[]>([]);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadBranches = async () => {
+    try {
+      const res = await fetch("/api/branches");
+      const data = await res.json();
+      if (res.ok && Array.isArray(data)) {
+        setBranches(data);
+      }
+    } catch {
+      // ignore; main error handling below
+    }
+  };
+
+  const loadUsers = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/users?role=marketing");
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (!res.ok || !Array.isArray(data)) {
+        throw new Error((data && data.error) || "Алдаа гарлаа");
+      }
+
+      setUsers(
+        [...data].sort((a, b) => {
+          const aName = (a.name || "").toString();
+          const bName = (b.name || "").toString();
+          return aName.localeCompare(bName, "mn");
+        })
+      );
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Сүлжээгээ шалгана уу");
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBranches();
+    loadUsers();
+  }, []);
+
+  return (
+    <main className="max-w-7xl px-4 lg:px-8 my-4 font-sans">
+      <h1 className="text-2xl font-bold mt-1 mb-2">Маркетинг</h1>
+      <p className="text-gray-500 mb-4">
+        Маркетинг ажилчдыг бүртгэх, салбарт хуваарьлах, жагсаалтаар харах.
+      </p>
+
+      <UsersTabs />
+
+      <MarketingForm
+        branches={branches}
+        onSuccess={(u) => {
+          setUsers((prev) => [u, ...prev]);
+        }}
+      />
+
+      {loading && <p className="text-gray-500 text-sm">Ачааллаж байна...</p>}
+      {!loading && error && <p className="text-red-600 text-sm">{error}</p>}
+
+      {!loading && !error && (
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full border-collapse text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                {["#", "Овог", "Нэр", "И-мэйл", "РД", "Утас", "Салбар", "Үйлдэл"].map((label) => (
+                  <th
+                    key={label}
+                    className="sticky top-0 z-10 text-left border-b border-gray-200 py-2 px-3 font-semibold text-gray-700 whitespace-nowrap bg-gray-50"
+                  >
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u, index) => {
+                const btnCls =
+                  "inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 bg-gray-50 text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors";
+                const tooltipCls =
+                  "pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100";
+                return (
+                  <tr key={u.id} className="odd:bg-white even:bg-gray-50 hover:bg-gray-100">
+                    <td className="border-b border-gray-100 py-2 px-3">{index + 1}</td>
+                    <td className="border-b border-gray-100 py-2 px-3">{u.ovog || "-"}</td>
+                    <td className="border-b border-gray-100 py-2 px-3">{u.name || "-"}</td>
+                    <td className="border-b border-gray-100 py-2 px-3">{u.email}</td>
+                    <td className="border-b border-gray-100 py-2 px-3">{u.regNo || "-"}</td>
+                    <td className="border-b border-gray-100 py-2 px-3">{u.phone || "-"}</td>
+                    <td className="border-b border-gray-100 py-2 px-3">
+                      {Array.isArray(u.branches) && u.branches.length > 0
+                        ? u.branches.map((b) => b.name).join(", ")
+                        : u.branch
+                        ? u.branch.name
+                        : "-"}
+                    </td>
+                    <td className="border-b border-gray-100 py-2 px-3">
+                      <div className="flex items-center gap-1">
+                        <div className="group relative inline-block">
+                          <SendResetLinkButton userId={u.id} />
+                          <span className={tooltipCls}>Нууц үг сэргээх</span>
+                        </div>
+                        <div className="group relative inline-block">
+                          <span className={btnCls} aria-hidden>
+                            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                            </svg>
+                          </span>
+                          <span className={tooltipCls}>Засвар нь Бусад ажилтан цэсээр</span>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {users.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="text-center text-gray-400 py-6 text-sm">
+                    Өгөгдөл алга
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </main>
+  );
+}

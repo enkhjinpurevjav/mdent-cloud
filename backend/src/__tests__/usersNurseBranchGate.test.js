@@ -31,6 +31,15 @@ describe("/api/users RBAC gate nurse list endpoints", () => {
       }),
       true
     );
+    assert.equal(
+      usersGateAllows({
+        role: "marketing",
+        method: "GET",
+        path: "/nurses/today",
+        query: {},
+      }),
+      true
+    );
   });
 
   it("allows authenticated non-admin roles to GET /nurses/by-branch", () => {
@@ -46,6 +55,15 @@ describe("/api/users RBAC gate nurse list endpoints", () => {
     assert.equal(
       usersGateAllows({
         role: "receptionist",
+        method: "GET",
+        path: "/nurses/by-branch",
+        query: { branchId: "1" },
+      }),
+      true
+    );
+    assert.equal(
+      usersGateAllows({
+        role: "marketing",
         method: "GET",
         path: "/nurses/by-branch",
         query: { branchId: "1" },

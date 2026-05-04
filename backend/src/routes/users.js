@@ -26,7 +26,7 @@ async function ensureReceptionOr404(id, res) {
     where: { id },
     select: { id: true, role: true },
   });
-  if (!user || user.role !== UserRole.receptionist) {
+  if (!user || (user.role !== UserRole.receptionist && user.role !== UserRole.marketing)) {
     res.status(404).json({ error: "Receptionist not found" });
     return null;
   }
@@ -110,9 +110,9 @@ router.get("/", async (req, res) => {
       canCloseEncounterWithoutPayment: u.canCloseEncounterWithoutPayment,
     }));
 
-    // Data minimization: receptionist only receives the fields needed by
+    // Data minimization: receptionist/marketing only receive the fields needed by
     // billing/appointments UI — no email, phone, salary-related, or audit fields.
-    if (req.user?.role === "receptionist") {
+    if (req.user?.role === "receptionist" || req.user?.role === "marketing") {
       const lite = result.map((u) => ({
         id: u.id,
         name: u.name,
