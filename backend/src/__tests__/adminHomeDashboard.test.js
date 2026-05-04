@@ -213,6 +213,40 @@ describe("computeRecognizedSalesFromPayments", () => {
     assert.equal(result.total, 100_000);
     assert.equal(result.byBranch.get(1), 100_000);
   });
+
+  it("supports gift-card inclusion while excluding marketing voucher", () => {
+    const jan1 = new Date("2026-01-01T00:00:00.000Z");
+    const jan2 = new Date("2026-01-02T00:00:00.000Z");
+
+    const result = computeRecognizedSalesFromPayments(
+      [
+        {
+          id: 1,
+          amount: 15_000,
+          method: "VOUCHER",
+          timestamp: jan1,
+          invoiceId: 40,
+          invoice: { id: 40, branchId: 1, finalAmount: 60_000, statusLegacy: "partial" },
+        },
+        {
+          id: 2,
+          amount: 45_000,
+          method: "GIFT_CARD",
+          timestamp: jan1,
+          invoiceId: 41,
+          invoice: { id: 41, branchId: 1, finalAmount: 45_000, statusLegacy: "paid" },
+        },
+      ],
+      {
+        windowStart: jan1,
+        windowEnd: jan2,
+        includedMethods: ["CASH", "WALLET", "GIFT_CARD"],
+      }
+    );
+
+    assert.equal(result.total, 45_000);
+    assert.equal(result.byBranch.get(1), 45_000);
+  });
 });
 
 describe("computeImagingServiceSalesFromItems", () => {
