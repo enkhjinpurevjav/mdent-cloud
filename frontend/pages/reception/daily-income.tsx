@@ -239,10 +239,10 @@ export default function ReceptionDailyIncomePage() {
   const { me } = useAuth();
   const router = useRouter();
 
-  // Redirect non-receptionists away from this page
+  // Redirect non-reception/marketing roles away from this page
   React.useEffect(() => {
-    if (me && me.role !== "receptionist") {
-      void router.replace("/reception/appointments");
+    if (me && me.role !== "receptionist" && me.role !== "marketing") {
+      void router.replace("/login");
     }
   }, [me, router]);
 

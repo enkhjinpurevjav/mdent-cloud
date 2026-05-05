@@ -90,7 +90,7 @@ async function resolveAttendanceBranch(userId, role, now) {
         where: { nurseId: userId, date: { gte: dayStart, lte: dayEnd } },
         select: { branchId: true, startTime: true, endTime: true },
       });
-    } else if (role === "receptionist") {
+    } else if (role === "receptionist" || role === "marketing") {
       schedule = await prisma.receptionSchedule.findFirst({
         where: { receptionId: userId, date: { gte: dayStart, lte: dayEnd } },
         select: { branchId: true, startTime: true, endTime: true },

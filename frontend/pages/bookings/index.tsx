@@ -72,7 +72,8 @@ export default function BookingsDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
-  const isAdmin = me?.role === "admin" || me?.role === "super_admin";
+  const isAdmin =
+    me?.role === "admin" || me?.role === "super_admin" || me?.role === "marketing";
 
   useEffect(() => {
     if (authLoading || !me) return;

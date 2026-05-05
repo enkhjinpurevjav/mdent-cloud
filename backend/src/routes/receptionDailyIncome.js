@@ -25,19 +25,19 @@ function toNaiveYmdHm(dt) {
 
 /**
  * GET /api/reception/daily-income
- * Returns daily income for the authenticated receptionist only.
+ * Returns daily income for receptionist or marketing users.
  *
  * Query params:
  *   date - required, YYYY-MM-DD
  *
- * Scoped to:
- *   createdByUserId = req.user.id
- *   invoice.branchId = req.user.branchId
+ * Scope rules:
+ *   - receptionist: createdByUserId = req.user.id, invoice.branchId = req.user.branchId
+ *   - marketing/admin/super_admin: no creator or branch restriction (all branches)
  */
 router.get(
   "/daily-income",
   authenticateJWT,
-  requireRole("receptionist"),
+  requireRole("receptionist", "marketing", "admin", "super_admin"),
   async (req, res) => {
     try {
       const { date } = req.query;
@@ -56,9 +56,10 @@ router.get(
       const dayStart = new Date(y, m - 1, d, 0, 0, 0, 0);
       const dayEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
 
-      // Scope to the authenticated receptionist only — never accept from query params
+      // Scope based on role — never accept user-scoping from query params
       const userId = req.user.id;
       const branchId = req.user.branchId;
+      const role = req.user.role;
 
       if (!userId) {
         return res.status(401).json({ error: "Authentication required." });
@@ -69,11 +70,14 @@ router.get(
           gte: dayStart,
           lte: dayEnd,
         },
-        createdByUserId: userId,
       };
 
-      if (branchId) {
-        paymentWhere.invoice = { branchId };
+      // Receptionists see only their own collections in their own branch.
+      if (role === "receptionist") {
+        paymentWhere.createdByUserId = userId;
+        if (branchId) {
+          paymentWhere.invoice = { branchId };
+        }
       }
 
       // Fetch all payments for the day with full related data

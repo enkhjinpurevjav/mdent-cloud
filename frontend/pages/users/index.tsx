@@ -79,6 +79,8 @@ setUsers(
         return "Эмч";
       case "receptionist":
         return "Ресепшн";
+      case "marketing":
+        return "Маркетинг";
       case "nurse":
         return "Сувилагч";
       case "accountant":

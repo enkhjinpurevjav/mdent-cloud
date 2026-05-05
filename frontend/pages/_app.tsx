@@ -2,6 +2,7 @@ import type { AppProps } from "next/app";
 import AdminLayout from "../components/AdminLayout";
 import DoctorLayout from "../components/DoctorLayout";
 import NurseLayout from "../components/NurseLayout";
+import MarketingLayout from "../components/MarketingLayout";
 import ReceptionLayout from "../components/ReceptionLayout";
 import XrayLayout from "../components/XrayLayout";
 import { useRouter } from "next/router";
@@ -28,6 +29,10 @@ function isReceptionPath(pathname: string) {
   return pathname === "/reception" || pathname.startsWith("/reception/");
 }
 
+function isMarketingPath(pathname: string) {
+  return pathname === "/marketing" || pathname.startsWith("/marketing/");
+}
+
 function isXrayPath(pathname: string) {
   return pathname === "/xray" || pathname.startsWith("/xray/");
 }
@@ -43,8 +48,58 @@ function isAppointmentsPath(pathname: string) {
     pathname === "/appointments-v2" ||
     pathname.startsWith("/appointments-v2/") ||
     pathname === "/reception/appointments" ||
-    pathname.startsWith("/reception/appointments/")
+    pathname.startsWith("/reception/appointments/") ||
+    pathname === "/marketing/appointments" ||
+    pathname.startsWith("/marketing/appointments/")
   );
+}
+
+function mapFrontdeskPathByRole(asPath: string, role: string | null) {
+  if (!role) return asPath;
+
+  if (role === "marketing" && asPath.startsWith("/reception")) {
+    if (asPath.startsWith("/reception/appointments")) {
+      return asPath.replace("/reception/appointments", "/marketing/appointments");
+    }
+    if (asPath.startsWith("/reception/bookings")) {
+      return asPath.replace("/reception/bookings", "/marketing/bookings");
+    }
+    if (asPath.startsWith("/reception/patients")) {
+      return asPath.replace("/reception/patients", "/marketing/patients");
+    }
+    if (asPath.startsWith("/reception/profile")) {
+      return asPath.replace("/reception/profile", "/marketing/profile");
+    }
+    if (asPath.startsWith("/reception/daily-income")) {
+      return asPath.replace("/reception/daily-income", "/marketing/daily-income");
+    }
+    return "/marketing/appointments";
+  }
+
+  if (role === "marketing" && asPath.startsWith("/bookings")) {
+    return asPath.replace("/bookings", "/marketing/dashboard");
+  }
+
+  if (role === "receptionist" && asPath.startsWith("/marketing")) {
+    if (asPath.startsWith("/marketing/appointments")) {
+      return asPath.replace("/marketing/appointments", "/reception/appointments");
+    }
+    if (asPath.startsWith("/marketing/bookings")) {
+      return asPath.replace("/marketing/bookings", "/reception/bookings");
+    }
+    if (asPath.startsWith("/marketing/patients")) {
+      return asPath.replace("/marketing/patients", "/reception/patients");
+    }
+    if (asPath.startsWith("/marketing/profile")) {
+      return asPath.replace("/marketing/profile", "/reception/profile");
+    }
+    if (asPath.startsWith("/marketing/daily-income")) {
+      return asPath.replace("/marketing/daily-income", "/reception/daily-income");
+    }
+    return "/reception/appointments";
+  }
+
+  return asPath;
 }
 
 function ToothLoader() {
@@ -101,6 +156,17 @@ function AppContent({ Component, pageProps }: AppProps) {
     }
   }, [loading, me, isPublicRoute, router]);
 
+  // Keep frontdesk users on their own portal path, even if they open stale URLs.
+  useEffect(() => {
+    if (loading || !me || isPublicRoute) return;
+    if (me.role !== "marketing" && me.role !== "receptionist") return;
+
+    const nextPath = mapFrontdeskPathByRole(router.asPath, me.role);
+    if (nextPath !== router.asPath) {
+      void router.replace(nextPath);
+    }
+  }, [isPublicRoute, loading, me, router]);
+
   // Show tooth loader during initial auth bootstrap for protected pages
   if (loading && !isPublicRoute) {
     return <ToothLoader />;
@@ -121,6 +187,7 @@ function AppContent({ Component, pageProps }: AppProps) {
     isDoctorPath(router.pathname) || ((isPatientPath || isEncounterPath) && userRole === "doctor");
   const useNurseLayout = isNursePath(router.pathname);
   const useReceptionLayout = isReceptionPath(router.pathname);
+  const useMarketingLayout = isMarketingPath(router.pathname);
   const useXrayLayout = isXrayPath(router.pathname);
   const useBranchKioskLayout = isBranchKioskPath(router.pathname) || userRole === "branch_kiosk";
 
@@ -149,6 +216,14 @@ function AppContent({ Component, pageProps }: AppProps) {
       <ReceptionLayout wide={wide}>
         <Component {...pageProps} />
       </ReceptionLayout>
+    );
+  }
+
+  if (useMarketingLayout) {
+    return (
+      <MarketingLayout wide={wide}>
+        <Component {...pageProps} />
+      </MarketingLayout>
     );
   }
 

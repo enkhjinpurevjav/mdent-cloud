@@ -19,6 +19,7 @@ enum UserRole {
   admin
   doctor
   receptionist
+  marketing
   accountant
   nurse
   manager

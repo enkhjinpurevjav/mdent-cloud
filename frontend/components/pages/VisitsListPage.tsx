@@ -101,7 +101,8 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
   const [editingStatus, setEditingStatus] = useState<string>("");
   const [statusSaveLoading, setStatusSaveLoading] = useState(false);
 
-  const isAdminRole = (role: string) => role === "admin" || role === "super_admin";
+  const isAdminRole = (role: string) =>
+    role === "admin" || role === "super_admin" || role === "marketing";
 
   const showToast = (message: string) => {
     const id = ++toastSeq;
@@ -208,7 +209,11 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
         showToast("Encounter ID олдсонгүй.");
         return;
       }
-      router.push(`/billing/${encounterId}`);
+      const isMarketingRoute = router.asPath.startsWith("/marketing/");
+      const billingPath = isMarketingRoute
+        ? `/marketing/billing/${encounterId}`
+        : `/billing/${encounterId}`;
+      router.push(billingPath);
     } catch {
       showToast("Алдаа гарлаа. Дахин оролдоно уу.");
     } finally {

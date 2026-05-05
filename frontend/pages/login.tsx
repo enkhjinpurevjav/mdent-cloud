@@ -10,6 +10,7 @@ const ROLE_HOME: Record<string, string> = {
   admin: "/bookings",
   super_admin: "/bookings",
   receptionist: "/reception/appointments",
+  marketing: "/marketing/appointments",
   doctor: "/doctor/appointments",
   nurse: "/nurse/schedule",
   xray: "/xray",
@@ -35,6 +36,7 @@ export default function LoginPage() {
       const isDoctor = me.role === "doctor";
       const isNurse = me.role === "nurse";
       const isReceptionist = me.role === "receptionist";
+      const isMarketing = me.role === "marketing";
       const isXray = me.role === "xray";
       const isAdminRole = ["admin", "super_admin"].includes(me.role);
       if (isDoctor && redirectParam.startsWith("/doctor")) {
@@ -42,6 +44,8 @@ export default function LoginPage() {
       } else if (isNurse && redirectParam.startsWith("/nurse")) {
         destination = redirectParam;
       } else if (isReceptionist && redirectParam.startsWith("/reception")) {
+        destination = redirectParam;
+      } else if (isMarketing && redirectParam.startsWith("/marketing")) {
         destination = redirectParam;
       } else if (isXray && redirectParam.startsWith("/xray")) {
         destination = redirectParam;

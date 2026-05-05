@@ -25,7 +25,7 @@ import assert from "node:assert/strict";
 function usersGateAllows({ role, method, path, query }) {
   if (role === "admin" || role === "super_admin") return true;
   if (
-    role === "receptionist" &&
+    (role === "receptionist" || role === "marketing") &&
     method === "GET" &&
     path === "/" &&
     query?.role === "doctor"
@@ -57,7 +57,7 @@ const fullUserFields = {
 };
 
 function applyDataMinimization(result, requesterRole) {
-  if (requesterRole === "receptionist") {
+  if (requesterRole === "receptionist" || requesterRole === "marketing") {
     return result.map((u) => ({
       id: u.id,
       name: u.name,
@@ -124,6 +124,28 @@ describe("/api/users RBAC gate — receptionist", () => {
   it("blocks receptionist DELETE /api/users/:id", () => {
     assert.equal(
       usersGateAllows({ role: "receptionist", method: "DELETE", path: "/5", query: {} }),
+      false
+    );
+  });
+});
+
+describe("/api/users RBAC gate — marketing", () => {
+  it("allows marketing GET /api/users?role=doctor", () => {
+    assert.ok(
+      usersGateAllows({ role: "marketing", method: "GET", path: "/", query: { role: "doctor" } })
+    );
+  });
+
+  it("blocks marketing GET /api/users?role=nurse", () => {
+    assert.equal(
+      usersGateAllows({ role: "marketing", method: "GET", path: "/", query: { role: "nurse" } }),
+      false
+    );
+  });
+
+  it("blocks marketing POST /api/users", () => {
+    assert.equal(
+      usersGateAllows({ role: "marketing", method: "POST", path: "/", query: {} }),
       false
     );
   });
@@ -214,5 +236,20 @@ describe("GET /api/users — receptionist data minimization", () => {
     assert.ok("email" in item, "email must be present for admin");
     assert.ok("phone" in item, "phone must be present for admin");
     assert.ok("regNo" in item, "regNo must be present for admin");
+  });
+});
+
+describe("GET /api/users — marketing data minimization", () => {
+  it("marketing receives only allowed fields", () => {
+    const [item] = applyDataMinimization([fullUserFields], "marketing");
+    assert.deepEqual(Object.keys(item).sort(), [
+      "branchId",
+      "branches",
+      "calendarOrder",
+      "id",
+      "name",
+      "ovog",
+      "role",
+    ]);
   });
 });
