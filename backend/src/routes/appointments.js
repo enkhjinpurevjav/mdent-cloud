@@ -766,10 +766,7 @@ router.post("/", async (req, res) => {
     }
 
    // Receptionist cross-branch rule: can only create with status "booked" in other branches
-if (
-  (req.user?.role === "receptionist" || req.user?.role === "marketing") &&
-  req.user.branchId !== parsedBranchId
-) {
+if (req.user?.role === "receptionist" && req.user.branchId !== parsedBranchId) {
   // If client explicitly provided a status, it must be "booked"
   if (typeof status === "string" && status.trim()) {
     if (normalizedStatus !== "booked") {
@@ -888,10 +885,7 @@ router.patch("/:id", async (req, res) => {
     }
 
     // Receptionist cross-branch guard: cannot edit appointments in other branches
-    if (
-      (req.user?.role === "receptionist" || req.user?.role === "marketing") &&
-      existing.branchId !== req.user.branchId
-    ) {
+    if (req.user?.role === "receptionist" && existing.branchId !== req.user.branchId) {
       return res.status(403).json({ error: "Receptionist cannot edit appointments in other branches." });
     }
 
@@ -918,7 +912,7 @@ router.patch("/:id", async (req, res) => {
       // TEMP: Feature flag — skip visit-card requirement unless explicitly enabled.
       const requirePatientCard = process.env.REQUIRE_PATIENT_CARD_TO_START_ENCOUNTER === "true";
       if (
-        (req.user?.role === "receptionist" || req.user?.role === "marketing") &&
+        req.user?.role === "receptionist" &&
         normalizedStatus === "ongoing" &&
         requirePatientCard
       ) {
@@ -948,7 +942,7 @@ router.patch("/:id", async (req, res) => {
         }
       }
       if (
-        (req.user?.role === "receptionist" || req.user?.role === "marketing") &&
+        req.user?.role === "receptionist" &&
         existing.status === "ongoing" &&
         normalizedStatus !== "ongoing"
       ) {
@@ -1177,7 +1171,7 @@ router.post("/:id/start-encounter", async (req, res) => {
     }
 
     // Receptionist cannot start encounters
-    if (req.user?.role === "receptionist" || req.user?.role === "marketing") {
+    if (req.user?.role === "receptionist") {
       return res.status(403).json({ error: "Receptionist cannot start encounters." });
     }
 
@@ -1277,7 +1271,7 @@ router.post("/:id/ensure-encounter", async (req, res) => {
     }
 
     // Receptionist cannot create/ensure encounters
-    if (req.user?.role === "receptionist" || req.user?.role === "marketing") {
+    if (req.user?.role === "receptionist") {
       return res.status(403).json({ error: "Receptionist cannot start encounters." });
     }
 
