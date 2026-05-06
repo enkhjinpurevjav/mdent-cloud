@@ -752,7 +752,7 @@ export default function MainReportPage() {
       ];
       for (const row of appointmentsTabData.trend.rows) {
         rows.push({
-          Төрөл: "Цаг захиалгын чиг хандлага",
+          Төрөл: "Цаг захиалгын график",
           Огноо: row.bucket,
           Нийт: row.total,
           Дууссан: row.completed,
@@ -761,7 +761,7 @@ export default function MainReportPage() {
       }
       for (const r of appointmentsTabData.utilization.rows) {
         rows.push({
-          Төрөл: "Эмчийн ашиглалт",
+          Төрөл: "Эмчийн ачаалал",
           Эмч: r.doctorName,
           "Боломжит цаг": r.availableHours,
           "Захиалагдсан цаг": r.bookedHours,
