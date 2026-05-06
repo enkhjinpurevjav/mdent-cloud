@@ -209,24 +209,24 @@ type AppointmentTabResponse = {
     rows: Array<{
       doctorId: number;
       doctorName: string;
-      availableHours: number;
-      bookedHours: number;
+      availableSlots: number;
+      bookedSlots: number;
       utilizationPct: number;
       state: "overloaded" | "underused" | "normal";
     }>;
     overloadedDoctors: Array<{
       doctorId: number;
       doctorName: string;
-      availableHours: number;
-      bookedHours: number;
+      availableSlots: number;
+      bookedSlots: number;
       utilizationPct: number;
       state: "overloaded" | "underused" | "normal";
     }>;
     underusedDoctors: Array<{
       doctorId: number;
       doctorName: string;
-      availableHours: number;
-      bookedHours: number;
+      availableSlots: number;
+      bookedSlots: number;
       utilizationPct: number;
       state: "overloaded" | "underused" | "normal";
     }>;
@@ -763,8 +763,8 @@ export default function MainReportPage() {
         rows.push({
           Төрөл: "Эмчийн ачаалал",
           Эмч: r.doctorName,
-          "Боломжит цаг": r.availableHours,
-          "Захиалагдсан цаг": r.bookedHours,
+          "Боломжит слот": r.availableSlots,
+          "Захиалагдсан слот": r.bookedSlots,
           "Ашиглалт %": r.utilizationPct,
         });
       }
@@ -1632,8 +1632,8 @@ export default function MainReportPage() {
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
                       <th className="px-3 py-2 text-left font-semibold text-gray-700">Эмч</th>
-                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Боломжит цаг</th>
-                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Захиалагдсан цаг</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Боломжит слот</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Захиалагдсан слот</th>
                       <th className="px-3 py-2 text-right font-semibold text-gray-700">Ашиглалт</th>
                       <th className="px-3 py-2 text-right font-semibold text-gray-700">Төлөв</th>
                     </tr>
@@ -1642,8 +1642,8 @@ export default function MainReportPage() {
                     {appointmentsTabData.utilization.rows.map((r) => (
                       <tr key={r.doctorId} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="px-3 py-2 text-gray-800">{r.doctorName}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{r.availableHours.toLocaleString("mn-MN")}</td>
-                        <td className="px-3 py-2 text-right text-gray-700">{r.bookedHours.toLocaleString("mn-MN")}</td>
+                        <td className="px-3 py-2 text-right text-gray-700">{r.availableSlots.toLocaleString("mn-MN")}</td>
+                        <td className="px-3 py-2 text-right text-gray-700">{r.bookedSlots.toLocaleString("mn-MN")}</td>
                         <td className="px-3 py-2 text-right font-medium text-gray-900">{r.utilizationPct.toLocaleString("mn-MN")}%</td>
                         <td className="px-3 py-2 text-right">
                           <span

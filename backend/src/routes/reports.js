@@ -7,6 +7,10 @@ import {
   allocatePaymentProportionalByRemaining,
   computeOverrideSalesFromAllocations,
 } from "../utils/incomeHelpers.js";
+import {
+  buildDoctorScheduleSlotIndex,
+  countBookedAppointmentsInScheduleSlots,
+} from "../utils/doctorScheduleSlotCounts.js";
 
 const router = Router();
 
@@ -173,24 +177,6 @@ function parseAppointmentChairKey(appointment) {
 function chairKeyToLabel(chairKey) {
   if (chairKey === "UNKNOWN") return "Тодорхойгүй";
   return `Сандал ${chairKey}`;
-}
-
-function getAppointmentDurationMinutes(appointment) {
-  const start = appointment?.scheduledAt instanceof Date
-    ? appointment.scheduledAt
-    : new Date(appointment?.scheduledAt);
-  const end = appointment?.endAt instanceof Date
-    ? appointment.endAt
-    : appointment?.endAt
-      ? new Date(appointment.endAt)
-      : null;
-
-  if (!start || Number.isNaN(start.getTime())) return MAIN_APPOINTMENT_HEATMAP_SLOT_MINUTES;
-  if (!end || Number.isNaN(end.getTime())) return MAIN_APPOINTMENT_HEATMAP_SLOT_MINUTES;
-
-  const diff = (end.getTime() - start.getTime()) / 60000;
-  if (!(diff > 0)) return MAIN_APPOINTMENT_HEATMAP_SLOT_MINUTES;
-  return Math.max(MAIN_APPOINTMENT_HEATMAP_SLOT_MINUTES, Math.round(diff));
 }
 
 function computeDoctorTabInvoiceSales(inv, rangeStart, rangeEndExclusive) {
@@ -1218,21 +1204,8 @@ router.get("/main-appointments", async (req, res) => {
       return MAIN_APPOINTMENT_WEEKDAY_LABELS[Math.max(1, Math.min(7, mondayFirst)) - 1];
     }
 
-    function minutesFromTimeStr(hm) {
-      if (!hm || typeof hm !== "string") return null;
-      const [h, m] = hm.split(":").map(Number);
-      if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-      return h * 60 + m;
-    }
-
     function getBucketKey(dateObj) {
       return view === "monthly" ? monthKey(dateObj) : dayKey(dateObj);
-    }
-
-    function dateOnlyKey(dateObj) {
-      return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(
-        dateObj.getDate()
-      ).padStart(2, "0")}`;
     }
 
     const [branches, doctors, appointments, schedules] = await Promise.all([
@@ -1429,49 +1402,25 @@ router.get("/main-appointments", async (req, res) => {
       };
     });
 
-    const utilizationByDoctor = new Map();
-    for (const sch of schedules) {
-      const startMins = minutesFromTimeStr(sch.startTime);
-      const endMins = minutesFromTimeStr(sch.endTime);
-      if (startMins == null || endMins == null || endMins <= startMins) continue;
-      const dayKeyStr = dateOnlyKey(new Date(sch.date));
-      if (!utilizationByDoctor.has(sch.doctorId)) {
-        utilizationByDoctor.set(sch.doctorId, {
-          doctorId: sch.doctorId,
-          doctorName:
-            doctorLabelMap.get(sch.doctorId) || toShortDoctorName({ id: sch.doctorId, name: "Эмч" }),
-          availableMinutes: 0,
-          bookedMinutes: 0,
-          scheduledDays: new Set(),
-        });
-      }
-      const rec = utilizationByDoctor.get(sch.doctorId);
-      rec.availableMinutes += endMins - startMins;
-      rec.scheduledDays.add(dayKeyStr);
-    }
+    const scheduleSlotIndex = buildDoctorScheduleSlotIndex(schedules);
+    const bookedSlotsByDoctor = countBookedAppointmentsInScheduleSlots({
+      appointments,
+      scheduleSlotIndex,
+    });
 
-    for (const appt of appointments) {
-      const status = normStatus(appt.status);
-      if (!MAIN_APPOINTMENT_INCLUDED_STATUSES.has(status)) continue;
-      if (!appt.doctorId || !utilizationByDoctor.has(appt.doctorId)) continue;
-      const rec = utilizationByDoctor.get(appt.doctorId);
-      const defaultEnd = new Date(appt.scheduledAt.getTime() + 30 * 60 * 1000);
-      const end = appt.endAt instanceof Date && !Number.isNaN(appt.endAt.getTime()) ? appt.endAt : defaultEnd;
-      const dur = Math.max(30, Math.round((end.getTime() - appt.scheduledAt.getTime()) / 60000));
-      rec.bookedMinutes += dur;
-    }
-
-    const utilizationRows = Array.from(utilizationByDoctor.values())
+    const utilizationRows = Array.from(scheduleSlotIndex.values())
       .map((r) => {
-        const availableHours = Number((r.availableMinutes / 60).toFixed(2));
-        const bookedHours = Number((r.bookedMinutes / 60).toFixed(2));
-        const utilizationPct = availableHours > 0 ? Number(((bookedHours / availableHours) * 100).toFixed(1)) : 0;
+        const availableSlots = Number(r.possibleSlotCount || 0);
+        const bookedSlots = Number(bookedSlotsByDoctor.get(r.doctorId) || 0);
+        const utilizationPct =
+          availableSlots > 0 ? Number(((bookedSlots / availableSlots) * 100).toFixed(1)) : 0;
         const state = utilizationPct > 100 ? "overloaded" : utilizationPct < 50 ? "underused" : "normal";
         return {
           doctorId: r.doctorId,
-          doctorName: r.doctorName,
-          availableHours,
-          bookedHours,
+          doctorName:
+            doctorLabelMap.get(r.doctorId) || toShortDoctorName({ id: r.doctorId, name: "Эмч" }),
+          availableSlots,
+          bookedSlots,
           utilizationPct,
           state,
         };
