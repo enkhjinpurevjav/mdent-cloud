@@ -163,7 +163,7 @@ type TreatmentTabResponse = {
 };
 
 type AppointmentHeatmapDimension = "doctor" | "branch" | "chair";
-type AppointmentTrendMetric = "total" | "completed" | "no_show";
+type AppointmentTrendMetric = "total" | "completed" | "noShow";
 
 type AppointmentTabResponse = {
   period: { from: string; to: string; view: TrendView };
@@ -305,10 +305,10 @@ const DOCTOR_CHART_COLORS = [
   "#84cc16",
   "#f97316",
 ];
-const APPOINTMENT_TREND_LABEL: Record<"total" | "completed" | "no_show", string> = {
+const APPOINTMENT_TREND_LABEL: Record<AppointmentTrendMetric, string> = {
   total: "Нийт",
   completed: "Дууссан",
-  no_show: "Ирээгүй",
+  noShow: "Ирээгүй",
 };
 
 function currentYearRange() {
@@ -1511,7 +1511,7 @@ export default function MainReportPage() {
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-base font-semibold text-gray-900">Цаг захиалгын чиг хандлага</h3>
               <div className="flex flex-wrap gap-1.5">
-                {(["total", "completed", "no_show"] as const).map((metric) => (
+                {(["total", "completed", "noShow"] as const).map((metric) => (
                   <button
                     key={metric}
                     type="button"
