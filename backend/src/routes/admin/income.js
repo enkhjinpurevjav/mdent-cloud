@@ -6,6 +6,10 @@ import {
   allocatePaymentProportionalByRemaining,
   computeOverrideSalesFromAllocations,
 } from "../../utils/incomeHelpers.js";
+import {
+  buildDoctorScheduleSlotIndex,
+  countBookedAppointmentsInScheduleSlots,
+} from "../../utils/doctorScheduleSlotCounts.js";
 import { getAdjustmentTotalsByPatient } from "../reports-patient-balances.js";
 
 const router = express.Router();
@@ -180,10 +184,53 @@ async function computeBalanceSnapshotTotals(branchId = null) {
  * @param {{startDate: string, endDate: string, branchId: number|null|string|undefined}} params
  * @returns {Promise<Array<{doctorId:number,doctorName:string,doctorOvog:string|null,branchName:string|null,startDate:string,endDate:string,appointmentCount:number,serviceCount:number,averageVisitRevenue:number,revenue:number,commission:number,monthlyGoal:number,progressPercent:number}>>}
  */
-export async function computeDoctorsIncomeData({ startDate, endDate, branchId }) {
+export async function computeDoctorsIncomeData({
+  startDate,
+  endDate,
+  branchId,
+  appointmentCountMode = "legacy_completed_sales",
+}) {
   const start = new Date(`${startDate}T00:00:00.000Z`);
   const endExclusive = new Date(`${endDate}T00:00:00.000Z`);
   endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+
+  let appointmentSlotCounts = null;
+  if (appointmentCountMode === "slot_in_schedule") {
+    // Canonical appointment-slot count:
+    // completed + partial_paid + ready_to_pay, and only when appointment start
+    // falls inside that doctor's scheduled 30-minute slots in the range.
+    const [schedules, appointmentsForSlotCount] = await Promise.all([
+      prisma.doctorSchedule.findMany({
+        where: {
+          date: { gte: start, lt: endExclusive },
+          ...(branchId ? { branchId: Number(branchId) } : {}),
+        },
+        select: {
+          doctorId: true,
+          date: true,
+          startTime: true,
+          endTime: true,
+        },
+      }),
+      prisma.appointment.findMany({
+        where: {
+          scheduledAt: { gte: start, lt: endExclusive },
+          ...(branchId ? { branchId: Number(branchId) } : {}),
+        },
+        select: {
+          id: true,
+          doctorId: true,
+          scheduledAt: true,
+          status: true,
+        },
+      }),
+    ]);
+    const scheduleSlotIndex = buildDoctorScheduleSlotIndex(schedules);
+    appointmentSlotCounts = countBookedAppointmentsInScheduleSlots({
+      appointments: appointmentsForSlotCount,
+      scheduleSlotIndex,
+    });
+  }
 
   // Settings: home bleaching deduction amount
   const homeBleachingDeductSetting = await prisma.settings.findUnique({
@@ -376,6 +423,7 @@ export async function computeDoctorsIncomeData({ startDate, endDate, branchId })
     const appointment = inv.encounter?.appointment;
     const appointmentScheduledAt = appointment?.scheduledAt ? new Date(appointment.scheduledAt) : null;
     if (
+      appointmentCountMode !== "slot_in_schedule" &&
       countableSalesMnt > 0 &&
       appointment?.id &&
       String(appointment.status || "").toLowerCase() === "completed" &&
@@ -427,7 +475,9 @@ export async function computeDoctorsIncomeData({ startDate, endDate, branchId })
   return Array.from(byDoctor.values()).map((d) => {
     const goal = Number(d.monthlyGoalAmountMnt || 0);
     const sales = Number(d.doctorSalesMnt || 0);
-    const appointmentCount = d.appointmentIds.size;
+    const appointmentCount = appointmentCountMode === "slot_in_schedule"
+      ? Number(appointmentSlotCounts?.get(d.doctorId) || 0)
+      : d.appointmentIds.size;
 
     return {
       doctorId: d.doctorId,
@@ -468,6 +518,7 @@ router.get("/doctors-income", async (req, res) => {
       startDate: String(startDate),
       endDate: String(endDate),
       branchId,
+      appointmentCountMode: "slot_in_schedule",
     });
     if (!doctors.length) return res.status(404).json({ error: "No income data found." });
     return res.json(doctors);
