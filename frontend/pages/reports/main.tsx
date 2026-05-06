@@ -162,6 +162,82 @@ type TreatmentTabResponse = {
   }>;
 };
 
+type AppointmentHeatmapDimension = "doctor" | "branch" | "chair";
+type AppointmentTrendMetric = "total" | "completed" | "noShow";
+
+type AppointmentTabResponse = {
+  period: { from: string; to: string; view: TrendView };
+  scope: {
+    branchId: number | null;
+    doctorId: number | null;
+    heatmapDimension: AppointmentHeatmapDimension;
+    heatmapTargetId: string | null;
+    trendMetric: AppointmentTrendMetric;
+  };
+  filters: {
+    branches: Array<{ id: number; name: string }>;
+    doctors: DoctorFilter[];
+    heatmapTargets: Array<{ id: string; label: string }>;
+  };
+  kpis: {
+    total: number;
+    completed: number;
+    noShow: number;
+    paymentPending: number;
+  };
+  trend: {
+    metric: AppointmentTrendMetric;
+    rows: Array<{
+      bucket: string;
+      total: number;
+      completed: number;
+      noShow: number;
+    }>;
+  };
+  heatmap: {
+    dimension: AppointmentHeatmapDimension;
+    targetId: string | null;
+    maxCount: number;
+    rows: Array<{
+      weekday: number;
+      weekdayLabel: string;
+      time: string;
+      count: number;
+    }>;
+  };
+  utilization: {
+    rows: Array<{
+      doctorId: number;
+      doctorName: string;
+      availableHours: number;
+      bookedHours: number;
+      utilizationPct: number;
+      state: "overloaded" | "underused" | "normal";
+    }>;
+    overloadedDoctors: Array<{
+      doctorId: number;
+      doctorName: string;
+      availableHours: number;
+      bookedHours: number;
+      utilizationPct: number;
+      state: "overloaded" | "underused" | "normal";
+    }>;
+    underusedDoctors: Array<{
+      doctorId: number;
+      doctorName: string;
+      availableHours: number;
+      bookedHours: number;
+      utilizationPct: number;
+      state: "overloaded" | "underused" | "normal";
+    }>;
+  };
+  repeatVisit: {
+    totalPatients: number;
+    returningPatients: number;
+    repeatVisitPct: number;
+  };
+};
+
 type DoctorTrendChartRow = {
   bucket: string;
   label: string;
@@ -229,6 +305,11 @@ const DOCTOR_CHART_COLORS = [
   "#84cc16",
   "#f97316",
 ];
+const APPOINTMENT_TREND_LABEL: Record<AppointmentTrendMetric, string> = {
+  total: "Нийт",
+  completed: "Дууссан",
+  noShow: "Ирээгүй",
+};
 
 function currentYearRange() {
   const year = new Date().getFullYear();
@@ -325,7 +406,13 @@ export default function MainReportPage() {
   const [treatmentTabData, setTreatmentTabData] = useState<TreatmentTabResponse | null>(null);
   const [doctorTopN, setDoctorTopN] = useState<5 | 10 | 20>(10);
   const [treatmentTopN, setTreatmentTopN] = useState<5 | 10 | 20>(20);
+  const [appointmentsTrendMetric, setAppointmentsTrendMetric] =
+    useState<AppointmentTrendMetric>("total");
+  const [appointmentsHeatmapDimension, setAppointmentsHeatmapDimension] =
+    useState<AppointmentHeatmapDimension>("doctor");
+  const [appointmentsHeatmapTargetId, setAppointmentsHeatmapTargetId] = useState("");
   const [doctorRankingMetric, setDoctorRankingMetric] = useState<DoctorMetric>("sales");
+  const [appointmentsTabData, setAppointmentsTabData] = useState<AppointmentTabResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -414,6 +501,58 @@ export default function MainReportPage() {
     }
   }, [branchId, doctorId, from, to, treatmentTopN]);
 
+  const fetchAppointmentsTab = useCallback(async () => {
+    if (!isDateRangeValid(from, to)) {
+      setError("Огнооны муж буруу байна.");
+      setAppointmentsTabData(null);
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams({
+        from,
+        to,
+        trendMetric: appointmentsTrendMetric,
+        heatmapDimension: appointmentsHeatmapDimension,
+      });
+      if (branchId) params.set("branchId", branchId);
+      if (doctorId) params.set("doctorId", doctorId);
+      if (appointmentsHeatmapTargetId) params.set("heatmapTargetId", appointmentsHeatmapTargetId);
+      const res = await fetch(`/api/reports/main-appointments?${params.toString()}`, {
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json) {
+        throw new Error(json?.error || "Цаг захиалгын тайлан ачааллахад алдаа гарлаа.");
+      }
+      setAppointmentsTabData(json as AppointmentTabResponse);
+      const nextTarget = (json as AppointmentTabResponse)?.scope?.heatmapTargetId || "";
+      if (String(nextTarget || "") !== String(appointmentsHeatmapTargetId || "")) {
+        setAppointmentsHeatmapTargetId(String(nextTarget || ""));
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Цаг захиалгын тайлан ачааллахад алдаа гарлаа.");
+      setAppointmentsTabData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    appointmentsHeatmapDimension,
+    appointmentsHeatmapTargetId,
+    appointmentsTrendMetric,
+    branchId,
+    doctorId,
+    from,
+    to,
+  ]);
+
+  useEffect(() => {
+    if (appointmentsHeatmapDimension !== "chair") {
+      setAppointmentsHeatmapTargetId("");
+    }
+  }, [appointmentsHeatmapDimension]);
+
   useEffect(() => {
     if (activeTab === "doctor") {
       void fetchDoctorTab();
@@ -423,8 +562,12 @@ export default function MainReportPage() {
       void fetchTreatmentTab();
       return;
     }
+    if (activeTab === "appointments") {
+      void fetchAppointmentsTab();
+      return;
+    }
     void fetchSummary();
-  }, [activeTab, fetchDoctorTab, fetchSummary, fetchTreatmentTab]);
+  }, [activeTab, fetchAppointmentsTab, fetchDoctorTab, fetchSummary, fetchTreatmentTab]);
 
   const doctorNameById = useMemo(() => {
     const map = new Map<number, string>();
@@ -503,6 +646,52 @@ export default function MainReportPage() {
     return "";
   }, [data?.filters.doctors, doctorId, doctorTabData?.filters.doctors]);
 
+  const appointmentsTrendChartData = useMemo(
+    () =>
+      (appointmentsTabData?.trend.rows || []).map((row) => ({
+        ...row,
+        label: formatTrendLabel(String(row.bucket || ""), appointmentsTabData?.period.view || "monthly"),
+      })),
+    [appointmentsTabData?.period.view, appointmentsTabData?.trend.rows]
+  );
+
+  const appointmentsHeatmapMatrix = useMemo(() => {
+    if (!appointmentsTabData) return [];
+    const weekdayOrder = [1, 2, 3, 4, 5, 6, 7];
+    const weekdayLabelMap = new Map<number, string>();
+    const times = new Set<string>();
+    const byWeekday = new Map<number, Map<string, number>>();
+
+    for (const row of appointmentsTabData.heatmap.rows) {
+      weekdayLabelMap.set(row.weekday, row.weekdayLabel);
+      times.add(row.time);
+      if (!byWeekday.has(row.weekday)) {
+        byWeekday.set(row.weekday, new Map());
+      }
+      byWeekday.get(row.weekday)!.set(row.time, row.count);
+    }
+
+    const sortedTimes = Array.from(times).sort((a, b) => a.localeCompare(b));
+    return weekdayOrder.map((weekday) => {
+      const rowCounts = byWeekday.get(weekday) || new Map();
+      return {
+        weekday,
+        weekdayLabel: weekdayLabelMap.get(weekday) || "",
+        slots: sortedTimes.map((time) => ({
+          time,
+          count: Number(rowCounts.get(time) || 0),
+        })),
+      };
+    });
+  }, [appointmentsTabData]);
+
+  function heatColor(count: number, max: number) {
+    if (max <= 0 || count <= 0) return "rgb(243 244 246)";
+    const ratio = Math.max(0, Math.min(1, count / max));
+    const lightness = 94 - ratio * 52;
+    return `hsl(217 91% ${lightness.toFixed(1)}%)`;
+  }
+
   const exportCurrentTab = () => {
     if (activeTab === "doctor") {
       if (!doctorTabData) return;
@@ -547,6 +736,45 @@ export default function MainReportPage() {
         });
       }
       downloadCsv("undsen_tailan_emchilgee.csv", rows);
+      return;
+    }
+    if (activeTab === "appointments") {
+      if (!appointmentsTabData) return;
+      const rows: Array<Record<string, string | number>> = [
+        { Төрөл: "Товч үзүүлэлт", Нэр: "Нийт", Утга: appointmentsTabData.kpis.total },
+        { Төрөл: "Товч үзүүлэлт", Нэр: "Дууссан", Утга: appointmentsTabData.kpis.completed },
+        { Төрөл: "Товч үзүүлэлт", Нэр: "Ирээгүй", Утга: appointmentsTabData.kpis.noShow },
+        {
+          Төрөл: "Товч үзүүлэлт",
+          Нэр: "Төлбөрийн үлдэгдэлтэй",
+          Утга: appointmentsTabData.kpis.paymentPending,
+        },
+      ];
+      for (const row of appointmentsTabData.trend.rows) {
+        rows.push({
+          Төрөл: "Цаг захиалгын график",
+          Огноо: row.bucket,
+          Нийт: row.total,
+          Дууссан: row.completed,
+          Ирээгүй: row.noShow,
+        });
+      }
+      for (const r of appointmentsTabData.utilization.rows) {
+        rows.push({
+          Төрөл: "Эмчийн ачаалал",
+          Эмч: r.doctorName,
+          "Боломжит цаг": r.availableHours,
+          "Захиалагдсан цаг": r.bookedHours,
+          "Ашиглалт %": r.utilizationPct,
+        });
+      }
+      rows.push({
+        Төрөл: "Давтан үзлэг",
+        "Нийт өвчтөн": appointmentsTabData.repeatVisit.totalPatients,
+        "Буцаж ирсэн өвчтөн": appointmentsTabData.repeatVisit.returningPatients,
+        "Repeat Visit %": appointmentsTabData.repeatVisit.repeatVisitPct,
+      });
+      downloadCsv("undsen_tailan_tsag_zakhialga.csv", rows);
       return;
     }
     if (!data) return;
@@ -650,6 +878,8 @@ export default function MainReportPage() {
                   ? doctorTabData?.filters.branches
                   : activeTab === "treatment"
                     ? treatmentTabData?.filters.branches
+                    : activeTab === "appointments"
+                      ? appointmentsTabData?.filters.branches
                     : data?.filters.branches) || []
               ).map((b) => (
                 <option key={b.id} value={String(b.id)}>
@@ -671,6 +901,8 @@ export default function MainReportPage() {
                   ? doctorTabData?.filters.doctors
                   : activeTab === "treatment"
                     ? treatmentTabData?.filters.doctors
+                    : activeTab === "appointments"
+                      ? appointmentsTabData?.filters.doctors
                     : data?.filters.doctors) || []
               ).map((d) => (
                 <option key={d.id} value={String(d.id)}>
@@ -688,6 +920,10 @@ export default function MainReportPage() {
               }
               if (activeTab === "treatment") {
                 void fetchTreatmentTab();
+                return;
+              }
+              if (activeTab === "appointments") {
+                void fetchAppointmentsTab();
                 return;
               }
               void fetchSummary();
@@ -715,7 +951,7 @@ export default function MainReportPage() {
 
       {loading ? <div className="mt-4 text-sm text-gray-600">Тайлан ачааллаж байна...</div> : null}
 
-      {!loading && !["summary", "doctor", "treatment"].includes(activeTab) ? (
+      {!loading && !["summary", "doctor", "treatment", "appointments"].includes(activeTab) ? (
         <div className="mt-4 rounded-xl border border-gray-200 bg-white p-5 text-gray-600">
           Энэ таб дараагийн шатанд хийгдэнэ.
         </div>
@@ -1256,6 +1492,235 @@ export default function MainReportPage() {
               </table>
             </div>
           </section>
+        </div>
+      ) : null}
+
+      {!loading && activeTab === "appointments" && appointmentsTabData ? (
+        <div className="mt-4 space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard label="Нийт" value={appointmentsTabData.kpis.total.toLocaleString("mn-MN")} />
+            <KpiCard label="Дууссан" value={appointmentsTabData.kpis.completed.toLocaleString("mn-MN")} />
+            <KpiCard label="Ирээгүй" value={appointmentsTabData.kpis.noShow.toLocaleString("mn-MN")} />
+            <KpiCard
+              label="Төлбөрийн үлдэгдэлтэй"
+              value={appointmentsTabData.kpis.paymentPending.toLocaleString("mn-MN")}
+            />
+          </div>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-base font-semibold text-gray-900">Цаг захиалгын чиг хандлага</h3>
+              <div className="flex flex-wrap gap-1.5">
+                {(["total", "completed", "noShow"] as const).map((metric) => (
+                  <button
+                    key={metric}
+                    type="button"
+                    onClick={() => setAppointmentsTrendMetric(metric)}
+                    className={`rounded-md border px-2.5 py-1 text-xs font-semibold ${
+                      appointmentsTrendMetric === metric
+                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                        : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    {APPOINTMENT_TREND_LABEL[metric]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="h-80 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={appointmentsTrendChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={12} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip
+                    formatter={(v: number) => [String(Math.round(v || 0)), APPOINTMENT_TREND_LABEL[appointmentsTrendMetric]]}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey={appointmentsTrendMetric}
+                    stroke="#2563eb"
+                    strokeWidth={2.5}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-base font-semibold text-gray-900">Цагийн ачааллын heatmap</h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={appointmentsHeatmapDimension}
+                  onChange={(e) =>
+                    setAppointmentsHeatmapDimension(e.target.value as "doctor" | "branch" | "chair")
+                  }
+                  className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+                >
+                  <option value="doctor">Эмч</option>
+                  <option value="branch">Салбар</option>
+                  <option value="chair">Сандал</option>
+                </select>
+                <select
+                  value={appointmentsHeatmapTargetId}
+                  onChange={(e) => setAppointmentsHeatmapTargetId(e.target.value)}
+                  className="rounded-md border border-gray-300 px-2 py-1 text-sm"
+                >
+                  {(appointmentsTabData.filters.heatmapTargets || []).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              {appointmentsHeatmapMatrix.length > 0 ? (
+                <div className="min-w-[860px]">
+                  <div
+                    className="grid gap-1 text-[11px] text-gray-500"
+                    style={{
+                      gridTemplateColumns: `100px repeat(${appointmentsHeatmapMatrix[0].slots.length}, minmax(28px, 1fr))`,
+                    }}
+                  >
+                    <div />
+                    {appointmentsHeatmapMatrix[0].slots.map((slot) => (
+                      <div key={slot.time} className="text-center">
+                        {slot.time}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-2 space-y-1.5">
+                    {appointmentsHeatmapMatrix.map((weekdayRow) => (
+                      <div
+                        key={weekdayRow.weekday}
+                        className="grid gap-1"
+                        style={{
+                          gridTemplateColumns: `100px repeat(${weekdayRow.slots.length}, minmax(28px, 1fr))`,
+                        }}
+                      >
+                        <div className="self-center pr-2 text-xs font-medium text-gray-700">
+                          {weekdayRow.weekdayLabel}
+                        </div>
+                        {weekdayRow.slots.map((slot) => (
+                          <div
+                            key={`${weekdayRow.weekday}-${slot.time}`}
+                            className="h-8 rounded-sm border border-gray-100"
+                            style={{ backgroundColor: heatColor(slot.count, appointmentsTabData.heatmap.maxCount) }}
+                            title={`${weekdayRow.weekdayLabel} ${slot.time} — ${slot.count}`}
+                          />
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg bg-gray-50 px-4 py-10 text-center text-sm text-gray-500">
+                  Өгөгдөл байхгүй
+                </div>
+              )}
+            </div>
+          </section>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+            <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm xl:col-span-8">
+              <h3 className="mb-3 text-base font-semibold text-gray-900">Эмчийн ашиглалт</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="px-3 py-2 text-left font-semibold text-gray-700">Эмч</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Боломжит цаг</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Захиалагдсан цаг</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Ашиглалт</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Төлөв</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {appointmentsTabData.utilization.rows.map((r) => (
+                      <tr key={r.doctorId} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="px-3 py-2 text-gray-800">{r.doctorName}</td>
+                        <td className="px-3 py-2 text-right text-gray-700">{r.availableHours.toLocaleString("mn-MN")}</td>
+                        <td className="px-3 py-2 text-right text-gray-700">{r.bookedHours.toLocaleString("mn-MN")}</td>
+                        <td className="px-3 py-2 text-right font-medium text-gray-900">{r.utilizationPct.toLocaleString("mn-MN")}%</td>
+                        <td className="px-3 py-2 text-right">
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                              r.state === "overloaded"
+                                ? "bg-red-100 text-red-700"
+                                : r.state === "underused"
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-emerald-100 text-emerald-700"
+                            }`}
+                          >
+                            {r.state === "overloaded"
+                              ? "Хэт ачаалалтай"
+                              : r.state === "underused"
+                                ? "Ачаалал багатай"
+                                : "Хэвийн"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm xl:col-span-4">
+              <h3 className="mb-3 text-base font-semibold text-gray-900">Давтан үзлэг</h3>
+              <div className="space-y-3">
+                <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                  <p className="text-xs text-gray-500">Нийт өвчтөн</p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {appointmentsTabData.repeatVisit.totalPatients.toLocaleString("mn-MN")}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                  <p className="text-xs text-gray-500">Буцаж ирсэн өвчтөн</p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {appointmentsTabData.repeatVisit.returningPatients.toLocaleString("mn-MN")}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+                  <p className="text-xs text-blue-600">Repeat Visit %</p>
+                  <p className="text-2xl font-bold text-blue-700">
+                    {appointmentsTabData.repeatVisit.repeatVisitPct.toLocaleString("mn-MN")}%
+                  </p>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs font-semibold text-red-700">Хэт ачаалалтай</p>
+                  <ul className="space-y-1 text-xs text-gray-700">
+                    {appointmentsTabData.utilization.overloadedDoctors.length > 0 ? (
+                      appointmentsTabData.utilization.overloadedDoctors.map((d) => (
+                        <li key={`over-${d.doctorId}`}>
+                          {d.doctorName} ({d.utilizationPct.toLocaleString("mn-MN")}%)
+                        </li>
+                      ))
+                    ) : (
+                      <li className="text-gray-500">Байхгүй</li>
+                    )}
+                  </ul>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs font-semibold text-amber-700">Ачаалал багатай</p>
+                  <ul className="space-y-1 text-xs text-gray-700">
+                    {appointmentsTabData.utilization.underusedDoctors.length > 0 ? (
+                      appointmentsTabData.utilization.underusedDoctors.map((d) => (
+                        <li key={`under-${d.doctorId}`}>
+                          {d.doctorName} ({d.utilizationPct.toLocaleString("mn-MN")}%)
+                        </li>
+                      ))
+                    ) : (
+                      <li className="text-gray-500">Байхгүй</li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            </section>
+          </div>
         </div>
       ) : null}
     </div>

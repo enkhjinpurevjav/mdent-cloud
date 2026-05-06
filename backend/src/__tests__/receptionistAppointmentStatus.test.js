@@ -152,7 +152,7 @@ describe("receptionist — changing status away from 'ongoing'", () => {
 // ---------------------------------------------------------------------------
 
 describe("non-receptionist roles — not subject to this guard", () => {
-  for (const role of ["admin", "super_admin", "doctor", "nurse"]) {
+  for (const role of ["admin", "super_admin", "doctor", "nurse", "marketing"]) {
     it(`${role} can change status away from ongoing regardless of encounters`, () => {
       const result = applyReceptionistStatusGuard({
         requesterRole: role,
@@ -300,7 +300,7 @@ describe("visit card completion guard — feature flag ON (strict mode), recepti
 });
 
 describe("visit card completion guard — non-receptionist roles not blocked", () => {
-  for (const role of ["admin", "super_admin", "doctor", "nurse"]) {
+  for (const role of ["admin", "super_admin", "doctor", "nurse", "marketing"]) {
     it(`${role} can set ongoing even without a completed visit card`, () => {
       const result = applyVisitCardCompletionGuard({
         requesterRole: role,
