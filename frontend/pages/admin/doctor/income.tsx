@@ -151,7 +151,7 @@ export default function DoctorsIncomePage() {
       "Эмч": formatDoctorName(doctor.doctorOvog, doctor.doctorName),
       "Эхлэх огноо": doctor.startDate,
       "Дуусах огноо": doctor.endDate,
-      "Захиалагдсан слот": doctor.appointmentCount,
+      "Захиалсан үзлэг (тоо)": doctor.appointmentCount,
       "Үйлчилгээ": doctor.serviceCount,
       "Үзлэгийн дундаж (₮)": doctor.averageVisitRevenue,
       "Борлуулалт (₮)": doctor.revenue,
@@ -239,7 +239,7 @@ export default function DoctorsIncomePage() {
                     <th className="sticky left-0 z-20 bg-gray-50 px-2 py-3 font-semibold text-gray-700 shadow-[1px_0_0_0_rgba(229,231,235,1)]">Нэр</th>
                     <th className="px-2 py-3 font-semibold text-gray-700">Эхлэх</th>
                     <th className="px-2 py-3 font-semibold text-gray-700">Дуусах</th>
-                    {renderSortableHeader("Захиалагдсан слот", "appointmentCount")}
+                    {renderSortableHeader("Захиалсан үзлэг (тоо)", "appointmentCount")}
                     {renderSortableHeader("Үйлчилгээ", "serviceCount")}
                     {renderSortableHeader("Үзлэгийн дундаж", "averageVisitRevenue")}
                     {renderSortableHeader("Борлуулалт", "revenue")}
