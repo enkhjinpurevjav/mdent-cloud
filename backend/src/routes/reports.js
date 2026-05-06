@@ -9,6 +9,7 @@ import {
 } from "../utils/incomeHelpers.js";
 import {
   buildDoctorScheduleSlotIndex,
+  computeDoctorPossibleVisitCapacity45,
   countBookedAppointmentsInScheduleSlots,
 } from "../utils/doctorScheduleSlotCounts.js";
 
@@ -1403,6 +1404,7 @@ router.get("/main-appointments", async (req, res) => {
     });
 
     const scheduleSlotIndex = buildDoctorScheduleSlotIndex(schedules);
+    const possibleCapacityByDoctor = computeDoctorPossibleVisitCapacity45(schedules);
     const bookedSlotsByDoctor = countBookedAppointmentsInScheduleSlots({
       appointments,
       scheduleSlotIndex,
@@ -1410,7 +1412,7 @@ router.get("/main-appointments", async (req, res) => {
 
     const utilizationRows = Array.from(scheduleSlotIndex.values())
       .map((r) => {
-        const availableSlots = Number(r.possibleSlotCount || 0);
+        const availableSlots = Number(possibleCapacityByDoctor.get(r.doctorId) || 0);
         const bookedSlots = Number(bookedSlotsByDoctor.get(r.doctorId) || 0);
         const utilizationPct =
           availableSlots > 0 ? Number(((bookedSlots / availableSlots) * 100).toFixed(1)) : 0;
