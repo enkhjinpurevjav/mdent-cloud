@@ -763,8 +763,8 @@ export default function MainReportPage() {
         rows.push({
           Төрөл: "Эмчийн ачаалал",
           Эмч: r.doctorName,
-          "Боломжит слот": r.availableSlots,
-          "Захиалагдсан слот": r.bookedSlots,
+          "Боломжит үзлэг (45 мин)": r.availableSlots,
+          "Захиалсан үзлэг (тоо)": r.bookedSlots,
           "Ашиглалт %": r.utilizationPct,
         });
       }
@@ -1561,7 +1561,6 @@ export default function MainReportPage() {
                 >
                   <option value="doctor">Эмч</option>
                   <option value="branch">Салбар</option>
-                  <option value="chair">Сандал</option>
                 </select>
                 <select
                   value={appointmentsHeatmapTargetId}
@@ -1632,8 +1631,8 @@ export default function MainReportPage() {
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
                       <th className="px-3 py-2 text-left font-semibold text-gray-700">Эмч</th>
-                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Боломжит слот</th>
-                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Захиалагдсан слот</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Боломжит үзлэг (45 мин)</th>
+                      <th className="px-3 py-2 text-right font-semibold text-gray-700">Захиалсан үзлэг (тоо)</th>
                       <th className="px-3 py-2 text-right font-semibold text-gray-700">Ашиглалт</th>
                       <th className="px-3 py-2 text-right font-semibold text-gray-700">Төлөв</th>
                     </tr>

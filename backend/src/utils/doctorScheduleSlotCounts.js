@@ -80,6 +80,59 @@ export function buildDoctorScheduleSlotIndex(schedules, slotMinutes = REPORT_SLO
   return byDoctor;
 }
 
+function mergeIntervals(intervals) {
+  if (!Array.isArray(intervals) || intervals.length === 0) return [];
+  const sorted = [...intervals].sort((a, b) => a.start - b.start);
+  const merged = [];
+  for (const cur of sorted) {
+    if (!merged.length || cur.start > merged[merged.length - 1].end) {
+      merged.push({ start: cur.start, end: cur.end });
+      continue;
+    }
+    merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, cur.end);
+  }
+  return merged;
+}
+
+/**
+ * Compute realistic possible visit capacity based on 45-minute visits.
+ * Capacity is calculated per doctor-day as floor(unioned schedule minutes / 45),
+ * then summed by doctor across the selected date range.
+ */
+export function computeDoctorPossibleVisitCapacity45(schedules) {
+  const byDoctorDateIntervals = new Map();
+
+  for (const sch of schedules || []) {
+    const startMins = minutesFromTimeStr(sch.startTime);
+    const endMins = minutesFromTimeStr(sch.endTime);
+    if (startMins == null || endMins == null || endMins <= startMins) continue;
+    if (!sch.doctorId) continue;
+
+    const dateObj = sch.date instanceof Date ? sch.date : new Date(sch.date);
+    if (Number.isNaN(dateObj.getTime())) continue;
+
+    const doctorId = Number(sch.doctorId);
+    const dateKey = dateOnlyKey(dateObj);
+    const key = `${doctorId}|${dateKey}`;
+
+    if (!byDoctorDateIntervals.has(key)) {
+      byDoctorDateIntervals.set(key, { doctorId, intervals: [] });
+    }
+    byDoctorDateIntervals.get(key).intervals.push({ start: startMins, end: endMins });
+  }
+
+  const capacityByDoctor = new Map();
+  for (const rec of byDoctorDateIntervals.values()) {
+    const merged = mergeIntervals(rec.intervals);
+    const dayMinutes = merged.reduce((sum, itv) => sum + Math.max(0, itv.end - itv.start), 0);
+    const dayCapacity = Math.floor(dayMinutes / 45);
+    if (dayCapacity <= 0) continue;
+    capacityByDoctor.set(rec.doctorId, (capacityByDoctor.get(rec.doctorId) || 0) + dayCapacity);
+  }
+
+  return capacityByDoctor;
+}
+
 /**
  * Count appointments that:
  * - are in the allowed statuses
