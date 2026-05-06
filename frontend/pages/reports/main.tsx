@@ -1509,7 +1509,7 @@ export default function MainReportPage() {
 
           <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-base font-semibold text-gray-900">Цаг захиалгын чиг хандлага</h3>
+              <h3 className="text-base font-semibold text-gray-900">Цаг захиалгын график</h3>
               <div className="flex flex-wrap gap-1.5">
                 {(["total", "completed", "noShow"] as const).map((metric) => (
                   <button
@@ -1626,7 +1626,7 @@ export default function MainReportPage() {
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
             <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm xl:col-span-8">
-              <h3 className="mb-3 text-base font-semibold text-gray-900">Эмчийн ашиглалт</h3>
+              <h3 className="mb-3 text-base font-semibold text-gray-900">Эмчийн ачаалал</h3>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm">
                   <thead>
