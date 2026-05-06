@@ -74,6 +74,30 @@ const TREATMENT_INCLUDED_METHODS = new Set([
   "OTHER",
 ]);
 const TREATMENT_EXCLUDED_METHODS = new Set(["EMPLOYEE_BENEFIT"]);
+const MAIN_APPOINTMENT_INCLUDED_STATUSES = new Set([
+  "booked",
+  "confirmed",
+  "online",
+  "ongoing",
+  "imaging",
+  "partial_paid",
+  "ready_to_pay",
+  "completed",
+  "no_show",
+  "other",
+]);
+const MAIN_APPOINTMENT_HEATMAP_SLOT_MINUTES = 30;
+const MAIN_APPOINTMENT_HEATMAP_START_MINUTES = 9 * 60;
+const MAIN_APPOINTMENT_HEATMAP_END_MINUTES = 21 * 60;
+const MAIN_APPOINTMENT_WEEKDAY_LABELS = [
+  "Даваа",
+  "Мягмар",
+  "Лхагва",
+  "Пүрэв",
+  "Баасан",
+  "Бямба",
+  "Ням",
+];
 
 function parseDateOnlyStart(value) {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -111,6 +135,62 @@ function toShortDoctorName({ ovog, name, id }) {
 
 function inRange(ts, start, endExclusive) {
   return ts >= start && ts < endExclusive;
+}
+
+function normalizeAppointmentStatus(status) {
+  return String(status || "").trim().toLowerCase();
+}
+
+function toHmLabel(totalMinutes) {
+  const h = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
+  const m = String(totalMinutes % 60).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+function weekdayIndexMondayFirst(dateLike) {
+  const dt = dateLike instanceof Date ? dateLike : new Date(dateLike);
+  const jsDay = dt.getDay(); // Sun=0, Mon=1, ..., Sat=6
+  return jsDay === 0 ? 6 : jsDay - 1;
+}
+
+function parseAppointmentChairKey(appointment) {
+  const candidateTexts = [
+    appointment?.notes,
+    appointment?.source,
+  ]
+    .filter(Boolean)
+    .map((v) => String(v));
+
+  for (const text of candidateTexts) {
+    const m = text.match(/(?:chair|сандал|unit|room)\s*[:#-]?\s*([a-zа-яё0-9_-]+)/iu);
+    if (m?.[1]) {
+      return String(m[1]).toUpperCase();
+    }
+  }
+  return "UNKNOWN";
+}
+
+function chairKeyToLabel(chairKey) {
+  if (chairKey === "UNKNOWN") return "Тодорхойгүй";
+  return `Сандал ${chairKey}`;
+}
+
+function getAppointmentDurationMinutes(appointment) {
+  const start = appointment?.scheduledAt instanceof Date
+    ? appointment.scheduledAt
+    : new Date(appointment?.scheduledAt);
+  const end = appointment?.endAt instanceof Date
+    ? appointment.endAt
+    : appointment?.endAt
+      ? new Date(appointment.endAt)
+      : null;
+
+  if (!start || Number.isNaN(start.getTime())) return MAIN_APPOINTMENT_HEATMAP_SLOT_MINUTES;
+  if (!end || Number.isNaN(end.getTime())) return MAIN_APPOINTMENT_HEATMAP_SLOT_MINUTES;
+
+  const diff = (end.getTime() - start.getTime()) / 60000;
+  if (!(diff > 0)) return MAIN_APPOINTMENT_HEATMAP_SLOT_MINUTES;
+  return Math.max(MAIN_APPOINTMENT_HEATMAP_SLOT_MINUTES, Math.round(diff));
 }
 
 function computeDoctorTabInvoiceSales(inv, rangeStart, rangeEndExclusive) {
@@ -1066,6 +1146,447 @@ router.get("/main-treatment", async (req, res) => {
   } catch (err) {
     console.error("GET /api/reports/main-treatment error:", err);
     return res.status(500).json({ error: "Failed to fetch main treatment report." });
+  }
+});
+
+router.get("/main-appointments", async (req, res) => {
+  try {
+    const now = new Date();
+    const defaultFrom = `${now.getFullYear()}-01-01`;
+    const defaultTo = `${now.getFullYear()}-12-31`;
+    const from = typeof req.query.from === "string" && req.query.from ? req.query.from : defaultFrom;
+    const to = typeof req.query.to === "string" && req.query.to ? req.query.to : defaultTo;
+
+    const fromDate = parseDateOnlyStart(from);
+    const toDateExclusive = parseDateOnlyEndExclusive(to);
+    if (!fromDate || !toDateExclusive) {
+      return res.status(400).json({
+        error: "from, to query parameters are required in YYYY-MM-DD format.",
+      });
+    }
+
+    const branchId =
+      req.query.branchId == null || req.query.branchId === ""
+        ? null
+        : Number(req.query.branchId);
+    const doctorId =
+      req.query.doctorId == null || req.query.doctorId === ""
+        ? null
+        : Number(req.query.doctorId);
+    const heatmapDimensionRaw =
+      typeof req.query.heatmapDimension === "string"
+        ? req.query.heatmapDimension.trim().toLowerCase()
+        : "";
+    const heatmapDimension = ["doctor", "branch", "chair"].includes(heatmapDimensionRaw)
+      ? heatmapDimensionRaw
+      : "doctor";
+    const heatmapTargetId =
+      req.query.heatmapTargetId == null || req.query.heatmapTargetId === ""
+        ? null
+        : Number(req.query.heatmapTargetId);
+    const trendMetricRaw =
+      typeof req.query.trendMetric === "string"
+        ? req.query.trendMetric.trim().toLowerCase()
+        : "";
+    const trendMetric =
+      trendMetricRaw === "completed" || trendMetricRaw === "no_show" || trendMetricRaw === "total"
+        ? trendMetricRaw
+        : "total";
+
+    if (
+      (branchId != null && Number.isNaN(branchId)) ||
+      (doctorId != null && Number.isNaN(doctorId)) ||
+      (heatmapTargetId != null && Number.isNaN(heatmapTargetId))
+    ) {
+      return res.status(400).json({ error: "Invalid branchId, doctorId or heatmapTargetId." });
+    }
+
+    const yearMatch = /^(\d{4})-01-01$/.exec(from);
+    const isMonthlyView = Boolean(yearMatch && to === `${yearMatch[1]}-12-31`);
+    const view = isMonthlyView ? "monthly" : "daily";
+
+    function normStatus(status) {
+      return String(status || "").trim().toLowerCase();
+    }
+
+    function getWeekdayMondayFirst(date) {
+      const d = date.getDay();
+      return d === 0 ? 7 : d;
+    }
+
+    function getWeekdayLabel(mondayFirst) {
+      return MAIN_APPOINTMENT_WEEKDAY_LABELS[Math.max(1, Math.min(7, mondayFirst)) - 1];
+    }
+
+    function minutesFromTimeStr(hm) {
+      if (!hm || typeof hm !== "string") return null;
+      const [h, m] = hm.split(":").map(Number);
+      if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+      return h * 60 + m;
+    }
+
+    function getBucketKey(dateObj) {
+      return view === "monthly" ? monthKey(dateObj) : dayKey(dateObj);
+    }
+
+    function dateOnlyKey(dateObj) {
+      return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(
+        dateObj.getDate()
+      ).padStart(2, "0")}`;
+    }
+
+    const [branches, doctors, appointments, schedules] = await Promise.all([
+      prisma.branch.findMany({
+        select: { id: true, name: true },
+        orderBy: { id: "asc" },
+      }),
+      prisma.user.findMany({
+        where: { role: "doctor", ...(branchId ? { branchId } : {}) },
+        select: { id: true, name: true, ovog: true, branchId: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.appointment.findMany({
+        where: {
+          scheduledAt: { gte: fromDate, lt: toDateExclusive },
+          ...(branchId ? { branchId } : {}),
+          ...(doctorId ? { doctorId } : {}),
+        },
+        select: {
+          id: true,
+          patientId: true,
+          branchId: true,
+          doctorId: true,
+          scheduledAt: true,
+          endAt: true,
+          status: true,
+          patient: {
+            select: { id: true, createdAt: true },
+          },
+        },
+      }),
+      prisma.doctorSchedule.findMany({
+        where: {
+          date: { gte: fromDate, lt: toDateExclusive },
+          ...(branchId ? { branchId } : {}),
+          ...(doctorId ? { doctorId } : {}),
+        },
+        select: {
+          doctorId: true,
+          branchId: true,
+          date: true,
+          startTime: true,
+          endTime: true,
+        },
+      }),
+    ]);
+
+    const trendBuckets = [];
+    if (view === "monthly") {
+      const monthCursor = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1, 0, 0, 0, 0);
+      const endMonth = new Date(
+        new Date(toDateExclusive.getTime() - 1).getFullYear(),
+        new Date(toDateExclusive.getTime() - 1).getMonth(),
+        1,
+        0,
+        0,
+        0,
+        0
+      );
+      while (monthCursor <= endMonth) {
+        trendBuckets.push(monthKey(monthCursor));
+        monthCursor.setMonth(monthCursor.getMonth() + 1);
+      }
+    } else {
+      const dayCursor = new Date(fromDate);
+      while (dayCursor < toDateExclusive) {
+        trendBuckets.push(dayKey(dayCursor));
+        dayCursor.setDate(dayCursor.getDate() + 1);
+      }
+    }
+
+    const trendMap = new Map(
+      trendBuckets.map((bucket) => [bucket, { total: 0, completed: 0, noShow: 0 }])
+    );
+
+    let totalCount = 0;
+    let completedCount = 0;
+    let noShowCount = 0;
+    let unpaidCount = 0;
+
+    const timeSlots = [];
+    for (
+      let m = MAIN_APPOINTMENT_HEATMAP_START_MINUTES;
+      m <= MAIN_APPOINTMENT_HEATMAP_END_MINUTES;
+      m += MAIN_APPOINTMENT_HEATMAP_SLOT_MINUTES
+    ) {
+      const hh = String(Math.floor(m / 60)).padStart(2, "0");
+      const mm = String(m % 60).padStart(2, "0");
+      timeSlots.push(`${hh}:${mm}`);
+    }
+    const heatmapBase = new Map();
+    for (let weekday = 1; weekday <= 7; weekday++) {
+      const rowKey = String(weekday);
+      const slotMap = new Map();
+      for (const slot of timeSlots) slotMap.set(slot, 0);
+      heatmapBase.set(rowKey, slotMap);
+    }
+
+    const chairKeyByApptId = new Map();
+    const chairLabelMap = new Map();
+    const branchLabelMap = new Map(branches.map((b) => [b.id, b.name]));
+    const doctorLabelMap = new Map(
+      doctors.map((d) => [d.id, toShortDoctorName({ id: d.id, name: d.name, ovog: d.ovog })])
+    );
+
+    function resolveChairKey(appt) {
+      if (chairKeyByApptId.has(appt.id)) return chairKeyByApptId.get(appt.id);
+      const chair = `Сандал ${appt.branchId}-${appt.doctorId || 0}`;
+      chairLabelMap.set(chair, chair);
+      chairKeyByApptId.set(appt.id, chair);
+      return chair;
+    }
+
+    const heatmapByDimension = {
+      doctor: new Map(),
+      branch: new Map(),
+      chair: new Map(),
+    };
+
+    function ensureHeatmapTarget(dimension, targetKey) {
+      if (!heatmapByDimension[dimension].has(targetKey)) {
+        const clone = new Map();
+        for (const [weekday, slotMap] of heatmapBase.entries()) {
+          clone.set(weekday, new Map(slotMap.entries()));
+        }
+        heatmapByDimension[dimension].set(targetKey, clone);
+      }
+      return heatmapByDimension[dimension].get(targetKey);
+    }
+
+    const patientTotalSet = new Set();
+    const patientReturningSet = new Set();
+
+    for (const appt of appointments) {
+      const status = normStatus(appt.status);
+      if (!MAIN_APPOINTMENT_INCLUDED_STATUSES.has(status)) continue;
+
+      totalCount += 1;
+      if (status === "completed") completedCount += 1;
+      if (status === "no_show") noShowCount += 1;
+      if (status === "partial_paid" || status === "ready_to_pay") unpaidCount += 1;
+
+      const bucket = getBucketKey(appt.scheduledAt);
+      if (!trendMap.has(bucket)) {
+        trendMap.set(bucket, { total: 0, completed: 0, noShow: 0 });
+      }
+      const trend = trendMap.get(bucket);
+      trend.total += 1;
+      if (status === "completed") trend.completed += 1;
+      if (status === "no_show") trend.noShow += 1;
+
+      const weekday = String(getWeekdayMondayFirst(appt.scheduledAt));
+      const slotMinutes =
+        Math.floor(
+          (appt.scheduledAt.getHours() * 60 + appt.scheduledAt.getMinutes()) /
+            MAIN_APPOINTMENT_HEATMAP_SLOT_MINUTES
+        ) * MAIN_APPOINTMENT_HEATMAP_SLOT_MINUTES;
+      if (
+        slotMinutes >= MAIN_APPOINTMENT_HEATMAP_START_MINUTES &&
+        slotMinutes <= MAIN_APPOINTMENT_HEATMAP_END_MINUTES
+      ) {
+        const slot = `${String(Math.floor(slotMinutes / 60)).padStart(2, "0")}:${String(
+          slotMinutes % 60
+        ).padStart(2, "0")}`;
+
+        if (appt.doctorId) {
+          const target = ensureHeatmapTarget("doctor", String(appt.doctorId));
+          target.get(weekday).set(slot, (target.get(weekday).get(slot) || 0) + 1);
+        }
+        const targetBranch = ensureHeatmapTarget("branch", String(appt.branchId));
+        targetBranch.get(weekday).set(slot, (targetBranch.get(weekday).get(slot) || 0) + 1);
+
+        const chairKey = resolveChairKey(appt);
+        const targetChair = ensureHeatmapTarget("chair", chairKey);
+        targetChair.get(weekday).set(slot, (targetChair.get(weekday).get(slot) || 0) + 1);
+      }
+
+      if (appt.patientId) {
+        patientTotalSet.add(appt.patientId);
+        const patientCreatedAt = appt.patient?.createdAt ? new Date(appt.patient.createdAt) : null;
+        if (patientCreatedAt && patientCreatedAt < fromDate) {
+          patientReturningSet.add(appt.patientId);
+        }
+      }
+    }
+
+    const trendRows = trendBuckets.map((bucket) => {
+      const row = trendMap.get(bucket) || { total: 0, completed: 0, noShow: 0 };
+      return {
+        bucket,
+        total: row.total,
+        completed: row.completed,
+        noShow: row.noShow,
+      };
+    });
+
+    const utilizationByDoctor = new Map();
+    for (const sch of schedules) {
+      const startMins = minutesFromTimeStr(sch.startTime);
+      const endMins = minutesFromTimeStr(sch.endTime);
+      if (startMins == null || endMins == null || endMins <= startMins) continue;
+      const dayKeyStr = dateOnlyKey(new Date(sch.date));
+      if (!utilizationByDoctor.has(sch.doctorId)) {
+        utilizationByDoctor.set(sch.doctorId, {
+          doctorId: sch.doctorId,
+          doctorName:
+            doctorLabelMap.get(sch.doctorId) || toShortDoctorName({ id: sch.doctorId, name: "Эмч" }),
+          availableMinutes: 0,
+          bookedMinutes: 0,
+          scheduledDays: new Set(),
+        });
+      }
+      const rec = utilizationByDoctor.get(sch.doctorId);
+      rec.availableMinutes += endMins - startMins;
+      rec.scheduledDays.add(dayKeyStr);
+    }
+
+    for (const appt of appointments) {
+      const status = normStatus(appt.status);
+      if (!MAIN_APPOINTMENT_INCLUDED_STATUSES.has(status)) continue;
+      if (!appt.doctorId || !utilizationByDoctor.has(appt.doctorId)) continue;
+      const rec = utilizationByDoctor.get(appt.doctorId);
+      const defaultEnd = new Date(appt.scheduledAt.getTime() + 30 * 60 * 1000);
+      const end = appt.endAt instanceof Date && !Number.isNaN(appt.endAt.getTime()) ? appt.endAt : defaultEnd;
+      const dur = Math.max(30, Math.round((end.getTime() - appt.scheduledAt.getTime()) / 60000));
+      rec.bookedMinutes += dur;
+    }
+
+    const utilizationRows = Array.from(utilizationByDoctor.values())
+      .map((r) => {
+        const availableHours = Number((r.availableMinutes / 60).toFixed(2));
+        const bookedHours = Number((r.bookedMinutes / 60).toFixed(2));
+        const utilizationPct = availableHours > 0 ? Number(((bookedHours / availableHours) * 100).toFixed(1)) : 0;
+        const state = utilizationPct > 100 ? "overloaded" : utilizationPct < 50 ? "underused" : "normal";
+        return {
+          doctorId: r.doctorId,
+          doctorName: r.doctorName,
+          availableHours,
+          bookedHours,
+          utilizationPct,
+          state,
+        };
+      })
+      .sort((a, b) => b.utilizationPct - a.utilizationPct);
+
+    const overloadedDoctors = utilizationRows.filter((r) => r.state === "overloaded").slice(0, 5);
+    const underusedDoctors = [...utilizationRows]
+      .filter((r) => r.state === "underused")
+      .sort((a, b) => a.utilizationPct - b.utilizationPct)
+      .slice(0, 5);
+
+    const selectedHeatmapDimensionMap = heatmapByDimension[heatmapDimension];
+    const dimensionOptions = [];
+    if (heatmapDimension === "doctor") {
+      for (const [id, label] of doctorLabelMap.entries()) {
+        if (selectedHeatmapDimensionMap.has(String(id))) {
+          dimensionOptions.push({ id: String(id), label });
+        }
+      }
+    } else if (heatmapDimension === "branch") {
+      for (const [id, label] of branchLabelMap.entries()) {
+        if (selectedHeatmapDimensionMap.has(String(id))) {
+          dimensionOptions.push({ id: String(id), label });
+        }
+      }
+    } else {
+      for (const [id, label] of chairLabelMap.entries()) {
+        if (selectedHeatmapDimensionMap.has(String(id))) {
+          dimensionOptions.push({ id: String(id), label });
+        }
+      }
+    }
+    dimensionOptions.sort((a, b) => a.label.localeCompare(b.label, "mn-MN"));
+
+    const selectedTargetId = (() => {
+      if (heatmapTargetId != null && heatmapDimension !== "chair") {
+        const asStr = String(heatmapTargetId);
+        if (selectedHeatmapDimensionMap.has(asStr)) return asStr;
+      }
+      const first = dimensionOptions[0];
+      return first ? first.id : null;
+    })();
+
+    const selectedHeatMap = selectedTargetId
+      ? selectedHeatmapDimensionMap.get(selectedTargetId)
+      : null;
+    const heatmapRows = [];
+    for (let weekday = 1; weekday <= 7; weekday++) {
+      const wk = String(weekday);
+      for (const slot of timeSlots) {
+        heatmapRows.push({
+          weekday,
+          weekdayLabel: getWeekdayLabel(weekday),
+          time: slot,
+          count: selectedHeatMap ? Number(selectedHeatMap.get(wk)?.get(slot) || 0) : 0,
+        });
+      }
+    }
+    const heatmapMax = heatmapRows.reduce((mx, r) => Math.max(mx, r.count), 0);
+
+    const totalPatients = patientTotalSet.size;
+    const returningPatients = patientReturningSet.size;
+    const repeatVisitPct =
+      totalPatients > 0 ? Number(((returningPatients / totalPatients) * 100).toFixed(1)) : 0;
+
+    return res.json({
+      period: { from, to, view },
+      scope: {
+        branchId: branchId || null,
+        doctorId: doctorId || null,
+        heatmapDimension,
+        heatmapTargetId: selectedTargetId,
+        trendMetric,
+      },
+      filters: {
+        branches: branches.map((b) => ({ id: b.id, name: b.name })),
+        doctors: doctors.map((d) => ({
+          id: d.id,
+          name: d.name,
+          ovog: d.ovog,
+          branchId: d.branchId,
+        })),
+        heatmapTargets: dimensionOptions,
+      },
+      kpis: {
+        total: totalCount,
+        completed: completedCount,
+        noShow: noShowCount,
+        paymentPending: unpaidCount,
+      },
+      trend: {
+        metric: trendMetric,
+        rows: trendRows,
+      },
+      heatmap: {
+        dimension: heatmapDimension,
+        targetId: selectedTargetId,
+        maxCount: heatmapMax,
+        rows: heatmapRows,
+      },
+      utilization: {
+        rows: utilizationRows,
+        overloadedDoctors,
+        underusedDoctors,
+      },
+      repeatVisit: {
+        totalPatients,
+        returningPatients,
+        repeatVisitPct,
+      },
+    });
+  } catch (err) {
+    console.error("GET /api/reports/main-appointments error:", err);
+    return res.status(500).json({ error: "Failed to fetch main appointments report." });
   }
 });
 
