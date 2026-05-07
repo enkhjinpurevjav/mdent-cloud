@@ -10,6 +10,7 @@ type Branch = {
 type UserRole =
   | "accountant"
   | "manager"
+  | "hr"
   | "admin"
   | "super_admin"
   | "sterilization"
@@ -37,6 +38,7 @@ type OtherStaff = {
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "accountant", label: "Нягтлан" },
   { value: "manager", label: "Менежер" },
+  { value: "hr", label: "Хүний нөөц" },
   { value: "admin", label: "Админ" },
   { value: "super_admin", label: "Супер Админ" },
   { value: "sterilization", label: "Ариутгал" },
@@ -51,6 +53,8 @@ const getRoleLabel = (role: string) => {
       return "Нягтлан";
     case "manager":
       return "Менежер";
+    case "hr":
+      return "Хүний нөөц";
     case "admin":
       return "Админ";
     case "super_admin":

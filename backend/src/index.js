@@ -63,6 +63,7 @@ import doctorIncomeReportRouter from "./routes/admin/doctorIncomeReport.js";
 import backfillRegnoRouter from "./routes/admin/backfillRegno.js";
 import checkInRouter from "./routes/check-in.js";
 import branchKioskRouter from "./routes/branch.js";
+import announcementsRouter from "./routes/announcements.js";
 import { authenticateJWT, requireRole, DOCTOR_KIOSK_COOKIE_NAME } from "./middleware/auth.js";
 import rateLimit from "express-rate-limit";
 
@@ -310,6 +311,7 @@ app.use("/api/uploads", uploadsRouter);
 
 // Attendance routes (all authenticated staff)
 app.use("/api/attendance", attendanceRouter);
+app.use("/api/announcements", announcementsRouter);
 
 // Doctor portal routes (authenticateJWT + requireRole(\"doctor\") enforced inside the router)
 app.use("/api/doctor", doctorPortalRouter);
