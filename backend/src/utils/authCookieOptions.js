@@ -2,8 +2,12 @@
  * Helpers for access_token / doctor_kiosk_token cookie options.
  *
  * Default behavior:
- * - production: secure=true, domain=.mdent.cloud
- * - non-production: secure=false, no explicit domain
+ * - production: secure=true
+ * - cookie domain:
+ *   - explicit COOKIE_DOMAIN when provided
+ *   - ".mdent.cloud" only when request host is mdent.cloud or a subdomain
+ *   - otherwise host-only cookie (domain omitted)
+ * - non-production: secure=false, host-only cookie
  *
  * Environment overrides:
  * - COOKIE_SECURE=true|false (also supports 1/0, yes/no, on/off)
@@ -34,10 +38,22 @@ export function shouldUseSecureCookie({
 export function resolveCookieDomain({
   nodeEnv = process.env.NODE_ENV,
   cookieDomain = process.env.COOKIE_DOMAIN,
+  requestHost,
 } = {}) {
   const explicitDomain = typeof cookieDomain === "string" ? cookieDomain.trim() : "";
   if (explicitDomain) return explicitDomain;
-  return isProduction(nodeEnv) ? ".mdent.cloud" : undefined;
+  if (!isProduction(nodeEnv)) return undefined;
+
+  const normalizedHost = String(requestHost || "")
+    .trim()
+    .toLowerCase()
+    .replace(/:\d+$/, "");
+  if (!normalizedHost) return undefined;
+
+  if (normalizedHost === "mdent.cloud" || normalizedHost.endsWith(".mdent.cloud")) {
+    return ".mdent.cloud";
+  }
+  return undefined;
 }
 
 export function buildSessionCookieOptions({
@@ -45,12 +61,13 @@ export function buildSessionCookieOptions({
   nodeEnv = process.env.NODE_ENV,
   cookieSecure = process.env.COOKIE_SECURE,
   cookieDomain = process.env.COOKIE_DOMAIN,
+  requestHost,
 } = {}) {
   const options = {
     httpOnly: true,
     secure: shouldUseSecureCookie({ nodeEnv, cookieSecure }),
     sameSite: "lax",
-    domain: resolveCookieDomain({ nodeEnv, cookieDomain }),
+    domain: resolveCookieDomain({ nodeEnv, cookieDomain, requestHost }),
     path: "/",
   };
 
