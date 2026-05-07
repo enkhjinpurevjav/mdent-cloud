@@ -23,6 +23,7 @@ enum UserRole {
   accountant
   nurse
   manager
+  hr
   xray
   super_admin
   sterilization
@@ -140,6 +141,16 @@ enum AttendanceAttemptType {
 enum AttendanceAttemptResult {
   SUCCESS
   FAIL
+}
+
+enum AnnouncementType {
+  LOGIN_POPUP
+  ALERT_LIST
+}
+
+enum AnnouncementContentMode {
+  TEXT
+  IMAGE
 }
 
 // ==========================================================
@@ -806,11 +817,80 @@ model User {
 
   createdBalanceAdjustments BalanceAdjustmentLog[] @relation("BalanceAdjCreatedBy")
 
+  createdAnnouncements Announcement[]        @relation("AnnouncementCreatedBy")
+  announcementReceipts AnnouncementReceipt[]
+
   // Permission: allow doctor to close encounters without payment
   canCloseEncounterWithoutPayment Boolean @default(false)
 
   // Back-relation: encounters closed without payment by this user
   closedWithoutPaymentEncounters Encounter[] @relation("EncounterClosedWithoutPaymentBy")
+}
+
+model Announcement {
+  id          Int                     @id @default(autoincrement())
+  type        AnnouncementType
+  contentMode AnnouncementContentMode @default(TEXT)
+  title       String
+  body        String                  @db.Text
+  imagePath   String?
+
+  targetRoles     UserRole[]
+  targetBranchIds Int[]
+
+  startsAt DateTime?
+  endsAt   DateTime?
+  isActive Boolean  @default(true)
+
+  createdByUserId Int
+  createdBy       User @relation("AnnouncementCreatedBy", fields: [createdByUserId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attachments AnnouncementAttachment[]
+  receipts    AnnouncementReceipt[]
+
+  @@index([type, isActive])
+  @@index([startsAt, endsAt])
+  @@index([createdByUserId])
+}
+
+model AnnouncementAttachment {
+  id             Int    @id @default(autoincrement())
+  announcementId Int
+  filePath       String
+  fileName       String
+  mimeType       String
+  sizeBytes      Int?
+
+  createdAt DateTime @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@index([announcementId])
+}
+
+model AnnouncementReceipt {
+  id             Int  @id @default(autoincrement())
+  announcementId Int
+  userId         Int
+
+  firstShownAt    DateTime?
+  lastShownAt     DateTime?
+  readAt          DateTime?
+  dontShowAgain   Boolean   @default(false)
+  dontShowAgainAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([userId, readAt])
+  @@index([announcementId, dontShowAgain])
 }
 
 // ==========================================================

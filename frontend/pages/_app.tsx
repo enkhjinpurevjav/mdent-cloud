@@ -5,6 +5,7 @@ import NurseLayout from "../components/NurseLayout";
 import MarketingLayout from "../components/MarketingLayout";
 import ReceptionLayout from "../components/ReceptionLayout";
 import XrayLayout from "../components/XrayLayout";
+import LoginAnnouncementPopup from "../components/announcements/LoginAnnouncementPopup";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
@@ -181,6 +182,13 @@ function AppContent({ Component, pageProps }: AppProps) {
     return <Component {...pageProps} />;
   }
 
+  const renderWithPopup = (content: JSX.Element) => (
+    <>
+      {content}
+      <LoginAnnouncementPopup />
+    </>
+  );
+
   const userRole = me?.role ?? null;
 
   const useDoctorLayout =
@@ -196,7 +204,7 @@ function AppContent({ Component, pageProps }: AppProps) {
 
   if (useDoctorLayout) {
     const showDashboardSummary = router.pathname === "/doctor/appointments";
-    return (
+    return renderWithPopup(
       <DoctorLayout showDashboardSummary={showDashboardSummary}>
         <Component {...pageProps} />
       </DoctorLayout>
@@ -204,7 +212,7 @@ function AppContent({ Component, pageProps }: AppProps) {
   }
 
   if (useNurseLayout) {
-    return (
+    return renderWithPopup(
       <NurseLayout>
         <Component {...pageProps} />
       </NurseLayout>
@@ -212,7 +220,7 @@ function AppContent({ Component, pageProps }: AppProps) {
   }
 
   if (useReceptionLayout) {
-    return (
+    return renderWithPopup(
       <ReceptionLayout wide={wide}>
         <Component {...pageProps} />
       </ReceptionLayout>
@@ -220,7 +228,7 @@ function AppContent({ Component, pageProps }: AppProps) {
   }
 
   if (useMarketingLayout) {
-    return (
+    return renderWithPopup(
       <MarketingLayout wide={wide}>
         <Component {...pageProps} />
       </MarketingLayout>
@@ -228,7 +236,7 @@ function AppContent({ Component, pageProps }: AppProps) {
   }
 
   if (useXrayLayout) {
-    return (
+    return renderWithPopup(
       <XrayLayout>
         <Component {...pageProps} />
       </XrayLayout>
@@ -237,7 +245,7 @@ function AppContent({ Component, pageProps }: AppProps) {
 
   // Branch kiosk pages: keep navy header but hide sidebar
   if (useBranchKioskLayout) {
-    return (
+    return renderWithPopup(
       <AdminLayout hideSidebar>
         <Component {...pageProps} />
       </AdminLayout>
@@ -246,7 +254,7 @@ function AppContent({ Component, pageProps }: AppProps) {
 
   // Encounter pages opened from doctor kiosk session: keep navy header but hide sidebar
   if (isEncounterPath && isDoctorKiosk) {
-    return (
+    return renderWithPopup(
       <AdminLayout hideSidebar>
         <Component {...pageProps} />
       </AdminLayout>
@@ -255,14 +263,14 @@ function AppContent({ Component, pageProps }: AppProps) {
 
   // Patient profile opened by doctor kiosk session: keep navy header but hide sidebar
   if (isPatientPath && isDoctorKiosk) {
-    return (
+    return renderWithPopup(
       <AdminLayout hideSidebar>
         <Component {...pageProps} />
       </AdminLayout>
     );
   }
 
-  return (
+  return renderWithPopup(
     <AdminLayout wide={wide}>
       <Component {...pageProps} />
     </AdminLayout>

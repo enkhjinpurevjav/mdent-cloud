@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 import { setBranchLock, clearBranchLock } from "./appointments/storage";
 import { Drawer } from "./ui/Drawer";
 import { useAuth } from "../contexts/AuthContext";
+import NotificationBell from "./announcements/NotificationBell";
 
 type Props = {
   children: React.ReactNode;
@@ -66,6 +67,7 @@ const navItems: NavItem[] = [
         icon: "📁",
       },
       { label: "Материал", href: "/hr/materials", icon: "📦" },
+      { label: "Мэдэгдэл", href: "/hr/announcements", icon: "🔔" },
       { label: "Тайлан харах", href: "/hr/reports", icon: "📊" },
       { label: "Ирцийн тайлан", href: "/admin/attendance", icon: "🕑" },
     ],
@@ -220,6 +222,7 @@ export default function AdminLayout({ children, wide, hideSidebar }: Props) {
       super_admin: "Супер Админ",
       nurse: "Сувилагч",
       doctor: "Эмч",
+      hr: "Хүний нөөц",
       reception: "Ресепшн",
       staff: "Ажилтан",
     };
@@ -670,33 +673,19 @@ useEffect(() => {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <button
-              type="button"
+            <div
               style={{
-                position: "relative",
                 width: 32,
                 height: 32,
                 borderRadius: "999px",
-                border: "none",
                 background: "rgba(15,23,42,0.4)",
-                color: "white",
-                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              🔔
-              <span
-                style={{
-                  position: "absolute",
-                  top: 4,
-                  right: 4,
-                  width: 10,
-                  height: 10,
-                  borderRadius: "999px",
-                  background: "#ef4444",
-                  border: "1px solid white",
-                }}
-              />
-            </button>
+              <NotificationBell className="p-0" iconClassName="h-4 w-4" />
+            </div>
 
             {/* Attendance icon - navigates to check-in/out page */}
             <Link href="/attendance" legacyBehavior>
