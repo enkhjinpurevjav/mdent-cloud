@@ -1,12 +1,31 @@
 import { Router } from "express";
-import {
-  AnnouncementContentMode,
-  AnnouncementType,
-  UserRole,
-} from "@prisma/client";
 import prisma from "../db.js";
 
 const router = Router();
+const ANNOUNCEMENT_TYPES = {
+  LOGIN_POPUP: "LOGIN_POPUP",
+  ALERT_LIST: "ALERT_LIST",
+};
+const ANNOUNCEMENT_CONTENT_MODES = {
+  TEXT: "TEXT",
+  IMAGE: "IMAGE",
+};
+const VALID_USER_ROLES = new Set([
+  "admin",
+  "doctor",
+  "receptionist",
+  "marketing",
+  "accountant",
+  "nurse",
+  "manager",
+  "hr",
+  "xray",
+  "super_admin",
+  "sterilization",
+  "other",
+  "branch_kiosk",
+  "doctor_kiosk",
+]);
 
 router.use((req, res, next) => {
   if (!req.user?.id || !req.user?.role) {
@@ -22,6 +41,14 @@ function canManageAnnouncements(user) {
   return ANNOUNCEMENT_MANAGER_ROLES.has(user.role);
 }
 
+function announcementsFeatureAvailable() {
+  return Boolean(
+    prisma?.announcement &&
+      prisma?.announcementAttachment &&
+      prisma?.announcementReceipt
+  );
+}
+
 function parseDateOrNull(value) {
   if (!value) return null;
   const d = new Date(value);
@@ -31,10 +58,9 @@ function parseDateOrNull(value) {
 
 function sanitizeTargetRoles(input) {
   if (!Array.isArray(input)) return [];
-  const validRoles = new Set(Object.values(UserRole));
   return input
     .map((v) => String(v))
-    .filter((v) => validRoles.has(v));
+    .filter((v) => VALID_USER_ROLES.has(v));
 }
 
 function sanitizeTargetBranchIds(input) {
@@ -119,6 +145,9 @@ router.get("/manage", async (req, res) => {
   if (!canManageAnnouncements(req.user)) {
     return res.status(403).json({ error: "Forbidden. Insufficient role." });
   }
+  if (!announcementsFeatureAvailable()) {
+    return res.status(503).json({ error: "Announcement feature is not available on this deployment yet." });
+  }
 
   try {
     const rows = await prisma.announcement.findMany({
@@ -161,6 +190,9 @@ router.post("/manage", async (req, res) => {
   if (!canManageAnnouncements(req.user)) {
     return res.status(403).json({ error: "Forbidden. Insufficient role." });
   }
+  if (!announcementsFeatureAvailable()) {
+    return res.status(503).json({ error: "Announcement feature is not available on this deployment yet." });
+  }
 
   try {
     const {
@@ -177,16 +209,16 @@ router.post("/manage", async (req, res) => {
       attachments,
     } = req.body || {};
 
-    if (!Object.values(AnnouncementType).includes(type)) {
+    if (!Object.values(ANNOUNCEMENT_TYPES).includes(type)) {
       return res.status(400).json({ error: "Invalid announcement type." });
     }
 
     const finalContentMode =
-      type === AnnouncementType.LOGIN_POPUP
-        ? contentMode || AnnouncementContentMode.TEXT
-        : AnnouncementContentMode.TEXT;
+      type === ANNOUNCEMENT_TYPES.LOGIN_POPUP
+        ? contentMode || ANNOUNCEMENT_CONTENT_MODES.TEXT
+        : ANNOUNCEMENT_CONTENT_MODES.TEXT;
 
-    if (!Object.values(AnnouncementContentMode).includes(finalContentMode)) {
+    if (!Object.values(ANNOUNCEMENT_CONTENT_MODES).includes(finalContentMode)) {
       return res.status(400).json({ error: "Invalid content mode." });
     }
 
@@ -194,15 +226,15 @@ router.post("/manage", async (req, res) => {
       return res.status(400).json({ error: "title is required." });
     }
 
-    if (finalContentMode === AnnouncementContentMode.TEXT) {
+    if (finalContentMode === ANNOUNCEMENT_CONTENT_MODES.TEXT) {
       if (!body || !String(body).trim()) {
         return res.status(400).json({ error: "body is required for text announcements." });
       }
     }
 
     if (
-      type === AnnouncementType.LOGIN_POPUP &&
-      finalContentMode === AnnouncementContentMode.IMAGE &&
+      type === ANNOUNCEMENT_TYPES.LOGIN_POPUP &&
+      finalContentMode === ANNOUNCEMENT_CONTENT_MODES.IMAGE &&
       !String(imagePath || "").trim()
     ) {
       return res.status(400).json({ error: "imagePath is required for image popup announcements." });
@@ -223,7 +255,7 @@ router.post("/manage", async (req, res) => {
     const cleanedRoles = sanitizeTargetRoles(targetRoles);
     const cleanedBranchIds = sanitizeTargetBranchIds(targetBranchIds);
     const cleanedAttachments =
-      type === AnnouncementType.ALERT_LIST
+      type === ANNOUNCEMENT_TYPES.ALERT_LIST
         ? normalizeAttachmentPayload(attachments)
         : [];
 
@@ -234,7 +266,7 @@ router.post("/manage", async (req, res) => {
         title: String(title).trim(),
         body: String(body || "").trim(),
         imagePath:
-          finalContentMode === AnnouncementContentMode.IMAGE
+          finalContentMode === ANNOUNCEMENT_CONTENT_MODES.IMAGE
             ? String(imagePath).trim()
             : null,
         targetRoles: cleanedRoles,
@@ -265,6 +297,9 @@ router.post("/manage", async (req, res) => {
 router.patch("/manage/:id", async (req, res) => {
   if (!canManageAnnouncements(req.user)) {
     return res.status(403).json({ error: "Forbidden. Insufficient role." });
+  }
+  if (!announcementsFeatureAvailable()) {
+    return res.status(503).json({ error: "Announcement feature is not available on this deployment yet." });
   }
 
   try {
@@ -309,10 +344,10 @@ router.patch("/manage/:id", async (req, res) => {
     }
 
     if (contentMode !== undefined) {
-      if (!Object.values(AnnouncementContentMode).includes(contentMode)) {
+      if (!Object.values(ANNOUNCEMENT_CONTENT_MODES).includes(contentMode)) {
         return res.status(400).json({ error: "Invalid content mode." });
       }
-      if (existing.type !== AnnouncementType.LOGIN_POPUP) {
+      if (existing.type !== ANNOUNCEMENT_TYPES.LOGIN_POPUP) {
         return res.status(400).json({ error: "Only login popup announcements support contentMode updates." });
       }
       data.contentMode = contentMode;
@@ -366,7 +401,7 @@ router.patch("/manage/:id", async (req, res) => {
         data,
       });
 
-      if (existing.type === AnnouncementType.ALERT_LIST && attachments !== undefined) {
+      if (existing.type === ANNOUNCEMENT_TYPES.ALERT_LIST && attachments !== undefined) {
         await tx.announcementAttachment.deleteMany({
           where: { announcementId: id },
         });
@@ -397,6 +432,10 @@ router.patch("/manage/:id", async (req, res) => {
 // Employee consumption endpoints
 // ---------------------------------------------------------------------------
 router.get("/", async (req, res) => {
+  if (!announcementsFeatureAvailable()) {
+    return res.json({ announcements: [] });
+  }
+
   try {
     const now = new Date();
     const unreadOnly = String(req.query.unreadOnly || "").toLowerCase() === "true";
@@ -412,7 +451,7 @@ router.get("/", async (req, res) => {
 
     const rows = await prisma.announcement.findMany({
       where: {
-        type: AnnouncementType.ALERT_LIST,
+        type: ANNOUNCEMENT_TYPES.ALERT_LIST,
         AND: [
           ...buildLiveWindowWhere(now),
           ...buildAudienceWhere(req.user),
@@ -449,16 +488,20 @@ router.get("/", async (req, res) => {
     return res.json({ announcements });
   } catch (err) {
     console.error("GET /api/announcements error:", err);
-    return res.status(500).json({ error: "Failed to load announcements." });
+    return res.json({ announcements: [] });
   }
 });
 
 router.get("/unread-count", async (req, res) => {
+  if (!announcementsFeatureAvailable()) {
+    return res.json({ unreadCount: 0 });
+  }
+
   try {
     const now = new Date();
     const count = await prisma.announcement.count({
       where: {
-        type: AnnouncementType.ALERT_LIST,
+        type: ANNOUNCEMENT_TYPES.ALERT_LIST,
         AND: [
           ...buildLiveWindowWhere(now),
           ...buildAudienceWhere(req.user),
@@ -475,16 +518,20 @@ router.get("/unread-count", async (req, res) => {
     return res.json({ unreadCount: count });
   } catch (err) {
     console.error("GET /api/announcements/unread-count error:", err);
-    return res.status(500).json({ error: "Failed to load unread count." });
+    return res.json({ unreadCount: 0 });
   }
 });
 
 router.get("/login-popup", async (req, res) => {
+  if (!announcementsFeatureAvailable()) {
+    return res.json({ announcement: null });
+  }
+
   try {
     const now = new Date();
     const announcement = await prisma.announcement.findFirst({
       where: {
-        type: AnnouncementType.LOGIN_POPUP,
+        type: ANNOUNCEMENT_TYPES.LOGIN_POPUP,
         AND: [
           ...buildLiveWindowWhere(now),
           ...buildAudienceWhere(req.user),
@@ -571,7 +618,7 @@ router.get("/login-popup", async (req, res) => {
     });
   } catch (err) {
     console.error("GET /api/announcements/login-popup error:", err);
-    return res.status(500).json({ error: "Failed to load login popup announcement." });
+    return res.json({ announcement: null });
   }
 });
 
@@ -591,7 +638,7 @@ router.post("/:id/read", async (req, res) => {
         targetBranchIds: true,
       },
     });
-    if (!announcement || announcement.type !== AnnouncementType.ALERT_LIST) {
+    if (!announcement || announcement.type !== ANNOUNCEMENT_TYPES.ALERT_LIST) {
       return res.status(404).json({ error: "Announcement not found." });
     }
     if (!userMatchesAudience(req.user, announcement)) {
@@ -639,7 +686,7 @@ router.post("/:id/acknowledge-popup", async (req, res) => {
         targetBranchIds: true,
       },
     });
-    if (!announcement || announcement.type !== AnnouncementType.LOGIN_POPUP) {
+    if (!announcement || announcement.type !== ANNOUNCEMENT_TYPES.LOGIN_POPUP) {
       return res.status(404).json({ error: "Announcement not found." });
     }
     if (!userMatchesAudience(req.user, announcement)) {
