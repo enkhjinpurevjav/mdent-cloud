@@ -44,10 +44,25 @@ describe("resolveCookieDomain", () => {
     );
   });
 
-  it("defaults to .mdent.cloud in production", () => {
+  it("uses .mdent.cloud in production for mdent hostnames", () => {
     assert.equal(
-      resolveCookieDomain({ nodeEnv: "production", cookieDomain: "" }),
+      resolveCookieDomain({
+        nodeEnv: "production",
+        cookieDomain: "",
+        requestHost: "dev.mdent.cloud",
+      }),
       ".mdent.cloud"
+    );
+  });
+
+  it("returns undefined in production for non-mdent hosts", () => {
+    assert.equal(
+      resolveCookieDomain({
+        nodeEnv: "production",
+        cookieDomain: "",
+        requestHost: "preview.example.net",
+      }),
+      undefined
     );
   });
 

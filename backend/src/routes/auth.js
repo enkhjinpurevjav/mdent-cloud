@@ -59,9 +59,10 @@ const COOKIE_NAME = "access_token";
 const COOKIE_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8 hours
 const KIOSK_COOKIE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours (branch_kiosk)
 
-function cookieOptions(maxAgeMs = COOKIE_MAX_AGE_MS) {
+function cookieOptions(req, maxAgeMs = COOKIE_MAX_AGE_MS) {
   return buildSessionCookieOptions({
     maxAge: maxAgeMs,
+    requestHost: req?.hostname,
   });
 }
 
@@ -142,7 +143,7 @@ router.post("/login", ipBackstopRateLimit, ipEmailRateLimit, async (req, res) =>
     { expiresIn: jwtExpiresIn }
   );
 
-  const opts = cookieOptions(cookieMaxAge);
+  const opts = cookieOptions(req, cookieMaxAge);
   res.cookie(COOKIE_NAME, token, opts);
   console.info(
     `[auth] login ok — user=${user.id} role=${user.role} cookieDomain=${opts.domain ?? "(none)"} secure=${opts.secure}`
@@ -163,7 +164,7 @@ router.post("/login", ipBackstopRateLimit, ipEmailRateLimit, async (req, res) =>
 // POST /api/auth/logout
 router.post("/logout", (_req, res) => {
   res.clearCookie(COOKIE_NAME, {
-    ...cookieOptions(),
+    ...cookieOptions(_req),
     maxAge: 0,
   });
   return res.json({ ok: true });
@@ -212,7 +213,7 @@ router.get("/me", async (req, res) => {
       },
     });
   } catch (err) {
-    res.clearCookie(COOKIE_NAME, { ...cookieOptions(), maxAge: 0 });
+    res.clearCookie(COOKIE_NAME, { ...cookieOptions(req), maxAge: 0 });
     return res.status(401).json({ error: "Invalid or expired token." });
   }
 });
