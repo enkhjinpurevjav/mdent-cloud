@@ -35,9 +35,10 @@ function getJwtSecret() {
   return process.env.JWT_SECRET || "";
 }
 
-function kioskCookieOptions() {
+function kioskCookieOptions(req) {
   return buildSessionCookieOptions({
     maxAge: DOCTOR_KIOSK_TTL_MS,
+    requestHost: req?.hostname,
   });
 }
 
@@ -297,7 +298,7 @@ router.post(
       };
       const token = jwt.sign(payload, secret, { expiresIn: DOCTOR_KIOSK_TTL_JWT });
 
-      res.cookie(DOCTOR_KIOSK_COOKIE_NAME, token, kioskCookieOptions());
+      res.cookie(DOCTOR_KIOSK_COOKIE_NAME, token, kioskCookieOptions(req));
 
       return res.json({
         doctorId: doctor.id,
@@ -318,7 +319,7 @@ router.post(
  */
 router.post("/doctor/logout", (req, res) => {
   res.clearCookie(DOCTOR_KIOSK_COOKIE_NAME, {
-    ...buildSessionCookieOptions(),
+    ...buildSessionCookieOptions({ requestHost: req?.hostname }),
   });
   return res.json({ ok: true });
 });

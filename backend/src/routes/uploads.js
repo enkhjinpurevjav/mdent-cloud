@@ -6,29 +6,54 @@ import crypto from "crypto";
 
 const MEDIA_UPLOAD_DIR = process.env.MEDIA_UPLOAD_DIR || "/data/media";
 
-const ALLOWED_TYPES = new Set([
+const IMAGE_ALLOWED_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
   "image/png",
   "image/webp",
 ]);
-const MAX_SIZE = 2 * 1024 * 1024; // 2 MB
+const IMAGE_MAX_SIZE = 2 * 1024 * 1024; // 2 MB
 
-const MIME_TO_EXT = {
+const IMAGE_MIME_TO_EXT = {
   "image/jpeg": ".jpg",
   "image/jpg": ".jpg",
   "image/png": ".png",
   "image/webp": ".webp",
 };
 
-function makeUploader(subDir) {
+const ANNOUNCEMENT_ATTACHMENT_ALLOWED_TYPES = new Set([
+  "application/pdf",
+  "text/plain",
+  "text/csv",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+]);
+const ANNOUNCEMENT_ATTACHMENT_MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+
+function makeUploader({
+  subDir,
+  allowedTypes,
+  maxSize,
+  mimeToExt = {},
+  fallbackExt = ".bin",
+}) {
   const dir = path.resolve(MEDIA_UPLOAD_DIR, subDir);
   fs.mkdirSync(dir, { recursive: true });
 
   const storage = multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, dir),
     filename: (req, file, cb) => {
-      const ext = MIME_TO_EXT[file.mimetype] || ".jpg";
+      const extFromMime = mimeToExt[file.mimetype];
+      const extFromName = path.extname(file.originalname || "").toLowerCase();
+      const ext = extFromMime || extFromName || fallbackExt;
       const rawUserId = req.query.userId;
       const userId =
         rawUserId && /^\d+$/.test(String(rawUserId))
@@ -43,9 +68,9 @@ function makeUploader(subDir) {
 
   return multer({
     storage,
-    limits: { fileSize: MAX_SIZE },
+    limits: { fileSize: maxSize },
     fileFilter: (_req, file, cb) => {
-      if (ALLOWED_TYPES.has(file.mimetype)) {
+      if (allowedTypes.has(file.mimetype)) {
         cb(null, true);
       } else {
         cb(new Error("INVALID_TYPE"));
@@ -54,7 +79,7 @@ function makeUploader(subDir) {
   });
 }
 
-function uploadHandler(uploader, urlPrefix) {
+function uploadHandler(uploader, urlPrefix, maxSizeMb) {
   return [
     (req, res, next) => {
       uploader.single("file")(req, res, (err) => {
@@ -62,12 +87,11 @@ function uploadHandler(uploader, urlPrefix) {
           if (err.code === "LIMIT_FILE_SIZE") {
             return res
               .status(400)
-              .json({ error: "File too large. Maximum size is 2 MB." });
+              .json({ error: `File too large. Maximum size is ${maxSizeMb} MB.` });
           }
           if (err.message === "INVALID_TYPE") {
             return res.status(400).json({
-              error:
-                "Invalid file type. Only JPEG, PNG, and WebP images are allowed.",
+              error: "Invalid file type.",
             });
           }
           return next(err);
@@ -80,30 +104,89 @@ function uploadHandler(uploader, urlPrefix) {
         return res.status(400).json({ error: "No file uploaded." });
       }
       const filePath = `${urlPrefix}/${req.file.filename}`;
-      return res.json({ filePath });
+      return res.json({
+        filePath,
+        fileName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        sizeBytes: req.file.size,
+      });
     },
   ];
 }
 
-const staffPhotoUploader = makeUploader("staff-photos");
-const stampUploader = makeUploader("stamps");
-const signatureUploader = makeUploader("signatures");
+const staffPhotoUploader = makeUploader({
+  subDir: "staff-photos",
+  allowedTypes: IMAGE_ALLOWED_TYPES,
+  maxSize: IMAGE_MAX_SIZE,
+  mimeToExt: IMAGE_MIME_TO_EXT,
+  fallbackExt: ".jpg",
+});
+const stampUploader = makeUploader({
+  subDir: "stamps",
+  allowedTypes: IMAGE_ALLOWED_TYPES,
+  maxSize: IMAGE_MAX_SIZE,
+  mimeToExt: IMAGE_MIME_TO_EXT,
+  fallbackExt: ".jpg",
+});
+const signatureUploader = makeUploader({
+  subDir: "signatures",
+  allowedTypes: IMAGE_ALLOWED_TYPES,
+  maxSize: IMAGE_MAX_SIZE,
+  mimeToExt: IMAGE_MIME_TO_EXT,
+  fallbackExt: ".jpg",
+});
+const announcementImageUploader = makeUploader({
+  subDir: "announcements/images",
+  allowedTypes: IMAGE_ALLOWED_TYPES,
+  maxSize: IMAGE_MAX_SIZE,
+  mimeToExt: IMAGE_MIME_TO_EXT,
+  fallbackExt: ".jpg",
+});
+const announcementAttachmentUploader = makeUploader({
+  subDir: "announcements/attachments",
+  allowedTypes: ANNOUNCEMENT_ATTACHMENT_ALLOWED_TYPES,
+  maxSize: ANNOUNCEMENT_ATTACHMENT_MAX_SIZE,
+  fallbackExt: ".bin",
+});
 
 const router = Router();
 
+function requireAnnouncementManager(req, res, next) {
+  if (req.user?.role === "hr" || req.user?.role === "super_admin") {
+    return next();
+  }
+  return res.status(403).json({ error: "Forbidden. Insufficient role." });
+}
+
 router.post(
   "/staff-photo",
-  ...uploadHandler(staffPhotoUploader, "/media/staff-photos")
+  ...uploadHandler(staffPhotoUploader, "/media/staff-photos", 2)
 );
 
 router.post(
   "/stamp",
-  ...uploadHandler(stampUploader, "/media/stamps")
+  ...uploadHandler(stampUploader, "/media/stamps", 2)
 );
 
 router.post(
   "/signature",
-  ...uploadHandler(signatureUploader, "/media/signatures")
+  ...uploadHandler(signatureUploader, "/media/signatures", 2)
+);
+
+router.post(
+  "/announcement-image",
+  requireAnnouncementManager,
+  ...uploadHandler(announcementImageUploader, "/media/announcements/images", 2)
+);
+
+router.post(
+  "/announcement-attachment",
+  requireAnnouncementManager,
+  ...uploadHandler(
+    announcementAttachmentUploader,
+    "/media/announcements/attachments",
+    10
+  )
 );
 
 export default router;

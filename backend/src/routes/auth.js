@@ -59,9 +59,35 @@ const COOKIE_NAME = "access_token";
 const COOKIE_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8 hours
 const KIOSK_COOKIE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours (branch_kiosk)
 
-function cookieOptions(maxAgeMs = COOKIE_MAX_AGE_MS) {
+function decodeCookieValue(value) {
+  if (typeof value !== "string") return "";
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function extractAccessTokenCandidates(req) {
+  const out = [];
+  if (req.cookies?.[COOKIE_NAME]) out.push(req.cookies[COOKIE_NAME]);
+  const header = req.headers?.cookie;
+  if (typeof header === "string" && header) {
+    const prefix = `${COOKIE_NAME}=`;
+    for (const rawPart of header.split(";")) {
+      const part = rawPart.trim();
+      if (!part.startsWith(prefix)) continue;
+      const candidate = decodeCookieValue(part.slice(prefix.length));
+      if (candidate) out.push(candidate);
+    }
+  }
+  return [...new Set(out.filter(Boolean))];
+}
+
+function cookieOptions(req, maxAgeMs = COOKIE_MAX_AGE_MS) {
   return buildSessionCookieOptions({
     maxAge: maxAgeMs,
+    requestHost: req?.hostname,
   });
 }
 
@@ -142,7 +168,7 @@ router.post("/login", ipBackstopRateLimit, ipEmailRateLimit, async (req, res) =>
     { expiresIn: jwtExpiresIn }
   );
 
-  const opts = cookieOptions(cookieMaxAge);
+  const opts = cookieOptions(req, cookieMaxAge);
   res.cookie(COOKIE_NAME, token, opts);
   console.info(
     `[auth] login ok — user=${user.id} role=${user.role} cookieDomain=${opts.domain ?? "(none)"} secure=${opts.secure}`
@@ -163,7 +189,7 @@ router.post("/login", ipBackstopRateLimit, ipEmailRateLimit, async (req, res) =>
 // POST /api/auth/logout
 router.post("/logout", (_req, res) => {
   res.clearCookie(COOKIE_NAME, {
-    ...cookieOptions(),
+    ...cookieOptions(_req),
     maxAge: 0,
   });
   return res.json({ ok: true });
@@ -175,8 +201,8 @@ router.get("/me", async (req, res) => {
   res.setHeader("Pragma", "no-cache");
   res.setHeader("Expires", "0");
 
-  const token = req.cookies?.[COOKIE_NAME];
-  if (!token) {
+  const tokenCandidates = extractAccessTokenCandidates(req);
+  if (tokenCandidates.length === 0) {
     return res.status(401).json({ error: "Not authenticated." });
   }
 
@@ -185,36 +211,43 @@ router.get("/me", async (req, res) => {
     return res.status(500).json({ error: "Internal server error." });
   }
 
-  try {
-    const decoded = jwt.verify(token, secret);
-
-    // Fetch canCloseEncounterWithoutPayment from DB (not stored in JWT)
-    let canCloseEncounterWithoutPayment = false;
+  let decoded = null;
+  for (const token of tokenCandidates) {
     try {
-      const dbUser = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        select: { canCloseEncounterWithoutPayment: true },
-      });
-      canCloseEncounterWithoutPayment = dbUser?.canCloseEncounterWithoutPayment ?? false;
+      decoded = jwt.verify(token, secret);
+      break;
     } catch {
-      // Non-fatal: fall back to false
+      // try next candidate token if multiple access_token cookies exist
     }
-
-    return res.json({
-      user: {
-        id: decoded.id,
-        name: decoded.name,
-        email: decoded.email,
-        role: decoded.role,
-        branchId: decoded.branchId,
-        ovog: decoded.ovog ?? null,
-        canCloseEncounterWithoutPayment,
-      },
-    });
-  } catch (err) {
-    res.clearCookie(COOKIE_NAME, { ...cookieOptions(), maxAge: 0 });
+  }
+  if (!decoded) {
+    res.clearCookie(COOKIE_NAME, { ...cookieOptions(req), maxAge: 0 });
     return res.status(401).json({ error: "Invalid or expired token." });
   }
+
+  // Fetch canCloseEncounterWithoutPayment from DB (not stored in JWT)
+  let canCloseEncounterWithoutPayment = false;
+  try {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: { canCloseEncounterWithoutPayment: true },
+    });
+    canCloseEncounterWithoutPayment = dbUser?.canCloseEncounterWithoutPayment ?? false;
+  } catch {
+    // Non-fatal: fall back to false
+  }
+
+  return res.json({
+    user: {
+      id: decoded.id,
+      name: decoded.name,
+      email: decoded.email,
+      role: decoded.role,
+      branchId: decoded.branchId,
+      ovog: decoded.ovog ?? null,
+      canCloseEncounterWithoutPayment,
+    },
+  });
 });
 
 // Rate limit: max 5 password reset requests per 15 minutes per IP

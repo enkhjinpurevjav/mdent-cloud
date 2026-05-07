@@ -2,7 +2,8 @@ import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useAuth } from "../contexts/AuthContext";
-import { Bell, Clock, LogOut, CalendarRange, User } from "lucide-react";
+import { Clock, LogOut, CalendarRange, User } from "lucide-react";
+import NotificationBell from "./announcements/NotificationBell";
 
 type Props = {
   children: React.ReactNode;
@@ -115,13 +116,7 @@ export default function NurseLayout({ children }: Props) {
 
           {/* Right actions */}
           <div className="flex items-center gap-0 min-w-0">
-            <button
-              title="Мэдэгдэл"
-              disabled
-              className="p-1.5 sm:p-2 rounded-lg text-white/60 cursor-default"
-            >
-              <Bell className="h-[18px] w-[18px] sm:h-5 sm:w-5" />
-            </button>
+            <NotificationBell />
 
             <Link
               href="/nurse/attendance"
