@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 function usersGateAllows({ role, method, path, query }) {
-  if (role === "admin" || role === "super_admin") return true;
+  if (role === "admin" || role === "super_admin" || role === "hr") return true;
   if (
     role === "receptionist" &&
     method === "GET" &&
@@ -67,6 +67,27 @@ describe("/api/users RBAC gate nurse list endpoints", () => {
         method: "GET",
         path: "/nurses/by-branch",
         query: { branchId: "1" },
+      }),
+      true
+    );
+  });
+
+  it("allows HR full access to /api/users endpoints", () => {
+    assert.equal(
+      usersGateAllows({
+        role: "hr",
+        method: "GET",
+        path: "/",
+        query: {},
+      }),
+      true
+    );
+    assert.equal(
+      usersGateAllows({
+        role: "hr",
+        method: "POST",
+        path: "/",
+        query: {},
       }),
       true
     );
