@@ -54,6 +54,7 @@ import ebarimtRouter from "./routes/ebarimt.js";
 import uploadsRouter from "./routes/uploads.js";
 import authRouter from "./routes/auth.js";
 import attendanceRouter from "./routes/attendance.js";
+import foodOrdersRouter from "./routes/foodOrders.js";
 import doctorPortalRouter from "./routes/doctor.js";
 import nursePortalRouter from "./routes/nurse.js";
 import attendanceReportRouter from "./routes/admin/attendanceReport.js";
@@ -311,6 +312,7 @@ app.use("/api/uploads", uploadsRouter);
 
 // Attendance routes (all authenticated staff)
 app.use("/api/attendance", attendanceRouter);
+app.use("/api/food-orders", foodOrdersRouter);
 app.use("/api/announcements", announcementsRouter);
 
 // Doctor portal routes (authenticateJWT + requireRole(\"doctor\") enforced inside the router)
