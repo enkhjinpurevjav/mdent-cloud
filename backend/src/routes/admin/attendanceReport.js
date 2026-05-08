@@ -8,6 +8,7 @@ import {
 } from "../../utils/attendanceReport.js";
 import { computeAttendanceKpis, toAttendanceCsv } from "../../utils/attendanceReport.js";
 import { STANDARD_SHIFT_EXCLUDED_ROLES } from "../../utils/attendanceWorkRules.js";
+import { canAccessAttendanceAdminFeatures } from "../../utils/attendanceAccess.js";
 
 const router = Router();
 const STANDARD_SHIFT_REQUIRED_MINUTES = 8 * 60;
@@ -436,7 +437,7 @@ router.patch("/attendance/session/:id/overtime-approval", async (req, res) => {
   try {
     const authBypassed = process.env.DISABLE_AUTH === "true";
     const requesterRole = req.user?.role || null;
-    if (!authBypassed && requesterRole !== "admin" && requesterRole !== "super_admin") {
+    if (!canAccessAttendanceAdminFeatures({ requesterRole, authBypassed })) {
       return res.status(403).json({ error: "Forbidden. Insufficient role." });
     }
 

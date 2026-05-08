@@ -17,6 +17,7 @@ import {
   enforceStandardShiftCheckInWindow,
   enforceStandardShiftCheckout,
 } from "../utils/attendanceWorkRules.js";
+import { canAccessAttendanceAdminFeatures } from "../utils/attendanceAccess.js";
 
 const router = express.Router();
 
@@ -479,17 +480,13 @@ router.post("/check-out", async (req, res) => {
 
 /**
  * GET /api/attendance/attempts
- * Admin-only audit feed for latest attendance attempts.
+ * Attendance-admin audit feed for latest attendance attempts.
  */
 router.get("/attempts", async (req, res) => {
   try {
     const requesterRole = req.user?.role || null;
     const authBypassed = process.env.DISABLE_AUTH === "true";
-    if (
-      !authBypassed &&
-      requesterRole !== "admin" &&
-      requesterRole !== "super_admin"
-    ) {
+    if (!canAccessAttendanceAdminFeatures({ requesterRole, authBypassed })) {
       return res.status(403).json({ error: "Forbidden. Insufficient role." });
     }
 
@@ -529,11 +526,13 @@ router.get("/attempts", async (req, res) => {
 
 /**
  * PATCH /api/attendance/session/:id
- * Admin-only correction with immutable audit trail.
+ * Attendance-admin correction with immutable audit trail.
  */
 router.patch("/session/:id", async (req, res) => {
   try {
-    if (req.user.role !== "admin" && req.user.role !== "super_admin") {
+    const requesterRole = req.user?.role || null;
+    const authBypassed = process.env.DISABLE_AUTH === "true";
+    if (!canAccessAttendanceAdminFeatures({ requesterRole, authBypassed })) {
       return res.status(403).json({ error: "Forbidden. Insufficient role." });
     }
 
@@ -608,11 +607,13 @@ router.patch("/session/:id", async (req, res) => {
 
 /**
  * PATCH /api/attendance/session/:id/overtime-approval
- * Admin-only overtime approval state persistence.
+ * Attendance-admin overtime approval state persistence.
  */
 router.patch("/session/:id/overtime-approval", async (req, res) => {
   try {
-    if (req.user.role !== "admin" && req.user.role !== "super_admin") {
+    const requesterRole = req.user?.role || null;
+    const authBypassed = process.env.DISABLE_AUTH === "true";
+    if (!canAccessAttendanceAdminFeatures({ requesterRole, authBypassed })) {
       return res.status(403).json({ error: "Forbidden. Insufficient role." });
     }
 
@@ -664,11 +665,13 @@ router.patch("/session/:id/overtime-approval", async (req, res) => {
 
 /**
  * POST /api/attendance/auto-close
- * Admin-only helper endpoint to close stale open sessions.
+ * Attendance-admin helper endpoint to close stale open sessions.
  */
 router.post("/auto-close", async (req, res) => {
   try {
-    if (req.user.role !== "admin" && req.user.role !== "super_admin") {
+    const requesterRole = req.user?.role || null;
+    const authBypassed = process.env.DISABLE_AUTH === "true";
+    if (!canAccessAttendanceAdminFeatures({ requesterRole, authBypassed })) {
       return res.status(403).json({ error: "Forbidden. Insufficient role." });
     }
 
