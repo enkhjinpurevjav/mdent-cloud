@@ -53,6 +53,33 @@ async function withMockedNow(isoString, fn) {
 }
 
 describe("food order routes", () => {
+  it("POST / creates order and returns success message before 10:00", async () => {
+    const originalUserFindUnique = prisma.user.findUnique;
+    const originalCreate = prisma.foodOrder.create;
+    prisma.user.findUnique = async () => ({ branchId: 1 });
+    prisma.foodOrder.create = async () => ({
+      id: 44,
+      orderDate: new Date("2026-05-08T00:00:00.000+08:00"),
+      createdAt: new Date("2026-05-08T01:31:00.000Z"),
+    });
+
+    try {
+      await withMockedNow("2026-05-08T01:30:00.000Z", async () => {
+        const handler = getHandler("/", "post");
+        const req = { user: { id: 7, role: "nurse" }, body: {} };
+        const res = createRes();
+        await handler(req, res);
+
+        assert.equal(res.statusCode, 201);
+        assert.equal(res.body.message, "Таны хоол захиалга амжилттай бүртгэгдлээ");
+        assert.equal(res.body.order.id, 44);
+      });
+    } finally {
+      prisma.user.findUnique = originalUserFindUnique;
+      prisma.foodOrder.create = originalCreate;
+    }
+  });
+
   it("GET /status returns alreadyOrdered state for today", async () => {
     const originalFindUnique = prisma.foodOrder.findUnique;
     prisma.foodOrder.findUnique = async () => ({
