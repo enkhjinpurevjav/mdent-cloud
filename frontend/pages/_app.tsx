@@ -187,7 +187,7 @@ function AppContent({ Component, pageProps }: AppProps) {
     if (loading || !me || isPublicRoute) return;
     if (me.role !== "hr") return;
     if (isHrAllowedPath(router.pathname)) return;
-    void router.replace("/hr/announcements");
+    void router.replace("/users/doctors");
   }, [isPublicRoute, loading, me, router]);
 
   // Show tooth loader during initial auth bootstrap for protected pages
