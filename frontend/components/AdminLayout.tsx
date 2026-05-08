@@ -68,6 +68,7 @@ const navItems: NavItem[] = [
       },
       { label: "Материал", href: "/hr/materials", icon: "📦" },
       { label: "Мэдэгдэл", href: "/hr/announcements", icon: "🔔" },
+      { label: "Хоол захиалга", href: "/hr/food-orders", icon: "🍱" },
       { label: "Тайлан харах", href: "/hr/reports", icon: "📊" },
       { label: "Ирцийн тайлан", href: "/admin/attendance", icon: "🕑" },
     ],

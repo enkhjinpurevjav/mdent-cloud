@@ -211,6 +211,7 @@ model Branch {
   attendanceSessions AttendanceSession[]
   attendanceAttempts AttendanceAttempt[]
   attendancePolicies AttendancePolicy[]
+  foodOrders         FoodOrder[]
 }
 
 model EmployeeBenefit {
@@ -807,6 +808,8 @@ model User {
   attendanceSessionEditsMade     AttendanceSessionEdit[] @relation("AttendanceSessionEditedBy")
   attendanceSessionEditsApproved AttendanceSessionEdit[] @relation("AttendanceSessionApprovedBy")
   attendanceAttempts AttendanceAttempt[]
+  foodOrders         FoodOrder[] @relation("FoodOrderUser")
+  foodOrdersUpdated  FoodOrder[] @relation("FoodOrderUpdatedBy")
 
   createdPatients   Patient[] @relation("PatientCreator")
   updatedPatients   Patient[] @relation("PatientUpdater")
@@ -2034,6 +2037,23 @@ model AttendancePolicy {
 
   @@index([isActive, priority])
   @@index([branchId, role, isActive])
+}
+
+model FoodOrder {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  user            User     @relation("FoodOrderUser", fields: [userId], references: [id])
+  branchId        Int?
+  branch          Branch?  @relation(fields: [branchId], references: [id])
+  orderDate       DateTime
+  updatedByUserId Int?
+  updatedBy       User?    @relation("FoodOrderUpdatedBy", fields: [updatedByUserId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, orderDate])
+  @@index([orderDate, branchId])
+  @@index([branchId, orderDate])
 }
 
 
