@@ -87,7 +87,7 @@ export default function LoginForm() {
         : isXray
         ? "/xray"
         : isHr
-        ? "/hr/announcements"
+        ? "/users/doctors"
         : "/bookings";
 
       router.replace(safeRedirect || fallback);
