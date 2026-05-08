@@ -19,6 +19,20 @@ type MeResponse = {
   recent: AttendanceSession[];
 };
 
+type FoodOrderStatusResponse = {
+  timezone: string;
+  orderDate: string;
+  orderingOpen: boolean;
+  alreadyOrdered: boolean;
+  canOrder: boolean;
+  nextOpenDate: string;
+  order: {
+    id: number;
+    orderDate: string;
+    submitTimestamp: string;
+  } | null;
+};
+
 function formatDateTime(iso: string) {
   const d = new Date(iso);
   return d.toLocaleString("mn-MN", {
@@ -49,6 +63,11 @@ export default function AttendancePage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState("");
   const [actionSuccess, setActionSuccess] = useState("");
+  const [foodStatus, setFoodStatus] = useState<FoodOrderStatusResponse | null>(null);
+  const [loadingFoodStatus, setLoadingFoodStatus] = useState(true);
+  const [foodActionLoading, setFoodActionLoading] = useState(false);
+  const [foodActionError, setFoodActionError] = useState("");
+  const [foodActionSuccess, setFoodActionSuccess] = useState("");
 
   const fetchStatus = useCallback(async () => {
     setLoadingStatus(true);
@@ -68,9 +87,28 @@ export default function AttendancePage() {
     }
   }, []);
 
+  const fetchFoodStatus = useCallback(async () => {
+    setLoadingFoodStatus(true);
+    setFoodActionError("");
+    try {
+      const res = await fetch("/api/food-orders/status", { credentials: "include" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((data as any).error || "Хоол захиалгын төлөв татахад алдаа гарлаа.");
+      }
+      setFoodStatus(data as FoodOrderStatusResponse);
+    } catch (err: unknown) {
+      setFoodActionError(err instanceof Error ? err.message : "Хоол захиалгын төлөв татахад алдаа гарлаа.");
+      setFoodStatus(null);
+    } finally {
+      setLoadingFoodStatus(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStatus();
-  }, [fetchStatus]);
+    fetchFoodStatus();
+  }, [fetchStatus, fetchFoodStatus]);
 
   async function getCurrentPosition() {
     let position: GeolocationPosition;
@@ -150,8 +188,31 @@ export default function AttendancePage() {
     }
   }
 
+  async function handleFoodOrder() {
+    setFoodActionLoading(true);
+    setFoodActionError("");
+    setFoodActionSuccess("");
+    try {
+      const res = await fetch("/api/food-orders", {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error((data as any).error || "Хоол захиалах үед алдаа гарлаа.");
+      }
+      setFoodActionSuccess("Таны хоол захиалга амжилттай бүртгэгдлээ");
+      await fetchFoodStatus();
+    } catch (err: unknown) {
+      setFoodActionError(err instanceof Error ? err.message : "Хоол захиалах үед алдаа гарлаа.");
+    } finally {
+      setFoodActionLoading(false);
+    }
+  }
+
   const checkedIn = status?.checkedIn ?? false;
   const canShowAction = !loadingStatus && !statusError;
+  const canOrderFood = !!foodStatus?.canOrder;
 
   return (
     <div className="mx-auto w-full max-w-[640px] px-6 py-6 font-sans">
@@ -226,6 +287,60 @@ export default function AttendancePage() {
       )}
 
       {/* Recent history */}
+      <div className="mb-6 rounded-xl border border-orange-200 bg-orange-50 p-5">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <h2 className="text-[16px] font-semibold text-gray-900">🍱 Хоол захиалга</h2>
+          <span className="text-[12px] text-gray-600">Ulaanbaatar цаг (00:00–10:00)</span>
+        </div>
+
+        <p className="text-[13px] text-gray-600 mb-3">
+          Өдөр бүр 10:00 цагаас хойш хаагдаж, маргааш 00:00 цагаас дахин нээгдэнэ.
+        </p>
+
+        <button
+          type="button"
+          disabled={loadingFoodStatus || foodActionLoading || !canOrderFood}
+          onClick={handleFoodOrder}
+          className={[
+            "w-full rounded-[10px] px-6 py-3.5 text-[15px] font-semibold text-white transition-colors",
+            loadingFoodStatus || foodActionLoading || !canOrderFood
+              ? "cursor-not-allowed bg-gray-400"
+              : "cursor-pointer bg-orange-500 hover:bg-orange-600",
+          ].join(" ")}
+        >
+          {loadingFoodStatus
+            ? "Төлөв ачааллаж байна..."
+            : foodActionLoading
+              ? "Хоол захиалга бүртгэж байна..."
+              : "Хоол захиалах"}
+        </button>
+
+        {!loadingFoodStatus && foodStatus?.alreadyOrdered && (
+          <div className="mt-3 rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-[14px] text-green-700">
+            Өнөөдрийн хоол захиалга бүртгэгдсэн байна.
+          </div>
+        )}
+
+        {!loadingFoodStatus && foodStatus && !foodStatus.orderingOpen && (
+          <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-[14px] text-amber-700">
+            Өнөөдрийн хоол захиалга 10:00 цагаас хойш хаагдсан. Маргааш 00:00 цагаас дахин
+            захиална уу.
+          </div>
+        )}
+
+        {foodActionError && (
+          <div className="mt-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-[14px] text-red-700">
+            {foodActionError}
+          </div>
+        )}
+
+        {foodActionSuccess && (
+          <div className="mt-3 rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-[14px] text-green-700">
+            {foodActionSuccess}
+          </div>
+        )}
+      </div>
+
       {status && status.recent.length > 0 && (
         <div>
           <h2 className="text-[15px] font-semibold text-gray-900 mb-3">
