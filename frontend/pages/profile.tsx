@@ -27,7 +27,15 @@ function formatRole(role?: string | null): string {
     super_admin: "Супер Админ",
     nurse: "Сувилагч",
     doctor: "Эмч",
-    reception: "Ресепшн",
+    receptionist: "Ресепшн",
+    hr: "Хүний нөөц",
+    marketing: "Маркетинг",
+    accountant: "Нягтлан",
+    manager: "Менежер",
+    xray: "Рентген",
+    sterilization: "Ариутгал",
+    branch_kiosk: "Салбар киоск",
+    doctor_kiosk: "Эмч киоск",
     staff: "Ажилтан",
   };
   return roleMap[role] ?? role;
@@ -54,22 +62,43 @@ export default function ProfilePage() {
     setLoading(true);
     setError("");
 
-    fetch("/api/nurse/me", { credentials: "include" })
-      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
-      .then(({ ok, data }) => {
-        if (!mounted) return;
-        if (ok) {
-          setUser(data as UserDetails);
-        } else {
-          setError((data as any)?.error || "Мэдээллийг ачаалж чадсангүй");
+    (async () => {
+      try {
+        const meRes = await fetch("/api/auth/me", { credentials: "include" });
+        const mePayload = await meRes.json().catch(() => ({}));
+        if (!meRes.ok || !(mePayload as any)?.user) {
+          throw new Error((mePayload as any)?.error || "Мэдээллийг ачаалж чадсангүй");
         }
-      })
-      .catch(() => {
-        if (mounted) setError("Сүлжээгээ шалгана уу");
-      })
-      .finally(() => {
-        if (mounted) setLoading(false);
-      });
+
+        const meUser = (mePayload as any).user as UserDetails;
+        let mergedUser: UserDetails = meUser;
+
+        if (typeof meUser.id === "number") {
+          // Best-effort enrichment with profile fields (regNo, phone, etc.).
+          const detailRes = await fetch(`/api/users/${meUser.id}`, {
+            credentials: "include",
+          });
+          if (detailRes.ok) {
+            const details = (await detailRes.json().catch(() => null)) as UserDetails | null;
+            if (details) {
+              mergedUser = { ...meUser, ...details };
+            }
+          }
+        }
+
+        if (mounted) {
+          setUser(mergedUser);
+        }
+      } catch (err: unknown) {
+        if (mounted) {
+          setError(err instanceof Error ? err.message : "Сүлжээгээ шалгана уу");
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    })();
 
     return () => {
       mounted = false;

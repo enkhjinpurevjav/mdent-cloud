@@ -210,9 +210,30 @@ app.use("/api", (req, res, next) => {
   return authenticateJWT(req, res, next);
 });
 
-// RBAC: /api/admin/* requires admin or super_admin
+// RBAC: /api/admin/* requires admin/super_admin/marketing.
+// HR gets scoped access only to HR-owned admin endpoints.
 const requireAdminRole = requireRole("admin", "super_admin", "marketing");
-app.use("/api/admin", requireAdminRole);
+const HR_ADMIN_PATH_PATTERN = /^\/users\/\d+\/password-reset$/;
+app.use("/api/admin", (req, res, next) => {
+  if (process.env.DISABLE_AUTH === "true") return next();
+  if (!req.user) {
+    return res.status(401).json({ error: "Authentication required." });
+  }
+
+  const role = req.user.role;
+  if (role === "admin" || role === "super_admin" || role === "marketing") {
+    return next();
+  }
+
+  if (
+    role === "hr" &&
+    (req.path.startsWith("/attendance") || HR_ADMIN_PATH_PATTERN.test(req.path))
+  ) {
+    return next();
+  }
+
+  return res.status(403).json({ error: "Forbidden. Insufficient role." });
+});
 app.use("/api/dashboard", requireAdminRole);
 
 // RBAC: /api/users gate
@@ -225,7 +246,7 @@ app.use("/api/users", (req, res, next) => {
     return res.status(401).json({ error: "Authentication required." });
   }
   const { role } = req.user;
-  if (role === "admin" || role === "super_admin") return next();
+  if (role === "admin" || role === "super_admin" || role === "hr") return next();
   if (
     (role === "receptionist" || role === "marketing") &&
     req.method === "GET" &&

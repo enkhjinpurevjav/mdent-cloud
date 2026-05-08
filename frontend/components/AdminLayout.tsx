@@ -197,10 +197,35 @@ const navItems: NavItem[] = [
   },
 ];
 
+const hrPortalNavItems: NavItem[] = [
+  {
+    label: "Хүний нөөц",
+    icon: "🧑‍💼",
+    children: [
+      { label: "Бүх ажилтан", href: "/users", icon: "👥" },
+      { label: "Эмч", href: "/users/doctors", icon: "🩺" },
+      { label: "Сувилагч", href: "/users/nurses", icon: "💉" },
+      { label: "Ресепшн", href: "/users/reception", icon: "📞" },
+      { label: "Ажилтан", href: "/users/staff", icon: "🏢" },
+      { label: "Мэдэгдэл", href: "/hr/announcements", icon: "🔔" },
+      { label: "Хоол захиалга", href: "/hr/food-orders", icon: "🍱" },
+      { label: "Ирцийн тайлан", href: "/admin/attendance", icon: "🕑" },
+    ],
+  },
+];
+
+function getVisibleNavItems(role?: string): NavItem[] {
+  if (role === "hr") {
+    return hrPortalNavItems;
+  }
+  return navItems;
+}
+
 export default function AdminLayout({ children, wide, hideSidebar }: Props) {
   const router = useRouter();
   const currentPath = router.pathname;
   const { me, logoutAndRedirect } = useAuth();
+  const visibleNavItems = getVisibleNavItems(me?.role);
 
   // which main menu label is open (for dropdown)
   const [openGroup, setOpenGroup] = useState<string | null>(null);
@@ -253,7 +278,7 @@ useEffect(() => {
     return;
   }
 
-  const found = navItems.find((item) => {
+  const found = visibleNavItems.find((item) => {
     if (!item.children) return false;
     return item.children.some((child) => {
       if (!child.href) return false;
@@ -270,7 +295,7 @@ useEffect(() => {
   } else {
     setOpenGroup(null);
   }
-}, [currentPath]);
+}, [currentPath, visibleNavItems]);
 
   // Load branches once for Цаг захиалга submenu (dynamic)
   useEffect(() => {
@@ -365,7 +390,7 @@ useEffect(() => {
             Цэс
           </div>
 
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             // Top-level direct link (only Хянах самбар)
             if (!item.children && item.href) {
               const active = isActive(item.href);
@@ -810,7 +835,7 @@ useEffect(() => {
               Цэс
             </div>
 
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               if (!item.children && item.href) {
                 const active = isActive(item.href);
                 return (

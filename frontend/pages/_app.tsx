@@ -55,6 +55,20 @@ function isAppointmentsPath(pathname: string) {
   );
 }
 
+function isHrAllowedPath(pathname: string) {
+  return (
+    pathname === "/hr" ||
+    pathname.startsWith("/hr/") ||
+    pathname === "/users" ||
+    pathname.startsWith("/users/") ||
+    pathname.startsWith("/admin/attendance") ||
+    pathname === "/attendance" ||
+    pathname.startsWith("/attendance/") ||
+    pathname === "/profile" ||
+    pathname.startsWith("/profile/")
+  );
+}
+
 function mapFrontdeskPathByRole(asPath: string, role: string | null) {
   if (!role) return asPath;
 
@@ -166,6 +180,14 @@ function AppContent({ Component, pageProps }: AppProps) {
     if (nextPath !== router.asPath) {
       void router.replace(nextPath);
     }
+  }, [isPublicRoute, loading, me, router]);
+
+  // Keep HR users scoped to HR-only portal pages.
+  useEffect(() => {
+    if (loading || !me || isPublicRoute) return;
+    if (me.role !== "hr") return;
+    if (isHrAllowedPath(router.pathname)) return;
+    void router.replace("/users");
   }, [isPublicRoute, loading, me, router]);
 
   // Show tooth loader during initial auth bootstrap for protected pages

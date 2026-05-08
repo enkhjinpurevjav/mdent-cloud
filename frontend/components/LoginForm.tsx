@@ -62,7 +62,14 @@ export default function LoginForm() {
           safeRedirect = redirectParam;
         } else if (isXray && redirectParam.startsWith("/xray")) {
           safeRedirect = redirectParam;
-        } else if (isHr && redirectParam.startsWith("/hr")) {
+        } else if (
+          isHr &&
+          (redirectParam.startsWith("/hr") ||
+            redirectParam.startsWith("/users") ||
+            redirectParam.startsWith("/admin/attendance") ||
+            redirectParam.startsWith("/attendance") ||
+            redirectParam.startsWith("/profile"))
+        ) {
           safeRedirect = redirectParam;
         } else if (isAdminRole) {
           safeRedirect = redirectParam;
@@ -80,7 +87,7 @@ export default function LoginForm() {
         : isXray
         ? "/xray"
         : isHr
-        ? "/hr/announcements"
+        ? "/users"
         : "/bookings";
 
       router.replace(safeRedirect || fallback);
