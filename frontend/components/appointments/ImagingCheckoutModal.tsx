@@ -11,6 +11,7 @@ type Service = {
 type Nurse = {
   id: number;
   name: string;
+  displayName: string;
 };
 
 type Performer = {
@@ -24,8 +25,21 @@ type NurseByBranchResponse = {
   items?: Array<{
     nurseId: number;
     name: string;
+    ovog?: string | null;
   }>;
 };
+
+function formatNameWithOvogInitial(
+  name?: string | null,
+  ovog?: string | null
+): string {
+  const trimmedName = name?.trim() || "";
+  const trimmedOvog = ovog?.trim() || "";
+  if (trimmedName && trimmedOvog) {
+    return `${trimmedOvog.charAt(0).toUpperCase()}.${trimmedName}`;
+  }
+  return trimmedName || "-";
+}
 
 type ImagingCheckoutModalProps = {
   open: boolean;
@@ -121,6 +135,7 @@ export default function ImagingCheckoutModal({
         const nurseList = (data.items || []).map((item) => ({
           id: item.nurseId,
           name: item.name,
+          displayName: formatNameWithOvogInitial(item.name, item.ovog),
         }));
 
         setNurses(nurseList);
@@ -415,7 +430,7 @@ export default function ImagingCheckoutModal({
                       <option value="">-- Сонгох --</option>
                       {nurses.map((nurse) => (
                         <option key={nurse.id} value={nurse.id}>
-                          {nurse.name}
+                          {nurse.displayName}
                         </option>
                       ))}
                     </select>
