@@ -26,7 +26,12 @@ async function ensureReceptionOr404(id, res) {
     where: { id },
     select: { id: true, role: true },
   });
-  if (!user || (user.role !== UserRole.receptionist && user.role !== UserRole.marketing)) {
+  if (
+    !user ||
+    (user.role !== UserRole.receptionist &&
+      user.role !== UserRole.marketing &&
+      user.role !== UserRole.sterilization)
+  ) {
     res.status(404).json({ error: "Receptionist not found" });
     return null;
   }
@@ -1809,7 +1814,7 @@ router.delete("/:id/schedule/:scheduleId", async (req, res) => {
  *
  * Used by the Reception list top card: "өнөөдөр ажиллаж буй ресепшн".
  */
-router.get("/receptions/today", async (req, res) => {
+async function getTodayReceptionLikeByRole(req, res, role, routeLabel) {
   try {
     const { branchId } = req.query;
 
@@ -1841,6 +1846,7 @@ router.get("/receptions/today", async (req, res) => {
             ovog: true,
             phone: true,
             isActive: true,
+            role: true,
           },
         },
       },
@@ -1856,6 +1862,7 @@ router.get("/receptions/today", async (req, res) => {
     for (const s of schedules) {
       // Skip inactive receptionists
       if (!s.reception.isActive) continue;
+      if (s.reception.role !== role) continue;
       const key = s.receptionId;
       if (!map.has(key)) {
         map.set(key, {
@@ -1885,11 +1892,37 @@ router.get("/receptions/today", async (req, res) => {
       items,
     });
   } catch (err) {
-    console.error("GET /api/users/receptions/today error:", err);
+    console.error(`GET /api/users/${routeLabel}/today error:`, err);
     return res
       .status(500)
-      .json({ error: "Failed to fetch today's receptions" });
+      .json({ error: `Failed to fetch today's ${routeLabel}` });
   }
+}
+
+router.get("/receptions/today", async (req, res) => {
+  return getTodayReceptionLikeByRole(
+    req,
+    res,
+    UserRole.receptionist,
+    "receptions"
+  );
+});
+
+/**
+ * GET /api/users/sterilizations/today
+ *
+ * Optional query:
+ *   branchId=number  → filter by branch
+ *
+ * Returns the users with role=sterilization who have schedules for today.
+ */
+router.get("/sterilizations/today", async (req, res) => {
+  return getTodayReceptionLikeByRole(
+    req,
+    res,
+    UserRole.sterilization,
+    "sterilizations"
+  );
 });
 
 router.get("/nurses/today", async (req, res) => {
