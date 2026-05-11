@@ -107,7 +107,7 @@ describe("GET /api/admin/attendance route behavior", () => {
     }
   });
 
-  it("sets weekday requiredMinutes=480 for unscheduled standard roles", async () => {
+  it("sets weekday requiredMinutes=540 for unscheduled other role", async () => {
     const originalDoctorFindMany = prisma.doctorSchedule.findMany;
     const originalNurseFindMany = prisma.nurseSchedule.findMany;
     const originalReceptionFindMany = prisma.receptionSchedule.findMany;
@@ -155,8 +155,8 @@ describe("GET /api/admin/attendance route behavior", () => {
       const target = res.body.items.find((item) => item.userId === 88);
       assert.ok(target);
       assert.equal(target.rowType, "unscheduled");
-      assert.equal(target.requiredMinutes, 480);
-      assert.equal(target.attendanceRatePercent, 100);
+      assert.equal(target.requiredMinutes, 540);
+      assert.equal(target.attendanceRatePercent, 88.9);
     } finally {
       prisma.user.findMany = originalUserFindMany;
       prisma.attendanceSession.findMany = originalAttendanceFindMany;

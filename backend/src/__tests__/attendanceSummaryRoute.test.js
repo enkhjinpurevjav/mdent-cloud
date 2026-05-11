@@ -97,6 +97,7 @@ describe("GET /api/admin/attendance/summary", () => {
       const row = res.body.items[0];
       assert.equal(row.userId, 501);
       assert.equal(row.requiredMinutes, 960); // 2 weekdays * 480
+      assert.equal(row.workedMinutes, 1140); // 9h + 10h
       assert.equal(row.acceptedOvertimeMinutes, 60); // only approved day counts
       assert.equal(row.overtimeBreakdown.length, 1);
       assert.equal(row.overtimeBreakdown[0].date, "2026-05-05");
