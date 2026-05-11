@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import UsersTabs from "../../components/UsersTabs";
 import SendResetLinkButton from "../../components/SendResetLinkButton";
+import { useRouter } from "next/router";
 
 type Branch = {
   id: number;
@@ -23,9 +24,13 @@ type Receptionist = {
 
 function ReceptionForm({
   branches,
+  role,
+  roleLabel,
   onSuccess,
 }: {
   branches: Branch[];
+  role: "receptionist" | "sterilization";
+  roleLabel: string;
   onSuccess: (u: Receptionist) => void;
 }) {
   const [form, setForm] = useState({
@@ -73,7 +78,7 @@ function ReceptionForm({
         password: form.password,
         name: form.name || undefined,
         ovog: form.ovog || undefined,
-        role: "receptionist",
+        role,
         branchId: primaryBranchId,
         phone: form.phone || undefined,
       };
@@ -152,7 +157,7 @@ function ReceptionForm({
 
   return (
     <form onSubmit={handleSubmit} className="mb-6">
-      <h2>Шинэ ресепшн бүртгэх</h2>
+      <h2>Шинэ {roleLabel.toLowerCase()} бүртгэх</h2>
 
       <div className="grid [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))] gap-2 mb-2">
         <input
@@ -232,6 +237,19 @@ function ReceptionForm({
 }
 
 export default function ReceptionPage() {
+  const router = useRouter();
+  const isSterilizationPage = router.pathname === "/users/sterilization";
+  const userRole: "receptionist" | "sterilization" = isSterilizationPage
+    ? "sterilization"
+    : "receptionist";
+  const roleLabel = isSterilizationPage ? "Ариутгал" : "Ресепшн";
+  const todayEndpoint = isSterilizationPage
+    ? "/api/users/sterilizations/today"
+    : "/api/users/receptions/today";
+  const profileBasePath = isSterilizationPage
+    ? "/users/sterilization"
+    : "/users/reception";
+
   const [users, setUsers] = useState<Receptionist[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(false);
@@ -259,7 +277,7 @@ export default function ReceptionPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch("/api/users?role=receptionist");
+      const res = await fetch(`/api/users?role=${userRole}`);
       let data: any = null;
       try {
         data = await res.json();
@@ -289,14 +307,14 @@ export default function ReceptionPage() {
 
   const loadSummary = async () => {
     try {
-      // 1) get total number of receptionists (existing logic)
-      const usersRes = await fetch("/api/users?role=receptionist");
+      // 1) get total number of users for this role
+      const usersRes = await fetch(`/api/users?role=${userRole}`);
       const usersData = await usersRes.json().catch(() => null);
       const total =
         usersRes.ok && Array.isArray(usersData) ? usersData.length : 0;
 
-      // 2) get "working today" count from new endpoint
-      const todayRes = await fetch("/api/users/receptions/today");
+      // 2) get "working today" count by role
+      const todayRes = await fetch(todayEndpoint);
       const todayData = await todayRes.json().catch(() => null);
       const workingToday =
         todayRes.ok && todayData && typeof todayData.count === "number"
@@ -313,13 +331,13 @@ export default function ReceptionPage() {
     loadBranches();
     loadUsers();
     loadSummary();
-  }, []);
+  }, [userRole, todayEndpoint]);
 
   return (
     <main className="max-w-7xl px-4 lg:px-8 my-4 font-sans">
-      <h1 className="text-2xl font-bold mt-1 mb-2">Ресепшн</h1>
+      <h1 className="text-2xl font-bold mt-1 mb-2">{roleLabel}</h1>
       <p className="text-gray-500 mb-4">
-        Ресепшн ажилчдыг бүртгэх, салбарт хуваарьлах, жагсаалтаар харах.
+        {roleLabel} ажилчдыг бүртгэх, салбарт хуваарьлах, жагсаалтаар харах.
       </p>
 
       <UsersTabs />
@@ -328,31 +346,33 @@ export default function ReceptionPage() {
       <section className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div className="rounded-2xl p-4 bg-blue-100 shadow-sm">
           <div className="text-xs font-semibold tracking-wide text-blue-700 uppercase mb-1.5">
-            НИЙТ РЕСЕПШН
+            НИЙТ {roleLabel}
           </div>
           <div className="text-3xl font-bold mb-1">
             {summary ? summary.total : "—"}
           </div>
           <div className="text-xs text-gray-600">
-            Системд бүртгэлтэй нийт ресепшн ажилчдын тоо.
+            Системд бүртгэлтэй нийт {roleLabel.toLowerCase()} ажилчдын тоо.
           </div>
         </div>
 
         <div className="rounded-2xl p-4 bg-green-100 shadow-sm">
           <div className="text-xs font-semibold tracking-wide text-green-700 uppercase mb-1.5">
-            ӨНӨӨДӨР АЖИЛЛАЖ БУЙ РЕСЕПШН
+            ӨНӨӨДӨР АЖИЛЛАЖ БУЙ {roleLabel}
           </div>
           <div className="text-3xl font-bold mb-1">
             {summary ? summary.workingToday : "—"}
           </div>
           <div className="text-xs text-gray-600">
-            Өнөөдрийн ажлын хуваарьт орсон ресепшнүүдийн тоо.
+            Өнөөдрийн ажлын хуваарьт орсон {roleLabel.toLowerCase()} ажилчдын тоо.
           </div>
         </div>
       </section>
 
       <ReceptionForm
         branches={branches}
+        role={userRole}
+        roleLabel={roleLabel}
         onSuccess={(u) => {
           setUsers((prev) => [u, ...prev]);
           loadSummary();
@@ -382,7 +402,7 @@ export default function ReceptionPage() {
                 const btnCls = "inline-flex items-center justify-center w-7 h-7 rounded border border-gray-200 bg-gray-50 text-gray-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-colors";
                 const tooltipCls = "pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100";
                 return users.map((u, index) => {
-                  const baseUrl = `/users/reception/${u.id}`;
+                  const baseUrl = `${profileBasePath}/${u.id}`;
                   return (
                     <tr key={u.id} className="odd:bg-white even:bg-gray-50 hover:bg-gray-100">
                       <td className="border-b border-gray-100 py-2 px-3">{index + 1}</td>

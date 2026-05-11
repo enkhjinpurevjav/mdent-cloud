@@ -37,6 +37,11 @@ export default function UsersTabs() {
           </Link>
         </li>
         <li>
+          <Link href="/users/sterilization" legacyBehavior>
+            <a className={linkClass(isActive("/users/sterilization"))}>Ариутгал</a>
+          </Link>
+        </li>
+        <li>
           <Link href="/users/marketing" legacyBehavior>
             <a className={linkClass(isActive("/users/marketing"))}>Маркетинг</a>
           </Link>
