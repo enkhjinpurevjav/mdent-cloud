@@ -226,6 +226,7 @@ type SummaryRow = {
   branchId: number;
   branchName: string;
   requiredMinutes: number;
+  workedMinutes: number;
   lateMinutes: number;
   earlyLeaveMinutes: number;
   acceptedOvertimeMinutes: number;
@@ -1554,6 +1555,7 @@ export default function AdminAttendancePage() {
                   <th className="whitespace-nowrap px-3 py-2 font-semibold text-gray-700">Үүрэг</th>
                   <th className="whitespace-nowrap px-3 py-2 font-semibold text-gray-700">Салбар</th>
                   <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700">Ажиллах цаг</th>
+                  <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700">Ажилласан цаг</th>
                   <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700">Хоцролт (мин)</th>
                   <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700">Эрт явсан (мин)</th>
                   <th className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-700">Илүү цаг</th>
@@ -1562,13 +1564,13 @@ export default function AdminAttendancePage() {
               <tbody>
                 {!summarySearched ? (
                   <tr>
-                    <td colSpan={9} className="px-3 py-6 text-center text-sm text-gray-400">
+                    <td colSpan={10} className="px-3 py-6 text-center text-sm text-gray-400">
                       Шүүлт хийнэ үү
                     </td>
                   </tr>
                 ) : summaryRows.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-3 py-6 text-center text-sm text-gray-400">
+                    <td colSpan={10} className="px-3 py-6 text-center text-sm text-gray-400">
                       Мэдээлэл олдсонгүй
                     </td>
                   </tr>
@@ -1582,6 +1584,9 @@ export default function AdminAttendancePage() {
                       <td className="px-3 py-2">{row.branchName}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">
                         {formatOvertime(row.requiredMinutes)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right">
+                        {formatOvertime(row.workedMinutes)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">{row.lateMinutes}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right">{row.earlyLeaveMinutes}</td>
