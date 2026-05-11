@@ -11,6 +11,13 @@ function usersGateAllows({ role, method, path, query }) {
   ) {
     return true;
   }
+  if (role === "sterilization" && method === "GET" && path === "/") {
+    return (
+      query?.role === "doctor" ||
+      query?.role === "nurse" ||
+      query?.role === "sterilization"
+    );
+  }
   if (method === "GET" && path === "/nurses/today") return true;
   if (method === "GET" && path === "/nurses/by-branch") return true;
   return false;
@@ -90,6 +97,66 @@ describe("/api/users RBAC gate nurse list endpoints", () => {
         query: {},
       }),
       true
+    );
+  });
+
+  it("allows sterilization read-only role-filtered lookups", () => {
+    assert.equal(
+      usersGateAllows({
+        role: "sterilization",
+        method: "GET",
+        path: "/",
+        query: { role: "doctor" },
+      }),
+      true
+    );
+    assert.equal(
+      usersGateAllows({
+        role: "sterilization",
+        method: "GET",
+        path: "/",
+        query: { role: "nurse" },
+      }),
+      true
+    );
+    assert.equal(
+      usersGateAllows({
+        role: "sterilization",
+        method: "GET",
+        path: "/",
+        query: { role: "sterilization", branchId: "1" },
+      }),
+      true
+    );
+  });
+
+  it("blocks sterilization from non-scoped /api/users access", () => {
+    assert.equal(
+      usersGateAllows({
+        role: "sterilization",
+        method: "POST",
+        path: "/",
+        query: {},
+      }),
+      false
+    );
+    assert.equal(
+      usersGateAllows({
+        role: "sterilization",
+        method: "GET",
+        path: "/",
+        query: {},
+      }),
+      false
+    );
+    assert.equal(
+      usersGateAllows({
+        role: "sterilization",
+        method: "GET",
+        path: "/",
+        query: { role: "admin" },
+      }),
+      false
     );
   });
 });

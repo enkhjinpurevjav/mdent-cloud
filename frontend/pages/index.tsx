@@ -12,6 +12,7 @@ const ROLE_HOME: Record<string, string> = {
   doctor: "/doctor/appointments",
   nurse: "/nurse/schedule",
   xray: "/xray",
+  sterilization: "/sterilization/cycles/new",
 };
 
 export default function IndexPage() {
