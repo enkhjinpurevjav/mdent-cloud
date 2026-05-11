@@ -16,6 +16,7 @@ const ROLE_HOME: Record<string, string> = {
   nurse: "/nurse/schedule",
   xray: "/xray",
   sterilization: "/sterilization/cycles/new",
+  other: "/attendance",
   branch_kiosk: "/branch",
 };
 
@@ -41,6 +42,7 @@ export default function LoginPage() {
       const isMarketing = me.role === "marketing";
       const isXray = me.role === "xray";
       const isSterilization = me.role === "sterilization";
+      const isOther = me.role === "other";
       const isAdminRole = ["admin", "super_admin"].includes(me.role);
       if (isDoctor && redirectParam.startsWith("/doctor")) {
         destination = redirectParam;
@@ -56,6 +58,12 @@ export default function LoginPage() {
         isSterilization &&
         (redirectParam.startsWith("/sterilization") ||
           redirectParam.startsWith("/attendance") ||
+          redirectParam.startsWith("/profile"))
+      ) {
+        destination = redirectParam;
+      } else if (
+        isOther &&
+        (redirectParam.startsWith("/attendance") ||
           redirectParam.startsWith("/profile"))
       ) {
         destination = redirectParam;

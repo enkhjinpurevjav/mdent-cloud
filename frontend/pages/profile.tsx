@@ -34,6 +34,7 @@ function formatRole(role?: string | null): string {
     manager: "Менежер",
     xray: "Рентген",
     sterilization: "Ариутгал",
+    other: "Бусад",
     branch_kiosk: "Салбар киоск",
     doctor_kiosk: "Эмч киоск",
     staff: "Ажилтан",

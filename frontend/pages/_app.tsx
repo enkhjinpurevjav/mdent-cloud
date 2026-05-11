@@ -80,6 +80,15 @@ function isSterilizationAllowedPath(pathname: string) {
   );
 }
 
+function isOtherAllowedPath(pathname: string) {
+  return (
+    pathname === "/attendance" ||
+    pathname.startsWith("/attendance/") ||
+    pathname === "/profile" ||
+    pathname.startsWith("/profile/")
+  );
+}
+
 function mapFrontdeskPathByRole(asPath: string, role: string | null) {
   if (!role) return asPath;
 
@@ -209,6 +218,14 @@ function AppContent({ Component, pageProps }: AppProps) {
     void router.replace("/sterilization/cycles/new");
   }, [isPublicRoute, loading, me, router]);
 
+  // Keep other users scoped to attendance/profile-only portal pages.
+  useEffect(() => {
+    if (loading || !me || isPublicRoute) return;
+    if (me.role !== "other") return;
+    if (isOtherAllowedPath(router.pathname)) return;
+    void router.replace("/attendance");
+  }, [isPublicRoute, loading, me, router]);
+
   // Show tooth loader during initial auth bootstrap for protected pages
   if (loading && !isPublicRoute) {
     return <ToothLoader />;
@@ -239,6 +256,7 @@ function AppContent({ Component, pageProps }: AppProps) {
   const useMarketingLayout = isMarketingPath(router.pathname);
   const useXrayLayout = isXrayPath(router.pathname);
   const useBranchKioskLayout = isBranchKioskPath(router.pathname) || userRole === "branch_kiosk";
+  const useOtherPortalLayout = userRole === "other";
 
   // Wide layout for appointments pages (admin + reception) to support many doctor columns
   const wide = isAppointmentsPath(router.pathname);
@@ -286,6 +304,14 @@ function AppContent({ Component, pageProps }: AppProps) {
 
   // Branch kiosk pages: keep navy header but hide sidebar
   if (useBranchKioskLayout) {
+    return renderWithPopup(
+      <AdminLayout hideSidebar>
+        <Component {...pageProps} />
+      </AdminLayout>
+    );
+  }
+
+  if (useOtherPortalLayout) {
     return renderWithPopup(
       <AdminLayout hideSidebar>
         <Component {...pageProps} />
