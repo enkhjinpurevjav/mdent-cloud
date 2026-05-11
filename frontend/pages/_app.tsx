@@ -69,6 +69,17 @@ function isHrAllowedPath(pathname: string) {
   );
 }
 
+function isSterilizationAllowedPath(pathname: string) {
+  return (
+    pathname === "/sterilization" ||
+    pathname.startsWith("/sterilization/") ||
+    pathname === "/attendance" ||
+    pathname.startsWith("/attendance/") ||
+    pathname === "/profile" ||
+    pathname.startsWith("/profile/")
+  );
+}
+
 function mapFrontdeskPathByRole(asPath: string, role: string | null) {
   if (!role) return asPath;
 
@@ -188,6 +199,14 @@ function AppContent({ Component, pageProps }: AppProps) {
     if (me.role !== "hr") return;
     if (isHrAllowedPath(router.pathname)) return;
     void router.replace("/users");
+  }, [isPublicRoute, loading, me, router]);
+
+  // Keep sterilization users scoped to sterilization-only portal pages.
+  useEffect(() => {
+    if (loading || !me || isPublicRoute) return;
+    if (me.role !== "sterilization") return;
+    if (isSterilizationAllowedPath(router.pathname)) return;
+    void router.replace("/sterilization/cycles/new");
   }, [isPublicRoute, loading, me, router]);
 
   // Show tooth loader during initial auth bootstrap for protected pages

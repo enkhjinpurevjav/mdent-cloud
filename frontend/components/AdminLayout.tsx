@@ -214,9 +214,31 @@ const hrPortalNavItems: NavItem[] = [
   },
 ];
 
+const sterilizationPortalNavItems: NavItem[] = [
+  {
+    label: "Ариутгал",
+    icon: "🧼",
+    children: [
+      { label: "Ариутгалын багаж үүсгэх", href: "/sterilization/cycles/new", icon: "🔄" },
+      { label: "Өрмийн бүртгэл, хяналт", href: "/sterilization/bur-cycles", icon: "🦷" },
+      { label: "Халдваргүйтгэл", href: "/sterilization/disinfection", icon: "🧴" },
+      { label: "Циклийн жагсаалт", href: "/sterilization/cycles", icon: "📋" },
+      { label: "Ариутгалын тайлан", href: "/sterilization/reports", icon: "📊" },
+      { label: "Зөрүү", href: "/sterilization/mismatches", icon: "⚠️" },
+      { label: "Багаж буцаалт", href: "/sterilization/returns", icon: "↩️" },
+      { label: "Хаягдал (Устгал)", href: "/sterilization/disposals", icon: "🗑️" },
+      { label: "Тохиргоо", href: "/sterilization/settings", icon: "⚙️" },
+      { label: "Машинууд", href: "/sterilization/machines", icon: "🔧" },
+    ],
+  },
+];
+
 function getVisibleNavItems(role?: string): NavItem[] {
   if (role === "hr") {
     return hrPortalNavItems;
+  }
+  if (role === "sterilization") {
+    return sterilizationPortalNavItems;
   }
   return navItems;
 }
@@ -249,6 +271,7 @@ export default function AdminLayout({ children, wide, hideSidebar }: Props) {
       nurse: "Сувилагч",
       doctor: "Эмч",
       hr: "Хүний нөөц",
+      sterilization: "Ариутгал",
       reception: "Ресепшн",
       staff: "Ажилтан",
     };

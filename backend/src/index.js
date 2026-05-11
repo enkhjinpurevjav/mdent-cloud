@@ -239,6 +239,7 @@ app.use("/api/dashboard", requireAdminRole);
 // RBAC: /api/users gate
 // - admin/super_admin: full access
 // - receptionist/marketing: read-only GET /api/users?role=doctor only
+// - sterilization: read-only GET /api/users?role=doctor|nurse|sterilization
 // - any authenticated user: read-only GET /api/users/nurses/today and /api/users/nurses/by-branch
 app.use("/api/users", (req, res, next) => {
   if (process.env.DISABLE_AUTH === "true") return next();
@@ -254,6 +255,13 @@ app.use("/api/users", (req, res, next) => {
     req.query.role === "doctor"
   ) {
     return next();
+  }
+  if (role === "sterilization" && req.method === "GET" && req.path === "/") {
+    const roleQuery =
+      typeof req.query.role === "string" ? req.query.role : Array.isArray(req.query.role) ? req.query.role[0] : "";
+    if (roleQuery === "doctor" || roleQuery === "nurse" || roleQuery === "sterilization") {
+      return next();
+    }
   }
   // Allow any authenticated user to fetch today's nurses list (used on XRAY page).
   if (req.method === "GET" && req.path === "/nurses/today") {
