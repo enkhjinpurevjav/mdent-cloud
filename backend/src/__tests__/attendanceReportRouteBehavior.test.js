@@ -98,6 +98,9 @@ describe("GET /api/admin/attendance route behavior", () => {
       assert.equal(target.status, "open");
       assert.equal(target.sessionCount, 2);
       assert.equal(target.durationMinutes, 60);
+      assert.equal(target.requiredMinutes, 0);
+      assert.equal(target.lateMinutes, 0);
+      assert.equal(target.earlyLeaveMinutes, 0);
     } finally {
       prisma.user.findMany = originalUserFindMany;
       prisma.attendanceSession.findMany = originalAttendanceFindMany;
@@ -166,6 +169,86 @@ describe("GET /api/admin/attendance route behavior", () => {
     }
   });
 
+  it("uses schedule row hours for doctor required/late/early calculations", async () => {
+    const originalDoctorFindMany = prisma.doctorSchedule.findMany;
+    const originalNurseFindMany = prisma.nurseSchedule.findMany;
+    const originalReceptionFindMany = prisma.receptionSchedule.findMany;
+    const originalAttendanceFindMany = prisma.attendanceSession.findMany;
+    const originalUserFindMany = prisma.user.findMany;
+
+    prisma.doctorSchedule.findMany = async () => [
+      {
+        id: 2001,
+        doctorId: 77,
+        branchId: 3,
+        date: new Date("2026-05-05T00:00:00.000Z"),
+        startTime: "10:00",
+        endTime: "18:00",
+        note: null,
+        doctor: {
+          id: 77,
+          name: "Bat",
+          ovog: "Dorj",
+          email: "bat@example.com",
+          role: "doctor",
+        },
+        branch: { id: 3, name: "Central" },
+      },
+    ];
+    prisma.nurseSchedule.findMany = async () => [];
+    prisma.receptionSchedule.findMany = async () => [];
+    prisma.user.findMany = async () => [];
+    prisma.attendanceSession.findMany = async () => [
+      {
+        id: 12,
+        userId: 77,
+        checkInAt: new Date("2026-05-05T03:00:00.000Z"), // 11:00 UTC+8
+        checkOutAt: new Date("2026-05-05T09:00:00.000Z"), // 17:00 UTC+8
+        overtimeApproved: false,
+        overtimeApprovedAt: null,
+        overtimeApprovedByUserId: null,
+        user: {
+          id: 77,
+          name: "Bat",
+          ovog: "Dorj",
+          email: "bat@example.com",
+          role: "doctor",
+        },
+        branch: { id: 3, name: "Central" },
+      },
+    ];
+
+    const req = {
+      query: {
+        fromTs: "2026-05-05T00:00:00.000Z",
+        toTs: "2026-05-05T23:59:59.999Z",
+      },
+    };
+    const res = createRes();
+
+    try {
+      const handler = getAttendanceHandler();
+      await handler(req, res);
+
+      assert.equal(res.statusCode, 200);
+      assert.ok(Array.isArray(res.body?.items));
+      const target = res.body.items.find((item) => item.userId === 77);
+      assert.ok(target);
+      assert.equal(target.rowType, "scheduled");
+      assert.equal(target.scheduledStart, "10:00");
+      assert.equal(target.scheduledEnd, "18:00");
+      assert.equal(target.requiredMinutes, 480);
+      assert.equal(target.lateMinutes, 60);
+      assert.equal(target.earlyLeaveMinutes, 60);
+    } finally {
+      prisma.user.findMany = originalUserFindMany;
+      prisma.attendanceSession.findMany = originalAttendanceFindMany;
+      prisma.doctorSchedule.findMany = originalDoctorFindMany;
+      prisma.nurseSchedule.findMany = originalNurseFindMany;
+      prisma.receptionSchedule.findMany = originalReceptionFindMany;
+    }
+  });
+
   it("adds absent rows for non-scheduled active roles across range", async () => {
     const originalDoctorFindMany = prisma.doctorSchedule.findMany;
     const originalNurseFindMany = prisma.nurseSchedule.findMany;
@@ -196,6 +279,24 @@ describe("GET /api/admin/attendance route behavior", () => {
         branchId: 5,
         branch: { id: 5, name: "North" },
       },
+      {
+        id: 303,
+        name: "XR User",
+        ovog: "C",
+        email: "xray@example.com",
+        role: "xray",
+        branchId: 5,
+        branch: { id: 5, name: "North" },
+      },
+      {
+        id: 304,
+        name: "Kiosk User",
+        ovog: "D",
+        email: "kiosk@example.com",
+        role: "branch_kiosk",
+        branchId: 5,
+        branch: { id: 5, name: "North" },
+      },
     ];
 
     const req = {
@@ -223,6 +324,8 @@ describe("GET /api/admin/attendance route behavior", () => {
       assert.ok(
         targetRows.every((item) => item.userRole === "manager" || item.userRole === "other")
       );
+      assert.ok(res.body.items.every((item) => item.userRole !== "xray"));
+      assert.ok(res.body.items.every((item) => item.userRole !== "branch_kiosk"));
     } finally {
       prisma.user.findMany = originalUserFindMany;
       prisma.attendanceSession.findMany = originalAttendanceFindMany;

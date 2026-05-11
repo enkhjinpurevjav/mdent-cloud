@@ -4,12 +4,20 @@ import {
   buildDailySessionAggregateMap,
   mongoliaDateString,
   mongoliaWallClockMinutes,
+  parseHHMM,
 } from "../../utils/attendanceReport.js";
 import { computeAttendanceKpis, toAttendanceCsv } from "../../utils/attendanceReport.js";
 import { canAccessAttendanceAdminFeatures } from "../../utils/attendanceAccess.js";
 
 const router = Router();
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const EXCLUDED_ATTENDANCE_ROLES = new Set(["xray", "branch_kiosk"]);
+const SCHEDULE_DRIVEN_ROLES = new Set([
+  "doctor",
+  "nurse",
+  "sterilization",
+  "receptionist",
+]);
 
 function mongoliaWeekday(ymd) {
   const dt = new Date(`${ymd}T00:00:00.000Z`);
@@ -21,8 +29,8 @@ function getFixedScheduleByRole({ role, ymd }) {
   const isWeekday = weekday >= 1 && weekday <= 5;
   const isSaturday = weekday === 6;
 
-  // Group #1 and #2 share the same reference schedule for reporting.
-  if (["other", "doctor", "nurse", "sterilization", "receptionist"].includes(role)) {
+  // Keep "other" fixed schedule behavior unchanged.
+  if (role === "other") {
     if (isWeekday) {
       return {
         requiredMinutes: 9 * 60,
@@ -61,6 +69,28 @@ function getFixedScheduleByRole({ role, ymd }) {
     };
   }
   return { requiredMinutes: 0, startMinutes: null, endMinutes: null };
+}
+
+function getRoleScheduleForReporting({ role, ymd, startTime, endTime }) {
+  if (!SCHEDULE_DRIVEN_ROLES.has(role)) {
+    return getFixedScheduleByRole({ role, ymd });
+  }
+
+  if (!startTime || !endTime) {
+    return { requiredMinutes: 0, startMinutes: null, endMinutes: null };
+  }
+
+  const startMinutes = parseHHMM(startTime);
+  const endMinutes = parseHHMM(endTime);
+  if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
+    return { requiredMinutes: 0, startMinutes: null, endMinutes: null };
+  }
+
+  return {
+    requiredMinutes: endMinutes - startMinutes,
+    startMinutes,
+    endMinutes,
+  };
 }
 
 function enumerateMongoliaDateRange(from, to) {
@@ -174,6 +204,9 @@ async function buildAttendanceRows({
       prisma.user.findMany({
         where: {
           isActive: true,
+          role: {
+            notIn: Array.from(EXCLUDED_ATTENDANCE_ROLES),
+          },
           ...(filterUserId ? { id: filterUserId } : {}),
           ...(filterBranchId ? { branchId: filterBranchId } : {}),
         },
@@ -192,11 +225,16 @@ async function buildAttendanceRows({
 
   const sessionWhere = {
     checkInAt: { gte: from, lte: to },
+    user: {
+      role: {
+        notIn: Array.from(EXCLUDED_ATTENDANCE_ROLES),
+      },
+    },
   };
   if (filterBranchId) sessionWhere.branchId = filterBranchId;
   if (filterUserId) sessionWhere.userId = filterUserId;
 
-  const sessions = await prisma.attendanceSession.findMany({
+  const sessionsRaw = await prisma.attendanceSession.findMany({
     where: sessionWhere,
     include: {
       user: {
@@ -206,17 +244,28 @@ async function buildAttendanceRows({
     },
     orderBy: { checkInAt: "asc" },
   });
+  const sessions = sessionsRaw.filter(
+    (s) => !EXCLUDED_ATTENDANCE_ROLES.has(s.user?.role)
+  );
+  const activeUsersFiltered = activeUsers.filter(
+    (u) => !EXCLUDED_ATTENDANCE_ROLES.has(u.role)
+  );
 
   const sessionAggregateMap = buildDailySessionAggregateMap(sessions);
   const matchedSessionKeys = new Set();
   const rows = [];
 
   function buildRow(scheduleEntry) {
-    const { user, branch, date, note } = scheduleEntry;
+    const { user, branch, date, note, startTime, endTime } = scheduleEntry;
     const dateStr = mongoliaDateString(date);
     const key = `${user.id}:${dateStr}`;
     const aggregate = sessionAggregateMap.get(key) || null;
-    const schedule = getFixedScheduleByRole({ role: user.role, ymd: dateStr });
+    const schedule = getRoleScheduleForReporting({
+      role: user.role,
+      ymd: dateStr,
+      startTime,
+      endTime,
+    });
 
     if (aggregate) {
       matchedSessionKeys.add(key);
@@ -306,7 +355,7 @@ async function buildAttendanceRows({
 
     const firstSession = aggregate.firstSession;
     const durationMinutes = aggregate.totalDurationMinutes;
-    const schedule = getFixedScheduleByRole({
+    const schedule = getRoleScheduleForReporting({
       role: firstSession.user.role,
       ymd: dateStr,
     });
@@ -363,11 +412,11 @@ async function buildAttendanceRows({
     rows.map((row) => `${row.userId}:${row.scheduledDate}`)
   );
   const ymdRange = enumerateMongoliaDateRange(from, to);
-  for (const user of activeUsers) {
+  for (const user of activeUsersFiltered) {
     for (const ymd of ymdRange) {
       const key = `${user.id}:${ymd}`;
       if (existingUserDayKeys.has(key)) continue;
-      const schedule = getFixedScheduleByRole({ role: user.role, ymd });
+      const schedule = getRoleScheduleForReporting({ role: user.role, ymd });
       const scheduledStart = formatMinutesAsHHMM(schedule.startMinutes);
       const scheduledEnd = formatMinutesAsHHMM(schedule.endMinutes);
       rows.push({

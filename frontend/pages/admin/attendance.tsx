@@ -98,6 +98,8 @@ const POLICY_ROLE_OPTIONS: { value: string; label: string }[] = [
   { value: "doctor_kiosk", label: "Эмч киоск" },
 ];
 
+const ATTENDANCE_EXCLUDED_ROLES = new Set(["xray", "branch_kiosk"]);
+
 function statusLabel(status: string): string {
   const map: Record<string, string> = {
     present: "Ирсэн",
@@ -330,7 +332,18 @@ export default function AdminAttendancePage() {
 
     fetch("/api/users", { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => setUsers(Array.isArray(d) ? d : []))
+      .then((d) =>
+        setUsers(
+          Array.isArray(d)
+            ? d.filter(
+                (u) =>
+                  u &&
+                  typeof u.role === "string" &&
+                  !ATTENDANCE_EXCLUDED_ROLES.has(u.role)
+              )
+            : []
+        )
+      )
       .catch(() => setUsers([]));
   }, []);
 
@@ -1513,7 +1526,10 @@ export default function AdminAttendancePage() {
                 className="rounded border border-gray-300 px-3 py-1.5 text-sm"
               >
                 <option value="">Бүх үүрэг</option>
-                {POLICY_ROLE_OPTIONS.filter((opt) => opt.value).map((opt) => (
+                {POLICY_ROLE_OPTIONS.filter(
+                  (opt) =>
+                    opt.value && !ATTENDANCE_EXCLUDED_ROLES.has(opt.value)
+                ).map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
