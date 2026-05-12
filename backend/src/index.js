@@ -67,6 +67,7 @@ import branchKioskRouter from "./routes/branch.js";
 import announcementsRouter from "./routes/announcements.js";
 import { authenticateJWT, requireRole, DOCTOR_KIOSK_COOKIE_NAME } from "./middleware/auth.js";
 import rateLimit from "express-rate-limit";
+import { autoCloseOpenAttendanceSessions } from "./services/attendanceAutoClose.js";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -372,6 +373,35 @@ app.use((err, _req, res, _next) => {
 const port = Number(process.env.PORT || 8080);
 app.listen(port, () => {
   log.info({ port }, "Backend listening");
+  const autoCloseDisabled = process.env.DISABLE_ATTENDANCE_AUTO_CLOSE_JOB === "true";
+  const intervalMsRaw = Number(process.env.ATTENDANCE_AUTO_CLOSE_INTERVAL_MS);
+  const intervalMs = Number.isFinite(intervalMsRaw) && intervalMsRaw > 0 ? intervalMsRaw : 60_000;
+
+  if (autoCloseDisabled) {
+    log.info("attendance auto-close job disabled");
+  } else {
+    const runAutoClose = async () => {
+      try {
+        const result = await autoCloseOpenAttendanceSessions();
+        if (result.closedCount > 0) {
+          log.info(
+            { closedCount: result.closedCount, scannedCount: result.scannedCount },
+            "attendance auto-close applied"
+          );
+        }
+      } catch (err) {
+        log.error({ err }, "attendance auto-close job failed");
+      }
+    };
+
+    void runAutoClose();
+    const timer = setInterval(() => {
+      void runAutoClose();
+    }, intervalMs);
+    timer.unref?.();
+    log.info({ intervalMs }, "attendance auto-close job started");
+  }
+
   if (process.env.RUN_SEED === "true") {
     log.warn("RUN_SEED=true – seed placeholder.");
   }
