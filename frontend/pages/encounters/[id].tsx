@@ -546,9 +546,13 @@ export default function EncounterAdminPage() {
       return;
     }
 
-    const loadServices = async () => {
+    const loadServices = async (branchId?: number | null) => {
       try {
-        const res = await fetch("/api/services");
+        const qs =
+          branchId && Number.isFinite(branchId)
+            ? `?branchId=${encodeURIComponent(String(branchId))}`
+            : "";
+        const res = await fetch(`/api/services${qs}`);
         const json = await res.json().catch(() => null);
         if (res.ok && Array.isArray(json)) {
           setServices(json);
@@ -597,6 +601,9 @@ const loadEncounter = async () => {
 
     const enc: Encounter = json;
     setEncounter(enc);
+    const appointmentBranchId = enc?.appointment?.branchId ?? null;
+    setServiceFilterBranchId(appointmentBranchId);
+    await loadServices(appointmentBranchId);
 
     // 1) Build base diagnosis rows from encounterDiagnoses
     const dxRows: EditableDiagnosis[] =
@@ -837,7 +844,6 @@ const loadEncounter = async () => {
       }
     };
 
-    void loadServices();
     void loadDx();
     void loadEncounter();
     void loadConsents();
