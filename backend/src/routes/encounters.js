@@ -19,6 +19,20 @@ export function getCloseWithoutPaymentActorIds({ reqUser, kioskUser = null }) {
   return { effectiveDoctorId: null, closedByUserId: reqUser?.id ?? null };
 }
 
+export function getEncounterAppointmentBranchId(encounter) {
+  const appointmentBranchId = Number(encounter?.appointment?.branchId);
+  if (Number.isFinite(appointmentBranchId) && appointmentBranchId > 0) {
+    return appointmentBranchId;
+  }
+
+  const patientBranchId = Number(encounter?.patientBook?.patient?.branchId);
+  if (Number.isFinite(patientBranchId) && patientBranchId > 0) {
+    return patientBranchId;
+  }
+
+  return null;
+}
+
 /**
  * Authorization middleware for encounter write endpoints.
  *
@@ -470,7 +484,7 @@ router.get("/:id", async (req, res) => {
           },
         },
         appointment: {
-          select: { scheduledAt: true },
+          select: { scheduledAt: true, branchId: true },
         },
       },
     });
@@ -778,7 +792,8 @@ router.put("/:id/consent", requireEncounterWriteAccess, async (req, res) => {
 
 /**
  * GET /api/encounters/:id/nurses
- * Returns all active nurses in the encounter's branch.
+ * Returns all active nurses in the encounter appointment's branch
+ * (falls back to patient branch when no appointment branch is available).
  */
 router.get("/:id/nurses", authenticateJWT, async (req, res) => {
   try {
@@ -787,12 +802,15 @@ router.get("/:id/nurses", authenticateJWT, async (req, res) => {
       return res.status(400).json({ error: "Invalid encounter id" });
     }
 
-    // Load encounter with patient & branch to infer branchId
+    // Load encounter with linked appointment to infer branchId
     const encounter = await prisma.encounter.findUnique({
       where: { id: encounterId },
-      include: {
+      select: {
+        appointment: {
+          select: { branchId: true },
+        },
         patientBook: {
-          include: {
+          select: {
             patient: {
               select: { branchId: true },
             },
@@ -805,7 +823,7 @@ router.get("/:id/nurses", authenticateJWT, async (req, res) => {
       return res.status(404).json({ error: "Encounter not found" });
     }
 
-    const branchId = encounter.patientBook.patient.branchId;
+    const branchId = getEncounterAppointmentBranchId(encounter);
 
     if (!branchId) {
       return res.json({ count: 0, items: [] });
