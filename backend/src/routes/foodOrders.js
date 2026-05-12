@@ -3,8 +3,10 @@ import { Prisma } from "@prisma/client";
 import prisma from "../db.js";
 import {
   ULAANBAATAR_TIMEZONE,
+  getUlaanbaatarMinuteOfDay,
   getUlaanbaatarYmd,
   isFoodOrderingOpenAt,
+  resolveFoodOrderTargetYmd,
   toOrderDateFromYmd,
   addDaysToYmd,
 } from "../utils/foodOrderWindow.js";
@@ -40,12 +42,13 @@ function toOrderItem(order) {
     id: order.id,
     orderDate: getUlaanbaatarYmd(order.orderDate),
     submitTimestamp: order.createdAt.toISOString(),
+    quantity: order.quantity ?? 1,
   };
 }
 
 /**
  * GET /api/food-orders/status
- * Returns order window status for the current user for today's order.
+ * Returns order window status for the current user's target order date.
  */
 router.get("/status", async (req, res) => {
   try {
@@ -56,35 +59,41 @@ router.get("/status", async (req, res) => {
 
     const now = new Date();
     const todayYmd = getUlaanbaatarYmd(now);
-    const todayOrderDate = toOrderDateFromYmd(todayYmd);
+    const targetOrderDateYmd = resolveFoodOrderTargetYmd(now);
+    const targetOrderDate = toOrderDateFromYmd(targetOrderDateYmd);
     const orderingOpen = isFoodOrderingOpenAt(now);
+    const minuteOfDay = getUlaanbaatarMinuteOfDay(now);
 
     const existing = await prisma.foodOrder.findUnique({
       where: {
         userId_orderDate: {
           userId,
-          orderDate: todayOrderDate,
+          orderDate: targetOrderDate,
         },
       },
       select: {
         id: true,
         createdAt: true,
         orderDate: true,
+        quantity: true,
       },
     });
 
     return res.json({
       timezone: ULAANBAATAR_TIMEZONE,
-      orderDate: todayYmd,
+      currentDate: todayYmd,
+      orderDate: targetOrderDateYmd,
       orderingOpen,
       alreadyOrdered: !!existing,
       canOrder: orderingOpen && !existing,
-      nextOpenDate: addDaysToYmd(todayYmd, 1),
+      nextOpenDate:
+        minuteOfDay >= 21 * 60 ? addDaysToYmd(todayYmd, 1) : todayYmd,
       order: existing
         ? {
             id: existing.id,
             orderDate: getUlaanbaatarYmd(existing.orderDate),
             submitTimestamp: existing.createdAt.toISOString(),
+            quantity: existing.quantity ?? 1,
           }
         : null,
     });
@@ -96,7 +105,9 @@ router.get("/status", async (req, res) => {
 
 /**
  * POST /api/food-orders
- * Creates today's food order for current user (00:00-09:59 UB only).
+ * Creates food order for current user during open windows:
+ * - 00:00-09:59 UB => today's order
+ * - 21:00-23:59 UB => next day's order
  */
 router.post("/", async (req, res) => {
   try {
@@ -108,11 +119,11 @@ router.post("/", async (req, res) => {
     const now = new Date();
     if (!isFoodOrderingOpenAt(now)) {
       return res.status(403).json({
-        error: "Өнөөдрийн хоол захиалга 10:00 цагаас хойш хаагдсан. Маргааш 00:00 цагаас дахин оролдоно уу.",
+        error: "Хоол захиалга 10:00–20:59 хооронд хаалттай байна. 21:00 цагаас дахин оролдоно уу.",
       });
     }
 
-    const orderDateYmd = getUlaanbaatarYmd(now);
+    const orderDateYmd = resolveFoodOrderTargetYmd(now);
     const orderDate = toOrderDateFromYmd(orderDateYmd);
 
     const user = await prisma.user.findUnique({
@@ -128,11 +139,13 @@ router.post("/", async (req, res) => {
         userId,
         branchId: user.branchId ?? null,
         orderDate,
+        quantity: 1,
       },
       select: {
         id: true,
         orderDate: true,
         createdAt: true,
+        quantity: true,
       },
     });
 
@@ -142,11 +155,14 @@ router.post("/", async (req, res) => {
         id: created.id,
         orderDate: getUlaanbaatarYmd(created.orderDate),
         submitTimestamp: created.createdAt.toISOString(),
+        quantity: created.quantity ?? 1,
       },
     });
   } catch (err) {
     if (err?.code === "P2002") {
-      return res.status(409).json({ error: "Та өнөөдрийн хоол захиалгаа аль хэдийн бүртгүүлсэн байна." });
+      return res.status(409).json({
+        error: "Энэ хоолны өдөрт таны захиалга аль хэдийн бүртгэгдсэн байна.",
+      });
     }
     console.error("POST /api/food-orders error:", err);
     return res.status(500).json({ error: "Серверийн алдаа гарлаа." });
@@ -218,7 +234,7 @@ router.get("/admin", async (req, res) => {
         });
       }
       const row = grouped.get(key);
-      row.totalCount += 1;
+      row.totalCount += order.quantity ?? 1;
       row.orders.push(toOrderItem(order));
     }
 
@@ -227,11 +243,16 @@ router.get("/admin", async (req, res) => {
       const right = `${b.ovog || ""}${b.name || ""}`;
       return left.localeCompare(right, "mn");
     });
+    const totalQuantity = orders.reduce(
+      (sum, order) => sum + (order.quantity ?? 1),
+      0
+    );
 
     return res.json({
       fromDate,
       toDate,
       totalOrders: orders.length,
+      totalQuantity,
       items,
     });
   } catch (err) {
@@ -242,7 +263,7 @@ router.get("/admin", async (req, res) => {
 
 /**
  * PATCH /api/food-orders/admin/:id
- * HR can manually move order date for correction requests.
+ * HR can manually update ordered food quantity only.
  */
 router.patch("/admin/:id", async (req, res) => {
   try {
@@ -253,51 +274,46 @@ router.patch("/admin/:id", async (req, res) => {
       return res.status(400).json({ error: "id буруу байна." });
     }
 
-    const orderDateStr = req.body?.orderDate;
-    const orderDate = toOrderDateFromYmd(orderDateStr);
+    const quantityRaw = req.body?.quantity;
+    const quantity = Number(quantityRaw);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      return res
+        .status(400)
+        .json({ error: "quantity нь 1-с их бүхэл тоо байх ёстой." });
+    }
 
     const existing = await prisma.foodOrder.findUnique({
       where: { id },
-      select: { id: true, userId: true },
+      select: { id: true },
     });
     if (!existing) {
       return res.status(404).json({ error: "Хоол захиалга олдсонгүй." });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: existing.userId },
-      select: { branchId: true },
-    });
-
     const updated = await prisma.foodOrder.update({
       where: { id },
       data: {
-        orderDate,
-        branchId: user?.branchId ?? null,
+        quantity,
         updatedByUserId: editorId ?? null,
       },
       select: {
         id: true,
         orderDate: true,
         createdAt: true,
+        quantity: true,
       },
     });
 
     return res.json({
-      message: "Хоол захиалгын огноо амжилттай шинэчлэгдлээ.",
+      message: "Хоолны тоо амжилттай шинэчлэгдлээ.",
       order: {
         id: updated.id,
         orderDate: getUlaanbaatarYmd(updated.orderDate),
         submitTimestamp: updated.createdAt.toISOString(),
+        quantity: updated.quantity ?? 1,
       },
     });
   } catch (err) {
-    if (err?.code === "P2002") {
-      return res.status(409).json({ error: "Тухайн өдөр энэ ажилтанд захиалга аль хэдийн бүртгэлтэй байна." });
-    }
-    if (err instanceof Error && err.message.startsWith("orderDate")) {
-      return res.status(400).json({ error: "orderDate нь YYYY-MM-DD форматтай байх ёстой." });
-    }
     if (err instanceof Prisma.PrismaClientValidationError) {
       return res.status(400).json({ error: "Илгээсэн өгөгдөл буруу байна." });
     }
