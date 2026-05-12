@@ -7,6 +7,7 @@ type FoodOrderItem = {
   id: number;
   orderDate: string;
   submitTimestamp: string;
+  quantity: number;
 };
 
 type FoodOrderRow = {
@@ -24,6 +25,7 @@ type FoodOrderAdminResponse = {
   fromDate: string;
   toDate: string;
   totalOrders: number;
+  totalQuantity?: number;
   items: FoodOrderRow[];
 };
 
@@ -91,11 +93,12 @@ export default function HrFoodOrdersPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [rows, setRows] = useState<FoodOrderRow[]>([]);
   const [totalOrders, setTotalOrders] = useState(0);
+  const [totalQuantity, setTotalQuantity] = useState(0);
   const [listLoading, setListLoading] = useState(false);
   const [error, setError] = useState("");
   const [detailRow, setDetailRow] = useState<FoodOrderRow | null>(null);
   const [editRow, setEditRow] = useState<FoodOrderRow | null>(null);
-  const [editDates, setEditDates] = useState<Record<number, string>>({});
+  const [editQuantities, setEditQuantities] = useState<Record<number, string>>({});
   const [savingOrderId, setSavingOrderId] = useState<number | null>(null);
   const [deletingOrderId, setDeletingOrderId] = useState<number | null>(null);
 
@@ -120,9 +123,13 @@ export default function HrFoodOrdersPage() {
       }
       setRows(Array.isArray(data?.items) ? data?.items : []);
       setTotalOrders(typeof data?.totalOrders === "number" ? data.totalOrders : 0);
+      setTotalQuantity(
+        typeof data?.totalQuantity === "number" ? data.totalQuantity : 0
+      );
     } catch (err: unknown) {
       setRows([]);
       setTotalOrders(0);
+      setTotalQuantity(0);
       setError(err instanceof Error ? err.message : "Хоол захиалгын мэдээлэл ачаалж чадсангүй.");
     } finally {
       setListLoading(false);
@@ -144,15 +151,18 @@ export default function HrFoodOrdersPage() {
   function openEditModal(row: FoodOrderRow) {
     const next: Record<number, string> = {};
     for (const item of row.orders) {
-      next[item.id] = item.orderDate;
+      next[item.id] = String(item.quantity ?? 1);
     }
-    setEditDates(next);
+    setEditQuantities(next);
     setEditRow(row);
   }
 
-  async function saveOrderDate(orderId: number) {
-    const orderDate = editDates[orderId];
-    if (!orderDate) return;
+  async function saveOrderQuantity(orderId: number) {
+    const quantity = Number(editQuantities[orderId]);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      setError("Хоолны тоо 1-с их бүхэл тоо байх ёстой.");
+      return;
+    }
     setSavingOrderId(orderId);
     setError("");
     try {
@@ -160,16 +170,16 @@ export default function HrFoodOrdersPage() {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderDate }),
+        body: JSON.stringify({ quantity }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error((data as any).error || "Хоол захиалгын огноо шинэчлэхэд алдаа гарлаа.");
+        throw new Error((data as any).error || "Хоолны тоо шинэчлэхэд алдаа гарлаа.");
       }
       setEditRow(null);
       await loadData();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Хоол захиалгын огноо шинэчлэхэд алдаа гарлаа.");
+      setError(err instanceof Error ? err.message : "Хоолны тоо шинэчлэхэд алдаа гарлаа.");
     } finally {
       setSavingOrderId(null);
     }
@@ -327,7 +337,10 @@ export default function HrFoodOrdersPage() {
       </section>
 
       <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800">
-        Нийт хоолны захиалга ({selectedRangeLabel}): {totalOrders}
+        Нийт хоолны тоо ({selectedRangeLabel}): {totalQuantity}
+        <span className="ml-2 text-xs font-normal text-gray-500">
+          (захиалгын бичлэг: {totalOrders})
+        </span>
       </div>
 
       {detailRow && (
@@ -352,6 +365,7 @@ export default function HrFoodOrdersPage() {
                   <tr>
                     <th className="px-3 py-2 font-semibold text-gray-700">Order date</th>
                     <th className="px-3 py-2 font-semibold text-gray-700">Submit timestamp</th>
+                    <th className="px-3 py-2 font-semibold text-gray-700 text-right">Хоолны тоо</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -359,6 +373,7 @@ export default function HrFoodOrdersPage() {
                     <tr key={item.id} className="border-t border-gray-100">
                       <td className="px-3 py-2">{item.orderDate}</td>
                       <td className="px-3 py-2">{formatSubmitTimestamp(item.submitTimestamp)}</td>
+                      <td className="px-3 py-2 text-right">{item.quantity}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -388,19 +403,25 @@ export default function HrFoodOrdersPage() {
               {editRow.orders.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-lg border border-gray-200 bg-gray-50 p-3 grid gap-2 md:grid-cols-[1fr_1fr_auto_auto]"
+                  className="rounded-lg border border-gray-200 bg-gray-50 p-3 grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto_auto]"
                 >
+                  <div className="text-sm">
+                    <div className="text-xs text-gray-500">Order date</div>
+                    <div>{item.orderDate}</div>
+                  </div>
                   <div className="text-sm">
                     <div className="text-xs text-gray-500">Submit timestamp</div>
                     <div>{formatSubmitTimestamp(item.submitTimestamp)}</div>
                   </div>
                   <label className="text-sm">
-                    <span className="block text-xs text-gray-500 mb-1">Order date</span>
+                    <span className="block text-xs text-gray-500 mb-1">Хоолны тоо</span>
                     <input
-                      type="date"
-                      value={editDates[item.id] || item.orderDate}
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={editQuantities[item.id] || String(item.quantity ?? 1)}
                       onChange={(e) =>
-                        setEditDates((prev) => ({
+                        setEditQuantities((prev) => ({
                           ...prev,
                           [item.id]: e.target.value,
                         }))
@@ -411,7 +432,7 @@ export default function HrFoodOrdersPage() {
                   <button
                     type="button"
                     disabled={savingOrderId === item.id || deletingOrderId === item.id}
-                    onClick={() => void saveOrderDate(item.id)}
+                    onClick={() => void saveOrderQuantity(item.id)}
                     className="self-end rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-100 disabled:opacity-50"
                   >
                     {savingOrderId === item.id ? "Хадгалж..." : "Хадгалах"}

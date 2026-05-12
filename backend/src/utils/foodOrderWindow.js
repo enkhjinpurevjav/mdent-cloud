@@ -1,5 +1,6 @@
 const ULAANBAATAR_TIMEZONE = "Asia/Ulaanbaatar";
 const ORDER_CUTOFF_MINUTES = 10 * 60; // 10:00
+const ORDER_EVENING_OPEN_MINUTES = 21 * 60; // 21:00
 const ORDER_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const datePartFormatter = new Intl.DateTimeFormat("en-CA", {
@@ -43,7 +44,20 @@ export function getUlaanbaatarMinuteOfDay(date = new Date()) {
 }
 
 export function isFoodOrderingOpenAt(date = new Date()) {
-  return getUlaanbaatarMinuteOfDay(date) < ORDER_CUTOFF_MINUTES;
+  const minuteOfDay = getUlaanbaatarMinuteOfDay(date);
+  return (
+    minuteOfDay < ORDER_CUTOFF_MINUTES ||
+    minuteOfDay >= ORDER_EVENING_OPEN_MINUTES
+  );
+}
+
+export function resolveFoodOrderTargetYmd(date = new Date()) {
+  const todayYmd = getUlaanbaatarYmd(date);
+  const minuteOfDay = getUlaanbaatarMinuteOfDay(date);
+  if (minuteOfDay >= ORDER_EVENING_OPEN_MINUTES) {
+    return addDaysToYmd(todayYmd, 1);
+  }
+  return todayYmd;
 }
 
 export function toOrderDateFromYmd(ymd) {
@@ -63,4 +77,8 @@ export function addDaysToYmd(ymd, days) {
   return getUlaanbaatarYmd(next);
 }
 
-export { ORDER_CUTOFF_MINUTES, ULAANBAATAR_TIMEZONE };
+export {
+  ORDER_CUTOFF_MINUTES,
+  ORDER_EVENING_OPEN_MINUTES,
+  ULAANBAATAR_TIMEZONE,
+};

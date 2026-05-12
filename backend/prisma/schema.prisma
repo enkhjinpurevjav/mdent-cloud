@@ -2046,6 +2046,7 @@ model FoodOrder {
   branchId        Int?
   branch          Branch?  @relation(fields: [branchId], references: [id])
   orderDate       DateTime
+  quantity        Int      @default(1)
   updatedByUserId Int?
   updatedBy       User?    @relation("FoodOrderUpdatedBy", fields: [updatedByUserId], references: [id])
   createdAt       DateTime @default(now())

@@ -53,7 +53,7 @@ async function withMockedNow(isoString, fn) {
 }
 
 describe("food order routes", () => {
-  it("POST / creates order and returns success message before 10:00", async () => {
+  it("POST / creates today's order before 10:00", async () => {
     const originalUserFindUnique = prisma.user.findUnique;
     const originalCreate = prisma.foodOrder.create;
     prisma.user.findUnique = async () => ({ branchId: 1 });
@@ -73,6 +73,35 @@ describe("food order routes", () => {
         assert.equal(res.statusCode, 201);
         assert.equal(res.body.message, "Таны хоол захиалга амжилттай бүртгэгдлээ");
         assert.equal(res.body.order.id, 44);
+        assert.equal(res.body.order.orderDate, "2026-05-08");
+      });
+    } finally {
+      prisma.user.findUnique = originalUserFindUnique;
+      prisma.foodOrder.create = originalCreate;
+    }
+  });
+
+  it("POST / creates next-day order from 21:00", async () => {
+    const originalUserFindUnique = prisma.user.findUnique;
+    const originalCreate = prisma.foodOrder.create;
+    prisma.user.findUnique = async () => ({ branchId: 1 });
+    prisma.foodOrder.create = async ({ data }) => ({
+      id: 45,
+      orderDate: data.orderDate,
+      createdAt: new Date("2026-05-08T13:31:00.000Z"),
+      quantity: 1,
+    });
+
+    try {
+      await withMockedNow("2026-05-08T13:30:00.000Z", async () => {
+        const handler = getHandler("/", "post");
+        const req = { user: { id: 7, role: "nurse" }, body: {} };
+        const res = createRes();
+        await handler(req, res);
+
+        assert.equal(res.statusCode, 201);
+        assert.equal(res.body.order.id, 45);
+        assert.equal(res.body.order.orderDate, "2026-05-09");
       });
     } finally {
       prisma.user.findUnique = originalUserFindUnique;
@@ -117,6 +146,7 @@ describe("food order routes", () => {
         createdAt: new Date("2026-05-07T23:55:00.000Z"),
         user: { id: 10, name: "Энхжин", ovog: "П", role: "nurse" },
         branch: { id: 2, name: "Салбар 2" },
+        quantity: 2,
       },
       {
         id: 2,
@@ -125,6 +155,7 @@ describe("food order routes", () => {
         createdAt: new Date("2026-05-08T23:50:00.000Z"),
         user: { id: 10, name: "Энхжин", ovog: "П", role: "nurse" },
         branch: { id: 2, name: "Салбар 2" },
+        quantity: 1,
       },
       {
         id: 3,
@@ -133,6 +164,7 @@ describe("food order routes", () => {
         createdAt: new Date("2026-05-07T23:45:00.000Z"),
         user: { id: 11, name: "Бат", ovog: "С", role: "doctor" },
         branch: { id: 1, name: "Салбар 1" },
+        quantity: 3,
       },
     ];
 
@@ -147,13 +179,45 @@ describe("food order routes", () => {
 
       assert.equal(res.statusCode, 200);
       assert.equal(res.body.totalOrders, 3);
+      assert.equal(res.body.totalQuantity, 6);
       assert.equal(res.body.items.length, 2);
-      assert.equal(res.body.items[0].totalCount + res.body.items[1].totalCount, 3);
+      assert.equal(res.body.items[0].totalCount + res.body.items[1].totalCount, 6);
       const user10 = res.body.items.find((r) => r.userId === 10);
-      assert.equal(user10.totalCount, 2);
+      assert.equal(user10.totalCount, 3);
       assert.equal(user10.orders.length, 2);
     } finally {
       prisma.foodOrder.findMany = originalFindMany;
+    }
+  });
+
+  it("PATCH /admin/:id updates only quantity", async () => {
+    const originalFindUnique = prisma.foodOrder.findUnique;
+    const originalUpdate = prisma.foodOrder.update;
+
+    prisma.foodOrder.findUnique = async () => ({ id: 100 });
+    prisma.foodOrder.update = async ({ data }) => ({
+      id: 100,
+      orderDate: new Date("2026-05-10T00:00:00.000+08:00"),
+      createdAt: new Date("2026-05-09T23:00:00.000Z"),
+      quantity: data.quantity,
+    });
+
+    try {
+      const handler = getHandler("/admin/:id", "patch");
+      const req = {
+        user: { id: 1, role: "hr" },
+        params: { id: "100" },
+        body: { quantity: 4 },
+      };
+      const res = createRes();
+      await handler(req, res);
+
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.body.order.id, 100);
+      assert.equal(res.body.order.quantity, 4);
+    } finally {
+      prisma.foodOrder.findUnique = originalFindUnique;
+      prisma.foodOrder.update = originalUpdate;
     }
   });
 });
