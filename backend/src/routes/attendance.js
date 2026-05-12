@@ -18,11 +18,11 @@ import {
   enforceStandardShiftCheckout,
 } from "../utils/attendanceWorkRules.js";
 import { canAccessAttendanceAdminFeatures } from "../utils/attendanceAccess.js";
+import { autoCloseOpenAttendanceSessions } from "../services/attendanceAutoClose.js";
 
 const router = express.Router();
 
 const MONGOLIA_OFFSET_MS = 8 * 60 * 60_000; // UTC+8
-const MS_PER_MINUTE = 60_000;
 
 /**
  * Validate and parse geo body { lat, lng, accuracyM }.
@@ -69,8 +69,10 @@ function mongoliaDateString(now) {
 /**
  * Automatically resolve the attendance branchId for the given user and role.
  *
- * - doctor / nurse / receptionist / sterilization: today's schedule is mandatory.
- *   If schedule exists, use its branch. If not, reject check-in.
+ * - doctor / nurse / receptionist / sterilization: schedule is generally required.
+ *   If schedule exists, use its branch.
+ * - receptionist special case: if no schedule exists, allow unscheduled work by
+ *   falling back to receptionist's primary branch.
  * - all other roles: use the user's primary User.branchId.
  */
 async function resolveAttendanceBranch(userId, role, now) {
@@ -99,6 +101,22 @@ async function resolveAttendanceBranch(userId, role, now) {
 
     if (schedule) {
       return schedule.branchId;
+    }
+
+    // Reception can work unscheduled when additional manpower is needed.
+    if (role === "receptionist") {
+      const receptionist = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { branchId: true },
+      });
+      if (!receptionist?.branchId) {
+        throw withErrMeta(
+          new Error("Таны бүртгэлд үндсэн салбар тохируулаагүй байна. Администраторт хандана уу."),
+          ATTENDANCE_FAILURE_CODE.SCHEDULE_NOT_FOUND,
+          403
+        );
+      }
+      return receptionist.branchId;
     }
 
     throw withErrMeta(
@@ -655,43 +673,7 @@ router.post("/auto-close", async (req, res) => {
       return res.status(403).json({ error: "Forbidden. Insufficient role." });
     }
 
-    const users = await prisma.user.findMany({
-      where: { isActive: true },
-      select: { id: true, role: true, branchId: true },
-    });
-
-    const openSessions = await prisma.attendanceSession.findMany({
-      where: { checkOutAt: null },
-      select: { id: true, userId: true, branchId: true, checkInAt: true },
-    });
-
-    const userById = new Map(users.map((u) => [u.id, u]));
-    let closedCount = 0;
-
-    for (const s of openSessions) {
-      const user = userById.get(s.userId);
-      if (!user) continue;
-      const policy = await getEffectiveAttendancePolicy({
-        prisma,
-        role: user.role,
-        branchId: s.branchId,
-      });
-      const cutoff = new Date(
-        s.checkInAt.getTime() + (policy.autoCloseAfterMinutes ?? 720) * MS_PER_MINUTE
-      );
-      if (new Date() < cutoff) continue;
-
-      await prisma.attendanceSession.update({
-        where: { id: s.id },
-        data: {
-          checkOutAt: cutoff,
-          requiresReview: true,
-          reviewReason: "AUTO_CLOSED_BY_POLICY",
-        },
-      });
-      closedCount += 1;
-    }
-
+    const { closedCount } = await autoCloseOpenAttendanceSessions({ prismaClient: prisma });
     return res.json({ closedCount });
   } catch (err) {
     console.error("POST /api/attendance/auto-close error:", err);
