@@ -21,6 +21,7 @@ type MeResponse = {
 
 type FoodOrderStatusResponse = {
   timezone: string;
+  currentDate?: string;
   orderDate: string;
   orderingOpen: boolean;
   alreadyOrdered: boolean;
@@ -30,6 +31,7 @@ type FoodOrderStatusResponse = {
     id: number;
     orderDate: string;
     submitTimestamp: string;
+    quantity?: number;
   } | null;
 };
 
@@ -290,11 +292,11 @@ export default function AttendancePage() {
       <div className="mb-6 rounded-xl border border-orange-200 bg-orange-50 p-5">
         <div className="mb-2 flex items-center justify-between gap-3">
           <h2 className="text-[16px] font-semibold text-gray-900">🍱 Хоол захиалга</h2>
-          <span className="text-[12px] text-gray-600">Ulaanbaatar цаг (00:00–10:00)</span>
+          <span className="text-[12px] text-gray-600">Ulaanbaatar цаг (21:00–09:59)</span>
         </div>
 
         <p className="text-[13px] text-gray-600 mb-3">
-          Өдөр бүр 10:00 цагаас хойш хаагдаж, маргааш 00:00 цагаас дахин нээгдэнэ.
+          00:00–09:59 хооронд тухайн өдрийн, 21:00–23:59 хооронд маргаашийн хоол захиална.
         </p>
 
         <button
@@ -317,14 +319,13 @@ export default function AttendancePage() {
 
         {!loadingFoodStatus && foodStatus?.alreadyOrdered && (
           <div className="mt-3 rounded-lg border border-green-300 bg-green-50 px-4 py-3 text-[14px] text-green-700">
-            Өнөөдрийн хоол захиалга бүртгэгдсэн байна.
+            {foodStatus.orderDate} өдрийн хоол захиалга бүртгэгдсэн байна.
           </div>
         )}
 
         {!loadingFoodStatus && foodStatus && !foodStatus.orderingOpen && (
           <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-[14px] text-amber-700">
-            Өнөөдрийн хоол захиалга 10:00 цагаас хойш хаагдсан. Маргааш 00:00 цагаас дахин
-            захиална уу.
+            Хоол захиалга 10:00–20:59 хооронд хаалттай. 21:00 цагаас дахин захиална уу.
           </div>
         )}
 
