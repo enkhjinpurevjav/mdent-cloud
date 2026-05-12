@@ -2209,6 +2209,12 @@ const normalizedWalletAvailable =
   Number.isFinite(Number(invoice.patientWalletAvailable))
     ? Math.max(Number(invoice.patientWalletAvailable), 0)
     : null;
+const normalizedPatientBalance =
+  invoice &&
+  invoice.patientBalance != null &&
+  Number.isFinite(Number(invoice.patientBalance))
+    ? Number(invoice.patientBalance)
+    : null;
 const normalizedOutstandingDebt =
   invoice &&
   invoice.patientOutstandingDebt != null &&
@@ -2216,7 +2222,10 @@ const normalizedOutstandingDebt =
     ? Math.max(Number(invoice.patientOutstandingDebt), 0)
     : null;
 const patientCredit = normalizedWalletAvailable;
-const patientDebt = normalizedOutstandingDebt;
+const patientDebt =
+  normalizedPatientBalance != null
+    ? Math.max(normalizedPatientBalance, 0)
+    : normalizedOutstandingDebt;
 
   const handleSaveBilling = async () => {
     if (!encounterId || Number.isNaN(encounterId)) return;
