@@ -11,7 +11,7 @@ type Service = {
 type Nurse = {
   id: number;
   name: string;
-  ovog?: string | null;
+  displayName: string;
 };
 
 type Performer = {
@@ -29,7 +29,10 @@ type NurseByBranchResponse = {
   }>;
 };
 
-function formatNurseNameWithOvogInitial(name?: string | null, ovog?: string | null): string {
+function formatNameWithOvogInitial(
+  name?: string | null,
+  ovog?: string | null
+): string {
   const trimmedName = name?.trim() || "";
   const trimmedOvog = ovog?.trim() || "";
   if (trimmedName && trimmedOvog) {
@@ -132,7 +135,7 @@ export default function ImagingCheckoutModal({
         const nurseList = (data.items || []).map((item) => ({
           id: item.nurseId,
           name: item.name,
-          ovog: item.ovog ?? null,
+          displayName: formatNameWithOvogInitial(item.name, item.ovog),
         }));
 
         setNurses(nurseList);
@@ -427,10 +430,7 @@ export default function ImagingCheckoutModal({
                       <option value="">-- Сонгох --</option>
                       {nurses.map((nurse) => (
                         <option key={nurse.id} value={nurse.id}>
-                          {formatNurseNameWithOvogInitial(
-                            nurse.name,
-                            nurse.ovog
-                          )}
+                          {nurse.displayName}
                         </option>
                       ))}
                     </select>

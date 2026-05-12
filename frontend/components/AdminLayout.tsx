@@ -272,6 +272,7 @@ export default function AdminLayout({ children, wide, hideSidebar }: Props) {
       doctor: "Эмч",
       hr: "Хүний нөөц",
       sterilization: "Ариутгал",
+      other: "Бусад",
       reception: "Ресепшн",
       staff: "Ажилтан",
     };
