@@ -47,7 +47,7 @@ describe("autoCloseOpenAttendanceSessions", () => {
       },
     };
 
-    const now = new Date("2026-05-13T15:31:00.000Z");
+    const now = new Date("2026-05-13T15:00:00.000Z");
     const result = await autoCloseOpenAttendanceSessions({
       prismaClient: prismaMock,
       now,
