@@ -167,6 +167,10 @@ export type Encounter = {
   nurseId?: number | null;
   nurse?: Nurse | null;
   appointmentId?: number | null;
+  appointment?: {
+    scheduledAt?: string | null;
+    branchId?: number | null;
+  } | null;
   patientBook: PatientBook;
   encounterDiagnoses: EncounterDiagnosisRow[];
   encounterServices: EncounterService[];
