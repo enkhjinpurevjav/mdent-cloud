@@ -7,22 +7,90 @@ import {
   parseHHMM,
 } from "../../utils/attendanceReport.js";
 import { computeAttendanceKpis, toAttendanceCsv } from "../../utils/attendanceReport.js";
-import { STANDARD_SHIFT_EXCLUDED_ROLES } from "../../utils/attendanceWorkRules.js";
 import { canAccessAttendanceAdminFeatures } from "../../utils/attendanceAccess.js";
 
 const router = Router();
-const STANDARD_SHIFT_REQUIRED_MINUTES = 8 * 60;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const EXCLUDED_ATTENDANCE_ROLES = new Set(["xray", "branch_kiosk"]);
+const SCHEDULE_DRIVEN_ROLES = new Set([
+  "doctor",
+  "nurse",
+  "sterilization",
+  "receptionist",
+]);
 
-function isMongoliaWeekday(ymd) {
+function mongoliaWeekday(ymd) {
   const dt = new Date(`${ymd}T00:00:00.000Z`);
-  const weekday = dt.getUTCDay();
-  return weekday >= 1 && weekday <= 5;
+  return dt.getUTCDay();
 }
 
-function getUnscheduledRequiredMinutes(role, ymd) {
-  if (STANDARD_SHIFT_EXCLUDED_ROLES.has(role)) return null;
-  return isMongoliaWeekday(ymd) ? STANDARD_SHIFT_REQUIRED_MINUTES : null;
+function getFixedScheduleByRole({ role, ymd }) {
+  const weekday = mongoliaWeekday(ymd);
+  const isWeekday = weekday >= 1 && weekday <= 5;
+  const isSaturday = weekday === 6;
+
+  // Keep "other" fixed schedule behavior unchanged.
+  if (role === "other") {
+    if (isWeekday) {
+      return {
+        requiredMinutes: 9 * 60,
+        startMinutes: 7 * 60,
+        endMinutes: 16 * 60,
+      };
+    }
+    if (isSaturday) {
+      return {
+        requiredMinutes: 8 * 60,
+        startMinutes: 8 * 60,
+        endMinutes: 16 * 60,
+      };
+    }
+    return { requiredMinutes: 0, startMinutes: null, endMinutes: null };
+  }
+
+  // Group #3 reference schedule.
+  if (["super_admin", "admin", "marketing", "hr"].includes(role)) {
+    if (isWeekday) {
+      return {
+        requiredMinutes: 8 * 60,
+        startMinutes: 9 * 60,
+        endMinutes: 17 * 60,
+      };
+    }
+    return { requiredMinutes: 0, startMinutes: null, endMinutes: null };
+  }
+
+  // Fallback for other roles not listed above.
+  if (isWeekday) {
+    return {
+      requiredMinutes: 8 * 60,
+      startMinutes: 9 * 60,
+      endMinutes: 17 * 60,
+    };
+  }
+  return { requiredMinutes: 0, startMinutes: null, endMinutes: null };
+}
+
+function getRoleScheduleForReporting({ role, ymd, startTime, endTime }) {
+  if (!SCHEDULE_DRIVEN_ROLES.has(role)) {
+    return getFixedScheduleByRole({ role, ymd });
+  }
+
+  if (!startTime || !endTime) {
+    return { requiredMinutes: 0, startMinutes: null, endMinutes: null };
+  }
+
+  const startMinutes = parseHHMM(startTime);
+  const endMinutes = parseHHMM(endTime);
+  if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
+    return { requiredMinutes: 0, startMinutes: null, endMinutes: null };
+  }
+
+  return {
+    requiredMinutes: endMinutes - startMinutes,
+    startMinutes,
+    endMinutes,
+  };
 }
 
 function enumerateMongoliaDateRange(from, to) {
@@ -38,11 +106,37 @@ function enumerateMongoliaDateRange(from, to) {
   return result;
 }
 
-function getScheduleDurationMinutes(startTime, endTime) {
-  const schedStartMins = parseHHMM(startTime);
-  const schedEndMins = parseHHMM(endTime);
-  if (schedStartMins === null || schedEndMins === null) return null;
-  return Math.max(0, schedEndMins - schedStartMins);
+function getLateAndEarlyLeaveMinutes({
+  schedule,
+  firstCheckInAt,
+  latestCheckOutAt,
+  hasSession,
+}) {
+  if (!hasSession) {
+    return { lateMinutes: null, earlyLeaveMinutes: null };
+  }
+
+  if (schedule.startMinutes == null || schedule.endMinutes == null) {
+    return { lateMinutes: 0, earlyLeaveMinutes: 0 };
+  }
+
+  const checkInMins = mongoliaWallClockMinutes(firstCheckInAt);
+  const lateMinutes = Math.max(0, checkInMins - schedule.startMinutes);
+
+  if (!latestCheckOutAt) {
+    return { lateMinutes, earlyLeaveMinutes: null };
+  }
+
+  const checkOutMins = mongoliaWallClockMinutes(latestCheckOutAt);
+  const earlyLeaveMinutes = Math.max(0, schedule.endMinutes - checkOutMins);
+  return { lateMinutes, earlyLeaveMinutes };
+}
+
+function formatMinutesAsHHMM(minutes) {
+  if (minutes == null) return null;
+  const hh = String(Math.floor(minutes / 60)).padStart(2, "0");
+  const mm = String(minutes % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
 }
 
 function getSessionOvertimeMinutes(row) {
@@ -110,6 +204,9 @@ async function buildAttendanceRows({
       prisma.user.findMany({
         where: {
           isActive: true,
+          role: {
+            notIn: Array.from(EXCLUDED_ATTENDANCE_ROLES),
+          },
           ...(filterUserId ? { id: filterUserId } : {}),
           ...(filterBranchId ? { branchId: filterBranchId } : {}),
         },
@@ -128,11 +225,16 @@ async function buildAttendanceRows({
 
   const sessionWhere = {
     checkInAt: { gte: from, lte: to },
+    user: {
+      role: {
+        notIn: Array.from(EXCLUDED_ATTENDANCE_ROLES),
+      },
+    },
   };
   if (filterBranchId) sessionWhere.branchId = filterBranchId;
   if (filterUserId) sessionWhere.userId = filterUserId;
 
-  const sessions = await prisma.attendanceSession.findMany({
+  const sessionsRaw = await prisma.attendanceSession.findMany({
     where: sessionWhere,
     include: {
       user: {
@@ -142,16 +244,28 @@ async function buildAttendanceRows({
     },
     orderBy: { checkInAt: "asc" },
   });
+  const sessions = sessionsRaw.filter(
+    (s) => !EXCLUDED_ATTENDANCE_ROLES.has(s.user?.role)
+  );
+  const activeUsersFiltered = activeUsers.filter(
+    (u) => !EXCLUDED_ATTENDANCE_ROLES.has(u.role)
+  );
 
   const sessionAggregateMap = buildDailySessionAggregateMap(sessions);
   const matchedSessionKeys = new Set();
   const rows = [];
 
   function buildRow(scheduleEntry) {
-    const { user, branch, date, startTime, endTime, note } = scheduleEntry;
+    const { user, branch, date, note, startTime, endTime } = scheduleEntry;
     const dateStr = mongoliaDateString(date);
     const key = `${user.id}:${dateStr}`;
     const aggregate = sessionAggregateMap.get(key) || null;
+    const schedule = getRoleScheduleForReporting({
+      role: user.role,
+      ymd: dateStr,
+      startTime,
+      endTime,
+    });
 
     if (aggregate) {
       matchedSessionKeys.add(key);
@@ -164,6 +278,9 @@ async function buildAttendanceRows({
     let checkInAt = null;
     let checkOutAt = null;
     let sessionCount = 0;
+    let requiredMinutes = schedule.requiredMinutes;
+    const scheduledStart = formatMinutesAsHHMM(schedule.startMinutes);
+    const scheduledEnd = formatMinutesAsHHMM(schedule.endMinutes);
 
     if (aggregate) {
       rowStatus = aggregate.hasOpenSession ? "open" : "present";
@@ -171,27 +288,18 @@ async function buildAttendanceRows({
       checkInAt = aggregate.firstCheckInAt.toISOString();
       checkOutAt = aggregate.latestCheckOutAt?.toISOString() || null;
       sessionCount = aggregate.sessionCount;
-
-      const schedStartMins = parseHHMM(startTime);
-      const schedEndMins = parseHHMM(endTime);
-
-      if (schedStartMins !== null) {
-        const checkInMins = mongoliaWallClockMinutes(aggregate.firstCheckInAt);
-        const diff = checkInMins - schedStartMins;
-        if (diff >= 1) lateMinutes = diff;
-      }
-
-      if (schedEndMins !== null && aggregate.latestCheckOutAt) {
-        const checkOutMins = mongoliaWallClockMinutes(aggregate.latestCheckOutAt);
-        const diff = schedEndMins - checkOutMins;
-        if (diff >= 1) earlyLeaveMinutes = diff;
-      }
+      const deltas = getLateAndEarlyLeaveMinutes({
+        schedule,
+        firstCheckInAt: aggregate.firstCheckInAt,
+        latestCheckOutAt: aggregate.latestCheckOutAt,
+        hasSession: true,
+      });
+      lateMinutes = deltas.lateMinutes;
+      earlyLeaveMinutes = deltas.earlyLeaveMinutes;
     }
 
-    const requiredMinutes = getScheduleDurationMinutes(startTime, endTime);
     const attendanceRatePercent =
       typeof durationMinutes === "number" &&
-      requiredMinutes !== null &&
       requiredMinutes > 0
         ? Math.round((durationMinutes / requiredMinutes) * 1000) / 10
         : null;
@@ -207,8 +315,8 @@ async function buildAttendanceRows({
       branchId: branch.id,
       branchName: branch.name,
       scheduledDate: dateStr,
-      scheduledStart: startTime,
-      scheduledEnd: endTime,
+      scheduledStart,
+      scheduledEnd,
       scheduleNote: note || null,
       checkInAt,
       checkOutAt,
@@ -247,13 +355,21 @@ async function buildAttendanceRows({
 
     const firstSession = aggregate.firstSession;
     const durationMinutes = aggregate.totalDurationMinutes;
-    const requiredMinutes = getUnscheduledRequiredMinutes(
-      firstSession.user.role,
-      dateStr
-    );
+    const schedule = getRoleScheduleForReporting({
+      role: firstSession.user.role,
+      ymd: dateStr,
+    });
+    const requiredMinutes = schedule.requiredMinutes;
+    const deltas = getLateAndEarlyLeaveMinutes({
+      schedule,
+      firstCheckInAt: aggregate.firstCheckInAt,
+      latestCheckOutAt: aggregate.latestCheckOutAt,
+      hasSession: true,
+    });
+    const scheduledStart = formatMinutesAsHHMM(schedule.startMinutes);
+    const scheduledEnd = formatMinutesAsHHMM(schedule.endMinutes);
     const attendanceRatePercent =
       typeof durationMinutes === "number" &&
-      requiredMinutes !== null &&
       requiredMinutes > 0
         ? Math.round((durationMinutes / requiredMinutes) * 1000) / 10
         : null;
@@ -269,14 +385,14 @@ async function buildAttendanceRows({
       branchId: firstSession.branch.id,
       branchName: firstSession.branch.name,
       scheduledDate: dateStr,
-      scheduledStart: null,
-      scheduledEnd: null,
+      scheduledStart,
+      scheduledEnd,
       scheduleNote: null,
       checkInAt: aggregate.firstCheckInAt.toISOString(),
       checkOutAt: aggregate.latestCheckOutAt?.toISOString() || null,
       durationMinutes,
-      lateMinutes: null,
-      earlyLeaveMinutes: null,
+      lateMinutes: deltas.lateMinutes,
+      earlyLeaveMinutes: deltas.earlyLeaveMinutes,
       sessionCount: aggregate.sessionCount,
       requiredMinutes,
       attendanceRatePercent,
@@ -296,11 +412,13 @@ async function buildAttendanceRows({
     rows.map((row) => `${row.userId}:${row.scheduledDate}`)
   );
   const ymdRange = enumerateMongoliaDateRange(from, to);
-  for (const user of activeUsers) {
+  for (const user of activeUsersFiltered) {
     for (const ymd of ymdRange) {
       const key = `${user.id}:${ymd}`;
       if (existingUserDayKeys.has(key)) continue;
-      const requiredMinutes = getUnscheduledRequiredMinutes(user.role, ymd);
+      const schedule = getRoleScheduleForReporting({ role: user.role, ymd });
+      const scheduledStart = formatMinutesAsHHMM(schedule.startMinutes);
+      const scheduledEnd = formatMinutesAsHHMM(schedule.endMinutes);
       rows.push({
         rowType: "unscheduled",
         sessionId: null,
@@ -312,8 +430,8 @@ async function buildAttendanceRows({
         branchId: user.branchId ?? 0,
         branchName: user.branch?.name ?? "Салбаргүй",
         scheduledDate: ymd,
-        scheduledStart: null,
-        scheduledEnd: null,
+        scheduledStart,
+        scheduledEnd,
         scheduleNote: null,
         checkInAt: null,
         checkOutAt: null,
@@ -321,7 +439,7 @@ async function buildAttendanceRows({
         lateMinutes: null,
         earlyLeaveMinutes: null,
         sessionCount: 0,
-        requiredMinutes,
+        requiredMinutes: schedule.requiredMinutes,
         attendanceRatePercent: null,
         correctionCount: 0,
         exceptionFlags: "UNSCHEDULED",
@@ -533,6 +651,7 @@ router.get("/attendance/summary", async (req, res) => {
           branchId: row.branchId,
           branchName: row.branchName,
           requiredMinutes: 0,
+          workedMinutes: 0,
           lateMinutes: 0,
           earlyLeaveMinutes: 0,
           acceptedOvertimeMinutes: 0,
@@ -541,6 +660,7 @@ router.get("/attendance/summary", async (req, res) => {
       }
       const agg = grouped.get(key);
       agg.requiredMinutes += row.requiredMinutes ?? 0;
+      agg.workedMinutes += row.durationMinutes ?? 0;
       agg.lateMinutes += row.lateMinutes ?? 0;
       agg.earlyLeaveMinutes += row.earlyLeaveMinutes ?? 0;
 
@@ -650,241 +770,13 @@ router.get("/attendance/export", async (req, res) => {
     const filterBranchId = branchId ? Number(branchId) : null;
     const filterUserId = userId ? Number(userId) : null;
     const filterStatus = status && status !== "all" ? String(status) : null;
-
-    const scheduleWhere = {
-      date: { gte: from, lte: to },
-    };
-    if (filterBranchId) scheduleWhere.branchId = filterBranchId;
-
-    const [doctorSchedules, nurseSchedules, receptionSchedules, activeUsers] =
-      await Promise.all([
-        prisma.doctorSchedule.findMany({
-          where: filterUserId
-            ? { ...scheduleWhere, doctorId: filterUserId }
-            : scheduleWhere,
-          include: {
-            doctor: {
-              select: { id: true, name: true, ovog: true, email: true, role: true },
-            },
-            branch: { select: { id: true, name: true } },
-          },
-          orderBy: [{ date: "asc" }, { startTime: "asc" }],
-        }),
-        prisma.nurseSchedule.findMany({
-          where: filterUserId
-            ? { ...scheduleWhere, nurseId: filterUserId }
-            : scheduleWhere,
-          include: {
-            nurse: {
-              select: { id: true, name: true, ovog: true, email: true, role: true },
-            },
-            branch: { select: { id: true, name: true } },
-          },
-          orderBy: [{ date: "asc" }, { startTime: "asc" }],
-        }),
-        prisma.receptionSchedule.findMany({
-          where: filterUserId
-            ? { ...scheduleWhere, receptionId: filterUserId }
-            : scheduleWhere,
-          include: {
-            reception: {
-              select: { id: true, name: true, ovog: true, email: true, role: true },
-            },
-            branch: { select: { id: true, name: true } },
-          },
-          orderBy: [{ date: "asc" }, { startTime: "asc" }],
-        }),
-        prisma.user.findMany({
-          where: {
-            isActive: true,
-            ...(filterUserId ? { id: filterUserId } : {}),
-            ...(filterBranchId ? { branchId: filterBranchId } : {}),
-          },
-          select: {
-            id: true,
-            name: true,
-            ovog: true,
-            email: true,
-            role: true,
-            branchId: true,
-            branch: { select: { id: true, name: true } },
-          },
-          orderBy: { id: "asc" },
-        }),
-      ]);
-
-    const sessionWhere = {
-      checkInAt: { gte: from, lte: to },
-    };
-    if (filterBranchId) sessionWhere.branchId = filterBranchId;
-    if (filterUserId) sessionWhere.userId = filterUserId;
-
-    const sessions = await prisma.attendanceSession.findMany({
-      where: sessionWhere,
-      include: {
-        user: {
-          select: { id: true, name: true, ovog: true, email: true, role: true },
-        },
-        branch: { select: { id: true, name: true } },
-      },
-      orderBy: { checkInAt: "asc" },
+    const filtered = await buildAttendanceRows({
+      from,
+      to,
+      filterBranchId,
+      filterUserId,
+      filterStatus,
     });
-
-    const sessionAggregateMap = buildDailySessionAggregateMap(sessions);
-    const matchedSessionKeys = new Set();
-    const rows = [];
-
-    function buildRow(scheduleEntry) {
-      const { user, branch, date, startTime, endTime, note } = scheduleEntry;
-      const dateStr = mongoliaDateString(date);
-      const key = `${user.id}:${dateStr}`;
-      const aggregate = sessionAggregateMap.get(key) || null;
-      if (aggregate) matchedSessionKeys.add(key);
-
-      let rowStatus = "absent";
-      let durationMinutes = null;
-      let lateMinutes = null;
-      let earlyLeaveMinutes = null;
-      let checkInAt = null;
-      let checkOutAt = null;
-      let sessionCount = 0;
-      let exceptionFlags = "";
-
-      if (aggregate) {
-        rowStatus = aggregate.hasOpenSession ? "open" : "present";
-        durationMinutes = aggregate.totalDurationMinutes;
-        checkInAt = aggregate.firstCheckInAt.toISOString();
-        checkOutAt = aggregate.latestCheckOutAt?.toISOString() || null;
-        sessionCount = aggregate.sessionCount;
-        const schedStartMins = parseHHMM(startTime);
-        const schedEndMins = parseHHMM(endTime);
-        if (schedStartMins !== null) {
-          const checkInMins = mongoliaWallClockMinutes(aggregate.firstCheckInAt);
-          const diff = checkInMins - schedStartMins;
-          if (diff >= 1) lateMinutes = diff;
-        }
-        if (schedEndMins !== null && aggregate.latestCheckOutAt) {
-          const checkOutMins = mongoliaWallClockMinutes(aggregate.latestCheckOutAt);
-          const diff = schedEndMins - checkOutMins;
-          if (diff >= 1) earlyLeaveMinutes = diff;
-        }
-        if (aggregate.hasOpenSession) exceptionFlags = "OPEN_SESSION";
-      }
-
-      return {
-        rowType: "scheduled",
-        userId: user.id,
-        userName: user.name,
-        userOvog: user.ovog,
-        userEmail: user.email,
-        userRole: user.role,
-        branchId: branch.id,
-        branchName: branch.name,
-        scheduledDate: dateStr,
-        scheduledStart: startTime,
-        scheduledEnd: endTime,
-        scheduleNote: note || null,
-        checkInAt,
-        checkOutAt,
-        durationMinutes,
-        lateMinutes,
-        earlyLeaveMinutes,
-        sessionCount,
-        correctionCount: 0,
-        exceptionFlags,
-        status: rowStatus,
-      };
-    }
-
-    for (const s of doctorSchedules) rows.push(buildRow({ ...s, user: s.doctor }));
-    for (const s of nurseSchedules) rows.push(buildRow({ ...s, user: s.nurse }));
-    for (const s of receptionSchedules) rows.push(buildRow({ ...s, user: s.reception }));
-
-    for (const [key, aggregate] of sessionAggregateMap.entries()) {
-      const [userIdStr, dateStr] = key.split(":");
-      if (matchedSessionKeys.has(key)) continue;
-      const firstSession = aggregate.firstSession;
-      const requiredMinutes = getUnscheduledRequiredMinutes(
-        firstSession.user.role,
-        dateStr
-      );
-      const attendanceRatePercent =
-        requiredMinutes !== null && requiredMinutes > 0
-          ? Math.round((aggregate.totalDurationMinutes / requiredMinutes) * 1000) / 10
-          : null;
-      rows.push({
-        rowType: "unscheduled",
-        userId: Number(userIdStr),
-        userName: firstSession.user.name,
-        userOvog: firstSession.user.ovog,
-        userEmail: firstSession.user.email,
-        userRole: firstSession.user.role,
-        branchId: firstSession.branch.id,
-        branchName: firstSession.branch.name,
-        scheduledDate: dateStr,
-        scheduledStart: null,
-        scheduledEnd: null,
-        scheduleNote: null,
-        checkInAt: aggregate.firstCheckInAt.toISOString(),
-        checkOutAt: aggregate.latestCheckOutAt?.toISOString() || null,
-        durationMinutes: aggregate.totalDurationMinutes,
-        lateMinutes: null,
-        earlyLeaveMinutes: null,
-        sessionCount: aggregate.sessionCount,
-        requiredMinutes,
-        attendanceRatePercent,
-        correctionCount: 0,
-        exceptionFlags: aggregate.hasOpenSession ? "OPEN_SESSION,UNSCHEDULED" : "UNSCHEDULED",
-        status: aggregate.hasOpenSession ? "open" : "unscheduled",
-      });
-    }
-
-    const existingUserDayKeys = new Set(
-      rows.map((row) => `${row.userId}:${row.scheduledDate}`)
-    );
-    const ymdRange = enumerateMongoliaDateRange(from, to);
-    for (const user of activeUsers) {
-      for (const ymd of ymdRange) {
-        const key = `${user.id}:${ymd}`;
-        if (existingUserDayKeys.has(key)) continue;
-        const requiredMinutes = getUnscheduledRequiredMinutes(user.role, ymd);
-        rows.push({
-          rowType: "unscheduled",
-          userId: user.id,
-          userName: user.name,
-          userOvog: user.ovog,
-          userEmail: user.email,
-          userRole: user.role,
-          branchId: user.branchId ?? 0,
-          branchName: user.branch?.name ?? "Салбаргүй",
-          scheduledDate: ymd,
-          scheduledStart: null,
-          scheduledEnd: null,
-          scheduleNote: null,
-          checkInAt: null,
-          checkOutAt: null,
-          durationMinutes: null,
-          lateMinutes: null,
-          earlyLeaveMinutes: null,
-          sessionCount: 0,
-          requiredMinutes,
-          attendanceRatePercent: null,
-          correctionCount: 0,
-          exceptionFlags: "UNSCHEDULED",
-          status: "absent",
-        });
-      }
-    }
-
-    const filtered = filterStatus ? rows.filter((r) => r.status === filterStatus) : rows;
-    filtered.sort((a, b) => {
-      const d = a.scheduledDate.localeCompare(b.scheduledDate);
-      if (d !== 0) return d;
-      const nameA = `${a.userOvog || ""}${a.userName || ""}`;
-      const nameB = `${b.userOvog || ""}${b.userName || ""}`;
-      return nameA.localeCompare(nameB);
-    });
-
     const csv = toAttendanceCsv(filtered);
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader(

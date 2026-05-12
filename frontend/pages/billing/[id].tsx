@@ -200,6 +200,15 @@ function formatAuditUserDisplay(u: AuditUser | null | undefined): string {
   return name || ovog || "-";
 }
 
+function formatNurseNameWithOvogInitial(name?: string | null, ovog?: string | null): string {
+  const trimmedName = name?.trim() || "";
+  const trimmedOvog = ovog?.trim() || "";
+  if (trimmedName && trimmedOvog) {
+    return `${trimmedOvog.charAt(0).toUpperCase()}.${trimmedName}`;
+  }
+  return trimmedName || "-";
+}
+
 function formatMoney(v: number | null | undefined) {
   if (v == null || Number.isNaN(Number(v))) return "0";
   return new Intl.NumberFormat("mn-MN").format(Number(v));
@@ -1849,7 +1858,9 @@ export default function BillingPage() {
   const [productQuery, setProductQuery] = useState("");
 
   // Nurses for IMAGING rows
-  const [nurses, setNurses] = useState<{ id: number; name: string | null }[]>([]);
+  const [nurses, setNurses] = useState<
+    { id: number; name: string | null; ovog?: string | null }[]
+  >([]);
   const [nursesLoading, setNursesLoading] = useState(false);
 
   // Inline service autocomplete state (per-row)
@@ -2026,8 +2037,14 @@ const [consentError, setConsentError] = useState("");
     fetch(`/api/encounters/${encounterId}/nurses`)
       .then((r) => r.json())
       .then((data) => {
-        const items2: { nurseId: number; name: string | null }[] = data.items || [];
-        setNurses(items2.map((n) => ({ id: n.nurseId, name: n.name })));
+        const items2: {
+          nurseId: number;
+          name: string | null;
+          ovog?: string | null;
+        }[] = data.items || [];
+        setNurses(
+          items2.map((n) => ({ id: n.nurseId, name: n.name, ovog: n.ovog }))
+        );
       })
       .catch(() => {})
       .finally(() => setNursesLoading(false));
@@ -2192,6 +2209,12 @@ const normalizedWalletAvailable =
   Number.isFinite(Number(invoice.patientWalletAvailable))
     ? Math.max(Number(invoice.patientWalletAvailable), 0)
     : null;
+const normalizedPatientBalance =
+  invoice &&
+  invoice.patientBalance != null &&
+  Number.isFinite(Number(invoice.patientBalance))
+    ? Number(invoice.patientBalance)
+    : null;
 const normalizedOutstandingDebt =
   invoice &&
   invoice.patientOutstandingDebt != null &&
@@ -2199,7 +2222,10 @@ const normalizedOutstandingDebt =
     ? Math.max(Number(invoice.patientOutstandingDebt), 0)
     : null;
 const patientCredit = normalizedWalletAvailable;
-const patientDebt = normalizedOutstandingDebt;
+const patientDebt =
+  normalizedPatientBalance != null
+    ? Math.max(normalizedPatientBalance, 0)
+    : normalizedOutstandingDebt;
 
   const handleSaveBilling = async () => {
     if (!encounterId || Number.isNaN(encounterId)) return;
@@ -2563,7 +2589,16 @@ const patientDebt = normalizedOutstandingDebt;
                       setNursesLoading(true);
                       fetch(`/api/encounters/${encounterId}/nurses`)
                         .then((r) => r.json())
-                        .then((data) => { const items2 = data.items || []; setNurses(items2.map((n: any) => ({ id: n.nurseId, name: n.name }))); })
+                        .then((data) => {
+                          const items2 = data.items || [];
+                          setNurses(
+                            items2.map((n: any) => ({
+                              id: n.nurseId,
+                              name: n.name,
+                              ovog: n.ovog,
+                            }))
+                          );
+                        })
                         .catch(() => {})
                         .finally(() => setNursesLoading(false));
                     }
@@ -2626,7 +2661,16 @@ const patientDebt = normalizedOutstandingDebt;
                               setNursesLoading(true);
                               fetch(`/api/users/nurses/today?branchId=${invoice.branchId}`)
                                 .then((r) => r.json())
-                                .then((data) => { const items2 = data.items || []; setNurses(items2.map((n: any) => ({ id: n.nurseId, name: n.name }))); })
+                                .then((data) => {
+                                  const items2 = data.items || [];
+                                  setNurses(
+                                    items2.map((n: any) => ({
+                                      id: n.nurseId,
+                                      name: n.name,
+                                      ovog: n.ovog,
+                                    }))
+                                  );
+                                })
                                 .catch(() => {})
                                 .finally(() => setNursesLoading(false));
                             }
@@ -2754,7 +2798,7 @@ const patientDebt = normalizedOutstandingDebt;
                   <option value="">— Сувилагч сонгох —</option>
                   {nurses.map((n) => (
                     <option key={n.id} value={n.id}>
-                      {n.name ?? `Nurse #${n.id}`}
+                      {formatNurseNameWithOvogInitial(n.name, n.ovog)}
                     </option>
                   ))}
                 </select>

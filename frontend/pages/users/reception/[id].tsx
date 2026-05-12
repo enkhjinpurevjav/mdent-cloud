@@ -46,9 +46,20 @@ function formatStaffShortName(staff: { name?: string | null; ovog?: string | nul
 export default function ReceptionProfilePage() {
   const router = useRouter();
   const { id } = router.query;
+  const isSterilizationUserPage = router.pathname.startsWith(
+    "/users/sterilization/"
+  );
   const isMarketingUserPage = router.pathname.startsWith("/users/marketing/");
-  const roleLabel = isMarketingUserPage ? "Маркетинг" : "Ресепшн";
-  const usersListPath = isMarketingUserPage ? "/users/marketing" : "/users/reception";
+  const roleLabel = isSterilizationUserPage
+    ? "Ариутгал"
+    : isMarketingUserPage
+      ? "Маркетинг"
+      : "Ресепшн";
+  const usersListPath = isSterilizationUserPage
+    ? "/users/sterilization"
+    : isMarketingUserPage
+      ? "/users/marketing"
+      : "/users/reception";
 
   const [reception, setReception] = useState<Reception | null>(null);
   const [branches, setBranches] = useState<Branch[]>([]);

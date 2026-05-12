@@ -11,9 +11,9 @@ import {
   withErrMeta,
   hasErrorStatus,
 } from "../utils/attendanceAttemptLog.js";
-import { getEffectiveAttendancePolicy, isWithinScheduleWindow } from "../utils/attendancePolicy.js";
+import { getEffectiveAttendancePolicy } from "../utils/attendancePolicy.js";
 import {
-  SCHEDULE_AHEAD_ROLES,
+  SCHEDULE_REQUIRED_ROLES,
   enforceStandardShiftCheckInWindow,
   enforceStandardShiftCheckout,
 } from "../utils/attendanceWorkRules.js";
@@ -69,14 +69,14 @@ function mongoliaDateString(now) {
 /**
  * Automatically resolve the attendance branchId for the given user and role.
  *
- * - doctor / nurse / receptionist / sterilization: if today's schedule exists,
- *   use scheduled branch and enforce schedule window.
- *   If no schedule exists, fall back to user's primary branch and allow unscheduled record.
- *   Receptionists are explicitly allowed to work unscheduled when extra manpower is needed.
- * - all other roles: return the user's primary User.branchId.
+ * - doctor / nurse / receptionist / sterilization: schedule is generally required.
+ *   If schedule exists, use its branch.
+ * - receptionist special case: if no schedule exists, allow unscheduled work by
+ *   falling back to receptionist's primary branch.
+ * - all other roles: use the user's primary User.branchId.
  */
 async function resolveAttendanceBranch(userId, role, now) {
-  if (SCHEDULE_AHEAD_ROLES.has(role)) {
+  if (SCHEDULE_REQUIRED_ROLES.has(role)) {
     const todayYmd = mongoliaDateString(now);
     const dayStart = new Date(`${todayYmd}T00:00:00.000+08:00`);
     const dayEnd = new Date(`${todayYmd}T23:59:59.999+08:00`);
@@ -90,41 +90,16 @@ async function resolveAttendanceBranch(userId, role, now) {
     } else if (role === "nurse") {
       schedule = await prisma.nurseSchedule.findFirst({
         where: { nurseId: userId, date: { gte: dayStart, lte: dayEnd } },
-        select: { branchId: true, startTime: true, endTime: true },
+        select: { branchId: true },
       });
-    } else if (role === "receptionist" || role === "marketing") {
+    } else if (role === "receptionist" || role === "sterilization") {
       schedule = await prisma.receptionSchedule.findFirst({
         where: { receptionId: userId, date: { gte: dayStart, lte: dayEnd } },
-        select: { branchId: true, startTime: true, endTime: true },
+        select: { branchId: true },
       });
     }
 
     if (schedule) {
-      const policy = await getEffectiveAttendancePolicy({
-        prisma,
-        role,
-        branchId: schedule.branchId,
-      });
-
-      const { withinWindow } = isWithinScheduleWindow({
-        now,
-        ymd: todayYmd,
-        startTime: schedule.startTime,
-        endTime: schedule.endTime,
-        earlyCheckInMinutes: policy.earlyCheckInMinutes,
-      });
-
-      if (!withinWindow) {
-        throw withErrMeta(
-          new Error(
-            `Ирц бүртгэх цаг болоогүй байна. ` +
-              `Таны хуваарийн цаг: ${schedule.startTime}–${schedule.endTime} ` +
-              `(${policy.earlyCheckInMinutes} минут эрт бүртгэх боломжтой).`
-          ),
-          ATTENDANCE_FAILURE_CODE.SCHEDULE_WINDOW_CLOSED,
-          403
-        );
-      }
       return schedule.branchId;
     }
 
@@ -143,6 +118,12 @@ async function resolveAttendanceBranch(userId, role, now) {
       }
       return receptionist.branchId;
     }
+
+    throw withErrMeta(
+      new Error("Өнөөдрийн ажлын хуваарь олдсонгүй. Администраторт хандана уу."),
+      ATTENDANCE_FAILURE_CODE.SCHEDULE_NOT_FOUND,
+      403
+    );
   }
 
   // If no schedule exists (or role is non-scheduled), use primary branch.
