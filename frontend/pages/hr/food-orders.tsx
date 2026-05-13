@@ -338,9 +338,6 @@ export default function HrFoodOrdersPage() {
 
       <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-800">
         Нийт хоолны тоо ({selectedRangeLabel}): {totalQuantity}
-        <span className="ml-2 text-xs font-normal text-gray-500">
-          (захиалгын бичлэг: {totalOrders})
-        </span>
       </div>
 
       {detailRow && (
