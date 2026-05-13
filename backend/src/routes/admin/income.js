@@ -119,12 +119,16 @@ export function buildDetailedPaymentSummaryRows(paymentGroups, methodConfigs = [
  * Build payment-summary rows specifically for the income-detailed page.
  * Ensures imaging sales is displayed between wallet and product sales.
  * @param {Array<{method:string,label:string,totalAmount:number,count:number}>} paymentSummaryRows
- * @param {{imagingProductionTotal?:number, imagingCount?:number, productSalesTotal?:number, productCount?:number}} totals
+ * @param {{imagingProductionTotal?:number, imagingCount?:number, productSalesTotal?:number, productCount?:number, overpaymentSnapshotAmount?:number}} totals
  * @returns {Array<{method:string,label:string,totalAmount:number,count:number}>}
  */
 export function buildIncomeDetailedPageSummaryRows(paymentSummaryRows, totals = {}) {
   const baseRows = (paymentSummaryRows || [])
-    .filter((row) => row?.method !== "IMAGING_SALES" && row?.method !== "PRODUCT_SALES")
+    .filter((row) =>
+      row?.method !== "IMAGING_SALES" &&
+      row?.method !== "PRODUCT_SALES" &&
+      row?.method !== "OVERPAYMENT_AS_OF"
+    )
     .map((row) => ({
       method: String(row.method || ""),
       label: String(row.label || row.method || ""),
@@ -155,6 +159,12 @@ export function buildIncomeDetailedPageSummaryRows(paymentSummaryRows, totals = 
     label: "Барааны борлуулалт",
     totalAmount: Math.round(Number(totals.productSalesTotal || 0)),
     count: Number(totals.productCount || 0),
+  });
+  summaryRows.push({
+    method: "OVERPAYMENT_AS_OF",
+    label: "Илүү төлөлт (огнооны эцсээр)",
+    totalAmount: Math.round(Number(totals.overpaymentSnapshotAmount || 0)),
+    count: 0,
   });
 
   return summaryRows;
@@ -1323,6 +1333,7 @@ router.get("/income-detailed-page", async (req, res) => {
       imagingCount: Number(imagingProduction.imagingCount || 0),
       productSalesTotal,
       productCount: productItems.length,
+      overpaymentSnapshotAmount: Number(balanceSnapshot.overpaymentAmount || 0),
     });
 
     const collectors = collectorRows

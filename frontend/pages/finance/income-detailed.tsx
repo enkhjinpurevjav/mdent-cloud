@@ -115,7 +115,7 @@ export default function FinanceIncomeDetailedPage() {
     }
     const next: Record<string, boolean> = {};
     data.paymentSummary.forEach((row) => {
-      next[row.method] = true;
+      next[row.method] = row.method !== "OVERPAYMENT_AS_OF";
     });
     setIncludedMethods(next);
   }, [data]);

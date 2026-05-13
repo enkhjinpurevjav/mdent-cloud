@@ -46,7 +46,7 @@ test("buildDetailedPaymentSummaryRows appends extra methods and uses labels", ()
   assert.equal(rows[rows.length - 1]?.method, "OTHER");
 });
 
-test("buildIncomeDetailedPageSummaryRows injects wallet when missing and places imaging before product", () => {
+test("buildIncomeDetailedPageSummaryRows injects wallet and appends product + overpayment rows", () => {
   const rows = buildIncomeDetailedPageSummaryRows(
     [
       { method: "CASH", label: "Бэлэн", totalAmount: 150000, count: 2 },
@@ -57,18 +57,22 @@ test("buildIncomeDetailedPageSummaryRows injects wallet when missing and places 
       imagingCount: 14,
       productSalesTotal: 15000,
       productCount: 1,
+      overpaymentSnapshotAmount: 1175000,
     }
   );
 
   const walletIndex = rows.findIndex((r) => r.method === "WALLET");
   const imagingIndex = rows.findIndex((r) => r.method === "IMAGING_SALES");
   const productIndex = rows.findIndex((r) => r.method === "PRODUCT_SALES");
+  const overpaymentIndex = rows.findIndex((r) => r.method === "OVERPAYMENT_AS_OF");
 
   assert.notEqual(walletIndex, -1);
   assert.equal(imagingIndex, walletIndex + 1);
-  assert.equal(productIndex, rows.length - 1);
+  assert.equal(productIndex, rows.length - 2);
+  assert.equal(overpaymentIndex, rows.length - 1);
   assert.equal(rows[imagingIndex]?.totalAmount, 1082000);
   assert.equal(rows[imagingIndex]?.count, 14);
+  assert.equal(rows[overpaymentIndex]?.totalAmount, 1175000);
 });
 
 test("buildIncomeDetailedPageSummaryRows inserts imaging immediately after existing wallet row", () => {
@@ -83,14 +87,18 @@ test("buildIncomeDetailedPageSummaryRows inserts imaging immediately after exist
       imagingCount: 4,
       productSalesTotal: 555,
       productCount: 5,
+      overpaymentSnapshotAmount: 999,
     }
   );
 
   const walletIndex = rows.findIndex((r) => r.method === "WALLET");
   const imagingIndex = rows.findIndex((r) => r.method === "IMAGING_SALES");
   const productIndex = rows.findIndex((r) => r.method === "PRODUCT_SALES");
+  const overpaymentIndex = rows.findIndex((r) => r.method === "OVERPAYMENT_AS_OF");
 
   assert.equal(imagingIndex, walletIndex + 1);
   assert.equal(rows[imagingIndex]?.count, 4);
   assert.equal(rows[productIndex]?.totalAmount, 555);
+  assert.equal(rows[overpaymentIndex]?.totalAmount, 999);
+  assert.equal(rows[overpaymentIndex]?.count, 0);
 });
