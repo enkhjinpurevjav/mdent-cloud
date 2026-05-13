@@ -262,16 +262,29 @@ async function computeBalanceSnapshotTotalsAsOfDate({ asOfEndExclusive, branchId
     })
     : [];
 
-  const adjustmentAgg = patientIds.length
-    ? await prisma.balanceAdjustmentLog.groupBy({
-      by: ["patientId"],
-      where: {
-        patientId: { in: patientIds },
-        createdAt: { lt: asOfEndExclusive },
-      },
-      _sum: { amount: true },
-    })
-    : [];
+  let adjustmentAgg = [];
+  if (patientIds.length) {
+    try {
+      adjustmentAgg = await prisma.balanceAdjustmentLog.groupBy({
+        by: ["patientId"],
+        where: {
+          patientId: { in: patientIds },
+          createdAt: { lt: asOfEndExclusive },
+        },
+        _sum: { amount: true },
+      });
+    } catch (error) {
+      console.error(
+        "As-of adjustment aggregation failed, falling back to all-time adjustments:",
+        error
+      );
+      const fallbackAdjustmentMap = await getAdjustmentTotalsByPatient(branchId);
+      adjustmentAgg = Array.from(fallbackAdjustmentMap.entries()).map(([patientId, sum]) => ({
+        patientId,
+        _sum: { amount: Number(sum || 0) },
+      }));
+    }
+  }
 
   const paidByInvoice = new Map(
     payments.map((p) => [p.invoiceId, Number(p._sum.amount || 0)])
@@ -1215,6 +1228,27 @@ router.get("/income-detailed-page", async (req, res) => {
       ...(branchId ? { invoice: { branchId } } : {}),
     };
 
+    const imagingProductionPromise = computeImagingProductionByPaymentForIncomeDetailed({
+      start,
+      endExclusive,
+      branchId,
+    }).catch((error) => {
+      console.error("Income detailed imaging aggregation failed:", error);
+      return {
+        imagingRows: [],
+        imagingProductionTotal: 0,
+        imagingCount: 0,
+      };
+    });
+
+    const balanceSnapshotPromise = computeBalanceSnapshotTotalsAsOfDate({
+      asOfEndExclusive: endExclusive,
+      branchId,
+    }).catch(async (error) => {
+      console.error("Income detailed as-of snapshot failed, falling back to current snapshot:", error);
+      return computeBalanceSnapshotTotals(branchId);
+    });
+
     const [
       generatedDoctors,
       imagingProduction,
@@ -1226,7 +1260,7 @@ router.get("/income-detailed-page", async (req, res) => {
       balanceSnapshot,
     ] = await Promise.all([
       computeDoctorsGeneratedSalesForIncomeDetailed({ start, endExclusive, branchId }),
-      computeImagingProductionByPaymentForIncomeDetailed({ start, endExclusive, branchId }),
+      imagingProductionPromise,
       prisma.paymentMethodConfig.findMany({
         select: { key: true, label: true, sortOrder: true },
         orderBy: { sortOrder: "asc" },
@@ -1263,7 +1297,7 @@ router.get("/income-detailed-page", async (req, res) => {
           quantity: true,
         },
       }),
-      computeBalanceSnapshotTotalsAsOfDate({ asOfEndExclusive: endExclusive, branchId }),
+      balanceSnapshotPromise,
     ]);
 
     const doctorRows = generatedDoctors
