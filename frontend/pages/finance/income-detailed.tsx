@@ -23,7 +23,6 @@ type IncomeDetailedResponse = {
   doctorRevenueTotal: number;
   imaging: ImagingRow[];
   imagingProductionTotal: number;
-  overrideFeeTotal: number;
   productSalesTotal: number;
   grandTotal: number;
   paymentSummary: PaymentSummaryRow[];
@@ -60,6 +59,7 @@ export default function FinanceIncomeDetailedPage() {
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [data, setData] = useState<IncomeDetailedResponse | null>(null);
+  const [includedMethods, setIncludedMethods] = useState<Record<string, boolean>>({});
 
   const canView = me?.role === "admin" || me?.role === "super_admin";
 
@@ -89,7 +89,7 @@ export default function FinanceIncomeDetailedPage() {
     try {
       const params = new URLSearchParams({ startDate, endDate });
       if (branchId) params.set("branchId", String(branchId));
-      const res = await fetch(`/api/admin/income-detailed?${params.toString()}`, {
+      const res = await fetch(`/api/admin/income-detailed-page?${params.toString()}`, {
         credentials: "include",
       });
       const json = await res.json().catch(() => null);
@@ -106,6 +106,33 @@ export default function FinanceIncomeDetailedPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await fetchReport();
+  };
+
+  useEffect(() => {
+    if (!data) {
+      setIncludedMethods({});
+      return;
+    }
+    const next: Record<string, boolean> = {};
+    data.paymentSummary.forEach((row) => {
+      next[row.method] = true;
+    });
+    setIncludedMethods(next);
+  }, [data]);
+
+  const selectedPaymentSummaryTotal = useMemo(() => {
+    if (!data) return 0;
+    return data.paymentSummary.reduce((sum, row) => {
+      if (includedMethods[row.method] === false) return sum;
+      return sum + Number(row.totalAmount || 0);
+    }, 0);
+  }, [data, includedMethods]);
+
+  const toggleMethodInclusion = (method: string) => {
+    setIncludedMethods((prev) => ({
+      ...prev,
+      [method]: prev[method] === false,
+    }));
   };
 
   if (authLoading || !me || !canView) return null;
@@ -239,11 +266,8 @@ export default function FinanceIncomeDetailedPage() {
           </section>
 
           <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4">
-            <p className="text-sm text-blue-700">Нийт орлого (Эмч + Зураг + Шимтгэл 10%)</p>
+            <p className="text-sm text-blue-700">Нийт орлого (Эмч + Зураг)</p>
             <p className="text-2xl font-bold text-blue-900">{fmtMnt(data.grandTotal)}</p>
-            <p className="mt-1 text-xs text-blue-700">
-              Шимтгэл 10%: {fmtMnt(data.overrideFeeTotal)}
-            </p>
           </div>
 
           <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -251,6 +275,7 @@ export default function FinanceIncomeDetailedPage() {
             <table className="w-full border-collapse text-sm">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-600">Сонгох</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-600">Төлбөрийн төрөл</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-600">Гүйлгээний тоо</th>
                   <th className="px-4 py-3 text-right font-semibold text-gray-600">Нийт дүн</th>
@@ -259,11 +284,24 @@ export default function FinanceIncomeDetailedPage() {
               <tbody>
                 {data.paymentSummary.map((row) => (
                   <tr key={row.method} className="border-t border-gray-200">
+                    <td className="px-4 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        checked={includedMethods[row.method] !== false}
+                        onChange={() => toggleMethodInclusion(row.method)}
+                      />
+                    </td>
                     <td className="px-4 py-2 text-gray-800">{row.label}</td>
                     <td className="px-4 py-2 text-right text-gray-700">{row.count}</td>
                     <td className="px-4 py-2 text-right text-gray-800">{fmtMnt(row.totalAmount)}</td>
                   </tr>
                 ))}
+                <tr className="border-t border-gray-300 bg-gray-50 font-semibold">
+                  <td className="px-4 py-2" />
+                  <td className="px-4 py-2 text-gray-900">Сонгосон мөрүүдийн нийт дүн</td>
+                  <td className="px-4 py-2 text-right text-gray-700" />
+                  <td className="px-4 py-2 text-right text-gray-900">{fmtMnt(selectedPaymentSummaryTotal)}</td>
+                </tr>
               </tbody>
             </table>
           </section>
