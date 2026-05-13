@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Branch"
+ADD COLUMN "geoMinAccuracyM" INTEGER NOT NULL DEFAULT 100;
+

@@ -7,6 +7,7 @@ type Branch = {
   geoLat?: number | null;
   geoLng?: number | null;
   geoRadiusM?: number;
+  geoMinAccuracyM?: number;
   createdAt?: string;
 };
 
@@ -29,6 +30,7 @@ function BranchForm({ onSuccess }: { onSuccess: (b: Branch) => void }) {
     geoLat: "",
     geoLng: "",
     geoRadiusM: "150",
+    geoMinAccuracyM: "100",
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -62,6 +64,13 @@ function BranchForm({ onSuccess }: { onSuccess: (b: Branch) => void }) {
         return;
       }
     }
+    if (form.geoMinAccuracyM !== "") {
+      const v = Number(form.geoMinAccuracyM);
+      if (!Number.isInteger(v) || v < 1 || v > 5000) {
+        setError("GPS нарийвчлал 1-5000 метрийн хооронд бүхэл тоо байна.");
+        return;
+      }
+    }
 
     setSubmitting(true);
 
@@ -73,6 +82,9 @@ function BranchForm({ onSuccess }: { onSuccess: (b: Branch) => void }) {
       if (form.geoLat !== "") body.geoLat = Number(form.geoLat);
       if (form.geoLng !== "") body.geoLng = Number(form.geoLng);
       if (form.geoRadiusM !== "") body.geoRadiusM = Number(form.geoRadiusM);
+      if (form.geoMinAccuracyM !== "") {
+        body.geoMinAccuracyM = Number(form.geoMinAccuracyM);
+      }
 
       const res = await fetch("/api/branches", {
         method: "POST",
@@ -89,7 +101,14 @@ function BranchForm({ onSuccess }: { onSuccess: (b: Branch) => void }) {
 
       if (res.ok) {
         onSuccess(data as Branch);
-        setForm({ name: "", address: "", geoLat: "", geoLng: "", geoRadiusM: "150" });
+        setForm({
+          name: "",
+          address: "",
+          geoLat: "",
+          geoLng: "",
+          geoRadiusM: "150",
+          geoMinAccuracyM: "100",
+        });
       } else {
         setError((data && data.error) || "Алдаа гарлаа");
       }
@@ -222,6 +241,27 @@ function BranchForm({ onSuccess }: { onSuccess: (b: Branch) => void }) {
             Ирц бүртгэх үед салбараас зөвшөөрөх дээд зай.
           </span>
         </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <label>GPS нарийвчлалын дээд хязгаар (метр)</label>
+          <input
+            name="geoMinAccuracyM"
+            type="number"
+            min={1}
+            max={5000}
+            step={1}
+            placeholder="Ж: 100"
+            value={form.geoMinAccuracyM}
+            onChange={handleChange}
+            style={{
+              borderRadius: 6,
+              border: "1px solid #d1d5db",
+              padding: "6px 8px",
+            }}
+          />
+          <span style={{ fontSize: 11, color: "#6b7280" }}>
+            Ирц бүртгэх GPS accuracy энэ утгаас их бол татгалзана.
+          </span>
+        </div>
       </div>
 
       <div
@@ -270,12 +310,14 @@ export default function BranchesPage() {
     geoLat: string;
     geoLng: string;
     geoRadiusM: string;
+    geoMinAccuracyM: string;
   }>({
     name: "",
     address: "",
     geoLat: "",
     geoLng: "",
     geoRadiusM: "",
+    geoMinAccuracyM: "",
   });
   const [savingId, setSavingId] = useState<number | null>(null);
   const [editError, setEditError] = useState("");
@@ -317,20 +359,35 @@ export default function BranchesPage() {
       geoLat: b.geoLat != null ? String(b.geoLat) : "",
       geoLng: b.geoLng != null ? String(b.geoLng) : "",
       geoRadiusM: b.geoRadiusM != null ? String(b.geoRadiusM) : "150",
+      geoMinAccuracyM:
+        b.geoMinAccuracyM != null ? String(b.geoMinAccuracyM) : "100",
     });
     setEditError("");
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditValues({ name: "", address: "", geoLat: "", geoLng: "", geoRadiusM: "" });
+    setEditValues({
+      name: "",
+      address: "",
+      geoLat: "",
+      geoLng: "",
+      geoRadiusM: "",
+      geoMinAccuracyM: "",
+    });
     setSavingId(null);
     setEditError("");
   };
 
   const handleEditChange = (
     e: React.ChangeEvent<HTMLInputElement>,
-    field: "name" | "address" | "geoLat" | "geoLng" | "geoRadiusM"
+    field:
+      | "name"
+      | "address"
+      | "geoLat"
+      | "geoLng"
+      | "geoRadiusM"
+      | "geoMinAccuracyM"
   ) => {
     const value = e.target.value;
     setEditValues((prev) => ({ ...prev, [field]: value }));
@@ -362,6 +419,13 @@ export default function BranchesPage() {
         return;
       }
     }
+    if (editValues.geoMinAccuracyM !== "") {
+      const v = Number(editValues.geoMinAccuracyM);
+      if (!Number.isInteger(v) || v < 1 || v > 5000) {
+        setEditError("GPS нарийвчлал 1-5000 метрийн хооронд бүхэл тоо байна.");
+        return;
+      }
+    }
     setSavingId(b.id);
     setEditError("");
 
@@ -373,6 +437,10 @@ export default function BranchesPage() {
         geoLng: editValues.geoLng !== "" ? Number(editValues.geoLng) : null,
         geoRadiusM:
           editValues.geoRadiusM !== "" ? Number(editValues.geoRadiusM) : undefined,
+        geoMinAccuracyM:
+          editValues.geoMinAccuracyM !== ""
+            ? Number(editValues.geoMinAccuracyM)
+            : undefined,
       };
 
       const res = await fetch(`/api/branches/${b.id}`, {
@@ -488,6 +556,7 @@ export default function BranchesPage() {
                   <th style={{ ...thStyle }}>Өргөрөг (Lat)</th>
                   <th style={{ ...thStyle }}>Уртраг (Lng)</th>
                   <th style={{ ...thStyle }}>Зайны радиус (м)</th>
+                  <th style={{ ...thStyle }}>GPS нарийвчлал (м)</th>
                   <th style={{ ...thStyle }}>Үүсгэсэн огноо</th>
                   <th
                     style={{
@@ -614,6 +683,27 @@ export default function BranchesPage() {
                           b.geoRadiusM ?? 150
                         )}
                       </td>
+                      <td style={tdStyle}>
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            min={1}
+                            max={5000}
+                            step={1}
+                            value={editValues.geoMinAccuracyM}
+                            onChange={(e) => handleEditChange(e, "geoMinAccuracyM")}
+                            style={{
+                              width: "100%",
+                              borderRadius: 6,
+                              border: "1px solid #d1d5db",
+                              padding: "4px 6px",
+                              fontSize: 12,
+                            }}
+                          />
+                        ) : (
+                          b.geoMinAccuracyM ?? 100
+                        )}
+                      </td>
 
                       {/* CreatedAt */}
                       <td style={tdStyle}>{formatDateYmdDots(b.createdAt)}</td>
@@ -688,7 +778,7 @@ export default function BranchesPage() {
                 {branches.length === 0 && (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       style={{
                         textAlign: "center",
                         color: "#9ca3af",

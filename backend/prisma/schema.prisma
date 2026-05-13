@@ -166,6 +166,7 @@ model Branch {
   geoLat      Float?
   geoLng      Float?
   geoRadiusM  Int    @default(150)
+  geoMinAccuracyM Int @default(100)
 
   users              User[]
   patients           Patient[]

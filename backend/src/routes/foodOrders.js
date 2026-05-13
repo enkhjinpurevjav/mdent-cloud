@@ -276,10 +276,10 @@ router.patch("/admin/:id", async (req, res) => {
 
     const quantityRaw = req.body?.quantity;
     const quantity = Number(quantityRaw);
-    if (!Number.isInteger(quantity) || quantity < 1) {
+    if (!Number.isInteger(quantity) || quantity < 0) {
       return res
         .status(400)
-        .json({ error: "quantity нь 1-с их бүхэл тоо байх ёстой." });
+        .json({ error: "quantity нь 0-с их эсвэл тэнцүү бүхэл тоо байх ёстой." });
     }
 
     const existing = await prisma.foodOrder.findUnique({
