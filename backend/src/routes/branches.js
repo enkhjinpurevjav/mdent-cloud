@@ -19,13 +19,14 @@ router.get("/", async (_req, res) => {
 });
 
 /**
- * Validate geoLat / geoLng / geoRadiusM values.
+ * Validate geoLat / geoLng / geoRadiusM / geoMinAccuracyM values.
  * Returns { error } string on failure, or parsed values (possibly null) on success.
  */
-function parseGeoFields(rawLat, rawLng, rawRadiusM) {
+function parseGeoFields(rawLat, rawLng, rawRadiusM, rawMinAccuracyM) {
   let geoLat = undefined;
   let geoLng = undefined;
   let geoRadiusM = undefined;
+  let geoMinAccuracyM = undefined;
 
   if (rawLat !== undefined) {
     if (rawLat === null) {
@@ -74,7 +75,24 @@ function parseGeoFields(rawLat, rawLng, rawRadiusM) {
     geoRadiusM = v;
   }
 
-  return { geoLat, geoLng, geoRadiusM };
+  if (rawMinAccuracyM !== undefined) {
+    if (rawMinAccuracyM === null) {
+      return { error: "geoMinAccuracyM cannot be null" };
+    }
+    const v = Number(rawMinAccuracyM);
+    if (!Number.isFinite(v)) {
+      return { error: "geoMinAccuracyM must be a number" };
+    }
+    if (!Number.isInteger(v)) {
+      return { error: "geoMinAccuracyM must be an integer" };
+    }
+    if (v < 1 || v > 5000) {
+      return { error: "geoMinAccuracyM must be between 1 and 5000" };
+    }
+    geoMinAccuracyM = v;
+  }
+
+  return { geoLat, geoLng, geoRadiusM, geoMinAccuracyM };
 }
 
 /**
@@ -82,13 +100,20 @@ function parseGeoFields(rawLat, rawLng, rawRadiusM) {
  */
 router.post("/", async (req, res) => {
   try {
-    const { name, address, geoLat: rawLat, geoLng: rawLng, geoRadiusM: rawRadiusM } = req.body || {};
+    const {
+      name,
+      address,
+      geoLat: rawLat,
+      geoLng: rawLng,
+      geoRadiusM: rawRadiusM,
+      geoMinAccuracyM: rawMinAccuracyM,
+    } = req.body || {};
 
     if (!name) {
       return res.status(400).json({ error: "name is required" });
     }
 
-    const geo = parseGeoFields(rawLat, rawLng, rawRadiusM);
+    const geo = parseGeoFields(rawLat, rawLng, rawRadiusM, rawMinAccuracyM);
     if (geo.error) {
       return res.status(400).json({ error: geo.error });
     }
@@ -100,6 +125,9 @@ router.post("/", async (req, res) => {
     if (geo.geoLat !== undefined) data.geoLat = geo.geoLat;
     if (geo.geoLng !== undefined) data.geoLng = geo.geoLng;
     if (geo.geoRadiusM !== undefined) data.geoRadiusM = geo.geoRadiusM;
+    if (geo.geoMinAccuracyM !== undefined) {
+      data.geoMinAccuracyM = geo.geoMinAccuracyM;
+    }
 
     const branch = await prisma.branch.create({ data });
 
@@ -119,6 +147,7 @@ router.post("/", async (req, res) => {
  *  - geoLat (number | null, optional)
  *  - geoLng (number | null, optional)
  *  - geoRadiusM (integer, optional)
+ *  - geoMinAccuracyM (integer, optional)
  */
 router.patch("/:id", async (req, res) => {
   try {
@@ -127,7 +156,14 @@ router.patch("/:id", async (req, res) => {
       return res.status(400).json({ error: "invalid branch id" });
     }
 
-    const { name, address, geoLat: rawLat, geoLng: rawLng, geoRadiusM: rawRadiusM } = req.body || {};
+    const {
+      name,
+      address,
+      geoLat: rawLat,
+      geoLng: rawLng,
+      geoRadiusM: rawRadiusM,
+      geoMinAccuracyM: rawMinAccuracyM,
+    } = req.body || {};
     const data = {};
 
     if (typeof name === "string" && name.trim()) {
@@ -137,14 +173,27 @@ router.patch("/:id", async (req, res) => {
       data.address = address ? address.trim() : null;
     }
 
-    if (rawLat !== undefined || rawLng !== undefined || rawRadiusM !== undefined) {
-      const geo = parseGeoFields(rawLat, rawLng, rawRadiusM);
+    if (
+      rawLat !== undefined ||
+      rawLng !== undefined ||
+      rawRadiusM !== undefined ||
+      rawMinAccuracyM !== undefined
+    ) {
+      const geo = parseGeoFields(
+        rawLat,
+        rawLng,
+        rawRadiusM,
+        rawMinAccuracyM
+      );
       if (geo.error) {
         return res.status(400).json({ error: geo.error });
       }
       if (geo.geoLat !== undefined) data.geoLat = geo.geoLat;
       if (geo.geoLng !== undefined) data.geoLng = geo.geoLng;
       if (geo.geoRadiusM !== undefined) data.geoRadiusM = geo.geoRadiusM;
+      if (geo.geoMinAccuracyM !== undefined) {
+        data.geoMinAccuracyM = geo.geoMinAccuracyM;
+      }
     }
 
     if (Object.keys(data).length === 0) {
@@ -152,7 +201,7 @@ router.patch("/:id", async (req, res) => {
         .status(400)
         .json({
           error:
-            "at least one field (name, address, geoLat, geoLng, geoRadiusM) is required",
+            "at least one field (name, address, geoLat, geoLng, geoRadiusM, geoMinAccuracyM) is required",
         });
     }
 

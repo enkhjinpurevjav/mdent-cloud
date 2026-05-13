@@ -143,12 +143,39 @@ async function resolveAttendanceBranch(userId, role, now) {
 
 /**
  * Enforce geofence against a specific branch.
- * Accuracy must be <=MAX_ACCURACY_M and GPS distance <= branch radius.
+ * Accuracy must be <= branch accuracy threshold and
+ * GPS distance <= branch radius.
  * Throws with status 403 on violation.
  */
 async function enforceGeofenceForBranch(branchId, lat, lng, accuracyM, policy) {
-  const minAccuracyM = policy?.minAccuracyM ?? 100;
-  const enforceGeofence = policy?.enforceGeofence ?? true;
+  const branch = await prisma.branch.findUnique({
+    where: { id: branchId },
+    select: {
+      id: true,
+      name: true,
+      geoLat: true,
+      geoLng: true,
+      geoRadiusM: true,
+      geoMinAccuracyM: true,
+    },
+  });
+
+  if (!branch?.geoLat || !branch?.geoLng) {
+    throw withErrMeta(
+      new Error("Таны салбарын байршил тохируулаагүй байна. Администраторт хандана уу."),
+      ATTENDANCE_FAILURE_CODE.MISSING_BRANCH_GEO,
+      400
+    );
+  }
+
+  const minAccuracyM = branch.geoMinAccuracyM;
+  if (!Number.isFinite(minAccuracyM) || minAccuracyM <= 0) {
+    throw withErrMeta(
+      new Error("Таны салбарын GPS нарийвчлалын хязгаар тохируулаагүй байна."),
+      ATTENDANCE_FAILURE_CODE.MISSING_BRANCH_GEO,
+      400
+    );
+  }
 
   if (accuracyM > minAccuracyM) {
     throw withErrMeta(
@@ -161,19 +188,7 @@ async function enforceGeofenceForBranch(branchId, lat, lng, accuracyM, policy) {
     );
   }
 
-  const branch = await prisma.branch.findUnique({
-    where: { id: branchId },
-    select: { id: true, name: true, geoLat: true, geoLng: true, geoRadiusM: true },
-  });
-
-  if (!branch?.geoLat || !branch?.geoLng) {
-    throw withErrMeta(
-      new Error("Таны салбарын байршил тохируулаагүй байна. Администраторт хандана уу."),
-      ATTENDANCE_FAILURE_CODE.MISSING_BRANCH_GEO,
-      400
-    );
-  }
-
+  const enforceGeofence = policy?.enforceGeofence ?? true;
   const radiusM = branch.geoRadiusM;
   const distM = haversineDistanceM(lat, lng, branch.geoLat, branch.geoLng);
 
