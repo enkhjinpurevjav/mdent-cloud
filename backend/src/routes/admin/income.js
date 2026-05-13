@@ -116,6 +116,51 @@ export function buildDetailedPaymentSummaryRows(paymentGroups, methodConfigs = [
 }
 
 /**
+ * Build payment-summary rows specifically for the income-detailed page.
+ * Ensures imaging sales is displayed between wallet and product sales.
+ * @param {Array<{method:string,label:string,totalAmount:number,count:number}>} paymentSummaryRows
+ * @param {{imagingProductionTotal?:number, imagingCount?:number, productSalesTotal?:number, productCount?:number}} totals
+ * @returns {Array<{method:string,label:string,totalAmount:number,count:number}>}
+ */
+export function buildIncomeDetailedPageSummaryRows(paymentSummaryRows, totals = {}) {
+  const baseRows = (paymentSummaryRows || [])
+    .filter((row) => row?.method !== "IMAGING_SALES" && row?.method !== "PRODUCT_SALES")
+    .map((row) => ({
+      method: String(row.method || ""),
+      label: String(row.label || row.method || ""),
+      totalAmount: Number(row.totalAmount || 0),
+      count: Number(row.count || 0),
+    }));
+
+  let walletIndex = baseRows.findIndex((row) => row.method === "WALLET");
+  if (walletIndex === -1) {
+    baseRows.push({
+      method: "WALLET",
+      label: METHOD_LABELS.WALLET,
+      totalAmount: 0,
+      count: 0,
+    });
+    walletIndex = baseRows.length - 1;
+  }
+
+  const summaryRows = [...baseRows];
+  summaryRows.splice(walletIndex + 1, 0, {
+    method: "IMAGING_SALES",
+    label: "Зургийн орлого",
+    totalAmount: Math.round(Number(totals.imagingProductionTotal || 0)),
+    count: Number(totals.imagingCount || 0),
+  });
+  summaryRows.push({
+    method: "PRODUCT_SALES",
+    label: "Барааны борлуулалт",
+    totalAmount: Math.round(Number(totals.productSalesTotal || 0)),
+    count: Number(totals.productCount || 0),
+  });
+
+  return summaryRows;
+}
+
+/**
  * Compute current (as-of now) debt and overpayment snapshot totals for active patients.
  * This is intentionally independent from report date range and matches patient-balances pages.
  */
@@ -506,6 +551,128 @@ function bucketKeyForService(service) {
   return "GENERAL";
 }
 
+/**
+ * Dedicated sales calculation for the income-detailed page.
+ * This keeps the page isolated from doctor-income report logic and shows
+ * generated sales without the 10% override-method deduction.
+ */
+async function computeDoctorsGeneratedSalesForIncomeDetailed({ start, endExclusive, branchId }) {
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      ...(branchId ? { branchId: Number(branchId) } : {}),
+      OR: [
+        { createdAt: { gte: start, lt: endExclusive } },
+        { payments: { some: { timestamp: { gte: start, lt: endExclusive } } } },
+      ],
+    },
+    include: {
+      encounter: {
+        select: {
+          doctor: { select: { id: true, name: true, ovog: true } },
+        },
+      },
+      items: { include: { service: true } },
+      payments: {
+        include: {
+          allocations: { select: { invoiceItemId: true, amount: true } },
+        },
+      },
+    },
+  });
+
+  const byDoctor = new Map();
+
+  for (const inv of invoices) {
+    const doctor = inv.encounter?.doctor;
+    if (!doctor?.id) continue;
+
+    if (!byDoctor.has(doctor.id)) {
+      byDoctor.set(doctor.id, {
+        doctorId: doctor.id,
+        doctorName: doctor.name || "",
+        doctorOvog: doctor.ovog || null,
+        amount: 0,
+      });
+    }
+    const acc = byDoctor.get(doctor.id);
+
+    const serviceItems = (inv.items || []).filter(
+      (it) => it.itemType === "SERVICE" && it.service?.category !== "PREVIOUS"
+    );
+    if (!serviceItems.length) continue;
+
+    const nonImagingServiceItems = serviceItems.filter(
+      (it) => it.service?.category !== "IMAGING"
+    );
+    const lineNets = computeServiceNetProportionalDiscount(
+      serviceItems,
+      discountPercentEnumToNumber(inv.discountPercent)
+    );
+    const totalAllServiceNet = serviceItems.reduce(
+      (sum, it) => sum + (lineNets.get(it.id) || 0),
+      0
+    );
+    const totalNonImagingNet = nonImagingServiceItems.reduce(
+      (sum, it) => sum + (lineNets.get(it.id) || 0),
+      0
+    );
+    const nonImagingRatio = totalAllServiceNet > 0 ? totalNonImagingNet / totalAllServiceNet : 0;
+
+    const itemById = new Map(serviceItems.map((it) => [it.id, it]));
+    const serviceLineIds = serviceItems.map((it) => it.id);
+    const remainingDue = new Map(serviceItems.map((it) => [it.id, lineNets.get(it.id) || 0]));
+    const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
+    let barterSum = 0;
+
+    const sortedPayments = [...(inv.payments || [])].sort(
+      (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+    );
+    for (const p of sortedPayments) {
+      const method = String(p.method || "").toUpperCase();
+      const ts = new Date(p.timestamp);
+      if (!inRange(ts, start, endExclusive)) continue;
+      if (EXCLUDED_METHODS.has(method)) continue;
+
+      if (method === "BARTER") {
+        barterSum += Number(p.amount || 0);
+        continue;
+      }
+
+      if (!INCLUDED_METHODS.has(method) && !OVERRIDE_METHODS.has(method)) continue;
+
+      const payAmt = Number(p.amount || 0);
+      const payAllocs = p.allocations || [];
+
+      if (payAllocs.length > 0) {
+        for (const alloc of payAllocs) {
+          const item = itemById.get(alloc.invoiceItemId);
+          if (!item) continue;
+          const allocAmt = Number(alloc.amount || 0);
+          itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
+          remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
+        }
+      } else {
+        const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
+        for (const [id, amt] of allocs) {
+          itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+        }
+      }
+    }
+
+    const salesFromPaid = nonImagingServiceItems.reduce(
+      (sum, it) => sum + (itemAllocationBase.get(it.id) || 0),
+      0
+    );
+    const barterExcess = Math.max(0, barterSum - 800000);
+    acc.amount += salesFromPaid + barterExcess * nonImagingRatio;
+  }
+
+  return Array.from(byDoctor.values()).map((row) => ({
+    ...row,
+    amount: Math.round(Number(row.amount || 0)),
+  }));
+}
+
 router.get("/doctors-income", async (req, res) => {
   const { startDate, endDate, branchId } = req.query;
 
@@ -785,6 +952,222 @@ router.get("/income-detailed", async (req, res) => {
   } catch (error) {
     console.error("Error in fetching detailed income report:", error);
     return res.status(500).json({ error: "Failed to fetch detailed income report." });
+  }
+});
+
+/**
+ * GET /api/admin/income-detailed-page
+ * Dedicated backend for finance income-detailed page so it can evolve
+ * independently from other admin income reports.
+ */
+router.get("/income-detailed-page", async (req, res) => {
+  const { startDate, endDate, branchId: branchIdParam } = req.query;
+
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: "startDate and endDate are required parameters." });
+  }
+
+  const start = parseDateOnlyStart(startDate);
+  const endExclusive = parseDateOnlyEndExclusive(endDate);
+  if (!start || !endExclusive) {
+    return res.status(400).json({ error: "Invalid date format. Expected YYYY-MM-DD." });
+  }
+
+  const branchId = branchIdParam != null && branchIdParam !== ""
+    ? Number(branchIdParam)
+    : null;
+  if (branchIdParam != null && branchIdParam !== "" && (!Number.isInteger(branchId) || branchId <= 0)) {
+    return res.status(400).json({ error: "branchId must be a positive integer." });
+  }
+
+  try {
+    const paymentWhere = {
+      timestamp: { gte: start, lt: endExclusive },
+      ...(branchId ? { invoice: { branchId } } : {}),
+    };
+
+    const [
+      generatedDoctors,
+      methodConfigs,
+      paymentGroups,
+      collectorRows,
+      branch,
+      imagingItems,
+      productItems,
+      balanceSnapshot,
+    ] = await Promise.all([
+      computeDoctorsGeneratedSalesForIncomeDetailed({ start, endExclusive, branchId }),
+      prisma.paymentMethodConfig.findMany({
+        select: { key: true, label: true, sortOrder: true },
+        orderBy: { sortOrder: "asc" },
+      }),
+      prisma.payment.groupBy({
+        by: ["method"],
+        where: paymentWhere,
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+      prisma.payment.findMany({
+        where: paymentWhere,
+        select: {
+          createdByUserId: true,
+          createdBy: { select: { id: true, name: true, ovog: true } },
+        },
+        distinct: ["createdByUserId"],
+      }),
+      branchId
+        ? prisma.branch.findUnique({ where: { id: branchId }, select: { id: true, name: true } })
+        : Promise.resolve(null),
+      prisma.invoiceItem.findMany({
+        where: {
+          itemType: "SERVICE",
+          service: { category: "IMAGING" },
+          invoice: {
+            createdAt: { gte: start, lt: endExclusive },
+            ...(branchId ? { branchId } : {}),
+          },
+        },
+        select: {
+          id: true,
+          unitPrice: true,
+          quantity: true,
+          lineTotal: true,
+          meta: true,
+          invoice: {
+            select: {
+              discountPercent: true,
+              encounter: {
+                select: {
+                  doctor: { select: { id: true, name: true, ovog: true } },
+                },
+              },
+            },
+          },
+        },
+      }),
+      prisma.invoiceItem.findMany({
+        where: {
+          itemType: "PRODUCT",
+          invoice: {
+            createdAt: { gte: start, lt: endExclusive },
+            ...(branchId ? { branchId } : {}),
+          },
+        },
+        select: {
+          id: true,
+          lineTotal: true,
+          unitPrice: true,
+          quantity: true,
+        },
+      }),
+      computeBalanceSnapshotTotals(branchId),
+    ]);
+
+    const doctorRows = generatedDoctors
+      .map((d) => ({
+        doctorId: d.doctorId,
+        doctorName: formatInitialName(d.doctorOvog, d.doctorName),
+        amount: Number(d.amount || 0),
+      }))
+      .sort((a, b) => b.amount - a.amount || a.doctorName.localeCompare(b.doctorName, "mn"));
+    const doctorRevenueTotal = doctorRows.reduce((sum, d) => sum + d.amount, 0);
+
+    const nurseIds = Array.from(new Set(
+      imagingItems
+        .map((it) => {
+          if (!it.meta || typeof it.meta !== "object") return null;
+          const nurseId = Number(it.meta?.nurseId);
+          return Number.isInteger(nurseId) && nurseId > 0 ? nurseId : null;
+        })
+        .filter(Boolean)
+    ));
+
+    const nurses = nurseIds.length
+      ? await prisma.user.findMany({
+        where: { id: { in: nurseIds } },
+        select: { id: true, name: true, ovog: true },
+      })
+      : [];
+    const nurseById = new Map(nurses.map((n) => [n.id, n]));
+
+    const imagingByPerformer = new Map();
+    for (const item of imagingItems) {
+      const discountPct = discountPercentEnumToNumber(item.invoice?.discountPercent);
+      const gross = Number(item.lineTotal || (item.unitPrice || 0) * (item.quantity || 0) || 0);
+      const net = Math.max(0, Math.round(gross * (1 - discountPct / 100)));
+      if (net <= 0) continue;
+
+      const meta = item.meta && typeof item.meta === "object" ? item.meta : {};
+      const assignedTo = String(meta?.assignedTo || "").toUpperCase();
+      const nurseId = Number(meta?.nurseId);
+
+      let performerKey = "UNASSIGNED";
+      let performerName = "Тодорхойгүй";
+
+      if (assignedTo === "NURSE" && Number.isInteger(nurseId) && nurseId > 0) {
+        const nurse = nurseById.get(nurseId);
+        performerKey = `NURSE:${nurseId}`;
+        performerName = nurse ? formatInitialName(nurse.ovog, nurse.name) : `Сувилагч #${nurseId}`;
+      } else {
+        const doctor = item.invoice?.encounter?.doctor;
+        if (doctor?.id) {
+          performerKey = `DOCTOR:${doctor.id}`;
+          performerName = formatInitialName(doctor.ovog, doctor.name);
+        }
+      }
+
+      if (!imagingByPerformer.has(performerKey)) {
+        imagingByPerformer.set(performerKey, { performerName, amount: 0 });
+      }
+      imagingByPerformer.get(performerKey).amount += net;
+    }
+
+    const imagingRows = Array.from(imagingByPerformer.entries())
+      .map((r) => ({
+        performerKey: r[0],
+        performerName: r[1].performerName,
+        amount: Number(r[1].amount || 0),
+      }))
+      .sort((a, b) => a.performerName.localeCompare(b.performerName, "mn"));
+    const imagingProductionTotal = imagingRows.reduce((sum, r) => sum + r.amount, 0);
+
+    const productSalesTotal = productItems.reduce((sum, item) => {
+      const gross = Number(item.lineTotal || (item.unitPrice || 0) * (item.quantity || 0) || 0);
+      return sum + gross;
+    }, 0);
+
+    const paymentSummary = buildDetailedPaymentSummaryRows(paymentGroups, methodConfigs);
+    const summaryRows = buildIncomeDetailedPageSummaryRows(paymentSummary, {
+      imagingProductionTotal,
+      imagingCount: imagingItems.length,
+      productSalesTotal,
+      productCount: productItems.length,
+    });
+
+    const collectors = collectorRows
+      .map((row) => row.createdBy ? formatInitialName(row.createdBy.ovog, row.createdBy.name) : null)
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "mn"));
+
+    return res.json({
+      startDate: String(startDate),
+      endDate: String(endDate),
+      branchId: branch?.id ?? null,
+      branchName: branch?.name ?? null,
+      collectors,
+      doctors: doctorRows,
+      doctorRevenueTotal: Number(doctorRevenueTotal || 0),
+      imaging: imagingRows,
+      imagingProductionTotal: Number(imagingProductionTotal || 0),
+      productSalesTotal: Math.round(productSalesTotal),
+      grandTotal: Number(doctorRevenueTotal + imagingProductionTotal),
+      paymentSummary: summaryRows,
+      debtSnapshotAmount: Number(balanceSnapshot.debtAmount || 0),
+      overpaymentSnapshotAmount: Number(balanceSnapshot.overpaymentAmount || 0),
+    });
+  } catch (error) {
+    console.error("Error in fetching detailed income page report:", error);
+    return res.status(500).json({ error: "Failed to fetch detailed income page report." });
   }
 });
 
