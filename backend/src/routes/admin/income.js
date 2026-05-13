@@ -225,6 +225,89 @@ async function computeBalanceSnapshotTotals(branchId = null) {
 }
 
 /**
+ * Compute debt/overpayment snapshot totals as of selected report end date.
+ * Used only by income-detailed-page endpoint to keep date semantics consistent.
+ * @param {{asOfEndExclusive: Date, branchId?: number|null}} params
+ */
+async function computeBalanceSnapshotTotalsAsOfDate({ asOfEndExclusive, branchId = null }) {
+  const patientWhere = {
+    isActive: true,
+    ...(branchId ? { branchId: Number(branchId) } : {}),
+  };
+
+  const patients = await prisma.patient.findMany({
+    where: patientWhere,
+    select: { id: true },
+  });
+  if (!patients.length) return { debtAmount: 0, overpaymentAmount: 0 };
+
+  const patientIds = patients.map((p) => p.id);
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      patientId: { in: patientIds },
+      createdAt: { lt: asOfEndExclusive },
+    },
+    select: { id: true, patientId: true, finalAmount: true, totalAmount: true },
+  });
+
+  const invoiceIds = invoices.map((i) => i.id);
+  const payments = invoiceIds.length
+    ? await prisma.payment.groupBy({
+      by: ["invoiceId"],
+      where: {
+        invoiceId: { in: invoiceIds },
+        timestamp: { lt: asOfEndExclusive },
+      },
+      _sum: { amount: true },
+    })
+    : [];
+
+  const adjustmentAgg = patientIds.length
+    ? await prisma.balanceAdjustmentLog.groupBy({
+      by: ["patientId"],
+      where: {
+        patientId: { in: patientIds },
+        createdAt: { lt: asOfEndExclusive },
+      },
+      _sum: { amount: true },
+    })
+    : [];
+
+  const paidByInvoice = new Map(
+    payments.map((p) => [p.invoiceId, Number(p._sum.amount || 0)])
+  );
+  const adjustmentByPatient = new Map(
+    adjustmentAgg.map((a) => [a.patientId, Number(a._sum.amount || 0)])
+  );
+  const billedByPatient = new Map();
+  const paidByPatient = new Map();
+
+  for (const inv of invoices) {
+    const billed = inv.finalAmount != null
+      ? Number(inv.finalAmount)
+      : Number(inv.totalAmount || 0);
+    billedByPatient.set(inv.patientId, (billedByPatient.get(inv.patientId) || 0) + billed);
+    paidByPatient.set(inv.patientId, (paidByPatient.get(inv.patientId) || 0) + (paidByInvoice.get(inv.id) || 0));
+  }
+
+  let debtAmount = 0;
+  let overpaymentAmount = 0;
+  for (const p of patients) {
+    const totalBilled = Number((billedByPatient.get(p.id) || 0).toFixed(2));
+    const totalPaid = Number((paidByPatient.get(p.id) || 0).toFixed(2));
+    const totalAdjusted = Number((adjustmentByPatient.get(p.id) || 0).toFixed(2));
+    const balance = Number((totalBilled - totalPaid - totalAdjusted).toFixed(2));
+    if (balance > 0) debtAmount += balance;
+    if (balance < 0) overpaymentAmount += Math.abs(balance);
+  }
+
+  return {
+    debtAmount: Number(debtAmount.toFixed(2)),
+    overpaymentAmount: Number(overpaymentAmount.toFixed(2)),
+  };
+}
+
+/**
  * Reusable doctors-income aggregator that matches /api/admin/doctors-income revenue logic.
  * @param {{startDate: string, endDate: string, branchId: number|null|string|undefined}} params
  * @returns {Promise<Array<{doctorId:number,doctorName:string,doctorOvog:string|null,branchName:string|null,startDate:string,endDate:string,appointmentCount:number,serviceCount:number,averageVisitRevenue:number,revenue:number,commission:number,monthlyGoal:number,progressPercent:number}>>}
@@ -673,6 +756,152 @@ async function computeDoctorsGeneratedSalesForIncomeDetailed({ start, endExclusi
   }));
 }
 
+/**
+ * Dedicated imaging production aggregation for income-detailed-page.
+ * Uses payment allocations and payment timestamp window, mirroring doctor sales timing.
+ */
+async function computeImagingProductionByPaymentForIncomeDetailed({ start, endExclusive, branchId }) {
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      ...(branchId ? { branchId: Number(branchId) } : {}),
+      payments: { some: { timestamp: { gte: start, lt: endExclusive } } },
+    },
+    include: {
+      encounter: {
+        select: {
+          doctor: { select: { id: true, name: true, ovog: true } },
+        },
+      },
+      items: { include: { service: true } },
+      payments: {
+        include: {
+          allocations: { select: { invoiceItemId: true, amount: true } },
+        },
+      },
+    },
+  });
+
+  const imagingItemsForNurseLookup = [];
+  for (const inv of invoices) {
+    const imagingItems = (inv.items || []).filter(
+      (it) => it.itemType === "SERVICE" && it.service?.category === "IMAGING"
+    );
+    imagingItemsForNurseLookup.push(...imagingItems);
+  }
+
+  const nurseIds = Array.from(new Set(
+    imagingItemsForNurseLookup
+      .map((it) => {
+        if (!it.meta || typeof it.meta !== "object") return null;
+        const nurseId = Number(it.meta?.nurseId);
+        return Number.isInteger(nurseId) && nurseId > 0 ? nurseId : null;
+      })
+      .filter(Boolean)
+  ));
+  const nurses = nurseIds.length
+    ? await prisma.user.findMany({
+      where: { id: { in: nurseIds } },
+      select: { id: true, name: true, ovog: true },
+    })
+    : [];
+  const nurseById = new Map(nurses.map((n) => [n.id, n]));
+
+  const imagingByPerformer = new Map();
+  const paidImagingItemIds = new Set();
+
+  for (const inv of invoices) {
+    const serviceItems = (inv.items || []).filter(
+      (it) => it.itemType === "SERVICE" && it.service?.category !== "PREVIOUS"
+    );
+    if (!serviceItems.length) continue;
+
+    const lineNets = computeServiceNetProportionalDiscount(
+      serviceItems,
+      discountPercentEnumToNumber(inv.discountPercent)
+    );
+    const itemById = new Map(serviceItems.map((it) => [it.id, it]));
+    const serviceLineIds = serviceItems.map((it) => it.id);
+    const remainingDue = new Map(serviceItems.map((it) => [it.id, lineNets.get(it.id) || 0]));
+    const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
+
+    const sortedPayments = [...(inv.payments || [])].sort(
+      (a, b) => new Date(a.timestamp) - new Date(b.timestamp)
+    );
+    for (const p of sortedPayments) {
+      const method = String(p.method || "").toUpperCase();
+      const ts = new Date(p.timestamp);
+      if (!inRange(ts, start, endExclusive)) continue;
+      if (EXCLUDED_METHODS.has(method)) continue;
+      if (method === "BARTER") continue;
+      if (!INCLUDED_METHODS.has(method) && !OVERRIDE_METHODS.has(method)) continue;
+
+      const payAmt = Number(p.amount || 0);
+      const payAllocs = p.allocations || [];
+      if (payAllocs.length > 0) {
+        for (const alloc of payAllocs) {
+          const item = itemById.get(alloc.invoiceItemId);
+          if (!item) continue;
+          const allocAmt = Number(alloc.amount || 0);
+          itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
+          remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
+        }
+      } else {
+        const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
+        for (const [id, amt] of allocs) {
+          itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+        }
+      }
+    }
+
+    const imagingItems = serviceItems.filter((it) => it.service?.category === "IMAGING");
+    for (const item of imagingItems) {
+      const allocated = Number(itemAllocationBase.get(item.id) || 0);
+      if (allocated <= 0) continue;
+
+      paidImagingItemIds.add(item.id);
+
+      const meta = item.meta && typeof item.meta === "object" ? item.meta : {};
+      const assignedTo = String(meta?.assignedTo || "").toUpperCase();
+      const nurseId = Number(meta?.nurseId);
+
+      let performerKey = "UNASSIGNED";
+      let performerName = "Тодорхойгүй";
+
+      if (assignedTo === "NURSE" && Number.isInteger(nurseId) && nurseId > 0) {
+        const nurse = nurseById.get(nurseId);
+        performerKey = `NURSE:${nurseId}`;
+        performerName = nurse ? formatInitialName(nurse.ovog, nurse.name) : `Сувилагч #${nurseId}`;
+      } else {
+        const doctor = inv.encounter?.doctor;
+        if (doctor?.id) {
+          performerKey = `DOCTOR:${doctor.id}`;
+          performerName = formatInitialName(doctor.ovog, doctor.name);
+        }
+      }
+
+      if (!imagingByPerformer.has(performerKey)) {
+        imagingByPerformer.set(performerKey, { performerName, amount: 0 });
+      }
+      imagingByPerformer.get(performerKey).amount += allocated;
+    }
+  }
+
+  const imagingRows = Array.from(imagingByPerformer.entries())
+    .map((entry) => ({
+      performerKey: entry[0],
+      performerName: entry[1].performerName,
+      amount: Math.round(Number(entry[1].amount || 0)),
+    }))
+    .sort((a, b) => a.performerName.localeCompare(b.performerName, "mn"));
+  const imagingProductionTotal = imagingRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+
+  return {
+    imagingRows,
+    imagingProductionTotal,
+    imagingCount: paidImagingItemIds.size,
+  };
+}
+
 router.get("/doctors-income", async (req, res) => {
   const { startDate, endDate, branchId } = req.query;
 
@@ -988,15 +1217,16 @@ router.get("/income-detailed-page", async (req, res) => {
 
     const [
       generatedDoctors,
+      imagingProduction,
       methodConfigs,
       paymentGroups,
       collectorRows,
       branch,
-      imagingItems,
       productItems,
       balanceSnapshot,
     ] = await Promise.all([
       computeDoctorsGeneratedSalesForIncomeDetailed({ start, endExclusive, branchId }),
+      computeImagingProductionByPaymentForIncomeDetailed({ start, endExclusive, branchId }),
       prisma.paymentMethodConfig.findMany({
         select: { key: true, label: true, sortOrder: true },
         orderBy: { sortOrder: "asc" },
@@ -1020,33 +1250,6 @@ router.get("/income-detailed-page", async (req, res) => {
         : Promise.resolve(null),
       prisma.invoiceItem.findMany({
         where: {
-          itemType: "SERVICE",
-          service: { category: "IMAGING" },
-          invoice: {
-            createdAt: { gte: start, lt: endExclusive },
-            ...(branchId ? { branchId } : {}),
-          },
-        },
-        select: {
-          id: true,
-          unitPrice: true,
-          quantity: true,
-          lineTotal: true,
-          meta: true,
-          invoice: {
-            select: {
-              discountPercent: true,
-              encounter: {
-                select: {
-                  doctor: { select: { id: true, name: true, ovog: true } },
-                },
-              },
-            },
-          },
-        },
-      }),
-      prisma.invoiceItem.findMany({
-        where: {
           itemType: "PRODUCT",
           invoice: {
             createdAt: { gte: start, lt: endExclusive },
@@ -1060,7 +1263,7 @@ router.get("/income-detailed-page", async (req, res) => {
           quantity: true,
         },
       }),
-      computeBalanceSnapshotTotals(branchId),
+      computeBalanceSnapshotTotalsAsOfDate({ asOfEndExclusive: endExclusive, branchId }),
     ]);
 
     const doctorRows = generatedDoctors
@@ -1072,64 +1275,8 @@ router.get("/income-detailed-page", async (req, res) => {
       .sort((a, b) => b.amount - a.amount || a.doctorName.localeCompare(b.doctorName, "mn"));
     const doctorRevenueTotal = doctorRows.reduce((sum, d) => sum + d.amount, 0);
 
-    const nurseIds = Array.from(new Set(
-      imagingItems
-        .map((it) => {
-          if (!it.meta || typeof it.meta !== "object") return null;
-          const nurseId = Number(it.meta?.nurseId);
-          return Number.isInteger(nurseId) && nurseId > 0 ? nurseId : null;
-        })
-        .filter(Boolean)
-    ));
-
-    const nurses = nurseIds.length
-      ? await prisma.user.findMany({
-        where: { id: { in: nurseIds } },
-        select: { id: true, name: true, ovog: true },
-      })
-      : [];
-    const nurseById = new Map(nurses.map((n) => [n.id, n]));
-
-    const imagingByPerformer = new Map();
-    for (const item of imagingItems) {
-      const discountPct = discountPercentEnumToNumber(item.invoice?.discountPercent);
-      const gross = Number(item.lineTotal || (item.unitPrice || 0) * (item.quantity || 0) || 0);
-      const net = Math.max(0, Math.round(gross * (1 - discountPct / 100)));
-      if (net <= 0) continue;
-
-      const meta = item.meta && typeof item.meta === "object" ? item.meta : {};
-      const assignedTo = String(meta?.assignedTo || "").toUpperCase();
-      const nurseId = Number(meta?.nurseId);
-
-      let performerKey = "UNASSIGNED";
-      let performerName = "Тодорхойгүй";
-
-      if (assignedTo === "NURSE" && Number.isInteger(nurseId) && nurseId > 0) {
-        const nurse = nurseById.get(nurseId);
-        performerKey = `NURSE:${nurseId}`;
-        performerName = nurse ? formatInitialName(nurse.ovog, nurse.name) : `Сувилагч #${nurseId}`;
-      } else {
-        const doctor = item.invoice?.encounter?.doctor;
-        if (doctor?.id) {
-          performerKey = `DOCTOR:${doctor.id}`;
-          performerName = formatInitialName(doctor.ovog, doctor.name);
-        }
-      }
-
-      if (!imagingByPerformer.has(performerKey)) {
-        imagingByPerformer.set(performerKey, { performerName, amount: 0 });
-      }
-      imagingByPerformer.get(performerKey).amount += net;
-    }
-
-    const imagingRows = Array.from(imagingByPerformer.entries())
-      .map((r) => ({
-        performerKey: r[0],
-        performerName: r[1].performerName,
-        amount: Number(r[1].amount || 0),
-      }))
-      .sort((a, b) => a.performerName.localeCompare(b.performerName, "mn"));
-    const imagingProductionTotal = imagingRows.reduce((sum, r) => sum + r.amount, 0);
+    const imagingRows = imagingProduction.imagingRows;
+    const imagingProductionTotal = Number(imagingProduction.imagingProductionTotal || 0);
 
     const productSalesTotal = productItems.reduce((sum, item) => {
       const gross = Number(item.lineTotal || (item.unitPrice || 0) * (item.quantity || 0) || 0);
@@ -1139,7 +1286,7 @@ router.get("/income-detailed-page", async (req, res) => {
     const paymentSummary = buildDetailedPaymentSummaryRows(paymentGroups, methodConfigs);
     const summaryRows = buildIncomeDetailedPageSummaryRows(paymentSummary, {
       imagingProductionTotal,
-      imagingCount: imagingItems.length,
+      imagingCount: Number(imagingProduction.imagingCount || 0),
       productSalesTotal,
       productCount: productItems.length,
     });
