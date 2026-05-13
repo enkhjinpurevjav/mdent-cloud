@@ -159,8 +159,8 @@ export default function HrFoodOrdersPage() {
 
   async function saveOrderQuantity(orderId: number) {
     const quantity = Number(editQuantities[orderId]);
-    if (!Number.isInteger(quantity) || quantity < 1) {
-      setError("Хоолны тоо 1-с их бүхэл тоо байх ёстой.");
+    if (!Number.isInteger(quantity) || quantity < 0) {
+      setError("Хоолны тоо 0-с их эсвэл тэнцүү бүхэл тоо байх ёстой.");
       return;
     }
     setSavingOrderId(orderId);
@@ -417,7 +417,7 @@ export default function HrFoodOrdersPage() {
                     <span className="block text-xs text-gray-500 mb-1">Хоолны тоо</span>
                     <input
                       type="number"
-                      min={1}
+                      min={0}
                       step={1}
                       value={editQuantities[item.id] || String(item.quantity ?? 1)}
                       onChange={(e) =>

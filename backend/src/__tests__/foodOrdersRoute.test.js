@@ -220,4 +220,35 @@ describe("food order routes", () => {
       prisma.foodOrder.update = originalUpdate;
     }
   });
+
+  it("PATCH /admin/:id allows quantity 0 for cancellations", async () => {
+    const originalFindUnique = prisma.foodOrder.findUnique;
+    const originalUpdate = prisma.foodOrder.update;
+
+    prisma.foodOrder.findUnique = async () => ({ id: 101 });
+    prisma.foodOrder.update = async ({ data }) => ({
+      id: 101,
+      orderDate: new Date("2026-05-10T00:00:00.000+08:00"),
+      createdAt: new Date("2026-05-09T23:00:00.000Z"),
+      quantity: data.quantity,
+    });
+
+    try {
+      const handler = getHandler("/admin/:id", "patch");
+      const req = {
+        user: { id: 1, role: "hr" },
+        params: { id: "101" },
+        body: { quantity: 0 },
+      };
+      const res = createRes();
+      await handler(req, res);
+
+      assert.equal(res.statusCode, 200);
+      assert.equal(res.body.order.id, 101);
+      assert.equal(res.body.order.quantity, 0);
+    } finally {
+      prisma.foodOrder.findUnique = originalFindUnique;
+      prisma.foodOrder.update = originalUpdate;
+    }
+  });
 });
