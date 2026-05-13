@@ -119,7 +119,7 @@ export function buildDetailedPaymentSummaryRows(paymentGroups, methodConfigs = [
  * Build payment-summary rows specifically for the income-detailed page.
  * Ensures imaging sales is displayed between wallet and product sales.
  * @param {Array<{method:string,label:string,totalAmount:number,count:number}>} paymentSummaryRows
- * @param {{imagingProductionTotal?:number, imagingCount?:number, productSalesTotal?:number, productCount?:number, overpaymentSnapshotAmount?:number}} totals
+ * @param {{imagingProductionTotal?:number, imagingCount?:number, productSalesTotal?:number, productCount?:number, overpaymentInRangeAmount?:number, overpaymentInRangeCount?:number}} totals
  * @returns {Array<{method:string,label:string,totalAmount:number,count:number}>}
  */
 export function buildIncomeDetailedPageSummaryRows(paymentSummaryRows, totals = {}) {
@@ -162,9 +162,9 @@ export function buildIncomeDetailedPageSummaryRows(paymentSummaryRows, totals = 
   });
   summaryRows.push({
     method: "OVERPAYMENT_AS_OF",
-    label: "Илүү төлөлт (огнооны эцсээр)",
-    totalAmount: Math.round(Number(totals.overpaymentSnapshotAmount || 0)),
-    count: 0,
+    label: "Илүү төлөлт",
+    totalAmount: Math.round(Number(totals.overpaymentInRangeAmount || 0)),
+    count: Number(totals.overpaymentInRangeCount || 0),
   });
 
   return summaryRows;
@@ -925,6 +925,44 @@ async function computeImagingProductionByPaymentForIncomeDetailed({ start, endEx
   };
 }
 
+/**
+ * Compute invoice overpayment totals within selected date-range filters.
+ * Mirrors finance invoices-page semantics: invoice createdAt in range, then
+ * overpayment = abs(total - paid) when paid exceeds billed.
+ */
+async function computeInvoiceOverpaymentSummaryInRangeForIncomeDetailed({ start, endExclusive, branchId }) {
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      createdAt: { gte: start, lt: endExclusive },
+      ...(branchId ? { branchId: Number(branchId) } : {}),
+      statusLegacy: { not: "voided" },
+    },
+    select: {
+      finalAmount: true,
+      totalAmount: true,
+      payments: { select: { amount: true } },
+    },
+  });
+
+  let overpaymentInRangeAmount = 0;
+  let overpaymentInRangeCount = 0;
+
+  for (const inv of invoices) {
+    const billed = Number(inv.finalAmount != null ? inv.finalAmount : (inv.totalAmount || 0));
+    const paid = (inv.payments || []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const remaining = Number((billed - paid).toFixed(2));
+    if (remaining < 0) {
+      overpaymentInRangeAmount += Math.abs(remaining);
+      overpaymentInRangeCount += 1;
+    }
+  }
+
+  return {
+    overpaymentInRangeAmount: Number(overpaymentInRangeAmount.toFixed(2)),
+    overpaymentInRangeCount,
+  };
+}
+
 router.get("/doctors-income", async (req, res) => {
   const { startDate, endDate, branchId } = req.query;
 
@@ -1262,6 +1300,7 @@ router.get("/income-detailed-page", async (req, res) => {
     const [
       generatedDoctors,
       imagingProduction,
+      overpaymentInRange,
       methodConfigs,
       paymentGroups,
       collectorRows,
@@ -1271,6 +1310,7 @@ router.get("/income-detailed-page", async (req, res) => {
     ] = await Promise.all([
       computeDoctorsGeneratedSalesForIncomeDetailed({ start, endExclusive, branchId }),
       imagingProductionPromise,
+      computeInvoiceOverpaymentSummaryInRangeForIncomeDetailed({ start, endExclusive, branchId }),
       prisma.paymentMethodConfig.findMany({
         select: { key: true, label: true, sortOrder: true },
         orderBy: { sortOrder: "asc" },
@@ -1333,7 +1373,8 @@ router.get("/income-detailed-page", async (req, res) => {
       imagingCount: Number(imagingProduction.imagingCount || 0),
       productSalesTotal,
       productCount: productItems.length,
-      overpaymentSnapshotAmount: Number(balanceSnapshot.overpaymentAmount || 0),
+      overpaymentInRangeAmount: Number(overpaymentInRange.overpaymentInRangeAmount || 0),
+      overpaymentInRangeCount: Number(overpaymentInRange.overpaymentInRangeCount || 0),
     });
 
     const collectors = collectorRows

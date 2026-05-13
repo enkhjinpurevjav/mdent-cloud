@@ -57,7 +57,8 @@ test("buildIncomeDetailedPageSummaryRows injects wallet and appends product + ov
       imagingCount: 14,
       productSalesTotal: 15000,
       productCount: 1,
-      overpaymentSnapshotAmount: 1175000,
+      overpaymentInRangeAmount: 1175000,
+      overpaymentInRangeCount: 3,
     }
   );
 
@@ -73,6 +74,7 @@ test("buildIncomeDetailedPageSummaryRows injects wallet and appends product + ov
   assert.equal(rows[imagingIndex]?.totalAmount, 1082000);
   assert.equal(rows[imagingIndex]?.count, 14);
   assert.equal(rows[overpaymentIndex]?.totalAmount, 1175000);
+  assert.equal(rows[overpaymentIndex]?.count, 3);
 });
 
 test("buildIncomeDetailedPageSummaryRows inserts imaging immediately after existing wallet row", () => {
@@ -87,7 +89,8 @@ test("buildIncomeDetailedPageSummaryRows inserts imaging immediately after exist
       imagingCount: 4,
       productSalesTotal: 555,
       productCount: 5,
-      overpaymentSnapshotAmount: 999,
+      overpaymentInRangeAmount: 999,
+      overpaymentInRangeCount: 2,
     }
   );
 
@@ -100,5 +103,5 @@ test("buildIncomeDetailedPageSummaryRows inserts imaging immediately after exist
   assert.equal(rows[imagingIndex]?.count, 4);
   assert.equal(rows[productIndex]?.totalAmount, 555);
   assert.equal(rows[overpaymentIndex]?.totalAmount, 999);
-  assert.equal(rows[overpaymentIndex]?.count, 0);
+  assert.equal(rows[overpaymentIndex]?.count, 2);
 });

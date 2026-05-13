@@ -113,9 +113,14 @@ export default function FinanceIncomeDetailedPage() {
       setIncludedMethods({});
       return;
     }
+    const defaultExcludedMethods = new Set([
+      "IMAGING_SALES",
+      "PRODUCT_SALES",
+      "OVERPAYMENT_AS_OF",
+    ]);
     const next: Record<string, boolean> = {};
     data.paymentSummary.forEach((row) => {
-      next[row.method] = row.method !== "OVERPAYMENT_AS_OF";
+      next[row.method] = !defaultExcludedMethods.has(row.method);
     });
     setIncludedMethods(next);
   }, [data]);
