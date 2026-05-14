@@ -38,6 +38,8 @@ type BurCycle = {
   machine: { id: number; machineNumber: string; name: string | null } | null;
 };
 
+const CLINIC_TIME_ZONE = "Asia/Ulaanbaatar";
+
 function formatDateTime(date: Date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -54,12 +56,32 @@ function formatDateOnly(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
+function formatIsoDateTimeInClinicTz(value: string) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return new Intl.DateTimeFormat("mn-MN", {
+    timeZone: CLINIC_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+}
+
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function addMinutes(dateTimeLocal: string, minutes: number): string {
   const d = new Date(dateTimeLocal);
   d.setMinutes(d.getMinutes() + minutes);
   return formatDateTime(d);
+}
+
+function toNaiveTimestampFromLocal(datetimeLocal: string): string {
+  if (!datetimeLocal) return "";
+  const normalized = datetimeLocal.replace("T", " ");
+  return normalized.length === 16 ? `${normalized}:00` : normalized;
 }
 
 function formatUserLabel(u: SterilizationUser): string {
@@ -79,9 +101,6 @@ export default function BurCyclesPage() {
 
   // Form fields
   const [branchId, setBranchId] = useState<number | "">("");
-  const [code, setCode] = useState("");
-  const [codeWarning, setCodeWarning] = useState("");
-  const [lastCheckedCode, setLastCheckedCode] = useState("");
   const [sterilizationRunNumber, setSterilizationRunNumber] = useState("");
   const [runNumberWarning, setRunNumberWarning] = useState("");
   const [lastCheckedRunNumber, setLastCheckedRunNumber] = useState("");
@@ -131,6 +150,8 @@ export default function BurCyclesPage() {
     if (!branchId) {
       setMachines([]);
       setMachineId("");
+      setRunNumberWarning("");
+      setLastCheckedRunNumber("");
       setSterilizationUsers([]);
       setOperator("");
       return;
@@ -140,6 +161,8 @@ export default function BurCyclesPage() {
     finishedAtOverridden.current = false;
     const newFinishedAt = addMinutes(startedAtRef.current || formatDateTime(new Date()), 10);
     setFinishedAt(newFinishedAt);
+    setRunNumberWarning("");
+    setLastCheckedRunNumber("");
 
     (async () => {
       try {
@@ -200,44 +223,15 @@ export default function BurCyclesPage() {
     }
   };
 
-  const checkCodeUniqueness = async () => {
-    if (!branchId || !code.trim()) {
-      setCodeWarning("");
-      return;
-    }
-
-    // Avoid duplicate checks for the same code
-    if (code.trim() === lastCheckedCode) {
-      return;
-    }
-
-    setLastCheckedCode(code.trim());
-
-    try {
-      const res = await fetch(
-        `/api/sterilization/bur-cycles/check-code?branchId=${branchId}&code=${encodeURIComponent(code.trim())}`
-      );
-      const data = await res.json().catch(() => ({ exists: false }));
-
-      if (data.exists) {
-        setCodeWarning("⚠️ Энэ циклийн дугаар аль хэдийн ашиглагдсан байна");
-      } else {
-        setCodeWarning("");
-      }
-    } catch {
-      setCodeWarning("");
-    }
-  };
-
-  const checkRunNumberUniqueness = async () => {
+  const checkRunNumberUniqueness = async (forceCheck = false) => {
     if (!machineId || !sterilizationRunNumber.trim()) {
       setRunNumberWarning("");
-      return;
+      return true;
     }
 
     // Avoid duplicate checks
-    if (sterilizationRunNumber.trim() === lastCheckedRunNumber) {
-      return;
+    if (!forceCheck && sterilizationRunNumber.trim() === lastCheckedRunNumber) {
+      return !runNumberWarning;
     }
 
     setLastCheckedRunNumber(sterilizationRunNumber.trim());
@@ -252,11 +246,14 @@ export default function BurCyclesPage() {
 
       if (data.exists) {
         setRunNumberWarning("⚠️ Энэ ариутгалын дугаар аль хэдийн ашиглагдсан байна");
+        return false;
       } else {
         setRunNumberWarning("");
+        return true;
       }
     } catch {
       setRunNumberWarning("");
+      return true;
     }
   };
 
@@ -266,12 +263,15 @@ export default function BurCyclesPage() {
 
     // Validation
     if (!branchId) return setError("Салбар сонгоно уу.");
-    if (!code.trim()) return setError("Циклын код оруулна уу.");
     if (!sterilizationRunNumber.trim()) return setError("Ариутгалын дугаар оруулна уу.");
     if (!machineId) return setError("Машин сонгоно уу.");
     if (!startedAt) return setError("Эхэлсэн цаг оруулна уу.");
     if (!finishedAt) return setError("Дууссан цаг оруулна уу.");
     if (!operator.trim()) return setError("Сувилагчийн нэр оруулна уу.");
+    if (runNumberWarning) return setError("Ариутгалын дугаар давхардсан байна.");
+
+    const runNumberOk = await checkRunNumberUniqueness(true);
+    if (!runNumberOk) return setError("Ариутгалын дугаар давхардсан байна.");
 
     if (fastBurQty === 0 && slowBurQty === 0) {
       return setError("Хурдан эсвэл удаан өрмийн тоо дор хаяж нэг нь 0-ээс их байх ёстой.");
@@ -284,14 +284,15 @@ export default function BurCyclesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           branchId,
-          code: code.trim(),
           sterilizationRunNumber: sterilizationRunNumber.trim(),
           machineId,
-          startedAt: new Date(startedAt).toISOString(),
+          startedAt: toNaiveTimestampFromLocal(startedAt),
           pressure: pressure.trim() || null,
           temperature: temperature ? Number(temperature) : null,
-          finishedAt: new Date(finishedAt).toISOString(),
-          removedFromAutoclaveAt: removedFromAutoclaveAt ? new Date(removedFromAutoclaveAt).toISOString() : null,
+          finishedAt: toNaiveTimestampFromLocal(finishedAt),
+          removedFromAutoclaveAt: removedFromAutoclaveAt
+            ? toNaiveTimestampFromLocal(removedFromAutoclaveAt)
+            : null,
           result,
           operator: operator.trim(),
           notes: notes.trim() || null,
@@ -303,9 +304,8 @@ export default function BurCyclesPage() {
       const data = await res.json();
 
       if (res.ok) {
-        setSuccessMsg("✅ Өрмийн бүртгэл амжилттай үүслээ.");
+        setSuccessMsg(`✅ Өрмийн бүртгэл амжилттай үүслээ. Код: ${data?.code || "-"}`);
         // Reset form
-        setCode("");
         setSterilizationRunNumber("");
         setPressure("0247");
         setTemperature("138");
@@ -317,9 +317,7 @@ export default function BurCyclesPage() {
         finishedAtOverridden.current = false;
         setFinishedAt(addMinutes(newStartedAt, 10));
         setRemovedFromAutoclaveAt("");
-        setCodeWarning("");
         setRunNumberWarning("");
-        setLastCheckedCode("");
         setLastCheckedRunNumber("");
         // Reload list
         loadBurCycles();
@@ -380,7 +378,11 @@ export default function BurCyclesPage() {
             </label>
             <select
               value={machineId}
-              onChange={(e) => setMachineId(e.target.value ? Number(e.target.value) : "")}
+              onChange={(e) => {
+                setMachineId(e.target.value ? Number(e.target.value) : "");
+                setRunNumberWarning("");
+                setLastCheckedRunNumber("");
+              }}
               className="w-full rounded border border-[#ccc] p-2 text-sm"
               disabled={!branchId}
             >
@@ -396,17 +398,14 @@ export default function BurCyclesPage() {
           {/* Cycle Code */}
           <div>
             <label className="mb-[5px] block font-bold">
-              Циклын код <span className="text-[red]">*</span>
+              Циклын код
             </label>
             <input
               type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              onBlur={checkCodeUniqueness}
-              className="w-full rounded border border-[#ccc] p-2 text-sm"
-              placeholder="Циклын код"
+              value="Автоматаар үүснэ"
+              readOnly
+              className="w-full cursor-default rounded border border-[#ccc] bg-gray-100 p-2 text-sm text-gray-500"
             />
-            {codeWarning && <div className="mt-[3px] text-xs text-[#ff9800]">{codeWarning}</div>}
           </div>
 
           {/* Sterilization Run Number */}
@@ -417,8 +416,12 @@ export default function BurCyclesPage() {
             <input
               type="text"
               value={sterilizationRunNumber}
-              onChange={(e) => setSterilizationRunNumber(e.target.value)}
-              onBlur={checkRunNumberUniqueness}
+              onChange={(e) => {
+                setSterilizationRunNumber(e.target.value);
+                setRunNumberWarning("");
+                setLastCheckedRunNumber("");
+              }}
+              onBlur={() => void checkRunNumberUniqueness()}
               className="w-full rounded border border-[#ccc] p-2 text-sm"
               placeholder="Ариутгалын дугаар"
             />
@@ -657,7 +660,7 @@ export default function BurCyclesPage() {
               ) : (
                 burCycles.map((cycle) => (
                   <tr key={cycle.id} className="border-b border-[#eee]">
-                    <td className="p-2.5">{new Date(cycle.startedAt).toLocaleString("mn-MN")}</td>
+                    <td className="p-2.5">{formatIsoDateTimeInClinicTz(cycle.startedAt)}</td>
                     <td className="p-2.5">{cycle.branch.name}</td>
                     <td className="p-2.5">
                       {cycle.machine
