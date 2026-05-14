@@ -65,6 +65,20 @@ enum BookingStatus {
   ONLINE_EXPIRED
 }
 
+enum OnlineBookingDraftStatus {
+  PENDING_PAYMENT
+  VERIFIED
+  PAID
+  EXPIRED
+  CANCELLED
+}
+
+enum OnlineBookingMatchStatus {
+  NEW
+  EXISTING
+  DUPLICATE_NEEDS_REVIEW
+}
+
 // NEW: discount levels explicitly constrained
 enum DiscountPercent {
   ZERO // 0%
@@ -176,6 +190,7 @@ model Branch {
   doctorBranches     DoctorBranch[]
   appointments       Appointment[]
   bookings           Booking[]
+  onlineBookingDrafts OnlineBookingDraft[]
   receptionSchedules ReceptionSchedule[]
   receptionBranches  ReceptionBranch[]
   nurseSchedules     NurseSchedule[]
@@ -941,6 +956,7 @@ model Patient {
   patientBook  PatientBook?
   appointments Appointment[]
   bookings     Booking[]
+  onlineBookingDrafts OnlineBookingDraft[] @relation("MatchedPatientOnlineBookingDrafts")
 
   // NEW: invoices that reference this patient (from Invoice.patient)
   invoices Invoice[]
@@ -1105,6 +1121,42 @@ model BookingDeposit {
   updatedAt DateTime @updatedAt
 
   @@index([branchId])
+}
+
+model OnlineBookingDraft {
+  id               Int                      @id @default(autoincrement())
+  branchId         Int
+  branch           Branch                   @relation(fields: [branchId], references: [id])
+  matchedPatientId Int?
+  matchedPatient   Patient?                 @relation("MatchedPatientOnlineBookingDrafts", fields: [matchedPatientId], references: [id])
+
+  status           OnlineBookingDraftStatus @default(PENDING_PAYMENT)
+  matchStatus      OnlineBookingMatchStatus @default(NEW)
+
+  ovog             String
+  name             String
+  phone            String
+  regNoRaw         String
+  regNoNormalized  String
+  note             String?                  @db.Text
+
+  // Filled in later steps of the online booking flow.
+  serviceCategory  ServiceCategory?
+  selectedDate     DateTime?
+  selectedStartTime String?
+  selectedEndTime  String?
+
+  expiresAt        DateTime
+  ipAddress        String?
+  userAgent        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([branchId, createdAt])
+  @@index([matchedPatientId])
+  @@index([status, expiresAt])
+  @@index([regNoNormalized])
 }
 
 // ==========================================================

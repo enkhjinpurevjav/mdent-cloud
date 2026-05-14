@@ -3,9 +3,20 @@
 // Mounted at /api/public
 import { Router } from "express";
 import { PrismaClient, BookingStatus } from "@prisma/client";
+import rateLimit from "express-rate-limit";
+import { normalizeRegNo, parseRegNo } from "../utils/regno.js";
 
 const prisma = new PrismaClient();
 const router = Router();
+const ONLINE_BOOKING_DRAFT_HOLD_MINUTES = 10;
+
+const onlineBookingStartLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many online booking attempts. Please try again later." },
+});
 
 /**
  * Convert "YYYY-MM-DD" → Date at 00:00 UTC-local.
@@ -205,6 +216,134 @@ router.get("/booking-grid", async (req, res) => {
   } catch (err) {
     console.error("GET /api/public/booking-grid error:", err);
     return res.status(500).json({ error: "Failed to load booking grid" });
+  }
+});
+
+function buildOnlineInfoNote({ ovog, name, phone, regNo, matchStatus }) {
+  const lines = [
+    "Онлайн захиалгаар оруулсан мэдээлэл:",
+    `Овог: ${ovog}`,
+    `Нэр: ${name}`,
+    `Утас: ${phone}`,
+    `РД: ${regNo}`,
+  ];
+  if (matchStatus === "EXISTING") {
+    lines.push("", "⚠️ РД системд бүртгэлтэй байсан тул одоо байгаа үйлчлүүлэгчтэй холбов.");
+  }
+  if (matchStatus === "DUPLICATE_NEEDS_REVIEW") {
+    lines.push("", "⚠️ Ижил РД-тэй олон бүртгэл илэрсэн тул reception шалгалт шаардлагатай.");
+  }
+  return lines.join("\n");
+}
+
+/**
+ * POST /api/public/online-booking/start
+ * Initializes online booking Step 1 draft without creating/updating Patient.
+ * Body: { branchId, ovog, name, phone, regNo }
+ */
+router.post("/online-booking/start", onlineBookingStartLimiter, async (req, res) => {
+  try {
+    const {
+      branchId,
+      ovog,
+      name,
+      phone,
+      regNo,
+    } = req.body || {};
+
+    if (!branchId || !ovog || !name || !phone || !regNo) {
+      return res.status(400).json({
+        error: "branchId, ovog, name, phone, regNo are required",
+      });
+    }
+
+    const bid = Number(branchId);
+    if (Number.isNaN(bid)) {
+      return res.status(400).json({ error: "Invalid branchId" });
+    }
+
+    const normalizedRegNo = normalizeRegNo(regNo);
+    if (!normalizedRegNo) {
+      return res.status(400).json({ error: "regNo is required" });
+    }
+
+    const parsedRegNo = parseRegNo(normalizedRegNo);
+    if (!parsedRegNo.isValid) {
+      return res.status(400).json({
+        error: parsedRegNo.reason || "Invalid regNo format",
+      });
+    }
+
+    const branch = await prisma.branch.findUnique({
+      where: { id: bid },
+      select: { id: true },
+    });
+    if (!branch) {
+      return res.status(400).json({ error: "Branch not found" });
+    }
+
+    const regNoMatches = await prisma.$queryRaw`
+      SELECT p.id
+      FROM "Patient" p
+      WHERE p."regNo" IS NOT NULL
+        AND UPPER(REGEXP_REPLACE(TRIM(p."regNo"), E'\\\\s+', '', 'g')) = ${normalizedRegNo}
+      ORDER BY p.id ASC
+    `;
+
+    let matchStatus = "NEW";
+    let matchedPatientId = null;
+    if (Array.isArray(regNoMatches) && regNoMatches.length === 1) {
+      matchStatus = "EXISTING";
+      matchedPatientId = regNoMatches[0].id;
+    } else if (Array.isArray(regNoMatches) && regNoMatches.length > 1) {
+      matchStatus = "DUPLICATE_NEEDS_REVIEW";
+    }
+
+    const note = buildOnlineInfoNote({
+      ovog: String(ovog).trim(),
+      name: String(name).trim(),
+      phone: String(phone).trim(),
+      regNo: normalizedRegNo,
+      matchStatus,
+    });
+
+    const expiresAt = new Date(Date.now() + ONLINE_BOOKING_DRAFT_HOLD_MINUTES * 60 * 1000);
+    const draft = await prisma.onlineBookingDraft.create({
+      data: {
+        branchId: bid,
+        matchedPatientId,
+        matchStatus,
+        ovog: String(ovog).trim(),
+        name: String(name).trim(),
+        phone: String(phone).trim(),
+        regNoRaw: String(regNo).trim(),
+        regNoNormalized: normalizedRegNo,
+        note,
+        expiresAt,
+        ipAddress: req.ip || null,
+        userAgent: req.get("user-agent") || null,
+      },
+      select: {
+        id: true,
+        status: true,
+        matchStatus: true,
+        expiresAt: true,
+        matchedPatientId: true,
+      },
+    });
+
+    return res.status(201).json({
+      draftId: draft.id,
+      status: draft.status,
+      matchStatus: draft.matchStatus,
+      matchedPatientId: draft.matchedPatientId,
+      expiresAt: draft.expiresAt.toISOString(),
+      normalizedRegNo,
+      duplicateCount: Array.isArray(regNoMatches) && regNoMatches.length > 1 ? regNoMatches.length : 0,
+    });
+  } catch (err) {
+    console.error("POST /api/public/online-booking/start error:", err);
+    return res.status(500).json({ error: "Failed to initialize online booking draft" });
   }
 });
 
