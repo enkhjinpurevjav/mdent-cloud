@@ -54,25 +54,22 @@ function normalizeCodePart(value, fallback = "X") {
   return cleaned || fallback;
 }
 
-async function generateAutoCycleCode({ branchId, machineNumber, model, prefix }) {
+async function generateAutoRunNumber({ machineNumber, exists }) {
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
   const machinePart = normalizeCodePart(machineNumber, "M");
   const datePart = `${y}${m}${d}`;
-  const base = `${prefix}-${machinePart}-${datePart}`;
+  const base = `SR-${machinePart}-${datePart}`;
 
   for (let seq = 1; seq <= 9999; seq += 1) {
     const candidate = `${base}-${String(seq).padStart(3, "0")}`;
-    const exists = await model.findFirst({
-      where: { branchId, code: candidate },
-      select: { id: true },
-    });
-    if (!exists) return candidate;
+    const existing = await exists(candidate);
+    if (!existing) return candidate;
   }
 
-  throw new Error("Unable to generate unique cycle code");
+  throw new Error("Unable to generate sterilization run number");
 }
 /**
  * Helper: build minimal unique prefix for each branch.
@@ -636,8 +633,7 @@ router.get("/sterilization/reports", async (req, res) => {
 router.post("/sterilization/cycles", async (req, res) => {
   try {
     const branchId = Number(req.body?.branchId);
-    const requestedCode = String(req.body?.code || "").trim();
-    const sterilizationRunNumber = req.body?.sterilizationRunNumber ? String(req.body?.sterilizationRunNumber).trim() : null;
+    const code = String(req.body?.code || "").trim();
     const machineId = req.body?.machineId ? Number(req.body?.machineId) : null;
     const startedAtRaw = req.body?.startedAt;
     
@@ -662,6 +658,7 @@ router.post("/sterilization/cycles", async (req, res) => {
     const toolLines = Array.isArray(req.body?.toolLines) ? req.body.toolLines : [];
 
     if (!branchId) return res.status(400).json({ error: "branchId is required" });
+    if (!code) return res.status(400).json({ error: "code is required" });
     if (!machineId) return res.status(400).json({ error: "machineId is required" });
     if (!startedAtRaw) return res.status(400).json({ error: "startedAt is required" });
     if (!finishedAtRaw) return res.status(400).json({ error: "finishedAt is required" });
@@ -684,16 +681,18 @@ router.post("/sterilization/cycles", async (req, res) => {
       return res.status(400).json({ error: "Machine does not belong to the selected branch" });
     }
     const machineNumber = machine.machineNumber;
-
-    // Code can be auto-generated when omitted from UI.
-    const code =
-      requestedCode ||
-      (await generateAutoCycleCode({
-        branchId,
-        machineNumber,
-        model: prisma.autoclaveCycle,
-        prefix: "AC",
-      }));
+    const sterilizationRunNumber = await generateAutoRunNumber({
+      machineNumber,
+      exists: async (value) =>
+        prisma.autoclaveCycle.findFirst({
+          where: {
+            branchId,
+            machineNumber,
+            sterilizationRunNumber: value,
+          },
+          select: { id: true },
+        }),
+    });
 
     // Parse dates
     const startedAt = parseNaiveOrIsoDateTime(startedAtRaw);
@@ -741,22 +740,6 @@ router.post("/sterilization/cycles", async (req, res) => {
     }
     if (tools.some((t) => t.branchId !== branchId)) {
       return res.status(400).json({ error: "All tools must belong to the selected branch" });
-    }
-
-    if (sterilizationRunNumber) {
-      const existingRun = await prisma.autoclaveCycle.findFirst({
-        where: {
-          branchId,
-          machineNumber,
-          sterilizationRunNumber,
-        },
-        select: { id: true },
-      });
-      if (existingRun) {
-        return res
-          .status(409)
-          .json({ error: "Sterilization run number already exists for this machine" });
-      }
     }
 
     const cycle = await prisma.autoclaveCycle.create({
@@ -1351,8 +1334,7 @@ router.delete("/sterilization/machines/:id", async (req, res) => {
 router.post("/sterilization/bur-cycles", async (req, res) => {
   try {
     const branchId = Number(req.body?.branchId);
-    const requestedCode = String(req.body?.code || "").trim();
-    const sterilizationRunNumber = String(req.body?.sterilizationRunNumber || "").trim();
+    const code = String(req.body?.code || "").trim();
     const machineId = Number(req.body?.machineId);
     const startedAt = req.body?.startedAt
       ? parseNaiveOrIsoDateTime(req.body.startedAt)
@@ -1374,7 +1356,7 @@ router.post("/sterilization/bur-cycles", async (req, res) => {
 
     // Validation
     if (!branchId) return res.status(400).json({ error: "branchId is required" });
-    if (!sterilizationRunNumber) return res.status(400).json({ error: "sterilizationRunNumber is required" });
+    if (!code) return res.status(400).json({ error: "code is required" });
     if (!machineId) return res.status(400).json({ error: "machineId is required" });
     if (!startedAt || isNaN(startedAt.getTime())) return res.status(400).json({ error: "startedAt is required and must be valid" });
     if (!finishedAt || isNaN(finishedAt.getTime())) return res.status(400).json({ error: "finishedAt is required and must be valid" });
@@ -1408,14 +1390,17 @@ router.post("/sterilization/bur-cycles", async (req, res) => {
         .json({ error: "Machine does not belong to the selected branch" });
     }
 
-    const code =
-      requestedCode ||
-      (await generateAutoCycleCode({
-        branchId,
-        machineNumber: machine.machineNumber,
-        model: prisma.burSterilizationCycle,
-        prefix: "BUR",
-      }));
+    const sterilizationRunNumber = await generateAutoRunNumber({
+      machineNumber: machine.machineNumber,
+      exists: async (value) =>
+        prisma.burSterilizationCycle.findFirst({
+          where: {
+            machineId,
+            sterilizationRunNumber: value,
+          },
+          select: { id: true },
+        }),
+    });
 
     const burCycle = await prisma.burSterilizationCycle.create({
       data: {

@@ -76,9 +76,9 @@ export default function CycleCreatePage() {
   const [sterilizationUsers, setSterilizationUsers] = useState<SterilizationUser[]>([]);
 
   const [branchId, setBranchId] = useState<number | "">("");
-  const [sterilizationRunNumber, setSterilizationRunNumber] = useState("");
-  const [runNumberWarning, setRunNumberWarning] = useState("");
-  const [lastCheckedRunNumber, setLastCheckedRunNumber] = useState("");
+  const [code, setCode] = useState("");
+  const [codeWarning, setCodeWarning] = useState("");
+  const [lastCheckedCode, setLastCheckedCode] = useState("");
   const [machineId, setMachineId] = useState<number | "">("");
   const [startedAt, setStartedAt] = useState(formatDateTime(new Date()));
   const [pressure, setPressure] = useState("90-230");
@@ -111,8 +111,8 @@ export default function CycleCreatePage() {
       setTools([]);
       setMachines([]);
       setMachineId("");
-      setRunNumberWarning("");
-      setLastCheckedRunNumber("");
+      setCodeWarning("");
+      setLastCheckedCode("");
       return;
     }
     
@@ -163,33 +163,33 @@ export default function CycleCreatePage() {
     })();
   }, [branchId]);
 
-  const checkRunNumberUniqueness = async (forceCheck = false) => {
-    if (!branchId || !machineId || !sterilizationRunNumber.trim()) {
-      setRunNumberWarning("");
+  const checkCodeUniqueness = async (forceCheck = false) => {
+    if (!branchId || !code.trim()) {
+      setCodeWarning("");
       return true;
     }
 
-    if (!forceCheck && sterilizationRunNumber.trim() === lastCheckedRunNumber) {
-      return !runNumberWarning;
+    if (!forceCheck && code.trim() === lastCheckedCode) {
+      return !codeWarning;
     }
 
-    setLastCheckedRunNumber(sterilizationRunNumber.trim());
+    setLastCheckedCode(code.trim());
 
     try {
       const res = await fetch(
-        `/api/sterilization/cycles/check-run-number?branchId=${branchId}&machineId=${machineId}&sterilizationRunNumber=${encodeURIComponent(
-          sterilizationRunNumber.trim()
+        `/api/sterilization/cycles/check-code?branchId=${branchId}&code=${encodeURIComponent(
+          code.trim()
         )}`
       );
       const data = await res.json().catch(() => ({ exists: false }));
       if (data.exists) {
-        setRunNumberWarning("⚠️ Энэ ариутгалын дугаар аль хэдийн ашиглагдсан байна");
+        setCodeWarning("⚠️ Энэ циклийн код аль хэдийн ашиглагдсан байна");
         return false;
       }
-      setRunNumberWarning("");
+      setCodeWarning("");
       return true;
     } catch {
-      setRunNumberWarning("");
+      setCodeWarning("");
       return true;
     }
   };
@@ -242,15 +242,16 @@ export default function CycleCreatePage() {
     setSuccessMsg("");
 
     if (!branchId) return setError("Салбар сонгоно уу.");
+    if (!code.trim()) return setError("Циклын код оруулна уу.");
     if (!machineId) return setError("Машин сонгоно уу.");
     if (!startedAt) return setError("Эхэлсэн цаг оруулна уу.");
     if (!finishedAt) return setError("Дууссан цаг оруулна уу.");
     if (!operator.trim()) return setError("Сувилагч сонгоно уу.");
-    if (runNumberWarning) return setError("Ариутгалын дугаарыг давхардуулж болохгүй.");
+    if (codeWarning) return setError("Циклын код давхардсан байна.");
 
-    const runNumberOk = await checkRunNumberUniqueness(true);
-    if (!runNumberOk) {
-      return setError("Ариутгалын дугаар давхардсан байна.");
+    const codeOk = await checkCodeUniqueness(true);
+    if (!codeOk) {
+      return setError("Циклын код давхардсан байна.");
     }
 
     const validLines = toolLines.filter((line) => line.toolId && line.producedQty >= 1);
@@ -262,6 +263,7 @@ export default function CycleCreatePage() {
     try {
       const body: any = {
         branchId: Number(branchId),
+        code: code.trim(),
         machineId: Number(machineId),
         startedAt: toNaiveTimestampFromLocal(startedAt),
         finishedAt: toNaiveTimestampFromLocal(finishedAt),
@@ -274,9 +276,6 @@ export default function CycleCreatePage() {
         })),
       };
 
-      if (sterilizationRunNumber.trim()) {
-        body.sterilizationRunNumber = sterilizationRunNumber.trim();
-      }
       if (pressure.trim()) {
         // Sanitize pressure: keep only digits and spaces, normalize spacing
         const sanitizedPressure = pressure.replace(/-/g, ' ').replace(/[^\d\s]/g, '').replace(/\s+/g, ' ').trim();
@@ -300,12 +299,14 @@ export default function CycleCreatePage() {
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Цикл үүсгэхэд алдаа гарлаа");
 
-      setSuccessMsg(`Цикл үүсгэлээ: ${json?.code || "Автоматаар үүссэн код"}`);
+      setSuccessMsg(
+        `Цикл үүсгэлээ: ${json?.code || "-"}${json?.sterilizationRunNumber ? `, Ариутгалын дугаар: ${json.sterilizationRunNumber}` : ""}`
+      );
       
       // Reset form
-      setSterilizationRunNumber("");
-      setRunNumberWarning("");
-      setLastCheckedRunNumber("");
+      setCode("");
+      setCodeWarning("");
+      setLastCheckedCode("");
       setStartedAt(formatDateTime(new Date()));
       setPressure("90-230");
       setTemperature("134");
@@ -359,30 +360,28 @@ export default function CycleCreatePage() {
           <div>
             <label className="mb-1 block text-xs text-gray-500">Ариутгалын дугаар</label>
             <input
-              value={sterilizationRunNumber}
-              onChange={(e) => {
-                setSterilizationRunNumber(e.target.value);
-                setRunNumberWarning("");
-                setLastCheckedRunNumber("");
-              }}
-              onBlur={() => void checkRunNumberUniqueness()}
-              placeholder="Ж: SR-001"
-              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
+              value="Сервер автоматаар үүсгэнэ"
+              readOnly
+              className="w-full cursor-default rounded-lg border border-gray-300 bg-gray-50 px-2.5 py-2 text-sm text-gray-500"
             />
-            {runNumberWarning && (
-              <div className="mt-1 text-xs text-orange-600">{runNumberWarning}</div>
-            )}
           </div>
 
           <div>
             <label className="mb-1 block text-xs text-gray-500">
-              Циклын код
+              Циклын код <span className="text-red-600">*</span>
             </label>
             <input
-              value="Автоматаар үүснэ"
-              readOnly
-              className="w-full cursor-default rounded-lg border border-gray-300 bg-gray-50 px-2.5 py-2 text-sm text-gray-500"
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value);
+                setCodeWarning("");
+                setLastCheckedCode("");
+              }}
+              onBlur={() => void checkCodeUniqueness()}
+              placeholder="Ж: IND-2026-001"
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
             />
+            {codeWarning && <div className="mt-1 text-xs text-orange-600">{codeWarning}</div>}
           </div>
 
           <div>
@@ -393,8 +392,6 @@ export default function CycleCreatePage() {
               value={machineId}
               onChange={(e) => {
                 setMachineId(e.target.value ? Number(e.target.value) : "");
-                setRunNumberWarning("");
-                setLastCheckedRunNumber("");
               }}
               disabled={!branchId || machines.length === 0}
               className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm disabled:bg-gray-100"
