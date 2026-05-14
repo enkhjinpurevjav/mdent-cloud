@@ -128,14 +128,6 @@ export default function BranchKioskPage() {
     }
   }
 
-  async function handleLogout() {
-    await fetch("/api/auth/logout", {
-      method: "POST",
-      credentials: "include",
-    }).catch(() => {});
-    router.replace("/login?redirect=/branch");
-  }
-
   if (!authChecked) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -147,18 +139,9 @@ export default function BranchKioskPage() {
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-8">
       {/* Header */}
-      <div className="max-w-2xl mx-auto mb-8 flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Өнөөдрийн эмч нар</h1>
-          <p className="text-gray-500 text-sm mt-1">Эмч дээрээ дарж PIN кодоо оруулна уу</p>
-        </div>
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="text-sm text-gray-500 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50"
-        >
-          Гарах
-        </button>
+      <div className="max-w-2xl mx-auto mb-8">
+        <h1 className="text-2xl font-bold text-gray-800">Өнөөдрийн эмч нар</h1>
+        <p className="text-gray-500 text-sm mt-1">Эмч дээрээ дарж PIN кодоо оруулна уу</p>
       </div>
 
       {/* Refresh button */}

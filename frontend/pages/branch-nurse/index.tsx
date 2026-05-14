@@ -115,6 +115,14 @@ export default function BranchNurseKioskPage() {
     }
   }
 
+  async function handleLogout() {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => {});
+    window.location.href = "/login?redirect=/branch-nurse";
+  }
+
   if (!authChecked) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-gray-50">
@@ -125,9 +133,18 @@ export default function BranchNurseKioskPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-8">
-      <div className="mx-auto mb-8 max-w-2xl">
-        <h1 className="text-2xl font-bold text-gray-800">Сувилагч киоск</h1>
-        <p className="mt-1 text-sm text-gray-500">Сувилагч дээр дарж PIN кодоо оруулна уу</p>
+      <div className="mx-auto mb-8 flex max-w-2xl items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">Сувилагч киоск</h1>
+          <p className="mt-1 text-sm text-gray-500">Сувилагч дээр дарж PIN кодоо оруулна уу</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleLogout()}
+          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-50"
+        >
+          Гарах
+        </button>
       </div>
 
       <div className="mx-auto mb-4 flex max-w-2xl justify-end">
