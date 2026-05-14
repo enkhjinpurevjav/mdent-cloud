@@ -26,6 +26,12 @@ function addMinutes(datetimeLocal: string, minutes: number): string {
   return formatDateTime(date);
 }
 
+function toNaiveTimestampFromLocal(datetimeLocal: string): string {
+  if (!datetimeLocal) return "";
+  const normalized = datetimeLocal.replace("T", " ");
+  return normalized.length === 16 ? `${normalized}:00` : normalized;
+}
+
 type SterilizationItem = {
   id: number;
   name: string;
@@ -70,10 +76,9 @@ export default function CycleCreatePage() {
   const [sterilizationUsers, setSterilizationUsers] = useState<SterilizationUser[]>([]);
 
   const [branchId, setBranchId] = useState<number | "">("");
-  const [code, setCode] = useState("");
-  const [codeWarning, setCodeWarning] = useState("");
-  const [lastCheckedCode, setLastCheckedCode] = useState("");
   const [sterilizationRunNumber, setSterilizationRunNumber] = useState("");
+  const [runNumberWarning, setRunNumberWarning] = useState("");
+  const [lastCheckedRunNumber, setLastCheckedRunNumber] = useState("");
   const [machineId, setMachineId] = useState<number | "">("");
   const [startedAt, setStartedAt] = useState(formatDateTime(new Date()));
   const [pressure, setPressure] = useState("90-230");
@@ -106,6 +111,8 @@ export default function CycleCreatePage() {
       setTools([]);
       setMachines([]);
       setMachineId("");
+      setRunNumberWarning("");
+      setLastCheckedRunNumber("");
       return;
     }
     
@@ -156,30 +163,34 @@ export default function CycleCreatePage() {
     })();
   }, [branchId]);
 
-  const checkCodeUniqueness = async () => {
-    if (!branchId || !code.trim()) {
-      setCodeWarning("");
-      return;
+  const checkRunNumberUniqueness = async (forceCheck = false) => {
+    if (!branchId || !machineId || !sterilizationRunNumber.trim()) {
+      setRunNumberWarning("");
+      return true;
     }
-    
-    // Avoid duplicate checks for the same code
-    if (code.trim() === lastCheckedCode) {
-      return;
+
+    if (!forceCheck && sterilizationRunNumber.trim() === lastCheckedRunNumber) {
+      return !runNumberWarning;
     }
-    
-    setLastCheckedCode(code.trim());
-    
+
+    setLastCheckedRunNumber(sterilizationRunNumber.trim());
+
     try {
-      const res = await fetch(`/api/sterilization/cycles/check-code?branchId=${branchId}&code=${encodeURIComponent(code.trim())}`);
+      const res = await fetch(
+        `/api/sterilization/cycles/check-run-number?branchId=${branchId}&machineId=${machineId}&sterilizationRunNumber=${encodeURIComponent(
+          sterilizationRunNumber.trim()
+        )}`
+      );
       const data = await res.json().catch(() => ({ exists: false }));
-      
       if (data.exists) {
-        setCodeWarning("⚠️ Энэ циклийн дугаар аль хэдийн ашиглагдсан байна");
-      } else {
-        setCodeWarning("");
+        setRunNumberWarning("⚠️ Энэ ариутгалын дугаар аль хэдийн ашиглагдсан байна");
+        return false;
       }
+      setRunNumberWarning("");
+      return true;
     } catch {
-      setCodeWarning("");
+      setRunNumberWarning("");
+      return true;
     }
   };
 
@@ -231,11 +242,16 @@ export default function CycleCreatePage() {
     setSuccessMsg("");
 
     if (!branchId) return setError("Салбар сонгоно уу.");
-    if (!code.trim()) return setError("Циклын код оруулна уу.");
     if (!machineId) return setError("Машин сонгоно уу.");
     if (!startedAt) return setError("Эхэлсэн цаг оруулна уу.");
     if (!finishedAt) return setError("Дууссан цаг оруулна уу.");
     if (!operator.trim()) return setError("Сувилагч сонгоно уу.");
+    if (runNumberWarning) return setError("Ариутгалын дугаарыг давхардуулж болохгүй.");
+
+    const runNumberOk = await checkRunNumberUniqueness(true);
+    if (!runNumberOk) {
+      return setError("Ариутгалын дугаар давхардсан байна.");
+    }
 
     const validLines = toolLines.filter((line) => line.toolId && line.producedQty >= 1);
     if (validLines.length === 0) {
@@ -246,10 +262,9 @@ export default function CycleCreatePage() {
     try {
       const body: any = {
         branchId: Number(branchId),
-        code: code.trim(),
         machineId: Number(machineId),
-        startedAt: new Date(startedAt).toISOString(),
-        finishedAt: new Date(finishedAt).toISOString(),
+        startedAt: toNaiveTimestampFromLocal(startedAt),
+        finishedAt: toNaiveTimestampFromLocal(finishedAt),
         result,
         operator: operator.trim(),
         notes: notes.trim() || undefined,
@@ -273,7 +288,7 @@ export default function CycleCreatePage() {
         body.temperature = Number(temperature);
       }
       if (removedFromAutoclaveAt) {
-        body.removedFromAutoclaveAt = new Date(removedFromAutoclaveAt).toISOString();
+        body.removedFromAutoclaveAt = toNaiveTimestampFromLocal(removedFromAutoclaveAt);
       }
 
       const res = await fetch("/api/sterilization/cycles", {
@@ -285,13 +300,12 @@ export default function CycleCreatePage() {
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(json?.error || "Цикл үүсгэхэд алдаа гарлаа");
 
-      setSuccessMsg(`Цикл үүсгэлээ: ${code.trim()}`);
+      setSuccessMsg(`Цикл үүсгэлээ: ${json?.code || "Автоматаар үүссэн код"}`);
       
       // Reset form
-      setCode("");
-      setCodeWarning("");
-      setLastCheckedCode("");
       setSterilizationRunNumber("");
+      setRunNumberWarning("");
+      setLastCheckedRunNumber("");
       setStartedAt(formatDateTime(new Date()));
       setPressure("90-230");
       setTemperature("134");
@@ -346,29 +360,29 @@ export default function CycleCreatePage() {
             <label className="mb-1 block text-xs text-gray-500">Ариутгалын дугаар</label>
             <input
               value={sterilizationRunNumber}
-              onChange={(e) => setSterilizationRunNumber(e.target.value)}
+              onChange={(e) => {
+                setSterilizationRunNumber(e.target.value);
+                setRunNumberWarning("");
+                setLastCheckedRunNumber("");
+              }}
+              onBlur={() => void checkRunNumberUniqueness()}
               placeholder="Ж: SR-001"
               className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
             />
+            {runNumberWarning && (
+              <div className="mt-1 text-xs text-orange-600">{runNumberWarning}</div>
+            )}
           </div>
 
           <div>
             <label className="mb-1 block text-xs text-gray-500">
-              Циклын код <span className="text-red-600">*</span>
+              Циклын код
             </label>
             <input
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              onBlur={checkCodeUniqueness}
-              placeholder="Ж: T-2024-001"
-              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
-              aria-describedby={codeWarning ? "code-warning" : undefined}
+              value="Автоматаар үүснэ"
+              readOnly
+              className="w-full cursor-default rounded-lg border border-gray-300 bg-gray-50 px-2.5 py-2 text-sm text-gray-500"
             />
-            {codeWarning && (
-              <div id="code-warning" role="alert" aria-live="polite" className="mt-1 text-xs text-orange-600">
-                {codeWarning}
-              </div>
-            )}
           </div>
 
           <div>
@@ -377,7 +391,11 @@ export default function CycleCreatePage() {
             </label>
             <select
               value={machineId}
-              onChange={(e) => setMachineId(e.target.value ? Number(e.target.value) : "")}
+              onChange={(e) => {
+                setMachineId(e.target.value ? Number(e.target.value) : "");
+                setRunNumberWarning("");
+                setLastCheckedRunNumber("");
+              }}
               disabled={!branchId || machines.length === 0}
               className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm disabled:bg-gray-100"
             >

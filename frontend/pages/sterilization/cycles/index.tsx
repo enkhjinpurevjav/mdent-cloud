@@ -26,6 +26,8 @@ type AutoclaveCycle = {
   }[];
 };
 
+const CLINIC_TIME_ZONE = "Asia/Ulaanbaatar";
+
 export default function CyclesListPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [cycles, setCycles] = useState<AutoclaveCycle[]>([]);
@@ -77,12 +79,16 @@ export default function CyclesListPage() {
   const formatDateTime = (isoString: string) => {
     try {
       const date = new Date(isoString);
-      const y = date.getFullYear();
-      const m = String(date.getMonth() + 1).padStart(2, "0");
-      const d = String(date.getDate()).padStart(2, "0");
-      const h = String(date.getHours()).padStart(2, "0");
-      const min = String(date.getMinutes()).padStart(2, "0");
-      return `${y}-${m}-${d} ${h}:${min}`;
+      if (Number.isNaN(date.getTime())) return isoString;
+      return new Intl.DateTimeFormat("mn-MN", {
+        timeZone: CLINIC_TIME_ZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(date);
     } catch {
       return isoString;
     }

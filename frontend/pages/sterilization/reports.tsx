@@ -37,6 +37,8 @@ type ActiveCycle = {
   toolLines: ToolLine[];
 };
 
+const CLINIC_TIME_ZONE = "Asia/Ulaanbaatar";
+
 function ymd(date: Date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -47,13 +49,41 @@ function ymd(date: Date) {
 function formatDate(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString();
+  return new Intl.DateTimeFormat("mn-MN", {
+    timeZone: CLINIC_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
 }
 
 function formatDateTime(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString();
+  return new Intl.DateTimeFormat("mn-MN", {
+    timeZone: CLINIC_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+}
+
+function formatDateTimeInputLocal(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const h = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${d}T${h}:${min}`;
+}
+
+function toNaiveTimestampFromLocal(datetimeLocal: string) {
+  if (!datetimeLocal) return "";
+  const normalized = datetimeLocal.replace("T", " ");
+  return normalized.length === 16 ? `${normalized}:00` : normalized;
 }
 
 export default function SterilizationReportsPage() {
@@ -391,10 +421,7 @@ function DisposalModal({
     notes: string;
   }) => Promise<void>;
 }) {
-  const [disposedAt, setDisposedAt] = useState(() => {
-    const now = new Date();
-    return now.toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM
-  });
+  const [disposedAt, setDisposedAt] = useState(() => formatDateTimeInputLocal(new Date()));
   const [disposedByName, setDisposedByName] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [reason, setReason] = useState("");
@@ -417,7 +444,7 @@ function DisposalModal({
     setSubmitting(true);
     try {
       await onSubmit({
-        disposedAt,
+        disposedAt: toNaiveTimestampFromLocal(disposedAt),
         disposedByName: disposedByName.trim(),
         quantity,
         reason: reason.trim(),

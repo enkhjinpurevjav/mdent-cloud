@@ -51,6 +51,8 @@ type ReturnRecord = {
   updatedAt?: string;
 };
 
+const CLINIC_TIME_ZONE = "Asia/Ulaanbaatar";
+
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function formatDateOnly(date: Date) {
@@ -64,6 +66,17 @@ function formatHHmm(date: Date) {
   const h = String(date.getHours()).padStart(2, "0");
   const m = String(date.getMinutes()).padStart(2, "0");
   return `${h}:${m}`;
+}
+
+function formatIsoDateInClinicTz(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("mn-MN", {
+    timeZone: CLINIC_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
 }
 
 function doctorLabel(d: Doctor | ReturnRecord["doctor"] | null | undefined) {
@@ -600,7 +613,7 @@ export default function SterilizationReturnsPage() {
                         onClick={() => toggleExpand(r.id)}
                       >
                         <td className="p-2.5 text-center">{isExpanded ? "▼" : "▶"}</td>
-                        <td className="p-2.5">{new Date(r.date).toLocaleDateString("mn-MN")}</td>
+                        <td className="p-2.5">{formatIsoDateInClinicTz(r.date)}</td>
                         <td className="p-2.5">{r.time}</td>
                         <td className="p-2.5">{doctorLabel(r.doctor)}</td>
                         <td className="p-2.5">{r.nurseName}</td>

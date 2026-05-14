@@ -76,6 +76,8 @@ type QtyKey =
   | "qtyBurContainer"
   | "qtyPlasticSpoon";
 
+const CLINIC_TIME_ZONE = "Asia/Ulaanbaatar";
+
 const TOOL_FIELDS: { key: QtyKey; label: string }[] = [
   { key: "qtyPolishingRubber", label: "Өнгөлгөөний резин" },
   { key: "qtyBrush", label: "Браш" },
@@ -94,6 +96,17 @@ const TOOL_FIELDS: { key: QtyKey; label: string }[] = [
 
 function sumQty(row: Pick<DisinfectionLog, QtyKey>) {
   return TOOL_FIELDS.reduce((sum, f) => sum + Number(row[f.key] || 0), 0);
+}
+
+function formatIsoDateInClinicTz(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("mn-MN", {
+    timeZone: CLINIC_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
 }
 
 export default function DisinfectionPage() {
@@ -539,7 +552,7 @@ export default function DisinfectionPage() {
               ) : (
                 logs.map((row) => (
                   <tr key={row.id} className="border-b border-gray-200">
-                    <td className="p-2.5">{new Date(row.date).toLocaleDateString("mn-MN")}</td>
+                    <td className="p-2.5">{formatIsoDateInClinicTz(row.date)}</td>
                     <td className="p-2.5">
                       {row.startTime}–{row.endTime}
                     </td>
