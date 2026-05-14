@@ -19,7 +19,8 @@ type UserRole =
   | "marketing"
   | "nurse"
   | "xray"
-  | "branch_kiosk";
+  | "branch_kiosk"
+  | "branch_nurse_kiosk";
 
 type OtherStaff = {
   id: number;
@@ -44,6 +45,7 @@ const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "other", label: "Бусад" },
   { value: "xray", label: "Рентген" },
   { value: "branch_kiosk", label: "Салбар киоск" },
+  { value: "branch_nurse_kiosk", label: "Сувилагч киоск" },
 ];
 
 const getRoleLabel = (role: string) => {
@@ -66,6 +68,8 @@ const getRoleLabel = (role: string) => {
       return "Рентген";
     case "branch_kiosk":
       return "Салбар киоск";
+    case "branch_nurse_kiosk":
+      return "Сувилагч киоск";
     default:
       return role;
   }
@@ -369,6 +373,7 @@ export default function OtherStaffPage() {
         "other",
         "xray",
         "branch_kiosk",
+        "branch_nurse_kiosk",
       ];
       const results: OtherStaff[] = [];
 

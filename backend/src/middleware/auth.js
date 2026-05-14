@@ -3,6 +3,7 @@ import prisma from "../db.js";
 
 const COOKIE_NAME = "access_token";
 export const DOCTOR_KIOSK_COOKIE_NAME = "doctor_kiosk_token";
+export const NURSE_KIOSK_COOKIE_NAME = "nurse_kiosk_token";
 
 function decodeCookieValue(value) {
   if (typeof value !== "string") return "";

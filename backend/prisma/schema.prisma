@@ -29,6 +29,7 @@ enum UserRole {
   sterilization
   other
   branch_kiosk
+  branch_nurse_kiosk
   doctor_kiosk
 }
 
@@ -378,20 +379,24 @@ model SterilizationReturn {
   time     String   // "HH:mm"
 
   doctorId  Int
-  nurseName String
-  notes     String? @db.Text
+  nurseUserId      Int?
+  nurseName        String
+  nurseNameSnapshot String?
+  notes            String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   branch Branch @relation("BranchSterilizationReturns", fields: [branchId], references: [id])
   doctor User   @relation("DoctorSterilizationReturns", fields: [doctorId], references: [id])
+  nurse  User?  @relation("NurseSterilizationReturns", fields: [nurseUserId], references: [id])
 
   lines SterilizationReturnLine[]
 
   @@index([branchId])
   @@index([date])
   @@index([doctorId])
+  @@index([nurseUserId])
 }
 
 model SterilizationReturnLine {
@@ -780,6 +785,7 @@ model User {
   openedSterilizationPackages EncounterSterilizationPackageUse[] @relation("UserOpenedSterilizationPackages")
 
   sterilizationReturns SterilizationReturn[] @relation("DoctorSterilizationReturns")
+  sterilizationReturnsAsNurse SterilizationReturn[] @relation("NurseSterilizationReturns")
   
   // NEW: v1 sterilization adjustment resolutions
   adjustmentResolutions SterilizationAdjustmentConsumption[] @relation("UserAdjustmentResolutions")

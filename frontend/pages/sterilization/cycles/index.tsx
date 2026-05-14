@@ -28,6 +28,29 @@ type AutoclaveCycle = {
 
 const CLINIC_TIME_ZONE = "Asia/Ulaanbaatar";
 
+function formatCsvCell(value: string | number | null | undefined) {
+  const raw = String(value ?? "");
+  const escaped = raw.replace(/"/g, '""');
+  return `"${escaped}"`;
+}
+
+function defaultFromDate() {
+  const date = new Date();
+  date.setDate(date.getDate() - 30);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function defaultToDate() {
+  const date = new Date();
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 export default function CyclesListPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [cycles, setCycles] = useState<AutoclaveCycle[]>([]);
@@ -36,6 +59,8 @@ export default function CyclesListPage() {
 
   const [selectedBranchId, setSelectedBranchId] = useState<number | "">("");
   const [selectedResult, setSelectedResult] = useState<"" | "PASS" | "FAIL">("");
+  const [fromDate, setFromDate] = useState(defaultFromDate);
+  const [toDate, setToDate] = useState(defaultToDate);
   const [expandedCycleId, setExpandedCycleId] = useState<number | null>(null);
 
   useEffect(() => {
@@ -57,6 +82,8 @@ export default function CyclesListPage() {
       const params = new URLSearchParams();
       if (selectedBranchId) params.append("branchId", String(selectedBranchId));
       if (selectedResult) params.append("result", selectedResult);
+      if (fromDate) params.append("from", fromDate);
+      if (toDate) params.append("to", toDate);
 
       const res = await fetch(`/api/sterilization/cycles?${params.toString()}`);
       const data = await res.json().catch(() => []);
@@ -74,7 +101,7 @@ export default function CyclesListPage() {
 
   useEffect(() => {
     void loadCycles();
-  }, [selectedBranchId, selectedResult]);
+  }, [selectedBranchId, selectedResult, fromDate, toDate]);
 
   const formatDateTime = (isoString: string) => {
     try {
@@ -98,9 +125,63 @@ export default function CyclesListPage() {
     setExpandedCycleId(expandedCycleId === cycleId ? null : cycleId);
   };
 
+  const exportCsv = () => {
+    const headers = [
+      "Код",
+      "Ариутгалын дугаар",
+      "Салбар",
+      "Машин",
+      "Дууссан огноо",
+      "Үр дүн",
+      "Ажилтан",
+      "Багажийн мөрийн тоо",
+      "Нийт үйлдвэрлэсэн тоо",
+    ];
+
+    const rows = cycles.map((cycle) => {
+      const toolLineCount = cycle.toolLines?.length || 0;
+      const totalProducedQty =
+        cycle.toolLines?.reduce(
+          (sum, line) => sum + (Number(line.producedQty) || 0),
+          0
+        ) || 0;
+
+      return [
+        cycle.code,
+        cycle.sterilizationRunNumber || "",
+        cycle.branch?.name || "",
+        cycle.machineNumber || "",
+        formatDateTime(cycle.completedAt),
+        cycle.result,
+        cycle.operator || "",
+        toolLineCount,
+        totalProducedQty,
+      ];
+    });
+
+    const csv = [
+      headers.map((h) => formatCsvCell(h)).join(","),
+      ...rows.map((row) => row.map((cell) => formatCsvCell(cell)).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const branchPart = selectedBranchId ? `branch-${selectedBranchId}` : "all-branches";
+    const resultPart = selectedResult || "all-results";
+    const fromPart = fromDate || "any";
+    const toPart = toDate || "any";
+    link.href = url;
+    link.download = `sterilization-cycles-${branchPart}-${resultPart}-${fromPart}-to-${toPart}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="max-w-[1400px]">
-      <h1 className="mb-1.5 text-lg font-semibold">Ариутгал → Циклийн жагсаалт</h1>
+      <h1 className="mb-1.5 text-lg font-semibold">Ариутгалын жагсаалт</h1>
       <p className="mb-3 text-sm text-gray-500">Автоклавын циклүүдийг харах, шүүх.</p>
 
       {error && <div className="mb-2.5 text-sm text-red-700">{error}</div>}
@@ -128,6 +209,26 @@ export default function CyclesListPage() {
           <option value="FAIL">✗ FAIL</option>
         </select>
 
+        <div className="flex min-w-[170px] flex-col gap-1">
+          <label className="text-xs text-gray-500">Эхлэх огноо</label>
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
+          />
+        </div>
+
+        <div className="flex min-w-[170px] flex-col gap-1">
+          <label className="text-xs text-gray-500">Дуусах огноо</label>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className="rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
+          />
+        </div>
+
         <button
           type="button"
           onClick={() => void loadCycles()}
@@ -135,6 +236,15 @@ export default function CyclesListPage() {
           className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm disabled:cursor-default disabled:opacity-60"
         >
           {loading ? "Ачаалж байна..." : "Шинэчлэх"}
+        </button>
+
+        <button
+          type="button"
+          onClick={exportCsv}
+          disabled={loading || cycles.length === 0}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm disabled:cursor-default disabled:opacity-60"
+        >
+          CSV татах
         </button>
       </div>
 
@@ -164,6 +274,7 @@ export default function CyclesListPage() {
                 <th className="w-[100px] px-4 py-3">Үр дүн</th>
                 <th className="px-4 py-3">Ажилтан</th>
                 <th className="w-[100px] px-4 py-3 text-center">Багажийн тоо</th>
+                <th className="w-[170px] px-4 py-3 text-center">Нийт үйлдвэрлэсэн тоо</th>
               </tr>
             </thead>
             <tbody>
@@ -198,11 +309,12 @@ export default function CyclesListPage() {
                       </td>
                       <td className="px-4 py-3">{cycle.operator}</td>
                       <td className="px-4 py-3 text-center">{toolCount}</td>
+                      <td className="px-4 py-3 text-center font-semibold">{totalProducedQty}</td>
                     </tr>
 
                     {isExpanded && (
                       <tr className="bg-gray-50">
-                        <td colSpan={8} className="p-4">
+                        <td colSpan={9} className="p-4">
                           {/* Cycle Details */}
                           <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                             {cycle.sterilizationRunNumber && (

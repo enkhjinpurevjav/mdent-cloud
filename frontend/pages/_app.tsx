@@ -42,6 +42,10 @@ function isBranchKioskPath(pathname: string) {
   return pathname === "/branch" || pathname.startsWith("/branch/");
 }
 
+function isBranchNurseKioskPath(pathname: string) {
+  return pathname === "/branch-nurse" || pathname.startsWith("/branch-nurse/");
+}
+
 function isAppointmentsPath(pathname: string) {
   return (
     pathname === "/appointments" ||
@@ -226,6 +230,14 @@ function AppContent({ Component, pageProps }: AppProps) {
     void router.replace("/attendance");
   }, [isPublicRoute, loading, me, router]);
 
+  // Keep nurse kiosk users scoped to nurse kiosk-only pages.
+  useEffect(() => {
+    if (loading || !me || isPublicRoute) return;
+    if (me.role !== "branch_nurse_kiosk") return;
+    if (isBranchNurseKioskPath(router.pathname)) return;
+    void router.replace("/branch-nurse");
+  }, [isPublicRoute, loading, me, router]);
+
   // Show tooth loader during initial auth bootstrap for protected pages
   if (loading && !isPublicRoute) {
     return <ToothLoader />;
@@ -255,7 +267,10 @@ function AppContent({ Component, pageProps }: AppProps) {
   const useReceptionLayout = isReceptionPath(router.pathname);
   const useMarketingLayout = isMarketingPath(router.pathname);
   const useXrayLayout = isXrayPath(router.pathname);
-  const useBranchKioskLayout = isBranchKioskPath(router.pathname) || userRole === "branch_kiosk";
+  const useBranchNurseKiosk = isBranchNurseKioskPath(router.pathname);
+  const useBranchKioskLayout =
+    (isBranchKioskPath(router.pathname) || userRole === "branch_kiosk") &&
+    !useBranchNurseKiosk;
   const useOtherPortalLayout = userRole === "other";
 
   // Wide layout for appointments pages (admin + reception) to support many doctor columns
@@ -300,6 +315,11 @@ function AppContent({ Component, pageProps }: AppProps) {
         <Component {...pageProps} />
       </XrayLayout>
     );
+  }
+
+  // Nurse kiosk pages intentionally render without any global menu/chrome.
+  if (useBranchNurseKiosk) {
+    return <Component {...pageProps} />;
   }
 
   // Branch kiosk pages: keep navy header but hide sidebar

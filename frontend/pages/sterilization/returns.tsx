@@ -40,11 +40,14 @@ type ReturnRecord = {
   date: string; // ISO string (stored as midnight)
   time: string; // "HH:mm"
   doctorId: number;
+  nurseUserId?: number | null;
   nurseName: string;
+  nurseNameSnapshot?: string | null;
   notes: string | null;
 
   branch?: { id: number; name: string };
   doctor?: { id: number; name: string | null; ovog: string | null; email: string };
+  nurse?: { id: number; name: string | null; ovog: string | null; email: string };
   lines: ReturnLine[];
 
   createdAt?: string;
@@ -92,6 +95,14 @@ function formatUserLabel(u: { id: number; email: string; name?: string | null; o
   return `User #${u.id}`;
 }
 
+function userBelongsToBranch(
+  u: { branchId?: number | null; branches?: Array<{ id: number; name: string }> } | null | undefined,
+  branchValue: number
+) {
+  if (!u) return false;
+  return u.branchId === branchValue || (u.branches || []).some((b) => b.id === branchValue);
+}
+
 function sumLines(lines: ReturnLine[]) {
   return (lines || []).reduce((s, ln) => s + Number(ln.returnedQty || 0), 0);
 }
@@ -116,7 +127,7 @@ export default function SterilizationReturnsPage() {
   const [date, setDate] = useState<string>(todayYmd);
   const [time, setTime] = useState<string>(formatHHmm(new Date()));
   const [doctorId, setDoctorId] = useState<number | "">("");
-  const [nurseName, setNurseName] = useState<string>("");
+  const [nurseUserId, setNurseUserId] = useState<number | "">("");
   const [notes, setNotes] = useState<string>("");
 
   // qty inputs for all tools (keyed by toolId)
@@ -211,20 +222,16 @@ export default function SterilizationReturnsPage() {
       setFilteredDoctors([]);
       setFilteredNurses([]);
       setDoctorId("");
-      setNurseName("");
+      setNurseUserId("");
       return;
     }
     const bid = Number(branchId);
-    const docs = allDoctors.filter(
-      (d) => d.branchId === bid || (d.branches && d.branches.some((b) => b.id === bid))
-    );
-    const nurses = allNurses.filter(
-      (n) => n.branchId === bid || (n.branches && n.branches.some((b) => b.id === bid))
-    );
+    const docs = allDoctors.filter((d) => userBelongsToBranch(d, bid));
+    const nurses = allNurses.filter((n) => userBelongsToBranch(n, bid));
     setFilteredDoctors(docs);
     setFilteredNurses(nurses);
     setDoctorId(docs.length > 0 ? docs[0].id : "");
-    setNurseName(nurses.length > 0 ? formatUserLabel(nurses[0]) : "");
+    setNurseUserId(nurses.length > 0 ? nurses[0].id : "");
   }, [branchId, allDoctors, allNurses]);
 
   const filteredTools = useMemo(() => {
@@ -232,6 +239,20 @@ export default function SterilizationReturnsPage() {
     if (!q) return tools;
     return tools.filter((t) => t.name.toLowerCase().includes(q));
   }, [tools, toolFilter]);
+
+  const filteredHistoryDoctors = useMemo(() => {
+    if (!filterBranchId) return allDoctors;
+    const branchValue = Number(filterBranchId);
+    return allDoctors.filter((d) => userBelongsToBranch(d, branchValue));
+  }, [allDoctors, filterBranchId]);
+
+  useEffect(() => {
+    if (!filterBranchId || !filterDoctorId) return;
+    const existsInBranch = filteredHistoryDoctors.some((d) => d.id === filterDoctorId);
+    if (!existsInBranch) {
+      setFilterDoctorId("");
+    }
+  }, [filterBranchId, filterDoctorId, filteredHistoryDoctors]);
 
   const totalReturnQty = useMemo(() => {
     return Object.values(qtyByToolId).reduce((s, v) => s + Number(v || 0), 0);
@@ -241,7 +262,7 @@ export default function SterilizationReturnsPage() {
     setDate(todayYmd);
     setTime(formatHHmm(new Date()));
     setDoctorId(filteredDoctors.length > 0 ? filteredDoctors[0].id : "");
-    setNurseName(filteredNurses.length > 0 ? formatUserLabel(filteredNurses[0]) : "");
+    setNurseUserId(filteredNurses.length > 0 ? filteredNurses[0].id : "");
     setNotes("");
     setToolFilter("");
     setExpandedId(null);
@@ -295,7 +316,10 @@ export default function SterilizationReturnsPage() {
     if (!date) return setError("Огноо оруулна уу.");
     if (!time) return setError("Цаг оруулна уу.");
     if (!doctorId) return setError("Эмч сонгоно уу.");
-    if (!nurseName.trim()) return setError("Сувилагчийн нэр оруулна уу.");
+    if (!nurseUserId) return setError("Сувилагч сонгоно уу.");
+
+    const selectedNurse = filteredNurses.find((n) => n.id === nurseUserId);
+    if (!selectedNurse) return setError("Сонгосон сувилагч энэ салбарт хамаарахгүй байна.");
 
     // Build lines with qty>0 only (your requirement)
     const lines = tools
@@ -316,7 +340,8 @@ export default function SterilizationReturnsPage() {
           date, // YYYY-MM-DD
           time, // HH:mm
           doctorId: Number(doctorId),
-          nurseName: nurseName.trim(),
+          nurseUserId: Number(nurseUserId),
+          nurseNameSnapshot: formatUserLabel(selectedNurse),
           notes: notes.trim() || null,
           lines,
         }),
@@ -417,14 +442,19 @@ export default function SterilizationReturnsPage() {
             <label className="mb-[5px] block font-bold">
               Сувилагчийн нэр <span className="text-red-600">*</span>
             </label>
-            <select value={nurseName} onChange={(e) => setNurseName(e.target.value)} disabled={!branchId || loadingStaff} className={fullInputClass}>
+            <select
+              value={nurseUserId}
+              onChange={(e) => setNurseUserId(e.target.value ? Number(e.target.value) : "")}
+              disabled={!branchId || loadingStaff}
+              className={fullInputClass}
+            >
               {!branchId && <option value="">-- Эхлээд салбар сонгоно уу --</option>}
               {branchId && loadingStaff && <option value="">Ачаалж байна...</option>}
               {branchId && !loadingStaff && filteredNurses.length === 0 && <option value="">Энэ салбарт сувилагч олдсонгүй</option>}
               {branchId &&
                 !loadingStaff &&
                 filteredNurses.map((n) => (
-                  <option key={n.id} value={formatUserLabel(n)}>
+                  <option key={n.id} value={n.id}>
                     {formatUserLabel(n)}
                   </option>
                 ))}
@@ -542,9 +572,11 @@ export default function SterilizationReturnsPage() {
               value={filterDoctorId}
               onChange={(e) => setFilterDoctorId(e.target.value ? Number(e.target.value) : "")}
               className={`${compactInputClass} min-w-[240px]`}
+              disabled={!filterBranchId}
             >
-              <option value="">-- Бүгд --</option>
-              {allDoctors.map((d) => (
+              {!filterBranchId && <option value="">-- Эхлээд салбар сонгоно уу --</option>}
+              {filterBranchId && <option value="">-- Бүгд --</option>}
+              {filterBranchId && filteredHistoryDoctors.map((d) => (
                 <option key={d.id} value={d.id}>
                   {formatUserLabel(d)}
                 </option>
@@ -616,7 +648,7 @@ export default function SterilizationReturnsPage() {
                         <td className="p-2.5">{formatIsoDateInClinicTz(r.date)}</td>
                         <td className="p-2.5">{r.time}</td>
                         <td className="p-2.5">{doctorLabel(r.doctor)}</td>
-                        <td className="p-2.5">{r.nurseName}</td>
+                        <td className="p-2.5">{r.nurseNameSnapshot || r.nurseName}</td>
                         <td className="p-2.5 text-right font-bold">{total}</td>
                         <td className="p-2.5 text-gray-700">{r.notes || ""}</td>
                       </tr>

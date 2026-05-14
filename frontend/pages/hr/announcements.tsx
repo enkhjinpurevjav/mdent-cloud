@@ -23,6 +23,7 @@ const TARGET_ROLE_OPTIONS = [
   { value: "sterilization", label: "Ариутгал" },
   { value: "other", label: "Бусад" },
   { value: "branch_kiosk", label: "Салбар киоск" },
+  { value: "branch_nurse_kiosk", label: "Сувилагч киоск" },
   { value: "doctor_kiosk", label: "Эмч киоск" },
 ];
 

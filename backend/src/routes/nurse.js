@@ -8,6 +8,7 @@
  * The authenticated nurse's identity is always taken from req.user.id.
  */
 import express from "express";
+import bcrypt from "bcryptjs";
 import prisma from "../db.js";
 import { authenticateJWT, requireRole } from "../middleware/auth.js";
 import {
@@ -79,6 +80,36 @@ router.get(
 
 // Apply auth + nurse role to every route below this point
 router.use(authenticateJWT, requireRole("nurse"));
+
+/**
+ * POST /api/nurse/pin
+ * Set or change authenticated nurse 4-digit kiosk PIN.
+ * Body: { pin: "1234" }
+ */
+router.post("/pin", async (req, res) => {
+  try {
+    const nurseId = req.user.id;
+    const { pin } = req.body || {};
+
+    if (!pin || typeof pin !== "string") {
+      return res.status(400).json({ error: "PIN is required." });
+    }
+    if (!/^\d{4}$/.test(pin)) {
+      return res.status(400).json({ error: "PIN must be exactly 4 digits." });
+    }
+
+    const pinHash = await bcrypt.hash(pin, 10);
+    await prisma.user.update({
+      where: { id: nurseId },
+      data: { pinHash, pinUpdatedAt: new Date() },
+    });
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error("POST /api/nurse/pin error:", err);
+    return res.status(500).json({ error: "Failed to save PIN." });
+  }
+});
 
 // ─── GET /api/nurse/schedule ──────────────────────────────────────────────────
 // Returns authenticated nurse's upcoming schedule (next 31 days by default).

@@ -77,6 +77,7 @@ function roleLabel(role: string): string {
     super_admin: "Супер Админ",
     other: "Бусад",
     branch_kiosk: "Салбар киоск",
+    branch_nurse_kiosk: "Сувилагч киоск",
     doctor_kiosk: "Эмч киоск",
   };
   return map[role] || role;
@@ -95,10 +96,11 @@ const POLICY_ROLE_OPTIONS: { value: string; label: string }[] = [
   { value: "super_admin", label: "Супер админ" },
   { value: "other", label: "Бусад" },
   { value: "branch_kiosk", label: "Салбар киоск" },
+  { value: "branch_nurse_kiosk", label: "Сувилагч киоск" },
   { value: "doctor_kiosk", label: "Эмч киоск" },
 ];
 
-const ATTENDANCE_EXCLUDED_ROLES = new Set(["xray", "branch_kiosk"]);
+const ATTENDANCE_EXCLUDED_ROLES = new Set(["xray", "branch_kiosk", "branch_nurse_kiosk"]);
 
 function statusLabel(status: string): string {
   const map: Record<string, string> = {
