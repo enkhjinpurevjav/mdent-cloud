@@ -37,6 +37,8 @@ type ActiveCycle = {
   toolLines: ToolLine[];
 };
 
+const CLINIC_TIME_ZONE = "Asia/Ulaanbaatar";
+
 function ymd(date: Date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -47,13 +49,41 @@ function ymd(date: Date) {
 function formatDate(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString();
+  return new Intl.DateTimeFormat("mn-MN", {
+    timeZone: CLINIC_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
 }
 
 function formatDateTime(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString();
+  return new Intl.DateTimeFormat("mn-MN", {
+    timeZone: CLINIC_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+}
+
+function formatDateTimeInputLocal(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const h = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+  return `${y}-${m}-${d}T${h}:${min}`;
+}
+
+function toNaiveTimestampFromLocal(datetimeLocal: string) {
+  if (!datetimeLocal) return "";
+  const normalized = datetimeLocal.replace("T", " ");
+  return normalized.length === 16 ? `${normalized}:00` : normalized;
 }
 
 export default function SterilizationReportsPage() {
@@ -187,57 +217,54 @@ export default function SterilizationReportsPage() {
   }, [branchId]);
 
   return (
-    <div style={{ maxWidth: 1200 }}>
-      <h1 style={{ fontSize: 18, marginBottom: 6 }}>📊 Ариутгалын тайлан (Идэвхитэй циклууд)</h1>
-      <div style={{ color: "#6b7280", fontSize: 13, marginBottom: 12 }}>
+    <div className="max-w-[1200px]">
+      <h1 className="mb-1.5 text-lg font-semibold">📊 Ариутгалын тайлан (Идэвхитэй циклууд)</h1>
+      <div className="mb-3 text-sm text-gray-500">
         Дээрх картууд: <b>өнөөдрийн</b> ашиглалт ({todayYmd}). Доорх жагсаалт: идэвхитэй циклүүд (үлдэгдэл &gt; 0).
       </div>
 
-      {error && <div style={{ color: "#b91c1c", marginBottom: 10, fontSize: 13 }}>{error}</div>}
+      {error && <div className="mb-2.5 text-sm text-red-700">{error}</div>}
 
       {/* Today cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 14 }}>
+      <div className="mb-3.5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         {todayCards.map((c, idx) => {
-          const bg = idx % 4 === 0 ? "#dbeafe" : idx % 4 === 1 ? "#fef9c3" : idx % 4 === 2 ? "#fee2e2" : "#dcfce7";
-          const color = idx % 4 === 0 ? "#1d4ed8" : idx % 4 === 1 ? "#a16207" : idx % 4 === 2 ? "#b91c1c" : "#15803d";
+          const cardBgClass =
+            idx % 4 === 0 ? "bg-blue-100" : idx % 4 === 1 ? "bg-yellow-100" : idx % 4 === 2 ? "bg-red-100" : "bg-green-100";
+          const labelColorClass =
+            idx % 4 === 0 ? "text-blue-700" : idx % 4 === 1 ? "text-yellow-700" : idx % 4 === 2 ? "text-red-700" : "text-green-700";
           return (
             <div
               key={c.branchId}
-              style={{
-                border: "1px solid #e5e7eb",
-                borderRadius: 14,
-                padding: 14,
-                background: bg,
-              }}
+              className={`rounded-2xl border border-gray-200 p-3.5 ${cardBgClass}`}
             >
-              <div style={{ fontSize: 12, fontWeight: 700, color, letterSpacing: 0.3 }}>
+              <div className={`text-xs font-bold tracking-[0.3px] ${labelColorClass}`}>
                 {c.branchName}
               </div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: "#111827", marginTop: 6 }}>
+              <div className="mt-1.5 text-[28px] font-extrabold text-gray-900">
                 {c.usedTotal}
               </div>
-              <div style={{ fontSize: 12, color: "#374151", marginTop: 4 }}>
+              <div className="mt-1 text-xs text-gray-700">
                 Өнөөдөр ашигласан багажийн тоо
               </div>
             </div>
           );
         })}
         {todayCards.length === 0 && !loading && (
-          <div style={{ fontSize: 13, color: "#6b7280" }}>Өнөөдрийн ашиглалт байхгүй байна.</div>
+          <div className="text-sm text-gray-500">Өнөөдрийн ашиглалт байхгүй байна.</div>
         )}
       </div>
 
       {/* Branch filter */}
-      <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 12, background: "#fff", marginBottom: 12 }}>
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>Салбар сонгох (заавал)</div>
+      <div className="mb-3 rounded-xl border border-gray-200 bg-white p-3">
+        <div className="mb-2.5 font-bold">Салбар сонгох (заавал)</div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "end" }}>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 12, color: "#6b7280" }}>Салбар</label>
+        <div className="flex flex-wrap items-end gap-2.5">
+          <div className="flex min-w-[220px] flex-1 flex-col gap-1">
+            <label className="text-xs text-gray-500">Салбар</label>
             <select
               value={branchId}
               onChange={(e) => setBranchId(e.target.value ? Number(e.target.value) : "")}
-              style={{ border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }}
+              className="rounded-lg border border-gray-300 px-2.5 py-2"
             >
               <option value="">-- Салбар сонгох --</option>
               {branches.map((b) => (
@@ -248,20 +275,12 @@ export default function SterilizationReportsPage() {
             </select>
           </div>
 
-          <div>
+          <div className="w-full sm:w-auto">
             <button
               type="button"
               onClick={() => void loadActiveCycles()}
               disabled={loading || !branchId}
-              style={{
-                border: "none",
-                background: branchId ? "#2563eb" : "#9ca3af",
-                color: "#fff",
-                borderRadius: 10,
-                padding: "10px 20px",
-                cursor: branchId ? "pointer" : "not-allowed",
-                fontWeight: 700,
-              }}
+              className="w-full rounded-xl bg-blue-600 px-5 py-2.5 font-bold text-white disabled:cursor-not-allowed disabled:bg-gray-400 sm:w-auto"
             >
               {loading ? "Ачаалж байна..." : "Харах"}
             </button>
@@ -271,13 +290,13 @@ export default function SterilizationReportsPage() {
 
       {/* Active cycles list */}
       {branchId && (
-        <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, overflow: "hidden", background: "#fff" }}>
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid #f3f4f6", fontWeight: 700 }}>
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+          <div className="border-b border-gray-100 px-4 py-3 font-bold">
             Идэвхитэй циклүүд ({activeCycles.length})
           </div>
 
           {activeCycles.length === 0 && !loading && (
-            <div style={{ padding: 20, color: "#6b7280", textAlign: "center" }}>
+            <div className="p-5 text-center text-gray-500">
               Идэвхитэй цикл олдсонгүй (үлдэгдэл багаж байхгүй байна).
             </div>
           )}
@@ -285,85 +304,70 @@ export default function SterilizationReportsPage() {
           {activeCycles.map((cycle) => {
             const isExpanded = expandedCycles.has(cycle.cycleId);
             return (
-              <div key={cycle.cycleId} style={{ borderBottom: "1px solid #f3f4f6" }}>
+              <div key={cycle.cycleId} className="border-b border-gray-100">
                 {/* Cycle header row */}
                 <div
                   onClick={() => toggleExpanded(cycle.cycleId)}
-                  style={{
-                    padding: "12px 16px",
-                    display: "grid",
-                    gridTemplateColumns: "40px 1fr 100px 120px 100px 100px 100px",
-                    gap: 10,
-                    alignItems: "center",
-                    cursor: "pointer",
-                    background: isExpanded ? "#f9fafb" : "#fff",
-                  }}
+                  className={`grid cursor-pointer grid-cols-[40px_1fr_100px_120px_100px_100px_100px] items-center gap-2.5 px-4 py-3 ${
+                    isExpanded ? "bg-gray-50" : "bg-white"
+                  }`}
                 >
-                  <div style={{ fontSize: 18 }}>{isExpanded ? "🔽" : "▶️"}</div>
+                  <div className="text-lg">{isExpanded ? "🔽" : "▶️"}</div>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{cycle.code}</div>
-                    <div style={{ fontSize: 12, color: "#6b7280" }}>
+                    <div className="text-sm font-bold">{cycle.code}</div>
+                    <div className="text-xs text-gray-500">
                       Машин: {cycle.machineNumber} | {cycle.operator}
                     </div>
                   </div>
-                  <div style={{ fontSize: 13, textAlign: "right" }}>
-                    <div style={{ color: "#6b7280", fontSize: 11 }}>Үүссэн</div>
-                    <div style={{ fontWeight: 600 }}>{cycle.totals.produced}</div>
+                  <div className="text-right text-sm">
+                    <div className="text-xs text-gray-500">Үүссэн</div>
+                    <div className="font-semibold">{cycle.totals.produced}</div>
                   </div>
-                  <div style={{ fontSize: 13, textAlign: "right" }}>
-                    <div style={{ color: "#6b7280", fontSize: 11 }}>Ашигласан</div>
-                    <div style={{ fontWeight: 600 }}>{cycle.totals.used}</div>
+                  <div className="text-right text-sm">
+                    <div className="text-xs text-gray-500">Ашигласан</div>
+                    <div className="font-semibold">{cycle.totals.used}</div>
                   </div>
-                  <div style={{ fontSize: 13, textAlign: "right" }}>
-                    <div style={{ color: "#6b7280", fontSize: 11 }}>Хаягдал</div>
-                    <div style={{ fontWeight: 600 }}>{cycle.totals.disposed}</div>
+                  <div className="text-right text-sm">
+                    <div className="text-xs text-gray-500">Хаягдал</div>
+                    <div className="font-semibold">{cycle.totals.disposed}</div>
                   </div>
-                  <div style={{ fontSize: 13, textAlign: "right" }}>
-                    <div style={{ color: "#6b7280", fontSize: 11 }}>Үлдэгдэл</div>
-                    <div style={{ fontWeight: 700, color: "#15803d" }}>{cycle.totals.remaining}</div>
+                  <div className="text-right text-sm">
+                    <div className="text-xs text-gray-500">Үлдэгдэл</div>
+                    <div className="font-bold text-emerald-700">{cycle.totals.remaining}</div>
                   </div>
-                  <div style={{ fontSize: 11, color: "#6b7280" }}>{formatDateTime(cycle.completedAt)}</div>
+                  <div className="text-xs text-gray-500">{formatDateTime(cycle.completedAt)}</div>
                 </div>
 
                 {/* Expanded tool lines */}
                 {isExpanded && (
-                  <div style={{ background: "#f9fafb", padding: "12px 16px" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <div className="bg-gray-50 px-4 py-3">
+                    <table className="w-full border-collapse text-sm">
                       <thead>
-                        <tr style={{ textAlign: "left", color: "#6b7280", borderBottom: "1px solid #e5e7eb" }}>
-                          <th style={{ padding: "8px 12px" }}>Багаж</th>
-                          <th style={{ padding: "8px 12px", textAlign: "right" }}>Үүссэн</th>
-                          <th style={{ padding: "8px 12px", textAlign: "right" }}>Ашигласан</th>
-                          <th style={{ padding: "8px 12px", textAlign: "right" }}>Хаягдал</th>
-                          <th style={{ padding: "8px 12px", textAlign: "right" }}>Үлдэгдэл</th>
-                          <th style={{ padding: "8px 12px" }}>Үйлдэл</th>
+                        <tr className="border-b border-gray-200 text-left text-gray-500">
+                          <th className="px-3 py-2">Багаж</th>
+                          <th className="px-3 py-2 text-right">Үүссэн</th>
+                          <th className="px-3 py-2 text-right">Ашигласан</th>
+                          <th className="px-3 py-2 text-right">Хаягдал</th>
+                          <th className="px-3 py-2 text-right">Үлдэгдэл</th>
+                          <th className="px-3 py-2">Үйлдэл</th>
                         </tr>
                       </thead>
                       <tbody>
                         {cycle.toolLines.map((line) => (
-                          <tr key={line.toolLineId} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                            <td style={{ padding: "8px 12px", fontWeight: 600 }}>{line.toolName}</td>
-                            <td style={{ padding: "8px 12px", textAlign: "right" }}>{line.produced}</td>
-                            <td style={{ padding: "8px 12px", textAlign: "right" }}>{line.used}</td>
-                            <td style={{ padding: "8px 12px", textAlign: "right" }}>{line.disposed}</td>
-                            <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "#15803d" }}>
+                          <tr key={line.toolLineId} className="border-b border-gray-100">
+                            <td className="px-3 py-2 font-semibold">{line.toolName}</td>
+                            <td className="px-3 py-2 text-right">{line.produced}</td>
+                            <td className="px-3 py-2 text-right">{line.used}</td>
+                            <td className="px-3 py-2 text-right">{line.disposed}</td>
+                            <td className="px-3 py-2 text-right font-bold text-emerald-700">
                               {line.remaining}
                             </td>
-                            <td style={{ padding: "8px 12px" }}>
+                            <td className="px-3 py-2">
                               {line.remaining > 0 && (
                                 <button
                                   type="button"
                                   onClick={() => openDisposalModal(cycle, line)}
-                                  style={{
-                                    border: "1px solid #dc2626",
-                                    background: "#fff",
-                                    color: "#dc2626",
-                                    borderRadius: 6,
-                                    padding: "4px 12px",
-                                    fontSize: 12,
-                                    cursor: "pointer",
-                                    fontWeight: 600,
-                                  }}
+                                  className="rounded-md border border-red-600 bg-white px-3 py-1 text-xs font-semibold text-red-600"
                                 >
                                   Хаягдал
                                 </button>
@@ -374,7 +378,7 @@ export default function SterilizationReportsPage() {
                       </tbody>
                     </table>
                     {cycle.notes && (
-                      <div style={{ marginTop: 10, fontSize: 12, color: "#6b7280" }}>
+                      <div className="mt-2.5 text-xs text-gray-500">
                         <b>Тэмдэглэл:</b> {cycle.notes}
                       </div>
                     )}
@@ -417,10 +421,7 @@ function DisposalModal({
     notes: string;
   }) => Promise<void>;
 }) {
-  const [disposedAt, setDisposedAt] = useState(() => {
-    const now = new Date();
-    return now.toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM
-  });
+  const [disposedAt, setDisposedAt] = useState(() => formatDateTimeInputLocal(new Date()));
   const [disposedByName, setDisposedByName] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [reason, setReason] = useState("");
@@ -443,7 +444,7 @@ function DisposalModal({
     setSubmitting(true);
     try {
       await onSubmit({
-        disposedAt,
+        disposedAt: toNaiveTimestampFromLocal(disposedAt),
         disposedByName: disposedByName.trim(),
         quantity,
         reason: reason.trim(),
@@ -456,34 +457,15 @@ function DisposalModal({
 
   return (
     <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-      }}
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50"
       onClick={onClose}
     >
       <div
-        style={{
-          background: "#fff",
-          borderRadius: 12,
-          padding: 20,
-          maxWidth: 500,
-          width: "100%",
-          maxHeight: "90vh",
-          overflow: "auto",
-        }}
+        className="max-h-[90vh] w-full max-w-[500px] overflow-auto rounded-xl bg-white p-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 style={{ fontSize: 18, marginBottom: 10 }}>Хаягдал бүртгэх</h2>
-        <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+        <h2 className="mb-2.5 text-lg">Хаягдал бүртгэх</h2>
+        <div className="mb-4 text-sm text-gray-500">
           <div>
             <b>Цикл:</b> {cycle.code}
           </div>
@@ -496,9 +478,9 @@ function DisposalModal({
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="flex flex-col gap-3">
             <div>
-              <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>
+              <label className="mb-1 block text-xs text-gray-500">
                 Огноо, цаг *
               </label>
               <input
@@ -506,12 +488,12 @@ function DisposalModal({
                 value={disposedAt}
                 onChange={(e) => setDisposedAt(e.target.value)}
                 required
-                style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }}
+                className="w-full rounded-lg border border-gray-300 px-2.5 py-2"
               />
             </div>
 
             <div>
-              <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>
+              <label className="mb-1 block text-xs text-gray-500">
                 Хаягдал бүртгэсэн хүн *
               </label>
               <input
@@ -520,12 +502,12 @@ function DisposalModal({
                 onChange={(e) => setDisposedByName(e.target.value)}
                 required
                 placeholder="Нэр оруулах"
-                style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }}
+                className="w-full rounded-lg border border-gray-300 px-2.5 py-2"
               />
             </div>
 
             <div>
-              <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>
+              <label className="mb-1 block text-xs text-gray-500">
                 Тоо ширхэг * (1 - {toolLine.remaining})
               </label>
               <input
@@ -535,60 +517,44 @@ function DisposalModal({
                 required
                 min={1}
                 max={toolLine.remaining}
-                style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }}
+                className="w-full rounded-lg border border-gray-300 px-2.5 py-2"
               />
             </div>
 
             <div>
-              <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Шалтгаан</label>
+              <label className="mb-1 block text-xs text-gray-500">Шалтгаан</label>
               <input
                 type="text"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Жишээ: Хугацаа дууссан, Гэмтсэн"
-                style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }}
+                className="w-full rounded-lg border border-gray-300 px-2.5 py-2"
               />
             </div>
 
             <div>
-              <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 4 }}>Тэмдэглэл</label>
+              <label className="mb-1 block text-xs text-gray-500">Тэмдэглэл</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
-                style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px" }}
+                className="w-full rounded-lg border border-gray-300 px-2.5 py-2"
               />
             </div>
 
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
+            <div className="mt-2 flex justify-end gap-2.5">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={submitting}
-                style={{
-                  border: "1px solid #d1d5db",
-                  background: "#fff",
-                  color: "#374151",
-                  borderRadius: 8,
-                  padding: "8px 16px",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                }}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 font-semibold text-gray-700"
               >
                 Болих
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                style={{
-                  border: "none",
-                  background: "#dc2626",
-                  color: "#fff",
-                  borderRadius: 8,
-                  padding: "8px 16px",
-                  cursor: submitting ? "not-allowed" : "pointer",
-                  fontWeight: 600,
-                }}
+                className="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? "Бүртгэж байна..." : "Бүртгэх"}
               </button>

@@ -51,6 +51,8 @@ type ReturnRecord = {
   updatedAt?: string;
 };
 
+const CLINIC_TIME_ZONE = "Asia/Ulaanbaatar";
+
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function formatDateOnly(date: Date) {
@@ -64,6 +66,17 @@ function formatHHmm(date: Date) {
   const h = String(date.getHours()).padStart(2, "0");
   const m = String(date.getMinutes()).padStart(2, "0");
   return `${h}:${m}`;
+}
+
+function formatIsoDateInClinicTz(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("mn-MN", {
+    timeZone: CLINIC_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
 }
 
 function doctorLabel(d: Doctor | ReturnRecord["doctor"] | null | undefined) {
@@ -326,39 +339,30 @@ export default function SterilizationReturnsPage() {
     setExpandedId((prev) => (prev === id ? null : id));
   };
 
+  const fullInputClass = "w-full rounded border border-gray-300 p-2 text-sm";
+  const compactInputClass = "rounded border border-gray-300 p-2 text-sm";
+
   return (
-    <div style={{ padding: 20, fontFamily: "Arial, sans-serif", maxWidth: 1400 }}>
-      <h1 style={{ marginBottom: 8 }}>Ариутгал → Багаж буцаалт</h1>
-      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+    <div className="max-w-[1400px] p-5 font-sans">
+      <h1 className="mb-2 text-3xl font-bold">Ариутгал → Багаж буцаалт</h1>
+      <div className="mb-4 text-[13px] text-gray-500">
         Ашигласан багажуудыг буцаан өгсөн бүртгэл (compliance-only). Бараа/нөөцөд нөлөөлөхгүй.
       </div>
 
       {/* Create form */}
-      <div style={{ border: "1px solid #ccc", borderRadius: 8, padding: 20, marginBottom: 24, backgroundColor: "#f9f9f9" }}>
-        <h2 style={{ marginTop: 0, marginBottom: 16 }}>Шинэ буцаалт бүртгэх</h2>
+      <div className="mb-6 rounded-lg border border-gray-300 bg-[#f9f9f9] p-5">
+        <h2 className="mb-4 text-2xl font-semibold">Шинэ буцаалт бүртгэх</h2>
 
-        {error && (
-          <div style={{ padding: 10, backgroundColor: "#ffebee", color: "#c62828", borderRadius: 4, marginBottom: 12 }}>
-            {error}
-          </div>
-        )}
-        {successMsg && (
-          <div style={{ padding: 10, backgroundColor: "#e8f5e9", color: "#2e7d32", borderRadius: 4, marginBottom: 12 }}>
-            {successMsg}
-          </div>
-        )}
+        {error && <div className="mb-3 rounded bg-red-50 p-2.5 text-red-700">{error}</div>}
+        {successMsg && <div className="mb-3 rounded bg-green-50 p-2.5 text-green-700">{successMsg}</div>}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div className="grid grid-cols-2 gap-[14px]">
           {/* Branch */}
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>
-              Салбар <span style={{ color: "red" }}>*</span>
+            <label className="mb-[5px] block font-bold">
+              Салбар <span className="text-red-600">*</span>
             </label>
-            <select
-              value={branchId}
-              onChange={(e) => setBranchId(e.target.value ? Number(e.target.value) : "")}
-              style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
-            >
+            <select value={branchId} onChange={(e) => setBranchId(e.target.value ? Number(e.target.value) : "")} className={fullInputClass}>
               <option value="">-- Сонгох --</option>
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>
@@ -370,21 +374,20 @@ export default function SterilizationReturnsPage() {
 
           {/* Doctor */}
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>
-              Эмч <span style={{ color: "red" }}>*</span>
+            <label className="mb-[5px] block font-bold">
+              Эмч <span className="text-red-600">*</span>
             </label>
             <select
               value={doctorId}
               onChange={(e) => setDoctorId(e.target.value ? Number(e.target.value) : "")}
               disabled={!branchId || loadingStaff}
-              style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
+              className={fullInputClass}
             >
               {!branchId && <option value="">-- Эхлээд салбар сонгоно уу --</option>}
               {branchId && loadingStaff && <option value="">Ачаалж байна...</option>}
-              {branchId && !loadingStaff && filteredDoctors.length === 0 && (
-                <option value="">Энэ салбарт эмч олдсонгүй</option>
-              )}
-              {branchId && !loadingStaff &&
+              {branchId && !loadingStaff && filteredDoctors.length === 0 && <option value="">Энэ салбарт эмч олдсонгүй</option>}
+              {branchId &&
+                !loadingStaff &&
                 filteredDoctors.map((d) => (
                   <option key={d.id} value={d.id}>
                     {formatUserLabel(d)}
@@ -395,47 +398,31 @@ export default function SterilizationReturnsPage() {
 
           {/* Date */}
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>
-              Огноо <span style={{ color: "red" }}>*</span>
+            <label className="mb-[5px] block font-bold">
+              Огноо <span className="text-red-600">*</span>
             </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
-            />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={fullInputClass} />
           </div>
 
           {/* Time */}
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>
-              Цаг <span style={{ color: "red" }}>*</span>
+            <label className="mb-[5px] block font-bold">
+              Цаг <span className="text-red-600">*</span>
             </label>
-            <input
-              type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
-            />
+            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={fullInputClass} />
           </div>
 
           {/* Nurse name */}
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>
-              Сувилагчийн нэр <span style={{ color: "red" }}>*</span>
+            <label className="mb-[5px] block font-bold">
+              Сувилагчийн нэр <span className="text-red-600">*</span>
             </label>
-            <select
-              value={nurseName}
-              onChange={(e) => setNurseName(e.target.value)}
-              disabled={!branchId || loadingStaff}
-              style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
-            >
+            <select value={nurseName} onChange={(e) => setNurseName(e.target.value)} disabled={!branchId || loadingStaff} className={fullInputClass}>
               {!branchId && <option value="">-- Эхлээд салбар сонгоно уу --</option>}
               {branchId && loadingStaff && <option value="">Ачаалж байна...</option>}
-              {branchId && !loadingStaff && filteredNurses.length === 0 && (
-                <option value="">Энэ салбарт сувилагч олдсонгүй</option>
-              )}
-              {branchId && !loadingStaff &&
+              {branchId && !loadingStaff && filteredNurses.length === 0 && <option value="">Энэ салбарт сувилагч олдсонгүй</option>}
+              {branchId &&
+                !loadingStaff &&
                 filteredNurses.map((n) => (
                   <option key={n.id} value={formatUserLabel(n)}>
                     {formatUserLabel(n)}
@@ -445,54 +432,52 @@ export default function SterilizationReturnsPage() {
           </div>
 
           {/* Notes */}
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>Тэмдэглэл</label>
+          <div className="col-span-2">
+            <label className="mb-[5px] block font-bold">Тэмдэглэл</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder="Тэмдэглэл..."
-              style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
+              className={fullInputClass}
             />
           </div>
         </div>
 
         {/* Tools table */}
-        <div style={{ marginTop: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-            <div style={{ fontWeight: "bold" }}>Багажийн жагсаалт (буцаасан тоо)</div>
+        <div className="mt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="font-bold">Багажийн жагсаалт (буцаасан тоо)</div>
             <input
               value={toolFilter}
               onChange={(e) => setToolFilter(e.target.value)}
               placeholder="Багаж хайх..."
-              style={{ padding: 8, fontSize: 14, borderRadius: 6, border: "1px solid #ccc", minWidth: 240 }}
+              className="min-w-[240px] rounded-md border border-gray-300 p-2 text-sm"
               disabled={!branchId || loadingTools}
             />
           </div>
 
-          {!branchId && <div style={{ marginTop: 10, color: "#6b7280" }}>Эхлээд салбар сонгоно уу.</div>}
-          {branchId && loadingTools && <div style={{ marginTop: 10, color: "#6b7280" }}>Багаж ачаалж байна...</div>}
+          {!branchId && <div className="mt-2.5 text-gray-500">Эхлээд салбар сонгоно уу.</div>}
+          {branchId && loadingTools && <div className="mt-2.5 text-gray-500">Багаж ачаалж байна...</div>}
 
-          {branchId && !loadingTools && tools.length === 0 && (
-            <div style={{ marginTop: 10, color: "#6b7280" }}>Энэ салбарт багаж бүртгэгдээгүй байна.</div>
-          )}
+          {branchId && !loadingTools && tools.length === 0 && <div className="mt-2.5 text-gray-500">Энэ салбарт багаж бүртгэгдээгүй байна.</div>}
 
           {branchId && !loadingTools && tools.length > 0 && (
-            <div style={{ overflowX: "auto", marginTop: 10 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, background: "#fff" }}>
+            <div className="mt-2.5 overflow-x-auto">
+              <table className="w-full border-collapse bg-white text-sm">
                 <thead>
-                  <tr style={{ backgroundColor: "#f5f5f5" }}>
-                    <th style={{ padding: 10, textAlign: "left", borderBottom: "2px solid #ddd" }}>Багаж</th>
-                    <th style={{ padding: 10, textAlign: "right", borderBottom: "2px solid #ddd", width: 120 }}>Үндсэн</th>
-                    <th style={{ padding: 10, textAlign: "right", borderBottom: "2px solid #ddd", width: 160 }}>Буцаасан тоо</th>
+                  <tr className="bg-gray-100">
+                    <th className="border-b-2 border-gray-300 p-2.5 text-left">Багаж</th>
+                    <th className="w-[120px] border-b-2 border-gray-300 p-2.5 text-right">Үндсэн</th>
+                    <th className="w-[160px] border-b-2 border-gray-300 p-2.5 text-right">Буцаасан тоо</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredTools.map((t) => (
-                    <tr key={t.id} style={{ borderBottom: "1px solid #eee" }}>
-                      <td style={{ padding: 10 }}>{t.name}</td>
-                      <td style={{ padding: 10, textAlign: "right", color: "#6b7280" }}>{t.baselineAmount}</td>
-                      <td style={{ padding: 10, textAlign: "right" }}>
+                    <tr key={t.id} className="border-b border-gray-200">
+                      <td className="p-2.5">{t.name}</td>
+                      <td className="p-2.5 text-right text-gray-500">{t.baselineAmount}</td>
+                      <td className="p-2.5 text-right">
                         <input
                           type="number"
                           min={0}
@@ -501,23 +486,16 @@ export default function SterilizationReturnsPage() {
                             const v = Math.max(0, Math.floor(Number(e.target.value) || 0));
                             setQtyByToolId((prev) => ({ ...prev, [t.id]: v }));
                           }}
-                          style={{
-                            width: 120,
-                            padding: 6,
-                            fontSize: 14,
-                            borderRadius: 4,
-                            border: "1px solid #ccc",
-                            textAlign: "right",
-                          }}
+                          className="w-[120px] rounded border border-gray-300 p-1.5 text-right text-sm"
                         />
                       </td>
                     </tr>
                   ))}
 
-                  <tr style={{ borderTop: "2px solid #ddd" }}>
-                    <td style={{ padding: 10, fontWeight: "bold" }}>Нийт</td>
-                    <td style={{ padding: 10 }} />
-                    <td style={{ padding: 10, textAlign: "right", fontWeight: "bold" }}>{totalReturnQty}</td>
+                  <tr className="border-t-2 border-gray-300">
+                    <td className="p-2.5 font-bold">Нийт</td>
+                    <td className="p-2.5" />
+                    <td className="p-2.5 text-right font-bold">{totalReturnQty}</td>
                   </tr>
                 </tbody>
               </table>
@@ -525,19 +503,11 @@ export default function SterilizationReturnsPage() {
           )}
         </div>
 
-        <div style={{ marginTop: 16 }}>
+        <div className="mt-4">
           <button
             onClick={submit}
             disabled={loading}
-            style={{
-              padding: "10px 20px",
-              fontSize: 16,
-              backgroundColor: loading ? "#ccc" : "#4caf50",
-              color: "white",
-              border: "none",
-              borderRadius: 4,
-              cursor: loading ? "not-allowed" : "pointer",
-            }}
+            className={`rounded px-5 py-2.5 text-base text-white ${loading ? "cursor-not-allowed bg-gray-300" : "cursor-pointer bg-green-500"}`}
           >
             {loading ? "Хадгалж байна..." : "Хадгалах"}
           </button>
@@ -545,16 +515,16 @@ export default function SterilizationReturnsPage() {
       </div>
 
       {/* History */}
-      <div style={{ border: "1px solid #ccc", borderRadius: 8, padding: 20, backgroundColor: "#fff" }}>
-        <h2 style={{ marginTop: 0, marginBottom: 16 }}>Буцаалтын түүх</h2>
+      <div className="rounded-lg border border-gray-300 bg-white p-5">
+        <h2 className="mb-4 text-2xl font-semibold">Буцаалтын түүх</h2>
 
-        <div style={{ display: "flex", gap: 15, marginBottom: 16, flexWrap: "wrap" }}>
+        <div className="mb-4 flex flex-wrap gap-[15px]">
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>Салбар</label>
+            <label className="mb-[5px] block font-bold">Салбар</label>
             <select
               value={filterBranchId}
               onChange={(e) => setFilterBranchId(e.target.value ? Number(e.target.value) : "")}
-              style={{ padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
+              className={compactInputClass}
             >
               <option value="">-- Сонгох --</option>
               {branches.map((b) => (
@@ -563,15 +533,15 @@ export default function SterilizationReturnsPage() {
                 </option>
               ))}
             </select>
-            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3 }}>(Салбар сонгохгүй бол түүх хоосон)</div>
+            <div className="mt-[3px] text-xs text-gray-500">(Салбар сонгохгүй бол түүх хоосон)</div>
           </div>
 
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>Эмч</label>
+            <label className="mb-[5px] block font-bold">Эмч</label>
             <select
               value={filterDoctorId}
               onChange={(e) => setFilterDoctorId(e.target.value ? Number(e.target.value) : "")}
-              style={{ padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc", minWidth: 240 }}
+              className={`${compactInputClass} min-w-[240px]`}
             >
               <option value="">-- Бүгд --</option>
               {allDoctors.map((d) => (
@@ -583,61 +553,44 @@ export default function SterilizationReturnsPage() {
           </div>
 
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>Эхлэх огноо</label>
-            <input
-              type="date"
-              value={filterFrom}
-              onChange={(e) => setFilterFrom(e.target.value)}
-              style={{ padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
-            />
+            <label className="mb-[5px] block font-bold">Эхлэх огноо</label>
+            <input type="date" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)} className={compactInputClass} />
           </div>
 
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>Дуусах огноо</label>
-            <input
-              type="date"
-              value={filterTo}
-              onChange={(e) => setFilterTo(e.target.value)}
-              style={{ padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
-            />
+            <label className="mb-[5px] block font-bold">Дуусах огноо</label>
+            <input type="date" value={filterTo} onChange={(e) => setFilterTo(e.target.value)} className={compactInputClass} />
           </div>
 
-          <div style={{ alignSelf: "flex-end" }}>
+          <div className="self-end">
             <button
               type="button"
               onClick={() => void loadRecords()}
               disabled={loadingList}
-              style={{
-                padding: "9px 14px",
-                fontSize: 14,
-                backgroundColor: "#fff",
-                border: "1px solid #ccc",
-                borderRadius: 4,
-                cursor: loadingList ? "not-allowed" : "pointer",
-              }}
+              className={`rounded border border-gray-300 bg-white px-[14px] py-[9px] text-sm ${loadingList ? "cursor-not-allowed" : "cursor-pointer"}`}
             >
               {loadingList ? "Ачаалж байна..." : "Шинэчлэх"}
             </button>
           </div>
         </div>
 
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
             <thead>
-              <tr style={{ backgroundColor: "#f5f5f5" }}>
-                <th style={{ padding: 10, textAlign: "left", borderBottom: "2px solid #ddd", width: 50 }} />
-                <th style={{ padding: 10, textAlign: "left", borderBottom: "2px solid #ddd" }}>Огноо</th>
-                <th style={{ padding: 10, textAlign: "left", borderBottom: "2px solid #ddd" }}>Цаг</th>
-                <th style={{ padding: 10, textAlign: "left", borderBottom: "2px solid #ddd" }}>Эмч</th>
-                <th style={{ padding: 10, textAlign: "left", borderBottom: "2px solid #ddd" }}>Сувилагч</th>
-                <th style={{ padding: 10, textAlign: "right", borderBottom: "2px solid #ddd" }}>Нийт</th>
-                <th style={{ padding: 10, textAlign: "left", borderBottom: "2px solid #ddd" }}>Тэмдэглэл</th>
+              <tr className="bg-gray-100">
+                <th className="w-[50px] border-b-2 border-gray-300 p-2.5 text-left" />
+                <th className="border-b-2 border-gray-300 p-2.5 text-left">Огноо</th>
+                <th className="border-b-2 border-gray-300 p-2.5 text-left">Цаг</th>
+                <th className="border-b-2 border-gray-300 p-2.5 text-left">Эмч</th>
+                <th className="border-b-2 border-gray-300 p-2.5 text-left">Сувилагч</th>
+                <th className="border-b-2 border-gray-300 p-2.5 text-right">Нийт</th>
+                <th className="border-b-2 border-gray-300 p-2.5 text-left">Тэмдэглэл</th>
               </tr>
             </thead>
             <tbody>
               {loadingList && (
                 <tr>
-                  <td colSpan={7} style={{ padding: 16, textAlign: "center", color: "#6b7280" }}>
+                  <td colSpan={7} className="p-4 text-center text-gray-500">
                     Ачаалж байна...
                   </td>
                 </tr>
@@ -645,7 +598,7 @@ export default function SterilizationReturnsPage() {
 
               {!loadingList && records.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#999" }}>
+                  <td colSpan={7} className="p-5 text-center text-gray-400">
                     Мэдээлэл олдсонгүй
                   </td>
                 </tr>
@@ -656,28 +609,28 @@ export default function SterilizationReturnsPage() {
                   return (
                     <React.Fragment key={r.id}>
                       <tr
-                        style={{ borderBottom: "1px solid #eee", cursor: "pointer", background: isExpanded ? "#fafafa" : "#fff" }}
+                        className={`cursor-pointer border-b border-gray-200 ${isExpanded ? "bg-gray-50" : "bg-white"}`}
                         onClick={() => toggleExpand(r.id)}
                       >
-                        <td style={{ padding: 10, textAlign: "center" }}>{isExpanded ? "▼" : "▶"}</td>
-                        <td style={{ padding: 10 }}>{new Date(r.date).toLocaleDateString("mn-MN")}</td>
-                        <td style={{ padding: 10 }}>{r.time}</td>
-                        <td style={{ padding: 10 }}>{doctorLabel(r.doctor)}</td>
-                        <td style={{ padding: 10 }}>{r.nurseName}</td>
-                        <td style={{ padding: 10, textAlign: "right", fontWeight: "bold" }}>{total}</td>
-                        <td style={{ padding: 10, color: "#374151" }}>{r.notes || ""}</td>
+                        <td className="p-2.5 text-center">{isExpanded ? "▼" : "▶"}</td>
+                        <td className="p-2.5">{formatIsoDateInClinicTz(r.date)}</td>
+                        <td className="p-2.5">{r.time}</td>
+                        <td className="p-2.5">{doctorLabel(r.doctor)}</td>
+                        <td className="p-2.5">{r.nurseName}</td>
+                        <td className="p-2.5 text-right font-bold">{total}</td>
+                        <td className="p-2.5 text-gray-700">{r.notes || ""}</td>
                       </tr>
 
                       {isExpanded && (
-                        <tr style={{ background: "#fafafa" }}>
-                          <td colSpan={7} style={{ padding: 14 }}>
-                            <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>Буцаасан багажууд:</div>
-                            <div style={{ overflowX: "auto" }}>
-                              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, background: "#fff" }}>
+                        <tr className="bg-gray-50">
+                          <td colSpan={7} className="p-[14px]">
+                            <div className="mb-2 text-xs text-gray-500">Буцаасан багажууд:</div>
+                            <div className="overflow-x-auto">
+                              <table className="w-full border-collapse bg-white text-[13px]">
                                 <thead>
-                                  <tr style={{ borderBottom: "1px solid #e5e7eb", color: "#6b7280", textAlign: "left" }}>
-                                    <th style={{ padding: "8px 10px" }}>Багаж</th>
-                                    <th style={{ padding: "8px 10px", width: 160, textAlign: "right" }}>Буцаасан тоо</th>
+                                  <tr className="border-b border-gray-200 text-left text-gray-500">
+                                    <th className="px-2.5 py-2">Багаж</th>
+                                    <th className="w-[160px] px-2.5 py-2 text-right">Буцаасан тоо</th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -685,14 +638,14 @@ export default function SterilizationReturnsPage() {
                                     .slice()
                                     .sort((a, b) => (a.tool?.name || "").localeCompare(b.tool?.name || ""))
                                     .map((ln) => (
-                                      <tr key={ln.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                                        <td style={{ padding: "8px 10px" }}>{ln.tool?.name || `Tool #${ln.toolId}`}</td>
-                                        <td style={{ padding: "8px 10px", textAlign: "right" }}>{ln.returnedQty}</td>
+                                      <tr key={ln.id} className="border-b border-gray-100">
+                                        <td className="px-2.5 py-2">{ln.tool?.name || `Tool #${ln.toolId}`}</td>
+                                        <td className="px-2.5 py-2 text-right">{ln.returnedQty}</td>
                                       </tr>
                                     ))}
-                                  <tr style={{ borderTop: "2px solid #e5e7eb" }}>
-                                    <td style={{ padding: "8px 10px", fontWeight: 700 }}>Бүгд</td>
-                                    <td style={{ padding: "8px 10px", textAlign: "right", fontWeight: 700 }}>{total}</td>
+                                  <tr className="border-t-2 border-gray-200">
+                                    <td className="px-2.5 py-2 font-bold">Бүгд</td>
+                                    <td className="px-2.5 py-2 text-right font-bold">{total}</td>
                                   </tr>
                                 </tbody>
                               </table>
@@ -708,9 +661,7 @@ export default function SterilizationReturnsPage() {
           </table>
         </div>
 
-        {!loadingList && records.length > 0 && (
-          <div style={{ marginTop: 10, fontSize: 12, color: "#6b7280" }}>Нийт бүртгэл: {records.length}</div>
-        )}
+        {!loadingList && records.length > 0 && <div className="mt-2.5 text-xs text-gray-500">Нийт бүртгэл: {records.length}</div>}
       </div>
     </div>
   );

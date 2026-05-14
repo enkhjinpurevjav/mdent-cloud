@@ -38,6 +38,8 @@ type BurCycle = {
   machine: { id: number; machineNumber: string; name: string | null } | null;
 };
 
+const CLINIC_TIME_ZONE = "Asia/Ulaanbaatar";
+
 function formatDateTime(date: Date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -54,12 +56,32 @@ function formatDateOnly(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
+function formatIsoDateTimeInClinicTz(value: string) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return new Intl.DateTimeFormat("mn-MN", {
+    timeZone: CLINIC_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+}
+
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function addMinutes(dateTimeLocal: string, minutes: number): string {
   const d = new Date(dateTimeLocal);
   d.setMinutes(d.getMinutes() + minutes);
   return formatDateTime(d);
+}
+
+function toNaiveTimestampFromLocal(datetimeLocal: string): string {
+  if (!datetimeLocal) return "";
+  const normalized = datetimeLocal.replace("T", " ");
+  return normalized.length === 16 ? `${normalized}:00` : normalized;
 }
 
 function formatUserLabel(u: SterilizationUser): string {
@@ -82,9 +104,6 @@ export default function BurCyclesPage() {
   const [code, setCode] = useState("");
   const [codeWarning, setCodeWarning] = useState("");
   const [lastCheckedCode, setLastCheckedCode] = useState("");
-  const [sterilizationRunNumber, setSterilizationRunNumber] = useState("");
-  const [runNumberWarning, setRunNumberWarning] = useState("");
-  const [lastCheckedRunNumber, setLastCheckedRunNumber] = useState("");
   const [machineId, setMachineId] = useState<number | "">("");
   const [startedAt, setStartedAt] = useState(formatDateTime(new Date()));
   const [pressure, setPressure] = useState("0247");
@@ -131,6 +150,8 @@ export default function BurCyclesPage() {
     if (!branchId) {
       setMachines([]);
       setMachineId("");
+      setCodeWarning("");
+      setLastCheckedCode("");
       setSterilizationUsers([]);
       setOperator("");
       return;
@@ -140,6 +161,8 @@ export default function BurCyclesPage() {
     finishedAtOverridden.current = false;
     const newFinishedAt = addMinutes(startedAtRef.current || formatDateTime(new Date()), 10);
     setFinishedAt(newFinishedAt);
+    setCodeWarning("");
+    setLastCheckedCode("");
 
     (async () => {
       try {
@@ -200,63 +223,36 @@ export default function BurCyclesPage() {
     }
   };
 
-  const checkCodeUniqueness = async () => {
+  const checkCodeUniqueness = async (forceCheck = false) => {
     if (!branchId || !code.trim()) {
       setCodeWarning("");
-      return;
+      return true;
     }
 
-    // Avoid duplicate checks for the same code
-    if (code.trim() === lastCheckedCode) {
-      return;
+    if (!forceCheck && code.trim() === lastCheckedCode) {
+      return !codeWarning;
     }
 
     setLastCheckedCode(code.trim());
 
     try {
       const res = await fetch(
-        `/api/sterilization/bur-cycles/check-code?branchId=${branchId}&code=${encodeURIComponent(code.trim())}`
-      );
-      const data = await res.json().catch(() => ({ exists: false }));
-
-      if (data.exists) {
-        setCodeWarning("⚠️ Энэ циклийн дугаар аль хэдийн ашиглагдсан байна");
-      } else {
-        setCodeWarning("");
-      }
-    } catch {
-      setCodeWarning("");
-    }
-  };
-
-  const checkRunNumberUniqueness = async () => {
-    if (!machineId || !sterilizationRunNumber.trim()) {
-      setRunNumberWarning("");
-      return;
-    }
-
-    // Avoid duplicate checks
-    if (sterilizationRunNumber.trim() === lastCheckedRunNumber) {
-      return;
-    }
-
-    setLastCheckedRunNumber(sterilizationRunNumber.trim());
-
-    try {
-      const res = await fetch(
-        `/api/sterilization/bur-cycles/check-run-number?machineId=${machineId}&sterilizationRunNumber=${encodeURIComponent(
-          sterilizationRunNumber.trim()
+        `/api/sterilization/bur-cycles/check-code?branchId=${branchId}&code=${encodeURIComponent(
+          code.trim()
         )}`
       );
       const data = await res.json().catch(() => ({ exists: false }));
 
       if (data.exists) {
-        setRunNumberWarning("⚠️ Энэ ариутгалын дугаар аль хэдийн ашиглагдсан байна");
+        setCodeWarning("⚠️ Энэ циклийн код аль хэдийн ашиглагдсан байна");
+        return false;
       } else {
-        setRunNumberWarning("");
+        setCodeWarning("");
+        return true;
       }
     } catch {
-      setRunNumberWarning("");
+      setCodeWarning("");
+      return true;
     }
   };
 
@@ -267,11 +263,14 @@ export default function BurCyclesPage() {
     // Validation
     if (!branchId) return setError("Салбар сонгоно уу.");
     if (!code.trim()) return setError("Циклын код оруулна уу.");
-    if (!sterilizationRunNumber.trim()) return setError("Ариутгалын дугаар оруулна уу.");
     if (!machineId) return setError("Машин сонгоно уу.");
     if (!startedAt) return setError("Эхэлсэн цаг оруулна уу.");
     if (!finishedAt) return setError("Дууссан цаг оруулна уу.");
     if (!operator.trim()) return setError("Сувилагчийн нэр оруулна уу.");
+    if (codeWarning) return setError("Циклын код давхардсан байна.");
+
+    const codeOk = await checkCodeUniqueness(true);
+    if (!codeOk) return setError("Циклын код давхардсан байна.");
 
     if (fastBurQty === 0 && slowBurQty === 0) {
       return setError("Хурдан эсвэл удаан өрмийн тоо дор хаяж нэг нь 0-ээс их байх ёстой.");
@@ -285,13 +284,14 @@ export default function BurCyclesPage() {
         body: JSON.stringify({
           branchId,
           code: code.trim(),
-          sterilizationRunNumber: sterilizationRunNumber.trim(),
           machineId,
-          startedAt: new Date(startedAt).toISOString(),
+          startedAt: toNaiveTimestampFromLocal(startedAt),
           pressure: pressure.trim() || null,
           temperature: temperature ? Number(temperature) : null,
-          finishedAt: new Date(finishedAt).toISOString(),
-          removedFromAutoclaveAt: removedFromAutoclaveAt ? new Date(removedFromAutoclaveAt).toISOString() : null,
+          finishedAt: toNaiveTimestampFromLocal(finishedAt),
+          removedFromAutoclaveAt: removedFromAutoclaveAt
+            ? toNaiveTimestampFromLocal(removedFromAutoclaveAt)
+            : null,
           result,
           operator: operator.trim(),
           notes: notes.trim() || null,
@@ -303,10 +303,13 @@ export default function BurCyclesPage() {
       const data = await res.json();
 
       if (res.ok) {
-        setSuccessMsg("✅ Өрмийн бүртгэл амжилттай үүслээ.");
+        setSuccessMsg(
+          `✅ Өрмийн бүртгэл амжилттай үүслээ. Код: ${data?.code || "-"}${
+            data?.sterilizationRunNumber ? `, Ариутгалын дугаар: ${data.sterilizationRunNumber}` : ""
+          }`
+        );
         // Reset form
         setCode("");
-        setSterilizationRunNumber("");
         setPressure("0247");
         setTemperature("138");
         setNotes("");
@@ -318,9 +321,7 @@ export default function BurCyclesPage() {
         setFinishedAt(addMinutes(newStartedAt, 10));
         setRemovedFromAutoclaveAt("");
         setCodeWarning("");
-        setRunNumberWarning("");
         setLastCheckedCode("");
-        setLastCheckedRunNumber("");
         // Reload list
         loadBurCycles();
       } else {
@@ -334,43 +335,35 @@ export default function BurCyclesPage() {
   };
 
   return (
-    <div style={{ padding: "20px", fontFamily: "Arial, sans-serif" }}>
-      <h1 style={{ marginBottom: "20px" }}>Өрмийн бүртгэл, хяналт</h1>
+    <div className="p-5 [font-family:Arial,sans-serif]">
+      <h1 className="mb-5">Өрмийн бүртгэл, хяналт</h1>
 
       {/* Create Form */}
-      <div
-        style={{
-          border: "1px solid #ccc",
-          borderRadius: "8px",
-          padding: "20px",
-          marginBottom: "30px",
-          backgroundColor: "#f9f9f9",
-        }}
-      >
-        <h2 style={{ marginTop: 0, marginBottom: "20px" }}>Шинэ бүртгэл үүсгэх</h2>
+      <div className="mb-[30px] rounded-lg border border-[#ccc] bg-[#f9f9f9] p-5">
+        <h2 className="mb-5 mt-0">Шинэ бүртгэл үүсгэх</h2>
 
         {error && (
-          <div style={{ padding: "10px", backgroundColor: "#ffebee", color: "#c62828", borderRadius: "4px", marginBottom: "15px" }}>
+          <div className="mb-[15px] rounded p-2.5 text-[#c62828] bg-[#ffebee]">
             {error}
           </div>
         )}
 
         {successMsg && (
-          <div style={{ padding: "10px", backgroundColor: "#e8f5e9", color: "#2e7d32", borderRadius: "4px", marginBottom: "15px" }}>
+          <div className="mb-[15px] rounded bg-[#e8f5e9] p-2.5 text-[#2e7d32]">
             {successMsg}
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+        <div className="grid grid-cols-2 gap-[15px]">
           {/* Branch */}
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              Салбар <span style={{ color: "red" }}>*</span>
+            <label className="mb-[5px] block font-bold">
+              Салбар <span className="text-[red]">*</span>
             </label>
             <select
               value={branchId}
               onChange={(e) => setBranchId(e.target.value ? Number(e.target.value) : "")}
-              style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
+              className="w-full rounded border border-[#ccc] p-2 text-sm"
             >
               <option value="">-- Сонгох --</option>
               {branches.map((b) => (
@@ -383,13 +376,13 @@ export default function BurCyclesPage() {
 
           {/* Machine */}
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              Машин <span style={{ color: "red" }}>*</span>
+            <label className="mb-[5px] block font-bold">
+              Машин <span className="text-[red]">*</span>
             </label>
             <select
               value={machineId}
               onChange={(e) => setMachineId(e.target.value ? Number(e.target.value) : "")}
-              style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
+              className="w-full rounded border border-[#ccc] p-2 text-sm"
               disabled={!branchId}
             >
               <option value="">-- Сонгох --</option>
@@ -403,40 +396,41 @@ export default function BurCyclesPage() {
 
           {/* Cycle Code */}
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              Циклын код <span style={{ color: "red" }}>*</span>
+            <label className="mb-[5px] block font-bold">
+              Циклын код <span className="text-[red]">*</span>
             </label>
             <input
               type="text"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
-              onBlur={checkCodeUniqueness}
-              style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
+              onChange={(e) => {
+                setCode(e.target.value);
+                setCodeWarning("");
+                setLastCheckedCode("");
+              }}
+              onBlur={() => void checkCodeUniqueness()}
+              className="w-full rounded border border-[#ccc] p-2 text-sm"
               placeholder="Циклын код"
             />
-            {codeWarning && <div style={{ color: "#ff9800", fontSize: "12px", marginTop: "3px" }}>{codeWarning}</div>}
+            {codeWarning && <div className="mt-[3px] text-xs text-[#ff9800]">{codeWarning}</div>}
           </div>
 
           {/* Sterilization Run Number */}
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              Ариутгалын дугаар <span style={{ color: "red" }}>*</span>
+            <label className="mb-[5px] block font-bold">
+              Ариутгалын дугаар
             </label>
             <input
               type="text"
-              value={sterilizationRunNumber}
-              onChange={(e) => setSterilizationRunNumber(e.target.value)}
-              onBlur={checkRunNumberUniqueness}
-              style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
-              placeholder="Ариутгалын дугаар"
+              value="Сервер автоматаар үүсгэнэ"
+              readOnly
+              className="w-full cursor-default rounded border border-[#ccc] bg-gray-100 p-2 text-sm text-gray-500"
             />
-            {runNumberWarning && <div style={{ color: "#ff9800", fontSize: "12px", marginTop: "3px" }}>{runNumberWarning}</div>}
           </div>
 
           {/* Started At */}
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              Эхэлсэн цаг <span style={{ color: "red" }}>*</span>
+            <label className="mb-[5px] block font-bold">
+              Эхэлсэн цаг <span className="text-[red]">*</span>
             </label>
             <input
               type="datetime-local"
@@ -447,14 +441,14 @@ export default function BurCyclesPage() {
                   setFinishedAt(addMinutes(e.target.value, 10));
                 }
               }}
-              style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
+              className="w-full rounded border border-[#ccc] p-2 text-sm"
             />
           </div>
 
           {/* Finished At */}
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              Дууссан цаг <span style={{ color: "red" }}>*</span>
+            <label className="mb-[5px] block font-bold">
+              Дууссан цаг <span className="text-[red]">*</span>
             </label>
             <input
               type="datetime-local"
@@ -463,54 +457,54 @@ export default function BurCyclesPage() {
                 finishedAtOverridden.current = true;
                 setFinishedAt(e.target.value);
               }}
-              style={{ width: "100%", padding: "8px", fontSize: "14px", border: "1px solid #ccc", borderRadius: "4px" }}
+              className="w-full rounded border border-[#ccc] p-2 text-sm"
             />
           </div>
 
           {/* Pressure */}
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Даралт (kPa)</label>
+            <label className="mb-[5px] block font-bold">Даралт (kPa)</label>
             <input
               type="text"
               value={pressure}
               onChange={(e) => setPressure(e.target.value)}
-              style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
+              className="w-full rounded border border-[#ccc] p-2 text-sm"
               placeholder="жишээ: 90 230"
             />
           </div>
 
           {/* Temperature */}
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Температур (°C)</label>
+            <label className="mb-[5px] block font-bold">Температур (°C)</label>
             <input
               type="text"
               value={temperature}
               onChange={(e) => setTemperature(e.target.value)}
-              style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
+              className="w-full rounded border border-[#ccc] p-2 text-sm"
               placeholder="Температур"
             />
           </div>
 
           {/* Removed From Autoclave At */}
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Автоклаваас гаргасан цаг</label>
+            <label className="mb-[5px] block font-bold">Автоклаваас гаргасан цаг</label>
             <input
               type="datetime-local"
               value={removedFromAutoclaveAt}
               onChange={(e) => setRemovedFromAutoclaveAt(e.target.value)}
-              style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
+              className="w-full rounded border border-[#ccc] p-2 text-sm"
             />
           </div>
 
           {/* Result */}
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              Үр дүн <span style={{ color: "red" }}>*</span>
+            <label className="mb-[5px] block font-bold">
+              Үр дүн <span className="text-[red]">*</span>
             </label>
             <select
               value={result}
               onChange={(e) => setResult(e.target.value as "PASS" | "FAIL")}
-              style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
+              className="w-full rounded border border-[#ccc] p-2 text-sm"
             >
               <option value="PASS">PASS</option>
               <option value="FAIL">FAIL</option>
@@ -519,14 +513,14 @@ export default function BurCyclesPage() {
 
           {/* Operator */}
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
-              Сувилагчийн нэр <span style={{ color: "red" }}>*</span>
+            <label className="mb-[5px] block font-bold">
+              Сувилагчийн нэр <span className="text-[red]">*</span>
             </label>
             <select
               value={operator}
               onChange={(e) => setOperator(e.target.value)}
               disabled={!branchId}
-              style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
+              className="w-full rounded border border-[#ccc] p-2 text-sm"
             >
               {sterilizationUsers.length === 0 ? (
                 <option value="">-- Сонгох --</option>
@@ -545,56 +539,50 @@ export default function BurCyclesPage() {
 
           {/* Fast Bur Qty */}
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Хурдан өрөм тоо</label>
+            <label className="mb-[5px] block font-bold">Хурдан өрөм тоо</label>
             <input
               type="number"
               min="0"
               value={fastBurQty}
               onChange={(e) => setFastBurQty(Number(e.target.value) || 0)}
-              style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
+              className="w-full rounded border border-[#ccc] p-2 text-sm"
               placeholder="0"
             />
           </div>
 
           {/* Slow Bur Qty */}
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Удаан өрөм тоо</label>
+            <label className="mb-[5px] block font-bold">Удаан өрөм тоо</label>
             <input
               type="number"
               min="0"
               value={slowBurQty}
               onChange={(e) => setSlowBurQty(Number(e.target.value) || 0)}
-              style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
+              className="w-full rounded border border-[#ccc] p-2 text-sm"
               placeholder="0"
             />
           </div>
 
           {/* Notes (full width) */}
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Тэмдэглэл</label>
+          <div className="col-span-2">
+            <label className="mb-[5px] block font-bold">Тэмдэглэл</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              style={{ width: "100%", padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
+              className="w-full rounded border border-[#ccc] p-2 text-sm"
               placeholder="Тэмдэглэл..."
             />
           </div>
         </div>
 
-        <div style={{ marginTop: "20px" }}>
+        <div className="mt-5">
           <button
             onClick={submit}
             disabled={loading}
-            style={{
-              padding: "10px 20px",
-              fontSize: "16px",
-              backgroundColor: loading ? "#ccc" : "#4caf50",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: loading ? "not-allowed" : "pointer",
-            }}
+            className={`rounded px-5 py-2.5 text-base text-white border-0 ${
+              loading ? "cursor-not-allowed bg-[#ccc]" : "cursor-pointer bg-[#4caf50]"
+            }`}
           >
             {loading ? "Хадгалж байна..." : "Хадгалах"}
           </button>
@@ -602,17 +590,17 @@ export default function BurCyclesPage() {
       </div>
 
       {/* History List */}
-      <div style={{ border: "1px solid #ccc", borderRadius: "8px", padding: "20px", backgroundColor: "#fff" }}>
-        <h2 style={{ marginTop: 0, marginBottom: "20px" }}>Бүртгэлийн түүх</h2>
+      <div className="rounded-lg border border-[#ccc] bg-white p-5">
+        <h2 className="mb-5 mt-0">Бүртгэлийн түүх</h2>
 
         {/* Filters */}
-        <div style={{ display: "flex", gap: "15px", marginBottom: "20px", flexWrap: "wrap" }}>
+        <div className="mb-5 flex flex-wrap gap-[15px]">
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Салбар</label>
+            <label className="mb-[5px] block font-bold">Салбар</label>
             <select
               value={filterBranchId}
               onChange={(e) => setFilterBranchId(e.target.value ? Number(e.target.value) : "")}
-              style={{ padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
+              className="rounded border border-[#ccc] p-2 text-sm"
             >
               <option value="">-- Бүгд --</option>
               {branches.map((b) => (
@@ -624,81 +612,77 @@ export default function BurCyclesPage() {
           </div>
 
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Эхлэх огноо</label>
+            <label className="mb-[5px] block font-bold">Эхлэх огноо</label>
             <input
               type="date"
               value={filterFrom}
               onChange={(e) => setFilterFrom(e.target.value)}
-              style={{ padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
+              className="rounded border border-[#ccc] p-2 text-sm"
             />
           </div>
 
           <div>
-            <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Дуусах огноо</label>
+            <label className="mb-[5px] block font-bold">Дуусах огноо</label>
             <input
               type="date"
               value={filterTo}
               onChange={(e) => setFilterTo(e.target.value)}
-              style={{ padding: "8px", fontSize: "14px", borderRadius: "4px", border: "1px solid #ccc" }}
+              className="rounded border border-[#ccc] p-2 text-sm"
             />
           </div>
         </div>
 
         {/* Table */}
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "14px" }}>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
             <thead>
-              <tr style={{ backgroundColor: "#f5f5f5" }}>
-                <th style={{ padding: "10px", textAlign: "left", borderBottom: "2px solid #ddd" }}>Огноо</th>
-                <th style={{ padding: "10px", textAlign: "left", borderBottom: "2px solid #ddd" }}>Салбар</th>
-                <th style={{ padding: "10px", textAlign: "left", borderBottom: "2px solid #ddd" }}>Машин</th>
-                <th style={{ padding: "10px", textAlign: "left", borderBottom: "2px solid #ddd" }}>Дугаар</th>
-                <th style={{ padding: "10px", textAlign: "left", borderBottom: "2px solid #ddd" }}>Код</th>
-                <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #ddd" }}>Хурдан өрөм</th>
-                <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #ddd" }}>Удаан өрөм</th>
-                <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #ddd" }}>Нийт өрөм</th>
-                <th style={{ padding: "10px", textAlign: "center", borderBottom: "2px solid #ddd" }}>Үр дүн</th>
-                <th style={{ padding: "10px", textAlign: "left", borderBottom: "2px solid #ddd" }}>Сувилагч</th>
+              <tr className="bg-[#f5f5f5]">
+                <th className="border-b-2 border-[#ddd] p-2.5 text-left">Огноо</th>
+                <th className="border-b-2 border-[#ddd] p-2.5 text-left">Салбар</th>
+                <th className="border-b-2 border-[#ddd] p-2.5 text-left">Машин</th>
+                <th className="border-b-2 border-[#ddd] p-2.5 text-left">Дугаар</th>
+                <th className="border-b-2 border-[#ddd] p-2.5 text-left">Код</th>
+                <th className="border-b-2 border-[#ddd] p-2.5 text-right">Хурдан өрөм</th>
+                <th className="border-b-2 border-[#ddd] p-2.5 text-right">Удаан өрөм</th>
+                <th className="border-b-2 border-[#ddd] p-2.5 text-right">Нийт өрөм</th>
+                <th className="border-b-2 border-[#ddd] p-2.5 text-center">Үр дүн</th>
+                <th className="border-b-2 border-[#ddd] p-2.5 text-left">Сувилагч</th>
               </tr>
             </thead>
             <tbody>
               {burCycles.length === 0 ? (
                 <tr>
-                  <td colSpan={10} style={{ padding: "20px", textAlign: "center", color: "#999" }}>
+                  <td colSpan={10} className="p-5 text-center text-[#999]">
                     Мэдээлэл олдсонгүй
                   </td>
                 </tr>
               ) : (
                 burCycles.map((cycle) => (
-                  <tr key={cycle.id} style={{ borderBottom: "1px solid #eee" }}>
-                    <td style={{ padding: "10px" }}>{new Date(cycle.startedAt).toLocaleString("mn-MN")}</td>
-                    <td style={{ padding: "10px" }}>{cycle.branch.name}</td>
-                    <td style={{ padding: "10px" }}>
+                  <tr key={cycle.id} className="border-b border-[#eee]">
+                    <td className="p-2.5">{formatIsoDateTimeInClinicTz(cycle.startedAt)}</td>
+                    <td className="p-2.5">{cycle.branch.name}</td>
+                    <td className="p-2.5">
                       {cycle.machine
                         ? `${cycle.machine.machineNumber}${cycle.machine.name ? ` (${cycle.machine.name})` : ""}`
                         : cycle.machineId}
                     </td>
-                    <td style={{ padding: "10px" }}>{cycle.sterilizationRunNumber}</td>
-                    <td style={{ padding: "10px" }}>{cycle.code}</td>
-                    <td style={{ padding: "10px", textAlign: "right" }}>{cycle.fastBurQty}</td>
-                    <td style={{ padding: "10px", textAlign: "right" }}>{cycle.slowBurQty}</td>
-                    <td style={{ padding: "10px", textAlign: "right", fontWeight: "bold" }}>
+                    <td className="p-2.5">{cycle.sterilizationRunNumber}</td>
+                    <td className="p-2.5">{cycle.code}</td>
+                    <td className="p-2.5 text-right">{cycle.fastBurQty}</td>
+                    <td className="p-2.5 text-right">{cycle.slowBurQty}</td>
+                    <td className="p-2.5 text-right font-bold">
                       {cycle.fastBurQty + cycle.slowBurQty}
                     </td>
-                    <td style={{ padding: "10px", textAlign: "center" }}>
+                    <td className="p-2.5 text-center">
                       <span
-                        style={{
-                          padding: "4px 8px",
-                          borderRadius: "4px",
-                          backgroundColor: cycle.result === "PASS" ? "#e8f5e9" : "#ffebee",
-                          color: cycle.result === "PASS" ? "#2e7d32" : "#c62828",
-                          fontWeight: "bold",
-                        }}
+                        className={`rounded px-2 py-1 font-bold ${
+                          cycle.result === "PASS" ? "bg-[#e8f5e9] text-[#2e7d32]" : "bg-[#ffebee] text-[#c62828]"
+                        }`}
                       >
                         {cycle.result}
                       </span>
                     </td>
-                    <td style={{ padding: "10px" }}>{cycle.operator}</td>
+                    <td className="p-2.5">{cycle.operator}</td>
                   </tr>
                 ))
               )}

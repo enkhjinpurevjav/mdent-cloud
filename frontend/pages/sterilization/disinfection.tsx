@@ -76,6 +76,8 @@ type QtyKey =
   | "qtyBurContainer"
   | "qtyPlasticSpoon";
 
+const CLINIC_TIME_ZONE = "Asia/Ulaanbaatar";
+
 const TOOL_FIELDS: { key: QtyKey; label: string }[] = [
   { key: "qtyPolishingRubber", label: "Өнгөлгөөний резин" },
   { key: "qtyBrush", label: "Браш" },
@@ -94,6 +96,17 @@ const TOOL_FIELDS: { key: QtyKey; label: string }[] = [
 
 function sumQty(row: Pick<DisinfectionLog, QtyKey>) {
   return TOOL_FIELDS.reduce((sum, f) => sum + Number(row[f.key] || 0), 0);
+}
+
+function formatIsoDateInClinicTz(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("mn-MN", {
+    timeZone: CLINIC_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
 }
 
 export default function DisinfectionPage() {
@@ -266,9 +279,9 @@ export default function DisinfectionPage() {
       });
 
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || "Халдваргүйтгэл хадгалахад алдаа гарлаа.");
+      if (!res.ok) throw new Error(data?.error || "Хүйтэн ариутгал хадгалахад алдаа гарлаа.");
 
-      setSuccessMsg("✅ Халдваргүйтгэлийн бүртгэл амжилттай хадгалагдлаа.");
+      setSuccessMsg("✅ Хүйтэн ариутгалын бүртгэл амжилттай хадгалагдлаа.");
       resetForm();
       await loadLogs();
     } catch (e: any) {
@@ -279,46 +292,24 @@ export default function DisinfectionPage() {
   };
 
   return (
-    <div style={{ padding: 20, fontFamily: "Arial, sans-serif", maxWidth: 1200 }}>
-      <h1 style={{ marginBottom: 8 }}>Халдваргүйтгэл</h1>
-      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
-        Тухайн өдрийн халдваргүйтгэсэн багажийн тоо болон үйл явцын тэмдэглэл.
-      </div>
+    <div className="max-w-[1200px] px-5">
+      <h1 className="mb-4 text-xl font-semibold">Хүйтэн ариутгал</h1>
 
-      {/* Create Form */}
-      <div
-        style={{
-          border: "1px solid #ccc",
-          borderRadius: 8,
-          padding: 20,
-          marginBottom: 24,
-          backgroundColor: "#f9f9f9",
-        }}
-      >
-        <h2 style={{ marginTop: 0, marginBottom: 16 }}>Шинэ бүртгэл үүсгэх</h2>
+      <div className="mb-6 rounded-lg border border-gray-300 bg-gray-50 p-5">
+        <h2 className="mb-4 text-lg font-semibold">Шинэ бүртгэл үүсгэх</h2>
 
-        {error && (
-          <div style={{ padding: 10, backgroundColor: "#ffebee", color: "#c62828", borderRadius: 4, marginBottom: 12 }}>
-            {error}
-          </div>
-        )}
+        {error && <div className="mb-3 rounded bg-red-50 p-2.5 text-red-700">{error}</div>}
+        {successMsg && <div className="mb-3 rounded bg-emerald-50 p-2.5 text-emerald-700">{successMsg}</div>}
 
-        {successMsg && (
-          <div style={{ padding: 10, backgroundColor: "#e8f5e9", color: "#2e7d32", borderRadius: 4, marginBottom: 12 }}>
-            {successMsg}
-          </div>
-        )}
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-          {/* Branch */}
+        <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>
-              Салбар <span style={{ color: "red" }}>*</span>
+            <label className="mb-1 block font-bold">
+              Салбар <span className="text-red-600">*</span>
             </label>
             <select
               value={branchId}
               onChange={(e) => setBranchId(e.target.value ? Number(e.target.value) : "")}
-              style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
+              className="w-full rounded border border-gray-300 p-2 text-sm"
             >
               <option value="">-- Сонгох --</option>
               {branches.map((b) => (
@@ -329,85 +320,79 @@ export default function DisinfectionPage() {
             </select>
           </div>
 
-          {/* Date */}
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>
-              Огноо <span style={{ color: "red" }}>*</span>
+            <label className="mb-1 block font-bold">
+              Огноо <span className="text-red-600">*</span>
             </label>
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
+              className="w-full rounded border border-gray-300 p-2 text-sm"
             />
           </div>
 
-          {/* Start time */}
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>
-              Эхэлсэн цаг <span style={{ color: "red" }}>*</span>
+            <label className="mb-1 block font-bold">
+              Эхэлсэн цаг <span className="text-red-600">*</span>
             </label>
             <input
               type="time"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
-              style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
+              className="w-full rounded border border-gray-300 p-2 text-sm"
             />
           </div>
 
-          {/* End time */}
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>
-              Дууссан цаг <span style={{ color: "red" }}>*</span>
+            <label className="mb-1 block font-bold">
+              Дууссан цаг <span className="text-red-600">*</span>
             </label>
             <input
               type="time"
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
-              style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
+              className="w-full rounded border border-gray-300 p-2 text-sm"
             />
           </div>
 
-          {/* Rinsed */}
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>
-              Нэрмэл усаар зайлсан эсэх <span style={{ color: "red" }}>*</span>
+            <label className="mb-1 block font-bold">
+              Нэрмэл усаар зайлсан эсэх <span className="text-red-600">*</span>
             </label>
             <select
               value={rinsedWithDistilledWater ? "YES" : "NO"}
               onChange={(e) => setRinsedWithDistilledWater(e.target.value === "YES")}
-              style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
+              className="w-full rounded border border-gray-300 p-2 text-sm"
             >
               <option value="YES">Тийм</option>
               <option value="NO">Үгүй</option>
             </select>
           </div>
 
-          {/* UV dried */}
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>
-              Хэт ягаан туяатай хатаах шүүгээнд хатаасан эсэх <span style={{ color: "red" }}>*</span>
+            <label className="mb-1 block font-bold">
+              Хэт ягаан туяатай хатаах шүүгээнд хатаасан эсэх <span className="text-red-600">*</span>
             </label>
             <select
               value={driedInUVCabinet ? "YES" : "NO"}
               onChange={(e) => setDriedInUVCabinet(e.target.value === "YES")}
-              style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
+              className="w-full rounded border border-gray-300 p-2 text-sm"
             >
               <option value="NO">Үгүй</option>
               <option value="YES">Тийм</option>
             </select>
           </div>
 
-          {/* Nurse */}
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>
-              Сувилагчийн нэр <span style={{ color: "red" }}>*</span>
+            <label className="mb-1 block font-bold">
+              Сувилагчийн нэр <span className="text-red-600">*</span>
             </label>
             <select
               value={nurseName}
               onChange={(e) => setNurseName(e.target.value)}
               disabled={!branchId || loadingUsers}
-              style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
+              className="w-full rounded border border-gray-300 p-2 text-sm disabled:bg-gray-100"
             >
               {!branchId && <option value="">-- Эхлээд салбар сонгоно уу --</option>}
               {branchId && loadingUsers && <option value="">Ачаалж байна...</option>}
@@ -423,49 +408,47 @@ export default function DisinfectionPage() {
             </select>
           </div>
 
-          {/* Notes */}
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>Тэмдэглэл</label>
+          <div className="md:col-span-2">
+            <label className="mb-1 block font-bold">Тэмдэглэл</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder="Тэмдэглэл..."
-              style={{ width: "100%", padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
+              className="w-full rounded border border-gray-300 p-2 text-sm"
             />
           </div>
         </div>
 
-        {/* Tool quantities */}
-        <div style={{ marginTop: 16 }}>
-          <div style={{ fontWeight: "bold", marginBottom: 8 }}>Багажийн тоо (0 байж болно)</div>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14, background: "#fff" }}>
+        <div className="mt-4">
+          <div className="mb-2 font-bold">Багажийн тоо (0 байж болно)</div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse bg-white text-sm">
               <thead>
-                <tr style={{ backgroundColor: "#f5f5f5" }}>
-                  <th style={{ padding: 10, textAlign: "left", borderBottom: "2px solid #ddd" }}>Багаж</th>
-                  <th style={{ padding: 10, textAlign: "right", borderBottom: "2px solid #ddd", width: 140 }}>Тоо</th>
+                <tr className="bg-gray-100">
+                  <th className="border-b-2 border-gray-300 p-2.5 text-left">Багаж</th>
+                  <th className="w-[140px] border-b-2 border-gray-300 p-2.5 text-right">Тоо</th>
                 </tr>
               </thead>
               <tbody>
                 {TOOL_FIELDS.map((f) => (
-                  <tr key={f.key} style={{ borderBottom: "1px solid #eee" }}>
-                    <td style={{ padding: 10 }}>{f.label}</td>
-                    <td style={{ padding: 10, textAlign: "right" }}>
+                  <tr key={f.key} className="border-b border-gray-200">
+                    <td className="p-2.5">{f.label}</td>
+                    <td className="p-2.5 text-right">
                       <input
                         type="number"
                         min={0}
                         value={qty[f.key]}
                         onChange={(e) => setQtyField(f.key, Number(e.target.value) || 0)}
-                        style={{ width: 110, padding: 6, fontSize: 14, borderRadius: 4, border: "1px solid #ccc", textAlign: "right" }}
+                        className="w-[110px] rounded border border-gray-300 p-1.5 text-right text-sm"
                       />
                     </td>
                   </tr>
                 ))}
 
-                <tr style={{ borderTop: "2px solid #ddd" }}>
-                  <td style={{ padding: 10, fontWeight: "bold" }}>Нийт</td>
-                  <td style={{ padding: 10, textAlign: "right", fontWeight: "bold" }}>
+                <tr className="border-t-2 border-gray-300">
+                  <td className="p-2.5 font-bold">Нийт</td>
+                  <td className="p-2.5 text-right font-bold">
                     {TOOL_FIELDS.reduce((s, f) => s + (qty[f.key] || 0), 0)}
                   </td>
                 </tr>
@@ -474,36 +457,27 @@ export default function DisinfectionPage() {
           </div>
         </div>
 
-        <div style={{ marginTop: 16 }}>
+        <div className="mt-4">
           <button
             onClick={submit}
             disabled={loading}
-            style={{
-              padding: "10px 20px",
-              fontSize: 16,
-              backgroundColor: loading ? "#ccc" : "#4caf50",
-              color: "white",
-              border: "none",
-              borderRadius: 4,
-              cursor: loading ? "not-allowed" : "pointer",
-            }}
+            className="rounded bg-green-600 px-5 py-2.5 text-base text-white disabled:cursor-not-allowed disabled:bg-gray-400"
           >
             {loading ? "Хадгалж байна..." : "Хадгалах"}
           </button>
         </div>
       </div>
 
-      {/* History */}
-      <div style={{ border: "1px solid #ccc", borderRadius: 8, padding: 20, backgroundColor: "#fff" }}>
-        <h2 style={{ marginTop: 0, marginBottom: 16 }}>Бүртгэлийн түүх</h2>
+      <div className="rounded-lg border border-gray-300 bg-white p-5">
+        <h2 className="mb-4 text-lg font-semibold">Бүртгэлийн түүх</h2>
 
-        <div style={{ display: "flex", gap: 15, marginBottom: 16, flexWrap: "wrap" }}>
+        <div className="mb-4 flex flex-wrap gap-4">
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>Салбар</label>
+            <label className="mb-1 block font-bold">Салбар</label>
             <select
               value={filterBranchId}
               onChange={(e) => setFilterBranchId(e.target.value ? Number(e.target.value) : "")}
-              style={{ padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
+              className="rounded border border-gray-300 p-2 text-sm"
             >
               <option value="">-- Сонгох --</option>
               {branches.map((b) => (
@@ -512,67 +486,58 @@ export default function DisinfectionPage() {
                 </option>
               ))}
             </select>
-            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 3 }}>
-              (Салбар сонгохгүй бол жагсаалт хоосон байна)
-            </div>
+            <div className="mt-0.5 text-xs text-gray-500">(Салбар сонгохгүй бол жагсаалт хоосон байна)</div>
           </div>
 
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>Эхлэх огноо</label>
+            <label className="mb-1 block font-bold">Эхлэх огноо</label>
             <input
               type="date"
               value={filterFrom}
               onChange={(e) => setFilterFrom(e.target.value)}
-              style={{ padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
+              className="rounded border border-gray-300 p-2 text-sm"
             />
           </div>
 
           <div>
-            <label style={{ display: "block", marginBottom: 5, fontWeight: "bold" }}>Дуусах огноо</label>
+            <label className="mb-1 block font-bold">Дуусах огноо</label>
             <input
               type="date"
               value={filterTo}
               onChange={(e) => setFilterTo(e.target.value)}
-              style={{ padding: 8, fontSize: 14, borderRadius: 4, border: "1px solid #ccc" }}
+              className="rounded border border-gray-300 p-2 text-sm"
             />
           </div>
 
-          <div style={{ alignSelf: "flex-end" }}>
+          <div className="self-end">
             <button
               type="button"
               onClick={() => void loadLogs()}
               disabled={loadingList}
-              style={{
-                padding: "9px 14px",
-                fontSize: 14,
-                backgroundColor: "#fff",
-                border: "1px solid #ccc",
-                borderRadius: 4,
-                cursor: loadingList ? "not-allowed" : "pointer",
-              }}
+              className="rounded border border-gray-300 bg-white px-3.5 py-[9px] text-sm disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loadingList ? "Ачаалж байна..." : "Шинэчлэх"}
             </button>
           </div>
         </div>
 
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
             <thead>
-              <tr style={{ backgroundColor: "#f5f5f5" }}>
-                <th style={{ padding: 10, textAlign: "left", borderBottom: "2px solid #ddd" }}>Огноо</th>
-                <th style={{ padding: 10, textAlign: "left", borderBottom: "2px solid #ddd" }}>Цаг</th>
-                <th style={{ padding: 10, textAlign: "left", borderBottom: "2px solid #ddd" }}>Сувилагч</th>
-                <th style={{ padding: 10, textAlign: "center", borderBottom: "2px solid #ddd" }}>Нэрмэл ус</th>
-                <th style={{ padding: 10, textAlign: "center", borderBottom: "2px solid #ddd" }}>UV</th>
-                <th style={{ padding: 10, textAlign: "right", borderBottom: "2px solid #ddd" }}>Нийт</th>
-                <th style={{ padding: 10, textAlign: "left", borderBottom: "2px solid #ddd" }}>Тэмдэглэл</th>
+              <tr className="bg-gray-100">
+                <th className="border-b-2 border-gray-300 p-2.5 text-left">Огноо</th>
+                <th className="border-b-2 border-gray-300 p-2.5 text-left">Цаг</th>
+                <th className="border-b-2 border-gray-300 p-2.5 text-left">Сувилагч</th>
+                <th className="border-b-2 border-gray-300 p-2.5 text-center">Нэрмэл ус</th>
+                <th className="border-b-2 border-gray-300 p-2.5 text-center">UV</th>
+                <th className="border-b-2 border-gray-300 p-2.5 text-right">Нийт</th>
+                <th className="border-b-2 border-gray-300 p-2.5 text-left">Тэмдэглэл</th>
               </tr>
             </thead>
             <tbody>
               {loadingList && (
                 <tr>
-                  <td colSpan={7} style={{ padding: 16, textAlign: "center", color: "#6b7280" }}>
+                  <td colSpan={7} className="p-4 text-center text-gray-500">
                     Ачаалж байна...
                   </td>
                 </tr>
@@ -580,22 +545,22 @@ export default function DisinfectionPage() {
 
               {!loadingList && logs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: 20, textAlign: "center", color: "#999" }}>
+                  <td colSpan={7} className="p-5 text-center text-gray-400">
                     Мэдээлэл олдсонгүй
                   </td>
                 </tr>
               ) : (
                 logs.map((row) => (
-                  <tr key={row.id} style={{ borderBottom: "1px solid #eee" }}>
-                    <td style={{ padding: 10 }}>{new Date(row.date).toLocaleDateString("mn-MN")}</td>
-                    <td style={{ padding: 10 }}>
+                  <tr key={row.id} className="border-b border-gray-200">
+                    <td className="p-2.5">{formatIsoDateInClinicTz(row.date)}</td>
+                    <td className="p-2.5">
                       {row.startTime}–{row.endTime}
                     </td>
-                    <td style={{ padding: 10 }}>{row.nurseName}</td>
-                    <td style={{ padding: 10, textAlign: "center" }}>{row.rinsedWithDistilledWater ? "Тийм" : "Үгүй"}</td>
-                    <td style={{ padding: 10, textAlign: "center" }}>{row.driedInUVCabinet ? "Тийм" : "Үгүй"}</td>
-                    <td style={{ padding: 10, textAlign: "right", fontWeight: "bold" }}>{sumQty(row as any)}</td>
-                    <td style={{ padding: 10, color: "#374151" }}>{row.notes || ""}</td>
+                    <td className="p-2.5">{row.nurseName}</td>
+                    <td className="p-2.5 text-center">{row.rinsedWithDistilledWater ? "Тийм" : "Үгүй"}</td>
+                    <td className="p-2.5 text-center">{row.driedInUVCabinet ? "Тийм" : "Үгүй"}</td>
+                    <td className="p-2.5 text-right font-bold">{sumQty(row as any)}</td>
+                    <td className="p-2.5 text-gray-700">{row.notes || ""}</td>
                   </tr>
                 ))
               )}
@@ -603,11 +568,8 @@ export default function DisinfectionPage() {
           </table>
         </div>
 
-        {/* Optional: show breakdown summary for the currently loaded list */}
         {logs.length > 0 && !loadingList && (
-          <div style={{ marginTop: 10, fontSize: 12, color: "#6b7280" }}>
-            Нийт бүртгэл: {logs.length}
-          </div>
+          <div className="mt-2.5 text-xs text-gray-500">Нийт бүртгэл: {logs.length}</div>
         )}
       </div>
     </div>

@@ -13,6 +13,64 @@ function parseYmdToLocalMidnight(ymd) {
 function isValidHHmm(s) {
   return /^\d{2}:\d{2}$/.test(String(s || ""));
 }
+
+/**
+ * Parse datetime values similarly to appointments:
+ * - "YYYY-MM-DD HH:mm:ss" (naive local wall-clock)
+ * - "YYYY-MM-DDTHH:mm(:ss)" (naive local wall-clock)
+ * - ISO strings with timezone offsets (fallback to Date parser)
+ */
+function parseNaiveOrIsoDateTime(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  // If timezone is explicitly present, rely on Date parser.
+  const hasTimezone = /[zZ]$|[+-]\d{2}:\d{2}$/.test(raw);
+  if (!hasTimezone) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/.exec(raw);
+    if (m) {
+      return new Date(
+        Number(m[1]),
+        Number(m[2]) - 1,
+        Number(m[3]),
+        Number(m[4]),
+        Number(m[5]),
+        Number(m[6] ?? 0),
+        0
+      );
+    }
+  }
+
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function normalizeCodePart(value, fallback = "X") {
+  const cleaned = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+  return cleaned || fallback;
+}
+
+async function generateAutoRunNumber({ machineNumber, exists }) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const machinePart = normalizeCodePart(machineNumber, "M");
+  const datePart = `${y}${m}${d}`;
+  const base = `SR-${machinePart}-${datePart}`;
+
+  for (let seq = 1; seq <= 9999; seq += 1) {
+    const candidate = `${base}-${String(seq).padStart(3, "0")}`;
+    const existing = await exists(candidate);
+    if (!existing) return candidate;
+  }
+
+  throw new Error("Unable to generate sterilization run number");
+}
 /**
  * Helper: build minimal unique prefix for each branch.
  * Example:
@@ -576,7 +634,6 @@ router.post("/sterilization/cycles", async (req, res) => {
   try {
     const branchId = Number(req.body?.branchId);
     const code = String(req.body?.code || "").trim();
-    const sterilizationRunNumber = req.body?.sterilizationRunNumber ? String(req.body?.sterilizationRunNumber).trim() : null;
     const machineId = req.body?.machineId ? Number(req.body?.machineId) : null;
     const startedAtRaw = req.body?.startedAt;
     
@@ -624,22 +681,34 @@ router.post("/sterilization/cycles", async (req, res) => {
       return res.status(400).json({ error: "Machine does not belong to the selected branch" });
     }
     const machineNumber = machine.machineNumber;
+    const sterilizationRunNumber = await generateAutoRunNumber({
+      machineNumber,
+      exists: async (value) =>
+        prisma.autoclaveCycle.findFirst({
+          where: {
+            branchId,
+            machineNumber,
+            sterilizationRunNumber: value,
+          },
+          select: { id: true },
+        }),
+    });
 
     // Parse dates
-    const startedAt = new Date(startedAtRaw);
-    if (Number.isNaN(startedAt.getTime())) {
+    const startedAt = parseNaiveOrIsoDateTime(startedAtRaw);
+    if (!startedAt || Number.isNaN(startedAt.getTime())) {
       return res.status(400).json({ error: "startedAt is invalid" });
     }
 
-    const finishedAt = new Date(finishedAtRaw);
-    if (Number.isNaN(finishedAt.getTime())) {
+    const finishedAt = parseNaiveOrIsoDateTime(finishedAtRaw);
+    if (!finishedAt || Number.isNaN(finishedAt.getTime())) {
       return res.status(400).json({ error: "finishedAt is invalid" });
     }
 
     // Use finishedAt as completedAt for backward compatibility
     const completedAt = finishedAt;
 
-    const removedFromAutoclaveAt = removedFromAutoclaveAtRaw ? new Date(removedFromAutoclaveAtRaw) : null;
+    const removedFromAutoclaveAt = removedFromAutoclaveAtRaw ? parseNaiveOrIsoDateTime(removedFromAutoclaveAtRaw) : null;
     if (removedFromAutoclaveAt && Number.isNaN(removedFromAutoclaveAt.getTime())) {
       return res.status(400).json({ error: "removedFromAutoclaveAt is invalid" });
     }
@@ -655,6 +724,22 @@ router.post("/sterilization/cycles", async (req, res) => {
       }
       
       validatedLines.push({ toolId, producedQty: Math.floor(producedQty) });
+    }
+
+    const toolIds = validatedLines.map((x) => x.toolId);
+    if (new Set(toolIds).size !== toolIds.length) {
+      return res.status(400).json({ error: "Duplicate tool lines are not allowed in one cycle" });
+    }
+
+    const tools = await prisma.sterilizationItem.findMany({
+      where: { id: { in: toolIds } },
+      select: { id: true, branchId: true },
+    });
+    if (tools.length !== toolIds.length) {
+      return res.status(400).json({ error: "One or more toolId is invalid" });
+    }
+    if (tools.some((t) => t.branchId !== branchId)) {
+      return res.status(400).json({ error: "All tools must belong to the selected branch" });
     }
 
     const cycle = await prisma.autoclaveCycle.create({
@@ -690,7 +775,25 @@ router.post("/sterilization/cycles", async (req, res) => {
   } catch (err) {
     console.error("POST /api/sterilization/cycles error:", err);
     if (err.code === "P2002") {
-      return res.status(400).json({ error: "Cycle code already exists for this branch" });
+      const target = Array.isArray(err.meta?.target) ? err.meta.target : [];
+      const targetText = target.join(",");
+      if (target.includes("branchId") && target.includes("code")) {
+        return res.status(409).json({ error: "Cycle code already exists for this branch" });
+      }
+      if (target.includes("cycleId") && target.includes("toolId")) {
+        return res
+          .status(409)
+          .json({ error: "Duplicate tool lines are not allowed in one cycle" });
+      }
+      if (targetText.includes("code")) {
+        return res.status(409).json({ error: "Cycle code already exists for this branch" });
+      }
+      if (targetText.includes("toolId")) {
+        return res
+          .status(409)
+          .json({ error: "Duplicate tool lines are not allowed in one cycle" });
+      }
+      return res.status(409).json({ error: "Unique constraint violation" });
     }
     return res.status(500).json({ error: "Failed to create cycle" });
   }
@@ -859,6 +962,50 @@ router.get("/sterilization/cycles/check-code", async (req, res) => {
   }
 });
 
+// GET check if sterilization run number exists for a machine (autoclave cycles)
+router.get("/sterilization/cycles/check-run-number", async (req, res) => {
+  try {
+    const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+    const machineId = req.query.machineId ? Number(req.query.machineId) : null;
+    const sterilizationRunNumber = req.query.sterilizationRunNumber
+      ? String(req.query.sterilizationRunNumber).trim()
+      : "";
+
+    if (!branchId || !machineId || !sterilizationRunNumber) {
+      return res.status(400).json({
+        error: "branchId, machineId and sterilizationRunNumber are required",
+      });
+    }
+
+    const machine = await prisma.autoclaveMachine.findUnique({
+      where: { id: machineId },
+      select: { id: true, branchId: true, machineNumber: true },
+    });
+    if (!machine) {
+      return res.status(400).json({ error: "Invalid machineId" });
+    }
+    if (machine.branchId !== branchId) {
+      return res
+        .status(400)
+        .json({ error: "Machine does not belong to the selected branch" });
+    }
+
+    const existing = await prisma.autoclaveCycle.findFirst({
+      where: {
+        branchId,
+        machineNumber: machine.machineNumber,
+        sterilizationRunNumber,
+      },
+      select: { id: true, sterilizationRunNumber: true },
+    });
+
+    res.json({ exists: !!existing, sterilizationRunNumber });
+  } catch (err) {
+    console.error("GET /api/sterilization/cycles/check-run-number error:", err);
+    return res.status(500).json({ error: "Failed to check run number" });
+  }
+});
+
 // GET list cycles by branch
 router.get("/sterilization/cycles", async (req, res) => {
   try {
@@ -950,72 +1097,6 @@ router.get("/sterilization/cycles/active-indicators", async (req, res) => {
   } catch (err) {
     console.error("GET /api/sterilization/cycles/active-indicators error:", err);
     return res.status(500).json({ error: "Failed to get active indicators" });
-  }
-});
-
-// ==========================================================
-// V1 STERILIZATION: Draft Attachments
-// ==========================================================
-
-// POST create draft attachment
-router.post("/sterilization/draft-attachments", async (req, res) => {
-  try {
-    const encounterDiagnosisId = Number(req.body?.encounterDiagnosisId);
-    const cycleId = Number(req.body?.cycleId);
-    const toolId = Number(req.body?.toolId);
-    const requestedQty = Number(req.body?.requestedQty) || 1;
-
-    if (!encounterDiagnosisId) {
-      return res.status(400).json({ error: "encounterDiagnosisId is required" });
-    }
-    if (!cycleId) {
-      return res.status(400).json({ error: "cycleId is required" });
-    }
-    if (!toolId) {
-      return res.status(400).json({ error: "toolId is required" });
-    }
-    if (!Number.isFinite(requestedQty) || requestedQty < 1) {
-      return res.status(400).json({ error: "requestedQty must be >= 1" });
-    }
-
-    const draft = await prisma.sterilizationDraftAttachment.create({
-      data: {
-        encounterDiagnosisId,
-        cycleId,
-        toolId,
-        requestedQty: Math.floor(requestedQty),
-      },
-      include: {
-        cycle: {
-          select: {
-            id: true,
-            code: true,
-            machineNumber: true,
-            completedAt: true,
-          },
-        },
-        tool: { select: { id: true, name: true } },
-      },
-    });
-
-    res.json(draft);
-  } catch (err) {
-    console.error("POST /api/sterilization/draft-attachments error:", err);
-    return res.status(500).json({ error: "Failed to create draft attachment" });
-  }
-});
-
-// DELETE remove draft attachment
-router.delete("/sterilization/draft-attachments/:id", async (req, res) => {
-  try {
-    const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: "invalid id" });
-
-    await prisma.sterilizationDraftAttachment.delete({ where: { id } });
-    res.json({ ok: true });
-  } catch (err) {
-    console.error("DELETE /api/sterilization/draft-attachments error:", err);
-    return res.status(404).json({ error: "Draft attachment not found" });
   }
 });
 
@@ -1254,15 +1335,20 @@ router.post("/sterilization/bur-cycles", async (req, res) => {
   try {
     const branchId = Number(req.body?.branchId);
     const code = String(req.body?.code || "").trim();
-    const sterilizationRunNumber = String(req.body?.sterilizationRunNumber || "").trim();
     const machineId = Number(req.body?.machineId);
-    const startedAt = req.body?.startedAt ? new Date(req.body.startedAt) : null;
+    const startedAt = req.body?.startedAt
+      ? parseNaiveOrIsoDateTime(req.body.startedAt)
+      : null;
     // Sanitize pressure: keep only digits and spaces (expected format: "90 230")
     const pressure = String(req.body?.pressure || "").trim().replace(/[^\d\s]/g, "");
     const temperature = req.body?.temperature ? Number(req.body.temperature) : null;
-    const finishedAt = req.body?.finishedAt ? new Date(req.body.finishedAt) : null;
-    const removedFromAutoclaveAt = req.body?.removedFromAutoclaveAt ? new Date(req.body.removedFromAutoclaveAt) : null;
-    const result = String(req.body?.result || "").trim();
+    const finishedAt = req.body?.finishedAt
+      ? parseNaiveOrIsoDateTime(req.body.finishedAt)
+      : null;
+    const removedFromAutoclaveAt = req.body?.removedFromAutoclaveAt
+      ? parseNaiveOrIsoDateTime(req.body.removedFromAutoclaveAt)
+      : null;
+    const result = String(req.body?.result || "").trim().toUpperCase();
     const operator = String(req.body?.operator || "").trim();
     const notes = req.body?.notes ? String(req.body.notes).trim() : null;
     const fastBurQty = Number(req.body?.fastBurQty) || 0;
@@ -1271,10 +1357,12 @@ router.post("/sterilization/bur-cycles", async (req, res) => {
     // Validation
     if (!branchId) return res.status(400).json({ error: "branchId is required" });
     if (!code) return res.status(400).json({ error: "code is required" });
-    if (!sterilizationRunNumber) return res.status(400).json({ error: "sterilizationRunNumber is required" });
     if (!machineId) return res.status(400).json({ error: "machineId is required" });
     if (!startedAt || isNaN(startedAt.getTime())) return res.status(400).json({ error: "startedAt is required and must be valid" });
     if (!finishedAt || isNaN(finishedAt.getTime())) return res.status(400).json({ error: "finishedAt is required and must be valid" });
+    if (req.body?.removedFromAutoclaveAt && (!removedFromAutoclaveAt || isNaN(removedFromAutoclaveAt.getTime()))) {
+      return res.status(400).json({ error: "removedFromAutoclaveAt must be valid" });
+    }
     if (!result || !["PASS", "FAIL"].includes(result)) return res.status(400).json({ error: "result must be PASS or FAIL" });
     if (!operator) return res.status(400).json({ error: "operator is required" });
 
@@ -1288,6 +1376,31 @@ router.post("/sterilization/bur-cycles", async (req, res) => {
     if (fastBurQty === 0 && slowBurQty === 0) {
       return res.status(400).json({ error: "At least one of fastBurQty or slowBurQty must be > 0" });
     }
+
+    const machine = await prisma.autoclaveMachine.findUnique({
+      where: { id: machineId },
+      select: { id: true, branchId: true, machineNumber: true },
+    });
+    if (!machine) {
+      return res.status(400).json({ error: "Invalid machineId" });
+    }
+    if (machine.branchId !== branchId) {
+      return res
+        .status(400)
+        .json({ error: "Machine does not belong to the selected branch" });
+    }
+
+    const sterilizationRunNumber = await generateAutoRunNumber({
+      machineNumber: machine.machineNumber,
+      exists: async (value) =>
+        prisma.burSterilizationCycle.findFirst({
+          where: {
+            machineId,
+            sterilizationRunNumber: value,
+          },
+          select: { id: true },
+        }),
+    });
 
     const burCycle = await prisma.burSterilizationCycle.create({
       data: {
@@ -1315,11 +1428,18 @@ router.post("/sterilization/bur-cycles", async (req, res) => {
   } catch (err) {
     console.error("POST /api/sterilization/bur-cycles error:", err);
     if (err.code === "P2002") {
-      const target = err.meta?.target || [];
+      const target = Array.isArray(err.meta?.target) ? err.meta.target : [];
+      const targetText = target.join(",");
       if (target.includes("code")) {
         return res.status(409).json({ error: "Cycle code already exists for this branch" });
       }
       if (target.includes("sterilizationRunNumber")) {
+        return res.status(409).json({ error: "Sterilization run number already exists for this machine" });
+      }
+      if (targetText.includes("code")) {
+        return res.status(409).json({ error: "Cycle code already exists for this branch" });
+      }
+      if (targetText.includes("sterilizationRunNumber")) {
         return res.status(409).json({ error: "Sterilization run number already exists for this machine" });
       }
       return res.status(409).json({ error: "Unique constraint violation" });
@@ -1591,7 +1711,9 @@ router.get("/sterilization/active-cycles", async (req, res) => {
 router.post("/sterilization/disposals", async (req, res) => {
   try {
     const branchId = Number(req.body?.branchId);
-    const disposedAt = req.body?.disposedAt ? new Date(req.body.disposedAt) : new Date();
+    const disposedAt = req.body?.disposedAt
+      ? parseNaiveOrIsoDateTime(req.body.disposedAt)
+      : new Date();
     const disposedByName = String(req.body?.disposedByName || "").trim();
     const reason = req.body?.reason ? String(req.body.reason).trim() : null;
     const notes = req.body?.notes ? String(req.body.notes).trim() : null;
@@ -1599,6 +1721,9 @@ router.post("/sterilization/disposals", async (req, res) => {
 
     if (!branchId) {
       return res.status(400).json({ error: "branchId is required" });
+    }
+    if (!disposedAt || Number.isNaN(disposedAt.getTime())) {
+      return res.status(400).json({ error: "disposedAt is invalid" });
     }
     if (!disposedByName) {
       return res.status(400).json({ error: "disposedByName is required" });

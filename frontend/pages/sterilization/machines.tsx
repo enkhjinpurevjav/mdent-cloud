@@ -172,58 +172,28 @@ export default function AutoclaveMachinesPage() {
   };
 
   return (
-    <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 24, marginBottom: 8, fontWeight: 700 }}>
-        Автоклав машины тохиргоо
-      </h1>
-      <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>
-        Салбар бүрд харгалзах автоклав машинуудыг бүртгэж удирдана.
-      </div>
+    <div className="mx-auto w-full max-w-[1200px]">
+      <h1 className="mb-2 text-2xl font-bold">Автоклав машины тохиргоо</h1>
+      <p className="mb-4 text-sm text-gray-500">Салбар бүрд харгалзах автоклав машинуудыг бүртгэж удирдана.</p>
 
       {error && (
-        <div
-          style={{
-            background: "#fee",
-            color: "#b91c1c",
-            padding: 12,
-            borderRadius: 8,
-            marginBottom: 12,
-            fontSize: 14,
-          }}
-        >
+        <div className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       )}
       {successMsg && (
-        <div
-          style={{
-            background: "#d1fae5",
-            color: "#065f46",
-            padding: 12,
-            borderRadius: 8,
-            marginBottom: 12,
-            fontSize: 14,
-          }}
-        >
+        <div className="mb-3 rounded-lg bg-emerald-100 p-3 text-sm text-emerald-800">
           {successMsg}
         </div>
       )}
 
       {/* Branch selector */}
-      <div style={{ marginBottom: 20 }}>
-        <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-          Салбар
-        </label>
+      <div className="mb-5">
+        <label className="mb-1.5 block text-sm font-semibold text-gray-700">Салбар</label>
         <select
           value={selectedBranchId}
           onChange={(e) => setSelectedBranchId(e.target.value ? Number(e.target.value) : "")}
-          style={{
-            width: 300,
-            border: "1px solid #d1d5db",
-            borderRadius: 8,
-            padding: "8px 10px",
-            fontSize: 14,
-          }}
+          className="w-full max-w-[300px] rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
         >
           <option value="">Бүгд</option>
           {branches.map((b) => (
@@ -235,67 +205,32 @@ export default function AutoclaveMachinesPage() {
       </div>
 
       {/* Create machine form */}
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #e5e7eb",
-          borderRadius: 12,
-          padding: 20,
-          marginBottom: 20,
-        }}
-      >
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>
-          Шинэ машин нэмэх
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "200px 1fr 140px", gap: 12, alignItems: "end" }}>
+      <div className="mb-5 rounded-xl border border-gray-200 bg-white p-5">
+        <div className="mb-3 text-base font-semibold">Шинэ машин нэмэх</div>
+        <div className="grid grid-cols-1 items-end gap-3 lg:grid-cols-[200px_1fr_140px]">
           <div>
-            <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-              Машины дугаар *
-            </label>
+            <label className="mb-1 block text-xs text-gray-500">Машины дугаар *</label>
             <input
               value={machineNumber}
               onChange={(e) => setMachineNumber(e.target.value)}
               placeholder="Ж: A-1"
-              style={{
-                width: "100%",
-                border: "1px solid #d1d5db",
-                borderRadius: 8,
-                padding: "8px 10px",
-                fontSize: 14,
-              }}
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
             />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-              Нэр (заавал биш)
-            </label>
+            <label className="mb-1 block text-xs text-gray-500">Нэр (заавал биш)</label>
             <input
               value={machineName}
               onChange={(e) => setMachineName(e.target.value)}
               placeholder="Ж: Autoclave 1"
-              style={{
-                width: "100%",
-                border: "1px solid #d1d5db",
-                borderRadius: 8,
-                padding: "8px 10px",
-                fontSize: 14,
-              }}
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
             />
           </div>
           <button
             type="button"
             onClick={createMachine}
             disabled={loading}
-            style={{
-              background: "#2563eb",
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              padding: "9px 16px",
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: loading ? "not-allowed" : "pointer",
-            }}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? "..." : "Нэмэх"}
           </button>
@@ -303,144 +238,86 @@ export default function AutoclaveMachinesPage() {
       </div>
 
       {/* Machines list */}
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #e5e7eb",
-          borderRadius: 12,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            padding: "14px 16px",
-            borderBottom: "1px solid #e5e7eb",
-            fontSize: 16,
-            fontWeight: 600,
-          }}
-        >
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <div className="border-b border-gray-200 px-4 py-3 text-base font-semibold">
           Машинуудын жагсаалт ({machines.length})
         </div>
         
         {machines.length === 0 ? (
-          <div style={{ padding: 20, textAlign: "center", color: "#6b7280", fontSize: 14 }}>
+          <div className="p-5 text-center text-sm text-gray-500">
             {loading ? "Ачаалж байна..." : "Машин олдсонгүй"}
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <table className="w-full border-collapse text-sm">
             <thead>
-              <tr style={{ background: "#f9fafb", textAlign: "left" }}>
-                <th style={{ padding: "10px 16px", fontWeight: 600 }}>Салбар</th>
-                <th style={{ padding: "10px 16px", fontWeight: 600 }}>Машины дугаар</th>
-                <th style={{ padding: "10px 16px", fontWeight: 600 }}>Нэр</th>
-                <th style={{ padding: "10px 16px", fontWeight: 600, width: 200 }}>Үйлдэл</th>
+              <tr className="bg-gray-50 text-left">
+                <th className="px-4 py-2.5 font-semibold">Салбар</th>
+                <th className="px-4 py-2.5 font-semibold">Машины дугаар</th>
+                <th className="px-4 py-2.5 font-semibold">Нэр</th>
+                <th className="w-[200px] px-4 py-2.5 font-semibold">Үйлдэл</th>
               </tr>
             </thead>
             <tbody>
               {machines.map((machine) => {
                 const isEditing = editingMachineId === machine.id;
                 return (
-                  <tr key={machine.id} style={{ borderTop: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "10px 16px" }}>
+                  <tr key={machine.id} className="border-t border-gray-100">
+                    <td className="px-4 py-2.5">
                       {machine.branch?.name || `Branch #${machine.branchId}`}
                     </td>
-                    <td style={{ padding: "10px 16px" }}>
+                    <td className="px-4 py-2.5">
                       {isEditing ? (
                         <input
                           value={editMachineNumber}
                           onChange={(e) => setEditMachineNumber(e.target.value)}
-                          style={{
-                            width: "100%",
-                            border: "1px solid #d1d5db",
-                            borderRadius: 6,
-                            padding: "6px 8px",
-                            fontSize: 13,
-                          }}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs"
                         />
                       ) : (
-                        <span style={{ fontWeight: 600 }}>{machine.machineNumber}</span>
+                        <span className="font-semibold">{machine.machineNumber}</span>
                       )}
                     </td>
-                    <td style={{ padding: "10px 16px" }}>
+                    <td className="px-4 py-2.5">
                       {isEditing ? (
                         <input
                           value={editMachineName}
                           onChange={(e) => setEditMachineName(e.target.value)}
-                          style={{
-                            width: "100%",
-                            border: "1px solid #d1d5db",
-                            borderRadius: 6,
-                            padding: "6px 8px",
-                            fontSize: 13,
-                          }}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs"
                         />
                       ) : (
-                        <span style={{ color: "#6b7280" }}>{machine.name || "—"}</span>
+                        <span className="text-gray-500">{machine.name || "—"}</span>
                       )}
                     </td>
-                    <td style={{ padding: "10px 16px" }}>
+                    <td className="px-4 py-2.5">
                       {isEditing ? (
-                        <div style={{ display: "flex", gap: 8 }}>
+                        <div className="flex gap-2">
                           <button
                             type="button"
                             onClick={() => saveEdit(machine.id)}
-                            style={{
-                              background: "#16a34a",
-                              color: "#fff",
-                              border: "none",
-                              borderRadius: 6,
-                              padding: "6px 12px",
-                              fontSize: 12,
-                              cursor: "pointer",
-                            }}
+                            className="rounded-md bg-green-600 px-3 py-1.5 text-xs text-white"
                           >
                             Хадгалах
                           </button>
                           <button
                             type="button"
                             onClick={cancelEdit}
-                            style={{
-                              background: "#6b7280",
-                              color: "#fff",
-                              border: "none",
-                              borderRadius: 6,
-                              padding: "6px 12px",
-                              fontSize: 12,
-                              cursor: "pointer",
-                            }}
+                            className="rounded-md bg-gray-500 px-3 py-1.5 text-xs text-white"
                           >
                             Болих
                           </button>
                         </div>
                       ) : (
-                        <div style={{ display: "flex", gap: 8 }}>
+                        <div className="flex gap-2">
                           <button
                             type="button"
                             onClick={() => startEdit(machine)}
-                            style={{
-                              background: "#f59e0b",
-                              color: "#fff",
-                              border: "none",
-                              borderRadius: 6,
-                              padding: "6px 12px",
-                              fontSize: 12,
-                              cursor: "pointer",
-                            }}
+                            className="rounded-md bg-amber-500 px-3 py-1.5 text-xs text-white"
                           >
                             Засах
                           </button>
                           <button
                             type="button"
                             onClick={() => deleteMachine(machine.id, machine.machineNumber)}
-                            style={{
-                              background: "#dc2626",
-                              color: "#fff",
-                              border: "none",
-                              borderRadius: 6,
-                              padding: "6px 12px",
-                              fontSize: 12,
-                              cursor: "pointer",
-                            }}
+                            className="rounded-md bg-red-600 px-3 py-1.5 text-xs text-white"
                           >
                             Устгах
                           </button>
