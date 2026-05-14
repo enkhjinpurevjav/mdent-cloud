@@ -13,14 +13,18 @@ type Mismatch = {
   status: "UNRESOLVED" | "RESOLVED";
   encounter?: {
     id: number;
-    patientId: number;
-    branchId: number;
-    startTime: string;
-    patient?: {
-      id: number;
-      firstName: string;
-      lastName: string;
+    visitDate: string;
+    patientBook?: {
+      patient?: {
+        id: number;
+        name: string;
+        ovog?: string | null;
+      };
     };
+  };
+  branch?: {
+    id: number;
+    name: string;
   };
   cycle?: {
     code: string;
@@ -46,6 +50,8 @@ export default function MismatchesPage() {
 
   const [selectedBranchId, setSelectedBranchId] = useState<number | "">("");
   const [selectedStatus, setSelectedStatus] = useState<"UNRESOLVED" | "RESOLVED" | "">("UNRESOLVED");
+  const [patientNameFilter, setPatientNameFilter] = useState("");
+  const [visitDateFilter, setVisitDateFilter] = useState("");
 
   const [resolvingEncounterId, setResolvingEncounterId] = useState<number | null>(null);
   const [resolverName, setResolverName] = useState("");
@@ -69,6 +75,9 @@ export default function MismatchesPage() {
     try {
       const params = new URLSearchParams();
       if (selectedStatus) params.append("status", selectedStatus);
+      if (selectedBranchId) params.append("branchId", String(selectedBranchId));
+      if (patientNameFilter.trim()) params.append("patientName", patientNameFilter.trim());
+      if (visitDateFilter) params.append("visitDate", visitDateFilter);
 
       const res = await fetch(`/api/sterilization/mismatches?${params.toString()}`);
       const data = await res.json().catch(() => []);
@@ -86,23 +95,23 @@ export default function MismatchesPage() {
 
   useEffect(() => {
     void loadMismatches();
-  }, [selectedStatus]);
+  }, [selectedStatus, selectedBranchId, patientNameFilter, visitDateFilter]);
 
   const groupedMismatches: MismatchGroup[] = React.useMemo(() => {
     const groups: Record<number, MismatchGroup> = {};
 
     for (const mismatch of mismatches) {
       const encId = mismatch.encounterId;
-      const branchId = mismatch.encounter?.branchId;
-
-      // Apply branch filter
-      if (selectedBranchId && branchId !== selectedBranchId) continue;
+      const branchId = mismatch.branch?.id;
 
       if (!groups[encId]) {
-        const patient = mismatch.encounter?.patient;
-        const patientName = patient ? `${patient.lastName} ${patient.firstName}` : "Тодорхойгүй";
-        const branchName = branches.find((b) => b.id === branchId)?.name || "—";
-        const visitDate = mismatch.encounter?.startTime || "";
+        const patient = mismatch.encounter?.patientBook?.patient;
+        const patientName = patient ? `${patient.ovog || ""} ${patient.name}`.trim() : "Тодорхойгүй";
+        const branchName =
+          mismatch.branch?.name ||
+          branches.find((b) => b.id === branchId)?.name ||
+          "—";
+        const visitDate = mismatch.encounter?.visitDate || "";
 
         groups[encId] = {
           encounterId: encId,
@@ -120,8 +129,10 @@ export default function MismatchesPage() {
   }, [mismatches, selectedBranchId, branches]);
 
   const formatDateTime = (isoString: string) => {
+    if (!isoString) return "—";
     try {
       const date = new Date(isoString);
+      if (Number.isNaN(date.getTime())) return isoString;
       const y = date.getFullYear();
       const m = String(date.getMonth() + 1).padStart(2, "0");
       const d = String(date.getDate()).padStart(2, "0");
@@ -194,6 +205,23 @@ export default function MismatchesPage() {
             <option key={b.id} value={b.id}>{b.name}</option>
           ))}
         </select>
+
+        <input
+          value={patientNameFilter}
+          onChange={(e) => setPatientNameFilter(e.target.value)}
+          placeholder="Үйлчлүүлэгчийн нэр"
+          className="min-w-[220px] rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
+        />
+
+        <div className="flex min-w-[170px] flex-col gap-1">
+          <label className="text-xs text-gray-500">Үзлэгийн огноо</label>
+          <input
+            type="date"
+            value={visitDateFilter}
+            onChange={(e) => setVisitDateFilter(e.target.value)}
+            className="rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
+          />
+        </div>
 
         <select
           value={selectedStatus}
