@@ -56,6 +56,10 @@ export default function NurseProfileSummaryView({
   const [pwLoading, setPwLoading] = useState(false);
   const [pwError, setPwError] = useState("");
   const [pwSuccess, setPwSuccess] = useState(false);
+  const [pinValue, setPinValue] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [pinSuccess, setPinSuccess] = useState(false);
+  const [pinLoading, setPinLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -124,6 +128,36 @@ export default function NurseProfileSummaryView({
       setPwError("Сервертэй холбогдоход алдаа гарлаа.");
     } finally {
       setPwLoading(false);
+    }
+  };
+
+  const handleSavePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinError("");
+    setPinSuccess(false);
+    if (!/^\d{4}$/.test(pinValue)) {
+      setPinError("PIN 4 оронтой тоо байх ёстой.");
+      return;
+    }
+    setPinLoading(true);
+    try {
+      const res = await fetch("/api/nurse/pin", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin: pinValue }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setPinError((data as any)?.error || "Алдаа гарлаа. Дахин оролдоно уу.");
+      } else {
+        setPinSuccess(true);
+        setPinValue("");
+      }
+    } catch {
+      setPinError("Сервертэй холбогдоход алдаа гарлаа.");
+    } finally {
+      setPinLoading(false);
     }
   };
 
@@ -366,6 +400,72 @@ export default function NurseProfileSummaryView({
             </button>
           </form>
         )}
+      </div>
+
+      <div
+        style={{
+          background: "white",
+          borderRadius: 14,
+          padding: 24,
+          marginTop: 16,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
+        }}
+      >
+        <h2 style={{ fontSize: 15, fontWeight: 700, color: "#0f2044", marginBottom: 16 }}>
+          Киоск PIN
+        </h2>
+        <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
+          Танхимын дэлгэц дээр нэвтрэхэд ашиглах 4 оронтой PIN тохируулна уу.
+        </p>
+        {pinSuccess && (
+          <p style={{ fontSize: 14, color: "#16a34a", marginBottom: 10 }}>
+            PIN амжилттай хадгалагдлаа.
+          </p>
+        )}
+        <form onSubmit={handleSavePin} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <label style={{ display: "block", fontSize: 13, color: "#6b7280" }}>
+            4 оронтой PIN
+          </label>
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={4}
+            value={pinValue}
+            onChange={(e) => {
+              const v = e.target.value.replace(/\D/g, "").slice(0, 4);
+              setPinValue(v);
+              setPinError("");
+            }}
+            placeholder="••••"
+            style={{
+              width: "100%",
+              border: "1px solid #e5e7eb",
+              borderRadius: 8,
+              padding: "10px 12px",
+              fontSize: 14,
+              letterSpacing: "0.25em",
+              boxSizing: "border-box",
+            }}
+          />
+          {pinError && <p style={{ fontSize: 13, color: "#dc2626" }}>{pinError}</p>}
+          <button
+            type="submit"
+            disabled={pinLoading}
+            style={{
+              padding: "10px",
+              background: "#0f2044",
+              color: "white",
+              border: "none",
+              borderRadius: 8,
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: pinLoading ? "not-allowed" : "pointer",
+              opacity: pinLoading ? 0.6 : 1,
+            }}
+          >
+            {pinLoading ? "Хадгалж байна…" : "PIN хадгалах"}
+          </button>
+        </form>
       </div>
 
       {showLogout && (

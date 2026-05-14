@@ -42,6 +42,10 @@ function isBranchKioskPath(pathname: string) {
   return pathname === "/branch" || pathname.startsWith("/branch/");
 }
 
+function isBranchNurseKioskPath(pathname: string) {
+  return pathname === "/branch-nurse" || pathname.startsWith("/branch-nurse/");
+}
+
 function isAppointmentsPath(pathname: string) {
   return (
     pathname === "/appointments" ||
@@ -255,7 +259,10 @@ function AppContent({ Component, pageProps }: AppProps) {
   const useReceptionLayout = isReceptionPath(router.pathname);
   const useMarketingLayout = isMarketingPath(router.pathname);
   const useXrayLayout = isXrayPath(router.pathname);
-  const useBranchKioskLayout = isBranchKioskPath(router.pathname) || userRole === "branch_kiosk";
+  const useBranchNurseKiosk = isBranchNurseKioskPath(router.pathname);
+  const useBranchKioskLayout =
+    (isBranchKioskPath(router.pathname) || userRole === "branch_kiosk") &&
+    !useBranchNurseKiosk;
   const useOtherPortalLayout = userRole === "other";
 
   // Wide layout for appointments pages (admin + reception) to support many doctor columns
@@ -300,6 +307,11 @@ function AppContent({ Component, pageProps }: AppProps) {
         <Component {...pageProps} />
       </XrayLayout>
     );
+  }
+
+  // Nurse kiosk pages intentionally render without any global menu/chrome.
+  if (useBranchNurseKiosk) {
+    return <Component {...pageProps} />;
   }
 
   // Branch kiosk pages: keep navy header but hide sidebar
