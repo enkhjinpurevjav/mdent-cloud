@@ -186,6 +186,20 @@ export default function BranchNurseReturnsPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 px-4 py-8">
+      <div className="mx-auto mb-4 flex max-w-5xl items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
+        <div>
+          <p className="font-semibold text-gray-800">{session ? formatUserLabel(session) : "Сувилагч"}</p>
+          <p className="text-xs text-gray-500">Ариутгал → Багаж буцаалт</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void handleLogoutNurse()}
+          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-50"
+        >
+          Гарах
+        </button>
+      </div>
+
       <div className="mx-auto max-w-5xl rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
         <h1 className="mb-1 text-2xl font-bold text-gray-800">Ариутгал → Багаж буцаалт</h1>
         <p className="mb-5 text-sm text-gray-500">Шинэ буцаалт бүртгэх</p>
@@ -305,13 +319,6 @@ export default function BranchNurseReturnsPage() {
             className={`rounded px-5 py-2.5 text-base text-white ${submitting ? "cursor-not-allowed bg-gray-300" : "cursor-pointer bg-green-600"}`}
           >
             {submitting ? "Хадгалж байна..." : "Хадгалах"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleLogoutNurse()}
-            className="rounded border border-gray-300 bg-white px-5 py-2.5 text-sm text-gray-700"
-          >
-            Сувилагч солих
           </button>
         </div>
       </div>
